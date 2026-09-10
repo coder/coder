@@ -220,6 +220,9 @@ const removeHeading = (text: string, heading: HeadingMatch): string => {
 	return body.replace(/^\s+/, "");
 };
 
+export const getThinkingHeading = (text: string): string | undefined =>
+	getFirstHeading(text)?.text;
+
 export const getThinkingDisclosureDisplay = (
 	text: string,
 ): ThinkingDisclosureDisplay => {

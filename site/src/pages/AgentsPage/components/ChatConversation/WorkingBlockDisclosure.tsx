@@ -1,11 +1,35 @@
-import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
+import { ListChecksIcon, ListTodoIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	type FC,
+	type ReactNode,
+	type RefObject,
+	useLayoutEffect,
+	useRef,
+} from "react";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { WorkingBlockContext } from "./workingBlockContext";
 import {
 	formatWorkingDuration,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
+
+const getLiveWorkingLabel = (block: WorkingBlock, now: number): string => {
+	const activity = block.activity ? ` (${block.activity})` : "";
+	if (block.startedAt === undefined) {
+		return `Working${activity}`;
+	}
+	const elapsed = formatWorkingDuration(now - block.startedAt);
+	return block.isPartial
+		? `Working for at least ${elapsed}${activity}`
+		: `Working for ${elapsed}${activity}`;
+};
 
 const LiveLabel: FC<{ block: WorkingBlock; now?: number }> = ({
 	block,
@@ -14,15 +38,9 @@ const LiveLabel: FC<{ block: WorkingBlock; now?: number }> = ({
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const clock = useTime(() => Date.now(), { disabled: now !== undefined });
-	if (block.startedAt === undefined) {
-		return <ToolCall.Label>Working</ToolCall.Label>;
-	}
-	const elapsed = formatWorkingDuration((now ?? clock) - block.startedAt);
 	return (
-		<ToolCall.Label>
-			{block.isPartial
-				? `Working for at least ${elapsed}`
-				: `Working for ${elapsed}`}
+		<ToolCall.Label className="tabular-nums">
+			{getLiveWorkingLabel(block, now ?? clock)}
 		</ToolCall.Label>
 	);
 };
@@ -100,6 +118,45 @@ const useKeepReadingPositionAcrossPrepend = (rowKeys: readonly string[]) => {
 	return contentRef;
 };
 
+/**
+ * While the viewport is pinned to the end, the message scroller re-pins on
+ * every content resize and only leaves that mode on wheel, touch, or
+ * keyboard input, so expanding a block there would scroll the opened rows
+ * straight past. A synthetic wheel event is the only signal it accepts as
+ * user intent. It must not fire in any other mode: after a prompt is sent
+ * the scroller anchors the prompt and pads below it with a spacer, and the
+ * same event would end that mode and drop the spacer. That mode is also at
+ * the maximum scroll, so the spacer's height is what tells the two apart.
+ */
+const useHoldViewportOnToggle = (
+	expanded: boolean,
+	rootRef: RefObject<HTMLDivElement | null>,
+) => {
+	const previousRef = useRef(expanded);
+	useLayoutEffect(() => {
+		if (previousRef.current === expanded) {
+			return;
+		}
+		previousRef.current = expanded;
+		const root = rootRef.current;
+		const viewport = root ? getScrollParent(root) : null;
+		if (!viewport) {
+			return;
+		}
+		const spacer = viewport.querySelector<HTMLElement>(
+			"[data-message-scroller-spacer]",
+		);
+		const anchored = (spacer?.offsetHeight ?? 0) > 0;
+		const scrollable = viewport.dataset.scrollable ?? "";
+		const pinnedToEnd = !scrollable.split(" ").includes("end");
+		if (pinnedToEnd && !anchored) {
+			viewport.dispatchEvent(
+				new WheelEvent("wheel", { bubbles: true, deltaY: 0 }),
+			);
+		}
+	}, [expanded, rootRef]);
+};
+
 type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	/** Keys of the block's rows, oldest first; older pages join at the front. */
@@ -125,8 +182,14 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	now,
 }) => {
 	const contentRef = useKeepReadingPositionAcrossPrepend(rowKeys);
+	const failedLabel = block.isPartial
+		? `${pluralize(block.failedCount, "failed step")} or more`
+		: pluralize(block.failedCount, "failed step");
+	const rootRef = useRef<HTMLDivElement>(null);
+	useHoldViewportOnToggle(expanded, rootRef);
 	return (
 		<ToolCall.Root
+			ref={rootRef}
 			status={block.isLive ? "running" : "completed"}
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
@@ -134,7 +197,11 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>
-					<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					{block.isLive ? (
+						<ListTodoIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					) : (
+						<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					)}
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
 					<LiveLabel block={block} now={now} />
@@ -142,22 +209,45 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
 				)}
 				{block.failedCount > 0 && (
-					<span className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive">
-						<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-						{block.isPartial
-							? `${pluralize(block.failedCount, "failed step")} or more`
-							: pluralize(block.failedCount, "failed step")}
-					</span>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span
+								role="img"
+								aria-label={failedLabel}
+								className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-secondary"
+							>
+								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+								{block.failedCount}
+							</span>
+						</TooltipTrigger>
+						<TooltipContent>{failedLabel}</TooltipContent>
+					</Tooltip>
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
 			<ToolCall.Content>
 				<div
 					ref={contentRef}
-					className="mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
+					className="ml-2 mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-4"
 				>
-					{children}
+					<WorkingBlockContext.Provider value={true}>
+						{children}
+					</WorkingBlockContext.Provider>
+					{block.outcome && <div aria-hidden className="h-2" />}
 				</div>
+				{block.outcome && (
+					<div
+						data-testid="working-block-outcome"
+						className="relative mb-2 flex h-6 items-center pl-[25px] text-[13px] leading-6 text-content-secondary"
+					>
+						<StatusIndicatorDot
+							variant="inactive"
+							size="sm"
+							className="absolute left-[8.5px] -translate-x-1/2"
+						/>
+						{block.outcome === "stopped" ? "Stopped" : "Completed"}
+					</div>
+				)}
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

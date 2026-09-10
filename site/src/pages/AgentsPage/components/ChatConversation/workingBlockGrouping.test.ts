@@ -4,11 +4,12 @@ import { buildDisplayMessages } from "./messageHelpers";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import { applyMessagePartToStreamState, buildStreamTools } from "./streamState";
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
-import type { StreamState } from "./types";
+import type { RenderBlock, StreamState } from "./types";
 import {
 	formatWorkingDuration,
 	type GroupWorkingBlocksOptions,
 	groupWorkingBlocks,
+	splitOpeningNarration,
 } from "./workingBlockGrouping";
 
 const base = Date.parse("2026-04-01T12:00:00Z");
@@ -140,6 +141,7 @@ describe("groupWorkingBlocks", () => {
 			stepCount: 2,
 			failedCount: 0,
 			isLive: false,
+			outcome: "completed",
 			isPartial: false,
 			startedAt: base + 1000,
 			endedAt: base + 13000,
@@ -231,6 +233,51 @@ describe("groupWorkingBlocks", () => {
 
 		expect(blocks).toHaveLength(1);
 		expect(blocks[0]).toMatchObject({ stepCount: 2, failedCount: 1 });
+	});
+
+	it("marks only the newest block stopped when the chat ended in an error", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const interlude = message("assistant", [text("Halfway there.")], at(3));
+		const second = step("b", 4, 5);
+		const { blocks } = group([prompt, ...first, interlude, ...second], {
+			isTurnStopped: true,
+		});
+		expect(blocks.map((b) => b.outcome)).toEqual(["completed", "stopped"]);
+	});
+
+	it("marks a block stopped when one of its tools was interrupted", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const cutOff = [
+			message("assistant", [call("b", at(3))], at(3)),
+			message(
+				"tool",
+				[
+					{
+						type: "tool-result",
+						tool_call_id: "b",
+						tool_name: "execute",
+						is_error: true,
+						created_at: at(4),
+						result: {
+							error: "tool call was interrupted before it produced a result",
+						},
+					},
+				],
+				at(4),
+			),
+		];
+		const nextPrompt = message("user", [text("Try again")], at(10));
+		const again = step("c", 11, 12);
+		const { blocks } = group([
+			prompt,
+			...first,
+			...cutOff,
+			nextPrompt,
+			...again,
+		]);
+		expect(blocks.map((b) => b.outcome)).toEqual(["stopped", "completed"]);
 	});
 
 	it("returns no blocks for text-only conversations", () => {
@@ -392,25 +439,54 @@ describe("groupWorkingBlocks", () => {
 				stepCount: 2,
 				startedAt: base + 1000,
 				endedAt: undefined,
+				activity: "echo b",
 				key: `working:live:message:${prompt.id}:0`,
 			});
 		});
 
-		it("keeps the block live while the final answer streams outside it", () => {
+		it("folds streaming text that continues a block, then releases a persisted answer", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
 			const live = liveStream([text("Here is what I found")]);
-			const { rows, blocks } = group([prompt, ...steps], {
+			const streaming = group([prompt, ...steps], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
 				liveBlocks: live.streamState.blocks,
 				liveTools: live.liveTools,
 				streamState: live.streamState,
 			});
+			expect(streaming.blocks).toHaveLength(1);
+			expect(rowIds(streaming.rows, streaming.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+				"live",
+			]);
+			expect(streaming.blocks[0]).toMatchObject({
+				isLive: true,
+				activity: "echo a",
+			});
 
-			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
-			expect(blocks[0].isLive).toBe(true);
+			const answer = message(
+				"assistant",
+				[text("Here is what I found")],
+				at(3),
+			);
+			const done = group([prompt, ...steps, answer]);
+			expect(rowIds(done.rows, done.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+			]);
+		});
+
+		it("streams text outside the block when no step has run yet in the turn", () => {
+			const prompt = user("Go");
+			const live = liveStream([text("Sure, 2 + 2 is 4.")]);
+			const { blocks } = group([prompt], {
+				isTurnActive: true,
+				isLiveRowCollapsible: true,
+				liveBlocks: live.streamState.blocks,
+				liveTools: live.liveTools,
+				streamState: live.streamState,
+			});
+			expect(blocks).toEqual([]);
 		});
 
 		it("folds an idle live row into the block it follows", () => {
@@ -427,7 +503,72 @@ describe("groupWorkingBlocks", () => {
 
 			expect(blocks).toHaveLength(1);
 			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
-			expect(blocks[0]).toMatchObject({ isLive: true, stepCount: 1 });
+			expect(blocks[0]).toMatchObject({
+				isLive: true,
+				stepCount: 1,
+				activity: "echo a",
+			});
+		});
+
+		it("describes the live activity by tool intent or reasoning heading", () => {
+			const prompt = user("Go");
+			const withIntent = liveStream([
+				{
+					type: "tool-call",
+					tool_call_id: "a",
+					tool_name: "read_file",
+					args: { path: "README.md", model_intent: "reading the readme" },
+					created_at: at(1),
+				},
+			]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: withIntent.streamState.blocks,
+					liveTools: withIntent.liveTools,
+					streamState: withIntent.streamState,
+				}).blocks[0].activity,
+			).toBe("Reading the readme");
+
+			const withHeading = liveStream([
+				reasoning("## Planning the inspection\n\nList files first.", at(1)),
+			]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: withHeading.streamState.blocks,
+					liveTools: withHeading.liveTools,
+					streamState: withHeading.streamState,
+				}).blocks[0].activity,
+			).toBe("Planning the inspection");
+
+			const named = liveStream([call("a", at(1), "list_templates")]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: named.streamState.blocks,
+					liveTools: named.liveTools,
+					streamState: named.streamState,
+				}).blocks[0].activity,
+			).toBe("List templates");
+
+			const plain = liveStream([reasoning("Just thinking", at(1))]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: plain.streamState.blocks,
+					liveTools: plain.liveTools,
+					streamState: plain.streamState,
+				}).blocks[0].activity,
+			).toBeUndefined();
+
+			expect(
+				group([prompt, ...step("a", 1, 2)]).blocks[0].activity,
+			).toBeUndefined();
 		});
 
 		it("does not start a block from an idle live row", () => {
@@ -660,6 +801,42 @@ describe("stream timestamps", () => {
 			created_at: at(4),
 		});
 		expect(final?.toolResults.x.createdAt).toBe(at(4));
+	});
+});
+
+describe("splitOpeningNarration", () => {
+	const parsed = (blocks: RenderBlock[]) =>
+		parseMessagesWithMergedTools([
+			message(
+				"assistant",
+				blocks.flatMap((block) =>
+					block.type === "response"
+						? [text(block.text)]
+						: block.type === "tool"
+							? [call(block.id, at(1))]
+							: [],
+				),
+			),
+		])[0].parsed;
+
+	it("separates leading text from the tool work it introduces", () => {
+		const { opening, rest } = splitOpeningNarration(
+			parsed([
+				{ type: "response", text: "First," },
+				{ type: "tool", id: "a" },
+			]),
+		);
+		expect(opening?.blocks).toEqual([{ type: "response", text: "First," }]);
+		expect(opening?.tools).toEqual([]);
+		expect(rest.blocks).toEqual([{ type: "tool", id: "a" }]);
+		expect(rest.tools).toHaveLength(1);
+	});
+
+	it("returns no opening for rows that start with a tool or are text only", () => {
+		const toolFirst = parsed([{ type: "tool", id: "a" }]);
+		expect(splitOpeningNarration(toolFirst)).toEqual({ rest: toolFirst });
+		const textOnly = parsed([{ type: "response", text: "Done." }]);
+		expect(splitOpeningNarration(textOnly)).toEqual({ rest: textOnly });
 	});
 });
 

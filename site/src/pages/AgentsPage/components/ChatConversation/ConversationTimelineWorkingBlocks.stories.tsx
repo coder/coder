@@ -21,6 +21,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	buildLongConversation,
 	buildStreamRenderState,
 	buildWorkingConversation,
 	type StoryStreamRenderState,
@@ -149,22 +150,27 @@ export const StreamingToDurable: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const summary = canvas.getByRole("button", { name: "Working for 12s" });
+		const summary = canvas.getByRole("button", {
+			name: "Working for 12s (echo first)",
+		});
 		await userEvent.click(summary);
-		expect(canvas.getByText(/echo first/)).toBeVisible();
+		const commandRows = () =>
+			canvas.getAllByRole("button", { name: /Expand command/ });
+		expect(commandRows()).toHaveLength(1);
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Advance stream" }),
 		);
 		expect(summary).toBeInTheDocument();
 		expect(summary).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText(/echo second/)).toBeVisible();
+		expect(summary).toHaveAccessibleName("Working for 12s (echo second)");
+		expect(commandRows()).toHaveLength(2);
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Advance stream" }),
 		);
 		expect(
 			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
 		).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText(/echo first/)).toBeVisible();
+		expect(commandRows()).toHaveLength(2);
 		expect(canvas.getByText("Workspace inspection complete.")).toBeVisible();
 	},
 };
@@ -196,10 +202,16 @@ export const RunningBetweenSteps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const summary = canvas.getByRole("button", { name: "Working for 12s" });
+		const summary = canvas.getByRole("button", {
+			name: "Working for 12s (echo second)",
+		});
 		await userEvent.click(summary);
 		expect(summary).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText(/echo second/)).toBeVisible();
+		expect(
+			within(canvas.getByTestId("chat-message-message:4")).getByText(
+				/echo second/,
+			),
+		).toBeVisible();
 		await userEvent.click(canvas.getByRole("button", { name: "Finish turn" }));
 		expect(
 			canvas.getByRole("button", { name: "Worked for 4s (2 steps)" }),
@@ -255,14 +267,18 @@ export const NextStepStartsInsideBlock: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const summary = canvas.getByRole("button", { name: "Working for 12s" });
+		const summary = canvas.getByRole("button", {
+			name: "Working for 12s (echo second)",
+		});
 		const advance = canvas.getByRole("button", { name: "Advance stream" });
 		expect(canvas.queryByTestId("live-activity-slot")).toBeNull();
 		await userEvent.click(advance);
 		expect(canvas.queryByTestId("live-activity-slot")).toBeNull();
 		await userEvent.click(advance);
-		expect(canvas.queryByText(/planning the inspection/i)).toBeNull();
-		expect(canvas.queryByRole("button", { name: /^Working/ })).toBe(summary);
+		expect(canvas.queryByText(/list the files before/i)).toBeNull();
+		expect(summary).toHaveAccessibleName(
+			"Working for 12s (Planning the inspection)",
+		);
 		await userEvent.click(summary);
 		// The reasoning text streams in through the smoothing buffer.
 		expect(await canvas.findByText(/planning the inspection/i)).toBeVisible();
@@ -281,8 +297,10 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const summary = canvas.getByRole("button", { name: "Working for 12s" });
-		expect(canvas.queryByText(/planning the inspection/i)).toBeNull();
+		const summary = canvas.getByRole("button", {
+			name: "Working for 12s (Planning the inspection)",
+		});
+		expect(canvas.queryByText(/list the files before/i)).toBeNull();
 		expect(canvas.queryByTestId("live-activity-slot")).toBeNull();
 		await userEvent.click(summary);
 		// The reasoning text streams in through the smoothing buffer.
@@ -409,7 +427,7 @@ export const PromptlessLiveBlockKeepsExpansion: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const live = canvas.getByRole("button", {
-			name: "Working for at least 12s",
+			name: "Working for at least 12s (echo second)",
 		});
 		await userEvent.click(live);
 		expect(live).toHaveAttribute("aria-expanded", "true");
@@ -595,6 +613,36 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 	},
 };
 
+// The scroller follows the bottom while the viewport is pinned there and
+// re-pins on every resize. Expanding a block from that position must keep
+// its header where it is instead of scrolling the opened rows past.
+export const ExpandAtBottomKeepsHeaderInPlace: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			...buildLongConversation(MockChatMessage.chat_id, 20),
+			...MockLongTurn,
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const viewport = canvas.getByRole("region", { name: "Messages" });
+		const summary = canvas.getByRole("button", { name: /^Worked for/ });
+		await waitFor(() =>
+			expect(
+				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight,
+			).toBeLessThanOrEqual(1),
+		);
+		const summaryTop = summary.getBoundingClientRect().top;
+		const scrollTop = viewport.scrollTop;
+		await userEvent.click(summary);
+		expect(canvas.getByText(/echo step-0$/)).toBeInTheDocument();
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		expect(summary.getBoundingClientRect().top).toBeCloseTo(summaryTop, 0);
+		expect(viewport.scrollTop).toBe(scrollTop);
+	},
+};
+
 export const PreferenceChanges: Story = {
 	render: function Render(args) {
 		const client = useQueryClient();
@@ -742,6 +790,181 @@ export const QuestionStaysVisible: Story = {
 		expect(canvas.getByText("Deploy the workspace?")).toBeVisible();
 		await userEvent.click(canvas.getByRole("radio", { name: /Yes/ }));
 		expect(canvas.getByText("Deploy the workspace?")).toBeVisible();
+	},
+};
+
+// Narration that precedes a tool call folds with it; inside the expanded
+// block it is bracketed off the rule, while the final answer outside is not.
+export const NarrationBracketedInsideBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.map((message) =>
+				message.id === 4
+					? {
+							...message,
+							content: [
+								{ type: "text", text: "Let me try the second command." },
+								...(message.content ?? []),
+							],
+						}
+					: message,
+			),
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
+		);
+		const bracket = canvas.getByTestId("step-narration-bracket");
+		expect(
+			within(bracket).getByText("Let me try the second command."),
+		).toBeVisible();
+		expect(canvas.getByText("Workspace inspection complete.")).toBeVisible();
+		expect(canvas.getAllByTestId("step-narration-bracket")).toHaveLength(1);
+	},
+};
+
+// The narration that opens a block's first step is the turn's lead-in, so it
+// stays above the fold; the tool call it introduces still folds.
+export const OpeningNarrationStaysAboveBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.map((message) =>
+				message.id === 2
+					? {
+							...message,
+							content: [
+								{ type: "text", text: "I'll inspect the workspace first." },
+								...(message.content ?? []),
+							],
+						}
+					: message,
+			),
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByRole("button", {
+			name: "Worked for 12s (2 steps)",
+		});
+		const opening = canvas.getByText("I'll inspect the workspace first.");
+		expect(opening).toBeVisible();
+		expect(
+			within(canvas.getByTestId("working-block")).queryByText(
+				"I'll inspect the workspace first.",
+			),
+		).toBeNull();
+		expect(
+			opening.compareDocumentPosition(summary) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		await userEvent.click(summary);
+		expect(
+			canvas.getAllByText("I'll inspect the workspace first."),
+		).toHaveLength(1);
+		expect(
+			canvas.getAllByRole("button", { name: /Expand command/ }),
+		).toHaveLength(2);
+		expect(canvas.queryByTestId("step-narration-bracket")).toBeNull();
+	},
+};
+
+// The lead-in must not fold away when its first tool call streams in, nor
+// move when the step persists.
+export const OpeningNarrationHoldsThroughStreaming: Story = {
+	render: function Render(args) {
+		const [stage, setStage] = useState(0);
+		const leadIn = "I'll inspect the workspace first.";
+		const stream: StreamState = {
+			startedAt: time(1),
+			blocks:
+				stage === 0
+					? [{ type: "response", text: leadIn }]
+					: [
+							{ type: "response", text: leadIn },
+							{ type: "tool", id: "first" },
+						],
+			toolCalls:
+				stage === 0
+					? {}
+					: {
+							first: {
+								id: "first",
+								name: "execute",
+								args: { command: "echo first" },
+								createdAt: time(1),
+							},
+						},
+			toolResults: {},
+			sources: [],
+		};
+		const persisted = MockWorkingMessages.slice(0, 3).map((message) =>
+			message.id === 2
+				? {
+						...message,
+						content: [
+							{ type: "text" as const, text: leadIn },
+							...(message.content ?? []),
+						],
+					}
+				: message,
+		);
+		return (
+			<>
+				<Button onClick={() => setStage(stage + 1)} disabled={stage === 2}>
+					Advance stream
+				</Button>
+				<ConversationTimeline
+					{...args}
+					parsedMessages={parseMessagesWithMergedTools(
+						stage < 2 ? MockWorkingMessages.slice(0, 1) : persisted,
+					)}
+					streamState={stage < 2 ? stream : null}
+					streamTools={
+						stage < 2
+							? buildStreamTools(stream.toolCalls, stream.toolResults)
+							: []
+					}
+					chatStatus="running"
+					liveStatus={{
+						phase: stage < 2 ? "streaming" : "idle",
+						hasAccumulatedOutput: stage < 2,
+					}}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const leadIn = await canvas.findByText("I'll inspect the workspace first.");
+		expect(canvas.queryByRole("button", { name: /^Working/ })).toBeNull();
+		const leadInTop = leadIn.getBoundingClientRect().top;
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Advance stream" }),
+		);
+		const working = canvas.getByRole("button", {
+			name: "Working for 12s (echo first)",
+		});
+		expect(canvas.getByText("I'll inspect the workspace first.")).toBeVisible();
+		expect(
+			canvas
+				.getByText("I'll inspect the workspace first.")
+				.getBoundingClientRect().top,
+		).toBeCloseTo(leadInTop, 0);
+		const workingTop = working.getBoundingClientRect().top;
+		expect(workingTop).toBeGreaterThan(leadInTop);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Advance stream" }),
+		);
+		expect(canvas.getByText("I'll inspect the workspace first.")).toBeVisible();
+		// Streamdown lays out streaming and static markdown a few pixels apart.
+		expect(
+			Math.abs(
+				canvas.getByRole("button", { name: /^Working/ }).getBoundingClientRect()
+					.top - workingTop,
+			),
+		).toBeLessThan(4);
 	},
 };
 
