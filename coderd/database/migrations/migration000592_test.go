@@ -55,20 +55,20 @@ func sessionRows(t *testing.T, tx *sql.Tx, table, nameColumn string) []familyRow
 	return got
 }
 
-// TestMigration000591TemplateUsageStatsSessionUsage covers the conversion of
+// TestMigration000592TemplateUsageStatsSessionUsage covers the conversion of
 // the fixed per-family minute columns into the family child table, which the
 // testdata/fixtures run does not reach: its template_usage_stats rows record
 // no session minutes, so the backfill matches zero rows in CI.
 //
 //nolint:tparallel,paralleltest // Subtests share one database with transaction-local fixtures.
-func TestMigration000591TemplateUsageStatsSessionUsage(t *testing.T) {
+func TestMigration000592TemplateUsageStatsSessionUsage(t *testing.T) {
 	t.Parallel()
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 590)
+	stepTo(t, sqlDB, 591)
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	migrationSQL, err := os.ReadFile("000591_template_usage_stats_session_usage.up.sql")
+	migrationSQL, err := os.ReadFile("000592_template_usage_stats_session_usage.up.sql")
 	require.NoError(t, err)
 	// insertUsageStats writes one row per minute set, keyed by
 	// (ssh, sftp, reconnecting_pty, vscode, jetbrains).
@@ -209,14 +209,14 @@ func TestMigration000591TemplateUsageStatsSessionUsage(t *testing.T) {
 	})
 }
 
-// TestMigration000591ChainFrom589 walks the whole window this change spans,
-// 589 up to 591 and back down to 589, with data present at every step. The
-// isolated 591 tests start at 590, so they never see 590 converting raw
+// TestMigration000592ChainFrom589 walks the whole window this change spans,
+// 589 up to 592 and back down to 589, with data present at every step. The
+// isolated 592 tests start at 591, so they never see 590 converting raw
 // session counts the rollup has not consumed, which is the state an upgrade
 // actually finds.
 //
 //nolint:tparallel,paralleltest // Subtests share one database with transaction-local fixtures.
-func TestMigration000591ChainFrom589(t *testing.T) {
+func TestMigration000592ChainFrom589(t *testing.T) {
 	t.Parallel()
 
 	sqlDB := testSQLDB(t)
@@ -227,9 +227,9 @@ func TestMigration000591ChainFrom589(t *testing.T) {
 	require.NoError(t, err)
 	down590, err := os.ReadFile("000590_workspace_agent_session_counts.down.sql")
 	require.NoError(t, err)
-	up591, err := os.ReadFile("000591_template_usage_stats_session_usage.up.sql")
+	up592, err := os.ReadFile("000592_template_usage_stats_session_usage.up.sql")
 	require.NoError(t, err)
-	down591, err := os.ReadFile("000591_template_usage_stats_session_usage.down.sql")
+	down592, err := os.ReadFile("000592_template_usage_stats_session_usage.down.sql")
 	require.NoError(t, err)
 
 	// backlogHours spans more than a day, and two backlogged rows sit inside
@@ -248,7 +248,7 @@ func TestMigration000591ChainFrom589(t *testing.T) {
 	t.Cleanup(func() { _ = tx.Rollback() })
 
 	// One rolled-up half hour, so 590 has a watermark to measure the backlog
-	// against, and so 591 has a row whose fixed family minutes must convert.
+	// against, and so 592 has a row whose fixed family minutes must convert.
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO template_usage_stats (
 			start_time, end_time, template_id, user_id, median_latency_ms,
@@ -289,7 +289,7 @@ func TestMigration000591ChainFrom589(t *testing.T) {
 	`, backlogHours)
 	require.NoError(t, err)
 
-	for _, step := range []chainStep{{"590 up", up590}, {"591 up", up591}} {
+	for _, step := range []chainStep{{"590 up", up590}, {"592 up", up592}} {
 		_, err = tx.ExecContext(ctx, string(step.sql))
 		require.NoError(t, err, "%s", step.name)
 	}
@@ -313,14 +313,14 @@ func TestMigration000591ChainFrom589(t *testing.T) {
 	require.JSONEq(t, `{"vscode": 4, "ssh": 2}`, gotCounts[1], "backlogged, over a day old")
 	require.JSONEq(t, `{"vscode": 2, "ssh": 1}`, gotCounts[2], "backlogged, recent")
 
-	// 591 converted the fixed family minutes and recorded no per-app usage.
+	// 592 converted the fixed family minutes and recorded no per-app usage.
 	require.Equal(t, []familyRow{{"sftp", 2}, {"ssh", 3}, {"vscode", 4}},
 		sessionRows(t, tx, "template_usage_stats_session_families", "family"))
 	require.Empty(t, sessionRows(t, tx, "template_usage_stats_session_apps", "app_name"))
 
-	// Back down: 591 restores the fixed columns, then 590 restores the fixed
+	// Back down: 592 restores the fixed columns, then 590 restores the fixed
 	// session counts, landing on the 589 schema.
-	for _, step := range []chainStep{{"591 down", down591}, {"590 down", down590}} {
+	for _, step := range []chainStep{{"592 down", down592}, {"590 down", down590}} {
 		_, err = tx.ExecContext(ctx, string(step.sql))
 		require.NoError(t, err, "%s", step.name)
 	}
