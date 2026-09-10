@@ -97,10 +97,9 @@ ORDER BY
 -- 30 minutes with LEAST(SUM(n), 30).
 WITH
 	base AS MATERIALIZED (
-		-- One pass over the main table answers three questions: how many
-		-- templates each user touched in a half hour, that user's capped
-		-- minutes, and the list of templates in the window. GROUPING marks
-		-- which of the two sets a row belongs to.
+		-- One pass computes each user's template count and capped minutes
+		-- per half hour, plus the templates in the window. GROUPING
+		-- distinguishes user rows from template rows.
 		SELECT
 			GROUPING(template_id) AS is_user_row,
 			start_time,
@@ -139,9 +138,9 @@ WITH
 			templates > 1
 	),
 	single_family_usage AS (
-		-- Everything but the multi-template buckets, which cannot exceed the
-		-- cap, so they need no per-user grouping. This also collects the
-		-- template list per family, for which the cap is irrelevant.
+		-- Everything but the multi-template buckets. These cannot exceed the
+		-- cap, so they need no per-user grouping. The template list per
+		-- family comes from here too, where the cap is irrelevant.
 		SELECT
 			sessions.family,
 			sessions.template_id,
@@ -806,10 +805,10 @@ WITH
 	session_digests AS (
 		-- A stable hash of the bucket's session usage: the ordered set of
 		-- (kind, name, minutes). Names are length-prefixed so embedded
-		-- delimiters cannot make different row sets encode identically.
-		-- It is carried on the main row so the upsert's
-		-- IS DISTINCT FROM guard fires when session usage changes, which is
-		-- what lets the child writes below skip unchanged buckets.
+		-- delimiters cannot make different row sets encode identically. The
+		-- main row stores it, so the upsert's IS DISTINCT FROM guard fires on
+		-- session usage changes and the child writes below skip unchanged
+		-- buckets.
 		--
 		-- INVARIANT: the digest must cover every column the child tables store.
 		-- A column added to either table but left out of the digest would leave
@@ -976,13 +975,13 @@ WITH
 	-- the delete matches names the recomputed bucket no longer has, the insert
 	-- only the names it does have.
 	--
-	-- The deletes test membership with NOT IN rather than NOT EXISTS on purpose.
-	-- The planner has no statistics for the recomputed CTE and estimates it at
-	-- a few rows, which turns NOT EXISTS into a nested loop that rescans the
-	-- CTE per candidate row, measured at 20 seconds per rollup. NOT IN is
-	-- planned as a hashed subplan built once, whatever the estimate. Every
-	-- column in the subquery is non-null, so the two forms delete the same
-	-- rows; the IS NOT NULL guard keeps that true if the CTE ever changes.
+	-- The deletes use NOT IN rather than NOT EXISTS on purpose. The planner
+	-- has no statistics for the recomputed CTE and estimates a few rows,
+	-- making NOT EXISTS a nested loop that rescans the CTE per candidate row:
+	-- 20 seconds per rollup. NOT IN is planned as a hashed subplan built
+	-- once, whatever the estimate. Every column in the subquery is non-null,
+	-- so both forms delete the same rows; the IS NOT NULL guard keeps that
+	-- true if the CTE changes.
 	delete_families AS (
 		DELETE FROM
 			template_usage_stats_session_families AS families

@@ -13,19 +13,13 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// The minute aggregation queries take the app-to-family attribution registry
-// as a single jsonb parameter and join it by app name, falling back to the
-// unknown family for any app the registry does not cover. A registry that is
-// empty, malformed, or keyed by something other than normalized app names
-// therefore still runs and still totals every session: it misattributes known
-// activity to the unknown family instead. The raw per-app data survives, so
-// nothing is lost, but the fixed per-family compatibility fields reported to
-// insights, Prometheus, and telemetry undercount for as long as it goes
-// unnoticed. dbauthz wraps every production store, including the transaction
-// stores used by the rollup, so validating here makes a wrong registry fail
-// the call loudly instead of quietly skewing the attribution. These methods
-// override the generated ones in dbauthz.go; scripts/dbgen preserves methods
-// defined outside that file.
+// The minute aggregation queries take the app-to-family registry as jsonb and
+// fall back to the unknown family for unregistered apps, so a bad registry
+// still succeeds while silently misattributing usage. dbauthz wraps every
+// production store, including the rollup's transaction stores, so validating
+// here fails the call loudly instead. These methods override the generated
+// ones in dbauthz.go; scripts/dbgen preserves methods defined outside that
+// file.
 
 // validateSessionCountAppFamilies checks that the registry is a non-empty
 // jsonb object of normalized app names to normalized, non-unknown family

@@ -1,7 +1,7 @@
--- The primary keys put user_id before template_id: the insights read caps a
--- user's minutes per half hour across templates, and looks up one user's rows
--- in a half hour through this prefix. The upsert's conflict target names the
--- same columns in the parent's order, which the unique index satisfies.
+-- The primary keys put user_id before template_id so the insights read, which
+-- caps a user's minutes per half hour across templates, can look up one user's
+-- rows through that prefix. The upsert's conflict target names the same
+-- columns in the parent's order, satisfied by the unique index.
 CREATE TABLE template_usage_stats_session_families (
 	start_time timestamptz NOT NULL,
 	template_id uuid NOT NULL,
@@ -45,12 +45,11 @@ ALTER TABLE template_usage_stats
 
 COMMENT ON COLUMN template_usage_stats.session_usage_digest IS 'Hash of the bucket''s session usage rows in both child tables, so a rollup that recomputes an unchanged bucket rewrites no child rows. Null for buckets rolled up before the column existed, which reads as changed.';
 
--- Carry every family the fixed columns recorded, sftp included: the rollup has
--- never written it, but a row that has a value must not lose it. Zero minutes
--- are skipped so a bucket has rows only for the families it saw, which is what
--- the rollup writes from now on. No app rows are written: the fixed columns
--- only ever recorded the family, so per-app usage stays unknown for these
--- buckets rather than being invented from family totals.
+-- Carry every family the fixed columns recorded, sftp included: the rollup
+-- never writes it, but an existing value must not be lost. Zero minutes are
+-- skipped, matching what the rollup writes from now on. The fixed columns only
+-- recorded families, so per-app usage stays unknown for these buckets rather
+-- than being invented from family totals.
 INSERT INTO template_usage_stats_session_families (start_time, template_id, user_id, family, usage_mins)
 SELECT
 	tus.start_time,
