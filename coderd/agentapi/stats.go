@@ -56,8 +56,6 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
 
-	a.boundSessionCounts(ctx, req.Stats)
-
 	// The report itself is agent controlled, so log bounded scalars about it
 	// rather than the payload.
 	a.Log.Debug(ctx, "read stats report",
@@ -89,55 +87,4 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	}
 
 	return res, nil
-}
-
-// boundSessionCounts truncates an oversized session_counts map in place and
-// sums the counts it drops into AppFamilyUnknown. Agents choose the keys, so
-// this bounds the work the stats pipeline does per report before
-// normalization allocates for it. The rest of the report is still accepted,
-// as with oversized agent metadata.
-//
-// Which names survive is arbitrary because map iteration order is random.
-// The batcher's priority only applies to the names that survive this cut.
-// The truncated map holds one name past the bound when the unknown bucket was
-// not already among the entries that fit.
-func (a *StatsAPI) boundSessionCounts(ctx context.Context, st *agentproto.Stats) {
-	reported := st.GetSessionCounts()
-	if len(reported) <= workspacestats.MaxReportedSessionCountEntries {
-		return
-	}
-
-	bounded := make(map[string]int64, workspacestats.MaxReportedSessionCountEntries+1)
-	var folded int64
-	for app, count := range reported {
-		// Non-positive counts are dropped, as normalization drops them, so a
-		// negative count can neither reduce the folded total nor cancel it
-		// by surviving as the unknown entry the fold lands on.
-		if count <= 0 {
-			continue
-		}
-		if len(bounded) < workspacestats.MaxReportedSessionCountEntries {
-			bounded[app] = count
-			continue
-		}
-		folded += count
-	}
-	if folded > 0 {
-		bounded[string(codersdk.AppFamilyUnknown)] += folded
-	}
-	if len(bounded) == 0 {
-		// Every count was non-positive. An empty map reads as an absent
-		// session_counts, which would hand the report back to the deprecated
-		// session_count_* fields, so keep a zero entry that normalization
-		// drops.
-		bounded[string(codersdk.AppFamilyUnknown)] = 0
-	}
-	st.SessionCounts = bounded
-
-	// A misbehaving agent can exceed the bound on every report, so avoid
-	// warning on each occurrence.
-	a.Log.Debug(ctx, "too many session counts reported, overflow counted under unknown",
-		slog.F("reported", len(reported)),
-		slog.F("max", workspacestats.MaxReportedSessionCountEntries),
-	)
 }
