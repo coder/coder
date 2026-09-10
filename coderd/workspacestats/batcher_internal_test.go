@@ -2,6 +2,7 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -56,11 +57,7 @@ func TestBatchStats(t *testing.T) {
 	t.Log("flush 1 completed")
 
 	// Then: it should report no stats.
-	appFamilies := codersdk.SessionCountAppFamiliesJSON()
-	stats, err := store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
-		CreatedAt:   t1,
-		AppFamilies: appFamilies,
-	})
+	stats, err := store.GetWorkspaceAgentStats(ctx, t1)
 	require.NoError(t, err, "should not error getting stats")
 	require.Empty(t, stats, "should have no stats for workspace")
 
@@ -83,22 +80,19 @@ func TestBatchStats(t *testing.T) {
 	t.Log("flush 2 completed")
 
 	// Then: counts reach the right agent, normalized, without the zero entry.
-	stats, err = store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
-		CreatedAt:   t2,
-		AppFamilies: appFamilies,
-	})
+	stats, err = store.GetWorkspaceAgentStats(ctx, t2)
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 	byAgent := make(map[uuid.UUID]database.GetWorkspaceAgentStatsRow)
 	for _, stat := range stats {
 		byAgent[stat.AgentID] = stat
 	}
-	require.EqualValues(t, 3, byAgent[deps1.Agent.ID].SessionCountVSCode)
-	require.EqualValues(t, 1, byAgent[deps1.Agent.ID].SessionCountSSH)
-	require.EqualValues(t, 0, byAgent[deps1.Agent.ID].SessionCountJetBrains)
-	require.EqualValues(t, 4, byAgent[deps2.Agent.ID].SessionCountJetBrains)
-	require.EqualValues(t, 2, byAgent[deps2.Agent.ID].SessionCountReconnectingPTY)
-	require.EqualValues(t, 0, byAgent[deps2.Agent.ID].SessionCountVSCode)
+	require.EqualValues(t, 3, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["vscode"])
+	require.EqualValues(t, 1, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["ssh"])
+	require.EqualValues(t, 0, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["jetbrains"])
+	require.EqualValues(t, 4, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["jetbrains"])
+	require.EqualValues(t, 2, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["reconnecting_pty"])
+	require.EqualValues(t, 0, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["vscode"])
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
@@ -125,10 +119,7 @@ func TestBatchStats(t *testing.T) {
 	// And we should finish inserting the stats
 	<-done
 
-	stats, err = store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
-		CreatedAt:   t3,
-		AppFamilies: appFamilies,
-	})
+	stats, err = store.GetWorkspaceAgentStats(ctx, t3)
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 
@@ -147,10 +138,7 @@ func TestBatchStats(t *testing.T) {
 	require.Zero(t, f, "expected zero stats to have been flushed")
 	t.Log("flush 5 completed")
 
-	stats, err = store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
-		CreatedAt:   t5,
-		AppFamilies: appFamilies,
-	})
+	stats, err = store.GetWorkspaceAgentStats(ctx, t5)
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 0, "should have no stats for workspace")
 
@@ -254,4 +242,11 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 	i, err := cryptorand.Intn(int(n))
 	require.NoError(t, err)
 	return int64(i)
+}
+
+func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
+	t.Helper()
+	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	require.NoError(t, err)
+	return counts
 }

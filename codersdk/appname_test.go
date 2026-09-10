@@ -156,3 +156,131 @@ func TestSessionCountAppFamiliesJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &decoded), "registry must marshal to a valid jsonb object")
 	require.Equal(t, codersdk.SessionCountAppFamilies(), decoded)
 }
+
+func TestSessionCountsByFamily(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		appCounts map[string]int64
+		want      map[codersdk.AppFamilyName]int64
+	}{
+		{
+			name:      "Empty",
+			appCounts: map[string]int64{},
+			want:      map[codersdk.AppFamilyName]int64{},
+		},
+		{
+			name:      "Nil",
+			appCounts: nil,
+			want:      map[codersdk.AppFamilyName]int64{},
+		},
+		{
+			name:      "SingleApp",
+			appCounts: map[string]int64{"jetbrains": 3},
+			want:      map[codersdk.AppFamilyName]int64{codersdk.AppFamilyJetBrains: 3},
+		},
+		{
+			// Simultaneous forks are additive within their family.
+			name:      "OverlappingAppsInOneFamily",
+			appCounts: map[string]int64{"vscode": 1, "cursor": 2, "windsurf": 4},
+			want:      map[codersdk.AppFamilyName]int64{codersdk.AppFamilyVSCode: 7},
+		},
+		{
+			name:      "UnregisteredAppIsUnknown",
+			appCounts: map[string]int64{"some_future_ide": 5, "ssh": 1},
+			want: map[codersdk.AppFamilyName]int64{
+				codersdk.AppFamilyUnknown: 5,
+				codersdk.AppFamilySSH:     1,
+			},
+		},
+		{
+			// Storage normalizes app names, but folding must not depend on it.
+			name:      "DenormalizedNamesFold",
+			appCounts: map[string]int64{"VSCode-Insiders": 2, "vscode_insiders": 1},
+			want:      map[codersdk.AppFamilyName]int64{codersdk.AppFamilyVSCode: 3},
+		},
+		{
+			name:      "AllFamilies",
+			appCounts: map[string]int64{"vscode": 1, "jetbrains": 2, "zed": 3, "reconnecting_pty": 4, "": 5},
+			want: map[codersdk.AppFamilyName]int64{
+				codersdk.AppFamilyVSCode:          1,
+				codersdk.AppFamilyJetBrains:       2,
+				codersdk.AppFamilySSH:             3,
+				codersdk.AppFamilyReconnectingPTY: 4,
+				codersdk.AppFamilyUnknown:         5,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, codersdk.SessionCountsByFamily(tc.appCounts))
+		})
+	}
+}
+
+// Every app name the registry attributes must fold back into the family it is
+// registered under, so no attributed family can go uncounted.
+func TestSessionCountsByFamilyCoversEveryAttributedFamily(t *testing.T) {
+	t.Parallel()
+
+	appCounts := map[string]int64{}
+	want := map[codersdk.AppFamilyName]int64{}
+	for family, appNames := range codersdk.SessionCountAppFamilies() {
+		for _, appName := range appNames {
+			appCounts[appName] = 1
+			want[family]++
+		}
+	}
+	require.Equal(t, want, codersdk.SessionCountsByFamily(appCounts))
+}
+
+func TestSessionCountsByFamilyJSON(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		appCounts json.RawMessage
+		want      map[codersdk.AppFamilyName]int64
+	}{
+		{"Counts", json.RawMessage(`{"cursor":2,"vscode":1,"ssh":4}`), map[codersdk.AppFamilyName]int64{
+			codersdk.AppFamilyVSCode: 3,
+			codersdk.AppFamilySSH:    4,
+		}},
+		{"UnknownApp", json.RawMessage(`{"some_future_ide":9}`), map[codersdk.AppFamilyName]int64{
+			codersdk.AppFamilyUnknown: 9,
+		}},
+		{"EmptyObject", json.RawMessage(`{}`), map[codersdk.AppFamilyName]int64{}},
+		// A query with no matching rows aggregates to SQL NULL, which is not
+		// an error, just no sessions.
+		{"JSONNull", json.RawMessage(`null`), map[codersdk.AppFamilyName]int64{}},
+		{"Absent", nil, map[codersdk.AppFamilyName]int64{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := codersdk.SessionCountsByFamilyJSON(tc.appCounts)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestSessionCountsByFamilyJSONMalformed(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		appCounts json.RawMessage
+	}{
+		{"Truncated", json.RawMessage(`{"vscode":`)},
+		{"NotAnObject", json.RawMessage(`["vscode"]`)},
+		{"NonNumericCount", json.RawMessage(`{"vscode":"1"}`)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := codersdk.SessionCountsByFamilyJSON(tc.appCounts)
+			require.Error(t, err)
+			require.Nil(t, got)
+		})
+	}
+}

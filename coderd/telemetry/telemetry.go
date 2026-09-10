@@ -647,28 +647,30 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	})
 	eg.Go(func() error {
 		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentWorkspaceUsage)) {
-			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, database.GetWorkspaceAgentUsageStatsParams{
-				CreatedAt:   createdAfter,
-				AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
-			})
+			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
 			if err != nil {
 				return xerrors.Errorf("get workspace agent stats: %w", err)
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
+				converted, err := ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat))
+				if err != nil {
+					return xerrors.Errorf("convert workspace agent stat: %w", err)
+				}
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
 			}
 		} else {
-			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
-				CreatedAt:   createdAfter,
-				AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
-			})
+			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
 			if err != nil {
 				return xerrors.Errorf("get workspace agent stats: %w", err)
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
+				converted, err := ConvertWorkspaceAgentStat(stat)
+				if err != nil {
+					return xerrors.Errorf("convert workspace agent stat: %w", err)
+				}
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
 			}
 		}
 		return nil
@@ -1285,8 +1287,14 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 	}
 }
 
-// ConvertWorkspaceAgentStat anonymizes a workspace agent stat.
-func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) WorkspaceAgentStat {
+// ConvertWorkspaceAgentStat anonymizes a workspace agent stat. The query sums
+// sessions per app name, so a session reported under a name this version does
+// not know about is counted here rather than dropped.
+func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
+	sessionCounts, err := codersdk.SessionCountsByFamilyJSON(stat.SessionCounts)
+	if err != nil {
+		return WorkspaceAgentStat{}, xerrors.Errorf("group session counts by app family: %w", err)
+	}
 	return WorkspaceAgentStat{
 		UserID:                      stat.UserID,
 		TemplateID:                  stat.TemplateID,
@@ -1297,11 +1305,11 @@ func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) Workspac
 		ConnectionLatency95:         stat.WorkspaceConnectionLatency95,
 		RxBytes:                     stat.WorkspaceRxBytes,
 		TxBytes:                     stat.WorkspaceTxBytes,
-		SessionCountVSCode:          stat.SessionCountVSCode,
-		SessionCountJetBrains:       stat.SessionCountJetBrains,
-		SessionCountReconnectingPTY: stat.SessionCountReconnectingPTY,
-		SessionCountSSH:             stat.SessionCountSSH,
-	}
+		SessionCountVSCode:          sessionCounts[codersdk.AppFamilyVSCode],
+		SessionCountJetBrains:       sessionCounts[codersdk.AppFamilyJetBrains],
+		SessionCountReconnectingPTY: sessionCounts[codersdk.AppFamilyReconnectingPTY],
+		SessionCountSSH:             sessionCounts[codersdk.AppFamilySSH],
+	}, nil
 }
 
 // ConvertWorkspaceApp anonymizes a workspace app.

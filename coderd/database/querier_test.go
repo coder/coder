@@ -67,18 +67,14 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			ConnectionMedianLatencyMS: 2,
 			SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 1}),
 		})
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{
-			CreatedAt:   dbtime.Now().Add(-time.Hour),
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(2), stats.WorkspaceTxBytes)
 		require.Equal(t, int64(2), stats.WorkspaceRxBytes)
 		require.Equal(t, 1.5, stats.WorkspaceConnectionLatency50)
 		require.Equal(t, 1.95, stats.WorkspaceConnectionLatency95)
-		require.Equal(t, int64(2), stats.SessionCountVSCode)
+		require.Equal(t, int64(2), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
 	})
 
 	t.Run("GroupsByAgentID", func(t *testing.T) {
@@ -108,19 +104,95 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			ConnectionMedianLatencyMS: 2,
 			SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 1}),
 		})
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{
-			CreatedAt:   dbtime.Now().Add(-time.Hour),
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(2), stats.WorkspaceTxBytes)
 		require.Equal(t, int64(2), stats.WorkspaceRxBytes)
 		require.Equal(t, 1.5, stats.WorkspaceConnectionLatency50)
 		require.Equal(t, 1.95, stats.WorkspaceConnectionLatency95)
-		require.Equal(t, int64(1), stats.SessionCountVSCode)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
 	})
+
+	// The per-app sums live in their own subquery, because decomposing
+	// session_counts in the FROM clause emits one row per app name and
+	// multiplies every other aggregate.
+	t.Run("MultipleAppNamesDoNotMultiplyAggregates", func(t *testing.T) {
+		t.Parallel()
+
+		sqlDB := testSQLDB(t)
+		err := migrations.Up(sqlDB)
+		require.NoError(t, err)
+		db := database.New(sqlDB)
+		ctx := context.Background()
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			AgentID:                   uuid.New(),
+			TxBytes:                   1,
+			RxBytes:                   1,
+			ConnectionMedianLatencyMS: 1,
+			SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "jetbrains": 1, "ssh": 1}),
+		})
+
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
+		require.NoError(t, err)
+
+		require.Equal(t, int64(1), stats.WorkspaceTxBytes, "bytes must not be multiplied by the app name count")
+		require.Equal(t, int64(1), stats.WorkspaceRxBytes)
+		require.Equal(t, float64(1), stats.WorkspaceConnectionLatency50)
+		require.Equal(t, float64(1), stats.WorkspaceConnectionLatency95)
+		counts := sessionFamilyCounts(t, stats.SessionCounts)
+		require.Equal(t, int64(1), counts["vscode"])
+		require.Equal(t, int64(1), counts["jetbrains"])
+		require.Equal(t, int64(1), counts["ssh"])
+	})
+}
+
+// The per-agent sessions come from a separate CTE that is joined back, so an
+// agent whose latest row reports no sessions must keep its row with zero
+// sessions instead of disappearing or inheriting the previous row's counts.
+func TestGetWorkspaceAgentStats(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := context.Background()
+	now := dbtime.Now()
+
+	// The query groups by the owner columns, so both rows must share them.
+	owner := database.WorkspaceAgentStat{
+		UserID:      uuid.New(),
+		AgentID:     uuid.New(),
+		WorkspaceID: uuid.New(),
+		TemplateID:  uuid.New(),
+	}
+
+	stat := owner
+	stat.CreatedAt = now.Add(-2 * time.Minute)
+	stat.RxBytes = 10
+	stat.TxBytes = 1
+	stat.ConnectionMedianLatencyMS = 5
+	stat.SessionCounts = dbgen.SessionCounts(t, map[string]int64{"vscode": 2})
+	dbgen.WorkspaceAgentStat(t, db, stat)
+
+	stat = owner
+	stat.CreatedAt = now.Add(-time.Minute)
+	stat.RxBytes = 10
+	stat.TxBytes = 1
+	stat.ConnectionMedianLatencyMS = 5
+	dbgen.WorkspaceAgentStat(t, db, stat)
+
+	stats, err := db.GetWorkspaceAgentStats(ctx, now.Add(-time.Hour))
+	require.NoError(t, err)
+	require.Len(t, stats, 1, "an agent whose latest row reports no sessions must keep its row")
+	require.Equal(t, owner.AgentID, stats[0].AgentID)
+	require.Empty(t, sessionFamilyCounts(t, stats[0].SessionCounts),
+		"the previous row's sessions must not be resurrected")
+	require.Equal(t, int64(20), stats[0].WorkspaceRxBytes)
+	require.Equal(t, int64(2), stats[0].WorkspaceTxBytes)
 }
 
 func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
@@ -181,21 +253,17 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 			SessionCounts: dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 		})
 
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, database.GetDeploymentWorkspaceAgentUsageStatsParams{
-			CreatedAt:   dbtime.Now().Add(-time.Hour),
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(2), stats.WorkspaceTxBytes)
 		require.Equal(t, int64(2), stats.WorkspaceRxBytes)
 		require.Equal(t, 1.5, stats.WorkspaceConnectionLatency50)
 		require.Equal(t, 1.95, stats.WorkspaceConnectionLatency95)
-		require.Equal(t, int64(1), stats.SessionCountVSCode)
-		require.Equal(t, int64(1), stats.SessionCountSSH)
-		require.Equal(t, int64(0), stats.SessionCountReconnectingPTY)
-		require.Equal(t, int64(0), stats.SessionCountJetBrains)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	})
 
 	t.Run("ExcludesStatsBeforeCutoffInSameMinute", func(t *testing.T) {
@@ -222,14 +290,10 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 			SessionCounts: dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 		})
 
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, database.GetDeploymentWorkspaceAgentUsageStatsParams{
-			CreatedAt:   cutoff,
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, cutoff)
 		require.NoError(t, err)
-		require.Zero(t, stats.SessionCountVSCode)
-		require.Equal(t, int64(1), stats.SessionCountSSH)
+		require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
 	})
 
 	t.Run("NoUsage", func(t *testing.T) {
@@ -252,19 +316,15 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 			SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 3, "vscode": 1}), // Should be ignored.
 		})
 
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, database.GetDeploymentWorkspaceAgentUsageStatsParams{
-			CreatedAt:   dbtime.Now().Add(-time.Hour),
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(3), stats.WorkspaceTxBytes)
 		require.Equal(t, int64(4), stats.WorkspaceRxBytes)
-		require.Equal(t, int64(0), stats.SessionCountVSCode)
-		require.Equal(t, int64(0), stats.SessionCountSSH)
-		require.Equal(t, int64(0), stats.SessionCountReconnectingPTY)
-		require.Equal(t, int64(0), stats.SessionCountJetBrains)
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	})
 }
 
@@ -939,11 +999,7 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 		})
 
 		reqTime := dbtime.Now().Add(-time.Hour)
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetWorkspaceAgentUsageStats(ctx, database.GetWorkspaceAgentUsageStatsParams{
-			CreatedAt:   reqTime,
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetWorkspaceAgentUsageStats(ctx, reqTime)
 		require.NoError(t, err)
 
 		ws1Stats, ws2Stats := stats[0], stats[1]
@@ -952,17 +1008,17 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 		}
 		require.Equal(t, int64(3), ws1Stats.WorkspaceTxBytes)
 		require.Equal(t, int64(3), ws1Stats.WorkspaceRxBytes)
-		require.Equal(t, int64(1), ws1Stats.SessionCountVSCode)
-		require.Equal(t, int64(1), ws1Stats.SessionCountJetBrains)
-		require.Equal(t, int64(0), ws1Stats.SessionCountSSH)
-		require.Equal(t, int64(0), ws1Stats.SessionCountReconnectingPTY)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws1Stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws1Stats.SessionCounts)["jetbrains"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws1Stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws1Stats.SessionCounts)["reconnecting_pty"])
 
 		require.Equal(t, int64(6), ws2Stats.WorkspaceTxBytes)
 		require.Equal(t, int64(11), ws2Stats.WorkspaceRxBytes)
-		require.Equal(t, int64(1), ws2Stats.SessionCountSSH)
-		require.Equal(t, int64(1), ws2Stats.SessionCountJetBrains)
-		require.Equal(t, int64(0), ws2Stats.SessionCountVSCode)
-		require.Equal(t, int64(0), ws2Stats.SessionCountReconnectingPTY)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws2Stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws2Stats.SessionCounts)["jetbrains"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws2Stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws2Stats.SessionCounts)["reconnecting_pty"])
 	})
 
 	t.Run("NoUsage", func(t *testing.T) {
@@ -986,20 +1042,16 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 			SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 3, "vscode": 1}), // Should be ignored.
 		})
 
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetWorkspaceAgentUsageStats(ctx, database.GetWorkspaceAgentUsageStatsParams{
-			CreatedAt:   dbtime.Now().Add(-time.Hour),
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetWorkspaceAgentUsageStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Len(t, stats, 1)
 		require.Equal(t, int64(3), stats[0].WorkspaceTxBytes)
 		require.Equal(t, int64(4), stats[0].WorkspaceRxBytes)
-		require.Equal(t, int64(0), stats[0].SessionCountVSCode)
-		require.Equal(t, int64(0), stats[0].SessionCountSSH)
-		require.Equal(t, int64(0), stats[0].SessionCountReconnectingPTY)
-		require.Equal(t, int64(0), stats[0].SessionCountJetBrains)
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["vscode"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["reconnecting_pty"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["jetbrains"])
 	})
 }
 
@@ -1225,23 +1277,18 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			SessionCounts: dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 		})
 
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetWorkspaceAgentUsageStatsAndLabels(ctx, database.GetWorkspaceAgentUsageStatsAndLabelsParams{
-			CreatedAt:   insertTime.Add(-time.Hour),
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetWorkspaceAgentUsageStatsAndLabels(ctx, insertTime.Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Len(t, stats, 2)
 		require.Contains(t, stats, database.GetWorkspaceAgentUsageStatsAndLabelsRow{
-			Username:                    user1.Username,
-			AgentName:                   agent1.Name,
-			WorkspaceName:               workspace1.Name,
-			TxBytes:                     3,
-			RxBytes:                     3,
-			SessionCountJetBrains:       1,
-			SessionCountReconnectingPTY: 1,
-			ConnectionMedianLatencyMS:   1,
+			Username:                  user1.Username,
+			AgentName:                 agent1.Name,
+			WorkspaceName:             workspace1.Name,
+			TxBytes:                   3,
+			RxBytes:                   3,
+			SessionCounts:             json.RawMessage(`{"jetbrains": 1, "reconnecting_pty": 1}`),
+			ConnectionMedianLatencyMS: 1,
 		})
 
 		require.Contains(t, stats, database.GetWorkspaceAgentUsageStatsAndLabelsRow{
@@ -1250,8 +1297,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			WorkspaceName:             workspace2.Name,
 			RxBytes:                   8,
 			TxBytes:                   4,
-			SessionCountVSCode:        1,
-			SessionCountSSH:           1,
+			SessionCounts:             json.RawMessage(`{"ssh": 1, "vscode": 1}`),
 			ConnectionMedianLatencyMS: 1,
 		})
 	})
@@ -1296,11 +1342,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 3, "ssh": 1}), // Should be ignored.
 		})
 
-		appFamilies := codersdk.SessionCountAppFamiliesJSON()
-		stats, err := db.GetWorkspaceAgentUsageStatsAndLabels(ctx, database.GetWorkspaceAgentUsageStatsAndLabelsParams{
-			CreatedAt:   insertTime.Add(-time.Hour),
-			AppFamilies: appFamilies,
-		})
+		stats, err := db.GetWorkspaceAgentUsageStatsAndLabels(ctx, insertTime.Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Len(t, stats, 1)
@@ -1310,6 +1352,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			WorkspaceName:             workspace.Name,
 			RxBytes:                   4,
 			TxBytes:                   5,
+			SessionCounts:             json.RawMessage(`{}`),
 			ConnectionMedianLatencyMS: 1,
 		})
 	})
@@ -19992,15 +20035,12 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	appFamilies := codersdk.SessionCountAppFamiliesJSON()
 
 	// A VS Code fork counts as VS Code, and Zed counts as SSH.
-	stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{
-		CreatedAt:   dbtime.Now().Add(-time.Hour),
-		AppFamilies: appFamilies,
-	})
+	stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 	require.NoError(t, err)
-	require.Equal(t, int64(2), stats.SessionCountVSCode)
-	require.Equal(t, int64(1), stats.SessionCountSSH)
-	require.Zero(t, stats.SessionCountJetBrains)
-	require.Zero(t, stats.SessionCountReconnectingPTY)
+	require.Equal(t, int64(2), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+	require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
+	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
+	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
 
 	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
 		StartTime:   dbtime.Now().Add(-time.Hour),
@@ -20099,4 +20139,11 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 	require.Zero(t, unknown.SshMins)
 	require.Zero(t, unknown.JetbrainsMins)
 	require.Zero(t, unknown.ReconnectingPtyMins)
+}
+
+func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
+	t.Helper()
+	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	require.NoError(t, err)
+	return counts
 }

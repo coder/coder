@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	"golang.org/x/xerrors"
+
 	utilstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
@@ -116,6 +118,33 @@ func SessionCountAppFamiliesJSON() json.RawMessage {
 		panic("developer error: marshal session count app families: " + err.Error())
 	}
 	return data
+}
+
+// SessionCountsByFamily folds per-app session counts, as the session count
+// queries report them, into per-family totals. Counts are additive: an agent
+// running Cursor and VS Code at once contributes both to the VS Code family.
+// App names with no registry entry total under AppFamilyUnknown rather than
+// being dropped.
+func SessionCountsByFamily(appCounts map[string]int64) map[AppFamilyName]int64 {
+	familyCounts := make(map[AppFamilyName]int64, len(appCounts))
+	for appName, count := range appCounts {
+		familyCounts[AppNameFamily(appName)] += count
+	}
+	return familyCounts
+}
+
+// SessionCountsByFamilyJSON is SessionCountsByFamily over the jsonb object of
+// app name to session count that the session count queries return. An absent
+// or JSON null object means no sessions, not an error, because a query with
+// no matching rows aggregates to SQL NULL.
+func SessionCountsByFamilyJSON(appCounts json.RawMessage) (map[AppFamilyName]int64, error) {
+	var counts map[string]int64
+	if len(appCounts) > 0 {
+		if err := json.Unmarshal(appCounts, &counts); err != nil {
+			return nil, xerrors.Errorf("unmarshal session counts by app name: %w", err)
+		}
+	}
+	return SessionCountsByFamily(counts), nil
 }
 
 // AppNameFamily normalizes an app name and returns its family, or

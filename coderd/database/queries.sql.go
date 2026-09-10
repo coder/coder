@@ -36006,13 +36006,7 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 }
 
 const getDeploymentWorkspaceAgentStats = `-- name: GetDeploymentWorkspaceAgentStats :one
-WITH fams AS (
-	SELECT
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'vscode')) AS vscode,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'ssh')) AS ssh,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'jetbrains')) AS jetbrains,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'reconnecting_pty')) AS reconnecting_pty
-), stats AS (
+WITH stats AS (
 	SELECT
 		agent_id,
 		created_at,
@@ -36030,71 +36024,49 @@ SELECT
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
 	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
-	coalesce(SUM(sc.vscode) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
-	coalesce(SUM(sc.ssh) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
-	coalesce(SUM(sc.jetbrains) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
-	coalesce(SUM(sc.reconnecting_pty) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
+	coalesce((
+		SELECT
+			jsonb_object_agg(app_name, app_sessions)
+		FROM (
+			SELECT
+				sess.app_name,
+				SUM(sess.sessions::bigint) AS app_sessions
+			FROM stats, jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
+			-- Only the latest row per agent holds current sessions.
+			WHERE stats.rn = 1
+			GROUP BY sess.app_name
+		) AS app_totals
+	), '{}'::jsonb)::jsonb AS session_counts
 FROM stats
-CROSS JOIN LATERAL (
-	SELECT
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.vscode)), 0) AS vscode,
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.ssh)), 0) AS ssh,
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.jetbrains)), 0) AS jetbrains,
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.reconnecting_pty)), 0) AS reconnecting_pty
-	FROM fams, jsonb_each_text(stats.session_counts) AS sess
-	-- Gate on the same condition as the aggregate filters above so the
-	-- decompose runs only for the rows that are counted (one-time filter).
-	WHERE stats.rn = 1
-) AS sc
 `
 
-type GetDeploymentWorkspaceAgentStatsParams struct {
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-}
-
 type GetDeploymentWorkspaceAgentStatsRow struct {
-	WorkspaceRxBytes             int64   `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-	WorkspaceTxBytes             int64   `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
-	WorkspaceConnectionLatency50 float64 `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64 `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-	SessionCountVSCode           int64   `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountSSH              int64   `db:"session_count_ssh" json:"session_count_ssh"`
-	SessionCountJetBrains        int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY  int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	WorkspaceRxBytes             int64           `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64           `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64         `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64         `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	SessionCounts                json.RawMessage `db:"session_counts" json:"session_counts"`
 }
 
-// app_families maps each attributed family to its app names, so the probes
-// below stay one expression per family: adding a family needs a new list in
-// fams plus one probe here, because sqlc output columns are static.
-// fams turns the jsonb parameter into arrays once for the whole query. The
-// lateral decomposes session_counts once per row and sums each family from
-// that single pass, which measured ~3x faster than probing the jsonb once
-// per family. The subplan only runs for rows that survive the gate.
-func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, arg GetDeploymentWorkspaceAgentStatsParams) (GetDeploymentWorkspaceAgentStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentStats, arg.CreatedAt, arg.AppFamilies)
+// The session count sum runs in its own subquery: decomposing session_counts
+// in the FROM clause would emit one row per app name and multiply the byte and
+// latency aggregates below. Summing per app name and folding the names into
+// families in Go keeps a session reported under a new name counted.
+func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentStats, createdAt)
 	var i GetDeploymentWorkspaceAgentStatsRow
 	err := row.Scan(
 		&i.WorkspaceRxBytes,
 		&i.WorkspaceTxBytes,
 		&i.WorkspaceConnectionLatency50,
 		&i.WorkspaceConnectionLatency95,
-		&i.SessionCountVSCode,
-		&i.SessionCountSSH,
-		&i.SessionCountJetBrains,
-		&i.SessionCountReconnectingPTY,
+		&i.SessionCounts,
 	)
 	return i, err
 }
 
 const getDeploymentWorkspaceAgentUsageStats = `-- name: GetDeploymentWorkspaceAgentUsageStats :one
-WITH fams AS (
-	SELECT
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'vscode')) AS vscode,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'ssh')) AS ssh,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'jetbrains')) AS jetbrains,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'reconnecting_pty')) AS reconnecting_pty
-), agent_stats AS (
+WITH agent_stats AS (
 	SELECT
 		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
 		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
@@ -36119,73 +36091,54 @@ latest_minutes AS (
 		agent_id
 ),
 latest_agent_stats AS (
+	-- Aggregating the per app name sums separately keeps the byte and latency
+	-- aggregates in agent_stats free of the decomposed rows.
 	SELECT
-		coalesce(SUM(sc.vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(sc.ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(sc.jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(sc.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
-	FROM
-		latest_minutes
-	JOIN
-		workspace_agent_stats AS stats
-	ON
-		stats.agent_id = latest_minutes.agent_id
-		AND stats.created_at >= $1
-		AND stats.created_at >= latest_minutes.minute_bucket
-		AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
-		AND stats.usage
-	CROSS JOIN LATERAL (
+		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
+	FROM (
 		SELECT
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.vscode)), 0) AS vscode,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.ssh)), 0) AS ssh,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.jetbrains)), 0) AS jetbrains,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.reconnecting_pty)), 0) AS reconnecting_pty
-		FROM fams, jsonb_each_text(stats.session_counts) AS sess
-	) AS sc
+			sess.app_name,
+			SUM(sess.sessions::bigint) AS app_sessions
+		FROM
+			latest_minutes
+		JOIN
+			workspace_agent_stats AS stats
+		ON
+			stats.agent_id = latest_minutes.agent_id
+			AND stats.created_at >= $1
+			AND stats.created_at >= latest_minutes.minute_bucket
+			AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
+			AND stats.usage,
+			jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
+		GROUP BY sess.app_name
+	) AS app_totals
 )
-SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
+SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_counts FROM agent_stats, latest_agent_stats
 `
 
-type GetDeploymentWorkspaceAgentUsageStatsParams struct {
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-}
-
 type GetDeploymentWorkspaceAgentUsageStatsRow struct {
-	WorkspaceRxBytes             int64   `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-	WorkspaceTxBytes             int64   `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
-	WorkspaceConnectionLatency50 float64 `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64 `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-	SessionCountVSCode           int64   `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountSSH              int64   `db:"session_count_ssh" json:"session_count_ssh"`
-	SessionCountJetBrains        int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY  int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	WorkspaceRxBytes             int64           `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64           `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64         `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64         `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	SessionCounts                json.RawMessage `db:"session_counts" json:"session_counts"`
 }
 
-func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, arg GetDeploymentWorkspaceAgentUsageStatsParams) (GetDeploymentWorkspaceAgentUsageStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentUsageStats, arg.CreatedAt, arg.AppFamilies)
+func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentUsageStats, createdAt)
 	var i GetDeploymentWorkspaceAgentUsageStatsRow
 	err := row.Scan(
 		&i.WorkspaceRxBytes,
 		&i.WorkspaceTxBytes,
 		&i.WorkspaceConnectionLatency50,
 		&i.WorkspaceConnectionLatency95,
-		&i.SessionCountVSCode,
-		&i.SessionCountSSH,
-		&i.SessionCountJetBrains,
-		&i.SessionCountReconnectingPTY,
+		&i.SessionCounts,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentStats = `-- name: GetWorkspaceAgentStats :many
-WITH fams AS (
-	SELECT
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'vscode')) AS vscode,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'ssh')) AS ssh,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'jetbrains')) AS jetbrains,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'reconnecting_pty')) AS reconnecting_pty
-), agent_stats AS (
+WITH agent_stats AS (
 	SELECT
 		user_id,
 		agent_id,
@@ -36200,55 +36153,37 @@ WITH fams AS (
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
+), latest_stats AS (
+	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+	FROM workspace_agent_stats WHERE created_at > $1
 ), latest_agent_stats AS (
+	-- rn = 1 leaves one row per agent, and that row's session_counts is
+	-- already the object this query reports, empty map included.
 	SELECT
-		a.agent_id,
-		coalesce(SUM(sc.vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(sc.ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(sc.jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(sc.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
-	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
-		FROM workspace_agent_stats WHERE created_at > $1
-	) AS a
-	CROSS JOIN LATERAL (
-		SELECT
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.vscode)), 0) AS vscode,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.ssh)), 0) AS ssh,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.jetbrains)), 0) AS jetbrains,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.reconnecting_pty)), 0) AS reconnecting_pty
-		FROM fams, jsonb_each_text(a.session_counts) AS sess
-	) AS sc
-	WHERE a.rn = 1
-	GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
+		agent_id,
+		session_counts
+	FROM latest_stats
+	WHERE rn = 1
 )
-SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
+SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_counts FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
 `
 
-type GetWorkspaceAgentStatsParams struct {
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-}
-
 type GetWorkspaceAgentStatsRow struct {
-	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
-	AgentID                      uuid.UUID `db:"agent_id" json:"agent_id"`
-	WorkspaceID                  uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	TemplateID                   uuid.UUID `db:"template_id" json:"template_id"`
-	AggregatedFrom               time.Time `db:"aggregated_from" json:"aggregated_from"`
-	WorkspaceRxBytes             int64     `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-	WorkspaceTxBytes             int64     `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
-	WorkspaceConnectionLatency50 float64   `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
-	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
-	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	UserID                       uuid.UUID       `db:"user_id" json:"user_id"`
+	AgentID                      uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID                  uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                   uuid.UUID       `db:"template_id" json:"template_id"`
+	AggregatedFrom               time.Time       `db:"aggregated_from" json:"aggregated_from"`
+	WorkspaceRxBytes             int64           `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64           `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64         `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64         `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	AgentID_2                    uuid.UUID       `db:"agent_id_2" json:"agent_id_2"`
+	SessionCounts                json.RawMessage `db:"session_counts" json:"session_counts"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, arg GetWorkspaceAgentStatsParams) ([]GetWorkspaceAgentStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStats, arg.CreatedAt, arg.AppFamilies)
+func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStats, createdAt)
 	if err != nil {
 		return nil, err
 	}
@@ -36267,10 +36202,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, arg GetWorkspac
 			&i.WorkspaceConnectionLatency50,
 			&i.WorkspaceConnectionLatency95,
 			&i.AgentID_2,
-			&i.SessionCountVSCode,
-			&i.SessionCountSSH,
-			&i.SessionCountJetBrains,
-			&i.SessionCountReconnectingPTY,
+			&i.SessionCounts,
 		); err != nil {
 			return nil, err
 		}
@@ -36286,13 +36218,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, arg GetWorkspac
 }
 
 const getWorkspaceAgentStatsAndLabels = `-- name: GetWorkspaceAgentStatsAndLabels :many
-WITH fams AS (
-	SELECT
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'vscode')) AS vscode,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'ssh')) AS ssh,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'jetbrains')) AS jetbrains,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'reconnecting_pty')) AS reconnecting_pty
-), agent_stats AS (
+WITH agent_stats AS (
 	SELECT
 		user_id,
 		agent_id,
@@ -36302,35 +36228,25 @@ WITH fams AS (
 	 FROM workspace_agent_stats
 		WHERE workspace_agent_stats.created_at > $1
 		GROUP BY user_id, agent_id, workspace_id
+), latest_stats AS (
+	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+	FROM workspace_agent_stats
+	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+	WHERE created_at > $1 AND connection_median_latency_ms > 0
 ), latest_agent_stats AS (
+	-- rn = 1 leaves one row per agent, so the session object, connection
+	-- count, and latency are that row's own columns, empty map included.
 	SELECT
-		a.agent_id,
-		coalesce(SUM(sc.vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(sc.ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(sc.jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(sc.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
-		coalesce(SUM(a.connection_count), 0)::bigint AS connection_count,
-		coalesce(MAX(a.connection_median_latency_ms), 0)::float AS connection_median_latency_ms
-	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
-		FROM workspace_agent_stats
-		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-		WHERE created_at > $1 AND connection_median_latency_ms > 0
-	) AS a
-	CROSS JOIN LATERAL (
-		SELECT
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.vscode)), 0) AS vscode,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.ssh)), 0) AS ssh,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.jetbrains)), 0) AS jetbrains,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.reconnecting_pty)), 0) AS reconnecting_pty
-		FROM fams, jsonb_each_text(a.session_counts) AS sess
-	) AS sc
-	WHERE a.rn = 1
-	GROUP BY a.user_id, a.agent_id, a.workspace_id
+		agent_id,
+		session_counts,
+		connection_count,
+		connection_median_latency_ms
+	FROM latest_stats
+	WHERE rn = 1
 )
 SELECT
 	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
-	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
+	session_counts,
 	connection_count, connection_median_latency_ms
 FROM
 	agent_stats
@@ -36352,27 +36268,19 @@ ON
 	workspaces.id = agent_stats.workspace_id
 `
 
-type GetWorkspaceAgentStatsAndLabelsParams struct {
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-}
-
 type GetWorkspaceAgentStatsAndLabelsRow struct {
-	Username                    string  `db:"username" json:"username"`
-	AgentName                   string  `db:"agent_name" json:"agent_name"`
-	WorkspaceName               string  `db:"workspace_name" json:"workspace_name"`
-	RxBytes                     int64   `db:"rx_bytes" json:"rx_bytes"`
-	TxBytes                     int64   `db:"tx_bytes" json:"tx_bytes"`
-	SessionCountVSCode          int64   `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountSSH             int64   `db:"session_count_ssh" json:"session_count_ssh"`
-	SessionCountJetBrains       int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	ConnectionCount             int64   `db:"connection_count" json:"connection_count"`
-	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Username                  string          `db:"username" json:"username"`
+	AgentName                 string          `db:"agent_name" json:"agent_name"`
+	WorkspaceName             string          `db:"workspace_name" json:"workspace_name"`
+	RxBytes                   int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes                   int64           `db:"tx_bytes" json:"tx_bytes"`
+	SessionCounts             json.RawMessage `db:"session_counts" json:"session_counts"`
+	ConnectionCount           int64           `db:"connection_count" json:"connection_count"`
+	ConnectionMedianLatencyMS float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, arg GetWorkspaceAgentStatsAndLabelsParams) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStatsAndLabels, arg.CreatedAt, arg.AppFamilies)
+func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStatsAndLabels, createdAt)
 	if err != nil {
 		return nil, err
 	}
@@ -36386,10 +36294,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, arg Ge
 			&i.WorkspaceName,
 			&i.RxBytes,
 			&i.TxBytes,
-			&i.SessionCountVSCode,
-			&i.SessionCountSSH,
-			&i.SessionCountJetBrains,
-			&i.SessionCountReconnectingPTY,
+			&i.SessionCounts,
 			&i.ConnectionCount,
 			&i.ConnectionMedianLatencyMS,
 		); err != nil {
@@ -36407,13 +36312,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, arg Ge
 }
 
 const getWorkspaceAgentUsageStats = `-- name: GetWorkspaceAgentUsageStats :many
-WITH fams AS (
-	SELECT
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'vscode')) AS vscode,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'ssh')) AS ssh,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'jetbrains')) AS jetbrains,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'reconnecting_pty')) AS reconnecting_pty
-), stats AS (
+WITH stats AS (
 	SELECT
 		id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts,
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
@@ -36424,64 +36323,59 @@ WITH fams AS (
 		) OVER (PARTITION BY agent_id) AS in_latest_usage_minute
 	FROM workspace_agent_stats
 	WHERE created_at >= $1
+), latest_sessions AS (
+	-- One row per agent, so joining it below neither multiplies the byte and
+	-- latency aggregates nor adds groups.
+	SELECT
+		agent_id,
+		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
+	FROM (
+		SELECT
+			stats.agent_id,
+			sess.app_name,
+			SUM(sess.sessions::bigint) AS app_sessions
+		FROM stats, jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
+		WHERE stats.in_latest_usage_minute
+		GROUP BY stats.agent_id, sess.app_name
+	) AS app_totals
+	GROUP BY agent_id
 )
 SELECT
-	user_id,
-	agent_id,
-	workspace_id,
-	template_id,
-	MIN(created_at) FILTER (WHERE reports_latency)::timestamptz AS aggregated_from,
-	coalesce(SUM(rx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_rx_bytes,
-	coalesce(SUM(tx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_tx_bytes,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_95,
+	stats.user_id,
+	stats.agent_id,
+	stats.workspace_id,
+	stats.template_id,
+	MIN(stats.created_at) FILTER (WHERE reports_latency)::timestamptz AS aggregated_from,
+	coalesce(SUM(stats.rx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_rx_bytes,
+	coalesce(SUM(stats.tx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_tx_bytes,
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_95,
 	-- Repeated so this row keeps the same layout as GetWorkspaceAgentStats, which
 	-- telemetry converts between.
-	agent_id,
-	coalesce(SUM(sc.vscode) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_vscode,
-	coalesce(SUM(sc.ssh) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_ssh,
-	coalesce(SUM(sc.jetbrains) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_jetbrains,
-	coalesce(SUM(sc.reconnecting_pty) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_reconnecting_pty
+	stats.agent_id,
+	coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts
 FROM stats
-CROSS JOIN LATERAL (
-	SELECT
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.vscode)), 0) AS vscode,
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.ssh)), 0) AS ssh,
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.jetbrains)), 0) AS jetbrains,
-		coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.reconnecting_pty)), 0) AS reconnecting_pty
-	FROM fams, jsonb_each_text(stats.session_counts) AS sess
-	-- Gate on the same condition as the aggregate filters above so the
-	-- decompose runs only for the rows that are counted (one-time filter).
-	WHERE stats.in_latest_usage_minute
-) AS sc
-GROUP BY user_id, agent_id, workspace_id, template_id
+LEFT JOIN latest_sessions ON latest_sessions.agent_id = stats.agent_id
+GROUP BY stats.user_id, stats.agent_id, stats.workspace_id, stats.template_id, latest_sessions.session_counts
 HAVING BOOL_OR(reports_latency)
 `
 
-type GetWorkspaceAgentUsageStatsParams struct {
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-}
-
 type GetWorkspaceAgentUsageStatsRow struct {
-	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
-	AgentID                      uuid.UUID `db:"agent_id" json:"agent_id"`
-	WorkspaceID                  uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	TemplateID                   uuid.UUID `db:"template_id" json:"template_id"`
-	AggregatedFrom               time.Time `db:"aggregated_from" json:"aggregated_from"`
-	WorkspaceRxBytes             int64     `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-	WorkspaceTxBytes             int64     `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
-	WorkspaceConnectionLatency50 float64   `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
-	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
-	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	UserID                       uuid.UUID       `db:"user_id" json:"user_id"`
+	AgentID                      uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID                  uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                   uuid.UUID       `db:"template_id" json:"template_id"`
+	AggregatedFrom               time.Time       `db:"aggregated_from" json:"aggregated_from"`
+	WorkspaceRxBytes             int64           `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64           `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64         `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64         `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	AgentID_2                    uuid.UUID       `db:"agent_id_2" json:"agent_id_2"`
+	SessionCounts                json.RawMessage `db:"session_counts" json:"session_counts"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, arg GetWorkspaceAgentUsageStatsParams) ([]GetWorkspaceAgentUsageStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStats, arg.CreatedAt, arg.AppFamilies)
+func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStats, createdAt)
 	if err != nil {
 		return nil, err
 	}
@@ -36500,10 +36394,7 @@ func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, arg GetWor
 			&i.WorkspaceConnectionLatency50,
 			&i.WorkspaceConnectionLatency95,
 			&i.AgentID_2,
-			&i.SessionCountVSCode,
-			&i.SessionCountSSH,
-			&i.SessionCountJetBrains,
-			&i.SessionCountReconnectingPTY,
+			&i.SessionCounts,
 		); err != nil {
 			return nil, err
 		}
@@ -36519,13 +36410,7 @@ func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, arg GetWor
 }
 
 const getWorkspaceAgentUsageStatsAndLabels = `-- name: GetWorkspaceAgentUsageStatsAndLabels :many
-WITH fams AS (
-	SELECT
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'vscode')) AS vscode,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'ssh')) AS ssh,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'jetbrains')) AS jetbrains,
-		ARRAY(SELECT jsonb_array_elements_text($2::jsonb -> 'reconnecting_pty')) AS reconnecting_pty
-), agent_stats AS (
+WITH agent_stats AS (
 	SELECT
 		user_id,
 		agent_id,
@@ -36537,34 +36422,39 @@ WITH fams AS (
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id
-), latest_agent_stats AS (
-	SELECT
-		agent_id,
-		coalesce(SUM(sc.vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(sc.ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(sc.jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(sc.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
-		coalesce(SUM(connection_count), 0)::bigint AS connection_count
+), latest_stats AS (
+	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts
 	FROM workspace_agent_stats
-	CROSS JOIN LATERAL (
-		SELECT
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.vscode)), 0) AS vscode,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.ssh)), 0) AS ssh,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.jetbrains)), 0) AS jetbrains,
-			coalesce(SUM(sess.value::bigint) FILTER (WHERE sess.key = ANY (fams.reconnecting_pty)), 0) AS reconnecting_pty
-		FROM fams, jsonb_each_text(workspace_agent_stats.session_counts) AS sess
-	) AS sc
 	-- We only want the latest stats, but those stats might be
 	-- spread across multiple rows.
 	WHERE usage AND created_at > now() - '1 minute'::interval
-	GROUP BY user_id, agent_id, workspace_id
+), latest_sessions AS (
+	-- Summed per app name here so the connection count below keeps seeing one
+	-- row per agent instead of one row per app name.
+	SELECT
+		agent_id,
+		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
+	FROM (
+		SELECT
+			latest_stats.agent_id,
+			sess.app_name,
+			SUM(sess.sessions::bigint) AS app_sessions
+		FROM latest_stats, jsonb_each_text(latest_stats.session_counts) AS sess(app_name, sessions)
+		GROUP BY latest_stats.agent_id, sess.app_name
+	) AS app_totals
+	GROUP BY agent_id
+), latest_agent_stats AS (
+	SELECT
+		latest_stats.agent_id,
+		coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts,
+		coalesce(SUM(latest_stats.connection_count), 0)::bigint AS connection_count
+	FROM latest_stats
+	LEFT JOIN latest_sessions ON latest_sessions.agent_id = latest_stats.agent_id
+	GROUP BY latest_stats.user_id, latest_stats.agent_id, latest_stats.workspace_id, latest_sessions.session_counts
 )
 SELECT
 	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
-	coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
-	coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
-	coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
-	coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty,
+	coalesce(session_counts, '{}'::jsonb)::jsonb AS session_counts,
 	coalesce(connection_count, 0)::bigint AS connection_count,
 	connection_median_latency_ms
 FROM
@@ -36587,27 +36477,19 @@ ON
 	workspaces.id = agent_stats.workspace_id
 `
 
-type GetWorkspaceAgentUsageStatsAndLabelsParams struct {
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-}
-
 type GetWorkspaceAgentUsageStatsAndLabelsRow struct {
-	Username                    string  `db:"username" json:"username"`
-	AgentName                   string  `db:"agent_name" json:"agent_name"`
-	WorkspaceName               string  `db:"workspace_name" json:"workspace_name"`
-	RxBytes                     int64   `db:"rx_bytes" json:"rx_bytes"`
-	TxBytes                     int64   `db:"tx_bytes" json:"tx_bytes"`
-	SessionCountVSCode          int64   `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountSSH             int64   `db:"session_count_ssh" json:"session_count_ssh"`
-	SessionCountJetBrains       int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	ConnectionCount             int64   `db:"connection_count" json:"connection_count"`
-	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Username                  string          `db:"username" json:"username"`
+	AgentName                 string          `db:"agent_name" json:"agent_name"`
+	WorkspaceName             string          `db:"workspace_name" json:"workspace_name"`
+	RxBytes                   int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes                   int64           `db:"tx_bytes" json:"tx_bytes"`
+	SessionCounts             json.RawMessage `db:"session_counts" json:"session_counts"`
+	ConnectionCount           int64           `db:"connection_count" json:"connection_count"`
+	ConnectionMedianLatencyMS float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, arg GetWorkspaceAgentUsageStatsAndLabelsParams) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStatsAndLabels, arg.CreatedAt, arg.AppFamilies)
+func (q *sqlQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStatsAndLabels, createdAt)
 	if err != nil {
 		return nil, err
 	}
@@ -36621,10 +36503,7 @@ func (q *sqlQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, a
 			&i.WorkspaceName,
 			&i.RxBytes,
 			&i.TxBytes,
-			&i.SessionCountVSCode,
-			&i.SessionCountSSH,
-			&i.SessionCountJetBrains,
-			&i.SessionCountReconnectingPTY,
+			&i.SessionCounts,
 			&i.ConnectionCount,
 			&i.ConnectionMedianLatencyMS,
 		); err != nil {
