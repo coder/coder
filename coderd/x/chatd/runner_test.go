@@ -172,10 +172,9 @@ func TestWorker_CleanupStopsRoutingAndCancelsTasks(t *testing.T) {
 	starter.assertNoCall(t)
 }
 
-// None of these cases publishes a state update: the task stops on its own,
-// a snapshot bump arrives without its notification, or the chat_messages
-// trigger changes history_version without a snapshot bump. The periodic sync
-// alone must be enough to start the right task.
+// No case publishes a state update: a task exits, a snapshot bump arrives
+// unannounced, or a direct write moves history_version alone. The periodic
+// sync alone must start the right task.
 func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -252,10 +251,10 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	}
 }
 
-// Editing a chat_messages row with plain SQL, outside any transition, changes
-// the history under a running generation. The generation refuses to commit its
-// stale response and exits, and nothing publishes a state update. The periodic
-// sync must then start a generation from the edited history.
+// A plain-SQL edit to chat_messages changes the history under a running
+// generation, which exits without committing its stale response and without
+// any state update. The periodic sync must then restart generation from the
+// edited history.
 func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)

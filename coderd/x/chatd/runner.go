@@ -144,14 +144,11 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 	}
 }
 
-// processState decides which task should be running for the chat and starts
-// it if it is not. It runs for every state the runner receives: pubsub hints,
-// the periodic database sync, and the bootstrap read.
-//
-// It must handle a state it has already seen. A task can stop on its own,
-// for example when the chat history changes under it, and nothing tells the
-// runner. The periodic sync then delivers the same row again, and that is
-// how the runner notices the task is gone and starts it again.
+// processState decides which task should be running and starts it if none is.
+// It runs for every state the runner receives: pubsub hints, the periodic
+// database sync, and the bootstrap read. It must act on a state it has already
+// seen: a task can exit on its own, for example when history changes under it,
+// and only the next sync redelivery tells the runner to start it again.
 func (r *runner) processState(state runnerStateUpdate) {
 	r.removeFinishedTasks()
 
@@ -167,9 +164,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 	}
 
-	// Once this runner no longer owns the chat, whether another runner took it or
-	// ownership was released, it is only waiting to be canceled. Events that
-	// arrive in the meantime must not start work.
+	// Once this runner no longer owns the chat, it is only waiting to be canceled;
+	// events that arrive meanwhile must not start work.
 	if !r.activeTaskSet && r.owns(r.latestState) {
 		r.spawnForState(r.latestState)
 	}
@@ -181,12 +177,10 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 
 // isNewer reports whether the runner has not seen this state before.
 //
-// Comparing snapshot versions alone is not enough. A direct write to a
-// chat_messages row changes history_version without allocating a snapshot
-// whenever history_version is behind snapshot_version, which holds for the
-// whole of a model call or tool execution (ARCHITECTURE.md, Message revisions
-// and history version). Two states with the same snapshot version can
-// therefore require different work, and the second one is new.
+// Comparing snapshot versions alone is not enough: a direct chat_messages write
+// can move history_version without a snapshot (ARCHITECTURE.md, Message
+// revisions and history version), so two states with the same snapshot version
+// can require different work.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion

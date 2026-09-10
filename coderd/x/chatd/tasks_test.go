@@ -1252,9 +1252,8 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 }
 
 // A generation started for a HistoryVersion the chat has moved past exits on
-// its history fence before it records an attempt or calls the model. The exit
-// is expected and not retryable, so runTaskWithRetry does not retry it; the
-// runner restarts the work from the current history on the next sync
+// its history fence before recording an attempt or calling the model. The exit
+// is not retried; the runner restarts from current history on the next sync
 // (TestRunner_RealGenerationRecoversHistoryFence).
 func TestGenerationTask_StaleHistoryFenceExitsBeforeModelCall(t *testing.T) {
 	t.Parallel()

@@ -310,11 +310,10 @@ type taskCall struct {
 	ctx   context.Context
 }
 
-// editUserMessage edits a chat_messages row with plain SQL, bypassing the
-// state machine: nothing is published and snapshot_version does not move. It
-// asserts that history_version moved, which the message trigger does only when
-// history_version was behind snapshot_version, so callers must use it on a
-// chat in that state (ARCHITECTURE.md, Message revisions and history version).
+// editUserMessage edits a chat_messages row with plain SQL, outside any
+// transition: nothing is published and snapshot_version does not move. It
+// asserts that history_version moved, which requires it to have been behind
+// snapshot_version.
 func editUserMessage(t *testing.T, db database.Store, sqlDB *sql.DB, chatID uuid.UUID, text string) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
