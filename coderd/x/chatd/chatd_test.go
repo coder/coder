@@ -2716,14 +2716,14 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
-// A worker that dies mid tool call leaves the chat running and owned with the
-// call committed and unresolved. Once its heartbeat is stale another worker
-// must take over and resolve the call without user action.
+// A worker that dies during a local tool call leaves the chat running and owned
+// with the tool call committed and no result. Once its heartbeat is stale
+// another worker must take over and resolve the call without user action.
 //
 // The first worker stays alive on a clock that never advances and the test
-// ages its heartbeat, so the database sees a dead worker; the takeover then
-// cancels its blocked call, which a kill would not. The part assertions
-// confirm the canceled call commits nothing.
+// ages its heartbeat, so another worker can acquire the chat; the takeover then
+// cancels the blocked call, which a kill would not. The part assertions confirm
+// the canceled call commits nothing.
 func TestNewReplicaResolvesInFlightToolCallFromDeadReplica(t *testing.T) {
 	t.Parallel()
 

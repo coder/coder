@@ -1251,10 +1251,10 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 	require.Equal(t, otherRunnerID, latest.RunnerID.UUID)
 }
 
-// A generation started for a HistoryVersion the chat has moved past exits on
-// its history fence before recording an attempt or calling the model. The exit
-// is not retried; the runner restarts from current history on the next sync
-// (TestRunner_RealGenerationRecoversHistoryFence).
+// A generation whose input HistoryVersion is older than the chat's fails the
+// history fence check before recording an attempt or calling the model. The
+// exit is not retried; the runner restarts from the current history on the
+// next sync (TestRunner_RealGenerationRecoversHistoryFence).
 func TestGenerationTask_StaleHistoryFenceExitsBeforeModelCall(t *testing.T) {
 	t.Parallel()
 

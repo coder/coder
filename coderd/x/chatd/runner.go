@@ -147,8 +147,9 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 // processState decides which task should be running and starts it if none is.
 // It runs for every state the runner receives: pubsub hints, the periodic
 // database sync, and the bootstrap read. It must act on a state it has already
-// seen: a task can exit on its own, for example when history changes under it,
-// and only the next sync redelivery tells the runner to start it again.
+// seen: a task can exit on its own, for example when the chat's history changes
+// while it runs, and only the next sync redelivery tells the runner to start it
+// again.
 func (r *runner) processState(state runnerStateUpdate) {
 	r.removeFinishedTasks()
 
@@ -178,8 +179,8 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 // isNewer reports whether the runner has not seen this state before.
 //
 // Comparing snapshot versions alone is not enough: a direct chat_messages write
-// moves history_version without a snapshot, so two states with the same
-// snapshot version can require different work.
+// changes history_version without a new snapshot_version, so two states with
+// the same snapshot version can require different work.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion

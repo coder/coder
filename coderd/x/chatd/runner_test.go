@@ -173,8 +173,8 @@ func TestWorker_CleanupStopsRoutingAndCancelsTasks(t *testing.T) {
 }
 
 // No case publishes a state update: a task exits, a snapshot bump arrives
-// unannounced, or a direct write moves history_version alone. The periodic
-// sync alone must start the right task.
+// without a notification, or a direct write changes only history_version. The
+// periodic sync alone must start the right task.
 func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
