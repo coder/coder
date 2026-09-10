@@ -633,6 +633,10 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
   custom URI schemes for native apps (`myapp://`) are permitted, and public
   clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
+- **No CORS on the authorization endpoint**: `/oauth2/authorize` is reached
+  only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
+  The token, registration, revocation, and metadata endpoints do allow
+  cross-origin requests so that browser-based clients can call them
 
 ## Limitations
 
