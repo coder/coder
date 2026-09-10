@@ -309,11 +309,18 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 		}
 		mDB.EXPECT().GetTaskByID(gomock.Any(), task.ID).Times(1).Return(task, nil)
+		mTx := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().InTx(gomock.Any(), gomock.Eq(&database.TxOptions{Isolation: sql.LevelReadCommitted})).Times(1).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				return fn(mTx)
+			},
+		)
+		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).Times(1).Return(nil)
 		appStatus := database.WorkspaceAppStatus{
 			ID: uuid.UUID{6},
 		}
-		mDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(appStatus, nil)
-		mDB.EXPECT().InsertWorkspaceAppStatus(
+		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(appStatus, nil)
+		mTx.EXPECT().InsertWorkspaceAppStatus(
 			gomock.Any(),
 			gomock.Cond(func(params database.InsertWorkspaceAppStatusParams) bool {
 				if params.AgentID == agent.ID && params.AppID == app.ID {
@@ -338,6 +345,250 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		require.Equal(t, wspubsub.WorkspaceEventKindAgentAppStatusUpdate, kind)
 		sent := fEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskCompleted))
 		require.Len(t, sent, 1)
+	})
+
+	t.Run("NoOpDuplicate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID:             uuid.UUID{2},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}
+
+		workspace := database.Workspace{
+			ID: uuid.UUID{9},
+		}
+		cachedWs := &agentapi.CachedWorkspaceFields{}
+		cachedWs.UpdateValues(workspace)
+
+		workspaceUpdates := make(chan wspubsub.WorkspaceEventKind, 100)
+		api := &agentapi.AppsAPI{
+			AgentID:   agent.ID,
+			Database:  mDB,
+			Log:       testutil.Logger(t),
+			Workspace: cachedWs,
+			PublishWorkspaceUpdateFn: func(_ context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
+				testutil.AssertSend(ctx, t, workspaceUpdates, kind)
+				return nil
+			},
+		}
+
+		app := database.WorkspaceApp{
+			ID: uuid.UUID{8},
+		}
+		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: agent.ID,
+			Slug:    "vscode",
+		}).Times(1).Return(app, nil)
+		mTx := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().InTx(gomock.Any(), gomock.Eq(&database.TxOptions{Isolation: sql.LevelReadCommitted})).Times(1).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				return fn(mTx)
+			},
+		)
+		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).Times(1).Return(nil)
+		// The latest status matches the request, and the same agent sent both.
+		// The handler must not insert a row or publish an update.
+		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(database.WorkspaceAppStatus{
+			ID:      uuid.UUID{6},
+			AgentID: agent.ID,
+			State:   database.WorkspaceAppStatusStateComplete,
+			Message: "testing",
+			Uri: sql.NullString{
+				String: "https://example.com",
+				Valid:  true,
+			},
+		}, nil)
+
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "vscode",
+			Message: "testing",
+			Uri:     "https://example.com",
+			State:   agentproto.UpdateAppStatusRequest_COMPLETE,
+		})
+		require.NoError(t, err)
+
+		// An update that changes nothing must not publish a workspace update.
+		select {
+		case kind := <-workspaceUpdates:
+			t.Fatalf("unexpected workspace update published: %v", kind)
+		default:
+		}
+	})
+
+	// Consumers discard statuses older than the latest start build. The
+	// current agent must store its first report, even when an earlier agent
+	// left an identical status.
+	t.Run("DifferentAgentIsStored", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mTx := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID: uuid.UUID{2},
+		}
+
+		workspace := database.Workspace{
+			ID: uuid.UUID{9},
+		}
+		cachedWs := &agentapi.CachedWorkspaceFields{}
+		cachedWs.UpdateValues(workspace)
+
+		api := &agentapi.AppsAPI{
+			AgentID:   agent.ID,
+			Database:  mDB,
+			Log:       testutil.Logger(t),
+			Workspace: cachedWs,
+		}
+
+		app := database.WorkspaceApp{
+			ID: uuid.UUID{8},
+		}
+		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: agent.ID,
+			Slug:    "vscode",
+		}).Times(1).Return(app, nil)
+		mDB.EXPECT().InTx(gomock.Any(), gomock.Eq(&database.TxOptions{Isolation: sql.LevelReadCommitted})).Times(1).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				return fn(mTx)
+			},
+		)
+		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).Times(1).Return(nil)
+		// A previous agent reported the same state, message, and URI.
+		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(database.WorkspaceAppStatus{
+			ID:      uuid.UUID{6},
+			AgentID: uuid.UUID{3},
+			State:   database.WorkspaceAppStatusStateComplete,
+			Message: "testing",
+			Uri: sql.NullString{
+				String: "https://example.com",
+				Valid:  true,
+			},
+		}, nil)
+		mTx.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), gomock.Any()).Times(1).Return(database.WorkspaceAppStatus{}, nil)
+
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "vscode",
+			Message: "testing",
+			Uri:     "https://example.com",
+			State:   agentproto.UpdateAppStatusRequest_COMPLETE,
+		})
+		require.NoError(t, err)
+	})
+
+	// One report waits for the per-app lock. A second report commits during
+	// the wait. The waiting report must see the second report, and the handler
+	// must store both reports.
+	t.Run("ConcurrentReportsAreBothStored", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mTx := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID: uuid.UUID{2},
+		}
+
+		workspace := database.Workspace{
+			ID: uuid.UUID{9},
+		}
+		cachedWs := &agentapi.CachedWorkspaceFields{}
+		cachedWs.UpdateValues(workspace)
+
+		api := &agentapi.AppsAPI{
+			AgentID:   agent.ID,
+			Database:  mDB,
+			Log:       testutil.Logger(t),
+			Workspace: cachedWs,
+		}
+
+		app := database.WorkspaceApp{
+			ID: uuid.UUID{8},
+		}
+		idleStatus := database.WorkspaceAppStatus{
+			ID:      uuid.UUID{6},
+			AgentID: agent.ID,
+			State:   database.WorkspaceAppStatusStateIdle,
+		}
+
+		// This test emulates the advisory lock. A transaction takes the token
+		// in AcquireLock and returns the token when InTx completes.
+		lock := make(chan struct{}, 1)
+		lock <- struct{}{}
+
+		var (
+			bLocked  = make(chan struct{}, 1)
+			aWaiting = make(chan struct{}, 1)
+			inserted []database.WorkspaceAppStatusState
+			latest   = idleStatus
+		)
+
+		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: agent.ID,
+			Slug:    "vscode",
+		}).Times(2).Return(app, nil)
+		mDB.EXPECT().InTx(gomock.Any(), gomock.Eq(&database.TxOptions{Isolation: sql.LevelReadCommitted})).Times(2).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				err := fn(mTx)
+				lock <- struct{}{}
+				return err
+			},
+		)
+
+		// Report B (complete) takes the lock first and inserts. Report A (idle)
+		// waits for the lock.
+		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).DoAndReturn(func(context.Context, int64) error {
+			<-lock
+			bLocked <- struct{}{}
+			return nil
+		})
+		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).DoAndReturn(func(context.Context, int64) error {
+			aWaiting <- struct{}{}
+			<-lock
+			return nil
+		})
+		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(2).DoAndReturn(func(context.Context, uuid.UUID) (database.WorkspaceAppStatus, error) {
+			return latest, nil
+		})
+		mTx.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, params database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+			inserted = append(inserted, params.State)
+			latest = database.WorkspaceAppStatus{ID: params.ID, AgentID: params.AgentID, State: params.State, Message: params.Message, Uri: params.Uri}
+			return database.WorkspaceAppStatus{}, nil
+		})
+
+		bDone := make(chan error, 1)
+		go func() {
+			_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+				Slug:  "vscode",
+				State: agentproto.UpdateAppStatusRequest_COMPLETE,
+			})
+			bDone <- err
+		}()
+		testutil.RequireReceive(ctx, t, bLocked)
+
+		aDone := make(chan error, 1)
+		go func() {
+			_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+				Slug:  "vscode",
+				State: agentproto.UpdateAppStatusRequest_IDLE,
+			})
+			aDone <- err
+		}()
+		testutil.RequireReceive(ctx, t, aWaiting)
+
+		require.NoError(t, testutil.RequireReceive(ctx, t, bDone))
+		require.NoError(t, testutil.RequireReceive(ctx, t, aDone))
+
+		require.Equal(t, []database.WorkspaceAppStatusState{
+			database.WorkspaceAppStatusStateComplete,
+			database.WorkspaceAppStatusStateIdle,
+		}, inserted)
 	})
 
 	t.Run("FailUnknownApp", func(t *testing.T) {
