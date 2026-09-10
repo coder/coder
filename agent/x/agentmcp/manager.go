@@ -74,6 +74,8 @@ type Manager struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	execer    agentexec.Execer
+	fs        afero.Fs
+	envInfo   usershell.EnvInfoer
 	updateEnv func(current []string) ([]string, error)
 
 	// workingDir reports the workspace working directory for stdio
@@ -137,17 +139,22 @@ type serverEntry struct {
 
 // NewManager creates a new MCP client manager. The ctx bounds
 // subprocess lifetime. The execer applies resource limits to
-// MCP server subprocesses. The updateEnv callback enriches the
-// subprocess environment to match interactive sessions. The
-// workingDir callback reports the workspace working directory for
-// stdio servers.
+// MCP server subprocesses. The envInfo reports the user's environment,
+// home, and shell; a nil value defaults to the current process. The
+// updateEnv callback enriches the subprocess environment to match
+// interactive sessions. The workingDir callback reports the workspace
+// working directory for stdio servers.
 func NewManager(
 	ctx context.Context,
 	logger slog.Logger,
 	execer agentexec.Execer,
+	envInfo usershell.EnvInfoer,
 	updateEnv func([]string) ([]string, error),
 	workingDir func() string,
 ) *Manager {
+	if envInfo == nil {
+		envInfo = &usershell.SystemEnvInfo{}
+	}
 	managerCtx, cancel := context.WithCancel(ctx)
 	return &Manager{
 		ctx:           managerCtx,
@@ -155,6 +162,8 @@ func NewManager(
 		logger:        logger,
 		clock:         quartz.NewReal(),
 		execer:        execer,
+		fs:            afero.NewOsFs(),
+		envInfo:       envInfo,
 		updateEnv:     updateEnv,
 		workingDir:    workingDir,
 		servers:       make(map[string]*serverEntry),
@@ -896,7 +905,7 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 		cmd := m.execer.CommandContext(ctx, cfg.Command, cfg.Args...)
 		cmd.Env = env
 		// Relative paths in Args resolve against the workspace dir.
-		cmd.Dir = m.resolveWorkingDir(ctx)
+		cmd.Dir = m.resolveWorkingDir()
 		return &mcp.CommandTransport{Command: cmd}, nil
 	case "http", "":
 		return &mcp.StreamableClientTransport{
@@ -913,31 +922,21 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 	}
 }
 
-// resolveWorkingDir returns the directory for stdio MCP servers so
-// relative Args resolve against the workspace, not the agent's temp cwd.
-// It uses usershell.ResolveWorkingDirectory (shared with SSH and the
-// process API to avoid drift): the configured dir if it exists, else the
-// home directory. Returns "" (inherit the agent cwd) when workingDir is
-// nil or empty.
-func (m *Manager) resolveWorkingDir(ctx context.Context) string {
-	if m.workingDir == nil {
-		return ""
+// resolveWorkingDir returns the directory to launch stdio MCP servers in
+// so relative Args resolve against the workspace, not the agent's temp
+// cwd: the configured workspace dir if it exists, otherwise the user's
+// home dir. It mirrors SSH and the process API via
+// usershell.ResolveWorkingDirectory so the three cannot drift.
+func (m *Manager) resolveWorkingDir() string {
+	var configured string
+	if m.workingDir != nil {
+		configured = m.workingDir()
 	}
-	dir := m.workingDir()
-	if dir == "" {
-		return ""
-	}
-	resolved, err := usershell.ResolveWorkingDirectory(afero.NewOsFs(), usershell.SystemEnvInfo{}, dir)
+	dir, err := usershell.ResolveWorkingDirectory(m.fs, m.envInfo, configured)
 	if err != nil {
-		m.logger.Warn(ctx, "could not resolve MCP server working directory; inheriting the agent working directory",
-			slog.F("dir", dir), slog.Error(err))
 		return ""
 	}
-	if resolved != dir {
-		m.logger.Warn(ctx, "workspace working directory unavailable; launching MCP server in home directory",
-			slog.F("requested", dir), slog.F("resolved", resolved))
-	}
-	return resolved
+	return dir
 }
 
 // buildEnv enriches the process environment via the agent's
@@ -946,7 +945,7 @@ func (m *Manager) resolveWorkingDir(ctx context.Context) string {
 func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []string {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
-	env := usershell.SystemEnvInfo{}.Environ()
+	env := m.envInfo.Environ()
 	if m.updateEnv != nil {
 		var err error
 		env, err = m.updateEnv(env)
@@ -954,7 +953,7 @@ func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []st
 			logger.Warn(ctx, "failed to enrich MCP server environment",
 				slog.Error(err),
 			)
-			env = usershell.SystemEnvInfo{}.Environ()
+			env = m.envInfo.Environ()
 		}
 	}
 	if len(explicit) == 0 {

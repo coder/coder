@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -255,7 +256,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	m := &Manager{execer: agentexec.DefaultExecer}
+	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}}
 	client, err := m.connectServer(ctx, cfg)
 	require.NoError(t, err, "connectServer should succeed")
 	t.Cleanup(func() { _ = client.Close() })
@@ -280,7 +281,7 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
 	defer timerTrap.Close()
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil)
 	m.clock = clock
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -308,7 +309,7 @@ func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	workDir := t.TempDir()
-	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil,
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil,
 		func() string { return workDir })
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -324,12 +325,13 @@ func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
 	assert.Equal(t, workDir, cmdTransport.Command.Dir)
 }
 
-// TestResolveWorkingDir covers resolveWorkingDir's fallback: nil/empty
-// inherits (""), an existing dir is used, missing/file falls back to home.
+// TestResolveWorkingDir covers resolveWorkingDir's fallback: nil/empty,
+// a missing path, or a file all fall back to home; an existing dir is used.
 func TestResolveWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	home, err := usershell.SystemEnvInfo{}.HomeDir()
+	envInfo := &usershell.SystemEnvInfo{}
+	home, err := envInfo.HomeDir()
 	require.NoError(t, err)
 
 	existing := t.TempDir()
@@ -342,8 +344,8 @@ func TestResolveWorkingDir(t *testing.T) {
 		workingDir func() string
 		want       string
 	}{
-		{name: "NilCallback", workingDir: nil, want: ""},
-		{name: "EmptyResult", workingDir: func() string { return "" }, want: ""},
+		{name: "NilCallback", workingDir: nil, want: home},
+		{name: "EmptyResult", workingDir: func() string { return "" }, want: home},
 		{name: "ExistingDir", workingDir: func() string { return existing }, want: existing},
 		{name: "MissingDir", workingDir: func() string { return missing }, want: home},
 		{name: "PathIsFile", workingDir: func() string { return file }, want: home},
@@ -352,9 +354,8 @@ func TestResolveWorkingDir(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			m := &Manager{workingDir: tt.workingDir}
-			assert.Equal(t, tt.want, m.resolveWorkingDir(ctx))
+			m := &Manager{fs: afero.NewOsFs(), envInfo: envInfo, workingDir: tt.workingDir}
+			assert.Equal(t, tt.want, m.resolveWorkingDir())
 		})
 	}
 }
