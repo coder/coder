@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
 import type { FC, ReactEventHandler } from "react";
 import { toast } from "sonner";
@@ -7,7 +8,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../hooks/useLatestAbortController";
 import { isAbortError } from "../utils/chatAttachments";
 import {

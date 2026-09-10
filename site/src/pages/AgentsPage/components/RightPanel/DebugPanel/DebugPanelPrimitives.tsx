@@ -1,7 +1,7 @@
+import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { cn } from "#/utils/cn";
 import { getRoleBadgeVariant, safeJsonStringify } from "./debugPanelUtils";
 
 interface DebugDataSectionProps {

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronDownIcon, WrenchIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
@@ -8,7 +9,6 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
-import { cn } from "#/utils/cn";
 import { DebugAttemptAccordion } from "./DebugAttemptAccordion";
 import {
 	CopyableCodeBlock,

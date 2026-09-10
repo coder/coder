@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Button } from "#/components/Button/Button";
@@ -6,7 +7,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { CopyButton } from "../CopyButton/CopyButton";
 
 interface CodeExampleProps {

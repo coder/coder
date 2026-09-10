@@ -212,39 +212,6 @@ func TestStoreChatAttachment_InsertError(t *testing.T) {
 	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
 }
 
-func TestStoreChatAttachment_StrictCapError(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
-
-	chatID := uuid.New()
-	ownerID := uuid.New()
-	workspaceID := uuid.New()
-	orgID := uuid.New()
-	fileID := uuid.New()
-	chatSnapshot := database.Chat{
-		ID:          chatID,
-		OwnerID:     ownerID,
-		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-	}
-
-	expectStoreChatAttachmentInTx(t, db, tx)
-	tx.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{ID: workspaceID, OrganizationID: orgID}, nil)
-	tx.EXPECT().InsertChatFile(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatFileParams{})).Return(database.InsertChatFileRow{ID: fileID}, nil)
-	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
-		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      []uuid.UUID{fileID},
-	}).Return(int32(1), nil)
-
-	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
-	require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs))
-	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
-}
-
 func TestStoreChatAttachment_LinkError(t *testing.T) {
 	t.Parallel()
 
@@ -372,26 +339,21 @@ WHERE datname = current_database()
 	barrierReleased = true
 	require.NoError(t, err)
 
-	var successes, capRejections int
 	for range 2 {
 		select {
 		case err := <-attachmentResults:
-			if err == nil {
-				successes++
-				continue
-			}
-			require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs))
-			capRejections++
+			require.NoError(t, err)
 		case <-ctx.Done():
 			require.Failf(t, "attachment store did not finish", "context ended: %v", ctx.Err())
 		}
 	}
-	require.Equal(t, 1, successes)
-	require.Equal(t, 1, capRejections)
 
+	// The second attachment sees the first one under the chat lock and
+	// evicts the oldest file instead of exceeding the cap.
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, files, codersdk.MaxChatFileIDs)
+	require.NotEqual(t, "existing-00.txt", files[0].Name)
 
 	var fileCount int
 	require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&fileCount))

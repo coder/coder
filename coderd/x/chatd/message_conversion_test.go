@@ -1197,3 +1197,183 @@ func TestBuildCommitStepMessages_SkipsProviderExecutedRewriteAttribution(t *test
 	require.False(t, parts[1].ProviderExecuted)
 	require.True(t, parts[1].HookRewritten)
 }
+
+func TestBuildCompactionMessages_ReplaysPendingUserMessages(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	pending := []database.ChatMessage{
+		dbMessage(t, 10, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("do final checks, do NOT start a review")),
+		dbMessage(t, 11, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("also update the scope doc")),
+	}
+	got, err := buildCompactionMessages(buildCompactionMessagesInput{
+		modelConfigID:  modelConfigID,
+		contentVersion: chatprompt.CurrentContentVersion,
+		toolCallID:     "summary-1",
+		toolName:       "chat_summarized",
+		compaction: compactionOutcome{
+			SystemSummary:    "system summary",
+			SummaryReport:    "user report",
+			ThresholdPercent: 70,
+		},
+		pendingUserMessages: pending,
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 5)
+	for i := range 3 {
+		require.True(t, got.Messages[i].Compressed, "boundary trio stays compressed")
+	}
+	for i, want := range []string{"do final checks, do NOT start a review", "also update the scope doc"} {
+		replay := got.Messages[3+i]
+		require.Equal(t, database.ChatMessageRoleUser, replay.Role)
+		require.Equal(t, database.ChatMessageVisibilityModel, replay.Visibility)
+		require.False(t, replay.Compressed, "replay rows must stay inside the post-boundary prompt window")
+		require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, replay.ModelConfigID)
+		require.Equal(t, chatprompt.CurrentContentVersion, replay.ContentVersion)
+		require.Equal(t, want, parseMessageParts(t, replay.Role, replay.Content)[0].Text)
+	}
+}
+
+func TestPendingUserSegmentStart(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TrailingUserRun", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+			dbMessage(t, 3, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending one")),
+			dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending two")),
+		}
+		require.Equal(t, 2, pendingUserSegmentStart(rows))
+	})
+
+	t.Run("NoTrailingUserMessages", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+		}
+		require.Equal(t, len(rows), pendingUserSegmentStart(rows))
+	})
+
+	t.Run("ToolRowStopsSegment", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call", "tool", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call", "tool", json.RawMessage(`{}`), false, false)),
+			dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending")),
+		}
+		require.Equal(t, 3, pendingUserSegmentStart(rows))
+	})
+
+	t.Run("CompressedTrailingRowStopsSegment", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+			dbMessage(t, 3, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("compacted summary")),
+		}
+		require.Equal(t, len(rows), pendingUserSegmentStart(rows))
+	})
+
+	t.Run("NoAssistantBeforeSegment", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleSystem, false, codersdk.ChatMessageText("system")),
+			dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first message")),
+		}
+		require.Equal(t, len(rows), pendingUserSegmentStart(rows))
+	})
+
+	t.Run("DroppedAssistantRowStillStopsSegment", func(t *testing.T) {
+		t.Parallel()
+		// An assistant row that prompt conversion drops (no replayable
+		// parts) must still terminate the segment so the older user
+		// message before it is never treated as pending.
+		rows := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("older user message")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false),
+			dbMessage(t, 3, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending")),
+		}
+		require.Equal(t, 2, pendingUserSegmentStart(rows))
+	})
+}
+
+// Converting the head and the user-only pending tail separately must
+// produce the same generation prompt as converting all rows at once,
+// while keeping the older user message in the head even when an
+// intervening assistant row is dropped by conversion.
+func TestPendingUserSegmentConversionEquivalence(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rows := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleSystem, false, codersdk.ChatMessageText("system")),
+		dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+		dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call-1", "tool", json.RawMessage(`{}`))),
+		dbMessage(t, 4, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call-1", "tool", json.RawMessage(`{}`), false, false)),
+		dbMessage(t, 5, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("older user message")),
+		dbMessage(t, 6, database.ChatMessageRoleAssistant, false),
+		dbMessage(t, 7, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending one")),
+		dbMessage(t, 8, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending two")),
+	}
+
+	start := pendingUserSegmentStart(rows)
+	require.Equal(t, 6, start)
+
+	full, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, logger, nil)
+	require.NoError(t, err)
+	head, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[:start], nil, logger, nil)
+	require.NoError(t, err)
+	tail, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[start:], nil, logger, nil)
+	require.NoError(t, err)
+
+	require.Equal(t, full, append(append([]fantasy.Message{}, head...), tail...))
+
+	// The dropped assistant row makes the older user message adjacent
+	// to the pending run in the converted prompt; it must stay in the
+	// head so the summarizer still sees it.
+	require.Equal(t, fantasy.MessageRoleUser, head[len(head)-1].Role)
+	require.Equal(t, "older user message", head[len(head)-1].Content[0].(fantasy.TextPart).Text)
+	require.Len(t, tail, 2)
+	for _, msg := range tail {
+		require.Equal(t, fantasy.MessageRoleUser, msg.Role)
+	}
+}
+
+func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
+	t.Parallel()
+
+	replayed := dbMessage(t, 5, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending instruction"))
+	replayed.Visibility = database.ChatMessageVisibilityModel
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("original prompt")),
+		dbMessage(t, 2, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("compacted summary")),
+		dbMessage(t, 3, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+		dbMessage(t, 4, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+		replayed,
+	}
+
+	decision, err := decideGenerationAction(generationDecisionInput{
+		messages:                   messages,
+		compactionEnabled:          true,
+		compactionNeeded:           false,
+		compactionThresholdPercent: 70,
+		compactionContextLimit:     100,
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionGenerateAssistant, decision.kind)
+
+	decision, err = decideGenerationAction(generationDecisionInput{
+		chat:                       database.Chat{CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true}},
+		messages:                   messages,
+		compactionEnabled:          true,
+		compactionNeeded:           false,
+		compactionThresholdPercent: 70,
+		compactionContextLimit:     100,
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionGenerateAssistant, decision.kind)
+}

@@ -14,10 +14,8 @@ import (
 
 // RecorderOptions identifies the chat/model context for debug recording.
 type RecorderOptions struct {
-	ChatID   uuid.UUID
-	OwnerID  uuid.UUID
-	Provider string
-	Model    string
+	ChatID  uuid.UUID
+	OwnerID uuid.UUID
 }
 
 // WrapModel returns model unchanged when debug recording is disabled, or a
@@ -189,12 +187,9 @@ type stepHandle struct {
 	stepCtx  *StepContext
 	sink     *attemptSink
 	svc      *Service
-	opts     RecorderOptions
 	mu       sync.Mutex
 	status   Status
 	response any
-	usage    any
-	err      any
 	metadata any
 	// hadError tracks whether a prior finalization wrote an error
 	// payload. Used to decide whether a successful retry needs to
@@ -270,14 +265,13 @@ func beginStep(
 	}
 
 	sc := &StepContext{
-		StepID:              step.ID,
-		RunID:               rc.RunID,
-		ChatID:              chatID,
-		StepNumber:          actualStepNumber,
-		Operation:           op,
-		HistoryTipMessageID: rc.HistoryTipMessageID,
+		StepID:     step.ID,
+		RunID:      rc.RunID,
+		ChatID:     chatID,
+		StepNumber: actualStepNumber,
+		Operation:  op,
 	}
-	handle := &stepHandle{stepCtx: sc, sink: &attemptSink{}, svc: svc, opts: opts}
+	handle := &stepHandle{stepCtx: sc, sink: &attemptSink{}, svc: svc}
 	enriched := ContextWithStep(ctx, handle.stepCtx)
 	enriched = withAttemptSink(enriched, handle.sink)
 	if reuseStep {
@@ -320,8 +314,6 @@ func (h *stepHandle) finish(
 
 	h.status = status
 	h.response = response
-	h.usage = usage
-	h.err = errPayload
 	h.metadata = metadata
 	if errPayload != nil {
 		h.hadError = true

@@ -1,7 +1,7 @@
+import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 type UpdateCheckNoticeProps = {

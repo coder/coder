@@ -6,6 +6,7 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { mergeRegister } from "@lexical/utils";
+import { cn } from "cn";
 import {
 	$createParagraphNode,
 	$createTextNode,
@@ -35,7 +36,6 @@ import {
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
 import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,

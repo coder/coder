@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -290,8 +291,9 @@ func TestOAuth2WithoutPKCEIsRejected(t *testing.T) {
 		State:        state,
 	}
 
-	oauth2providertest.AuthorizeOAuth2AppExpectingError(
-		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+	oauth2providertest.AuthorizeOAuth2AppExpectingRedirectError(
+		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
+		"is required and cannot be empty",
 	)
 }
 
@@ -323,8 +325,9 @@ func TestOAuth2MalformedCodeChallengeIsRejected(t *testing.T) {
 		CodeChallengeMethod: "S256",
 	}
 
-	oauth2providertest.AuthorizeOAuth2AppExpectingError(
-		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+	oauth2providertest.AuthorizeOAuth2AppExpectingRedirectError(
+		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
+		"must be 43 to 128 characters",
 	)
 }
 

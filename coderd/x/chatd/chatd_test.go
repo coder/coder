@@ -1739,8 +1739,9 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	capFileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-	for i := range codersdk.MaxChatFileIDs {
+	// A single batch over the cap is rejected.
+	tooMany := []codersdk.ChatMessagePart{codersdk.ChatMessageText("one too many")}
+	for i := range codersdk.MaxChatFileIDs + 1 {
 		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
@@ -1749,24 +1750,8 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 			Data:           []byte("png-bytes"),
 		})
 		require.NoError(t, err)
-		capFileIDs = append(capFileIDs, row.ID)
+		tooMany = append(tooMany, codersdk.ChatMessageFile(row.ID, "image/png", row.Name))
 	}
-	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-		ChatID:       chat.ID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      capFileIDs,
-	})
-	require.NoError(t, err)
-	require.Zero(t, rejected)
-
-	extra, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-		Name:           "extra.png",
-		Mimetype:       "image/png",
-		Data:           []byte("png-bytes"),
-	})
-	require.NoError(t, err)
 
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     chat.ID,
@@ -1780,11 +1765,8 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("one too many"),
-			codersdk.ChatMessageFile(extra.ID, "image/png", "extra.png"),
-		},
+		ChatID:  chat.ID,
+		Content: tooMany,
 	})
 	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
 
@@ -1796,14 +1778,11 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, files, codersdk.MaxChatFileIDs)
+	require.Empty(t, files, "rejected send must not link files")
 
 	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("re-reference"),
-			codersdk.ChatMessageFile(capFileIDs[0], "image/png", "cap-0.png"),
-		},
+		ChatID:  chat.ID,
+		Content: tooMany[:2],
 	})
 	require.NoError(t, err)
 	require.False(t, sendResult.Queued)
@@ -3944,7 +3923,6 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     toolResultOutput,
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4234,7 +4212,6 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     json.RawMessage(`{"result":"dynamic output"}`),
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4384,7 +4361,6 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 					ToolCallID: toolCallID,
 					Output:     json.RawMessage(`{"result":"concurrent output"}`),
 				}},
-				DynamicTools: dynamicToolsJSON,
 			})
 
 			if submitErr == nil {
@@ -5266,13 +5242,11 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		ContextFileDirectory: "/home/coder/project",
 	}})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+	_, err = db.InsertChatMessages(ctx, singleChatMessageInsertParams(
 		chat.ID,
 		database.ChatMessageRoleUser,
 		contextContent,
-		database.ChatMessageVisibilityBoth,
 		model.ID,
-		chatprompt.CurrentContentVersion,
 		user.ID,
 	))
 	require.NoError(t, err)
@@ -8712,13 +8686,11 @@ func insertChatMessageParts(
 	t.Helper()
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	params := chatd.BuildSingleChatMessageInsertParams(
+	params := singleChatMessageInsertParams(
 		chatID,
 		role,
 		content,
-		database.ChatMessageVisibilityBoth,
 		modelID,
-		chatprompt.CurrentContentVersion,
 		createdBy,
 	)
 	messages, err := db.InsertChatMessages(ctx, params)
@@ -12975,9 +12947,8 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:              coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon:      true,
-		ChatdInstructionLookupTimeout: testutil.WaitLong,
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -13458,7 +13429,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.NoError(t, err)
@@ -13514,7 +13484,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.ErrorIs(t, err, chatd.ErrNoDefaultChatModelConfig)
@@ -13581,7 +13550,6 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 
 	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
-		CreatedBy:       user.ID,
 		QueuedMessageID: queued.ID,
 	})
 	require.NoError(t, err)

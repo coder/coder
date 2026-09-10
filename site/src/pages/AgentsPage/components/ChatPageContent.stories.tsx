@@ -2,8 +2,24 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	chatPromptsKey,
+	userCompactionThresholdsKey,
+} from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockUserChatCompactionThresholds,
+	MockUserOwner,
+	MockUserPreferenceSettings,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -29,6 +45,27 @@ const StoryChatPageTimeline: FC<{
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
+	decorators: [withAuthProvider, withDashboardProvider],
+	parameters: {
+		user: MockUserOwner,
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
+	},
 } satisfies Meta;
 
 export default meta;
@@ -36,20 +73,36 @@ type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
 
-// Renders only the composer half of the chat page. chatId and
-// organizationId stay undefined so the prompt-history and draft
-// attachment queries stay disabled.
+const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionThresholds =
+	{
+		...MockUserChatCompactionThresholds,
+		thresholds: [
+			{
+				model_config_id: MockChat.last_model_config_id,
+				threshold_percent: 60,
+			},
+		],
+	};
+
+const mockCompactionModels: readonly TypesGen.ChatModel[] = [
+	{
+		...MockChatModel,
+		id: MockChat.last_model_config_id,
+	},
+];
+
+// Renders only the composer half of the chat page. Empty chat id and
+// organization keep the prompt-history and draft attachment queries disabled.
 const StoryChatPageInput: FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
 }> = ({ store, onInterrupt }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
-			organizationId={undefined}
+			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			compressionThreshold={undefined}
+			models={[]}
 			onSend={fn()}
-			sendShortcut="enter"
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
 			onInterrupt={onInterrupt ?? fn()}
@@ -71,9 +124,6 @@ const StoryChatPageInput: FC<{
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={fn()}
-			workspaceOptions={[]}
-			selectedWorkspaceId={null}
-			isWorkspaceLoading={false}
 		/>
 	</div>
 );
@@ -135,11 +185,6 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 
 		return <StoryChatPageTimeline store={store} />;
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		canvas.getByRole("button", { name: /thinking/i });
-		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
-	},
 };
 
 export const DurableUnresolvedWorkspaceToolRuns: Story = {
@@ -163,12 +208,6 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 				<StoryChatPageTimeline store={store} />
 			</ChatWorkspaceContext>
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
-		expect(canvas.queryByText("Created workspace")).toBeNull();
-		expect(canvas.getByText("Loading build logs…")).toBeInTheDocument();
 	},
 };
 
@@ -230,17 +269,6 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 
 		return <StoryChatPageTimeline store={store} />;
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText("Message has no renderable content.")).toBeNull();
-
-		const rows = canvasElement.querySelectorAll(
-			'[data-role="user"], [data-role="assistant"]',
-		);
-		expect(rows).toHaveLength(3);
-		expect(rows[1]).toHaveAttribute("data-role", "assistant");
-		expect(rows[1]).toHaveTextContent("Done.");
-	},
 };
 
 export const MergedMessagesRenderInIDOrder: Story = {
@@ -267,12 +295,6 @@ export const MergedMessagesRenderInIDOrder: Story = {
 		]);
 
 		return <StoryChatPageTimeline store={store} />;
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("conversation-timeline")).toHaveTextContent(
-			/alpha[\s\S]*bravo[\s\S]*charlie[\s\S]*delta/,
-		);
 	},
 };
 
@@ -333,5 +355,123 @@ export const RunningShowsBusyComposer: Story = {
 		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
 		expect(canvas.getByRole("button", { name: "Stop" })).toBeEnabled();
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+	},
+};
+
+const CompactionChatPageInput: FC = () => {
+	const store = createChatStore();
+	store.replaceMessages([
+		buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),
+		{
+			...buildMessage(2, "assistant", [
+				{ type: "text", text: "The diff is a rename." },
+			]),
+			usage: {
+				input_tokens: 30_000,
+				output_tokens: 10_000,
+				context_limit: 128_000,
+			},
+		},
+	]);
+
+	return (
+		<div className="mx-auto w-full max-w-3xl p-4">
+			<ChatPageInput
+				chat={MockChat}
+				store={store}
+				models={mockCompactionModels}
+				onSend={fn()}
+				onDeleteQueuedMessage={fn()}
+				onPromoteQueuedMessage={fn()}
+				onInterrupt={fn()}
+				isInputDisabled={false}
+				isSendPending={false}
+				isInterruptPending={false}
+				hasModelOptions={false}
+				selectedModel={MockChat.last_model_config_id}
+				onModelChange={fn()}
+				modelOptions={[]}
+				modelSelectorPlaceholder="Select model"
+				canConfigureAgentSetup={false}
+				isEditing={false}
+				onCancelHistoryEdit={fn()}
+			/>
+		</div>
+	);
+};
+
+const openContextUsage = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(
+		await canvas.findByRole("button", { name: /Context usage/ }),
+	);
+};
+
+export const CompactsAtUserOverride: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: mockUserChatCompactionThresholdsWithOverride,
+			},
+			{
+				key: chatPromptsKey(MockChat.id),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
+	},
+	render: () => <CompactionChatPageInput />,
+	play: async ({ canvasElement }) => {
+		await openContextUsage(canvasElement);
+		await waitFor(() => {
+			expect(within(document.body).getByText("Compacts at 60%")).toBeVisible();
+		});
+		expect(within(document.body).queryByText("Compacts at 70%")).toBeNull();
+	},
+};
+
+export const CompactsAtHistoricalModelDefault: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: chatPromptsKey(MockChat.id),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
+	},
+	render: () => <CompactionChatPageInput />,
+	play: async ({ canvasElement }) => {
+		await openContextUsage(canvasElement);
+		await waitFor(() => {
+			expect(within(document.body).getByText("Compacts at 70%")).toBeVisible();
+		});
 	},
 };

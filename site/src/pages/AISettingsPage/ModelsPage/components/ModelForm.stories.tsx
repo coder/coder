@@ -54,12 +54,6 @@ const waitForPriceLoading = async (canvas: ReturnType<typeof within>) => {
 	);
 };
 
-const waitForSelectToClose = async () => {
-	await waitFor(() =>
-		expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
-	);
-};
-
 const withOrganizationModels = (Story: React.FC) => (
 	<OrganizationModelsContext.Provider
 		value={{
@@ -523,11 +517,15 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Medium" }),
 		);
-		await waitForSelectToClose();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Medium" })).toBeNull();
+		});
 
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
-		await waitForSelectToClose();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Max" })).toBeNull();
+		});
 
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
@@ -555,10 +553,11 @@ export const ReasoningEffortValidationError: Story = {
 
 		await userEvent.click(defaultSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "High" }));
-		await waitForSelectToClose();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "High" })).toBeNull();
+		});
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
-		await waitForSelectToClose();
 
 		await expect(
 			canvas.getByText(
@@ -589,14 +588,18 @@ export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
 
 		await userEvent.click(level);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
-		await waitForSelectToClose();
 		await expect(budget).toBeDisabled();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Low" })).toBeNull();
+		});
 
 		await userEvent.click(level);
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Default" }),
 		);
-		await waitForSelectToClose();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Default" })).toBeNull();
+		});
 		await expect(budget).toBeEnabled();
 
 		await userEvent.type(budget, "2048");

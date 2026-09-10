@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	AlertTriangleIcon,
 	DownloadIcon,
@@ -5,13 +6,13 @@ import {
 	FileTextIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
+import { MaxChatFileIDs } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
 	type AttachmentFailure,
@@ -220,10 +221,12 @@ const imageAttachmentFailureLabels: AttachmentFailureLabels = {
 	failed: "Image failed to load",
 };
 
-const textAttachmentFailureLabels: AttachmentFailureLabels = {
+const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 	expired: "Attachment expired",
 	failed: "Attachment failed to load",
 };
+
+const expiredAttachmentExplanation = `A chat keeps its ${MaxChatFileIDs} most recent attachments, and older attachments are removed. Attachments that no chat references are deleted after this deployment's retention window.`;
 
 const AttachmentFallbackTile: FC<{
 	state: AttachmentFailure;
@@ -250,14 +253,12 @@ const AttachmentFallbackTile: FC<{
 	);
 
 	// Only surface a tooltip when we have something to add:
-	// - "expired" explains the retention policy.
+	// - "expired" explains why the file is gone.
 	// - "failed" with a detail surfaces the API error or network reason.
 	// A bare "failed" (e.g. an inline base64 decode failure, where the
 	// browser exposes nothing useful) stays a plain tile.
 	const tooltipBody =
-		state.kind === "expired"
-			? "Attachments are kept while any chat references them. After all references are removed, they are deleted once they are older than this deployment's retention window."
-			: state.detail;
+		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -341,7 +342,7 @@ const RemoteTextAttachmentButton: FC<{
 		return (
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
-				labels={textAttachmentFailureLabels}
+				labels={fileAttachmentFailureLabels}
 				className="h-16 w-28"
 			/>
 		);
@@ -350,7 +351,7 @@ const RemoteTextAttachmentButton: FC<{
 		return (
 			<AttachmentFallbackTile
 				state={failureState}
-				labels={textAttachmentFailureLabels}
+				labels={fileAttachmentFailureLabels}
 				className="h-16 w-28"
 			/>
 		);
@@ -558,9 +559,20 @@ const FileCard: FC<{
 	block: FileAttachmentBlock;
 	href: string;
 }> = ({ block, href }) => {
+	const { hasExpired } = useFileProbes();
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
+
+	if (block.file_id !== undefined && hasExpired(block.file_id)) {
+		return (
+			<AttachmentFallbackTile
+				state={{ kind: "expired" }}
+				labels={fileAttachmentFailureLabels}
+				className="h-16 w-28"
+			/>
+		);
+	}
 
 	return (
 		<a

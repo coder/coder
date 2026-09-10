@@ -40,9 +40,9 @@ const selectOption = async (
 		await canvas.findByRole("combobox", { name: comboboxName }),
 	);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
-	await waitFor(() =>
-		expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
-	);
+	await waitFor(() => {
+		expect(body.queryByRole("option", { name: optionName })).toBeNull();
+	});
 };
 
 export const Default: Story = {

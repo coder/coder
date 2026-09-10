@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC, HTMLProps } from "react";
 import React, { useEffect, useRef } from "react";
@@ -5,7 +6,6 @@ import {
 	SearchField,
 	type SearchFieldProps,
 } from "#/components/SearchField/SearchField";
-import { cn } from "#/utils/cn";
 import type { BarColors } from "./Bar";
 
 export const Chart = (props: HTMLProps<HTMLDivElement>) => {

@@ -3,10 +3,10 @@
  * @see {@link https://ui.shadcn.com/docs/components/dialog}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 export const Dialog = DialogPrimitive.Root;
 

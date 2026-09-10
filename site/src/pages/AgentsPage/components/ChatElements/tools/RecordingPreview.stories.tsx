@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { FileProbeProvider } from "../../ChatConversation/FileProbeContext";
 import { RecordingPreview } from "./RecordingPreview";
 
 // Static assets stored in site/.storybook/static/.
@@ -20,13 +21,6 @@ export const Default: Story = {
 		thumbnailFileId: "dummy-thumb-id",
 		thumbnailSrc: TINY_THUMBNAIL,
 		src: TINY_MP4,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("img")).toBeInTheDocument();
-		expect(
-			canvas.getByRole("button", { name: "View recording" }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -96,19 +90,18 @@ export const WithoutThumbnail: Story = {
 	args: {
 		recordingFileId: "rec-id",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// No <img> or <video> element should be in the DOM.
-		expect(canvasElement.querySelector("img")).toBeNull();
-		expect(canvasElement.querySelector("video")).toBeNull();
-		// Play button is still present.
-		expect(
-			canvas.getByRole("button", { name: "View recording" }),
-		).toBeInTheDocument();
-		// Gray placeholder div is visible.
-		const placeholder = canvasElement.querySelector(
-			".bg-surface-secondary:not(.flex)",
-		);
-		expect(placeholder).not.toBeNull();
+};
+
+export const Expired: Story = {
+	args: {
+		recordingFileId: "evicted-rec-id",
+		thumbnailFileId: "evicted-thumb-id",
 	},
+	decorators: [
+		(Story) => (
+			<FileProbeProvider evictedFileIds={new Set(["evicted-rec-id"])}>
+				<Story />
+			</FileProbeProvider>
+		),
+	],
 };

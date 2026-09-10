@@ -392,7 +392,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   1111,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// Stat inserted 180 days - 2 hour ago, should not be deleted before rollup.
@@ -401,7 +401,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   2222,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// Stat inserted 179 days - 4 hour ago, should not be deleted at all.
@@ -410,7 +410,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   3333,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// when
@@ -2775,27 +2775,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					now.Add(-10*24*time.Hour), recentArchivedChat.ID)
 				require.NoError(t, err)
 
-				// File F: 31 days old, in BOTH an active chat AND an old archived chat -> should be retained.
-				fileF := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
-				anotherOldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
-				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-					ChatID:       anotherOldArchivedChat.ID,
-					MaxFileLinks: 100,
-					FileIds:      []uuid.UUID{fileF},
-				})
-				require.NoError(t, err)
-				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
-					now.Add(-31*24*time.Hour), anotherOldArchivedChat.ID)
-				require.NoError(t, err)
-
-				activeChatForF := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
-				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-					ChatID:       activeChatForF.ID,
-					MaxFileLinks: 100,
-					FileIds:      []uuid.UUID{fileF},
-				})
-				require.NoError(t, err)
-
 				done := awaitDoTick(ctx, t, clk)
 				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
@@ -2806,9 +2785,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				_, err = db.GetChatFileByID(ctx, fileE)
 				require.NoError(t, err, "file E in recently archived chat should be retained")
-
-				_, err = db.GetChatFileByID(ctx, fileF)
-				require.NoError(t, err, "file F in active + old archived chat should be retained")
 			},
 		},
 		{

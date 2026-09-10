@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { type FC, Fragment } from "react";
-import { cn } from "#/utils/cn";
-import { Message, MessageContent } from "../ChatElements";
+import { Message, MessageContent } from "../ChatElements/Message";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
 	hasInlineContentAfter,

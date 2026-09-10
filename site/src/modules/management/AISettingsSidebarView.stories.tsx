@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useLocation } from "react-router";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import {
+	type RouterRoute,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import {
 	MockDefaultOrganization,
@@ -16,27 +20,68 @@ import {
 import { AISettingsSidebar } from "./AISettingsSidebar";
 import AISettingsSidebarView from "./AISettingsSidebarView";
 
+const LocationProbe = () => {
+	const location = useLocation();
+	return (
+		<p role="status" aria-label="Current location" className="sr-only">
+			{location.pathname}
+			{location.search}
+		</p>
+	);
+};
+
+const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
+	{ path: "/ai/settings/governance", useStoryElement: true },
+	{ path: "/ai/settings/gateway-keys", useStoryElement: true },
+	{ path: "/ai/settings/providers", useStoryElement: true },
+	{ path: "/ai/settings/coder-agents", useStoryElement: true },
+	{ path: "/ai/settings/models", useStoryElement: true },
+	{
+		path: "/ai/settings/organizations/:organization/models",
+		useStoryElement: true,
+	},
+	{ path: "/ai/settings/mcp-servers", useStoryElement: true },
+	{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
+	{ path: "/ai/settings/templates", useStoryElement: true },
+	{ path: "/ai/settings/instructions", useStoryElement: true },
+	{ path: "/ai/settings/lifecycle", useStoryElement: true },
+];
+
+const atLocation = (path: string, searchParams?: Record<string, string>) =>
+	reactRouterParameters({
+		location: { path, searchParams },
+		routing: aiSettingsRoutes,
+	});
+
+const followLink = async (
+	canvas: ReturnType<typeof within>,
+	name: string,
+	expectedLocation: string,
+) => {
+	await userEvent.click(canvas.getByRole("link", { name }));
+	await waitFor(() =>
+		expect(
+			canvas.getByRole("status", { name: "Current location" }).textContent,
+		).toBe(expectedLocation),
+	);
+};
+
 const meta: Meta<typeof AISettingsSidebarView> = {
 	title: "modules/management/AISettingsSidebarView",
 	component: AISettingsSidebarView,
+	decorators: [
+		(Story) => (
+			<>
+				<Story />
+				<LocationProbe />
+			</>
+		),
+	],
 	args: {
 		permissions: MockPermissions,
 	},
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/coder-agents" },
-			routing: [
-				{ path: "/ai/settings/governance", useStoryElement: true },
-				{ path: "/ai/settings/gateway-keys", useStoryElement: true },
-				{ path: "/ai/settings/providers", useStoryElement: true },
-				{ path: "/ai/settings/coder-agents", useStoryElement: true },
-				{ path: "/ai/settings/models", useStoryElement: true },
-				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
-				{ path: "/ai/settings/templates", useStoryElement: true },
-				{ path: "/ai/settings/instructions", useStoryElement: true },
-				{ path: "/ai/settings/lifecycle", useStoryElement: true },
-			],
-		}),
+		reactRouter: atLocation("/ai/settings/coder-agents"),
 	},
 };
 
@@ -55,10 +100,7 @@ export const CoderAgentsActive: Story = {
 
 export const ModelsActive: Story = {
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/models" },
-			routing: [{ path: "/ai/settings/models", useStoryElement: true }],
-		}),
+		reactRouter: atLocation("/ai/settings/models"),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -69,19 +111,36 @@ export const ModelsActive: Story = {
 	},
 };
 
+export const OrganizationParamPreserved: Story = {
+	parameters: {
+		reactRouter: atLocation("/ai/settings/models", { org: "my organization" }),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await followLink(
+			canvas,
+			"Coder Agents",
+			"/ai/settings/coder-agents?org=my+organization",
+		);
+		await followLink(
+			canvas,
+			"MCP servers",
+			"/ai/settings/mcp-servers?org=my+organization",
+		);
+		await followLink(
+			canvas,
+			"Models",
+			"/ai/settings/models?org=my+organization",
+		);
+		await followLink(canvas, "Providers", "/ai/settings/providers");
+	},
+};
+
 export const ModelsActiveOnOrganizationRoute: Story = {
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/ai/settings/organizations/my-organization/models",
-			},
-			routing: [
-				{
-					path: "/ai/settings/organizations/:organization/models",
-					useStoryElement: true,
-				},
-			],
-		}),
+		reactRouter: atLocation(
+			"/ai/settings/organizations/my-organization/models",
+		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -94,19 +153,13 @@ export const ModelsActiveOnOrganizationRoute: Story = {
 
 export const LifecycleActive: Story = {
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/lifecycle" },
-			routing: [{ path: "/ai/settings/lifecycle", useStoryElement: true }],
-		}),
+		reactRouter: atLocation("/ai/settings/lifecycle"),
 	},
 };
 
 export const ProvidersActive: Story = {
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/providers" },
-			routing: [{ path: "/ai/settings/providers", useStoryElement: true }],
-		}),
+		reactRouter: atLocation("/ai/settings/providers"),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -296,6 +349,28 @@ export const MCPServersForCreateOnlyAdmin: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "MCP servers" }),
 		).toHaveAttribute("href", "/ai/settings/mcp-servers/add");
+	},
+};
+
+export const MCPServersForCreateOnlyAdminPreservesOrganization: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/mcp-servers", {
+			org: MockDefaultOrganization.name,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await followLink(
+			canvas,
+			"MCP servers",
+			`/ai/settings/mcp-servers/add?org=${MockDefaultOrganization.name}`,
+		);
 	},
 };
 

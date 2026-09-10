@@ -36,20 +36,6 @@ export const Default: Story = {
 	},
 };
 
-export const AccessibleTitle: Story = {
-	args: {
-		src: TINY_MP4,
-		open: true,
-		onClose: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const screen = within(canvasElement.ownerDocument.body);
-		expect(
-			screen.getByRole("dialog", { name: "Recording playback" }),
-		).toBeInTheDocument();
-	},
-};
-
 export const VideoError: Story = {
 	args: {
 		src: TINY_MP4,

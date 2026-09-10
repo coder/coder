@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type ComponentPropsWithRef,
 	type FC,
@@ -22,7 +23,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 

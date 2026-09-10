@@ -59,10 +59,10 @@ export const Default: Story = {
 			canvas.getByRole("combobox", { name: /authentication method/i }),
 		);
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
-		await waitFor(() =>
-			expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
-		);
 		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
+		await waitFor(() => {
+			expect(body.queryByRole("option", { name: "OAuth2" })).toBeNull();
+		});
 
 		await userEvent.click(addButton);
 		await waitFor(() => {

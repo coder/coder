@@ -2,11 +2,11 @@ import {
 	MessageScroller,
 	useMessageScrollerScrollable,
 } from "@shadcn/react/message-scroller";
+import { cn } from "cn";
 import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
 interface EarlierMessagesProps {

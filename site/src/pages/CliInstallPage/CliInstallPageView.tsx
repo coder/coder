@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Welcome } from "#/components/Welcome/Welcome";
-import { cn } from "#/utils/cn";
 
 type CliInstallPageViewProps = {
 	origin: string;

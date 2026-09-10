@@ -43,7 +43,93 @@ var (
 	// errUnmintableScope means the scope stored on a grant names something no
 	// API key can be minted from.
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
+	// errStaleScope means the app's registered scopes narrowed after the code
+	// was issued and no longer cover the code's scope.
+	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes; authorize again to obtain a code within the current scopes")
+	// errScopeNotGranted means a request asked for more than the resource owner
+	// granted. The ceiling is the grant itself rather than the app's allowlist,
+	// and nothing but a new authorization raises it, so the message says so.
+	errScopeNotGranted = xerrors.New("scope requests permissions beyond the scope originally granted; a refresh cannot widen a grant, so authorize again to obtain a broader one")
 )
+
+// checkScopeStillCovered rechecks a grant's scope against the app's registered
+// scopes as they stand now, which can change during a code's ten minute life.
+// Only the client can change them, through its RFC 7592 registration.
+//
+// Refresh deliberately does not call this. A narrowed registration is applied
+// at the next authorization rather than mid-session, so tightening an app's
+// scopes does not break integrations that are already running.
+func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string) error {
+	if noScopeAllowlist(app.Scope) {
+		return nil
+	}
+
+	allowlist := grantableScopes(app.Scope.String)
+	if len(allowlist) == 0 {
+		logger.Warn(ctx, "oauth2 code redemption refused: no registered scope is grantable",
+			slog.F("app_id", app.ID.String()))
+		return errNoGrantableScope
+	}
+
+	// Canonicalized because the row may have been written by an older server.
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseRedeem, app.ID, allowlist, canonicalScopes(strings.Fields(granted)))
+	if err != nil {
+		return err
+	}
+	if outside != "" {
+		logger.Warn(ctx, "oauth2 code redemption refused by the app's registered scopes",
+			slog.F("app_id", app.ID.String()),
+			slog.F("allowlist", strings.Join(allowlist, " ")),
+			slog.F("scope", outside))
+		return xerrors.Errorf("'%s': %w", outside, errStaleScope)
+	}
+	return nil
+}
+
+// narrowAccessScope returns the scope for the access token this request mints.
+// A request may ask for part of the grant but never more (RFC 6749 §6), and a
+// request naming no scope gets the whole grant. The grant itself is unchanged,
+// so a later request may ask for a different part of it.
+func narrowAccessScope(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, granted string, requested []string) (string, error) {
+	// The row may have been written by an older server.
+	ceiling := canonicalScopes(strings.Fields(granted))
+	// Before the comparison, so a stored name this deployment dropped is named
+	// in a 400 rather than failing to expand into a 500.
+	if _, err := scopeStringToAPIKeyScopes(strings.Join(ceiling, " ")); err != nil {
+		return "", err
+	}
+	if len(requested) == 0 {
+		return strings.Join(ceiling, " "), nil
+	}
+
+	// First, so a typo reads as an unknown scope rather than as a coverage
+	// check RBAC could not decide.
+	if unknown, ok := firstUnknownScope(requested); ok {
+		logger.Warn(ctx, "oauth2 token request refused: scope outside the catalog",
+			slog.F("phase", phase),
+			slog.F("app_id", appID.String()),
+			slog.F("scope", unknown))
+		return "", xerrors.Errorf("'%s': %w", unknown, errUnknownScope)
+	}
+
+	narrowed := canonicalScopes(requested)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phase, appID, ceiling, narrowed)
+	if err != nil {
+		return "", err
+	}
+	if outside != "" {
+		// Logged like every other scope refusal in this package: without it a
+		// leaked token being probed for what it can be traded up to looks the
+		// same as an ordinary client error.
+		logger.Warn(ctx, "oauth2 token request refused: scope beyond the grant",
+			slog.F("phase", phase),
+			slog.F("app_id", appID.String()),
+			slog.F("granted", granted),
+			slog.F("scope", outside))
+		return "", xerrors.Errorf("'%s': %w", outside, errScopeNotGranted)
+	}
+	return strings.Join(narrowed, " "), nil
+}
 
 // scopeStringToAPIKeyScopes converts a grant's stored scope into the scope list
 // an API key is minted with. Names are checked here, not in apikey.Generate,
@@ -69,7 +155,7 @@ func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 // extractTokenRequest parses and validates the /oauth2/tokens form. It takes
 // the app because whether client_secret is required depends on the client
 // type.
-func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
+func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, alternates []*url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
@@ -143,7 +229,7 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 	}
 
 	// Validate redirect URI - errors are added to p.Errors.
-	_ = p.RedirectURL(vals, callbackURL, "redirect_uri")
+	_ = p.RedirectURL(vals, primary, alternates, "redirect_uri")
 
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment.
 	if err := validateResourceParameter(req.Resource); err != nil {
@@ -153,22 +239,37 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 		})
 	}
 
-	p.ErrorExcessParams(vals)
+	// RFC 6749 §3.2 and OAuth 2.1 §3.2: unrecognized parameters MUST be ignored,
+	// so a client_assertion or a DPoP parameter is not this endpoint's business.
+	// Repeats of the parameters read above are still rejected, by parseSingle.
+	if ignored := ignoredParams(p, vals); len(ignored) > 0 {
+		logger.Debug(r.Context(), "ignoring unrecognized token parameters",
+			slog.F("params", ignored))
+	}
+
 	if len(p.Errors) > 0 {
 		return codersdk.OAuth2TokenRequest{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
 	}
 	return req, nil, nil
 }
 
+// writeTokenError renders an RFC 6749 §5.2 error body. Descriptions can quote
+// what the client sent, so they are confined and capped here rather than at each
+// call site, leaving the guarantee with the endpoint.
+func writeTokenError(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
+	// Sanitized before the cap, so the bound is on what the client receives.
+	httpapi.WriteOAuth2Error(ctx, rw, status, code, capErrorDescription(sanitizeErrorDescription(description)))
+}
+
 // Tokens
 // Uses Sessions.DefaultDuration for access token (API key) TTL and
 // Sessions.RefreshDefaultDuration for refresh token TTL.
-func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerFunc {
+func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
+		primary, alternates, err := registeredRedirectURIs(app)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate form values.",
@@ -177,10 +278,10 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			return
 		}
 
-		req, validationErrs, err := extractTokenRequest(r, callbackURL, app)
+		req, validationErrs, err := extractTokenRequest(r, logger, primary, alternates, app)
 		if err != nil {
 			if errors.Is(err, errConflictingClientAuth) {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
 				return
 			}
 
@@ -188,7 +289,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "grant_type"
 			}) {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
 				return
 			}
 
@@ -197,7 +298,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 				if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 					return validationError.Field == field
 				}) {
-					httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
+					writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
 					return
 				}
 			}
@@ -209,12 +310,13 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "code_verifier"
 			}) {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 §4.1)")
+				// Spelled out: §5.2 excludes the section sign.
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 section 4.1)")
 				return
 			}
 
 			// Generic invalid request for other validation errors
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
 			return
 		}
 
@@ -223,41 +325,53 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		switch req.GrantType {
 		// TODO: Client creds, device code.
 		case codersdk.OAuth2ProviderGrantTypeRefreshToken:
-			token, err = refreshTokenGrant(ctx, db, app, lifetimes, req)
+			token, err = refreshTokenGrant(ctx, db, logger, app, lifetimes, req)
 		case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
-			token, err = authorizationCodeGrant(ctx, db, app, lifetimes, req)
+			token, err = authorizationCodeGrant(ctx, db, logger, app, lifetimes, req)
 		default:
 			// This should handle truly invalid grant types
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
 			return
 		}
 
 		if errors.Is(err, errBadSecret) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
+			writeTokenError(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 			return
 		}
 		if errors.Is(err, errBadCode) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
 			return
 		}
 		if errors.Is(err, errInvalidPKCE) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
 			return
 		}
 		if errors.Is(err, errInvalidResource) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
 			return
 		}
 		if errors.Is(err, errBadToken) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		if errors.Is(err, errUnmintableScope) {
-			// Not invalid_scope: RFC 6749 §5.2 scopes that to what the client
-			// requested, and this value is stored state the client cannot
-			// change by asking differently. The grant is what is unusable, and
-			// re-authorizing is the only way out, so invalid_grant.
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
+		// invalid_grant, not invalid_scope (RFC 6749 §5.2): all three report a
+		// problem with the stored grant, which the client cannot fix by asking
+		// differently. That includes errUnmintableScope: the catalog check runs
+		// first and every catalog name is mintable, so a requested scope never
+		// reaches it.
+		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
+			errors.Is(err, errNoGrantableScope) {
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
+			return
+		}
+		// invalid_scope for these: the refresh named them itself, so the
+		// client can fix it by asking differently.
+		if errors.Is(err, errUnknownScope) || errors.Is(err, errScopeNotGranted) {
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			return
+		}
+		if errors.Is(err, errCoverageUndecidable) {
+			writeTokenError(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
 			return
 		}
 		if err != nil {
@@ -290,14 +404,14 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 	defer cancel()
 
 	//nolint:gocritic // OAuth2 system context, no authenticated user during token exchange
-	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(revokeCtx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if _, err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(revokeCtx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
 			rlogger.WithFields(slog.F("oauth2_pkce_failure_code_revoke_error", err.Error()))
 		}
 	}
 }
 
-func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
+func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// A public client has no secret to validate, and its token references
 	// none. PKCE and the dbCode.AppID check are what bind the exchange to the
 	// client instead.
@@ -402,14 +516,33 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, errInvalidResource
 	}
 
-	// Generate a refresh token.
-	refreshToken, err := GenerateSecret()
+	// Before the allowlist check: RBAC cannot expand a name that is not a real
+	// scope, so that check would answer "could not be determined" rather than
+	// naming the stored scope to fix.
+	if _, err := scopeStringToAPIKeyScopes(dbCode.Scope); err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
+	if err := checkScopeStillCovered(ctx, logger, app, dbCode.Scope); err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
+	// An exchange may narrow too. RFC 6749 §4.1.3 defines no scope parameter
+	// here, but the form carries one, and accepting it silently would hand back
+	// the broader token the client asked to give up.
+	accessScope, err := narrowAccessScope(ctx, logger, phaseRedeem, app.ID, dbCode.Scope, strings.Fields(req.Scope))
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// Without this the key defaults to coder:all, discarding the negotiation.
-	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
+	// apikey.Generate defaults to coder:all when this is empty.
+	scopes, err := scopeStringToAPIKeyScopes(accessScope)
+	if err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
+	// Generate a refresh token.
+	refreshToken, err := GenerateSecret()
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
@@ -446,7 +579,14 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		err = tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
+		// Spend the code. RFC 6749 §10.5 requires single use: a code that
+		// survived its own redemption could be replayed by anyone who
+		// intercepted it. Spending it inside the transaction ties it to the
+		// token, so a later failure leaves the code redeemable.
+		_, err := tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errBadCode
+		}
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app code: %w", err)
 		}
@@ -495,12 +635,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
-		Scope:        dbCode.Scope,
+		Scope:        accessScope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }
 
-func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
+func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// Validate the token.
 	token, err := ParseFormattedSecret(req.RefreshToken)
 	if err != nil {
@@ -542,6 +682,11 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		}
 	}
 
+	accessScope, err := narrowAccessScope(ctx, logger, phaseRefresh, app.ID, dbToken.Scope, strings.Fields(req.Scope))
+	if err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
 	// Grab the user roles so we can perform the refresh as the user.
 	//nolint:gocritic // OAuth2 system context, need to read the previous API key
 	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
@@ -561,8 +706,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// A refresh neither widens nor narrows the original grant.
-	scopes, err := scopeStringToAPIKeyScopes(dbToken.Scope)
+	scopes, err := scopeStringToAPIKeyScopes(accessScope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
@@ -612,9 +756,10 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
-			// RFC 6749 §6: a refresh with no scope parameter is granted the
-			// originally granted scope. Later phases narrow this against
-			// req.Scope; they never widen it.
+			// The consented grant, not accessScope: this column is the ceiling
+			// later refreshes are bounded by, and the only record of what the
+			// user approved. A rotated refresh token carries the scope of the
+			// one presented (OAuth 2.1 §4.3.3).
 			Scope: dbToken.Scope,
 		})
 		if err != nil {
@@ -631,7 +776,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
-		Scope:        dbToken.Scope,
+		Scope:        accessScope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }

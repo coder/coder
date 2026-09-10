@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, type ReactNode, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { organizationMembers } from "#/api/queries/organizations";
@@ -14,7 +15,6 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { useDebouncedFunction } from "#/hooks/debounce";
-import { cn } from "#/utils/cn";
 import { prepareQuery } from "#/utils/filters";
 
 const DEBOUNCE_MS = 750;

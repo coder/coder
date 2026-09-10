@@ -1,6 +1,7 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useRef, useState } from "react";
+import { type ComponentProps, type FC, useState } from "react";
+import { Outlet } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -12,8 +13,16 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import {
+	chatEntityKey,
+	userCompactionThresholdsKey,
+} from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -21,7 +30,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -42,7 +53,8 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
+import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
@@ -66,9 +78,6 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	...MockChat,
 	id: AGENT_ID,
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: "Owner",
 	title: "Help me refactor",
 	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
@@ -109,6 +118,31 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
+const collapsedSidebarRouter = reactRouterParameters({
+	location: {
+		path: `/agents/${AGENT_ID}`,
+		pathParams: { agentId: AGENT_ID },
+	},
+	routing: [
+		{
+			path: "/",
+			element: (
+				<Outlet
+					context={{
+						isSidebarCollapsed: true,
+						onToggleSidebarCollapsed: () => {},
+						onExpandSidebar: () => {},
+					}}
+				/>
+			),
+			children: [
+				{ path: "agents/:agentId", useStoryElement: true },
+				{ path: "agents", useStoryElement: true },
+			],
+		},
+	],
+});
+
 // ---------------------------------------------------------------------------
 // Wrapper component.
 //
@@ -120,44 +154,34 @@ const agentsRouting = [
 // ---------------------------------------------------------------------------
 type StoryProps = Omit<
 	Partial<ComponentProps<typeof AgentChatPageView>>,
-	"editing"
+	"editing" | "chat"
 > & {
 	editing?: Partial<ComponentProps<typeof AgentChatPageView>["editing"]>;
+	chat?: Partial<TypesGen.Chat>;
 };
 
-const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
-	const defaultStoreRef = useRef(createChatStore());
-	const store = overrides.store ?? defaultStoreRef.current;
+const StoryAgentChatPageView: FC<StoryProps> = ({
+	editing,
+	chat,
+	...overrides
+}) => {
+	const [defaultStore] = useState(() => createChatStore());
+	const store = overrides.store ?? defaultStore;
 
 	const props = {
-		agentId: AGENT_ID,
-		sendShortcut: "enter" as const,
-		organizationId: "test-org-id",
-		chatTitle: "Help me refactor",
+		chat: buildChat(chat),
 		persistedError: undefined as ChatDetailError | undefined,
-		parentChat: undefined as TypesGen.Chat | undefined,
-		isArchived: false,
-		isSharedChat: false,
-		chatOwner: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["chatOwner"],
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
+		models: [],
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
-		isSidebarCollapsed: false,
-		onToggleSidebarCollapsed: fn(),
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
-		prNumber: undefined as number | undefined,
-		diffStatusData: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["diffStatusData"],
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
@@ -165,9 +189,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
-		handleArchiveAgentAction: fn(),
-		handleUnarchiveAgentAction: fn(),
-		handleArchiveAndDeleteWorkspaceAction: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -179,11 +200,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
-		canShareChat: false,
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
-		initialChatStatus: "waiting" as const,
 		initialMessages: [],
 		...overrides,
 		store,
@@ -203,6 +222,9 @@ const meta: Meta<typeof AgentChatPageView> = {
 	// summary panel never requests it.
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
 	},
 	decorators: [
 		(Story) => (
@@ -217,6 +239,38 @@ const meta: Meta<typeof AgentChatPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockChat.organization_id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: false },
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${AGENT_ID}`,
@@ -237,12 +291,6 @@ type Story = StoryObj<typeof AgentChatPageView>;
 /** Basic conversation view with a chat title, workspace, and no archive. */
 export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This chat is owned by/),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const CachedModelsWithRefetchError: Story = {
@@ -251,28 +299,23 @@ export const CachedModelsWithRefetchError: Story = {
 			modelCatalogError={new Error("Failed to refresh available models.")}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Failed to refresh available models."),
-		).toBeVisible();
-		expect(
-			canvas.getByRole("combobox", {
-				name: defaultModelOptions[0].displayName,
-			}),
-		).toBeVisible();
-	},
 };
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
-	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
+	render: () => (
+		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
+	),
 };
 
 export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 		/>
 	),
@@ -293,7 +336,11 @@ export const OtherUserChatReadOnly: Story = {
 export const OtherUserChatUsernameFallback: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
 		/>
 	),
@@ -312,7 +359,16 @@ export const OtherUserChatUsernameFallback: Story = {
 };
 
 export const OtherUserChatOwnerFallback: Story = {
-	render: () => <StoryAgentChatPageView chatOwner={{}} isInputDisabled />,
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{
+				owner_id: "other-user",
+				owner_username: undefined,
+				owner_name: undefined,
+			}}
+			isInputDisabled
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByText(
@@ -331,27 +387,22 @@ export const OtherUserChatOwnerFallback: Story = {
 export const ArchivedOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
-			chatOwner={{ username: "OtherUser" }}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This chat is owned by/),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.getByText("This agent has been archived and is read-only."),
-		).toBeVisible();
-	},
 };
 
 export const QueuedForCapacityCommunityAdmin: Story = {
 	parameters: {
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const callout = within(canvas.getByRole("alert"));
@@ -375,7 +426,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 };
 
 export const QueuedForCapacityCommunityMember: Story = {
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -398,7 +449,7 @@ export const QueuedForCapacityPremiumAdmin: Story = {
 		features: ["multiple_organizations"],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -420,7 +471,7 @@ export const QueuedForCapacityPremiumMember: Story = {
 	parameters: {
 		features: ["multiple_organizations"],
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -451,7 +502,7 @@ export const QueuedForCapacityPremiumHardLimit: Story = {
 		],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -466,23 +517,39 @@ export const QueuedForCapacityPremiumHardLimit: Story = {
 	},
 };
 
-export const NotQueuedForCapacity: Story = {
-	render: () => <StoryAgentChatPageView />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/limit for active agents/),
-		).not.toBeInTheDocument();
-	},
-};
-
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: chatEntityKey("parent-chat-1"),
+				data: buildChat({ id: "parent-chat-1", title: "Root agent" }),
+			},
+		],
+	},
 	render: () => (
-		<StoryAgentChatPageView
-			parentChat={buildChat({ id: "parent-chat-1", title: "Root agent" })}
-		/>
+		<StoryAgentChatPageView chat={{ parent_chat_id: "parent-chat-1" }} />
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const parentLink = await canvas.findByRole("link", { name: "Root agent" });
+		expect(parentLink).toHaveAttribute("href", "/agents/parent-chat-1");
+	},
 };
 
 /** Persisted error reason shown in the timeline area. */
@@ -498,18 +565,6 @@ export const WithError: Story = {
 			}}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /service overloaded/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is temporarily overloaded\./i),
-		).toBeVisible();
-		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
-		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-	},
 };
 
 /** Input area appears disabled when `isInputDisabled` is true. */
@@ -527,19 +582,19 @@ export const WithSidebarPanel: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -579,27 +634,6 @@ export const NarrowWithSidebarPanel: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("narrow-agents-layout");
-		const chatPanel = await canvas.findByTestId("agents-chat-panel");
-		const rightPanel = await canvas.findByTestId("agents-right-panel");
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-
-		await waitFor(() => {
-			const layoutRect = layout.getBoundingClientRect();
-			const chatPanelRect = chatPanel.getBoundingClientRect();
-			const rightPanelRect = rightPanel.getBoundingClientRect();
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-
-			expect(chatPanelRect.width).toBeGreaterThanOrEqual(359);
-			expect(sendButtonRect.left).toBeGreaterThanOrEqual(composerRect.left);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-			expect(rightPanelRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
-		});
-	},
 };
 
 /**
@@ -611,19 +645,19 @@ export const RefreshInvalidatesPRDiff: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -671,7 +705,8 @@ index abc1234..def5678 100644
 
 /** Left sidebar is collapsed. */
 export const SidebarCollapsed: Story = {
-	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <StoryAgentChatPageView />,
 };
 
 /** No model options available — shows a disabled status message. */
@@ -689,6 +724,7 @@ export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
+			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={0}
 			modelCount={0}
 			hasModelOptions={false}
@@ -715,7 +751,7 @@ export const MissingProviderAndModelSetup: Story = {
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/ai/settings/models",
+			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
 		);
 	},
 };
@@ -724,6 +760,7 @@ export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
+			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={1}
 			modelCount={0}
 			hasModelOptions={false}
@@ -746,7 +783,7 @@ export const MissingModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/ai/settings/models",
+			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
 		);
 	},
 };
@@ -790,17 +827,6 @@ export const MemberNoModelsAvailable: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getByText(
-					"AI models aren't available yet. Your admin is still getting things set up.",
-				),
-			).toBeVisible();
-		});
-	},
 };
 
 export const WithWorkspace: Story = {
@@ -881,19 +907,10 @@ export const WorkspaceNoAgent: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
-			workspaceOptions={[MockWorkspace]}
-			selectedWorkspaceId={MockWorkspace.id}
+			chat={{ workspace_id: MockWorkspace.id }}
 			onWorkspaceChange={fn()}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", {
-				name: `Remove workspace ${MockWorkspace.name}`,
-			}),
-		).toBeVisible();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -904,8 +921,6 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -917,8 +932,6 @@ export const Loading: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -928,8 +941,6 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -941,8 +952,6 @@ export const LoadingWithModelOptions: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -951,8 +960,6 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -964,8 +971,6 @@ export const LoadingWithRightPanel: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel
 		/>
 	),
@@ -973,10 +978,9 @@ export const LoadingWithRightPanel: Story = {
 
 /** Loading state with the left sidebar collapsed. */
 export const LoadingSidebarCollapsed: Story = {
+	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -988,8 +992,6 @@ export const LoadingSidebarCollapsed: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -1053,25 +1055,16 @@ const otherUserActionMessages: TypesGen.ChatMessage[] = [
 export const OtherUserChatHidesInlineActions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 			onImplementPlan={fn()}
 			store={buildStoreWithMessages(otherUserActionMessages)}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("This chat is owned by Other User. It is read-only."),
-		).toBeVisible();
-		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Edit message" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Implement plan" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -1111,24 +1104,13 @@ export const EditingMessage: Story = {
 
 /** Shows the "Chat not found" message. */
 export const NotFound: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 /** "Chat not found" with the left sidebar collapsed. */
 export const NotFoundSidebarCollapsed: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 // ---------------------------------------------------------------------------
@@ -1423,11 +1405,11 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 const underflowFetchSpy = fn();
 
 const UnderflowPaginationStory: FC = () => {
-	const store = useRef(
+	const [store] = useState(() =>
 		buildStoreWithMessages([
 			buildMessage(9, "assistant", "The newest loaded message. ".repeat(6)),
 		]),
-	).current;
+	);
 	const [loadedPages, setLoadedPages] = useState(0);
 	const [isFetching, setIsFetching] = useState(false);
 
@@ -1508,9 +1490,9 @@ export const ShortTranscriptLoadsUntilHistoryIsExhausted: Story = {
 const retryFetchSpy = fn();
 
 const RetryPaginationStory: FC = () => {
-	const store = useRef(
+	const [store] = useState(() =>
 		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
-	).current;
+	);
 	const [hasError, setHasError] = useState(true);
 	const [isFetching, setIsFetching] = useState(false);
 
@@ -1756,7 +1738,34 @@ const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
 	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
 };
 
+const singletonTabsStorageKey = `${visibleSingletonTabsStorageKeyPrefix}${AGENT_ID}`;
+
+/**
+ * Singleton panels start hidden, so a story that needs a visible Browser,
+ * Desktop, or Debug tab seeds the per-chat storage entry before mount.
+ */
+const seedVisibleSingletonTabs = (
+	tabIds: readonly SingletonRightPanelTabId[],
+) => {
+	localStorage.setItem(singletonTabsStorageKey, JSON.stringify(tabIds));
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const clearVisibleSingletonTabs = () => {
+	localStorage.removeItem(singletonTabsStorageKey);
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const openAddPanelMenu = async (canvas: ReturnType<typeof within>) => {
+	await userEvent.click(canvas.getByLabelText("Add panel"));
+};
+
 export const BrowserTabForHealthyAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1787,6 +1796,7 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 };
 
 export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1812,6 +1822,9 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 };
 
 export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
+	// Seed the saved choice so the assertion proves the health gate hides
+	// the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1823,15 +1836,12 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 			sshCommand="ssh coder.workspace"
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByRole("tab", { name: "Summary" });
-		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
-	},
 };
 
 export const NoBrowserTabForAppOnNonBoundAgent: Story = {
+	// Seed the saved choice so the assertion proves the agent-binding gate
+	// hides the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1895,6 +1905,237 @@ export const PreservesUnavailableBrowserTab: Story = {
 	},
 };
 
+const renderWithSingletonSupport = () => (
+	<StoryAgentChatPageView
+		showSidebarPanel
+		debugLoggingEnabled
+		workspace={MockWorkspace}
+		workspaceAgent={mockAgentWithBrowserApp}
+		desktopChatId={AGENT_ID}
+		sshCommand="ssh coder.workspace"
+	/>
+);
+
+export const SingletonPanelsHiddenByDefault: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+
+		await openAddPanelMenu(canvas);
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			const item = await body.findByRole("menuitemcheckbox", { name: label });
+			expect(item).toHaveAttribute("aria-checked", "false");
+		}
+	},
+};
+
+export const TogglesSingletonPanelFromDropdown: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(
+			canvas.getByRole("button", { name: "Close Browser tab" }),
+		).toBeVisible();
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		).toHaveAttribute("aria-checked", "true");
+
+		// Select another tab first: closing the active singleton selects a
+		// neighbor, and "Closes Active Singleton Panel" covers that path.
+		await userEvent.keyboard("{Escape}");
+		// The open menu marks the rest of the page aria-hidden, so wait for it
+		// to close before reaching a tab.
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitemcheckbox", { name: "Browser" }),
+			).toBeNull();
+		});
+		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+		});
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe("[]");
+	},
+};
+
+export const ClosesActiveSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual([
+			"Summary",
+			"Git",
+			"Debug",
+			"Browser",
+			"Terminal",
+		]);
+
+		await userEvent.click(debugTab);
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Close Debug tab" }),
+		);
+
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+		});
+		expect(canvas.getByRole("tab", { name: "Browser" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		).toHaveAttribute("aria-checked", "false");
+	},
+};
+
+export const ReopenedSingletonPanelStaysSingle: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Debug" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+		});
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await canvas.findByRole("tab", { name: "Debug" });
+
+		expect(canvas.getAllByRole("tab", { name: "Debug" })).toHaveLength(1);
+	},
+};
+
+/**
+ * An archived chat is read-only, so showing a singleton panel must not write
+ * the per-chat entry. The archive flow clears that entry on purpose, and
+ * persisting here would recreate it for a chat the user cannot change.
+ */
+export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			chat={{ archived: true }}
+			isInputDisabled
+			debugLoggingEnabled
+			workspace={MockWorkspace}
+			workspaceAgent={mockAgentWithBrowserApp}
+			desktopChatId={AGENT_ID}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBeNull();
+	},
+};
+
+export const RestoresPersistedSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Desktop" });
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+		expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+	},
+};
+
+export const HidesUnsupportedSingletonPanels: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "desktop", "debug"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+
+		await openAddPanelMenu(canvas);
+		await body.findByText("New Terminal");
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
+		}
+
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe(
+			'["browser","desktop","debug"]',
+		);
+	},
+};
+
 /**
  * When a chat is archived, clicking a sidebar tab must not persist the
  * selection to localStorage. The archive flow clears the entry on
@@ -1914,7 +2155,7 @@ export const DoesNotPersistForArchivedChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			isArchived
+			chat={{ archived: true }}
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
@@ -1943,13 +2184,44 @@ export const DoesNotPersistForArchivedChat: Story = {
 export const ArchivedWithSharing: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				organization_id: MockDefaultOrganization.id,
+			}}
 			isInputDisabled
-			canShareChat
-			organizationId={MockDefaultOrganization.id}
 		/>
 	),
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockDefaultOrganization.id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: true },
+			},
+		],
+	},
 	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
 		spyOn(API.experimental, "getChatACL").mockResolvedValue({
 			users: [],
 			groups: [],
@@ -1981,11 +2253,40 @@ export const ArchivedWithSharing: Story = {
 export const ShareChatPopoverFromTopBar: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canShareChat
-			organizationId={MockDefaultOrganization.id}
+			chat={{ organization_id: MockDefaultOrganization.id }}
 		/>
 	),
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockDefaultOrganization.id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: true },
+			},
+		],
+	},
 	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
 		spyOn(API.experimental, "getChatACL").mockResolvedValue({
 			users: [],
 			groups: [],

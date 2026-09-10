@@ -1,8 +1,7 @@
+import { cn } from "cn";
 import type { MotionProps } from "motion/react";
 import { MotionConfig, MotionConfigContext, motion } from "motion/react";
 import { type ElementType, type JSX, useContext } from "react";
-
-import { cn } from "#/utils/cn";
 
 type MotionHTMLProps = MotionProps & Record<string, unknown>;
 

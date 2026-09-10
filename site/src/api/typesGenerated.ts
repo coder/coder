@@ -23,41 +23,8 @@ export interface AIBridgeAgenticAction {
 }
 
 // From codersdk/deployment.go
-export interface AIBridgeAnthropicConfig {
-	readonly base_url: string;
-	readonly key: string;
-}
-
-// From codersdk/deployment.go
-export interface AIBridgeBedrockConfig {
-	readonly base_url: string;
-	readonly region: string;
-	readonly access_key: string;
-	readonly access_key_secret: string;
-	readonly model: string;
-	readonly small_fast_model: string;
-}
-
-// From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
-	/**
-	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	 */
-	readonly openai: AIBridgeOpenAIConfig;
-	/**
-	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	 */
-	readonly anthropic: AIBridgeAnthropicConfig;
-	/**
-	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	 */
-	readonly bedrock: AIBridgeBedrockConfig;
-	/**
-	 * Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
-	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
-	 */
-	readonly providers?: readonly AIProviderConfig[];
 	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -103,12 +70,6 @@ export interface AIBridgeListSessionsResponse {
  */
 export interface AIBridgeModelThought {
 	readonly text: string;
-}
-
-// From codersdk/deployment.go
-export interface AIBridgeOpenAIConfig {
-	readonly base_url: string;
-	readonly key: string;
 }
 
 // From codersdk/deployment.go
@@ -490,34 +451,6 @@ export interface AIProviderBedrockSettings {
  * AIProviderBedrockSettings.
  */
 export const AIProviderBedrockSettingsVersion = 1;
-
-// From codersdk/deployment.go
-/**
- * AIProviderConfig represents a single AI provider instance,
- * parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
- * CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
- * This follows the same indexed pattern as ExternalAuthConfig.
- */
-export interface AIProviderConfig {
-	/**
-	 * Type is the provider type. Valid values are: "openai",
-	 * "anthropic", "azure", "bedrock", "google", "openai-compat",
-	 * "openrouter", "vercel", "copilot".
-	 */
-	readonly type: string;
-	/**
-	 * Name is the unique instance identifier used for routing.
-	 * Defaults to Type if not provided.
-	 */
-	readonly name: string;
-	/**
-	 * BaseURL is the base URL of the upstream provider API.
-	 */
-	readonly base_url: string;
-	readonly bedrock_region?: string;
-	readonly bedrock_model?: string;
-	readonly bedrock_small_fast_model?: string;
-}
 
 // From codersdk/aiproviders.go
 /**
@@ -3900,8 +3833,9 @@ export interface CreateChatMessageResponse {
  * ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
  * Enabled defaults to true. IsDefault defaults to false when the organization
  * already has a default model. The first model created in an organization is
- * automatically promoted to default. CompressionThreshold defaults to 70. An
- * omitted ModelConfig uses the provider defaults.
+ * automatically promoted to default. CompressionThreshold defaults to 70, or
+ * 30 when ContextLimit is at least 500k tokens. An omitted ModelConfig uses the
+ * provider defaults.
  */
 export interface CreateChatModelRequest {
 	readonly ai_provider_id?: string;
@@ -6186,10 +6120,9 @@ export const MaxAISpendLimitMicros = 1000000000000;
 
 // From codersdk/chats.go
 /**
- * MaxChatFileIDs is the maximum number of file IDs that can be
- * associated with a single chat. This limit prevents unbounded
- * growth in the chat_file_links table. It is easier to raise
- * this limit than to lower it.
+ * MaxChatFileIDs is the number of most recent attachments a chat
+ * keeps. Linking a new file past this cap deletes the oldest files
+ * on the chat. A single batch larger than the cap is rejected.
  */
 export const MaxChatFileIDs = 50;
 

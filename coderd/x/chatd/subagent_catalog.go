@@ -311,7 +311,7 @@ func buildSpawnAgentDescription(
 	description := "Spawn a delegated child subagent to work on a clearly scoped, " +
 		"independent task in parallel. Use the type field to choose " +
 		"the right specialist. Available type values: " +
-		formatSubagentDefinitions(availableDefs) + ". Do not use this for " +
+		formatSubagentDefinitionsWithDescriptionOverrides(availableDefs, nil) + ". Do not use this for " +
 		"simple or quick operations you can handle directly with execute, " +
 		"read_file, or write_file. Prefer type=\"" + subagentTypeGeneral +
 		"\" for substantial delegated research, analysis, reasoning, review, " +
@@ -350,10 +350,6 @@ func buildSpawnAgentDescription(
 			"They must not implement changes or intentionally modify workspace files."
 	}
 	return description
-}
-
-func formatSubagentDefinitions(defs []subagentDefinition) string {
-	return formatSubagentDefinitionsWithDescriptionOverrides(defs, nil)
 }
 
 func formatSubagentDefinitionsWithDescriptionOverrides(
