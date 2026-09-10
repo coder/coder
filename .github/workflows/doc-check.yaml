@@ -12,10 +12,6 @@
 # Note: This workflow requires access to secrets and will be skipped for:
 #   - Any PR where secrets are not available
 # For these PRs, maintainers can manually trigger via workflow_dispatch.
-#
-# Model selection: the review model is pinned by the repository variable
-# DOC_CHECK_MODEL_CONFIG_ID. Leave it unset to use the deployment's default
-# model. See the "Run doc-check via Coder Agent Chat" step below.
 
 name: AI Documentation Check
 
