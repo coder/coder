@@ -8,7 +8,6 @@ import {
 	useState,
 } from "react";
 import { useQuery, useQueryClient } from "react-query";
-import type { UrlTransform } from "streamdown";
 import {
 	invalidateChatDiffContents,
 	userChatDebugLogging,
@@ -181,8 +180,6 @@ interface AgentChatPageViewProps {
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 
-	urlTransform?: UrlTransform;
-
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds: readonly string[];
@@ -320,7 +317,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
-	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
@@ -932,7 +928,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										: editing.handleEditUserMessage
 								}
 								editingMessageId={editing.editingMessageId}
-								urlTransform={urlTransform}
+								workspace={workspace}
+								workspaceAgent={workspaceAgent}
 								mcpServers={mcpServers}
 								onImplementPlan={
 									isOtherUserReadOnly ? undefined : onImplementPlan

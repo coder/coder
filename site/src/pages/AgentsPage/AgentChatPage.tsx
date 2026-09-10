@@ -12,7 +12,6 @@ import {
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
-import type { UrlTransform } from "streamdown";
 import type {
 	ChatPlanModeOrClear,
 	CreateChatMessageRequestWithClearablePlanMode,
@@ -43,7 +42,6 @@ import {
 import { userSkills } from "#/api/queries/userSkills";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
@@ -51,7 +49,6 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
-import { rewriteLocalhostURL } from "#/utils/portForward";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -261,7 +258,6 @@ const AgentChatPage: FC = () => {
 		chatAgentId,
 	});
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
-	const { proxy } = useProxy();
 
 	const chat = chatQuery.data;
 	const isArchived = Boolean(chat?.archived);
@@ -641,19 +637,6 @@ const AgentChatPage: FC = () => {
 		chatMessagesQuery.isSuccess,
 		agentId,
 	]);
-
-	// Primitives extracted from proxy/workspace so the compiler
-	// tracks stable strings, not object identity.
-	const proxyHost = proxy.preferredWildcardHostname;
-	const agentName = workspaceAgent?.name;
-	const wsName = workspace?.name;
-	const wsOwner = workspace?.owner_name;
-	const urlTransform: UrlTransform = (url) => {
-		if (!proxyHost || !agentName || !wsName || !wsOwner) {
-			return url;
-		}
-		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
-	};
 
 	function buildChatInputContent({
 		message,
@@ -1096,7 +1079,6 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
-					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 					isHydratingMessages={isHydratingMessages}

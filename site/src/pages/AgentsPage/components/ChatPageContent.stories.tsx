@@ -19,6 +19,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withProxyProvider,
 } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
@@ -43,9 +44,11 @@ const StoryChatPageTimeline: FC<{
 	</MessageScroller.Provider>
 );
 
+// ChatPageTimeline builds the transcript URL transform from the proxy
+// context, so every story needs the provider.
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		user: MockUserOwner,
 		queries: [
