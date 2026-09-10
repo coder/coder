@@ -30,7 +30,7 @@ const (
 	// before the runner retries the whole task.
 	defaultTaskTimeout = 15 * time.Minute
 
-	// The exit log is the only trace of a task that exits without changing the
+	// The exit log is the only record of a task that exits without changing the
 	// database; tests wait on it by message and reason.
 	taskExitedLogMessage               = "chatworker task exited"
 	taskExitReasonContextCanceled      = "context_canceled"

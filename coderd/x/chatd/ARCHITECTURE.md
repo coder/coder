@@ -777,7 +777,7 @@ The runner processes one event at a time. We call processing an event a **loop i
 3. If the event's `WorkerID` is not the runner's `WorkerID`, or the event's `RunnerID` is not the runner's `RunnerID`, record the event as the latest processed event, send a cleanup request to the runner manager, and stop.
 4. If the event's `HistoryVersion`, `Status`, or `Archived` differs from the runner's latest processed event's, cancel the currently running goroutine if there is one and clear the active goroutine ID. Do not wait for the goroutine to finish.
 5. Record the event as the latest processed event.
-6. If there is no active goroutine and the latest processed event says the runner still owns the chat, spawn the goroutine that event needs and mark it as active:
+6. If there is no active goroutine and the latest processed event's `WorkerID` and `RunnerID` are the runner's own, spawn the goroutine for that event and mark it as active:
     - If `Archived` is `true` (core state machine is in `XW`, `XE0`, or `XE1`), spawn a goroutine to abandon the chat. We call this the **abandon chat goroutine**.
     - If `Status` is `running` (`R0` or `R1`), spawn a goroutine to call the LLM API and execute tools. We call this the **generation goroutine**.
     - If `Status` is `interrupting` (`I0` or `I1`), spawn a goroutine to handle the interrupt. We call this the **interrupt goroutine**.

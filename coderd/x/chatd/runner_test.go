@@ -323,7 +323,7 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	require.Equal(t, taskExitReasonExpectedNonRetryable, sinkFieldValue(t, exits[0].Fields, "reason"))
 	require.Contains(t, sinkFieldValue(t, exits[0].Fields, "error"), "chat history version mismatch")
 
-	// Fire the server's timers one at a time until the runner sync
+	// Advance the server's timers one at a time until the runner sync
 	// redelivers the row and the runner calls the model again.
 	var recovered string
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
