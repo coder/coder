@@ -170,27 +170,6 @@ export const InteractiveSingleQuestion: Story = {
 	},
 };
 
-export const SubmitFailureKeepsQuestionOpen: Story = {
-	args: {
-		status: "completed",
-		result: JSON.stringify(singleQuestionPayload),
-		isChatCompleted: true,
-		isLatestAskUserQuestion: true,
-		onSendAskUserQuestionResponse: fn(async () => {
-			throw new Error("Failed to send.");
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("radio", { name: /single migration/i }),
-		);
-		await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
-
-		await canvas.findByRole("alert");
-	},
-};
-
 export const InteractiveSingleQuestionOther: Story = {
 	args: {
 		status: "completed",

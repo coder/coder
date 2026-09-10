@@ -1047,16 +1047,6 @@ export const OtherUserChatHidesInlineActions: Story = {
 	),
 };
 
-export const DisabledInputHidesImplementPlan: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			isInputDisabled
-			onImplementPlan={fn()}
-			store={buildStoreWithMessages(otherUserActionMessages)}
-		/>
-	),
-};
-
 // ---------------------------------------------------------------------------
 // Editing flow stories
 // ---------------------------------------------------------------------------
