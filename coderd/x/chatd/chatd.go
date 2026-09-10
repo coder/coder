@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -138,6 +139,10 @@ var (
 	)
 	errChatExternalAgentUnavailable = xerrors.New("external workspace agent unavailable")
 	errInflightClosed               = xerrors.New("chatd server inflight closed")
+
+	// ErrWorkspaceAccessDenied is returned when the turn actor lacks
+	// ActionSSH on the workspace a tool is about to dial.
+	ErrWorkspaceAccessDenied = xerrors.New("workspace access denied")
 )
 
 type chatExternalAgentUnavailableError struct {
@@ -158,6 +163,28 @@ func newChatExternalAgentUnavailableError(agent database.WorkspaceAgent) error {
 	}
 }
 
+type workspaceAccessDeniedError struct {
+	message string
+}
+
+func (e workspaceAccessDeniedError) Error() string {
+	return e.message
+}
+
+func (workspaceAccessDeniedError) Is(target error) bool {
+	return target == ErrWorkspaceAccessDenied
+}
+
+func newWorkspaceAccessDeniedError(username string, ws database.Workspace) error {
+	return workspaceAccessDeniedError{
+		message: fmt.Sprintf(
+			"workspace access denied: user %s does not have access to workspace %s/%s. "+
+				"The workspace owner must share it with role \"use\" before this tool can run.",
+			username, ws.OwnerUsername, ws.Name,
+		),
+	}
+}
+
 // Server handles background processing of pending chats.
 type Server struct {
 	cancel         context.CancelFunc
@@ -173,6 +200,7 @@ type Server struct {
 
 	streamPartsDialer StreamPartsDialer
 
+	authorizer                     rbac.Authorizer
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
 	dialTimeout                    time.Duration
@@ -455,6 +483,9 @@ type turnWorkspaceContext struct {
 	chatStateMu      *sync.Mutex
 	currentChat      *database.Chat
 	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
+	// actorID is the user whose credentials the turn runs with. Every
+	// workspace dial is authorized against this user. See turnActorID.
+	actorID uuid.UUID
 
 	mu                sync.Mutex
 	agent             database.WorkspaceAgent
@@ -928,6 +959,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 					continue
 				}
 			}
+			if err := c.server.authorizeWorkspaceAccess(ctx, c.actorID, chatSnapshot.WorkspaceID.UUID); err != nil {
+				return nil, err
+			}
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
 			return currentConn, nil
 		}
@@ -937,6 +971,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
+			return nil, err
+		}
+		if err := c.server.authorizeWorkspaceAccess(ctx, c.actorID, chatSnapshot.WorkspaceID.UUID); err != nil {
 			return nil, err
 		}
 		if err := c.externalAgentPreflightError(ctx, chatSnapshot, agent); err != nil {
@@ -1077,6 +1114,42 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
+
+// authorizeWorkspaceAccess checks that actorID holds ActionSSH on the
+// workspace. It re-reads the workspace row on every call so an ACL change
+// made mid-turn takes effect on the next tool call.
+func (p *Server) authorizeWorkspaceAccess(ctx context.Context, actorID uuid.UUID, workspaceID uuid.UUID) error {
+	subject, _, err := httpmw.UserRBACSubject(ctx, p.db, actorID, rbac.ScopeAll)
+	if err != nil {
+		return xerrors.Errorf("load turn actor authorization: %w", err)
+	}
+	//nolint:gocritic // Chatd reads the workspace row so the actor's own roles can be checked against it.
+	ws, err := p.db.GetWorkspaceByID(dbauthz.AsChatd(ctx), workspaceID)
+	if err != nil {
+		return xerrors.Errorf("get workspace: %w", err)
+	}
+	if err := p.authorizer.Authorize(ctx, subject, policy.ActionSSH, ws.RBACObject()); err == nil {
+		return nil
+	}
+	// UserRBACSubject sets FriendlyName to the actor's username.
+	return newWorkspaceAccessDeniedError(subject.FriendlyName, ws)
+}
+
+// actorAgentConnFunc wraps the agent dialer with an authorization check
+// for actorID against the workspace that owns the agent.
+func (p *Server) actorAgentConnFunc(actorID uuid.UUID) chattool.AgentConnFunc {
+	return func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		//nolint:gocritic // Chatd resolves the workspace so the actor's own roles can be checked against it.
+		ws, err := p.db.GetWorkspaceByAgentID(dbauthz.AsChatd(ctx), agentID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("get workspace by agent id: %w", err)
+		}
+		if err := p.authorizeWorkspaceAccess(ctx, actorID, ws.ID); err != nil {
+			return nil, nil, err
+		}
+		return p.agentConnFn(ctx, agentID)
+	}
+}
 
 var (
 	// ErrInvalidModelConfigID indicates the requested model config does not
@@ -2949,6 +3022,7 @@ type Config struct {
 	MaxChatsPerAcquire             int32
 	InFlightChatStaleAfter         time.Duration
 	ChatHeartbeatInterval          time.Duration
+	Authorizer                     rbac.Authorizer
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
@@ -3025,6 +3099,11 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		workerID = uuid.New()
 	}
 
+	authorizer := cfg.Authorizer
+	if authorizer == nil {
+		authorizer = rbac.NewAuthorizer(prometheus.NewRegistry())
+	}
+
 	allowBYOK := true
 	if cfg.AllowBYOKSet {
 		allowBYOK = cfg.AllowBYOK
@@ -3044,6 +3123,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
 			return callerModelConfigContext(ctx, cfg.Database, ownerID)
 		},
+		authorizer:                     authorizer,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
@@ -3816,7 +3896,7 @@ func (p *Server) appendRootChatTools(
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.actorID,
 			CreateFn:                       p.createWorkspaceFn,
-			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+			AgentConnFn:                    p.actorAgentConnFunc(opts.actorID),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
@@ -3825,7 +3905,7 @@ func (p *Server) appendRootChatTools(
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.actorID,
 			StartFn:       p.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+			AgentConnFn:   p.actorAgentConnFunc(opts.actorID),
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,

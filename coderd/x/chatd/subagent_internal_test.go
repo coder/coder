@@ -723,6 +723,10 @@ func seedWorkspaceBinding(
 	t.Helper()
 
 	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         userID,
+		OrganizationID: org.ID,
+	})
 	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      userID,

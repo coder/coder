@@ -854,7 +854,7 @@ func (p *Server) subagentTools(
 				canRecord := isComputerUseChat && p.agentConnFn != nil
 
 				if canRecord {
-					conn, closeFn, connErr := p.agentConnFn(ctx, targetChatInfo.AgentID.UUID)
+					conn, closeFn, connErr := p.actorAgentConnFunc(actorID)(ctx, targetChatInfo.AgentID.UUID)
 					if connErr == nil {
 						agentConn = conn
 						defer closeFn()

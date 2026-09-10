@@ -4835,6 +4835,133 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include start_workspace tool output")
 }
 
+// TestWorkspaceToolDeniedForActorWithoutWorkspaceAccess drives a chat owned
+// by one user whose turns are posted by another user. The poster has no
+// access to the owner's workspace, so the execute tool must fail before the
+// agent dial. Granting the poster the "use" role on the workspace makes the
+// next turn dial.
+func TestWorkspaceToolDeniedForActorWithoutWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	// wantExecute is armed before each user message so the first
+	// streamed model call of that turn requests the execute tool.
+	var wantExecute atomic.Bool
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if wantExecute.CompareAndSwap(true, false) {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("execute", `{"command":"echo hi"}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	owner, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, owner.ID)
+	poster := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         poster.ID,
+		OrganizationID: org.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         poster.ID,
+		OrganizationID: ws.OrganizationID,
+	})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		Return(workspacesdk.StartProcessResponse{ID: "proc-echo", Started: true}, nil).
+		Times(1)
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-echo", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{
+			Output:   "hi\n",
+			Running:  false,
+			ExitCode: ptrRef(0),
+		}, nil).
+		AnyTimes()
+
+	var dials atomic.Int32
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "", func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			dials.Add(1)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:             "actor-workspace-access",
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
+	executeResults := func() []codersdk.ChatMessagePart {
+		var results []codersdk.ChatMessagePart
+		for _, part := range chatToolParts(ctx, t, db, chat.ID) {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "execute" {
+				results = append(results, part)
+			}
+		}
+		return results
+	}
+
+	wantExecute.Store(true)
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: poster.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("run echo")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	results := executeResults()
+	require.Len(t, results, 1)
+	require.True(t, results[0].IsError)
+	require.Contains(t, string(results[0].Result), "workspace access denied")
+	require.Contains(t, string(results[0].Result), poster.Username)
+	require.Zero(t, dials.Load(), "denied actor must not reach the agent dial")
+
+	require.NoError(t, db.UpdateWorkspaceACLByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceACLByIDParams{
+		ID: ws.ID,
+		UserACL: database.WorkspaceACL{
+			poster.ID.String(): database.WorkspaceACLEntry{
+				Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse),
+			},
+		},
+		GroupACL: database.WorkspaceACL{},
+	}))
+
+	wantExecute.Store(true)
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: poster.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("run echo again")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	results = executeResults()
+	require.Len(t, results, 2)
+	require.False(t, results[1].IsError, string(results[1].Result))
+	require.Contains(t, string(results[1].Result), "hi")
+	require.Positive(t, dials.Load(), "granted actor must reach the agent dial")
+}
+
 func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T) {
 	t.Parallel()
 
@@ -9405,6 +9532,10 @@ func seedWorkspaceWithAgent(
 	t.Helper()
 
 	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         userID,
+		OrganizationID: org.ID,
+	})
 	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      userID,

@@ -946,6 +946,7 @@ func New(options *Options) *API {
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				Experiments:                    experiments,
+				Authorizer:                     options.Authorizer,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,

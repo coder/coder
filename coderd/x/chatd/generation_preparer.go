@@ -224,6 +224,7 @@ func (server *Server) prepareGeneration(
 		chatStateMu:      &chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
+		actorID:          actorID,
 	}
 	cleanup := func() {
 		workspaceCtx.close()
