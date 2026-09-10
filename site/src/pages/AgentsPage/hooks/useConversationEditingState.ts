@@ -11,18 +11,31 @@ import {
 
 export class BuiltInCommandPendingError extends Error {}
 
+/**
+ * The message the composer is editing. History rows and queued rows have
+ * independent ID spaces, so the kind is required to interpret the ID.
+ */
+export type EditingTarget =
+	| { kind: "history"; id: number }
+	| { kind: "queued"; id: number };
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
+		editingTarget?: EditingTarget,
 	) => Promise<void>;
+	// Releases the hold on a queued row when its edit is cancelled. A
+	// rejection keeps the composer in edit mode; the callback owns
+	// error reporting.
+	onResumeQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
-	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
+	const { chatID, onSend, onResumeQueuedMessage, chatInputRef, inputValueRef } =
+		deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
@@ -57,20 +70,24 @@ export function useConversationEditingState(deps: {
 		}
 	}, [editorInitialValue, inputValueRef]);
 
-	// -- History editing state --
-	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+	// Editing state.
+	const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(
+		null,
+	);
 	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
 		useState<ParsedDraft | null>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
+	const editingMessageId =
+		editingTarget?.kind === "history" ? editingTarget.id : null;
 
-	const handleEditUserMessage = (
-		messageId: number,
+	const loadEditIntoComposer = (
+		target: EditingTarget,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 	) => {
-		if (editingMessageId === null) {
+		if (editingTarget === null) {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
 			// the stale initialEditorState React state.
@@ -82,7 +99,7 @@ export function useConversationEditingState(deps: {
 				editorState: currentEditorState,
 			});
 		}
-		setEditingMessageId(messageId);
+		setEditingTarget(target);
 		setDraftState({
 			editorInitialValue: text,
 			initialEditorState: undefined,
@@ -93,7 +110,27 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
-	const handleCancelHistoryEdit = () => {
+	const handleEditUserMessage = (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly ChatMessagePart[],
+	) => {
+		loadEditIntoComposer({ kind: "history", id: messageId }, text, fileBlocks);
+	};
+
+	const handleEditQueuedMessage = (
+		queuedMessageId: number,
+		text: string,
+		fileBlocks?: readonly ChatMessagePart[],
+	) => {
+		loadEditIntoComposer(
+			{ kind: "queued", id: queuedMessageId },
+			text,
+			fileBlocks,
+		);
+	};
+
+	const restoreDraftBeforeEdit = () => {
 		const savedText = draftBeforeHistoryEdit?.text ?? "";
 		const savedState = draftBeforeHistoryEdit?.editorState;
 		setDraftState({
@@ -103,24 +140,35 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
-		setEditingMessageId(null);
+		setEditingTarget(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
 	};
 
-	// Clears the composer for an in-flight history edit and
-	// returns a rollback function that restores the editing draft
-	// if the send fails.
-	const clearInputForHistoryEdit = (message: string) => {
+	const handleCancelHistoryEdit = async () => {
+		if (editingTarget?.kind === "queued") {
+			try {
+				await onResumeQueuedMessage(editingTarget.id);
+			} catch {
+				// The row is still held, so the edit stays open for a retry.
+				return;
+			}
+		}
+		restoreDraftBeforeEdit();
+	};
+
+	// Clears the composer for an in-flight edit and returns a rollback
+	// function that restores the editing draft if the send fails.
+	const clearInputForEdit = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
-			messageId: editingMessageId,
+			target: editingTarget,
 		};
 
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
-		setEditingMessageId(null);
+		setEditingTarget(null);
 
 		return () => {
 			setDraftState({
@@ -130,13 +178,13 @@ export function useConversationEditingState(deps: {
 			serializedEditorStateRef.current = snapshot.editorState;
 			setRemountKey((k) => k + 1);
 			inputValueRef.current = message;
-			setEditingMessageId(snapshot.messageId);
+			setEditingTarget(snapshot.target);
 			setEditingFileBlocks(snapshot.fileBlocks);
 		};
 	};
 
 	// Clears all input and editing state after a successful send.
-	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
+	const finalizeSuccessfulSend = (target: EditingTarget | undefined) => {
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
@@ -146,7 +194,7 @@ export function useConversationEditingState(deps: {
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
-		if (editedMessageID !== undefined) {
+		if (target !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
@@ -157,16 +205,13 @@ export function useConversationEditingState(deps: {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => {
-		const editedMessageID =
-			editingMessageId !== null ? editingMessageId : undefined;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+		const target = editingTarget ?? undefined;
+		const sendPromise = onSend(message, attachments, target);
 
-		// For history edits, clear input immediately and prepare
-		// a rollback in case the send fails.
+		// For edits, clear input immediately and prepare a rollback in
+		// case the send fails.
 		const rollback =
-			editedMessageID !== undefined
-				? clearInputForHistoryEdit(message)
-				: undefined;
+			target !== undefined ? clearInputForEdit(message) : undefined;
 
 		try {
 			await sendPromise;
@@ -178,7 +223,16 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
-		finalizeSuccessfulSend(editedMessageID);
+		if (target?.kind === "queued") {
+			// The queued row stays in the queue, so the draft the user
+			// had before editing it is still wanted.
+			restoreDraftBeforeEdit();
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
+			return;
+		}
+		finalizeSuccessfulSend(target);
 	};
 
 	const handleContentChange = (
@@ -189,9 +243,9 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
 
-		// Don't overwrite the persisted draft while editing a history message.
+		// Don't overwrite the persisted draft while editing a message.
 		// The original draft is saved in React state and should survive a cancel.
-		if (editingMessageId !== null) {
+		if (editingTarget !== null) {
 			return;
 		}
 
@@ -230,9 +284,11 @@ export function useConversationEditingState(deps: {
 		editorInitialValue,
 		initialEditorState,
 		remountKey,
+		editingTarget,
 		editingMessageId,
 		editingFileBlocks,
 		handleEditUserMessage,
+		handleEditQueuedMessage,
 		handleCancelHistoryEdit,
 		handleSendFromInput,
 		handleContentChange,

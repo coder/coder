@@ -118,6 +118,33 @@ export const isUnavailableHistoricalModelID = (
 	resolveModelOptionId(storedRef, modelOptions) === "";
 
 /**
+ * Picks the model override to send when saving an edited message.
+ * Returns the picker model when the original is unavailable, or when the
+ * original is selectable and the user picked something else. Returns
+ * undefined otherwise so the backend keeps the original model.
+ */
+export const resolveEditModelConfigID = (
+	originalModelConfigID: string | undefined,
+	pickerModelConfigID: string | undefined,
+	modelOptions: readonly ModelSelectorOption[],
+): string | undefined => {
+	if (!pickerModelConfigID) {
+		return undefined;
+	}
+	const originalIsSelectable =
+		originalModelConfigID !== undefined &&
+		modelOptions.some((option) => option.id === originalModelConfigID);
+	const originalIsUnavailable = isUnavailableHistoricalModelID(
+		originalModelConfigID,
+		modelOptions,
+	);
+	return originalIsUnavailable ||
+		(originalIsSelectable && pickerModelConfigID !== originalModelConfigID)
+		? pickerModelConfigID
+		: undefined;
+};
+
+/**
  * Returns the usable default model ID for one organization.
  * The function returns an empty string when the default is unavailable.
  */

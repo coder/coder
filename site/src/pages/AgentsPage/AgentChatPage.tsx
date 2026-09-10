@@ -25,6 +25,7 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	editChatQueuedMessage,
 	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
@@ -68,6 +69,7 @@ import {
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
 	buildInactiveChatQueueReconciliation,
+	holdQueuedMessageForEdit,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
@@ -79,6 +81,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import { getEditableContentPayload } from "./components/ChatConversation/messageParsing";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
@@ -93,6 +96,7 @@ import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
 	BuiltInCommandPendingError,
+	type EditingTarget,
 	useConversationEditingState,
 } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
@@ -107,6 +111,7 @@ import {
 	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
 	isUnavailableHistoricalModelID,
+	resolveEditModelConfigID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
@@ -357,6 +362,8 @@ const AgentChatPage: FC = () => {
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
 	);
+	const { isPending: isEditQueuedPending, mutateAsync: editQueuedMessage } =
+		useMutation(editChatQueuedMessage(queryClient, agentId));
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -525,6 +532,7 @@ const AgentChatPage: FC = () => {
 	const isSubmissionPending =
 		isSendPending ||
 		isEditPending ||
+		isEditQueuedPending ||
 		isInterruptPending ||
 		isCompactPending ||
 		isClearPending;
@@ -607,9 +615,19 @@ const AgentChatPage: FC = () => {
 			onError: handleRequestError,
 		});
 
+	const handleResumeQueuedMessage = async (id: number) => {
+		try {
+			await editQueuedMessage({ queuedMessageId: id, req: { held: false } });
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Failed to resume queued message."));
+			throw error;
+		}
+	};
+
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
+		onResumeQueuedMessage: handleResumeQueuedMessage,
 		chatInputRef,
 		inputValueRef,
 	});
@@ -618,6 +636,33 @@ const AgentChatPage: FC = () => {
 	) => {
 		isEditReasoningEffortDirtyRef.current = false;
 		editing.handleEditUserMessage(...args);
+	};
+
+	const handleEditQueuedMessage = async (id: number) => {
+		const row = store
+			.getSnapshot()
+			.queuedMessages.find((message) => message.id === id);
+		if (!row) {
+			return;
+		}
+		const hold = await holdQueuedMessageForEdit(row, (queuedMessageId) =>
+			editQueuedMessage({ queuedMessageId, req: { held: true } }),
+		);
+		switch (hold.status) {
+			case "already_sent":
+				toast.error("Queued message was already sent.");
+				return;
+			case "failed":
+				toast.error(
+					getErrorMessage(hold.error, "Failed to edit queued message."),
+				);
+				return;
+			case "held":
+				break;
+		}
+		const { text, fileBlocks } = getEditableContentPayload(row.content);
+		isEditReasoningEffortDirtyRef.current = false;
+		editing.handleEditQueuedMessage(id, text, fileBlocks);
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -719,13 +764,13 @@ const AgentChatPage: FC = () => {
 	async function submitChatTurn({
 		message,
 		attachments,
-		editedMessageID,
+		editingTarget,
 		useComposerContent = true,
 		clearPlanMode = false,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
-		editedMessageID?: number;
+		editingTarget?: EditingTarget;
 		useComposerContent?: boolean;
 		clearPlanMode?: boolean;
 	}) {
@@ -741,7 +786,7 @@ const AgentChatPage: FC = () => {
 		// Built-ins only intercept new, text-only sends. A personal or workspace
 		// skill with the same name takes precedence.
 		const builtInCommand =
-			editedMessageID === undefined &&
+			editingTarget === undefined &&
 			content.length === 1 &&
 			content[0].type === "text"
 				? CHAT_SLASH_COMMANDS.find(
@@ -793,36 +838,68 @@ const AgentChatPage: FC = () => {
 			}
 		}
 
-		if (editedMessageID !== undefined) {
+		const pickerModelConfigID = effectiveSelectedModel || undefined;
+		// Omit so the backend preserves the original effort.
+		const editReasoningEffort = isEditReasoningEffortDirtyRef.current
+			? effectiveReasoningEffort
+			: undefined;
+
+		if (editingTarget?.kind === "queued") {
+			const queuedMessageId = editingTarget.id;
+			const originalRow = store
+				.getSnapshot()
+				.queuedMessages.find((row) => row.id === queuedMessageId);
+			const editSelectedModelConfigID = resolveEditModelConfigID(
+				originalRow?.model_config_id,
+				pickerModelConfigID,
+				modelOptions,
+			);
+			const request: TypesGen.EditChatQueuedMessageRequest = {
+				content,
+				model_config_id: editSelectedModelConfigID,
+				reasoning_effort: editReasoningEffort,
+				held: false,
+			};
+			let response: TypesGen.EditChatQueuedMessageResponse;
+			try {
+				response = await editQueuedMessage({ queuedMessageId, req: request });
+			} catch (error) {
+				toast.error(getErrorMessage(error, "Failed to save queued message."));
+				throw error;
+			}
+			// Queue and status changes arrive over the stream. Only the
+			// history rows a release-from-idle promotion inserted need
+			// upserting here, matching the send path.
+			const insertedMessages = response.messages ?? [];
+			if (insertedMessages.length > 0) {
+				upsertCacheMessages(insertedMessages);
+				if (store.getActiveChatID() === agentId) {
+					store.upsertDurableMessages(insertedMessages);
+				}
+			}
+			if (editSelectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					editSelectedModelConfigID,
+				);
+			}
+			return;
+		}
+
+		if (editingTarget?.kind === "history") {
+			const editedMessageID = editingTarget.id;
 			const originalEditedMessage = chatMessagesList?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
-			const originalModelConfigID = originalEditedMessage?.model_config_id;
-			const pickerModelConfigID = effectiveSelectedModel || undefined;
-			const originalIsSelectable =
-				originalModelConfigID !== undefined &&
-				modelOptions.some((option) => option.id === originalModelConfigID);
-			const originalIsUnavailable = isUnavailableHistoricalModelID(
-				originalModelConfigID,
+			const editSelectedModelConfigID = resolveEditModelConfigID(
+				originalEditedMessage?.model_config_id,
+				pickerModelConfigID,
 				modelOptions,
 			);
-			// Use the picker fallback for an unavailable historical model.
-			// Override a selectable model only after the user changes it.
-			// Omit blank and nil references so the backend preserves the original.
-			const editSelectedModelConfigID =
-				pickerModelConfigID &&
-				(originalIsUnavailable ||
-					(originalIsSelectable &&
-						pickerModelConfigID !== originalModelConfigID))
-					? pickerModelConfigID
-					: undefined;
-			// Omit so the backend preserves the original effort.
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
-				reasoning_effort: isEditReasoningEffortDirtyRef.current
-					? effectiveReasoningEffort
-					: undefined,
+				reasoning_effort: editReasoningEffort,
 				mcp_server_ids: [...effectiveMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
@@ -972,12 +1049,12 @@ const AgentChatPage: FC = () => {
 	async function handleSend(
 		message: string,
 		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
+		editingTarget?: EditingTarget,
 	) {
 		await submitChatTurn({
 			message,
 			attachments,
-			editedMessageID,
+			editingTarget,
 		});
 	}
 
@@ -1062,7 +1139,7 @@ const AgentChatPage: FC = () => {
 					reasoningEffort={effectiveReasoningEffort}
 					onReasoningEffortChange={(value) => {
 						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
+						if (editing.editingTarget !== null) {
 							isEditReasoningEffortDirtyRef.current = true;
 						}
 					}}
@@ -1090,6 +1167,8 @@ const AgentChatPage: FC = () => {
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+					handleEditQueuedMessage={handleEditQueuedMessage}
+					handleResumeQueuedMessage={handleResumeQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
