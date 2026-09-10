@@ -3,6 +3,7 @@ package chattool
 import (
 	"context"
 	"sync"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -116,7 +117,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 						xerrors.Errorf("waiting for in-progress build: %w", err),
 					), nil
 				}
-				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
+				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID, time.Now())
 				// Re-fire after the agent is fully ready so
 				// callers can load instruction files (AGENTS.md).
 				// This must happen after waitForAgentAndRespond —
@@ -131,7 +132,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return toolResponse(waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil)), nil
+					return toolResponse(waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil, time.Time{})), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -187,7 +188,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				), nil
 			}
 
-			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
+			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID, time.Now())
 
 			// If the template version changed, annotate the
 			// response so the model knows an auto-update
@@ -230,6 +231,7 @@ func waitForAgentAndRespond(
 	agentConnFn AgentConnFunc,
 	ws database.Workspace,
 	buildID uuid.UUID,
+	mcpNotBefore time.Time,
 ) map[string]any {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil || len(agents) == 0 {
@@ -264,8 +266,12 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
-	for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
+	agentStatus := waitForAgentReady(ctx, db, selected, agentConnFn)
+	for k, v := range agentStatus {
 		result[k] = v
+	}
+	if agentStatus["agent_status"] == nil && agentStatus["startup_scripts"] == nil {
+		WaitForMCPSettled(ctx, db, selected.ID, mcpNotBefore)
 	}
 	return result
 }

@@ -44,6 +44,15 @@ const (
 	// workspace agent's startup scripts to finish after the agent
 	// is reachable.
 	startupScriptTimeout = 10 * time.Minute
+	// mcpSettledTimeout bounds the best-effort wait for the
+	// agent's initial MCP registration to settle.
+	mcpSettledTimeout = 15 * time.Second
+	// mcpNoSnapshotTimeout bounds the wait when no snapshot
+	// has been pushed yet, covering legacy agents that do not
+	// implement PushContextState.
+	mcpNoSnapshotTimeout = 3 * time.Second
+	// mcpSettledPollInterval is how often we poll the snapshot.
+	mcpSettledPollInterval = 500 * time.Millisecond
 	// startupScriptPollInterval is how often we check the agent's
 	// lifecycle state while waiting for startup scripts.
 	startupScriptPollInterval = 2 * time.Second
@@ -320,9 +329,17 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 
 			// Wait for the agent to come online and startup scripts to finish.
 			if selectedAgent.ID != uuid.Nil {
+				// Capture the freshness boundary before the
+				// readiness wait so it predates any snapshot the
+				// current process pushes during startup.
+				notBefore := time.Now()
 				agentStatus := waitForAgentReady(ctx, db, selectedAgent, options.AgentConnFn)
 				for k, v := range agentStatus {
 					result[k] = v
+				}
+				// Only wait for MCP if the agent became ready.
+				if agentStatus["agent_status"] == nil && agentStatus["startup_scripts"] == nil {
+					WaitForMCPSettled(ctx, db, selectedAgent.ID, notBefore)
 				}
 			}
 
@@ -693,6 +710,80 @@ func waitForAgentReady(
 				result["startup_scripts"] = "startup_scripts_unknown"
 			}
 			return result
+		case <-ticker.C:
+		}
+	}
+}
+
+// WaitForMCPSettledIfPending is a narrow variant of WaitForMCPSettled
+// for the generation preparer. It waits when the agent has pushed a
+// snapshot with mcp_settled=false, or when no snapshot exists yet for
+// a recently-ready agent (the agent may not have pushed its first
+// snapshot before generation preparation started).
+func WaitForMCPSettledIfPending(ctx context.Context, db database.Store, agentID uuid.UUID, notBefore time.Time) {
+	snap, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) && !notBefore.IsZero() && time.Since(notBefore) < mcpNoSnapshotTimeout {
+			WaitForMCPSettled(ctx, db, agentID, notBefore)
+		}
+		return
+	}
+	if !notBefore.IsZero() && snap.ReceivedAt.Before(notBefore) {
+		// Stale snapshot from a previous process: poll only if the
+		// agent became ready recently enough to justify waiting.
+		if time.Since(notBefore) < mcpNoSnapshotTimeout {
+			WaitForMCPSettled(ctx, db, agentID, notBefore)
+		}
+		return
+	}
+	if !snap.McpSettled.Valid || snap.McpSettled.Bool {
+		return
+	}
+	WaitForMCPSettled(ctx, db, agentID, notBefore)
+}
+
+// WaitForMCPSettled best-effort waits for the agent's initial MCP
+// registration to settle. It polls with bounded timeout (15s).
+// When notBefore is non-zero, snapshots received before that time
+// are treated as stale (from a previous agent process) and ignored.
+func WaitForMCPSettled(ctx context.Context, db database.Store, agentID uuid.UUID, notBefore time.Time) {
+	ctx, cancel := context.WithTimeout(ctx, mcpSettledTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(mcpSettledPollInterval)
+	defer ticker.Stop()
+
+	noSnapshotDeadline := time.Now().Add(mcpNoSnapshotTimeout)
+	seenSnapshot := false
+
+	for {
+		snap, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
+		switch {
+		case err != nil && !errors.Is(err, sql.ErrNoRows):
+			return
+		case err != nil:
+			// No snapshot yet. If we've waited long enough
+			// without seeing any snapshot, assume a legacy
+			// agent that does not implement PushContextState.
+			if !seenSnapshot && time.Now().After(noSnapshotDeadline) {
+				return
+			}
+		case !notBefore.IsZero() && snap.ReceivedAt.Before(notBefore):
+			// Stale snapshot from a previous agent process.
+			// If a legacy agent replaced the previous one and never
+			// pushes a fresh snapshot, the no-snapshot deadline fires.
+			if time.Now().After(noSnapshotDeadline) {
+				return
+			}
+		case !snap.McpSettled.Valid || snap.McpSettled.Bool:
+			return
+		default:
+			seenSnapshot = true
+		}
+
+		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
 		}
 	}

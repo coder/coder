@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -312,13 +313,31 @@ func (server *Server) prepareGeneration(
 		// history; only metadata is mutated here.
 		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
 
+		// Wait for MCP registration when the agent has explicitly
+		// reported mcp_settled=false. This covers all first-turn
+		// paths including API-created chats where context was
+		// already pinned with a pending (mcp_settled=false)
+		// snapshot by hydrateChatContextOnCreate.
+		// WaitForMCPSettledIfPending returns immediately when
+		// mcp_settled is NULL or already true. For recently-ready
+		// agents with no snapshot, it delegates to the full poll.
+		if agent.ID != uuid.Nil {
+			var notBefore time.Time
+			if agent.ReadyAt.Valid {
+				notBefore = agent.ReadyAt.Time
+			}
+			chattool.WaitForMCPSettledIfPending(ctx, server.db, agent.ID, notBefore)
+		}
+
+		chatSnap := workspaceCtx.currentChatSnapshot()
+
 		// API-created chats bind their agent lazily here, after
 		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
 		// bound agent's pushed snapshot now if it is still unpinned, so the
 		// first turn reads workspace context instead of waiting for the
 		// agent's next push. Idempotent and snapshot-gated; runs before the
 		// pinned context is read below.
-		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
+		server.ensureChatContextPinnedOnFirstTurn(ctx, chatSnap)
 
 		var resolveErr error
 		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)

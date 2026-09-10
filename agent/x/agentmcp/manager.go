@@ -94,7 +94,8 @@ type Manager struct {
 	// firstSyncSettled records that a reload body reached a
 	// terminal result, successful or not. It gates whether the
 	// SnapshotChanged short-circuit may skip a reload.
-	firstSyncSettled bool
+	firstSyncSettled   bool
+	firstSyncSettledCh chan struct{}
 
 	// closedCh is closed by Close to unblock waiters that do not
 	// otherwise observe Close (the parent ctx is owned by the
@@ -142,16 +143,17 @@ func NewManager(
 ) *Manager {
 	managerCtx, cancel := context.WithCancel(ctx)
 	return &Manager{
-		ctx:           managerCtx,
-		cancel:        cancel,
-		logger:        logger,
-		clock:         quartz.NewReal(),
-		execer:        execer,
-		updateEnv:     updateEnv,
-		servers:       make(map[string]*serverEntry),
-		snapshot:      make(map[string]fileSnapshot),
-		closedCh:      make(chan struct{}),
-		watchDebounce: defaultWatchDebounce,
+		ctx:                managerCtx,
+		cancel:             cancel,
+		logger:             logger,
+		clock:              quartz.NewReal(),
+		execer:             execer,
+		updateEnv:          updateEnv,
+		servers:            make(map[string]*serverEntry),
+		snapshot:           make(map[string]fileSnapshot),
+		closedCh:           make(chan struct{}),
+		firstSyncSettledCh: make(chan struct{}),
+		watchDebounce:      defaultWatchDebounce,
 	}
 }
 
@@ -348,8 +350,41 @@ func (m *Manager) closeErr() error {
 
 func (m *Manager) markFirstSyncSettled() {
 	m.mu.Lock()
+	alreadySettled := m.firstSyncSettled
 	m.firstSyncSettled = true
+	onChange := m.onChange
 	m.mu.Unlock()
+	if !alreadySettled {
+		close(m.firstSyncSettledCh)
+		// Trigger a context re-resolve so the pushed snapshot
+		// carries MCPSettled=true even when the catalog itself
+		// did not change (e.g. zero configured servers).
+		if onChange != nil {
+			onChange()
+		}
+	}
+}
+
+// FirstSyncSettled reports whether the first Reload body has
+// reached a terminal result (success, error, or zero servers).
+func (m *Manager) FirstSyncSettled() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.firstSyncSettled
+}
+
+// WaitFirstSync blocks until the first Reload body completes or
+// the context is canceled. It returns the context error if
+// canceled before settlement.
+func (m *Manager) WaitFirstSync(ctx context.Context) error {
+	select {
+	case <-m.firstSyncSettledCh:
+		return nil
+	case <-m.closedCh:
+		return ErrManagerClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // SnapshotChanged checks whether any config file has changed

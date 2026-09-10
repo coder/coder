@@ -649,6 +649,10 @@ message PushContextStateRequest {
 	repeated ContextResource resources = 3;
 	bool initial = 4;
 	string snapshot_error = 6;
+	// mcp_settled reports that the agent's first MCP registration
+	// attempt has reached a terminal state (success, failure, or
+	// zero configured servers). Absent for legacy agents.
+	optional bool mcp_settled = 7;
 
 	// Reserved tags from the pre-release v2.10 schema. schema_version
 	// was removed before the first release that ships v2.10 because

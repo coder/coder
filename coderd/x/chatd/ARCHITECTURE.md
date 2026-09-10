@@ -880,6 +880,13 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
+
+<!-- TODO: Document the MCP settlement gate. The generation preparer and
+create/start workspace tools best-effort wait for the agent's first MCP
+registration attempt to settle before reading pinned workspace MCP tools.
+See WaitForMCPSettled and WaitForMCPSettledIfPending in
+chattool/createworkspace.go. -->
+
 - file links
 - workspace binding
 - plan mode
