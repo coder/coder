@@ -46,6 +46,44 @@ writing them.
 6. **Report findings.** Use the method provided in the prompt, or if none
    specified, summarize findings directly.
 
+## Evidence discipline
+
+Follow this order on every review. It is the discipline that measured best
+when this job was benchmarked against 48 real merged PRs, each judged
+against the docs as they stood at that PR's own base commit. The harness,
+the answer key, and the per-PR results are in the
+[doc-check evals](https://github.com/coder/solstice/tree/main/evals/doccheck).
+
+1. **List what the user experiences, not what files changed.**
+   "User-facing" means what a user sees, types, clicks, or receives.
+   Dashboard code and wiring code count when they change what the user
+   experiences. A new label, a new tab, a new required field, a new
+   setting, and a removed control all count.
+2. **Check two kinds of page per item.** For each item on that list, check
+   the conceptual guide for that area, and any page that enumerates the
+   things this change adds to or removes from (a table of settings, a list
+   of tabs, a list of fields). An auto-generated CLI or API reference
+   never closes a gap in a conceptual guide. Treat the reference and the
+   guide as two separate checks.
+3. **Find the sentence, not the topic.** For each concrete fact the diff
+   introduces or changes (a default value, a flag name, a version number,
+   a threshold, a UI label), find the exact current sentence in `docs/`
+   that states the old fact. Read the page content, not just the diff. If
+   a page states the old fact, that is a gap. If no page states the fact
+   and the content guidelines require it, that is also a gap. If no page
+   states it and the guidelines do not require it, that is not a gap:
+   absence alone is not drift.
+4. **A PR that documents itself needs nothing more.** Judge the state
+   after the whole diff lands. If the diff already adds or fixes the
+   documentation that its own code change requires, the requirement is
+   satisfied inside the PR. Post no comment.
+5. **Write the evidence before the verdict.** For each user-facing change,
+   state the change, the page you checked, and what you found on it. Then
+   state whether that evidence shows a real unresolved gap, and comment
+   only when it does. A verdict that contradicts your own evidence is the
+   most common failure mode on this job, so read both once more before you
+   post.
+
 ## What to Check
 
 - **Accuracy**: Does documentation match current code behavior?
