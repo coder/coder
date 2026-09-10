@@ -13,13 +13,8 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import type {
-	ChatPlanModeOrClear,
-	CreateChatMessageRequestWithClearablePlanMode,
-} from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -69,20 +64,13 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
-import {
-	buildInactiveChatQueueReconciliation,
-	reconcilePromotedQueueHead,
-	restoreOptimisticRequestSnapshot,
-	runPromoteQueuedMessage,
-	settlePromotedQueueHead,
-	submitEdit,
-	waitForPendingChatSettingsSyncs,
-} from "./components/ChatConversation/chatQueueReconciliation";
+import { runPromoteQueuedMessage } from "./components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
@@ -95,10 +83,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import {
-	BuiltInCommandPendingError,
-	useConversationEditingState,
-} from "./hooks/useConversationEditingState";
+import { useConversationEditingState } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
 	draftInputStorageKeyPrefix,
@@ -115,33 +100,8 @@ import {
 	resolveModelSelector,
 } from "./utils/modelOptions";
 import { pickReasoningEffort } from "./utils/reasoningEffort";
-import {
-	CHAT_SLASH_COMMANDS,
-	CLEAR_SLASH_COMMAND,
-	COMPACT_SLASH_COMMAND,
-	chatSlashCommandTriggerText,
-	resolveChatSlashCommandAvailability,
-} from "./utils/slashCommands";
-
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
-
-const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
-
-type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
-
-const buildAttachmentMediaTypes = (
-	attachments?: readonly PendingAttachment[],
-): ReadonlyMap<string, string> | undefined => {
-	if (!attachments?.length) {
-		return undefined;
-	}
-
-	return new Map(
-		attachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
-	);
-};
 
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams() as { agentId: string };
@@ -423,7 +383,6 @@ const AgentChatPage: FC = () => {
 		store,
 		isHydratingMessages,
 		acceptServerChatStatus,
-		clearStreamError,
 		setCacheQueuedMessages,
 		getCacheQueuedMessages,
 		upsertCacheMessages,
@@ -692,325 +651,41 @@ const AgentChatPage: FC = () => {
 		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
 	};
 
-	function buildChatInputContent({
-		message,
-		attachments,
-		useComposerContent = true,
-	}: {
-		message: string;
-		attachments?: readonly PendingAttachment[];
-		useComposerContent?: boolean;
-	}): { content: TypesGen.ChatInputPart[]; hasContent: boolean } {
-		const content: TypesGen.ChatInputPart[] = [];
-
-		if (useComposerContent) {
-			const chatInputHandle = (
-				editing.chatInputRef as React.RefObject<ChatMessageInputRef | null>
-			)?.current;
-			const editorParts = chatInputHandle?.getContentParts() ?? [];
-
-			// Walk the Lexical tree in document order so file-reference
-			// parts appear at the correct position relative to the
-			// surrounding text the user typed.
-			for (const part of editorParts) {
-				if (part.type === "text") {
-					if (part.text.trim()) {
-						content.push({ type: "text", text: part.text });
-					}
-				} else {
-					const reference = part.reference;
-					content.push({
-						type: "file-reference",
-						file_name: reference.fileName,
-						start_line: reference.startLine,
-						end_line: reference.endLine,
-						content: reference.content,
-					});
-				}
-			}
-
-			if (content.length === 0 && message.trim()) {
-				content.push({ type: "text", text: message });
-			}
-		} else if (message.trim()) {
-			content.push({ type: "text", text: message });
-		}
-
-		if (attachments && attachments.length > 0) {
-			for (const { fileId } of attachments) {
-				content.push({ type: "file", file_id: fileId });
-			}
-		}
-
-		return { content, hasContent: content.length > 0 };
-	}
-
-	async function submitChatTurn({
-		message,
-		attachments,
-		editedMessageID,
-		useComposerContent = true,
-		planModeSwitch,
-	}: {
-		message: string;
-		attachments?: readonly PendingAttachment[];
-		editedMessageID?: number;
-		useComposerContent?: boolean;
-		planModeSwitch?: PlanModeSwitch;
-	}) {
-		const { content, hasContent } = buildChatInputContent({
-			message,
-			attachments,
-			useComposerContent,
-		});
-		if (!hasContent || isSubmissionPending || !hasModelOptions) {
-			return;
-		}
-		// Wait for chat-setting mutations to settle before sending so the
-		// message observes the workspace and plan-mode choices the user just made.
-		await waitForPendingChatSettingsSyncs([
-			pendingPlanModeSyncRef.current,
-			pendingWorkspaceSyncRef.current,
-		]);
-
-		// Built-ins only intercept new, text-only sends. A personal or workspace
-		// skill with the same name takes precedence.
-		const builtInCommand =
-			editedMessageID === undefined &&
-			content.length === 1 &&
-			content[0].type === "text"
-				? CHAT_SLASH_COMMANDS.find(
-						(command) =>
-							content[0].text?.trim() === chatSlashCommandTriggerText(command),
-					)
-				: undefined;
-		const builtInCommandResolution = builtInCommand
-			? resolveChatSlashCommandAvailability(
-					builtInCommand,
-					personalSkillsQuery.isSuccess ? personalSkillsQuery.data : undefined,
-					chatWorkspaceSkills,
-				)
-			: undefined;
-		if (builtInCommandResolution === "pending" && builtInCommand) {
-			const triggerText = chatSlashCommandTriggerText(builtInCommand);
-			toast.info(
-				`Checking whether ${triggerText} is available. Try again in a moment.`,
-			);
-			throw new BuiltInCommandPendingError();
-		}
-		if (builtInCommandResolution === "available" && builtInCommand) {
-			switch (builtInCommand.name) {
-				case COMPACT_SLASH_COMMAND.name: {
-					// Set running before awaiting so the worker's streamed waiting status cannot
-					// be overwritten if it arrives before the POST resolves.
-					const previousSnapshot = store.getSnapshot();
-					clearChatErrorReason(agentId);
-					clearStreamError();
-					store.clearStreamState();
-					store.setChatStatus("running");
-					try {
-						await compact();
-					} catch (error) {
-						restoreOptimisticRequestSnapshot(store, previousSnapshot);
-						toast.error(getErrorMessage(error, "Failed to compact chat."));
-						throw error;
-					}
-					return;
-				}
-				case CLEAR_SLASH_COMMAND.name:
-					try {
-						await clearChatContext();
-					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to clear chat."));
-						throw error;
-					}
-					return;
-			}
-		}
-
-		if (editedMessageID !== undefined) {
-			const originalEditedMessage = chatMessagesList?.find(
-				(existingMessage) => existingMessage.id === editedMessageID,
-			);
-			const originalModelConfigID = originalEditedMessage?.model_config_id;
-			const pickerModelConfigID = effectiveSelectedModel || undefined;
-			const originalIsSelectable =
-				originalModelConfigID !== undefined &&
-				modelOptions.some((option) => option.id === originalModelConfigID);
-			const originalIsUnavailable = isUnavailableHistoricalModelID(
-				originalModelConfigID,
-				modelOptions,
-			);
-			// Use the picker fallback for an unavailable historical model.
-			// Override a selectable model only after the user changes it.
-			// Omit blank and nil references so the backend preserves the original.
-			const editSelectedModelConfigID =
-				pickerModelConfigID &&
-				(originalIsUnavailable ||
-					(originalIsSelectable &&
-						pickerModelConfigID !== originalModelConfigID))
-					? pickerModelConfigID
-					: undefined;
-			// Omit so the backend preserves the original effort.
-			const request: TypesGen.EditChatMessageRequest = {
-				content,
-				model_config_id: editSelectedModelConfigID,
-				reasoning_effort: isEditReasoningEffortDirtyRef.current
-					? effectiveReasoningEffort
-					: undefined,
-				mcp_server_ids: [...effectiveMCPServerIds],
-			};
-			const optimisticMessage = originalEditedMessage
-				? buildOptimisticEditedMessage({
-						requestContent: request.content,
-						originalMessage: originalEditedMessage,
-						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-					})
-				: undefined;
-			const previousSnapshot = store.getSnapshot();
-			clearChatErrorReason(agentId);
-			clearStreamError();
-			store.batch(() => {
-				store.setQueuedMessages([]);
-				store.setChatStatus("running");
-				store.clearStreamState();
-			});
-			await submitEdit({
-				editMessage,
-				editArgs: {
-					messageId: editedMessageID,
-					optimisticMessage,
-					req: request,
-				},
-				onError: (error) => {
-					restoreOptimisticRequestSnapshot(store, previousSnapshot);
-					handleRequestError(error);
-					// Hook dispatch failures can park an idle chat in error before returning the request error.
-					acceptServerChatStatus();
-					void invalidateChatEntity(queryClient, agentId);
-				},
-			});
-			scrollToEnd({ behavior: "smooth" });
-			if (editSelectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					editSelectedModelConfigID,
-				);
-			}
-			return;
-		}
-
-		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		const request: CreateChatMessageRequestWithClearablePlanMode = {
-			content,
-			model_config_id: selectedModelConfigID,
-			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids: [...effectiveMCPServerIds],
-			...(planModeSwitch !== undefined
-				? {
-						plan_mode:
-							planModeSwitch === "clear" ? clearChatPlanMode : planModeSwitch,
-					}
-				: {}),
-		};
-		clearChatErrorReason(agentId);
-		clearStreamError();
-
-		// An errored-chat send may promote the queue head that existed when the request began.
-		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
-		const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
-		const statusVersionBeforeSend = store.getServerChatStatusVersion();
-
-		// Don't clear stream state before the POST completes.
-		// For queued sends the WebSocket status events handle
-		// clearing; for non-queued sends we clear explicitly
-		// below. Clearing eagerly causes a visible cutoff.
-		let response: Awaited<ReturnType<typeof sendMessage>>;
-		try {
-			response = await sendMessage(request);
-		} catch (error) {
-			handleRequestError(error);
-			// Hook dispatch failures can park an idle chat in error before returning the request error.
-			acceptServerChatStatus();
-			void invalidateChatEntity(queryClient, agentId);
-			throw error;
-		}
-		const isActiveChat = store.getActiveChatID() === agentId;
-		// Waiting for the WebSocket on non-queued sends leaves stale stream state visible.
-		if (!response.queued && isActiveChat) {
-			store.clearStreamState();
-			// Optimistically set status to "running" so the
-			// Thinking indicator appears immediately.
-			// The server accepted the message (not queued),
-			// so it will start processing. The WebSocket
-			// status:running event no-ops via the
-			// setChatStatus guard. If the server transitions
-			// to error/pending instead, the WebSocket event
-			// overrides this optimistic value.
-			store.setChatStatus("running");
-		}
-		// Upsert the full batch because a queued send can insert a promoted head below
-		// the highest cached ID, which a reconnect would skip.
-		const insertedMessages =
-			response.messages ?? (response.message ? [response.message] : []);
-		if (insertedMessages.length > 0) {
-			upsertCacheMessages(insertedMessages);
-			if (isActiveChat) {
-				store.upsertDurableMessages(insertedMessages);
-			}
-			if (response.queued) {
-				const reconciledQueue = isActiveChat
-					? reconcilePromotedQueueHead(
-							store,
-							insertedMessages,
-							queueHeadIDBeforeSend,
-							response.queued_message,
-						)
-					: buildInactiveChatQueueReconciliation(
-							getCacheQueuedMessages(),
-							queuedMessagesBeforeSend,
-							insertedMessages,
-							queueHeadIDBeforeSend,
-							response.queued_message,
-						);
-				if (reconciledQueue) {
-					setCacheQueuedMessages(reconciledQueue);
-					// A promoted head starts a turn, but any server status received during the
-					// request is newer and must win.
-					if (
-						isActiveChat &&
-						store.getServerChatStatusVersion() === statusVersionBeforeSend
-					) {
-						store.clearStreamState();
-						store.setChatStatus("running");
-					}
-					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
-						void settlePromotedQueueHead(
-							store,
-							agentId,
-							queueHeadIDBeforeSend,
-							(chatID) => queryClient.fetchQuery(chatQueueConvergence(chatID)),
-						).then((settled) => {
-							if (settled) {
-								setCacheQueuedMessages(settled);
-							}
-						});
-					}
-				}
-			}
-		}
-		if (selectedModelConfigID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
-		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
-		}
-		if (planModeSwitch !== undefined) {
-			setCachedChatPlanMode(
-				agentId,
-				planModeSwitch === "clear" ? undefined : planModeSwitch,
-			);
-		}
-	}
+	const chatTurnDeps = {
+		isSubmissionPending,
+		hasModelOptions,
+		pendingPlanModeSyncRef,
+		pendingWorkspaceSyncRef,
+		isEditReasoningEffortDirtyRef,
+		personalSkills: personalSkillsQuery.isSuccess
+			? personalSkillsQuery.data
+			: undefined,
+		workspaceSkills: chatWorkspaceSkills,
+		compact,
+		clearChatContext,
+		store,
+		agentId,
+		clearChatErrorReason,
+		acceptServerChatStatus,
+		chatMessages: chatMessagesList,
+		effectiveSelectedModel,
+		modelOptions,
+		effectiveReasoningEffort,
+		mcpServerIds: effectiveMCPServerIds,
+		editMessage,
+		sendMessage,
+		onRequestError: handleRequestError,
+		invalidateChat: (chatId: string) => {
+			void invalidateChatEntity(queryClient, chatId);
+		},
+		scrollToEnd,
+		upsertCacheMessages,
+		getCacheQueuedMessages,
+		setCacheQueuedMessages,
+		fetchQueueConvergence: (chatId: string) =>
+			queryClient.fetchQuery(chatQueueConvergence(chatId)),
+		setCachedChatPlanMode,
+	};
 
 	async function handleSend(
 		message: string,
@@ -1018,24 +693,26 @@ const AgentChatPage: FC = () => {
 		editedMessageID?: number,
 	) {
 		await submitChatTurn({
+			...chatTurnDeps,
 			message,
 			attachments,
 			editedMessageID,
+			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
 		});
 	}
 
 	const handleSendAskUserQuestionResponse = async (message: string) => {
 		await submitChatTurn({
+			...chatTurnDeps,
 			message,
-			useComposerContent: false,
 		});
 	};
 
 	const handleImplementPlan = async () => {
 		await submitChatTurn({
+			...chatTurnDeps,
 			message: "Implement the plan.",
 			planModeSwitch: "clear",
-			useComposerContent: false,
 		});
 	};
 
