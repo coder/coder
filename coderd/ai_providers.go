@@ -329,7 +329,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	// model identifiers from the patch, so they cannot disagree on them.
 	var resolved map[string]string
 	if req.Settings != nil {
-		_, preview, err := mergedAIProviderSettings(ctx, api.Database, idOrName, req.Settings, newExternalID)
+		_, preview, err := lookupAndMergeSettings(ctx, api.Database, idOrName, req.Settings, newExternalID)
 		if err != nil {
 			writeAIProviderError(ctx, api.Logger, rw, err, "update AI provider", "Internal error updating AI provider.")
 			return
@@ -347,7 +347,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		keyChanges aiProviderKeyChanges
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
-		old, existing, err := mergedAIProviderSettings(ctx, tx, idOrName, req.Settings, newExternalID)
+		old, existing, err := lookupAndMergeSettings(ctx, tx, idOrName, req.Settings, newExternalID)
 		if err != nil {
 			return err
 		}
@@ -869,12 +869,12 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 	return sql.NullString{String: string(out), Valid: true}, nil
 }
 
-// mergedAIProviderSettings loads a provider and merges patch onto its stored
+// lookupAndMergeSettings loads a provider and merges patch onto its stored
 // settings. The update path builds this twice, once to resolve against and
 // once inside the transaction that writes it, so the server-owned external ID
 // is supplied rather than generated here: both merges must agree on the value
 // the role is assumed with.
-func mergedAIProviderSettings(ctx context.Context, db database.Store, idOrName string, patch *codersdk.AIProviderSettings, newExternalID string) (database.AIProvider, codersdk.AIProviderSettings, error) {
+func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName string, patch *codersdk.AIProviderSettings, newExternalID string) (database.AIProvider, codersdk.AIProviderSettings, error) {
 	old, err := lookupAIProvider(ctx, db, idOrName)
 	if err != nil {
 		return database.AIProvider{}, codersdk.AIProviderSettings{}, err
