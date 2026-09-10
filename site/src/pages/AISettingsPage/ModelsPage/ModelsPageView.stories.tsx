@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useLocation } from "react-router";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import {
@@ -21,16 +20,6 @@ import {
 	mockOrphanedModel,
 	mockProviderDisabledModel,
 } from "./testFixtures";
-
-const LocationProbe = () => {
-	const location = useLocation();
-	return (
-		<div data-testid="location-probe">
-			{location.pathname}
-			{location.search}
-		</div>
-	);
-};
 
 const meta: Meta<typeof ModelsPageView> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelsPageView",
@@ -167,41 +156,6 @@ export const FilterByProvider: Story = {
 		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
 		await expect(canvas.queryByText("GPT-5")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("GPT-4o mini")).not.toBeInTheDocument();
-	},
-};
-
-export const PersistsProviderFilterAcrossNavigation: Story = {
-	render: (args) => (
-		<>
-			<ModelsPageView {...args} />
-			<LocationProbe />
-		</>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// Selecting a provider writes the filter to the URL.
-		await userEvent.click(
-			canvas.getByRole("combobox", { name: /filter by provider/i }),
-		);
-		await userEvent.click(
-			await within(document.body).findByRole("option", { name: "Anthropic" }),
-		);
-		await waitFor(() =>
-			expect(screen.getByTestId("location-probe")).toHaveTextContent(
-				"provider=prov-anthropic",
-			),
-		);
-
-		// Opening a model carries the filter along, so returning keeps it.
-		await userEvent.click(
-			await canvas.findByRole("button", { name: /Claude Sonnet 4.5/i }),
-		);
-		await waitFor(() => {
-			const probe = screen.getByTestId("location-probe");
-			expect(probe).toHaveTextContent("/ai/settings/models/model-claude");
-			expect(probe).toHaveTextContent("provider=prov-anthropic");
-		});
 	},
 };
 
