@@ -2,7 +2,7 @@ import {
 	MessageScroller,
 	useMessageScroller,
 } from "@shadcn/react/message-scroller";
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef } from "react";
 
 import {
 	useInfiniteQuery,
@@ -17,11 +17,9 @@ import type {
 	CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
-import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chatMessagesForInfiniteScroll,
-	chatModels,
 	chatQueueConvergence,
 	clearChat,
 	compactChat,
@@ -31,7 +29,6 @@ import {
 	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
-	mcpServerConfigs,
 	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
@@ -83,12 +80,11 @@ import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWat
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
-import {
-	resolveMCPSelection,
-	saveMCPSelection,
-} from "./components/MCPServerPicker";
-import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
+import {
+	AgentChatSettingsProvider,
+	useAgentChatSettings,
+} from "./context/AgentChatSettingsContext";
 import {
 	BuiltInCommandPendingError,
 	useConversationEditingState,
@@ -98,18 +94,7 @@ import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
 } from "./utils/draftStorage";
-import {
-	countConfiguredProviderConfigs,
-	getModelSelectorPlaceholder,
-	getUnavailableModelNotice,
-	getUnsupportedProviderNames,
-	getUsableDefaultModelIDForOrganization,
-	hasUserFixableProviders,
-	isUnavailableHistoricalModelID,
-	resolveModelOptionId,
-	resolveModelSelector,
-} from "./utils/modelOptions";
-import { pickReasoningEffort } from "./utils/reasoningEffort";
+import { isUnavailableHistoricalModelID } from "./utils/modelOptions";
 import {
 	CHAT_SLASH_COMMANDS,
 	CLEAR_SLASH_COMMAND,
@@ -138,8 +123,25 @@ const buildAttachmentMediaTypes = (
 	);
 };
 
-const AgentChatPage: FC = () => {
-	const { agentId } = useParams() as { agentId: string };
+interface AgentChatPageControllerProps {
+	agentId: string;
+	chat: TypesGen.Chat | undefined;
+	chatDataUpdatedAt: number;
+	isChatLoading: boolean;
+	isChatLoadingError: boolean;
+	chatError: unknown;
+	refetchChat: () => Promise<unknown>;
+}
+
+const AgentChatPageController: FC<AgentChatPageControllerProps> = ({
+	agentId,
+	chat,
+	chatDataUpdatedAt,
+	isChatLoading,
+	isChatLoadingError,
+	chatError,
+	refetchChat,
+}) => {
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -147,12 +149,10 @@ const AgentChatPage: FC = () => {
 		onChatReady,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
-	const { permissions, user: currentUser } = useAuthenticated();
+	const { user: currentUser } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
-	const [selectedModel, setSelectedModel] = useState("");
-	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
-	const isEditReasoningEffortDirtyRef = useRef(false);
+	const settings = useAgentChatSettings();
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		parseStoredDraft(
@@ -163,94 +163,16 @@ const AgentChatPage: FC = () => {
 	const { showSidebarPanel, handleSetShowSidebarPanel } =
 		useAgentChatPanelPreference();
 
-	const chatQuery = useQuery({
-		...openChat(agentId),
-		// Poll while the chat runs (this override replaces openChat's
-		// interval, and queued_for_capacity depends on the poll) or while
-		// the binding is unresolved: repair happens on chat reads and watch
-		// events cannot be relied on for retries because an idle workspace
-		// publishes none.
-		refetchInterval: ({ state }) => {
-			const openPollMs = getOpenChatPollInterval(state.data);
-			if (openPollMs !== false) {
-				return openPollMs;
-			}
-			const workspaceId = state.data?.workspace_id;
-			const workspace = workspaceId
-				? queryClient.getQueryData<TypesGen.Workspace>(
-						workspaceByIdKey(workspaceId),
-					)
-				: undefined;
-			return isChatAgentBindingUnresolved(workspace, state.data?.agent_id)
-				? AGENT_BINDING_REPAIR_POLL_MS
-				: false;
-		},
-		refetchIntervalInBackground: false,
-	});
-	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
 	const chatMessagesQuery = useInfiniteQuery(
 		chatMessagesForInfiniteScroll(agentId),
 	);
-	const workspaceId = chatQuery.data?.workspace_id;
-	const chatAgentId = chatQuery.data?.agent_id;
+	const workspaceId = chat?.workspace_id;
+	const chatAgentId = chat?.agent_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
 	const workspace = workspaceQuery.data;
-
-	const modelsQuery = useQuery(chatModels(chatOrganizationId));
-	const models = modelsQuery.data?.models ?? [];
-	const chatProviderConfigsQuery = useQuery({
-		...chatProviderConfigs(),
-		enabled: permissions.editDeploymentConfig,
-	});
-	const mcpServersQuery = useQuery({
-		...mcpServerConfigs(chatOrganizationId),
-		enabled: Boolean(chatOrganizationId),
-	});
-	const isDefaultChatOrganization = organizations.some(
-		(organization) =>
-			organization.id === chatOrganizationId && organization.is_default,
-	);
-
-	// MCP server selection state.
-	const mcpServers = mcpServersQuery.data ?? [];
-	const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<
-		string[] | null
-	>(null);
-
-	const handleMCPSelectionChange = (ids: string[]) => {
-		setSelectedMCPServerIds(ids);
-		if (chatOrganizationId) {
-			saveMCPSelection(chatOrganizationId, ids);
-		}
-	};
-
-	const handleMCPAuthComplete = (_serverId: string) => {
-		void mcpServersQuery.refetch();
-	};
-
-	const {
-		options: modelOptions,
-		isModelCatalogLoading,
-		modelCatalog,
-		hasConfiguredModels,
-	} = resolveModelSelector(chatOrganizationId, modelsQuery);
-	const isModelDataPending = chatOrganizationId === "" || isModelCatalogLoading;
-	const providerCount =
-		permissions.editDeploymentConfig &&
-		chatProviderConfigsQuery.data &&
-		modelsQuery.data
-			? countConfiguredProviderConfigs(
-					chatProviderConfigsQuery.data,
-					modelsQuery.data,
-				)
-			: undefined;
-	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
-	const unsupportedProviderNames = getUnsupportedProviderNames(
-		modelsQuery.data,
-	);
 
 	useWorkspaceWatch({
 		workspaceId,
@@ -259,19 +181,10 @@ const AgentChatPage: FC = () => {
 	});
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 
-	const chat = chatQuery.data;
 	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
 		chat !== undefined && currentUser.id !== chat.owner_id;
 	const planModeEnabled = chat?.plan_mode === "plan";
-
-	const effectiveMCPServerIds = resolveMCPSelection({
-		userSelection: selectedMCPServerIds,
-		chatSelection: chat?.mcp_server_ids,
-		organizationId: chatOrganizationId,
-		servers: mcpServers,
-		isDefaultOrganization: isDefaultChatOrganization,
-	});
 
 	// Flatten paginated messages into chronological order.
 	// Pages arrive newest-first per page, and pages[0] is the
@@ -305,7 +218,6 @@ const AgentChatPage: FC = () => {
 					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
 				}
 			: undefined;
-	const chatLastModelConfigID = chat?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
 	// tracks stable primitives/functions instead of the whole result
@@ -330,7 +242,7 @@ const AgentChatPage: FC = () => {
 		...userSkills(),
 		staleTime: 60_000,
 	});
-	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
+	const chatWorkspaceSkills = workspaceSkillsFromChat(chat);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId),
 	);
@@ -403,7 +315,7 @@ const AgentChatPage: FC = () => {
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord: chat,
-		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
+		chatRecordUpdatedAt: chatDataUpdatedAt,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
@@ -446,69 +358,6 @@ const AgentChatPage: FC = () => {
 		chatInputRef.current?.focus();
 	};
 
-	// Validate explicit and historical choices against organization options.
-	// Prefer the usable organization default before another organization model.
-	const effectiveSelectedModel = (() => {
-		const resolvedSelectedModel = resolveModelOptionId(
-			selectedModel,
-			modelOptions,
-		);
-		if (resolvedSelectedModel) {
-			return resolvedSelectedModel;
-		}
-
-		const resolvedChatModel = resolveModelOptionId(
-			chatLastModelConfigID,
-			modelOptions,
-		);
-		if (resolvedChatModel) {
-			return resolvedChatModel;
-		}
-
-		return (
-			getUsableDefaultModelIDForOrganization(
-				models,
-				modelOptions,
-				chatOrganizationId,
-			) ||
-			modelOptions[0]?.id ||
-			""
-		);
-	})();
-	const hasModelOptions = modelOptions.length > 0;
-	const hasResolvedModelData =
-		!isModelDataPending && Boolean(modelsQuery.data) && !modelsQuery.error;
-	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
-	const unavailableModelNotice = getUnavailableModelNotice({
-		hasResolvedModelData,
-		storedModelRef: chatLastModelConfigID,
-		modelOptions,
-		catalog: modelCatalog,
-	});
-
-	const effectiveModelOption = modelOptions.find(
-		(option) => option.id === effectiveSelectedModel,
-	);
-	const effectiveReasoningEffort = effectiveModelOption
-		? pickReasoningEffort(
-				selectedReasoningEffort || chat?.last_reasoning_effort,
-				effectiveModelOption.reasoningEfforts ?? [],
-				effectiveModelOption.reasoningEffortDefault,
-			)
-		: undefined;
-
-	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
-		modelOptions,
-		isModelDataPending,
-		hasConfiguredModels,
-		modelCatalog,
-	);
-	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading: isModelDataPending,
-		hasModelOptions,
-		hasConfiguredModels,
-		hasUserFixableModelProviders,
-	});
 	const isSubmissionPending =
 		isSendPending ||
 		isEditPending ||
@@ -518,13 +367,13 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions ||
+		!settings.hasModelOptions ||
 		isArchived ||
 		isChatSettingsPending ||
 		isViewerNotOwner ||
 		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
-	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
+	const selectedWorkspaceId = chat?.workspace_id ?? null;
 	const handlePlanModeToggle = (enabled: boolean) => {
 		if (enabled === planModeEnabled) {
 			return;
@@ -609,11 +458,13 @@ const AgentChatPage: FC = () => {
 	const handleEditUserMessage = (
 		...args: Parameters<typeof editing.handleEditUserMessage>
 	) => {
-		isEditReasoningEffortDirtyRef.current = false;
+		// An edit keeps the message's original effort unless the user picks one
+		// while editing, so every edit starts from a cleared pick.
+		settings.resetPickedReasoningEffort();
 		editing.handleEditUserMessage(...args);
 	};
 
-	const chatTitle = chatQuery.data?.title;
+	const chatTitle = chat?.title;
 
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
@@ -709,7 +560,7 @@ const AgentChatPage: FC = () => {
 			attachments,
 			useComposerContent,
 		});
-		if (!hasContent || isSubmissionPending || !hasModelOptions) {
+		if (!hasContent || isSubmissionPending || !settings.hasModelOptions) {
 			return;
 		}
 		// Wait for chat-setting mutations to settle before sending so the
@@ -779,13 +630,15 @@ const AgentChatPage: FC = () => {
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
 			const originalModelConfigID = originalEditedMessage?.model_config_id;
-			const pickerModelConfigID = effectiveSelectedModel || undefined;
+			const pickerModelConfigID = settings.selectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((option) => option.id === originalModelConfigID);
+				settings.modelOptions.some(
+					(option) => option.id === originalModelConfigID,
+				);
 			const originalIsUnavailable = isUnavailableHistoricalModelID(
 				originalModelConfigID,
-				modelOptions,
+				settings.modelOptions,
 			);
 			// Use the picker fallback for an unavailable historical model.
 			// Override a selectable model only after the user changes it.
@@ -801,10 +654,10 @@ const AgentChatPage: FC = () => {
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
-				reasoning_effort: isEditReasoningEffortDirtyRef.current
-					? effectiveReasoningEffort
+				reasoning_effort: settings.hasPickedReasoningEffort
+					? settings.reasoningEffort
 					: undefined,
-				mcp_server_ids: [...effectiveMCPServerIds],
+				mcp_server_ids: [...settings.selectedMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -846,12 +699,12 @@ const AgentChatPage: FC = () => {
 			return;
 		}
 
-		const selectedModelConfigID = effectiveSelectedModel || undefined;
+		const selectedModelConfigID = settings.selectedModel || undefined;
 		const request: CreateChatMessageRequestWithClearablePlanMode = {
 			content,
 			model_config_id: selectedModelConfigID,
-			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids: [...effectiveMCPServerIds],
+			reasoning_effort: settings.reasoningEffort,
+			mcp_server_ids: [...settings.selectedMCPServerIds],
 			...(planModeSwitch !== undefined
 				? {
 						plan_mode:
@@ -990,7 +843,7 @@ const AgentChatPage: FC = () => {
 			<title>
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
-			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
+			{isChatLoading || chatMessagesQuery.isLoading ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
 					initialValue={editing.editorInitialValue}
@@ -998,29 +851,19 @@ const AgentChatPage: FC = () => {
 					remountKey={editing.remountKey}
 					onContentChange={editing.handleLoadingDraftChange}
 					isInputDisabled={isInputDisabled}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
 					planModeEnabled={planModeEnabled}
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
 				/>
-			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
-				getErrorStatus(chatQuery.error) === 404 ? (
+			) : isChatLoadingError || chatMessagesQuery.isLoadingError ? (
+				getErrorStatus(chatError) === 404 ? (
 					<AgentChatPageNotFoundView />
 				) : (
 					<AgentChatPageErrorView
-						error={
-							chatQuery.isLoadingError
-								? chatQuery.error
-								: chatMessagesQuery.error
-						}
+						error={isChatLoadingError ? chatError : chatMessagesQuery.error}
 						onRetry={() => {
-							if (chatQuery.isLoadingError) {
-								void chatQuery.refetch();
+							if (isChatLoadingError) {
+								void refetchChat();
 							}
 							if (chatMessagesQuery.isLoadingError) {
 								void chatMessagesQuery.refetch();
@@ -1040,28 +883,7 @@ const AgentChatPage: FC = () => {
 					store={store}
 					initialMessages={chatMessagesList ?? []}
 					editing={{ ...editing, handleEditUserMessage }}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					models={modelCatalog?.models}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					modelSelectorHelp={modelSelectorHelp}
-					modelCatalogError={modelsQuery.error}
-					unavailableModelNotice={unavailableModelNotice}
-					reasoningEffort={effectiveReasoningEffort}
-					onReasoningEffortChange={(value) => {
-						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
-							isEditReasoningEffortDirtyRef.current = true;
-						}
-					}}
-					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					providerCount={providerCount}
-					modelCount={modelCount}
-					unsupportedProviderNames={unsupportedProviderNames}
 					aiGatewayDisabled={aiGatewayDisabled}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
@@ -1084,13 +906,54 @@ const AgentChatPage: FC = () => {
 					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-					mcpServers={mcpServers}
-					selectedMCPServerIds={effectiveMCPServerIds}
-					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>
+	);
+};
+
+const AgentChatPage: FC = () => {
+	const { agentId } = useParams() as { agentId: string };
+	const queryClient = useQueryClient();
+	const chatQuery = useQuery({
+		...openChat(agentId),
+		// Poll while the chat runs (this override replaces openChat's
+		// interval, and queued_for_capacity depends on the poll) or while
+		// the binding is unresolved: repair happens on chat reads and watch
+		// events cannot be relied on for retries because an idle workspace
+		// publishes none.
+		refetchInterval: ({ state }) => {
+			const openPollMs = getOpenChatPollInterval(state.data);
+			if (openPollMs !== false) {
+				return openPollMs;
+			}
+			const workspaceId = state.data?.workspace_id;
+			const workspace = workspaceId
+				? queryClient.getQueryData<TypesGen.Workspace>(
+						workspaceByIdKey(workspaceId),
+					)
+				: undefined;
+			return isChatAgentBindingUnresolved(workspace, state.data?.agent_id)
+				? AGENT_BINDING_REPAIR_POLL_MS
+				: false;
+		},
+		refetchIntervalInBackground: false,
+	});
+
+	// The settings provider sits above the controller so sends that do not come
+	// from the composer still submit the selections the composer displays.
+	return (
+		<AgentChatSettingsProvider chat={chatQuery.data}>
+			<AgentChatPageController
+				agentId={agentId}
+				chat={chatQuery.data}
+				chatDataUpdatedAt={chatQuery.dataUpdatedAt}
+				isChatLoading={chatQuery.isLoading}
+				isChatLoadingError={chatQuery.isLoadingError}
+				chatError={chatQuery.error}
+				refetchChat={chatQuery.refetch}
+			/>
+		</AgentChatSettingsProvider>
 	);
 };
 

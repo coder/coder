@@ -12,8 +12,8 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { rewriteLocalhostURL } from "#/utils/portForward";
+import { useAgentChatSettings } from "../context/AgentChatSettingsContext";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -270,7 +270,6 @@ export type PendingAttachment = {
 interface ChatPageInputProps {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -281,21 +280,8 @@ interface ChatPageInputProps {
 	isInputDisabled: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: ReactNode;
-	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
-	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
 	inputRef?: React.Ref<ChatMessageInputRef>;
@@ -312,11 +298,6 @@ interface ChatPageInputProps {
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
-	// MCP server picker state.
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds?: readonly string[];
-	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading?: boolean;
 	workspace?: TypesGen.Workspace;
@@ -328,7 +309,6 @@ interface ChatPageInputProps {
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -336,21 +316,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	isInputDisabled,
 	isSendPending,
 	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
-	modelSelectorHelp,
-	reasoningEffort,
-	onReasoningEffortChange,
-	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
-	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -359,10 +326,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	isEditing,
 	onCancelHistoryEdit,
 	editingFileBlocks,
-	mcpServers,
-	selectedMCPServerIds,
-	onMCPSelectionChange,
-	onMCPAuthComplete,
 	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	workspace,
@@ -370,6 +333,26 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	attachedWorkspace,
 	folder,
 }) => {
+	const {
+		canConfigureAgentSetup,
+		hasModelOptions,
+		isModelCatalogLoading,
+		mcpServers,
+		modelCount,
+		modelOptions,
+		modelSelectorHelp,
+		modelSelectorPlaceholder,
+		models,
+		onMCPAuthComplete,
+		onMCPSelectionChange,
+		onModelChange,
+		onReasoningEffortChange,
+		providerCount,
+		reasoningEffort,
+		selectedMCPServerIds,
+		selectedModel,
+		unsupportedProviderNames,
+	} = useAgentChatSettings();
 	const { user: currentUser } = useAuthenticated();
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;

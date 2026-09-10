@@ -17,7 +17,6 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	getAgentBrowserApp,
 	isWorkspaceAppEmbeddable,
@@ -58,6 +57,7 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
+import { useAgentChatSettings } from "./context/AgentChatSettingsContext";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
@@ -123,24 +123,8 @@ interface AgentChatPageViewProps {
 	// Editing state.
 	editing: EditingState;
 
-	// Model/input configuration.
-	effectiveSelectedModel: string;
-	setSelectedModel: (model: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	models: readonly TypesGen.ChatModel[] | undefined;
-	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: ReactNode;
-	modelCatalogError?: unknown;
-	unavailableModelNotice?: string;
-	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
-	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
+	// Input configuration.
 	aiGatewayDisabled?: boolean;
-	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
@@ -179,12 +163,6 @@ interface AgentChatPageViewProps {
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
-
-	// MCP server state.
-	mcpServers: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds: readonly string[];
-	onMCPSelectionChange: (ids: string[]) => void;
-	onMCPAuthComplete: (serverId: string) => void;
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -280,23 +258,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	store,
 	initialMessages,
 	editing,
-	effectiveSelectedModel,
-	setSelectedModel,
-	modelOptions,
-	models,
-	modelSelectorPlaceholder,
-	modelSelectorHelp,
-	modelCatalogError,
-	unavailableModelNotice,
-	reasoningEffort,
-	onReasoningEffortChange,
-	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
 	aiGatewayDisabled,
-	hasModelOptions,
-	isModelCatalogLoading = false,
 	onPlanModeToggle,
 	isInputDisabled,
 	isSubmissionPending,
@@ -317,11 +279,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
-	mcpServers,
-	selectedMCPServerIds,
-	onMCPSelectionChange,
-	onMCPAuthComplete,
 }) => {
+	const { mcpServers, modelCatalogError, unavailableModelNotice } =
+		useAgentChatSettings();
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const { entitlements, experiments } = useDashboard();
@@ -953,7 +913,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								<ChatPageInput
 									chat={chat}
 									store={store}
-									models={models}
 									onSend={editing.handleSendFromInput}
 									onDeleteQueuedMessage={handleDeleteQueuedMessage}
 									onPromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -961,21 +920,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									isInputDisabled={isInputDisabled}
 									isSendPending={isSubmissionPending}
 									isInterruptPending={isInterruptPending}
-									hasModelOptions={hasModelOptions}
-									canConfigureAgentSetup={canConfigureAgentSetup}
-									providerCount={providerCount}
-									modelCount={modelCount}
-									unsupportedProviderNames={unsupportedProviderNames}
 									aiGatewayDisabled={aiGatewayDisabled}
-									selectedModel={effectiveSelectedModel}
-									onModelChange={setSelectedModel}
-									modelOptions={modelOptions}
-									modelSelectorPlaceholder={modelSelectorPlaceholder}
-									modelSelectorHelp={modelSelectorHelp}
-									reasoningEffort={reasoningEffort}
-									onReasoningEffortChange={onReasoningEffortChange}
 									onPlanModeToggle={onPlanModeToggle}
-									isModelCatalogLoading={isModelCatalogLoading}
 									onWorkspaceChange={onWorkspaceChange}
 									isWorkspaceLoading={isWorkspaceLoading}
 									inputRef={editing.chatInputRef}
@@ -986,10 +932,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									isEditing={isEditing}
 									onCancelHistoryEdit={editing.handleCancelHistoryEdit}
 									editingFileBlocks={editing.editingFileBlocks}
-									mcpServers={mcpServers}
-									selectedMCPServerIds={selectedMCPServerIds}
-									onMCPSelectionChange={onMCPSelectionChange}
-									onMCPAuthComplete={onMCPAuthComplete}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
 									attachedWorkspace={attachedWorkspace}
@@ -1049,12 +991,6 @@ interface AgentChatPageLoadingViewProps {
 		hasFileReferences: boolean,
 	) => void;
 	isInputDisabled: boolean;
-	effectiveSelectedModel: string;
-	setSelectedModel: (model: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	showRightPanel: boolean;
@@ -1067,16 +1003,18 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	remountKey,
 	onContentChange,
 	isInputDisabled,
-	effectiveSelectedModel,
-	setSelectedModel,
-	modelOptions,
-	modelSelectorPlaceholder,
-	hasModelOptions,
-	isModelCatalogLoading = false,
 	planModeEnabled,
 	onPlanModeToggle,
 	showRightPanel,
 }) => {
+	const {
+		hasModelOptions,
+		isModelCatalogLoading,
+		modelOptions,
+		modelSelectorPlaceholder,
+		onModelChange,
+		selectedModel,
+	} = useAgentChatSettings();
 	const [chatFullWidth] = useChatFullWidth();
 	return (
 		<div
@@ -1114,8 +1052,8 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						onContentChange={onContentChange}
 						isDisabled={isInputDisabled}
 						isLoading={false}
-						selectedModel={effectiveSelectedModel}
-						onModelChange={setSelectedModel}
+						selectedModel={selectedModel}
+						onModelChange={onModelChange}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						planModeEnabled={planModeEnabled}
