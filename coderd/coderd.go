@@ -172,7 +172,9 @@ type Options struct {
 	// startup after a successful ConnectToPostgres call and is used by the
 	// database health check to flag end-of-life PostgreSQL major versions.
 	PostgresVersionNum int
-	Pubsub             pubsub.Pubsub
+	// PostgresBuiltin indicates whether Coder manages the PostgreSQL server.
+	PostgresBuiltin bool
+	Pubsub          pubsub.Pubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
 	ReplicaSyncPubsub pubsub.Pubsub
@@ -822,6 +824,7 @@ func New(options *Options) *API {
 					DB:               options.Database,
 					Threshold:        options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
 					ServerVersionNum: options.PostgresVersionNum,
+					Builtin:          options.PostgresBuiltin,
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,

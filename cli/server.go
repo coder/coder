@@ -840,6 +840,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
 			options.PostgresVersionNum = postgresVersionNum
+			options.PostgresBuiltin = builtinPostgres
 			defer func() {
 				_ = sqlDB.Close()
 			}()

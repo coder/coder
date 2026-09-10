@@ -147,50 +147,73 @@ func TestDatabase(t *testing.T) {
 		}
 	})
 
-	t.Run("EOLVersionWarns", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range []struct {
+		name    string
+		builtin bool
+	}{
+		{name: "Builtin", builtin: true},
+		{name: "External"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		var (
-			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
-			report      = healthcheck.DatabaseReport{}
-			db          = dbmock.NewMockStore(gomock.NewController(t))
-			ping        = 10 * time.Millisecond
-		)
-		defer cancel()
+			t.Run("EOLVersionWarns", func(t *testing.T) {
+				t.Parallel()
 
-		db.EXPECT().Ping(gomock.Any()).Return(ping, nil).Times(5)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				report := healthcheck.DatabaseReport{}
+				db := dbmock.NewMockStore(gomock.NewController(t))
+				db.EXPECT().Ping(gomock.Any()).Return(10*time.Millisecond, nil).Times(5)
 
-		report.Run(ctx, &healthcheck.DatabaseReportOptions{DB: db, ServerVersionNum: 130004})
+				report.Run(ctx, &healthcheck.DatabaseReportOptions{
+					DB: db, ServerVersionNum: 130004, Builtin: tt.builtin,
+				})
 
-		assert.True(t, report.Healthy)
-		assert.True(t, report.Reachable)
-		assert.Equal(t, health.SeverityWarning, report.Severity)
-		assert.Nil(t, report.Error)
-		if assert.NotEmpty(t, report.Warnings) {
-			assert.Equal(t, health.CodeDatabasePostgresVersionEOL, report.Warnings[0].Code)
-		}
-	})
+				assert.True(t, report.Healthy)
+				assert.True(t, report.Reachable)
+				assert.Equal(t, health.SeverityWarning, report.Severity)
+				assert.Nil(t, report.Error)
+				require.Len(t, report.Warnings, 1)
+				warning := report.Warnings[0]
+				assert.Equal(t, health.CodeDatabasePostgresVersionEOL, warning.Code)
+				if tt.builtin {
+					assert.Equal(t, "Built-in PostgreSQL version is end-of-life; migrate to an external PostgreSQL database using the migration guide linked in the EDB03 documentation.", warning.Message)
+					assert.Equal(t, "https://coder.com/docs/admin/monitoring/health-check#edb03", warning.URL(""))
+				} else {
+					assert.Equal(t, "PostgreSQL version is end-of-life; upgrade your PostgreSQL server to a supported version (14+).", warning.Message)
+					assert.NotContains(t, warning.Message, "migration guide")
+					assert.NotContains(t, warning.Message, "Built-in")
+				}
+			})
 
-	t.Run("SupportedVersionNoWarning", func(t *testing.T) {
-		t.Parallel()
+			for _, version := range []struct {
+				name string
+				num  int
+			}{
+				{name: "UnknownVersion", num: 0},
+				{name: "SupportedVersionBoundary", num: 140000},
+				{name: "SupportedVersion", num: 160003},
+			} {
+				t.Run(version.name+"NoWarning", func(t *testing.T) {
+					t.Parallel()
 
-		var (
-			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
-			report      = healthcheck.DatabaseReport{}
-			db          = dbmock.NewMockStore(gomock.NewController(t))
-			ping        = 10 * time.Millisecond
-		)
-		defer cancel()
+					ctx := testutil.Context(t, testutil.WaitLong)
+					report := healthcheck.DatabaseReport{}
+					db := dbmock.NewMockStore(gomock.NewController(t))
+					db.EXPECT().Ping(gomock.Any()).Return(10*time.Millisecond, nil).Times(5)
 
-		db.EXPECT().Ping(gomock.Any()).Return(ping, nil).Times(5)
+					report.Run(ctx, &healthcheck.DatabaseReportOptions{
+						DB: db, ServerVersionNum: version.num, Builtin: tt.builtin,
+					})
 
-		report.Run(ctx, &healthcheck.DatabaseReportOptions{DB: db, ServerVersionNum: 160003})
-
-		assert.True(t, report.Healthy)
-		assert.True(t, report.Reachable)
-		assert.Equal(t, health.SeverityOK, report.Severity)
-		assert.Empty(t, report.Warnings)
-	})
+					assert.True(t, report.Healthy)
+					assert.True(t, report.Reachable)
+					assert.Equal(t, health.SeverityOK, report.Severity)
+					assert.Empty(t, report.Warnings)
+				})
+			}
+		})
+	}
 
 	t.Run("EOLVersionDoesNotDowngradeError", func(t *testing.T) {
 		t.Parallel()
