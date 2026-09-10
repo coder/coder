@@ -46,10 +46,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 				<button
 					type="button"
 					aria-label="latency"
-					className={cn(
-						"cursor-pointer border-0 bg-transparent p-0 [font:inherit]",
-						latency.color,
-					)}
+					className={cn("cursor-pointer", latency.color)}
 				>
 					{Math.round(latency.latency_ms)}ms
 				</button>
