@@ -97,7 +97,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex flex-wrap items-start gap-2">
+		<div className="mb-4 flex flex-wrap items-start gap-2">
 			{/* Column wrapper so the validation message sits under the input
 			    instead of beside it in the row. */}
 			<div className="flex min-w-0 max-w-full flex-col gap-2">
