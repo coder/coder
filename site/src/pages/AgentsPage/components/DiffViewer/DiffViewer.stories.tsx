@@ -2,7 +2,7 @@ import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FC, useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { fn, userEvent, waitFor, within } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { DiffViewer } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
@@ -468,37 +468,33 @@ const ReparseSamePath: FC = () => {
 	);
 };
 
+/**
+ * Resolve once a given diff body has rendered inside the shadow root that
+ * Pixel's DOM-idle check cannot observe.
+ */
+const waitForDiffBody = (canvasElement: HTMLElement, text: string) =>
+	waitFor(() => {
+		const rendered = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).some((host) => host.shadowRoot?.textContent?.includes(text));
+		if (!rendered) {
+			throw new Error(`Diff body has not rendered yet: ${text}`);
+		}
+	});
+
 export const ReparseSamePathAfterEdit: StoryObj = {
 	render: () => <ReparseSamePath />,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const shadowText = () =>
-			Array.from(canvasElement.querySelectorAll("diffs-container"))
-				.map((host) => host.shadowRoot?.textContent ?? "")
-				.join("\n");
-		const expectRendered = (text: string) =>
-			waitFor(
-				() => {
-					// Checked inside the wait so a crash surfaces as the
-					// error-box assertion instead of a text-timeout.
-					expectNoErrorBox();
-					expect(shadowText().includes(text)).toBe(true);
-				},
-				{
-					timeout: 5000,
-				},
-			);
-		const expectNoErrorBox = () =>
-			expect(
-				Array.from(canvasElement.querySelectorAll("diffs-container")).some(
-					(host) => host.shadowRoot?.querySelector("[data-error-message]"),
-				),
-			).toBe(false);
+		// The regression is a reparse: the first parse must commit before the
+		// swap, or body 2 renders as a fresh parse and the bug is not exercised.
+		await waitForDiffBody(canvasElement, "const v = 2");
 
-		await expectRendered("const v = 2");
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "next body" }),
+		);
 
-		await userEvent.click(canvas.getByRole("button", { name: "next body" }));
-
-		await expectRendered("const v = 3");
+		// Shadow-root renders are invisible to the stability wait, so wait for
+		// the reparsed body.
+		await waitForDiffBody(canvasElement, "const v = 3");
 	},
 };

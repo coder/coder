@@ -6,3 +6,6 @@ export const DEFAULT_ASPECT = "16 / 9";
 
 /** Placeholder text shown when a recording cannot be loaded. */
 export const RECORDING_UNAVAILABLE_TEXT = "Recording unavailable";
+
+/** Placeholder text shown when the chat has evicted a recording. */
+export const RECORDING_EXPIRED_TEXT = "Recording expired";

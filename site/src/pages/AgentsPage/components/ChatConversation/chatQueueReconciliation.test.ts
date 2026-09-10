@@ -4,7 +4,6 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { createDeferred } from "#/testHelpers/deferred";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -12,46 +11,8 @@ import {
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
-	waitForPendingChatSettingsSyncs,
 } from "./chatQueueReconciliation";
 import { createChatStore } from "./chatStore";
-
-describe("waitForPendingChatSettingsSyncs", () => {
-	it("waits for plan-mode and workspace updates before resolving", async () => {
-		const planModeUpdate = createDeferred<void>();
-		const workspaceUpdate = createDeferred<void>();
-		let settled = false;
-
-		const waitPromise = waitForPendingChatSettingsSyncs([
-			planModeUpdate.promise,
-			workspaceUpdate.promise,
-		]).then((result) => {
-			settled = true;
-			return result;
-		});
-
-		await Promise.resolve();
-		expect(settled).toBe(false);
-
-		planModeUpdate.resolve(undefined);
-		await Promise.resolve();
-		expect(settled).toBe(false);
-
-		workspaceUpdate.resolve(undefined);
-		await expect(waitPromise).resolves.toBeUndefined();
-		expect(settled).toBe(true);
-	});
-
-	it("rejects when a chat-setting update fails", async () => {
-		const workspaceUpdate = createDeferred<void>();
-		const waitPromise = waitForPendingChatSettingsSyncs([
-			workspaceUpdate.promise,
-		]);
-
-		workspaceUpdate.reject(new Error("boom"));
-		await expect(waitPromise).rejects.toThrow("boom");
-	});
-});
 
 describe("restoreOptimisticRequestSnapshot", () => {
 	it("restores queued messages, stream output, status, and stream error", () => {

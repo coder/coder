@@ -6120,10 +6120,9 @@ export const MaxAISpendLimitMicros = 1000000000000;
 
 // From codersdk/chats.go
 /**
- * MaxChatFileIDs is the maximum number of file IDs that can be
- * associated with a single chat. This limit prevents unbounded
- * growth in the chat_file_links table. It is easier to raise
- * this limit than to lower it.
+ * MaxChatFileIDs is the number of most recent attachments a chat
+ * keeps. Linking a new file past this cap deletes the oldest files
+ * on the chat. A single batch larger than the cap is rejected.
  */
 export const MaxChatFileIDs = 50;
 
@@ -9267,6 +9266,12 @@ export interface TemplateBuilderCreateTemplateRequest {
 	readonly description?: string;
 	readonly icon?: string;
 	readonly provisioner_tags?: Record<string, string>;
+	/**
+	 * SessionID is the wizard session this request belongs to, as reported to
+	 * POST /api/v2/templatebuilder/sessions. It is optional and used only to
+	 * attribute a build failure to the session that produced it.
+	 */
+	readonly session_id?: string;
 }
 
 // From codersdk/templatebuilder.go
