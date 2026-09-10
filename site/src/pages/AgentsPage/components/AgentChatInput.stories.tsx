@@ -10,6 +10,7 @@ import {
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import {
+	MockDeploymentSSH,
 	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -42,6 +43,14 @@ const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
 	decorators: [withDashboardProvider, withProxyProvider()],
+	// Deployment without an SSH hostname suffix, so the workspace pill
+	// menus opened here omit the copy action. WorkspacePill covers it.
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue({
+			...MockDeploymentSSH,
+			hostname_suffix: "",
+		});
+	},
 	parameters: {
 		queries: [
 			{

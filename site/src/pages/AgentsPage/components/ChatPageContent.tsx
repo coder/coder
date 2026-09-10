@@ -303,7 +303,6 @@ interface ChatPageInputProps {
 	isWorkspaceLoading?: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 }
@@ -350,7 +349,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	isWorkspaceLoading = false,
 	workspace,
 	workspaceAgent,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 }) => {
@@ -610,7 +608,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}
-			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
 			canConfigureAgentSetup={canConfigureAgentSetup}

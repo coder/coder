@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
+	MockDeploymentSSH,
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
 	MockStoppedWorkspace,
@@ -118,6 +120,15 @@ const meta: Meta<typeof WorkspacePill> = {
 		}),
 	],
 
+	// Deployment without an SSH hostname suffix, so open menus omit the
+	// copy action. WithAllApps overrides it to cover the action itself.
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue({
+			...MockDeploymentSSH,
+			hostname_suffix: "",
+		});
+	},
+
 	parameters: {
 		layout: "centered",
 		queries: [{ key: ["me", "apiKey"], data: { key: "mock-api-key" } }],
@@ -135,7 +146,9 @@ export const WithAllApps: Story = {
 		...defaultProps,
 		workspace: MockWorkspace,
 		agent: agentWithApps,
-		sshCommand: "ssh coder.test-workspace",
+	},
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue(MockDeploymentSSH);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

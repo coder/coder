@@ -164,7 +164,6 @@ interface AgentChatPageViewProps {
 	};
 
 	// Workspace action handlers.
-	sshCommand: string | undefined;
 	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
@@ -310,7 +309,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	gitWatcher,
-	sshCommand,
 	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
@@ -997,7 +995,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onMCPAuthComplete={onMCPAuthComplete}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
-									sshCommand={sshCommand}
 									attachedWorkspace={attachedWorkspace}
 									folder={preferredFolder}
 								/>
