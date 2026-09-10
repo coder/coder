@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockHeldChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 // Helper to build a ChatQueuedMessage with minimal boilerplate.
@@ -18,6 +21,8 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	args: {
 		onDelete: fn(),
 		onPromote: fn(),
+		onEdit: fn(),
+		onResume: fn(),
 	},
 };
 
@@ -135,10 +140,54 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
-// Queued messages retain send and delete actions without exposing edit.
-export const ActionsExcludeEdit: Story = {
+// Queued messages retain send and delete actions and expose edit.
+export const ActionsIncludeEdit: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
+	},
+};
+
+// Without edit handlers (a read-only viewer) only send and delete render.
+export const ActionsWithoutEdit: Story = {
+	args: {
+		messages: [buildMessage(1, textContent("Run the linter"))],
+		onEdit: undefined,
+		onResume: undefined,
+	},
+};
+
+// A held row in the middle of the queue: rows ahead of it keep processing,
+// the held row shows the Editing badge and Resume, and the rows behind it
+// render paused.
+export const HeldRowWithPausedTail: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("Install dependencies")),
+			{
+				...MockHeldChatQueuedMessage,
+				id: 2,
+				content: textContent("Run database migrations"),
+			},
+			buildMessage(3, textContent("Start the dev server")),
+			buildMessage(4, textContent("Open the browser")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByRole("button", { name: "Resume" }));
+	},
+};
+
+// A single held row is both the head and the paused half of the queue.
+export const HeldRowAlone: Story = {
+	args: {
+		messages: [
+			{
+				...MockHeldChatQueuedMessage,
+				id: 1,
+				content: textContent("Run the test suite"),
+			},
+		],
 	},
 };
 

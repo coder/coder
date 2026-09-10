@@ -3,6 +3,7 @@ import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
+	getEditableContentPayload,
 	getEditableUserMessagePayload,
 	getPendingToolCallIDs,
 	mergeTools,
@@ -172,6 +173,33 @@ describe("getEditableUserMessagePayload", () => {
 		};
 		expect(getEditableUserMessagePayload(message)).toEqual({
 			text: "hello   world",
+			fileBlocks: undefined,
+		});
+	});
+
+	it("agrees with getEditableContentPayload on the same content", () => {
+		const content: ChatMessagePart[] = [
+			{ type: "text", text: "queued" },
+			{ type: "file", media_type: "image/png", file_id: "image-file" },
+			{ type: "file", media_type: "video/mp4", file_id: "video-file" },
+		];
+		const message: ChatMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content,
+		};
+		const want = {
+			text: "queued",
+			fileBlocks: [
+				{ type: "file", media_type: "image/png", file_id: "image-file" },
+			],
+		};
+		expect(getEditableContentPayload(content)).toEqual(want);
+		expect(getEditableUserMessagePayload(message)).toEqual(want);
+		expect(getEditableContentPayload(null)).toEqual({
+			text: "",
 			fileBlocks: undefined,
 		});
 	});

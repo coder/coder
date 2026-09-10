@@ -1,5 +1,37 @@
+import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
+
+/** Outcome of holding a queued row so the owner can edit it. */
+type HoldQueuedMessageResult =
+	| { status: "held" }
+	| { status: "already_sent" }
+	| { status: "failed"; error: unknown };
+
+/**
+ * Holds a queued row before the composer loads it for editing. A row
+ * another client already holds is used as is. A 404 means the row was
+ * promoted or deleted before the hold committed, so editing must not start.
+ *
+ * @internal Exported for testing.
+ */
+export const holdQueuedMessageForEdit = async (
+	row: TypesGen.ChatQueuedMessage,
+	holdQueuedMessage: (id: number) => Promise<unknown>,
+): Promise<HoldQueuedMessageResult> => {
+	if (row.held_at) {
+		return { status: "held" };
+	}
+	try {
+		await holdQueuedMessage(row.id);
+		return { status: "held" };
+	} catch (error) {
+		if (getErrorStatus(error) === 404) {
+			return { status: "already_sent" };
+		}
+		return { status: "failed", error };
+	}
+};
 
 /** @internal Exported for testing. */
 export const restoreOptimisticRequestSnapshot = (

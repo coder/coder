@@ -122,7 +122,7 @@ const StoryChatPageInput: FC<{
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
+			editingTarget={null}
 			onCancelHistoryEdit={fn()}
 		/>
 	</div>
@@ -376,7 +376,7 @@ const CompactionChatPageInput: FC = () => {
 				modelOptions={[]}
 				modelSelectorPlaceholder="Select model"
 				canConfigureAgentSetup={false}
-				isEditing={false}
+				editingTarget={null}
 				onCancelHistoryEdit={fn()}
 			/>
 		</div>

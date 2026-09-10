@@ -3378,6 +3378,19 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	editChatQueuedMessage = async (
+		chatId: string,
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	): Promise<TypesGen.EditChatQueuedMessageResponse> => {
+		const response =
+			await this.axios.patch<TypesGen.EditChatQueuedMessageResponse>(
+				`/api/v2/chats/${chatId}/queue/${queuedMessageId}`,
+				req,
+			);
+		return response.data;
+	};
+
 	getChatDiffContents = async (
 		chatId: string,
 	): Promise<TypesGen.ChatDiffContents> => {

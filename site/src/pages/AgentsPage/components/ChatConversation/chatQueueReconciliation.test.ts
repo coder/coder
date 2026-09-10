@@ -3,9 +3,12 @@ import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockHeldChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
 import {
 	buildInactiveChatQueueReconciliation,
+	holdQueuedMessageForEdit,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
@@ -429,5 +432,43 @@ describe("submitEdit", () => {
 		expect(onError).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "boom" }),
 		);
+	});
+});
+
+describe("holdQueuedMessageForEdit", () => {
+	const apiError = (status: number) => ({
+		...mockApiError({ message: "request failed" }),
+		status,
+	});
+
+	it("holds an unheld row and reports held", async () => {
+		const hold = vi.fn().mockResolvedValue({});
+		await expect(
+			holdQueuedMessageForEdit({ ...MockChatQueuedMessage, id: 5 }, hold),
+		).resolves.toEqual({ status: "held" });
+		expect(hold).toHaveBeenCalledWith(5);
+	});
+
+	it("skips the request for a row another client already holds", async () => {
+		const hold = vi.fn().mockResolvedValue({});
+		await expect(
+			holdQueuedMessageForEdit(MockHeldChatQueuedMessage, hold),
+		).resolves.toEqual({ status: "held" });
+		expect(hold).not.toHaveBeenCalled();
+	});
+
+	it("reports already_sent on a 404", async () => {
+		const hold = vi.fn().mockRejectedValue(apiError(404));
+		await expect(
+			holdQueuedMessageForEdit(MockChatQueuedMessage, hold),
+		).resolves.toEqual({ status: "already_sent" });
+	});
+
+	it("reports other failures with the error", async () => {
+		const error = apiError(500);
+		const hold = vi.fn().mockRejectedValue(error);
+		await expect(
+			holdQueuedMessageForEdit(MockChatQueuedMessage, hold),
+		).resolves.toEqual({ status: "failed", error });
 	});
 });

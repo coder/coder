@@ -1888,6 +1888,23 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
+export const editChatQueuedMessage = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
+	mutationFn: ({
+		queuedMessageId,
+		req,
+	}: {
+		queuedMessageId: number;
+		req: TypesGen.EditChatQueuedMessageRequest;
+	}) => API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
+	onSuccess: async () => {
+		await invalidateChatEntity(queryClient, chatId);
+		await invalidateChatMessages(queryClient, chatId);
+	},
+});
+
 export const chatDiffContentsKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "diff-contents"] as const;
 
