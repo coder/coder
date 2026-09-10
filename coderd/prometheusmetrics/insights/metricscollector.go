@@ -2,7 +2,6 @@ package insights
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -325,7 +324,7 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) ([]templateInsightsRow, error) {
 	converted := make([]templateInsightsRow, 0, len(rows))
 	for _, row := range rows {
-		usageSeconds, err := decodeSessionFamilyUsageSeconds(row.SessionFamilyUsageSeconds)
+		usageSeconds, err := codersdk.DecodeAppFamilyMap[int64](row.SessionFamilyUsageSeconds)
 		if err != nil {
 			return nil, xerrors.Errorf("template %s: %w", row.TemplateID, err)
 		}
@@ -336,23 +335,6 @@ func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) (
 		})
 	}
 	return converted, nil
-}
-
-// decodeSessionFamilyUsageSeconds decodes a usage seconds JSONB payload keyed
-// by session family. An absent payload decodes to an empty map, but a
-// malformed one is an error.
-func decodeSessionFamilyUsageSeconds(raw json.RawMessage) (map[codersdk.AppFamilyName]int64, error) {
-	if len(raw) == 0 {
-		return map[codersdk.AppFamilyName]int64{}, nil
-	}
-	var decoded map[codersdk.AppFamilyName]int64
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, xerrors.Errorf("unmarshal session family usage seconds: %w", err)
-	}
-	if decoded == nil {
-		return map[codersdk.AppFamilyName]int64{}, nil
-	}
-	return decoded, nil
 }
 
 func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) []parameterRow {

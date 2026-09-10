@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"encoding/json"
+	"maps"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -60,11 +61,7 @@ var appNameFamilies = map[string]AppFamilyName{
 // that need a fixed family value derive it from this map, so registering a
 // new app or family means editing appNameFamilies alone.
 func SessionCountAppFamilies() map[string]AppFamilyName {
-	families := make(map[string]AppFamilyName, len(appNameFamilies))
-	for appName, family := range appNameFamilies {
-		families[appName] = family
-	}
-	return families
+	return maps.Clone(appNameFamilies)
 }
 
 // SessionCountAppFamiliesJSON is SessionCountAppFamilies marshaled as the
@@ -130,4 +127,18 @@ func NormalizeAppName(appName string) string {
 		return string(AppFamilyUnknown)
 	}
 	return strings.ReplaceAll(strings.ToLower(appName), "-", "_")
+}
+
+// DecodeAppFamilyMap decodes a JSONB payload keyed by app family. An absent
+// payload decodes to an empty map, but a malformed one is an error so that
+// callers report the failure instead of reporting zero usage.
+func DecodeAppFamilyMap[V any](raw json.RawMessage) (map[AppFamilyName]V, error) {
+	if len(raw) == 0 {
+		return map[AppFamilyName]V{}, nil
+	}
+	var decoded map[AppFamilyName]V
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil, xerrors.Errorf("unmarshal session family map: %w", err)
+	}
+	return decoded, nil
 }

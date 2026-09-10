@@ -56,13 +56,13 @@ func TestSessionUsageDigestDistinguishesDelimitedNames(t *testing.T) {
 	// Repeating the same attribution must not rewrite any child row.
 	var rowVersion string
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT xmin::text FROM template_usage_stats_session_families WHERE start_time = $1 AND user_id = $2 AND template_id = $3`,
-		start, user, template).Scan(&rowVersion))
+		`SELECT xmin::text FROM template_usage_stats_session_families WHERE start_time = $1 AND user_id = $2 AND template_id = $3 AND family = $4`,
+		start, user, template, registry["app_a"]).Scan(&rowVersion))
 	rollup(registry)
 	var repeatedVersion string
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT xmin::text FROM template_usage_stats_session_families WHERE start_time = $1 AND user_id = $2 AND template_id = $3`,
-		start, user, template).Scan(&repeatedVersion))
+		`SELECT xmin::text FROM template_usage_stats_session_families WHERE start_time = $1 AND user_id = $2 AND template_id = $3 AND family = $4`,
+		start, user, template, registry["app_a"]).Scan(&repeatedVersion))
 	require.Equal(t, rowVersion, repeatedVersion)
 	require.Equal(t, after, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
 }

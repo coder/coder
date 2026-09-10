@@ -28,17 +28,14 @@ import (
 // defined outside that file.
 
 // validateSessionCountAppFamilies checks that the registry is a non-empty
-// jsonb object of normalized app name to family name. It deliberately does
-// not check which families appear: no query names a family, so a registry
-// entry for a new family is valid without any SQL change.
+// jsonb object of normalized app names to normalized, non-unknown family
+// names. New families are valid without any SQL change.
 func validateSessionCountAppFamilies(appFamilies json.RawMessage) error {
-	if len(appFamilies) == 0 {
-		return xerrors.New("developer error: session count app families must not be empty, populate them with codersdk.SessionCountAppFamiliesJSON()")
-	}
-
 	var families map[string]codersdk.AppFamilyName
-	if err := json.Unmarshal(appFamilies, &families); err != nil {
-		return xerrors.Errorf("developer error: session count app families must be a JSON object of app name to family, populate them with codersdk.SessionCountAppFamiliesJSON(): %w", err)
+	if len(appFamilies) > 0 {
+		if err := json.Unmarshal(appFamilies, &families); err != nil {
+			return xerrors.Errorf("developer error: session count app families must be a JSON object of app name to family, populate them with codersdk.SessionCountAppFamiliesJSON(): %w", err)
+		}
 	}
 	if len(families) == 0 {
 		return xerrors.New("developer error: session count app families must not be empty, populate them with codersdk.SessionCountAppFamiliesJSON()")
@@ -57,6 +54,12 @@ func validateSessionCountAppFamilies(appFamilies json.RawMessage) error {
 		// no usable name at all.
 		if strings.TrimSpace(string(family)) == "" {
 			return xerrors.Errorf("developer error: session count app families has no family for app %q, so its sessions would be misattributed", appName)
+		}
+		if normalized := codersdk.NormalizeAppName(string(family)); normalized != string(family) {
+			return xerrors.Errorf("developer error: session count app families family %q for app %q is not normalized, expected %q", family, appName, normalized)
+		}
+		if family == codersdk.AppFamilyUnknown {
+			return xerrors.Errorf("developer error: session count app families has unknown family for app %q, so its sessions would be misattributed", appName)
 		}
 	}
 	return nil
