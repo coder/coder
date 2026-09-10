@@ -7,7 +7,8 @@ import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { DiffViewer } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
-import { generateLargeDiff } from "./testHelpers";
+import { MAX_RENDERED_MARKDOWN_CHARS } from "./renderedMarkdown";
+import { generateLargeDiff, generateNewFileDiff } from "./testHelpers";
 
 // biome-ignore format: raw diff string must preserve exact whitespace
 const sampleDiff = [
@@ -444,8 +445,7 @@ const reparseSecondBody = [
 	"+const c = 3;",
 ].join("\n");
 
-// FileDiff renders hunks synchronously enough for play tests; CodeView
-// virtualizes and never paints lines in this environment.
+// FileDiff renders hunks synchronously enough for play tests.
 const ReparseSamePath: FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	const file = parseDiffString(body)[0];
@@ -497,4 +497,173 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 		// the reparsed body.
 		await waitForDiffBody(canvasElement, "const v = 3");
 	},
+};
+
+// -------------------------------------------------------------------
+// Markdown preview
+// -------------------------------------------------------------------
+
+// CodeView projects each header into its shadow root asynchronously; until
+// the slot is assigned the toggle exists in the DOM but is not rendered.
+// Resolves with the first rendered toggle so a play can activate it.
+const findPreviewToggle = async (canvasElement: HTMLElement) => {
+	const [toggle] = await within(canvasElement).findAllByRole("button", {
+		name: "Preview Markdown",
+	});
+	await waitFor(
+		() => {
+			if (!toggle.closest("[slot]")?.assignedSlot) {
+				throw new Error("preview toggle is not slotted yet");
+			}
+		},
+		{ timeout: 5000 },
+	);
+	return toggle;
+};
+
+// biome-ignore format: raw diff string must preserve exact whitespace
+const tsNeighbourDiff = [
+"diff --git a/src/other.ts b/src/other.ts",
+"index 1111111..2222222 100644",
+"--- a/src/other.ts",
+"+++ b/src/other.ts",
+"@@ -1,2 +1,3 @@",
+" const a = 1;",
+"+const neighbour = 2;",
+" export { a };",
+].join("\n");
+
+const newMarkdownDiff = generateNewFileDiff("docs/README.md", [
+	"# Getting started",
+	"",
+	"Some **bold** text and a [link](https://coder.com/docs).",
+	"",
+	"- item one",
+	"- item two",
+]);
+
+const markdownWithNeighbourFiles = parseDiffString(
+	[newMarkdownDiff, tsNeighbourDiff].join("\n"),
+);
+
+const openPreview = async ({
+	canvasElement,
+}: {
+	canvasElement: HTMLElement;
+}) => {
+	await userEvent.click(await findPreviewToggle(canvasElement));
+};
+
+export const MarkdownRawDefault: Story = {
+	args: { parsedFiles: markdownWithNeighbourFiles },
+};
+
+export const MarkdownRendered: Story = {
+	args: { parsedFiles: markdownWithNeighbourFiles },
+	play: openPreview,
+};
+
+export const MarkdownRenderedSplit: Story = {
+	args: { parsedFiles: markdownWithNeighbourFiles, diffStyle: "split" },
+	play: openPreview,
+};
+
+// biome-ignore format: raw diff string must preserve exact whitespace
+const modifiedMarkdownDiff = [
+"diff --git a/docs/guide.md b/docs/guide.md",
+"index 1111111..2222222 100644",
+"--- a/docs/guide.md",
+"+++ b/docs/guide.md",
+"@@ -1,4 +1,4 @@",
+" # Guide",
+"-The old introduction paragraph.",
+"+The new introduction paragraph.",
+" ",
+" Unchanged paragraph.",
+"@@ -20,3 +20,4 @@",
+" ## Second section",
+"-A removed sentence.",
+"+An added sentence.",
+"+Another added sentence.",
+" Trailing context.",
+].join("\n");
+
+export const MarkdownModifiedHunks: Story = {
+	args: { parsedFiles: parseDiffString(modifiedMarkdownDiff) },
+	play: openPreview,
+};
+
+// biome-ignore format: raw diff string must preserve exact whitespace
+const deletedMarkdownDiff = [
+"diff --git a/docs/OLD.md b/docs/OLD.md",
+"deleted file mode 100644",
+"index 1111111..0000000",
+"--- a/docs/OLD.md",
+"+++ /dev/null",
+"@@ -1,3 +0,0 @@",
+"-# Retired guide",
+"-",
+"-This document was removed.",
+].join("\n");
+
+export const MarkdownDeletedFile: Story = {
+	args: { parsedFiles: parseDiffString(deletedMarkdownDiff) },
+	play: openPreview,
+};
+
+const tooLargeMarkdownDiff = generateNewFileDiff("docs/HUGE.md", [
+	"a".repeat(MAX_RENDERED_MARKDOWN_CHARS + 1),
+]);
+
+// Files sort by path, so HUGE.md renders first with a disabled toggle.
+// Focusing it opens the tooltip explaining why.
+export const MarkdownTooLarge: Story = {
+	args: {
+		parsedFiles: parseDiffString(
+			[tooLargeMarkdownDiff, newMarkdownDiff].join("\n"),
+		),
+	},
+	play: async ({ canvasElement }) => {
+		(await findPreviewToggle(canvasElement)).focus();
+	},
+};
+
+const unsafeMarkdownDiff = generateNewFileDiff("docs/UNSAFE.md", [
+	"# Unsafe content",
+	"",
+	'<script>alert("xss")</script>',
+	"",
+	"<img src=x onerror=alert(1)>",
+	"",
+	"[script link](javascript:alert(1))",
+	"",
+	"[bare relative link](docs/other.md)",
+	"",
+	"[dot relative link](./other.md)",
+	"",
+	"[fragment link](#section)",
+	"",
+	"[safe link](https://coder.com)",
+	"",
+	"![bare relative image](assets/logo.png)",
+	"",
+	"![dot relative image](./assets/logo.png)",
+	"",
+	`![same origin image](${location.origin}/app/logo.png)`,
+	"",
+	"![external image](https://cdn.example.com/pic.png)",
+]);
+
+export const MarkdownUnsafeContent: Story = {
+	args: { parsedFiles: parseDiffString(unsafeMarkdownDiff) },
+	play: openPreview,
+};
+
+const crashingMarkdownDiff = generateNewFileDiff("docs/CRASH.md", [
+	`${">".repeat(20_000)} deep`,
+]);
+
+export const MarkdownPreviewCrash: Story = {
+	args: { parsedFiles: parseDiffString(crashingMarkdownDiff) },
+	play: openPreview,
 };

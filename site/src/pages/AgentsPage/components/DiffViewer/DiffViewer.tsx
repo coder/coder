@@ -1,6 +1,5 @@
 import type {
 	CodeViewHandle,
-	CodeViewItem,
 	DiffLineAnnotation,
 	FileDiffMetadata,
 	SelectedLineRange,
@@ -26,6 +25,17 @@ import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
+import {
+	buildDiffViewerItems,
+	resolveMarkdownPreviews,
+	toggleRenderedFile,
+} from "./diffViewerItems";
+import {
+	type MarkdownPreviewControl,
+	MarkdownPreviewToggle,
+} from "./MarkdownPreviewToggle";
+import { RenderedMarkdownFile } from "./RenderedMarkdownFile";
+import { RENDERED_MARKDOWN_ANNOTATION } from "./renderedMarkdown";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 interface DiffViewerProps {
@@ -64,6 +74,28 @@ const HUNK_SEPARATOR_HEIGHT = 28;
 // shown alongside the diff. Below this the diff takes the full width unless the
 // viewer is explicitly expanded.
 const FILE_TREE_THRESHOLD = 1000;
+
+// A previewed file has no code rows, so its file-level annotation is the
+// only grid content. Drop the line-number column and the sticky content
+// offset so the preview spans the row instead of sitting in the content
+// column beside an empty gutter, and drop the code block padding that
+// CodeView's height estimate omits for a diff without hunks.
+const PREVIEW_ROW_CSS = [
+	'[data-code]:has([data-line-annotation="-1,-1"]) {',
+	"  grid-template-columns: minmax(0, 1fr);",
+	"  padding-block: 0;",
+	"}",
+	'[data-content]:has(> [data-line-annotation="-1,-1"]) {',
+	"  grid-column: 1 / -1;",
+	"}",
+	'[data-line-annotation="-1,-1"] [data-annotation-content] {',
+	"  position: static;",
+	"  left: 0;",
+	"  width: auto;",
+	"}",
+].join(" ");
+
+const diffViewerUnsafeCSS = [SEPARATOR_CSS, PREVIEW_ROW_CSS].join(" ");
 
 const diffViewerStyle = {
 	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
@@ -157,26 +189,6 @@ export function compareTreePaths(a: string, b: string): number {
 	return compareTreeEntries(a.split("/"), false, b.split("/"), false);
 }
 
-// CodeView's syncItemRecord skips reusing a record when item.version is
-// unchanged, so the version must reflect annotation content rather than count.
-// Moving the active comment box to another line in the same file keeps the
-// count at 1 but must still re-render, so fold each annotation's side and line
-// into the version. Exported for unit tests.
-export function annotationsVersion(
-	annotations: readonly DiffLineAnnotation<string>[] | undefined,
-): number {
-	if (!annotations || annotations.length === 0) {
-		return 0;
-	}
-	return annotations.reduce(
-		(version, annotation) =>
-			version * 31 +
-			annotation.lineNumber * 2 +
-			(annotation.side === "additions" ? 1 : 0),
-		annotations.length,
-	);
-}
-
 // The library forces classic, space-reserving scrollbars via
 // scrollbar-gutter: stable, leaving a permanent empty strip on the right.
 // Restore the default gutter so the scrollbar overlays content while scrolling
@@ -204,7 +216,13 @@ function gitStatusForFile(
 	}
 }
 
-function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
+function HeaderContent({
+	fileDiff,
+	preview,
+}: {
+	fileDiff: FileDiffMetadata;
+	preview?: MarkdownPreviewControl;
+}) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
 		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border-default bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
@@ -226,20 +244,23 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 					{fileDiff.name}
 				</span>
 			</div>
-			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border-default font-mono text-xs font-medium leading-5">
-					{deletions > 0 && (
-						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
-							&minus;{deletions}
-						</span>
-					)}
-					{additions > 0 && (
-						<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
-							+{additions}
-						</span>
-					)}
-				</span>
-			)}
+			<div className="flex shrink-0 items-center gap-1.5">
+				{preview && <MarkdownPreviewToggle {...preview} />}
+				{(additions > 0 || deletions > 0) && (
+					<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border-default font-mono text-xs font-medium leading-5">
+						{deletions > 0 && (
+							<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
+								&minus;{deletions}
+							</span>
+						)}
+						{additions > 0 && (
+							<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
+								+{additions}
+							</span>
+						)}
+					</span>
+				)}
+			</div>
 		</div>
 	);
 }
@@ -423,6 +444,12 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
 	const isDark = theme.palette.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
+	const [renderedFiles, setRenderedFiles] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+	// File whose preview was just toggled and must be re-pinned to the top
+	// after its item changes shape.
+	const repinFileRef = useRef<string | null>(null);
 
 	// Measure the diff container so the file tree only appears when there is
 	// enough horizontal room, rather than keying off the viewport width.
@@ -453,7 +480,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: SEPARATOR_CSS,
+		unsafeCSS: diffViewerUnsafeCSS,
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
@@ -486,16 +513,35 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		compareTreePaths(a.name, b.name),
 	);
 
-	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
-		const annotations = getLineAnnotations?.(fileDiff.name);
+	const previews = resolveMarkdownPreviews(
+		sortedFiles,
+		renderedFiles,
+		(fileName) => (getLineAnnotations?.(fileName)?.length ?? 0) > 0,
+	);
+	const items = buildDiffViewerItems(sortedFiles, previews, getLineAnnotations);
+
+	// Header and annotation callbacks receive the item CodeView holds, which
+	// for a previewed file is the empty-hunk stand-in, so look the parsed
+	// file up by id.
+	const filesByName = new Map(sortedFiles.map((file) => [file.name, file]));
+
+	const previewControlFor = (
+		fileDiff: FileDiffMetadata,
+	): MarkdownPreviewControl | undefined => {
+		const preview = previews.get(fileDiff.name);
+		if (!preview) {
+			return undefined;
+		}
 		return {
-			id: fileDiff.name,
-			type: "diff",
-			fileDiff,
-			annotations,
-			version: annotationsVersion(annotations),
+			...preview,
+			onToggle: () => {
+				repinFileRef.current = fileDiff.name;
+				setRenderedFiles((current) =>
+					toggleRenderedFile(current, fileDiff.name),
+				);
+			},
 		};
-	});
+	};
 
 	const selectedLines = (() => {
 		if (!getSelectedLines) return undefined;
@@ -522,6 +568,27 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		});
 		onScrollToFileComplete?.();
 	}, [scrollToFile, onScrollToFileComplete, canScroll]);
+
+	// CodeView anchors scroll position to a code line, and a previewed item
+	// has none, so a toggle would otherwise leave the viewport on the next
+	// file. Pin the toggled file to the top once with the new item list and
+	// again a frame later, after CodeView has measured the preview's height
+	// and replaced its header-only estimate.
+	useEffect(() => {
+		const fileName = repinFileRef.current;
+		if (!fileName) return;
+		repinFileRef.current = null;
+		const pin = () =>
+			codeViewRef.current?.scrollTo({
+				type: "item",
+				id: fileName,
+				align: "start",
+				behavior: "instant",
+			});
+		pin();
+		const frame = requestAnimationFrame(pin);
+		return () => cancelAnimationFrame(frame);
+	}, [renderedFiles]);
 
 	if (isLoading) {
 		return <DiffViewerSkeleton />;
@@ -569,14 +636,28 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 				className="h-full min-h-0 min-w-0 flex-1 overflow-auto"
 				style={diffViewerStyle}
 				onScroll={handleScroll}
-				renderCustomHeader={(item) =>
-					item.type === "diff" ? (
-						<HeaderContent fileDiff={item.fileDiff} />
-					) : null
-				}
-				renderAnnotation={(annotation) =>
-					"side" in annotation ? renderAnnotation?.(annotation) : null
-				}
+				renderCustomHeader={(item) => {
+					const fileDiff =
+						item.type === "diff" ? filesByName.get(item.id) : undefined;
+					return fileDiff ? (
+						<HeaderContent
+							fileDiff={fileDiff}
+							preview={previewControlFor(fileDiff)}
+						/>
+					) : null;
+				}}
+				renderAnnotation={(annotation, item) => {
+					if (!("side" in annotation)) {
+						return null;
+					}
+					if (annotation.metadata === RENDERED_MARKDOWN_ANNOTATION) {
+						const fileDiff = filesByName.get(item.id);
+						return fileDiff ? (
+							<RenderedMarkdownFile fileDiff={fileDiff} />
+						) : null;
+					}
+					return renderAnnotation?.(annotation);
+				}}
 			/>
 		</div>
 	);

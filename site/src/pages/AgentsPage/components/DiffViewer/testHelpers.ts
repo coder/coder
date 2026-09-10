@@ -33,3 +33,19 @@ export function generateLargeDiff(
 	}
 	return files.join("\n");
 }
+
+/** Builds a git diff that adds `name` with the given lines. */
+export function generateNewFileDiff(
+	name: string,
+	body: readonly string[],
+): string {
+	return [
+		`diff --git a/${name} b/${name}`,
+		"new file mode 100644",
+		"index 0000000..1111111",
+		"--- /dev/null",
+		`+++ b/${name}`,
+		`@@ -0,0 +1,${body.length} @@`,
+		...body.map((line) => `+${line}`),
+	].join("\n");
+}

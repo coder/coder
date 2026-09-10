@@ -1,6 +1,6 @@
 import type { DiffLineAnnotation } from "@pierre/diffs/react";
 import { describe, expect, it } from "vitest";
-import { annotationsVersion } from "./DiffViewer";
+import { annotationsVersion } from "./diffViewerItems";
 
 const annotation = (
 	lineNumber: number,
