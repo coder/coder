@@ -185,7 +185,16 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	// Generate the server-owned external ID when the provider assumes a role.
 	ensureBedrockExternalID(&req.Settings)
-	clearBedrockModelResolution(&req.Settings)
+
+	// Resolve application inference profile ARNs before storing them, so an
+	// unresolvable profile is never written and the gateway never calls the
+	// Bedrock control plane.
+	resolved, err := resolveBedrockProfiles(ctx, req.Settings)
+	if err != nil {
+		api.writeAIProviderResolutionError(ctx, rw, err)
+		return
+	}
+	applyBedrockResolution(&req.Settings, resolved)
 
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
@@ -241,15 +250,6 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error creating AI provider.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-	aReq.New = row
-
-	// Resolve inference profile ARNs once the provider is stored, then announce
-	// it. The gateway never calls the Bedrock control plane itself.
-	row, err = api.resolveBedrockModels(ctx, row)
-	if err != nil {
-		api.writeAIProviderResolutionError(ctx, rw, err)
 		return
 	}
 	aReq.New = row
@@ -319,33 +319,40 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 	idOrName := chi.URLParam(r, "idOrName")
 
+	// Resolve outside the transaction, because it calls AWS. The merge is
+	// redone inside against the row that gets written; both merges take the
+	// model identifiers from the patch, so they cannot disagree on them.
+	var resolved map[string]string
+	if req.Settings != nil {
+		_, preview, err := lookupAndMergeSettings(ctx, api.Database, idOrName, req.Settings)
+		if err != nil {
+			writeAIProviderError(ctx, api.Logger, rw, err, "update AI provider", "Internal error updating AI provider.")
+			return
+		}
+		resolved, err = resolveBedrockProfiles(ctx, preview)
+		if err != nil {
+			api.writeAIProviderResolutionError(ctx, rw, err)
+			return
+		}
+	}
+
 	var (
 		updated    database.AIProvider
 		keys       []database.AIProviderKey
 		keyChanges aiProviderKeyChanges
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
-		old, err := lookupAIProvider(ctx, tx, idOrName)
+		old, existing, err := lookupAndMergeSettings(ctx, tx, idOrName, req.Settings)
 		if err != nil {
 			return err
 		}
 		aReq.Old = old
 
-		// Decode the existing settings to merge with the patch. The dbcrypt
-		// wrapper has already decrypted the blob for us.
-		existing, err := db2sdk.AIProviderSettings(old.Settings)
-		if err != nil {
-			return xerrors.Errorf("decode existing settings: %w", err)
-		}
 		if req.Settings != nil {
 			if err := validateBedrockExternalIDUnchanged(existing, *req.Settings); err != nil {
 				return err
 			}
-			existing = mergeAIProviderSettings(existing, *req.Settings)
-			// The patch may point the provider at different identifiers, and a
-			// client cannot supply resolutions of its own. Resolution runs again
-			// after the transaction.
-			clearBedrockModelResolution(&existing)
+			applyBedrockResolution(&existing, resolved)
 		}
 		// Bedrock settings are only meaningful for anthropic- or
 		// bedrock-typed providers; rejecting the mismatch keeps a
@@ -356,8 +363,6 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
-		// Generate the server-owned external ID when the provider assumes a role
-		// and lacks one.
 		ensureBedrockExternalID(&existing)
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
@@ -455,14 +460,6 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	// An update that carries no settings cannot change the configured
 	// identifiers or the credentials they resolve under, so any stored
 	// resolution still holds.
-	if req.Settings != nil {
-		updated, err = api.resolveBedrockModels(ctx, updated)
-		if err != nil {
-			api.writeAIProviderResolutionError(ctx, rw, err)
-			return
-		}
-		aReq.New = updated
-	}
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
 	api.publishAIProvidersChanged(ctx)
@@ -866,6 +863,24 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 		return sql.NullString{}, err
 	}
 	return sql.NullString{String: string(out), Valid: true}, nil
+}
+
+// lookupAndMergeSettings loads a provider and merges patch onto its stored
+// settings.
+func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName string, patch *codersdk.AIProviderSettings) (database.AIProvider, codersdk.AIProviderSettings, error) {
+	old, err := lookupAIProvider(ctx, db, idOrName)
+	if err != nil {
+		return database.AIProvider{}, codersdk.AIProviderSettings{}, err
+	}
+	// The dbcrypt wrapper has already decrypted the blob for us.
+	settings, err := db2sdk.AIProviderSettings(old.Settings)
+	if err != nil {
+		return database.AIProvider{}, codersdk.AIProviderSettings{}, xerrors.Errorf("decode existing settings: %w", err)
+	}
+	if patch != nil {
+		settings = mergeAIProviderSettings(settings, *patch)
+	}
+	return old, settings, nil
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
