@@ -27,7 +27,7 @@ import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
-	chatQueuedMessagesEqualByID,
+	chatQueuedMessagesEqual,
 	createChatStore,
 	isActiveChatStatus,
 } from "./chatStore";
@@ -49,7 +49,7 @@ const writeQueuedMessagesToCache = (
 		}
 		const firstPage = currentData.pages[0];
 		if (
-			chatQueuedMessagesEqualByID(firstPage.queued_messages, nextQueuedMessages)
+			chatQueuedMessagesEqual(firstPage.queued_messages, nextQueuedMessages)
 		) {
 			return currentData;
 		}
@@ -359,7 +359,7 @@ export const useChatStore = (
 		// An optimistic promotion cache write must not clear suppression before
 		// a stale pre-promotion queue_update arrives.
 		if (
-			chatQueuedMessagesEqualByID(
+			chatQueuedMessagesEqual(
 				store.getSnapshot().queuedMessages,
 				chatQueuedMessages ?? [],
 			)
