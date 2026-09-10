@@ -226,11 +226,13 @@ jobs:
           # deterministic. Pin it, because a model configuration ID only
           # resolves inside its own organization.
           coder-organization: coder
-          # Pins the model that reviews the PR. Set this repository variable to
-          # a model configuration ID in the organization above. Unset means the
-          # deployment's default model, so clearing the variable is the
-          # rollback path and needs no code change.
-          model-config-id: ${{ vars.DOC_CHECK_MODEL_CONFIG_ID }}
+          # Pins the model that reviews the PR. Set DOC_CHECK_MODEL_CONFIG_ID to
+          # a model configuration ID in the organization above, as either a
+          # repository variable or a repository secret. The other DOC_CHECK_*
+          # values here are secrets, so accept both and let whichever is set
+          # win. Unset in both places means the deployment's default model, so
+          # clearing it is the rollback path and needs no code change.
+          model-config-id: ${{ vars.DOC_CHECK_MODEL_CONFIG_ID || secrets.DOC_CHECK_MODEL_CONFIG_ID }}
           chat-prompt: ${{ steps.extract-context.outputs.chat_prompt }}
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
