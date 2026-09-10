@@ -179,7 +179,7 @@ affected user:
 - Budgets of `$0 USD` and unpriced usage cross no thresholds.
 - Notifications are informational. Enforcement does not depend on them.
 
-Owners also receive **Missing AI Model Prices** weekly when recently used models have no price.
+Owners also receive **Missing AI Model Prices** weekly, listing models used in the past week that have no price.
 
 For delivery methods, see
 [Notifications](../../admin/monitoring/notifications/index.md).
