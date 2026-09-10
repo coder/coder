@@ -913,12 +913,17 @@ func generateManualTitle(
 	return title, nil
 }
 
-const chatSummaryGenerationPrompt = "You summarize an AI coding chat for a quick-reference popover. " +
-	"Populate the summary field with 1 to 3 plain sentences describing what the conversation is about and what was accomplished or attempted. " +
-	"Write about the conversation in the third person. " +
-	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
-	"Do not address the user, give instructions, or continue the task. " +
-	"No markdown, lists, headings, code fences, or surrounding quotes."
+const chatSummaryGenerationPrompt = `Summarize an AI coding chat for a quick-reference popover.
+
+Line 1: one sentence under 20 words, present tense, starting with the capability
+or behavior - "Defines how...", "Controls...", "Configures...". Use
+"Investigates..." if nothing was resolved.
+
+Then 2-4 markdown bullets ("- "), same declarative phrasing, one line each.
+Preserve identifiers verbatim: PR numbers, repos, file paths with line numbers,
+function and constant names, error messages.
+
+Never mention the user or assistant or narrate the exchange. No other markdown.`
 
 const (
 	// Bound the transcript so the summary call stays cheap and within context;
@@ -928,13 +933,13 @@ const (
 	summaryTranscriptPerMessageMaxRunes = 4000
 	summaryMaxOutputTokens              = 512
 	// Reject pathologically long or verbose summaries, with slack over the
-	// 1-3 sentence target.
-	summaryMaxRunes     = 1000
-	summaryMaxSentences = 6
+	// headline plus 2-4 bullet target.
+	summaryMaxRunes = 1000
+	summaryMaxLines = 6
 )
 
 type generatedChatSummary struct {
-	Summary string `json:"summary" description:"1-3 sentence summary of the whole chat"`
+	Summary string `json:"summary" description:"Headline sentence followed by 2-4 markdown bullets summarizing the whole chat"`
 }
 
 // renderChatSummaryTranscript renders chat history as plain text for summary
@@ -1034,12 +1039,12 @@ func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 }
 
 func summaryObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
-	return resolved.newObjectCall("chat_summary", "Summarize the whole chat in 1-3 sentences.", summaryMaxOutputTokens)
+	return resolved.newObjectCall("chat_summary", "Summarize the whole chat as a headline sentence plus 2-4 bullets.", summaryMaxOutputTokens)
 }
 
-// generateChatSummary generates a 1-3 sentence whole-chat summary from a
-// transcript. A blank or invalid result returns an error so callers preserve
-// any existing summary rather than clearing it.
+// generateChatSummary generates a whole-chat summary (headline sentence plus
+// 2-4 markdown bullets) from a transcript. A blank or invalid result returns
+// an error so callers preserve any existing summary rather than clearing it.
 func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -1066,11 +1071,31 @@ func generateChatSummary(
 		return "", usage, xerrors.Errorf("generate chat summary: %w", err)
 	}
 
-	summary := normalizeShortTextOutput(result.Object.Summary)
+	summary := normalizeChatSummaryOutput(result.Object.Summary)
 	if err := validateGeneratedChatSummary(summary); err != nil {
 		return "", result.Usage, err
 	}
 	return summary, result.Usage, nil
+}
+
+// normalizeChatSummaryOutput trims the summary and drops blank lines while
+// preserving the headline and bullet line structure the panel renders as
+// markdown.
+func normalizeChatSummaryOutput(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	lines := make([]string, 0, summaryMaxLines)
+	for line := range strings.Lines(text) {
+		line = strings.Join(strings.Fields(line), " ")
+		if line == "" {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func validateGeneratedChatSummary(summary string) error {
@@ -1080,8 +1105,11 @@ func validateGeneratedChatSummary(summary string) error {
 	if len([]rune(summary)) > summaryMaxRunes {
 		return xerrors.Errorf("generated chat summary exceeded %d runes", summaryMaxRunes)
 	}
-	if countSentenceTerminators(summary) > summaryMaxSentences {
-		return xerrors.Errorf("generated chat summary exceeded %d sentences", summaryMaxSentences)
+	if lines := strings.Count(summary, "\n") + 1; lines > summaryMaxLines {
+		return xerrors.Errorf("generated chat summary exceeded %d lines", summaryMaxLines)
+	}
+	if strings.HasPrefix(summary, "- ") || strings.HasPrefix(summary, "#") {
+		return xerrors.New("generated chat summary did not start with a headline sentence")
 	}
 	return nil
 }

@@ -1,4 +1,5 @@
 import type { FC, ReactNode } from "react";
+import { Markdown } from "#/components/Markdown/Markdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
@@ -40,9 +41,11 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	return (
 		<div className="flex flex-col gap-4">
 			{trimmedSummary ? (
-				<p className="m-0 font-sans text-pretty text-sm font-normal leading-6 text-content-primary">
+				// Generated summaries are a headline sentence plus bullets, so
+				// render markdown instead of a single paragraph.
+				<Markdown className="text-sm leading-6 text-content-primary [&_li]:my-0 [&_p]:m-0 [&_ul]:my-1 [&_ul]:pl-4">
 					{trimmedSummary}
-				</p>
+				</Markdown>
 			) : (
 				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
 					{isSubagent ? "Summary pending agent completion." : "No summary yet."}

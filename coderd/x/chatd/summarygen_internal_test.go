@@ -227,8 +227,28 @@ func TestValidateGeneratedChatSummary(t *testing.T) {
 
 	require.Error(t, validateGeneratedChatSummary(""))
 	require.Error(t, validateGeneratedChatSummary(strings.Repeat("a", summaryMaxRunes+1)))
-	require.Error(t, validateGeneratedChatSummary("One. Two. Three. Four. Five. Six. Seven."))
-	require.NoError(t, validateGeneratedChatSummary("Implemented the summary feature. Added tests."))
+	require.Error(t, validateGeneratedChatSummary(
+		"Headline.\n- one\n- two\n- three\n- four\n- five\n- six",
+	))
+	// A summary that opens with a bullet or heading lost its headline.
+	require.Error(t, validateGeneratedChatSummary("- one\n- two"))
+	require.Error(t, validateGeneratedChatSummary("# Summary\n- one"))
+	require.NoError(t, validateGeneratedChatSummary(
+		"Defines how chat summaries render.\n- Updates quickgen.go:916\n- Adds tests",
+	))
+}
+
+func TestNormalizeChatSummaryOutput(t *testing.T) {
+	t.Parallel()
+
+	// Blank lines and stray indentation collapse, line structure survives.
+	require.Equal(t,
+		"Defines how chat summaries render.\n- Updates quickgen.go:916\n- Adds tests",
+		normalizeChatSummaryOutput(
+			"  Defines how chat  summaries render.\n\n-   Updates quickgen.go:916\n\t- Adds tests\n\n",
+		),
+	)
+	require.Equal(t, "", normalizeChatSummaryOutput("   \n\n"))
 }
 
 func TestCountSentenceTerminators(t *testing.T) {
@@ -238,11 +258,6 @@ func TestCountSentenceTerminators(t *testing.T) {
 	require.Equal(t, 2, countSentenceTerminators("Fixed pkg.cmd.server in file.go. Added a test."))
 	require.Equal(t, 3, countSentenceTerminators("One. Two! Three?"))
 	require.Equal(t, 0, countSentenceTerminators("auth.rbac.Policy"))
-
-	// Dotted identifiers must not push a valid summary over the sentence cap.
-	require.NoError(t, validateGeneratedChatSummary(
-		"Refactored pkg.cmd.server and auth.rbac.Policy in main.go and util.go. Added coverage in foo_test.go.",
-	))
 }
 
 func TestSubagentReportSummarySnippet(t *testing.T) {

@@ -6,7 +6,7 @@ const meta: Meta<typeof ChatSummary> = {
 	component: ChatSummary,
 	args: {
 		summary:
-			"Investigated the flaky CI job, traced it to a race in the cache layer, and added a regression test.",
+			"Investigates a flaky CI job in coder/coder.\n- Traces the failure to a race in cache.go:212\n- Adds a regression test in cache_test.go\n- Leaves PR #29192 open for review",
 		createdAt: "2024-05-01T12:00:00Z",
 		updatedAt: "2024-05-02T15:30:00Z",
 		costMicros: 1_250_000,
@@ -25,6 +25,15 @@ export default meta;
 type Story = StoryObj<typeof ChatSummary>;
 
 export const WithSummary: Story = {};
+
+// Subagent summaries are plain report prose rather than the generated
+// headline-plus-bullets shape.
+export const ProseSummary: Story = {
+	args: {
+		summary:
+			"Investigated the flaky CI job, traced it to a race in the cache layer, and added a regression test.",
+	},
+};
 
 export const NoSummary: Story = {
 	args: { summary: null },
