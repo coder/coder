@@ -5,6 +5,10 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
+vi.mock("#/modules/dashboard/useDashboard", () => ({
+	useDashboard: () => ({ organizations: [] }),
+}));
+
 const modelOptions = [
 	{
 		id: "model-config-1",
