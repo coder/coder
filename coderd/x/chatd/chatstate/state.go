@@ -1,6 +1,13 @@
 package chatstate
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -12,29 +19,29 @@ type ExecutionState string
 const (
 	// StateN: chat does not exist.
 	StateN ExecutionState = "N"
-	// StateW: waiting, empty queue, not archived.
+	// StateW: waiting, no promotable head, not archived.
 	StateW ExecutionState = "W"
-	// StateE0: error, empty queue, not archived.
+	// StateE0: error, no promotable head, not archived.
 	StateE0 ExecutionState = "E0"
-	// StateE1: error, non-empty queue, not archived.
+	// StateE1: error, promotable head, not archived.
 	StateE1 ExecutionState = "E1"
-	// StateR0: running, empty queue, not archived.
+	// StateR0: running, no promotable head, not archived.
 	StateR0 ExecutionState = "R0"
-	// StateR1: running, non-empty queue, not archived.
+	// StateR1: running, promotable head, not archived.
 	StateR1 ExecutionState = "R1"
-	// StateI0: interrupting, empty queue, not archived.
+	// StateI0: interrupting, no promotable head, not archived.
 	StateI0 ExecutionState = "I0"
-	// StateI1: interrupting, non-empty queue, not archived.
+	// StateI1: interrupting, promotable head, not archived.
 	StateI1 ExecutionState = "I1"
-	// StateA0: requires_action, empty queue, not archived.
+	// StateA0: requires_action, no promotable head, not archived.
 	StateA0 ExecutionState = "A0"
-	// StateA1: requires_action, non-empty queue, not archived.
+	// StateA1: requires_action, promotable head, not archived.
 	StateA1 ExecutionState = "A1"
-	// StateXW: archived waiting, empty queue.
+	// StateXW: archived waiting, no promotable head.
 	StateXW ExecutionState = "XW"
-	// StateXE0: archived error, empty queue.
+	// StateXE0: archived error, no promotable head.
 	StateXE0 ExecutionState = "XE0"
-	// StateXE1: archived error, non-empty queue.
+	// StateXE1: archived error, promotable head.
 	StateXE1 ExecutionState = "XE1"
 
 	// StateInvalid groups every status/archive/queue combination that
@@ -81,49 +88,74 @@ func (s ExecutionState) IsRunnable() bool {
 	}
 }
 
-// ClassifyExecutionState turns the chat row, queue cardinality, and
-// whether the chat row exists into an [ExecutionState]. The caller is
+// QueueState is the queue input to [ClassifyExecutionState].
+type QueueState struct {
+	// HasPromotableHead is true when the queue is non-empty and its head
+	// row is not held. This, not the raw row count, is the "1" queue
+	// sub-state: the first held row and everything behind it are absent
+	// from the queue as far as the state machine is concerned, so a chat
+	// whose head is held classifies exactly like a chat with an empty
+	// queue.
+	HasPromotableHead bool
+}
+
+// LoadQueueState reads the queue head in the caller's transaction and
+// derives the classifier input. An empty queue yields the zero value.
+func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID) (QueueState, error) {
+	head, err := store.GetChatQueuedMessageHead(ctx, chatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return QueueState{}, nil
+	}
+	if err != nil {
+		return QueueState{}, xerrors.Errorf("get queue head: %w", err)
+	}
+	return QueueState{HasPromotableHead: !head.HeldAt.Valid}, nil
+}
+
+// ClassifyExecutionState turns the chat row, queue state, and whether
+// the chat row exists into an [ExecutionState]. The caller is
 // responsible for loading the chat under the row lock and reading the
-// queue count in the same transaction.
+// queue state in the same transaction.
 //
 // Callers that have no chat row (lookup returned sql.ErrNoRows)
 // should pass exists=false; the chat, status, and archive arguments
 // are then ignored.
 //
 // The classifier is a single flat switch over the valid (status,
-// archived, queue) tuples in the chat execution state model. Anything
-// outside that set (archived busy states, waiting with a non-empty
-// queue, future enum values) falls through to [StateInvalid].
+// archived, promotable head) tuples in the chat execution state model.
+// Anything outside that set (archived busy states, waiting with a
+// promotable head, future enum values) falls through to [StateInvalid].
 //
-//nolint:revive // queueNonEmpty/exists are simple classifier inputs.
-func ClassifyExecutionState(chat database.Chat, queueNonEmpty, exists bool) ExecutionState {
+//nolint:revive // exists is a simple classifier input.
+func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {
 	if !exists {
 		return StateN
 	}
+	promotable := queue.HasPromotableHead
 	switch {
-	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !promotable:
 		return StateW
-	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusWaiting && chat.Archived && !promotable:
 		return StateXW
-	case chat.Status == database.ChatStatusError && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusError && !chat.Archived && !promotable:
 		return StateE0
-	case chat.Status == database.ChatStatusError && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusError && !chat.Archived && promotable:
 		return StateE1
-	case chat.Status == database.ChatStatusError && chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusError && chat.Archived && !promotable:
 		return StateXE0
-	case chat.Status == database.ChatStatusError && chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusError && chat.Archived && promotable:
 		return StateXE1
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusRunning && !chat.Archived && !promotable:
 		return StateR0
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusRunning && !chat.Archived && promotable:
 		return StateR1
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && !promotable:
 		return StateI0
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && promotable:
 		return StateI1
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && !promotable:
 		return StateA0
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && promotable:
 		return StateA1
 	}
 	return StateInvalid
