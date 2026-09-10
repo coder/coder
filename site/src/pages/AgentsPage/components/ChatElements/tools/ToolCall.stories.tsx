@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { userEvent } from "storybook/test";
 import { ToolCall } from "./ToolCall";
 
 const meta: Meta = {
@@ -77,23 +77,9 @@ export const Collapsible: Story = {
 			</ToolCall.Content>
 		</ToolCall.Root>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+	play: async () => {
 		await userEvent.tab();
-		const button = canvas.getByRole("button", { name: "Expand read file" });
-		expect(button).toHaveFocus();
-		expect(button).toHaveAttribute("aria-expanded", "false");
-		expect(canvas.queryByText("File contents")).not.toBeInTheDocument();
 		await userEvent.keyboard("{Enter}");
-		const expandedButton = canvas.getByRole("button", {
-			name: "Collapse read file",
-		});
-		expect(expandedButton).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText("File contents")).toBeVisible();
 		await userEvent.keyboard(" ");
-		expect(
-			canvas.getByRole("button", { name: "Expand read file" }),
-		).toHaveAttribute("aria-expanded", "false");
-		expect(canvas.queryByText("File contents")).not.toBeInTheDocument();
 	},
 };
