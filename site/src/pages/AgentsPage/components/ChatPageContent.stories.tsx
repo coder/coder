@@ -4,13 +4,18 @@ import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	chatPromptsKey,
+	mcpServerConfigsKey,
+	organizationChatModelsKey,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
 	MockUserOwner,
@@ -21,6 +26,7 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
+import { AgentChatSettingsProvider } from "../context/AgentChatSettingsContext";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -43,6 +49,27 @@ const StoryChatPageTimeline: FC<{
 		/>
 	</MessageScroller.Provider>
 );
+
+const CHAT_ID = "chat-page-content-stories";
+
+// The composer chat carries no id so the prompt-history and draft attachment
+// scopes stay inert, while its organization drives the settings queries.
+const composerChat: TypesGen.Chat = { ...MockChat, id: "" };
+
+const composerModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [
+		{
+			...MockChatModel,
+			id: MockChat.last_model_config_id,
+			organization_id: MockChat.organization_id,
+			model: "gpt-4o",
+			display_name: "GPT-4o",
+			is_default: true,
+		},
+	],
+	providers: [MockChatModelProviderDescriptor],
+	unsupported_providers: [],
+};
 
 // ChatPageTimeline builds the transcript URL transform from the proxy
 // context, so every story needs the provider.
@@ -67,14 +94,20 @@ const meta = {
 					count: 0,
 				} satisfies TypesGen.WorkspacesResponse,
 			},
+			{
+				key: organizationChatModelsKey(MockChat.organization_id),
+				data: composerModelCatalog,
+			},
+			{
+				key: mcpServerConfigsKey(MockChat.organization_id),
+				data: [] satisfies TypesGen.MCPServerConfig[],
+			},
 		],
 	},
 } satisfies Meta;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-const CHAT_ID = "chat-page-content-stories";
 
 const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionThresholds =
 	{
@@ -87,48 +120,28 @@ const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionT
 		],
 	};
 
-const mockCompactionModels: readonly TypesGen.ChatModel[] = [
-	{
-		...MockChatModel,
-		id: MockChat.last_model_config_id,
-	},
-];
-
-// Renders only the composer half of the chat page. Empty chat id and
-// organization keep the prompt-history and draft attachment queries disabled.
+// Renders only the composer half of the chat page.
 const StoryChatPageInput: FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
 }> = ({ store, onInterrupt }) => (
-	<div className="mx-auto w-full max-w-3xl p-4">
-		<ChatPageInput
-			chat={{ ...MockChat, id: "", organization_id: "" }}
-			store={store}
-			models={[]}
-			onSend={fn()}
-			onDeleteQueuedMessage={fn()}
-			onPromoteQueuedMessage={fn()}
-			onInterrupt={onInterrupt ?? fn()}
-			isInputDisabled={false}
-			isSendPending={false}
-			isInterruptPending={false}
-			hasModelOptions
-			selectedModel="model-config-1"
-			onModelChange={fn()}
-			modelOptions={[
-				{
-					id: "model-config-1",
-					provider: "openai",
-					model: "gpt-4o",
-					displayName: "GPT-4o",
-				},
-			]}
-			modelSelectorPlaceholder="Select model"
-			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={fn()}
-		/>
-	</div>
+	<AgentChatSettingsProvider chat={composerChat}>
+		<div className="mx-auto w-full max-w-3xl p-4">
+			<ChatPageInput
+				chat={composerChat}
+				store={store}
+				onSend={fn()}
+				onDeleteQueuedMessage={fn()}
+				onPromoteQueuedMessage={fn()}
+				onInterrupt={onInterrupt ?? fn()}
+				isInputDisabled={false}
+				isSendPending={false}
+				isInterruptPending={false}
+				isEditing={false}
+				onCancelHistoryEdit={fn()}
+			/>
+		</div>
+	</AgentChatSettingsProvider>
 );
 
 const buildMessage = (
@@ -378,28 +391,23 @@ const CompactionChatPageInput: FC = () => {
 	]);
 
 	return (
-		<div className="mx-auto w-full max-w-3xl p-4">
-			<ChatPageInput
-				chat={MockChat}
-				store={store}
-				models={mockCompactionModels}
-				onSend={fn()}
-				onDeleteQueuedMessage={fn()}
-				onPromoteQueuedMessage={fn()}
-				onInterrupt={fn()}
-				isInputDisabled={false}
-				isSendPending={false}
-				isInterruptPending={false}
-				hasModelOptions={false}
-				selectedModel={MockChat.last_model_config_id}
-				onModelChange={fn()}
-				modelOptions={[]}
-				modelSelectorPlaceholder="Select model"
-				canConfigureAgentSetup={false}
-				isEditing={false}
-				onCancelHistoryEdit={fn()}
-			/>
-		</div>
+		<AgentChatSettingsProvider chat={MockChat}>
+			<div className="mx-auto w-full max-w-3xl p-4">
+				<ChatPageInput
+					chat={MockChat}
+					store={store}
+					onSend={fn()}
+					onDeleteQueuedMessage={fn()}
+					onPromoteQueuedMessage={fn()}
+					onInterrupt={fn()}
+					isInputDisabled={false}
+					isSendPending={false}
+					isInterruptPending={false}
+					isEditing={false}
+					onCancelHistoryEdit={fn()}
+				/>
+			</div>
+		</AgentChatSettingsProvider>
 	);
 };
 
@@ -432,6 +440,14 @@ export const CompactsAtUserOverride: Story = {
 					workspaces: [],
 					count: 0,
 				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: organizationChatModelsKey(MockChat.organization_id),
+				data: composerModelCatalog,
+			},
+			{
+				key: mcpServerConfigsKey(MockChat.organization_id),
+				data: [] satisfies TypesGen.MCPServerConfig[],
 			},
 		],
 	},
@@ -467,6 +483,14 @@ export const CompactsAtHistoricalModelDefault: Story = {
 					workspaces: [],
 					count: 0,
 				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: organizationChatModelsKey(MockChat.organization_id),
+				data: composerModelCatalog,
+			},
+			{
+				key: mcpServerConfigsKey(MockChat.organization_id),
+				data: [] satisfies TypesGen.MCPServerConfig[],
 			},
 		],
 	},

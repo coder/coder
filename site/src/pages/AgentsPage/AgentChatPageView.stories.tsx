@@ -1,6 +1,6 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useState } from "react";
+import { type ComponentProps, type FC, type ReactNode, useState } from "react";
 import { Outlet } from "react-router";
 import {
 	expect,
@@ -54,6 +54,10 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import {
+	type AgentChatSettings,
+	AgentChatSettingsValueProvider,
+} from "./context/AgentChatSettingsContext";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
@@ -73,6 +77,50 @@ const defaultModelOptions: ModelSelectorOption[] = [
 		displayName: "GPT-4o",
 	},
 ];
+
+// The page resolves these from the model and MCP queries. Supplying them
+// directly keeps each view story to the one state it exercises, including the
+// cached-catalog-with-refetch-error state a seeded query cannot express.
+const buildSettings = (
+	overrides: Partial<AgentChatSettings> = {},
+): AgentChatSettings => ({
+	modelOptions: defaultModelOptions,
+	models: [],
+	hasModelOptions: true,
+	isModelCatalogLoading: false,
+	modelCatalogError: undefined,
+	modelSelectorPlaceholder: "Select a model",
+	modelSelectorHelp: undefined,
+	unavailableModelNotice: undefined,
+	canConfigureAgentSetup: true,
+	providerCount: 1,
+	modelCount: 1,
+	unsupportedProviderNames: [],
+	selectedModel: defaultModelID,
+	onModelChange: fn(),
+	reasoningEffort: undefined,
+	onReasoningEffortChange: fn(),
+	hasPickedReasoningEffort: false,
+	resetPickedReasoningEffort: fn(),
+	mcpServers: [],
+	selectedMCPServerIds: [],
+	onMCPSelectionChange: fn(),
+	onMCPAuthComplete: fn(),
+	...overrides,
+});
+
+const WithSettings: FC<{
+	settings?: Partial<AgentChatSettings>;
+	children: ReactNode;
+}> = ({ settings, children }) => {
+	// Build once so consumers see a stable settings value across rerenders.
+	const [value] = useState(() => buildSettings(settings));
+	return (
+		<AgentChatSettingsValueProvider settings={value}>
+			{children}
+		</AgentChatSettingsValueProvider>
+	);
+};
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -169,11 +217,13 @@ type StoryProps = Omit<
 > & {
 	editing?: Partial<ComponentProps<typeof AgentChatPageView>["editing"]>;
 	chat?: Partial<TypesGen.Chat>;
+	settings?: Partial<AgentChatSettings>;
 };
 
 const StoryAgentChatPageView: FC<StoryProps> = ({
 	editing,
 	chat,
+	settings,
 	...overrides
 }) => {
 	const [defaultStore] = useState(() => createChatStore());
@@ -182,12 +232,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 	const props = {
 		chat: buildChat(chat),
 		persistedError: undefined as ChatDetailError | undefined,
-		effectiveSelectedModel: defaultModelID,
-		setSelectedModel: fn(),
-		modelOptions: defaultModelOptions,
-		models: [],
-		modelSelectorPlaceholder: "Select a model",
-		hasModelOptions: true,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -203,21 +247,16 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
-		mcpServers: [] as ComponentProps<typeof AgentChatPageView>["mcpServers"],
-		selectedMCPServerIds: [] as ComponentProps<
-			typeof AgentChatPageView
-		>["selectedMCPServerIds"],
-		onMCPSelectionChange: fn(),
-		onMCPAuthComplete: fn(),
-		canConfigureAgentSetup: true,
-		providerCount: 1,
-		modelCount: 1,
 		initialMessages: [],
 		...overrides,
 		store,
 		editing: buildEditing(editing),
 	};
-	return <AgentChatPageView {...props} />;
+	return (
+		<WithSettings settings={settings}>
+			<AgentChatPageView {...props} />
+		</WithSettings>
+	);
 };
 
 // ---------------------------------------------------------------------------
@@ -309,7 +348,9 @@ export const Default: Story = {
 export const CachedModelsWithRefetchError: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			modelCatalogError={new Error("Failed to refresh available models.")}
+			settings={{
+				modelCatalogError: new Error("Failed to refresh available models."),
+			}}
 		/>
 	),
 };
@@ -726,8 +767,7 @@ export const SidebarCollapsed: Story = {
 export const NoModelOptions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			hasModelOptions={false}
-			modelOptions={[]}
+			settings={{ hasModelOptions: false, modelOptions: [] }}
 			isInputDisabled
 		/>
 	),
@@ -736,12 +776,14 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canConfigureAgentSetup
 			chat={{ organization_id: MockDefaultOrganization.id }}
-			providerCount={0}
-			modelCount={0}
-			hasModelOptions={false}
-			modelOptions={[]}
+			settings={{
+				canConfigureAgentSetup: true,
+				providerCount: 0,
+				modelCount: 0,
+				hasModelOptions: false,
+				modelOptions: [],
+			}}
 			isInputDisabled
 		/>
 	),
@@ -772,12 +814,14 @@ export const MissingProviderAndModelSetup: Story = {
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canConfigureAgentSetup
 			chat={{ organization_id: MockDefaultOrganization.id }}
-			providerCount={1}
-			modelCount={0}
-			hasModelOptions={false}
-			modelOptions={[]}
+			settings={{
+				canConfigureAgentSetup: true,
+				providerCount: 1,
+				modelCount: 0,
+				hasModelOptions: false,
+				modelOptions: [],
+			}}
 			isInputDisabled
 		/>
 	),
@@ -804,9 +848,11 @@ export const MissingModelSetup: Story = {
 export const MissingProviderSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canConfigureAgentSetup
-			providerCount={0}
-			modelCount={1}
+			settings={{
+				canConfigureAgentSetup: true,
+				providerCount: 0,
+				modelCount: 1,
+			}}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -832,11 +878,13 @@ export const MissingProviderSetup: Story = {
 export const MemberNoModelsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canConfigureAgentSetup={false}
-			providerCount={0}
-			modelCount={0}
-			hasModelOptions={false}
-			modelOptions={[]}
+			settings={{
+				canConfigureAgentSetup: false,
+				providerCount: 0,
+				modelCount: 0,
+				hasModelOptions: false,
+				modelOptions: [],
+			}}
 			isInputDisabled
 		/>
 	),
@@ -932,59 +980,51 @@ export const WorkspaceNoAgent: Story = {
 /** Default loading state with skeleton placeholders. */
 export const Loading: Story = {
 	render: () => (
-		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			showRightPanel={false}
-		/>
+		<WithSettings>
+			<AgentChatPageLoadingView
+				inputRef={{ current: null }}
+				initialValue=""
+				initialEditorState={undefined}
+				remountKey={0}
+				onContentChange={fn()}
+				isInputDisabled
+				showRightPanel={false}
+			/>
+		</WithSettings>
 	),
 };
 
 /** Loading state with the model selector populated. */
 export const LoadingWithModelOptions: Story = {
 	render: () => (
-		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled={false}
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			showRightPanel={false}
-		/>
+		<WithSettings>
+			<AgentChatPageLoadingView
+				inputRef={{ current: null }}
+				initialValue=""
+				initialEditorState={undefined}
+				remountKey={0}
+				onContentChange={fn()}
+				isInputDisabled={false}
+				showRightPanel={false}
+			/>
+		</WithSettings>
 	),
 };
+
 /** Loading state with the right panel pre-opened. */
 export const LoadingWithRightPanel: Story = {
 	render: () => (
-		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			showRightPanel
-		/>
+		<WithSettings>
+			<AgentChatPageLoadingView
+				inputRef={{ current: null }}
+				initialValue=""
+				initialEditorState={undefined}
+				remountKey={0}
+				onContentChange={fn()}
+				isInputDisabled
+				showRightPanel
+			/>
+		</WithSettings>
 	),
 };
 
@@ -992,20 +1032,17 @@ export const LoadingWithRightPanel: Story = {
 export const LoadingSidebarCollapsed: Story = {
 	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
-		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			showRightPanel={false}
-		/>
+		<WithSettings>
+			<AgentChatPageLoadingView
+				inputRef={{ current: null }}
+				initialValue=""
+				initialEditorState={undefined}
+				remountKey={0}
+				onContentChange={fn()}
+				isInputDisabled
+				showRightPanel={false}
+			/>
+		</WithSettings>
 	),
 };
 

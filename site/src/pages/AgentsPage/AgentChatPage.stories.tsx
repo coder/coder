@@ -1580,6 +1580,32 @@ export const Loading: Story = {
 	},
 };
 
+/**
+ * The chat record has not arrived, so the settings provider has no
+ * organization to query models for and the composer shows the model selector
+ * skeleton instead of a selector.
+ */
+export const LoadingWithPendingModelCatalog: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "",
+					status: "running",
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{ diffUrl: undefined },
+			),
+			chatEntityKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockReturnValue(new Promise(() => {}));
+	},
+};
+
 const capacityPollingChat: TypesGen.Chat = {
 	id: CHAT_ID,
 	...baseChatFields,
