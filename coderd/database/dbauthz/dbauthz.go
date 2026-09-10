@@ -6955,6 +6955,13 @@ func (q *querier) ListAIBridgeSessions(ctx context.Context, arg database.ListAIB
 	return q.db.ListAuthorizedAIBridgeSessions(ctx, arg, prep)
 }
 
+func (q *querier) ListAIBridgeSpendPerUser(ctx context.Context, arg database.ListAIBridgeSpendPerUserParams) ([]database.ListAIBridgeSpendPerUserRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeSpendPerUser(ctx, arg)
+}
+
 func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
 		return nil, err
