@@ -2412,6 +2412,47 @@ func TestTemplateNotifications(t *testing.T) {
 	})
 }
 
+func TestTemplateFilterUseClassicParameterFlow(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	classicVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	classic := coderdtest.CreateTemplate(t, client, user.OrganizationID, classicVersion.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.Name = "classic"
+		request.UseClassicParameterFlow = new(true)
+	})
+	dynamicVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	dynamic := coderdtest.CreateTemplate(t, client, user.OrganizationID, dynamicVersion.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.Name = "dynamic"
+		request.UseClassicParameterFlow = new(false)
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "use-classic-parameter-flow:true",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, classic.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "use-classic-parameter-flow:false",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, dynamic.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
+	require.NoError(t, err)
+	require.Len(t, templates, 2)
+}
+
 func TestTemplateFilterHasAITask(t *testing.T) {
 	t.Parallel()
 

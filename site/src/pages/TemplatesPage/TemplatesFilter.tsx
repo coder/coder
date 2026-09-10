@@ -22,6 +22,8 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 
+export const CLASSIC_PARAMETER_FLOW_FILTER = "use-classic-parameter-flow:true";
+
 export type TemplateFilterState = {
 	filter: UseFilterResult;
 	menus: {
@@ -101,6 +103,10 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 				{ query: "", name: "All templates" },
 				{ query: "author:me", name: "Templates you authored" },
 				{ query: "deprecated:true", name: "Deprecated templates" },
+				{
+					query: CLASSIC_PARAMETER_FLOW_FILTER,
+					name: "Templates using classic parameters",
+				},
 			]}
 			// TODO: Add docs for this
 			// learnMoreLink={docs("/admin/templates#template-filtering")}

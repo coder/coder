@@ -954,6 +954,27 @@ func TestSearchTemplates(t *testing.T) {
 			},
 		},
 		{
+			Name:  "UseClassicParameterFlowTrue",
+			Query: "use-classic-parameter-flow:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "UseClassicParameterFlowFalse",
+			Query: "use-classic-parameter-flow:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:  "UseClassicParameterFlowMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: false},
+			},
+		},
+		{
 			Name:  "HasAITaskTrue",
 			Query: "has-ai-task:true",
 			Expected: database.GetTemplatesWithFilterParams{

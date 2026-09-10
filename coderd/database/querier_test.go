@@ -965,6 +965,63 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share one database seeded by the parent test.
+func TestGetTemplatesWithUseClassicParameterFlowFilter(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	classic := dbgen.Template(t, db, database.Template{
+		OrganizationID:          org.ID,
+		CreatedBy:               user.ID,
+		UseClassicParameterFlow: true,
+	})
+	dynamic := dbgen.Template(t, db, database.Template{
+		OrganizationID:          org.ID,
+		CreatedBy:               user.ID,
+		UseClassicParameterFlow: false,
+	})
+
+	tests := []struct {
+		name  string
+		value sql.NullBool
+		want  []uuid.UUID
+	}{
+		{
+			name: "unset",
+			want: []uuid.UUID{classic.ID, dynamic.ID},
+		},
+		{
+			name:  "classic",
+			value: sql.NullBool{Bool: true, Valid: true},
+			want:  []uuid.UUID{classic.ID},
+		},
+		{
+			name:  "dynamic",
+			value: sql.NullBool{Bool: false, Valid: true},
+			want:  []uuid.UUID{dynamic.ID},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				Deleted:                 false,
+				OrganizationID:          org.ID,
+				UseClassicParameterFlow: tt.value,
+			})
+			require.NoError(t, err)
+			gotIDs := make([]uuid.UUID, 0, len(got))
+			for _, template := range got {
+				gotIDs = append(gotIDs, template.ID)
+			}
+			require.ElementsMatch(t, tt.want, gotIDs)
+		})
+	}
+}
+
+//nolint:tparallel,paralleltest // Subtests share one database seeded by the parent test.
 func TestGetTemplatesWithAgentsAllowedFilter(t *testing.T) {
 	t.Parallel()
 
