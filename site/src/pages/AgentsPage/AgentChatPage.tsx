@@ -39,7 +39,6 @@ import {
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
-	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
@@ -153,7 +152,7 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
@@ -210,7 +209,6 @@ const AgentChatPage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
@@ -218,10 +216,6 @@ const AgentChatPage: FC = () => {
 	const isDefaultChatOrganization = organizations.some(
 		(organization) =>
 			organization.id === chatOrganizationId && organization.is_default,
-	);
-	const desktopEnabled = experiments.includes("chat-virtual-desktop");
-	const debugLoggingEnabled = Boolean(
-		userDebugLoggingQuery.data?.debug_logging_enabled,
 	);
 
 	// MCP server selection state.
@@ -1102,7 +1096,6 @@ const AgentChatPage: FC = () => {
 					isWorkspaceLoading={isUpdateChatWorkspacePending}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
-					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
 					sshCommand={sshCommand}
 					handleCommit={handleCommit}
@@ -1117,7 +1110,6 @@ const AgentChatPage: FC = () => {
 					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
