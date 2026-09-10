@@ -4850,12 +4850,6 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
-type AIBedrockInferenceProfileModel struct {
-	InferenceProfileArn string `db:"inference_profile_arn" json:"inference_profile_arn"`
-	// The Bedrock model ID the inference profile wraps.
-	ResolvedModel string `db:"resolved_model" json:"resolved_model"`
-}
-
 // Audit log of requests intercepted by AI Bridge
 type AIBridgeInterception struct {
 	ID uuid.UUID `db:"id" json:"id"`

@@ -1567,13 +1567,6 @@ $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
-CREATE TABLE ai_bedrock_inference_profile_models (
-    inference_profile_arn text NOT NULL,
-    resolved_model text NOT NULL
-);
-
-COMMENT ON COLUMN ai_bedrock_inference_profile_models.resolved_model IS 'The Bedrock model ID the inference profile wraps.';
-
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -4372,9 +4365,6 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY ai_bedrock_inference_profile_models
-    ADD CONSTRAINT ai_bedrock_inference_profile_models_pkey PRIMARY KEY (inference_profile_arn);
 
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
