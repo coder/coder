@@ -1094,7 +1094,7 @@ cli_param: from file`)
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			logger := testutil.Logger(t)
-			ctx := testutil.Context(t, testutil.WaitMedium)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
 			parameters := params
 			if len(tt.inputParameters) > 0 {
@@ -1249,7 +1249,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// the CLI uses the specified preset instead of the default
 	t.Run("PresetFlag", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1325,7 +1325,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// the CLI automatically uses the default preset to create the workspace
 	t.Run("DefaultPreset", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1399,7 +1399,7 @@ func TestCreateWithPreset(t *testing.T) {
 	t.Run("NoDefaultPresetPromptUser", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1470,7 +1470,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// with workspace creation without applying any preset.
 	t.Run("TemplateVersionWithoutPresets", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1515,7 +1515,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// The workspace should be created without using any preset-defined parameters.
 	t.Run("PresetFlagNone", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1609,7 +1609,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// - and the value of parameter B from the parameter flag.
 	t.Run("PresetOverridesParameterFlagValues", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1674,7 +1674,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// - and the value of parameter B from the file.
 	t.Run("PresetOverridesParameterFileValues", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1739,7 +1739,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// the CLI prompts the user for input to fill in the missing parameters.
 	t.Run("PromptsForMissingParametersWhenPresetIsIncomplete", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1848,7 +1848,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateString", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -1888,7 +1888,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateNumber", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1929,7 +1929,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateNumber_CustomError", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1970,7 +1970,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateBool", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -2020,7 +2020,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 		t.Run("Prompt", func(t *testing.T) {
 			logger := testutil.Logger(t)
-			ctx := testutil.Context(t, testutil.WaitMedium)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			inv, root := clitest.New(t, "create", "my-workspace-1", "--template", template.Name)
 			clitest.SetupConfig(t, member, root)
 			stdout := expecter.NewAttachedToInvocation(t, inv)
@@ -2054,7 +2054,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateListOfStrings_YAMLFile", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
