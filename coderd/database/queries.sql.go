@@ -7670,8 +7670,8 @@ FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 `
 
-// Cheap queue-length check used by ChatMachine.Update when deciding
-// whether the chat is in a "1" sub-state.
+// Queue-length check used for the queue capacity limit. Held rows
+// count: a hold does not free capacity.
 func (q *sqlQuerier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countChatQueuedMessages, chatID)
 	var count int64
@@ -9187,7 +9187,7 @@ func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQu
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at FROM chat_queued_messages
 WHERE id = $1::bigint AND chat_id = $2::uuid
 `
 
@@ -9208,18 +9208,21 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.HeldAt,
 	)
 	return i, err
 }
 
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 LIMIT 1
 `
 
-// Returns the queue head (lowest position, then lowest id).
+// Returns the queue head (lowest position, then lowest id). The head
+// may be held; chatstate.LoadQueueState decides whether it is
+// promotable.
 func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedMessageHead, chatID)
 	var i ChatQueuedMessage
@@ -9232,12 +9235,13 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.HeldAt,
 	)
 	return i, err
 }
 
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at FROM chat_queued_messages
 WHERE chat_id = $1
 ORDER BY created_at ASC, id ASC
 `
@@ -9260,6 +9264,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 			&i.Position,
 			&i.CreatedBy,
 			&i.ReasoningEffort,
+			&i.HeldAt,
 		); err != nil {
 			return nil, err
 		}
@@ -9275,7 +9280,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 }
 
 const getChatQueuedMessagesByPosition = `-- name: GetChatQueuedMessagesByPosition :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 `
@@ -9299,6 +9304,7 @@ func (q *sqlQuerier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID
 			&i.Position,
 			&i.CreatedBy,
 			&i.ReasoningEffort,
+			&i.HeldAt,
 		); err != nil {
 			return nil, err
 		}
@@ -10365,19 +10371,22 @@ WHERE
         AND updated_at < $1::timestamptz)
     OR (status = 'waiting'::chat_status
         AND updated_at < $1::timestamptz
-        AND EXISTS (
-            SELECT 1 FROM chat_queued_messages cqm
+        AND COALESCE((
+            SELECT cqm.held_at IS NULL FROM chat_queued_messages cqm
             WHERE cqm.chat_id = chats_expanded.id
-        ))
+            ORDER BY cqm.position ASC, cqm.id ASC
+            LIMIT 1
+        ), false))
 `
 
 // Find chats that appear stuck and need recovery:
 //  1. Running chats whose heartbeat has expired (worker crash).
 //  2. requires_action chats past the timeout threshold (client
 //     disappeared).
-//  3. Waiting chats with a non-empty queue and stale updated_at
+//  3. Waiting chats with a promotable queue head and stale updated_at
 //     (deferred-promote stranding when the worker dies before its
-//     post-cancel cleanup runs).
+//     post-cancel cleanup runs). A held head is not promotable, so
+//     a waiting chat whose head is held is idle, not stranded.
 func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getStaleChats, staleThreshold)
 	if err != nil {
@@ -11000,7 +11009,7 @@ SELECT
     chats.owner_id
 FROM chats
 WHERE chats.id = $1::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at
 `
 
 type InsertChatQueuedMessageParams struct {
@@ -11030,6 +11039,7 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.HeldAt,
 	)
 	return i, err
 }
@@ -11043,7 +11053,7 @@ VALUES (
     $4::chat_reasoning_effort,
     $5::uuid
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
@@ -11075,6 +11085,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.HeldAt,
 	)
 	return i, err
 }
@@ -11473,7 +11484,7 @@ WHERE id = (
     ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at
 `
 
 func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
@@ -11488,6 +11499,7 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.HeldAt,
 	)
 	return i, err
 }
@@ -13061,6 +13073,79 @@ func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatP
 		&i.ContextDirtyResources,
 		&i.ContextError,
 		&i.CompactionRequestedAt,
+	)
+	return i, err
+}
+
+const updateChatQueuedMessageContent = `-- name: UpdateChatQueuedMessageContent :one
+UPDATE chat_queued_messages
+SET content = $1::jsonb,
+    model_config_id = $2::uuid,
+    reasoning_effort = $3::chat_reasoning_effort
+WHERE id = $4::bigint AND chat_id = $5::uuid
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at
+`
+
+type UpdateChatQueuedMessageContentParams struct {
+	Content         json.RawMessage         `db:"content" json:"content"`
+	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	ID              int64                   `db:"id" json:"id"`
+	ChatID          uuid.UUID               `db:"chat_id" json:"chat_id"`
+}
+
+// Replaces the content and per-message overrides of a queued message.
+func (q *sqlQuerier) UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageContent,
+		arg.Content,
+		arg.ModelConfigID,
+		arg.ReasoningEffort,
+		arg.ID,
+		arg.ChatID,
+	)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.ModelConfigID,
+		&i.Position,
+		&i.CreatedBy,
+		&i.ReasoningEffort,
+		&i.HeldAt,
+	)
+	return i, err
+}
+
+const updateChatQueuedMessageHeld = `-- name: UpdateChatQueuedMessageHeld :one
+UPDATE chat_queued_messages
+SET held_at = CASE WHEN $1::boolean THEN COALESCE(held_at, NOW()) ELSE NULL END
+WHERE id = $2::bigint AND chat_id = $3::uuid
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at
+`
+
+type UpdateChatQueuedMessageHeldParams struct {
+	Held   bool      `db:"held" json:"held"`
+	ID     int64     `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Sets or clears held_at. Setting is idempotent: an already-held row
+// keeps its original held_at.
+func (q *sqlQuerier) UpdateChatQueuedMessageHeld(ctx context.Context, arg UpdateChatQueuedMessageHeldParams) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageHeld, arg.Held, arg.ID, arg.ChatID)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.ModelConfigID,
+		&i.Position,
+		&i.CreatedBy,
+		&i.ReasoningEffort,
+		&i.HeldAt,
 	)
 	return i, err
 }
