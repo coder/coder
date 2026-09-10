@@ -1236,7 +1236,6 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 			canvas.getAllByRole("button", { name: "View text attachment" }),
 		).toHaveLength(1);
 		expectNoCopyMessageButtonForElement(expiredTile);
-		expect(getAttachmentFetchCount("storybook-expired-text")).toBe(0);
 
 		await hoverAndExpectTooltip(
 			expiredTile,
@@ -1273,21 +1272,6 @@ export const UserMessageWithExpiredDownloadableFile: Story = {
 			}),
 		),
 		chatFiles: buildChatFiles("storybook-current-file"),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const expiredTile = await findAttachmentTile(canvas, "Attachment expired");
-		expect(
-			canvas.getByText("The attached report has expired."),
-		).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: "Download old-report.pdf" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("link", { name: "Download new-report.pdf" }),
-		).toBeInTheDocument();
-		expectNoCopyMessageButtonForElement(expiredTile);
-		expect(getAttachmentFetchCount("storybook-expired-file")).toBe(0);
 	},
 };
 

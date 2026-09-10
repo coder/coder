@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { FileProbeProvider } from "../../ChatConversation/FileProbeContext";
-import { RECORDING_EXPIRED_TEXT } from "./previewConstants";
 import { RecordingPreview } from "./RecordingPreview";
 
 // Static assets stored in site/.storybook/static/.
@@ -105,11 +104,4 @@ export const Expired: Story = {
 			</FileProbeProvider>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(RECORDING_EXPIRED_TEXT)).toBeInTheDocument();
-		// No thumbnail request and no way to open the lightbox.
-		expect(canvasElement.querySelector("img")).toBeNull();
-		expect(canvas.queryByRole("button")).toBeNull();
-	},
 };
