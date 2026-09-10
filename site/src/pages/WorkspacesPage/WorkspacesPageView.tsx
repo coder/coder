@@ -107,7 +107,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				</PageHeaderTitle>
 			</PageHeader>
 
-			<div className="flex flex-col gap-4">
+			<div className="mb-4 flex flex-col gap-4">
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
