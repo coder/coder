@@ -36,6 +36,7 @@ import {
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
+	MockDeploymentSSH,
 	MockUserChatCompactionThresholds,
 	MockUserOwner,
 	MockUserPreferenceSettings,
@@ -936,6 +937,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 	beforeEach: () => {
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue(MockDeploymentSSH);
 		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
