@@ -521,6 +521,10 @@ type sqlcQuerier interface {
 	// may be held; chatstate.LoadQueueState decides whether it is
 	// promotable.
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Client-visible queue in processing order. position, not created_at,
+	// is what promotion follows: "send now" moves a row to the head by
+	// lowering its position, and clients derive the paused tail behind a
+	// held row from this order.
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns queued messages in state-machine order (position ASC, id ASC).
 	GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)

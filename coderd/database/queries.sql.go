@@ -9243,9 +9243,13 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
 SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, held_at FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY created_at ASC, id ASC
+ORDER BY position ASC, id ASC
 `
 
+// Client-visible queue in processing order. position, not created_at,
+// is what promotion follows: "send now" moves a row to the head by
+// lowering its position, and clients derive the paused tail behind a
+// held row from this order.
 func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatQueuedMessages, chatID)
 	if err != nil {
