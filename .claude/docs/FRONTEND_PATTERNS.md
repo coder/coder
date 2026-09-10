@@ -20,14 +20,14 @@ When a `typescript-language-server` MCP is available, prefer it over text search
 for navigating and understanding `site/src/` TypeScript. It resolves symbols
 semantically, so it stays accurate across re-exports, overloads, and renames.
 
-| Tool | When to use |
-|------|-------------|
-| `definition` | Jump to where a symbol (function, type, constant, component) is defined to read its implementation. |
-| `references` | Find every usage of a symbol across the codebase before changing or removing it. |
-| `hover` | Inspect a symbol's inferred type and doc comment at a specific location. |
-| `rename_symbol` | Rename a symbol and update all references safely, instead of find-and-replace. |
-| `diagnostics` | Check a file for type errors and warnings after editing. |
-| `edit_file` | Apply line-based text edits to a file. |
+| Tool            | When to use                                                                                         |
+|-----------------|-----------------------------------------------------------------------------------------------------|
+| `definition`    | Jump to where a symbol (function, type, constant, component) is defined to read its implementation. |
+| `references`    | Find every usage of a symbol across the codebase before changing or removing it.                    |
+| `hover`         | Inspect a symbol's inferred type and doc comment at a specific location.                            |
+| `rename_symbol` | Rename a symbol and update all references safely, instead of find-and-replace.                      |
+| `diagnostics`   | Check a file for type errors and warnings after editing.                                            |
+| `edit_file`     | Apply line-based text edits to a file.                                                              |
 
 ## FE1: Vitest covers behavior, Storybook covers visual states
 
