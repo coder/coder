@@ -417,6 +417,11 @@ export const MutationErrorClearsWhenReopened: Story = {
 			option: new RegExp(MockOrganizationMember2.email, "i"),
 		});
 
+		// The rejected mutation must render its error before the popover
+		// closes, or the reopened popover is clean because the error never
+		// appeared rather than because the reset worked.
+		await body.findByText("No share permission");
+
 		await closeChatSharing(canvasElement);
 		await openChatSharing(canvasElement);
 	},
