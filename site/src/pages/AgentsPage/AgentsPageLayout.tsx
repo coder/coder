@@ -79,6 +79,7 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import { useSlotMachineEasterEggListener } from "./hooks/useSlotMachineEasterEgg";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -684,6 +685,7 @@ const AgentsPageLayout: FC = () => {
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
 	});
+	useSlotMachineEasterEggListener();
 
 	// Fetch workspace name for the confirmation dialog. Only
 	// enabled when pendingArchiveAndDelete is set (i.e. the

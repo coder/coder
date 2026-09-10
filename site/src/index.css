@@ -184,7 +184,24 @@
 		}
 	}
 
+	/* Scrolls a stacked reel column up by --slot-reel-travel, then holds so the
+		landed row is visible before the loop restarts. The column's first and
+		last rows must match for the restart to be seamless. */
+	@keyframes slot-reel {
+		0% {
+			transform: translateY(0);
+			animation-timing-function: cubic-bezier(0.22, 0.9, 0.36, 1);
+		}
+		65% {
+			transform: translateY(var(--slot-reel-travel));
+		}
+		100% {
+			transform: translateY(var(--slot-reel-travel));
+		}
+	}
+
 	--animate-loading: loading 2s ease-in-out infinite alternate;
+	--animate-slot-reel: slot-reel 2.4s linear infinite;
 	--animate-caret-scan: caret-scan 3s ease-in-out infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
 	--animate-zip-right: zip-right 1s cubic-bezier(0.4, 0, 0.2, 1);
