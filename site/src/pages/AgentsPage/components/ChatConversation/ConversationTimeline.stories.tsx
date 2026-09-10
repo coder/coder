@@ -606,7 +606,7 @@ export const FindToolsSearchResult: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const summary = canvas.getByRole("button", {
-			name: "Searched tools: github issues, pull requests, name:github__list_issues -> 2 matched",
+			name: "Matched 2 tools: github issues, pull requests, github__list_issues",
 		});
 		expect(summary).toBeVisible();
 		expect(canvas.queryByText("github__list_issues")).not.toBeInTheDocument();
