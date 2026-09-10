@@ -279,64 +279,13 @@ Each row in `chat_messages` has a `revision` column. It stores the `chats.snapsh
 
 `chats.history_version` stores the latest `snapshot_version` in which chat message history changed. It starts at `0`, remains unchanged for non-history transitions, and is set to the current `snapshot_version` whenever a message is inserted or meaningfully updated. A newly created chat starts with `snapshot_version = 1`; because `Create` inserts initial history in that snapshot, the created chat's `history_version` becomes `1`. No-op message updates do not advance message `revision`, advance `history_version`, or reset `generation_attempt`. Whenever `history_version` changes, `generation_attempt` is reset to `0`; generation attempts are scoped to the current history version.
 
-Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly, and every `chat_messages` insert or update must go through a state machine transition: the triggers advance `history_version` on any write, so an out-of-band write (even of a hidden or soft-deleted row) moves `history_version` without a matching `snapshot_version` bump and breaks the fence of an in-flight generation task.
+Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly, and every `chat_messages` insert or update must go through a state machine transition. An out-of-band write (even of a hidden or soft-deleted row) allocates no `snapshot_version` and publishes no notification. If the last transition did not write history, `history_version` is behind `snapshot_version`, and the write sets `history_version` to the current `snapshot_version` without a matching bump; while a generation task is between `RecordGenerationAttempt` and `CommitStep` that breaks its fence, and the chat runner treats the changed `history_version` as new state, see [Chat runner](#chat-runner). If the last transition did write history, the chat row does not change at all: the stream does not learn of the write until it next loads the full history, on reconnect or when a later transition deletes messages, and a generation task sees it only when it reloads history for its next step.
 
-A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
+Two triggers implement the mechanism. Their definitions are in `coderd/database/dump.sql`.
 
-```sql
-CREATE FUNCTION set_chat_message_revision()
-RETURNS trigger AS $$
-DECLARE
-  chat_snapshot_version bigint;
-BEGIN
-  IF TG_OP = 'INSERT' AND NEW.revision IS NOT NULL THEN
-    RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
-  END IF;
+`set_chat_message_revision_before` runs `BEFORE INSERT` and `BEFORE UPDATE` on each `chat_messages` row. It rejects rows that assign `revision` or change `chat_id`, leaves updates that touch only the search columns (`search_tsv`, `search_tsv_config`) alone, and otherwise stamps the row with the chat's current `snapshot_version`.
 
-  IF TG_OP = 'UPDATE' THEN
-    IF OLD.chat_id IS DISTINCT FROM NEW.chat_id THEN
-      RAISE EXCEPTION 'chat_messages.chat_id is immutable';
-    END IF;
-
-    IF OLD.revision IS DISTINCT FROM NEW.revision THEN
-      RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
-    END IF;
-
-    IF OLD IS NOT DISTINCT FROM NEW THEN
-      RETURN NEW;
-    END IF;
-  END IF;
-
-  UPDATE chats
-  SET
-    history_version = snapshot_version,
-    generation_attempt = 0
-  WHERE id = NEW.chat_id
-  RETURNING snapshot_version INTO chat_snapshot_version;
-
-  IF chat_snapshot_version IS NULL THEN
-    RAISE EXCEPTION 'chat % does not exist', NEW.chat_id;
-  END IF;
-
-  NEW.revision = chat_snapshot_version;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_set_chat_message_revision_on_insert
-BEFORE INSERT ON chat_messages
-FOR EACH ROW
-EXECUTE FUNCTION set_chat_message_revision();
-```
-
-A `BEFORE UPDATE` trigger uses the same function for message row updates:
-
-```sql
-CREATE TRIGGER trigger_set_chat_message_revision_on_update
-BEFORE UPDATE ON chat_messages
-FOR EACH ROW
-EXECUTE FUNCTION set_chat_message_revision();
-```
+`update_chat_history_after_message_insert` and `update_chat_history_after_message_update` run `AFTER INSERT` and `AFTER UPDATE` once per statement over the statement's transition tables. For every chat with an inserted or meaningfully changed row they set `history_version = snapshot_version` and `generation_attempt = 0`, but only where `history_version` differs from `snapshot_version` or `generation_attempt` is non-zero. Inside a transition the first message write always meets that condition, because the transition allocated a new `snapshot_version` first; later writes in the same transition find the row already at its targets.
 
 ## Queue version
 
@@ -617,7 +566,7 @@ There are 2 notification channels:
 - `chat:ownership` is emitted when a transition leaves the chat in a runnable state, defined in [Acquisition loop](#acquisition-loop), and no worker owns it. That means either `worker_id` or `runner_id` is NULL, or there is no fresh heartbeat row for the current `(chat_id, runner_id)`.
 - Notifications are post-commit, best-effort, and versioned via the `snapshot_version` field.
 - The current pubsub API is not assumed to provide transaction atomicity or commit-order delivery. Receivers must tolerate duplicates, drops, and reordering.
-- Every receiver tracks the highest `snapshot_version` it has processed per chat. Notifications with `snapshot_version` less than or equal to that watermark are discarded.
+- Every receiver tracks the highest `snapshot_version` it has processed per chat and discards notifications below that watermark. The stream loop also discards notifications at the watermark. The chat runner compares a notification at the watermark on `history_version`, status, and archived state instead, because a direct `chat_messages` write after a transition that did not write history changes `history_version` without allocating a snapshot (see [Message revisions and history version](#message-revisions-and-history-version)) and the runner must act on the task exit that follows.
 
 # Chat worker
 
@@ -817,7 +766,7 @@ The main idea behind the event processing logic is that a chat's status and its 
 
 The runner receives events from two sources: pubsub notifications, and the database sync loop, which sends the current row of every registered chat on a fixed interval. Pubsub notifications can be dropped. A goroutine can also exit without any event being published, for example when its history fence fails. In both cases the next event the runner receives is the database sync's copy of the current row, and that row may be identical to an event the runner has already processed. The runner must therefore act on every event, including one it has already processed: if the latest known state requires work and no goroutine is performing it, the runner spawns that goroutine. Recovery from a lost notification or an exited goroutine takes at most one sync interval.
 
-The snapshot version does not identify a chat state on its own. A direct write to `chat_messages` fires a trigger that sets `history_version` to the current `snapshot_version` without changing `snapshot_version`, so two events with the same `SnapshotVersion` can carry different `HistoryVersion` values. An event is newer than the latest processed event if its `SnapshotVersion` is greater, or if the `SnapshotVersion` is equal and the `HistoryVersion`, `Status`, or `Archived` differs.
+The snapshot version does not identify a chat state on its own. A direct write to `chat_messages` allocates no snapshot, and after any transition that did not write history, `Acquire` and `RecordGenerationAttempt` included, its trigger still sets `history_version` to the current `snapshot_version` (see [Message revisions and history version](#message-revisions-and-history-version)), so two events with the same `SnapshotVersion` can carry different `HistoryVersion` values. An event is newer than the latest processed event if its `SnapshotVersion` is greater, or if the `SnapshotVersion` is equal and the `HistoryVersion`, `Status`, or `Archived` differs.
 
 The runner processes one event at a time. We call processing an event a **loop iteration**. For each event, it does the following things in order:
 

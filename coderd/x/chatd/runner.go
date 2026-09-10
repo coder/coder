@@ -123,8 +123,9 @@ func (r *runner) bootstrap() bool {
 	// the runner clean itself up without abandoning the chat, leaving the
 	// chat owned by a dead runner until its heartbeat goes stale.
 	// Processing the snapshot here seeds lastSnapshotVersion before the
-	// run loop drains stateCh, so the dedup in processState drops every
-	// hint at or below this version regardless of delivery path.
+	// run loop drains stateCh. The snapshot is at least the one Acquire
+	// allocated, so every pre-acquisition hint has a lower version, fails
+	// isNewer, and never reaches the ownership check that requests cleanup.
 	r.processState(stateUpdateFromChat(chat))
 	return true
 }
@@ -180,11 +181,14 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 // isNewer reports whether the runner has not seen this state before.
 //
 // Comparing snapshot versions alone is not enough. Every write through the
-// state machine increments snapshot_version, but a direct write to a
-// chat_messages row fires a trigger that sets history_version to the current
-// snapshot_version and leaves snapshot_version unchanged. Two states with the
-// same snapshot version can therefore require different work, and the second
-// one is new.
+// state machine increments snapshot_version; a direct write to a chat_messages
+// row does not. Its trigger sets history_version to snapshot_version and
+// generation_attempt to zero, but only when history_version is behind
+// snapshot_version or generation_attempt is non-zero. That is the case after
+// every transition that did not write history, Acquire and
+// RecordGenerationAttempt included, so for the whole of a model call or tool
+// execution. Two states with the same snapshot version can therefore require
+// different work, and the second one is new.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion
