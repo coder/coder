@@ -3005,6 +3005,58 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Edit chat queued message",
+                "operationId": "edit-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Edit chat queued message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatQueuedMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatQueuedMessageResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}/promote": {
@@ -20989,6 +21041,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "held_at": {
+                    "description": "HeldAt is set while the owner is editing the message. A held\nmessage and every message queued behind it are not processed\nuntil the hold is released; messages ahead of it still are.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "integer"
                 },
@@ -23282,6 +23339,50 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.EditChatQueuedMessageRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content, when present, replaces the queued content. An empty\narray is rejected.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "held": {
+                    "description": "Held sets or clears the hold. While held, the message and every\nmessage queued behind it wait; messages ahead of it still run.\nReleasing the hold on an idle chat processes the message at once.",
+                    "type": "boolean"
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID and ReasoningEffort override the message's model and\neffort. They are only applied together with Content.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.EditChatQueuedMessageResponse": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "description": "Messages holds every user-visible message inserted when releasing\nthe hold promoted the message into history, in insertion order.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
+                },
+                "queued_message": {
+                    "description": "QueuedMessage is the message after the edit. It is nil when\nreleasing the hold promoted the message into history.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatQueuedMessage"
+                        }
+                    ]
                 }
             }
         },
