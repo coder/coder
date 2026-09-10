@@ -319,17 +319,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 	idOrName := chi.URLParam(r, "idOrName")
 
-	// The STS external ID is server-owned and generated once per request: the
-	// resolution below and the write inside the transaction must agree on it,
-	// so the role is assumed with the value that ends up stored.
-	newExternalID := rand.Text()
-
 	// Resolve outside the transaction, because it calls AWS. The merge is
 	// redone inside against the row that gets written; both merges take the
 	// model identifiers from the patch, so they cannot disagree on them.
 	var resolved map[string]string
 	if req.Settings != nil {
-		_, preview, err := lookupAndMergeSettings(ctx, api.Database, idOrName, req.Settings, newExternalID)
+		_, preview, err := lookupAndMergeSettings(ctx, api.Database, idOrName, req.Settings)
 		if err != nil {
 			writeAIProviderError(ctx, api.Logger, rw, err, "update AI provider", "Internal error updating AI provider.")
 			return
@@ -347,7 +342,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		keyChanges aiProviderKeyChanges
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
-		old, existing, err := lookupAndMergeSettings(ctx, tx, idOrName, req.Settings, newExternalID)
+		old, existing, err := lookupAndMergeSettings(ctx, tx, idOrName, req.Settings)
 		if err != nil {
 			return err
 		}
@@ -368,6 +363,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
+		ensureBedrockExternalID(&existing)
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
@@ -870,11 +866,8 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 }
 
 // lookupAndMergeSettings loads a provider and merges patch onto its stored
-// settings. The update path builds this twice, once to resolve against and
-// once inside the transaction that writes it, so the server-owned external ID
-// is supplied rather than generated here: both merges must agree on the value
-// the role is assumed with.
-func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName string, patch *codersdk.AIProviderSettings, newExternalID string) (database.AIProvider, codersdk.AIProviderSettings, error) {
+// settings.
+func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName string, patch *codersdk.AIProviderSettings) (database.AIProvider, codersdk.AIProviderSettings, error) {
 	old, err := lookupAIProvider(ctx, db, idOrName)
 	if err != nil {
 		return database.AIProvider{}, codersdk.AIProviderSettings{}, err
@@ -886,9 +879,6 @@ func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName str
 	}
 	if patch != nil {
 		settings = mergeAIProviderSettings(settings, *patch)
-	}
-	if settings.Bedrock != nil && settings.Bedrock.RoleARN != "" && settings.Bedrock.ExternalID == "" {
-		settings.Bedrock.ExternalID = newExternalID
 	}
 	return old, settings, nil
 }
