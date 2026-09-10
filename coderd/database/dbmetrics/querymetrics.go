@@ -5425,6 +5425,22 @@ func (m queryMetricsStore) UpdateChatPlanModeByID(ctx context.Context, arg datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatQueuedMessageContent(ctx context.Context, arg database.UpdateChatQueuedMessageContentParams) (database.ChatQueuedMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatQueuedMessageContent(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageContent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageContent").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatQueuedMessageHeld(ctx context.Context, arg database.UpdateChatQueuedMessageHeldParams) (database.ChatQueuedMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatQueuedMessageHeld(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageHeld").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageHeld").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatRetryState(ctx, arg)
