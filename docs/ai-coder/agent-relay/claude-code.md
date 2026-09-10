@@ -20,8 +20,7 @@ and logs that correlate the Claude Code session and user to that workspace.
 ## How it works
 
 1. A developer starts a Claude Code session at claude.ai/code or in Claude Desktop, targeting a self-hosted runner pool mapped to a Coder organization and workspace template.
-1. Agent Relay claims the pending work order for that session
-   and asks the Coder control plane to provision a workspace from the mapped template for that user.
+1. Agent Relay claims the pending work order for that session and asks the Coder control plane to provision a workspace from the mapped template for that user.
 1. A Claude Code self-hosted runner inside the workspace registers with the corresponding Claude Code session
    and executes the agent's tool calls.
 1. When the session ends,
