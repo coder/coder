@@ -98,6 +98,8 @@ describe("AskUserQuestionTool", () => {
 		const otherInput = screen.getByRole("textbox", {
 			name: /other response/i,
 		});
+		// autoFocus lets keyboard users type immediately after selecting Other.
+		expect(otherInput).toHaveFocus();
 		await user.type(otherInput, "Use a canary rollout");
 		await user.click(screen.getByRole("button", { name: "Submit" }));
 
