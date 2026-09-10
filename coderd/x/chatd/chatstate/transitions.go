@@ -239,7 +239,7 @@ func insertChat(
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		if ClassifyExecutionState(refreshed, false, true).IsRunnable() {
+		if ClassifyExecutionState(refreshed, QueueState{}, true).IsRunnable() {
 			if err := buffer.Publish(
 				coderdpubsub.ChatStateOwnershipChannel,
 				buildChatOwnershipMessage(refreshed),
