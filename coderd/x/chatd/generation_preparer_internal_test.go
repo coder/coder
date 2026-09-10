@@ -3,6 +3,9 @@ package chatd //nolint:testpackage // Exercises unexported re-derivation helpers
 import (
 	"database/sql"
 	"encoding/json"
+	"io"
+	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -432,6 +436,87 @@ func TestPrepareGenerationBindsCredentialsToTurnActor(t *testing.T) {
 		TokenName: GatewayTokenName(owner.ID),
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for the actor's turn")
+}
+
+// TestGenerateChatSummaryBindsCredentialsToTurnActor verifies that the
+// background chat summary runs with the synthetic gateway key of the user
+// who posted the last prompt, not the chat owner.
+func TestGenerateChatSummaryBindsCredentialsToTurnActor(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	owner := dbgen.User(t, db, database.User{})
+	actor := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	for _, user := range []database.User{owner, actor} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+	}
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4.1",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "summary actor attribution",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, strings.Repeat("inspect the workspace and report. ", 10)),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: actor.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	seenAPIKeyID := make(chan string, 1)
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		delegatedID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+		seenAPIKeyID <- delegatedID
+		text := strconv.Quote(`{"summary":"The actor asked for a workspace report."}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4.1","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(factory),
+	)
+	server.generateAndStoreChatSummary(ctx, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), created.Chat)
+
+	actorKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    actor.ID,
+		TokenName: GatewayTokenName(actor.ID),
+	})
+	require.NoError(t, err)
+	require.Equal(t, actorKey.ID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
+	_, err = db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    owner.ID,
+		TokenName: GatewayTokenName(owner.ID),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for the actor's summary")
 }
 
 func TestTurnActorID(t *testing.T) {

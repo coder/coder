@@ -86,6 +86,7 @@ func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
 		purpose:      "chat_summary",
 		chat:         chat,
+		actorID:      chat.OwnerID,
 		buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	})
 	require.NoError(t, err)

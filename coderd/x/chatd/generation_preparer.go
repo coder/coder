@@ -196,6 +196,7 @@ func (server *Server) prepareGeneration(
 		advisorRuntime, advisorErr = server.newAdvisorRuntime(
 			ctx,
 			chat,
+			actorID,
 			advisorCfg,
 			modelOpts,
 			logger,
@@ -723,7 +724,7 @@ func (server *Server) prepareGeneration(
 	// models' context limits: the history must also fit the summarizer's
 	// window.
 	compactionContextLimit := modelConfig.ContextLimit
-	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat, actorID)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err

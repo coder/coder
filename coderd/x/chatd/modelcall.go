@@ -31,7 +31,7 @@ type modelCallSpec struct {
 	purpose string
 	chat    database.Chat
 	// actorID selects the user whose provider credentials route the call.
-	// Zero means the chat owner.
+	// Every caller must set it; a zero value is a programming error.
 	actorID        uuid.UUID
 	explicitConfig *database.ChatModelConfig
 	fixedModel     *fixedModelCall
@@ -80,6 +80,9 @@ type resolvedModelCall struct {
 // client plus the call metadata flows need.
 func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (resolvedModelCall, error) {
 	out := resolvedModelCall{}
+	if spec.actorID == uuid.Nil {
+		return resolvedModelCall{}, xerrors.Errorf("resolve %s model call for chat %s: actor ID is required", spec.purpose, spec.chat.ID)
+	}
 
 	var modelName string
 	var configOptions []byte
@@ -123,9 +126,6 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	}
 
 	actorID := spec.actorID
-	if actorID == uuid.Nil {
-		actorID = spec.chat.OwnerID
-	}
 	routeCtx := ctx
 	if spec.chatdScopedRoute {
 		//nolint:gocritic // Deployment-wide override models need chatd-scoped provider reads for user-owned chats.

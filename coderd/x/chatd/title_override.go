@@ -37,9 +37,12 @@ func readTitleGenerationModelOverride(
 // resolveTitleGenerationModelOverride resolves the chat organization's title
 // generation model override. A configured but unusable override is a hard
 // failure. When no row is configured, callers may use the default title model.
+// The override config is read with the owner's model ACLs; the call routes
+// with the actor's credentials.
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
+	actorID uuid.UUID,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool, error) {
 	override, err := readTitleGenerationModelOverride(ctx, p.db, chat.OrganizationID)
@@ -57,12 +60,12 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		ctx,
 		titleGenerationOverrideContext,
 		override,
-		chat.OwnerID,
+		actorID,
 		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
 			return p.resolveModelConfigAndNormalizedProvider(ctx, chat.OwnerID, modelConfigID)
 		},
-		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
-			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
+		func(ctx context.Context, userID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
+			return p.resolveUserProviderAPIKeys(ctx, userID, aiProviderID)
 		},
 		modelOverrideFailureModeHard,
 	)
@@ -75,6 +78,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:          "title",
 		chat:             chat,
+		actorID:          actorID,
 		explicitConfig:   &modelConfig,
 		requestedEffort:  overrideEffort,
 		chatdScopedRoute: true,

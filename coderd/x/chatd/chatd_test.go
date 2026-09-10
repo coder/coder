@@ -9283,7 +9283,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 			)
 			require.NotEqual(t, uuid.Nil, message.ID)
 
-			gotTitle, err := server.ProposeChatTitle(ctx, chat)
+			gotTitle, err := server.ProposeChatTitle(ctx, chat, user.ID)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

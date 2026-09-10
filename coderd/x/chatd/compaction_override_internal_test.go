@@ -48,7 +48,7 @@ func TestResolveCompactionOverrideConfig_Unset(t *testing.T) {
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), compactionOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 
 	server := titleOverrideTestServer(db, logger)
-	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	override, err := server.resolveCompactionOverrideConfig(ctx, chat, chat.OwnerID)
 	require.NoError(t, err)
 	require.Nil(t, override)
 }
@@ -65,7 +65,7 @@ func TestResolveCompactionOverrideConfig_ReadDBError(t *testing.T) {
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), compactionOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrConnDone)
 
 	server := titleOverrideTestServer(db, logger)
-	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	override, err := server.resolveCompactionOverrideConfig(ctx, chat, chat.OwnerID)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "read compaction model override")
 	require.Nil(t, override)
@@ -85,7 +85,7 @@ func TestResolveCompactionOverrideConfig_DeletedConfigFallsBack(t *testing.T) {
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), missingID).Return(database.ChatModelConfig{}, sql.ErrNoRows)
 
 	server := titleOverrideTestServer(db, logger)
-	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	override, err := server.resolveCompactionOverrideConfig(ctx, chat, chat.OwnerID)
 	require.NoError(t, err)
 	require.Nil(t, override)
 }
@@ -104,7 +104,7 @@ func TestResolveCompactionOverrideConfig_DisabledConfigFallsBack(t *testing.T) {
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	override, err := server.resolveCompactionOverrideConfig(ctx, chat, chat.OwnerID)
 	require.NoError(t, err)
 	require.Nil(t, override)
 }
@@ -131,7 +131,7 @@ func TestResolveCompactionOverrideConfig_MissingCredentialsFallsBack(t *testing.
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	override, err := server.resolveCompactionOverrideConfig(ctx, chat, chat.OwnerID)
 	require.NoError(t, err)
 	require.Nil(t, override)
 }
@@ -165,7 +165,7 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	resolved, err := server.resolveCompactionOverrideConfig(ctx, chat, chat.OwnerID)
 	require.NoError(t, err)
 	require.NotNil(t, resolved)
 	require.Equal(t, overrideConfig.ID, resolved.Config.ID)
@@ -177,6 +177,7 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	override, err := server.resolveModelCall(ctx, modelCallSpec{
 		purpose:          "compaction",
 		chat:             chat,
+		actorID:          chat.OwnerID,
 		explicitConfig:   &resolved.Config,
 		requestedEffort:  resolved.ReasoningEffort,
 		chatdScopedRoute: true,

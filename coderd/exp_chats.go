@@ -3539,7 +3539,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title, err := api.chatDaemon.ProposeChatTitle(ctx, chat)
+	title, err := api.chatDaemon.ProposeChatTitle(ctx, chat, apiKey.UserID)
 	if err != nil {
 		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
 			writeNoLocalChatModelResponse(ctx, rw)

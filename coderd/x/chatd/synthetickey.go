@@ -32,11 +32,11 @@ func GatewayTokenName(ownerID uuid.UUID) string {
 // lifetime of the user: near-expiry keys are extended in place rather than
 // replaced, because an in-flight generation may have already delegated the
 // current key ID to the gateway.
-func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string, error) {
-	ctx = dbauthz.AsChatdKeyMinter(ctx, ownerID)
+func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, userID uuid.UUID) (string, error) {
+	ctx = dbauthz.AsChatdKeyMinter(ctx, userID)
 	key, err := p.db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    ownerID,
-		TokenName: GatewayTokenName(ownerID),
+		UserID:    userID,
+		TokenName: GatewayTokenName(userID),
 	})
 	switch {
 	case err == nil && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
@@ -44,7 +44,7 @@ func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID)
 	case err != nil && !xerrors.Is(err, sql.ErrNoRows):
 		return "", xerrors.Errorf("get synthetic API key: %w", err)
 	}
-	return p.mintSyntheticAPIKey(ctx, ownerID)
+	return p.mintSyntheticAPIKey(ctx, userID)
 }
 
 // mintSyntheticAPIKey extends or mints the synthetic gateway key under a

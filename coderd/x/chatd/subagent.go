@@ -193,11 +193,13 @@ func modelOverrideErrorLabel(overrideContext string) string {
 
 // resolveOrganizationModelOverride resolves an override row whose composite
 // foreign key already binds the model config to the same organization.
+// userID selects whose provider credentials must be able to run the
+// override model.
 func (p *Server) resolveOrganizationModelOverride(
 	ctx context.Context,
 	overrideContext string,
 	override database.ChatOrganizationModelOverride,
-	ownerID uuid.UUID,
+	userID uuid.UUID,
 	resolveModelConfig modelOverrideConfigResolver,
 	resolveProviderKeys modelOverrideProviderKeysResolver,
 	failureMode modelOverrideFailureMode,
@@ -255,7 +257,7 @@ func (p *Server) resolveOrganizationModelOverride(
 		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 
-	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
+	providerKeys, err := resolveProviderKeys(ctx, userID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
 		return database.ChatModelConfig{}, "", nil, false, xerrors.Errorf(
 			"resolve provider API keys: %w",

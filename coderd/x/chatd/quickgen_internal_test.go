@@ -585,6 +585,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
+		chat.OwnerID,
 		[]database.ChatMessage{message},
 		nil,
 		resolvedModelCall{
@@ -658,6 +659,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
+		chat.OwnerID,
 		messages,
 		nil,
 		resolvedModelCall{

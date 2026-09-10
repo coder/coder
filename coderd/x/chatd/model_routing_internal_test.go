@@ -741,6 +741,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
 		purpose:      "computer_use",
 		chat:         chat,
+		actorID:      chat.OwnerID,
 		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
 		buildOptions: modelBuildOptions{ActiveAPIKeyID: apiKeyID},
 	})
@@ -774,6 +775,7 @@ func TestComputerUseModelCall_TransportIndependentOfChatConfig(t *testing.T) {
 	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
 		purpose:      "computer_use",
 		chat:         chat,
+		actorID:      chat.OwnerID,
 		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
 		buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	})
@@ -804,6 +806,7 @@ func TestComputerUseModelCall_AIGatewayMissingAPIKeyID(t *testing.T) {
 	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
 		purpose:    "computer_use",
 		chat:       chat,
+		actorID:    chat.OwnerID,
 		fixedModel: &fixedModelCall{providerType: modelProvider, modelName: modelName},
 	})
 	require.Error(t, err)

@@ -52,9 +52,12 @@ type resolvedCompactionOverride struct {
 // overrides fall back to the chat model (nil override). This runs on every
 // generation prepare because the override's context limit feeds the
 // compaction trigger; the model client is built only when compaction runs.
+// The override config is read with the owner's model ACLs; credential
+// availability is checked for the actor whose credentials run the call.
 func (p *Server) resolveCompactionOverrideConfig(
 	ctx context.Context,
 	chat database.Chat,
+	actorID uuid.UUID,
 ) (*resolvedCompactionOverride, error) {
 	override, err := readCompactionModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
@@ -71,12 +74,12 @@ func (p *Server) resolveCompactionOverrideConfig(
 		ctx,
 		compactionOverrideContext,
 		override,
-		chat.OwnerID,
+		actorID,
 		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
 			return p.resolveModelConfigAndNormalizedProvider(ctx, chat.OwnerID, modelConfigID)
 		},
-		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
-			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
+		func(ctx context.Context, userID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
+			return p.resolveUserProviderAPIKeys(ctx, userID, aiProviderID)
 		},
 		modelOverrideFailureModeSoft,
 	)

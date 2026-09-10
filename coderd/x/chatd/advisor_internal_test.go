@@ -152,7 +152,7 @@ func resolveAdvisorModelOverrideForTest(
 		store.advisorModelConfigID = modelConfigID
 		store.advisorReasoningEffort = reasoningEffort
 	}
-	return p.resolveAdvisorModelOverride(ctx, chat, maxOutputTokens, modelOpts, logger)
+	return p.resolveAdvisorModelOverride(ctx, chat, uuid.New(), maxOutputTokens, modelOpts, logger)
 }
 
 // advisorChatModelFixture wires a chat whose LastModelConfigID resolves
@@ -612,6 +612,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		rt, err := p.newAdvisorRuntime(
 			ctx,
 			chat,
+			uuid.New(),
 			advisorCfg,
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
@@ -644,6 +645,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		rt, err := p.newAdvisorRuntime(
 			ctx,
 			database.Chat{},
+			uuid.New(),
 			advisorRuntimeConfig{
 				Enabled:         true,
 				MaxUsesPerRun:   -1,
@@ -684,6 +686,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		rt, err := p.newAdvisorRuntime(
 			ctx,
 			database.Chat{LastModelConfigID: uuid.New()},
+			uuid.New(),
 			advisorRuntimeConfig{
 				Enabled:         true,
 				MaxUsesPerRun:   3,

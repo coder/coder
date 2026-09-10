@@ -74,6 +74,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		server.maybeGenerateChatTitle(
 			ctx,
 			chat,
+			chat.OwnerID,
 			messages,
 			nil,
 			resolvedModelCall{
@@ -124,6 +125,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
+		chat.OwnerID,
 		messages,
 		nil,
 		resolvedModelCall{
@@ -211,6 +213,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
+		chat.OwnerID,
 		messages,
 		nil,
 		resolvedModelCall{
@@ -255,6 +258,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableHardFails(t *t
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
+		chat.OwnerID,
 		messages,
 		nil,
 		resolvedModelCall{
@@ -309,6 +313,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
+		chat.OwnerID,
 		messages,
 		nil,
 		resolvedModelCall{
@@ -354,6 +359,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		ctx,
 		db,
 		chat,
+		chat.OwnerID,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
@@ -379,6 +385,7 @@ func TestResolveManualTitleModel_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *tes
 		ctx,
 		db,
 		chat,
+		chat.OwnerID,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
@@ -427,6 +434,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 		ctx,
 		db,
 		chat,
+		chat.OwnerID,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
@@ -462,6 +470,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 		ctx,
 		db,
 		chat,
+		chat.OwnerID,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
@@ -494,6 +503,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 		ctx,
 		db,
 		chat,
+		chat.OwnerID,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
@@ -529,6 +539,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 		ctx,
 		db,
 		chat,
+		chat.OwnerID,
 		modelBuildOptions{},
 	)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
@@ -605,7 +616,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	server := titleOverrideTestServer(db, logger)
 	server.clock = quartz.NewReal()
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
-	title, err := server.generateManualTitleCandidate(ctx, db, chat)
+	title, err := server.generateManualTitleCandidate(ctx, db, chat, chat.OwnerID)
 	require.NoError(t, err)
 	require.Equal(t, wantTitle, title)
 	require.Equal(t, apiKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
@@ -634,6 +645,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 		ctx,
 		db,
 		chat,
+		chat.OwnerID,
 		modelBuildOptions{},
 	)
 	require.ErrorContains(t, err, "resolve manual title generation model override")

@@ -217,11 +217,13 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	if _, ok := titleInput(chat, messages, pasteText); !ok {
 		return
 	}
+	actorID := turnActorID(chat, messages)
+	logger = logger.With(slog.F("actor_id", actorID))
 	// Detach from request; bind to server so Close cancels it.
 	titleCtx, stopTitleCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
-		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
+		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, actorID)
 		if err != nil {
 			logger.Debug(titleCtx, "failed to ensure synthetic API key for automatic title generation", slog.Error(err))
 			return
@@ -231,6 +233,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		fallback, err := p.resolveModelCall(turnCtx, modelCallSpec{
 			purpose:      "title",
 			chat:         chat,
+			actorID:      actorID,
 			buildOptions: modelOpts,
 		})
 		if err != nil {
@@ -242,6 +245,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		p.maybeGenerateChatTitle(
 			turnCtx,
 			chat,
+			actorID,
 			messages,
 			pasteText,
 			fallback,
@@ -270,6 +274,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
+	actorID uuid.UUID,
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
 	fallback resolvedModelCall,
@@ -290,6 +295,7 @@ func (p *Server) maybeGenerateChatTitle(
 	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		titleCtx,
 		chat,
+		actorID,
 		modelOpts,
 	)
 	if overrideErr != nil {

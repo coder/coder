@@ -281,6 +281,7 @@ const advisorOverrideContext = "advisor"
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
+	actorID uuid.UUID,
 	maxOutputTokens int64,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
@@ -343,6 +344,7 @@ func (p *Server) resolveAdvisorModelOverride(
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "advisor",
 		chat:            chat,
+		actorID:         actorID,
 		explicitConfig:  &overrideConfig,
 		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
@@ -367,6 +369,7 @@ func (p *Server) resolveAdvisorModelOverride(
 func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
+	actorID uuid.UUID,
 	advisorCfg advisorRuntimeConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
@@ -396,6 +399,7 @@ func (p *Server) newAdvisorRuntime(
 	advisor, ok, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
+		actorID,
 		maxOutputTokens,
 		modelOpts,
 		logger,
@@ -411,6 +415,7 @@ func (p *Server) newAdvisorRuntime(
 		advisor, err = p.resolveModelCall(ctx, modelCallSpec{
 			purpose:         "advisor",
 			chat:            chat,
+			actorID:         actorID,
 			maxOutputTokens: &maxOutputTokens,
 			buildOptions:    modelOpts,
 		})
@@ -2697,14 +2702,16 @@ func (p *Server) PublishTitleChange(chat database.Chat) {
 }
 
 // ProposeChatTitle generates a title suggestion from the chat's
-// visible messages without persisting it.
+// visible messages without persisting it. The model call runs with the
+// credentials of actorID, the user who requested the title.
 func (p *Server) ProposeChatTitle(
 	ctx context.Context,
 	chat database.Chat,
+	actorID uuid.UUID,
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	return p.generateManualTitleCandidate(chatdCtx, p.db, chat)
+	return p.generateManualTitleCandidate(chatdCtx, p.db, chat, actorID)
 }
 
 // generateManualTitleCandidate generates a title candidate from the chat's
@@ -2714,6 +2721,7 @@ func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
+	actorID uuid.UUID,
 ) (string, error) {
 	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
 		ctx,
@@ -2745,13 +2753,13 @@ func (p *Server) generateManualTitleCandidate(
 	if err != nil {
 		return "", xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
 	}
-	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, actorID)
 	if err != nil {
 		return "", xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	resolved, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
+	resolved, err := p.resolveManualTitleModel(ctx, store, chat, actorID, modelOpts)
 	if err != nil {
 		return "", err
 	}
@@ -2914,11 +2922,13 @@ func (p *Server) resolveManualTitleModel(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
+	actorID uuid.UUID,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
 	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
+		actorID,
 		modelOpts,
 	)
 	if overrideErr != nil {
@@ -2946,17 +2956,18 @@ func (p *Server) resolveManualTitleModel(
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		return p.resolveFallbackManualTitleModel(ctx, chat, actorID, modelOpts)
 	}
 
 	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		return p.resolveFallbackManualTitleModel(ctx, chat, actorID, modelOpts)
 	}
 
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:        "title",
 		chat:           chat,
+		actorID:        actorID,
 		explicitConfig: &config,
 		buildOptions:   modelOpts,
 	})
@@ -2966,7 +2977,7 @@ func (p *Server) resolveManualTitleModel(
 			slog.F("model", config.Model),
 			slog.Error(err),
 		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		return p.resolveFallbackManualTitleModel(ctx, chat, actorID, modelOpts)
 	}
 	return resolved, nil
 }
@@ -2974,6 +2985,7 @@ func (p *Server) resolveManualTitleModel(
 func (p *Server) resolveFallbackManualTitleModel(
 	ctx context.Context,
 	chat database.Chat,
+	actorID uuid.UUID,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
 	config, err := p.resolveModelConfig(ctx, chat)
@@ -2986,6 +2998,7 @@ func (p *Server) resolveFallbackManualTitleModel(
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:        "title",
 		chat:           chat,
+		actorID:        actorID,
 		explicitConfig: &config,
 		buildOptions:   modelOpts,
 	})
@@ -4823,18 +4836,20 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	// Derive the delegated API key from the chat owner so AI Gateway routing
-	// attributes summary generation to the correct account. This goroutine may
-	// outlive the launching turn, so it cannot rely on that turn's context.
-	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	// Derive the delegated API key from the actor of the summarized turn so
+	// AI Gateway routing attributes summary generation to the correct
+	// account. This goroutine may outlive the launching turn, so it cannot
+	// rely on that turn's context and re-derives the actor from history.
+	actorID := turnActorID(chat, messages)
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, actorID)
 	if err != nil {
 		logger.Debug(ctx, "failed to ensure synthetic API key for chat summary",
-			slog.F("chat_id", chat.ID), slog.Error(err))
+			slog.F("chat_id", chat.ID), slog.F("actor_id", actorID), slog.Error(err))
 		return
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	resolved, ok := p.resolveChatSummaryModel(ctx, logger, chat, modelOpts)
+	resolved, ok := p.resolveChatSummaryModel(ctx, logger, chat, actorID, modelOpts)
 	if !ok {
 		return
 	}
@@ -4856,11 +4871,13 @@ func (p *Server) resolveChatSummaryModel(
 	ctx context.Context,
 	logger slog.Logger,
 	chat database.Chat,
+	actorID uuid.UUID,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool) {
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:      "chat_summary",
 		chat:         chat,
+		actorID:      actorID,
 		buildOptions: modelOpts,
 	})
 	if err != nil {
