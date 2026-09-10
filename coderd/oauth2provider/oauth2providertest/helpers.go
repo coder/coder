@@ -82,10 +82,17 @@ func CreateTestOAuth2App(t *testing.T, client *codersdk.Client) (*codersdk.OAuth
 // first, and needs owner-level permissions to do so.
 func RegisterPublicClient(t *testing.T, client *codersdk.Client, name, redirectURI string) codersdk.OAuth2ClientRegistrationResponse {
 	t.Helper()
+	return RegisterPublicClientWithRedirectURIs(t, client, name, redirectURI)
+}
+
+// RegisterPublicClientWithRedirectURIs registers a public client with every
+// redirect URI given. The first becomes the primary callback.
+func RegisterPublicClientWithRedirectURIs(t *testing.T, client *codersdk.Client, name string, redirectURIs ...string) codersdk.OAuth2ClientRegistrationResponse {
+	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	resp, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
-		RedirectURIs:            []string{redirectURI},
+		RedirectURIs:            redirectURIs,
 		ClientName:              fmt.Sprintf("%s-%s", name, testutil.MustRandString(t, 10)),
 		TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
 	})
@@ -373,12 +380,31 @@ func CleanupOAuth2App(t *testing.T, client *codersdk.Client, appID uuid.UUID) {
 	}
 }
 
-// AuthorizeOAuth2AppExpectingError performs the OAuth2 authorization flow expecting an error
-func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedStatusCode int) {
+// AuthorizeOAuth2AppExpectingRedirectError performs the OAuth2 authorization
+// flow expecting a rejection, which RFC 6749 §4.1.2.1 delivers to the redirect
+// URI the app registered rather than as a status code on this server.
+//
+// wantDescription is asserted as a substring of error_description. Without it
+// every caller reduces to the same four assertions, and one blanket
+// invalid_request would satisfy all of them.
+func AuthorizeOAuth2AppExpectingRedirectError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedError codersdk.OAuth2ErrorCode, wantDescription string) {
 	t.Helper()
 
 	resp := doAuthorizeRequest(t, client, baseURL, params)
 	defer resp.Body.Close()
 
-	require.Equal(t, expectedStatusCode, resp.StatusCode, "unexpected status code")
+	require.Equal(t, http.StatusFound, resp.StatusCode, "unexpected status code")
+
+	location, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err, "failed to parse redirect location")
+	require.Equal(t, params.RedirectURI, location.Scheme+"://"+location.Host+location.Path,
+		"the error must go to the registered redirect URI")
+
+	query := location.Query()
+	require.Equal(t, string(expectedError), query.Get("error"))
+	require.Contains(t, query.Get("error_description"), wantDescription,
+		"the description must name the defect, not just its error class")
+	require.Equal(t, params.State, query.Get("state"),
+		"the client cannot correlate the failure with its request without its state")
+	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
 }

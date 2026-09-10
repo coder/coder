@@ -1,8 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import type { CSSProperties, FC } from "react";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
-import { cn } from "#/utils/cn";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
 const fileReferenceChipVariants = cva(

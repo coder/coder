@@ -286,7 +286,21 @@ func (server *Server) prepareGeneration(
 	// (e.g. Bedrock and Anthropic) can still reject the other's
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
-	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, chat.OwnerID, modelConfig.ID)
+	//
+	// The pending-user segment (trailing user rows the assistant has not
+	// answered yet) is handled separately from here through prompt
+	// assembly: it is excluded from the compaction summarizer input and
+	// replayed verbatim after the compaction boundary. It must be located
+	// on the unsanitized rows because sanitization can drop an assistant
+	// row that separates an already-answered user message from the
+	// pending tail; locating it afterwards would pull that answered
+	// message into the tail. Sanitizing only the head is equivalent to
+	// sanitizing everything, since the tail is user-only and the
+	// sanitizer only rewrites assistant rows.
+	pendingRowsStart := pendingUserSegmentStart(promptRows)
+	sanitizedHead := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
+	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
+	pendingRowsStart = len(sanitizedHead)
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
@@ -337,6 +351,7 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
+	var pendingPrompt []fantasy.Message
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
@@ -347,9 +362,15 @@ func (server *Server) prepareGeneration(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
+		}
+		if pendingRowsStart < len(promptRows) {
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart)
+			if err != nil {
+				return xerrors.Errorf("build pending chat prompt tail: %w", err)
+			}
 		}
 		return nil
 	})
@@ -458,6 +479,17 @@ func (server *Server) prepareGeneration(
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
 	prompt = renderPlanPathPrompt(prompt, planPathBlock)
+	compactionPromptMessages := prompt
+	pendingUserRows := promptRows[pendingRowsStart:]
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
+		pendingUserRows = nil
+	}
+	// Full slice expression: appending the tail must not share the
+	// head's backing array with the summarizer input.
+	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
+	if pendingUserRows == nil {
+		compactionPromptMessages = prompt
+	}
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
@@ -702,7 +734,7 @@ func (server *Server) prepareGeneration(
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
-		Messages:             prompt,
+		Messages:             compactionPromptMessages,
 		ThresholdPercent:     effectiveThreshold,
 		ContextLimit:         compactionContextLimit,
 		ContextLimitFallback: compactionContextLimit,
@@ -753,6 +785,7 @@ func (server *Server) prepareGeneration(
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
+			PendingUserRows: pendingUserRows,
 		},
 		Cleanup: cleanup,
 		Debug:   debug,

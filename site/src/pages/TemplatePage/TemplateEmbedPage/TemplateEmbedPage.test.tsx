@@ -1,10 +1,14 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
+import { API } from "#/api/api";
 import type { DynamicParametersResponse } from "#/api/typesGenerated";
 import { MockPreviewParameter, MockTemplate } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { mockDynamicParameterWebSocket } from "#/testHelpers/websockets";
+import {
+	type MockWebSocketServer,
+	mockDynamicParameterWebSocket,
+} from "#/testHelpers/websockets";
 import { TemplateLayout } from "../TemplateLayout";
 import TemplateEmbedPage from "./TemplateEmbedPage";
 
@@ -25,6 +29,21 @@ function getSearchParams(url: string): URLSearchParams {
 		return new URLSearchParams();
 	}
 	return new URLSearchParams(url.slice(startOf));
+}
+
+async function connectAndRespond(
+	publisher: MockWebSocketServer,
+	response: DynamicParametersResponse,
+): Promise<void> {
+	await waitFor(() => {
+		expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+	});
+	await act(async () => {
+		publisher.publishOpen(new Event("open"));
+		publisher.publishMessage(
+			new MessageEvent("message", { data: JSON.stringify(response) }),
+		);
+	});
 }
 
 const paramRegion = {
@@ -63,20 +82,15 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("populates parameters", async () => {
-		mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: 0,
-						parameters: [paramRegion, paramCpu],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [, publisher] = mockDynamicParameterWebSocket();
 
 		renderEmbedPage();
+
+		await connectAndRespond(publisher, {
+			id: 0,
+			parameters: [paramRegion, paramCpu],
+			diagnostics: [],
+		});
 
 		await waitFor(() => {
 			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
@@ -98,20 +112,15 @@ describe("TemplateEmbedPage", () => {
 			ephemeral: true,
 		};
 
-		mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: 0,
-						parameters: [paramRegion, paramEphemeral],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [, publisher] = mockDynamicParameterWebSocket();
 
 		renderEmbedPage();
+
+		await connectAndRespond(publisher, {
+			id: 0,
+			parameters: [paramRegion, paramEphemeral],
+			diagnostics: [],
+		});
 
 		await waitFor(() => {
 			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
@@ -134,20 +143,15 @@ describe("TemplateEmbedPage", () => {
 			order: 0,
 		};
 
-		mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: 0,
-						parameters: [param],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [, publisher] = mockDynamicParameterWebSocket();
 
 		renderEmbedPage();
+
+		await connectAndRespond(publisher, {
+			id: 0,
+			parameters: [param],
+			diagnostics: [],
+		});
 
 		// Wait for the parameter to be rendered
 		await waitFor(() => {
@@ -181,20 +185,15 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("changes mode to auto when selected", async () => {
-		mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: 0,
-						parameters: [paramRegion],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [, publisher] = mockDynamicParameterWebSocket();
 
 		renderEmbedPage();
+
+		await connectAndRespond(publisher, {
+			id: 0,
+			parameters: [paramRegion],
+			diagnostics: [],
+		});
 
 		await waitFor(() => {
 			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
@@ -226,20 +225,15 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("sends updated values when a parameter changes", async () => {
-		const [mockWebSocket] = mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: 0,
-						parameters: [paramRegion],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [mockWebSocket, publisher] = mockDynamicParameterWebSocket();
 
 		renderEmbedPage();
+
+		await connectAndRespond(publisher, {
+			id: 0,
+			parameters: [paramRegion],
+			diagnostics: [],
+		});
 
 		await waitFor(() => {
 			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
@@ -257,20 +251,15 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("updates form state when server responds", async () => {
-		const [_, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: 0,
-						parameters: [paramRegion],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
 
 		renderEmbedPage();
+
+		await connectAndRespond(mockPublisher, {
+			id: 0,
+			parameters: [paramRegion],
+			diagnostics: [],
+		});
 
 		await waitFor(() => {
 			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();

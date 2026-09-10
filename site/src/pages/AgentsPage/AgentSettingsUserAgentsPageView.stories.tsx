@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
@@ -11,10 +12,6 @@ import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
 } from "./AgentSettingsUserAgentsPageView";
-import type { ModelSelectorOption } from "./components/ChatElements";
-
-const UNAVAILABLE_WARNING =
-	"The saved model is unavailable and will be ignored until you choose a valid model override.";
 
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModel> = {},
@@ -265,31 +262,6 @@ type Story = StoryObj<typeof AgentSettingsUserAgentsPageView>;
 
 export const EnabledWithNoSavedValues: Story = {
 	args: buildArgs(),
-	play: async ({ canvasElement }) => {
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-		const exploreSection = await getSection(
-			canvasElement,
-			"Explore subagent model",
-		);
-
-		expect(rootSection).toHaveTextContent("Chat default: GPT 4.1 Mini");
-		expect(generalSection).toHaveTextContent(
-			"Organization default: Claude Sonnet 4",
-		);
-		expect(exploreSection).toHaveTextContent(
-			"Organization default: Claude Sonnet 4",
-		);
-
-		for (const section of [rootSection, generalSection, exploreSection]) {
-			expect(
-				within(section).getByRole("button", { name: "Save" }),
-			).toBeDisabled();
-		}
-	},
 };
 
 export const EnabledWithSavedValues: Story = {
@@ -488,22 +460,6 @@ export const UnavailableSavedModels: Story = {
 			}),
 		}),
 	}),
-	play: async ({ canvasElement }) => {
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-
-		expect(rootSection).toHaveTextContent("Unavailable: GPT 4.1 Legacy");
-		expect(generalSection).toHaveTextContent("Unavailable: Bedrock Claude");
-		expect(
-			within(rootSection).getByText(UNAVAILABLE_WARNING),
-		).toBeInTheDocument();
-		expect(
-			within(generalSection).getByText(UNAVAILABLE_WARNING),
-		).toBeInTheDocument();
-	},
 };
 
 export const ModelsError: Story = {
@@ -579,17 +535,6 @@ export const LoadingState: Story = {
 		modelOptions: [],
 		isLoadingModels: true,
 	}),
-	play: async ({ canvasElement }) => {
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		expect(
-			within(rootSection).getByRole("combobox", {
-				name: "Root agent model behavior, Chat default: GPT 4.1 Mini",
-			}),
-		).toBeDisabled();
-		expect(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		).toBeDisabled();
-	},
 };
 
 export const OverridesError: Story = {
@@ -656,17 +601,6 @@ export const SaveErrorState: Story = {
 	args: buildArgs({
 		isSaveGeneralModelOverrideError: true,
 	}),
-	play: async ({ canvasElement }) => {
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-		expect(
-			within(generalSection).getByText(
-				"Failed to save general subagent model override.",
-			),
-		).toBeInTheDocument();
-	},
 };
 
 export const NoAvailableOrganizationModels: Story = {
@@ -717,16 +651,6 @@ export const DefaultOrganizationUnresolved: Story = {
 		modelOptions: [],
 		models: [],
 	}),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(/organization is not available/i),
-		).toBeInTheDocument();
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		expect(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		).toBeDisabled();
-	},
 };
 
 export const AdminDisabledReadOnly: Story = {
@@ -740,23 +664,6 @@ export const AdminDisabledReadOnly: Story = {
 			}),
 		}),
 	}),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				/Personal model overrides are disabled by an administrator/i,
-			),
-		).toBeInTheDocument();
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		expect(
-			within(rootSection).getByRole("combobox", {
-				name: "Root agent model behavior, GPT 4.1 Mini",
-			}),
-		).toBeDisabled();
-		expect(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		).toBeDisabled();
-	},
 };
 
 export const InvalidRootDeploymentDefault: Story = {

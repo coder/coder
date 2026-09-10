@@ -361,7 +361,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 				"%s: the user must not be redirected to a URI the app did not register", method)
 			// The request also carries an invalid scope, so this pins which
 			// guard rejected it first.
-			require.Contains(t, readBody(t, resp), "must exactly match",
+			require.Contains(t, readBody(t, resp), "must match",
 				"%s: the rejection must come from redirect_uri validation", method)
 		}
 
@@ -404,9 +404,70 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"POST: a dangerous scheme must never reach a Location header")
 		postBody := readBody(t, postResp)
 		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
-		// The callback-parse branch also answers server_error.
-		require.Contains(t, postBody, "invalid scheme",
-			"POST: the failure must name the scheme, not just the error class")
+		require.Contains(t, postBody, "callback URL is not usable",
+			"POST: the failure must name the callback, not just the error class")
+	})
+
+	// The other half of the same class: a stored callback that does not even
+	// parse. Registration rejects it, so reaching this needs a row that bypassed
+	// registration, which is exactly what the scheme case above also assumes.
+	t.Run("UnparsableCallbackNotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const unparsable = "http://a b"
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: unparsable,
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog)
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, getResp.StatusCode)
+		getBody := readBody(t, getResp)
+		require.Contains(t, getBody, "Invalid Callback URL",
+			"GET: the failure must name the callback URL")
+		require.NotContains(t, getBody, unparsable,
+			"GET: the Go parse error carries the stored URL, which must not reach the page")
+
+		postResp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeInCatalog)
+		defer postResp.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, postResp.StatusCode)
+		postBody := readBody(t, postResp)
+		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
+		require.Contains(t, postBody, "callback URL is not usable",
+			"POST: nothing was validated, so the description must not blame the query")
+	})
+
+	// The trap the constructor exists to close: a request that both fails the
+	// parser and belongs to an app whose registered scheme is rejected. Parser
+	// failures now redirect, so a scheme checked after parsing would be checked
+	// too late.
+	t.Run("DangerousCallbackSchemeOutranksParseFailure", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: "javascript:alert(1)",
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			query.Set("code_challenge", "tooshort")
+
+			resp := sendAuthorizeRequest(ctx, t, client, method, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+				"%s: the unusable registration outranks the client's own mistake", method)
+			require.Empty(t, resp.Header.Get("Location"),
+				"%s: a dangerous scheme must never reach a Location header", method)
+			require.NotContains(t, readBody(t, resp), "javascript:",
+				"%s: the scheme must not reach the response body either", method)
+		}
 	})
 
 	// A registered callback may carry its own state=, and the cancel link, the
@@ -524,7 +585,7 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
-	t.Run("RejectionNamesTheRegisteredScopes", func(t *testing.T) {
+	t.Run("RejectionWithholdsTheRegisteredScopes", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -534,8 +595,8 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 
 		location, err := url.Parse(resp.Header.Get("Location"))
 		require.NoError(t, err)
-		require.Contains(t, location.Query().Get("error_description"), "openid profile email",
-			"the rejection must name the registered scopes the owner has to change")
+		require.NotContains(t, location.Query().Get("error_description"), "openid profile email",
+			"registration metadata is unvalidated and stays server-side; the reason alone tells the client what to change")
 	})
 }
 
@@ -558,28 +619,208 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		})
 	}
 
+	// Every response type but code is unsupported, whether or not the SDK has a
+	// constant for it, so the client gets one answer for one mistake.
 	t.Run("UnsupportedResponseTypeRedirected", func(t *testing.T) {
 		t.Parallel()
 
 		app := seedAppInCatalog(t)
-		for _, method := range []string{http.MethodGet, http.MethodPost} {
-			t.Run(method, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
+		for _, responseType := range []string{"token", "id_token", "code id_token", "not_a_response_type"} {
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				t.Run(responseType+"/"+method, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitLong)
 
-				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-				query.Set("response_type", "token")
+					query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+					query.Set("response_type", responseType)
 
-				resp := sendAuthorizeRequest(ctx, t, client, method, query)
-				defer resp.Body.Close()
+					resp := sendAuthorizeRequest(ctx, t, client, method, query)
+					defer resp.Body.Close()
 
-				requireAuthorizeErrorRedirect(t, resp,
-					codersdk.OAuth2ErrorCodeUnsupportedResponseType, "Only response_type=code is supported")
-			})
+					requireAuthorizeErrorRedirect(t, resp,
+						codersdk.OAuth2ErrorCodeUnsupportedResponseType, "Only response_type=code is supported")
+				})
+			}
 		}
 	})
 
-	t.Run("UnparseableResponseTypeNotRedirected", func(t *testing.T) {
+	// RFC 8707 §2 names the authorization endpoint, so a bad resource gets the
+	// same invalid_target the token endpoint already gives it. Only when it is
+	// the sole failure: a client retrying on invalid_target must not be sent
+	// back with a second field still broken.
+	t.Run("MalformedResourceRedirected", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		for _, tc := range []struct {
+			name   string
+			mutate func(url.Values)
+			code   codersdk.OAuth2ErrorCode
+		}{
+			{
+				name:   "ResourceAlone",
+				mutate: func(url.Values) {},
+				code:   codersdk.OAuth2ErrorCodeInvalidTarget,
+			},
+			{
+				name:   "ResourceAndCodeChallenge",
+				mutate: func(q url.Values) { q.Set("code_challenge", "tooshort") },
+				code:   codersdk.OAuth2ErrorCodeInvalidRequest,
+			},
+		} {
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				t.Run(tc.name+"/"+method, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitLong)
+
+					query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+					query.Set("resource", "not-an-absolute-uri")
+					tc.mutate(query)
+
+					resp := sendAuthorizeRequest(ctx, t, client, method, query)
+					defer resp.Body.Close()
+
+					requireAuthorizeErrorRedirect(t, resp, tc.code, "absolute URI")
+				})
+			}
+		}
+	})
+
+	// The parser reports every field at once, so these all arrive as
+	// invalid_request with the offending fields named in the description.
+	// Explicit as well as omitted redirect_uri, since the two take different
+	// paths through the parser.
+	t.Run("RejectedParametersRedirected", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		for _, tc := range []struct {
+			name        string
+			mutate      func(url.Values)
+			description string
+		}{
+			{
+				name:        "MalformedCodeChallenge",
+				mutate:      func(q url.Values) { q.Set("code_challenge", "tooshort") },
+				description: "43 to 128 characters",
+			},
+		} {
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				for _, redirectURI := range []string{"", appCallbackURL} {
+					name := tc.name + "/" + method
+					if redirectURI != "" {
+						name += "ExplicitRedirectURI"
+					}
+					t.Run(name, func(t *testing.T) {
+						t.Parallel()
+						ctx := testutil.Context(t, testutil.WaitLong)
+
+						query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+						tc.mutate(query)
+						if redirectURI != "" {
+							query.Set("redirect_uri", redirectURI)
+						}
+
+						resp := sendAuthorizeRequest(ctx, t, client, method, query)
+						defer resp.Body.Close()
+
+						requireAuthorizeErrorRedirect(t, resp,
+							codersdk.OAuth2ErrorCodeInvalidRequest, tc.description)
+					})
+				}
+			}
+		}
+	})
+
+	// The client developer reads this string, so each failing field has to be
+	// separable from the next.
+	t.Run("DescriptionNamesEachFailingField", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+		query.Add("scope", scopeInCatalog)
+		query.Set("resource", "https://api.example.com/#section")
+
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+
+		requireAuthorizeErrorRedirect(t, resp, codersdk.OAuth2ErrorCodeInvalidRequest, "; ")
+
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		description := location.Query().Get("error_description")
+		require.Contains(t, description, "scope: Query param")
+		require.Contains(t, description, "resource: must be an absolute URI without fragment")
+		require.NotContains(t, description, "field:",
+			"field and detail are Coder's own parser labels, meaningless to the client")
+	})
+
+	// The description echoes what the client sent, so its length is the
+	// client's to choose and a Location header would carry all of it.
+	t.Run("LongDescriptionTruncated", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		query := authorizeQuery(t, app.ID.String(), "coder:"+strings.Repeat("a", 20000))
+
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+
+		requireAuthorizeErrorRedirect(t, resp, codersdk.OAuth2ErrorCodeInvalidScope, "(truncated)")
+
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Less(t, len(location.Query().Get("error_description")), 4096)
+	})
+
+	// OAuth 2.1 §3.1 requires unrecognized parameters to be ignored, so the
+	// nonce and prompt an OIDC client sends must not fail the request.
+	t.Run("UnrecognizedParametersIgnored", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+
+		t.Run(http.MethodGet, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			addUnrecognizedParams(query)
+
+			resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode,
+				"an ignored parameter must still reach the consent page")
+		})
+
+		t.Run(http.MethodPost, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			addUnrecognizedParams(query)
+
+			resp := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusFound, resp.StatusCode)
+			location, err := url.Parse(resp.Header.Get("Location"))
+			require.NoError(t, err)
+			require.NotEmpty(t, location.Query().Get("code"),
+				"an ignored parameter must not withhold the authorization code")
+			require.Empty(t, location.Query().Get("error"))
+		})
+	})
+
+	// A redirect URI the parser could not use is the §4.1.2.1 carve-out: there
+	// is no callback worth trusting, so the answer stays on this server.
+	t.Run("UnparseableRedirectURINotRedirected", func(t *testing.T) {
 		t.Parallel()
 
 		app := seedAppInCatalog(t)
@@ -589,15 +830,14 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
 				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-				query.Set("response_type", "not_a_response_type")
+				query.Set("redirect_uri", "://not-a-url")
 
 				resp := sendAuthorizeRequest(ctx, t, client, method, query)
 				defer resp.Body.Close()
 
-				require.Equal(t, http.StatusBadRequest, resp.StatusCode,
-					"extractAuthorizeParams failures answer on Coder whether or not the callback was trustworthy, and this request omits redirect_uri, so it was")
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 				require.Empty(t, resp.Header.Get("Location"),
-					"nothing may be redirected from inside extractAuthorizeParams")
+					"a redirect URI that did not parse must not become a destination")
 			})
 		}
 	})
@@ -690,6 +930,17 @@ func authorizeQuery(t *testing.T, clientID, scope string) url.Values {
 		query.Set("scope", scope)
 	}
 	return query
+}
+
+// addUnrecognizedParams adds parameters neither OAuth2 endpoint reads. Both
+// endpoints' tests use it, so the same extras are accepted at both. The quoted
+// key proves a name containing a double quote is accepted rather than 400'd;
+// TestExtractTokenRequest_UnrecognizedParametersLogged pins that the log sink
+// escapes it.
+func addUnrecognizedParams(q url.Values) {
+	q.Set("nonce", "n-0S6_WzA2Mj")
+	q.Set("prompt", "consent")
+	q.Set(`we"ird`, "1")
 }
 
 // authorizeRequest issues an /oauth2/authorize request without following
@@ -786,4 +1037,155 @@ func readBody(t *testing.T, resp *http.Response) string {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	return string(body)
+}
+
+// RFC 8252 §7.3: a native app registers a loopback redirect URI without a port
+// and presents whichever port it bound at runtime.
+func TestOAuth2AuthorizeLoopbackRedirectPort(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+
+	const port = "53219"
+
+	// Registers a public client on http://<host>/callback and authorizes with
+	// http://<host>:53219/callback. Returns what the exchange needs.
+	authorize := func(ctx context.Context, t *testing.T, host string) (clientID, presented, code, verifier string) {
+		t.Helper()
+
+		app := oauth2providertest.RegisterPublicClient(t, client, "loopback", "http://"+host+"/callback")
+		presented = "http://" + host + ":" + port + "/callback"
+
+		verifier, challenge := oauth2providertest.GeneratePKCE(t)
+		query := authorizeQuery(t, app.ClientID, "")
+		query.Set("code_challenge", challenge)
+		query.Set("redirect_uri", presented)
+
+		get := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer get.Body.Close()
+		body := readBody(t, get)
+		require.Equal(t, http.StatusOK, get.StatusCode, body)
+		require.Equal(t, host+":"+port, cancelLinkFromConsentPage(t, body).Host,
+			"the cancel link must go to the presented port")
+
+		post := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
+		defer post.Body.Close()
+		require.Equal(t, http.StatusFound, post.StatusCode, readBody(t, post))
+		location, err := url.Parse(post.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Equal(t, host+":"+port, location.Host, "the code must go to the presented port")
+		require.Equal(t, "/callback", location.Path)
+		require.Equal(t, authorizeState, location.Query().Get("state"))
+		code = location.Query().Get("code")
+		require.NotEmpty(t, code, "authorization did not issue a code")
+		return app.ClientID, presented, code, verifier
+	}
+
+	exchange := func(ctx context.Context, t *testing.T, clientID, code, verifier, redirectURI string) (int, string) {
+		t.Helper()
+
+		form := url.Values{}
+		form.Set("grant_type", "authorization_code")
+		form.Set("client_id", clientID)
+		form.Set("code", code)
+		form.Set("redirect_uri", redirectURI)
+		form.Set("code_verifier", verifier)
+		return postTokenRequest(ctx, t, client, form)
+	}
+
+	for name, host := range map[string]string{
+		"IPv4":      "127.0.0.1",
+		"IPv6":      "[::1]",
+		"Localhost": "localhost",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			clientID, presented, code, verifier := authorize(ctx, t, host)
+			status, body := exchange(ctx, t, clientID, code, verifier, presented)
+			requireTokenResponse(t, status, body)
+		})
+	}
+
+	// RFC 6749 §4.1.3: the redirect_uri at the exchange must be identical to
+	// the one the code was issued to. The loopback exception does not apply
+	// here, and a refused exchange does not consume the code.
+	t.Run("ExchangeFromAnotherPortIsRefused", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		clientID, presented, code, verifier := authorize(ctx, t, "127.0.0.1")
+
+		status, body := exchange(ctx, t, clientID, code, verifier, "http://127.0.0.1:53220/callback")
+		requireTokenGrantError(t, status, body)
+
+		status, body = exchange(ctx, t, clientID, code, verifier, presented)
+		requireTokenResponse(t, status, body)
+	})
+}
+
+// RFC 6749 §3.1.2.3: the presented redirect_uri must match one of the
+// registered URIs, not only the first. Cursor registers a desktop deep link
+// and a web callback and presents the second.
+func TestOAuth2AuthorizeAnyRegisteredRedirectURI(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		first  = "cursor://anysphere.cursor-mcp/oauth/callback"
+		second = "https://www.cursor.com/agents/mcp/oauth/callback"
+	)
+	app := oauth2providertest.RegisterPublicClientWithRedirectURIs(t, client, "cursor", first, second)
+
+	verifier, challenge := oauth2providertest.GeneratePKCE(t)
+	query := authorizeQuery(t, app.ClientID, "")
+	query.Set("code_challenge", challenge)
+	query.Set("redirect_uri", second)
+
+	get := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+	defer get.Body.Close()
+	require.Equal(t, http.StatusOK, get.StatusCode, readBody(t, get))
+
+	post := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
+	defer post.Body.Close()
+	require.Equal(t, http.StatusFound, post.StatusCode, readBody(t, post))
+	location, err := url.Parse(post.Header.Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, second, location.Scheme+"://"+location.Host+location.Path,
+		"the code must go to the entry that matched")
+	code := location.Query().Get("code")
+	require.NotEmpty(t, code, "authorization did not issue a code")
+
+	exchange := func(redirectURI string) (int, string) {
+		form := url.Values{}
+		form.Set("grant_type", "authorization_code")
+		form.Set("client_id", app.ClientID)
+		form.Set("code", code)
+		form.Set("redirect_uri", redirectURI)
+		form.Set("code_verifier", verifier)
+		return postTokenRequest(ctx, t, client, form)
+	}
+
+	// RFC 6749 §4.1.3: the exchange is bound to the entry the code was issued
+	// to, even though the other entry is also registered.
+	status, body := exchange(first)
+	requireTokenGrantError(t, status, body)
+
+	status, body = exchange(second)
+	requireTokenResponse(t, status, body)
+
+	// An unregistered URI is still refused on Coder, with no redirect.
+	query.Set("redirect_uri", "https://not-registered.example/callback")
+	resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.Empty(t, resp.Header.Get("Location"))
+	require.Contains(t, readBody(t, resp), "must match one of")
 }

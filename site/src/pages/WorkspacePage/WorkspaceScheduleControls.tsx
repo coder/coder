@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs, { type Dayjs } from "dayjs";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { type FC, type ReactNode, useRef, useState } from "react";
@@ -20,7 +21,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { getWorkspaceActivityStatus } from "#/modules/workspaces/activity";
-import { cn } from "#/utils/cn";
 import {
 	autostartDisplay,
 	autostopDisplay,

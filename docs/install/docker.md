@@ -1,4 +1,6 @@
-# Install Coder via Docker
+---
+title: Install Coder via Docker
+---
 
 You can install and run Coder using the official Docker images published on
 [GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).
@@ -162,4 +164,4 @@ recommend setting an [access URL](../admin/setup/index.md#access-url)
 ## Next steps
 
 - [Create your first template](../tutorials/template-from-scratch.md)
-- [Control plane configuration](../admin/setup/index.md#configure-control-plane-access)
+- [Control plane configuration](../admin/setup/index.md)

@@ -3,7 +3,7 @@ import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
-import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
+import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { pickReasoningEffort } from "#/pages/AgentsPage/utils/reasoningEffort";

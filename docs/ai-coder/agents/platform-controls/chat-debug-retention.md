@@ -1,4 +1,6 @@
-# Chat Debug Data Retention
+---
+title: Chat debug data retention
+---
 
 Coder Agents automatically cleans up old chat debug data to manage database
 growth. Debug data includes persisted debug runs and their associated debug

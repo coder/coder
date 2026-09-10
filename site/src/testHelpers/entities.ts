@@ -505,6 +505,19 @@ export const MockSiteRoles = [
 	MockWorkspaceCreationBanRole,
 ];
 
+export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	task_notification_alert_dismissed: false,
+	thinking_display_mode: "auto",
+	shell_tool_display_mode: "auto",
+	code_diff_display_mode: "auto",
+	agent_chat_send_shortcut: "enter",
+};
+
+export const MockUserChatCompactionThresholds: TypesGen.UserChatCompactionThresholds =
+	{
+		thresholds: [],
+	};
+
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
 	username: "TestUser",
@@ -616,6 +629,18 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		updated_at: "2026-05-03T18:30:00Z",
 	},
 ];
+
+// Legacy file-only secret: not enableable while a deployment blocks file paths.
+export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
+	id: "secret-file-only-disabled",
+	name: "legacy-kubeconfig",
+	description: "Written to a workspace file before file paths were disabled.",
+	env_name: "",
+	file_path: "~/.kube/config",
+	enabled: false,
+	created_at: "2026-04-27T16:30:00Z",
+	updated_at: "2026-05-03T20:30:00Z",
+};
 
 export const MockImportedUserSecret: TypesGen.UserSecret = {
 	id: "imported-database-url",
@@ -5367,6 +5392,50 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
+};
+
+export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
+	id: "thread-1",
+	prompt: "Summarize the project structure",
+	model: "claude-opus-4-6",
+	provider: "anthropic",
+	credential_kind: "centralized",
+	credential_hint: "sk-a...efgh",
+	started_at: "2026-03-09T09:28:15.000Z",
+	ended_at: "2026-03-09T09:28:47.000Z",
+	token_usage: {
+		input_tokens: 1240,
+		output_tokens: 320,
+		cache_read_input_tokens: 900,
+		cache_write_input_tokens: 140,
+		metadata: {},
+	},
+	agentic_actions: [
+		{
+			model: "claude-opus-4-6",
+			token_usage: {
+				input_tokens: 620,
+				output_tokens: 160,
+				cache_read_input_tokens: 450,
+				cache_write_input_tokens: 70,
+				metadata: {},
+			},
+			thinking: [],
+			tool_calls: [
+				{
+					id: "tool-1",
+					interception_id: "interception-1",
+					provider_response_id: "resp-1",
+					server_url: "http://localhost:3000/mcp",
+					tool: "list_directory",
+					injected: false,
+					input: JSON.stringify({ path: "." }),
+					metadata: {},
+					created_at: "2026-03-09T09:28:20.000Z",
+				},
+			],
+		},
+	],
 };
 
 export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =

@@ -2,9 +2,10 @@
  * Copied from shadc/ui on 12/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/breadcrumb}
  */
+
+import { cn } from "cn";
 import { MoreHorizontalIcon } from "lucide-react";
 import { NavLink } from "react-router";
-import { cn } from "#/utils/cn";
 
 type BreadcrumbProps = React.ComponentPropsWithRef<"nav"> & {
 	separator?: React.ReactNode;

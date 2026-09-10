@@ -3,8 +3,8 @@
  * @see {@link https://ui.shadcn.com/docs/components/badge}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Slot } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 const badgeVariants = cva(
 	`
@@ -19,6 +19,8 @@ const badgeVariants = cva(
 					"border-surface-secondary bg-surface-secondary text-content-secondary shadow-sm",
 				outline:
 					"border-border bg-transparent text-content-primary shadow-none",
+				dashed:
+					"border-dashed border-border bg-surface-secondary text-content-secondary shadow-none",
 				warning:
 					"border-highlight-orange bg-surface-orange text-highlight-orange shadow-sm",
 				destructive:
@@ -51,6 +53,11 @@ const badgeVariants = cva(
 				hover: true,
 				variant: "default",
 				class: "hover:bg-surface-tertiary",
+			},
+			{
+				hover: true,
+				variant: "outline",
+				class: "hover:bg-surface-secondary",
 			},
 			{
 				hover: true,

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
@@ -19,7 +20,6 @@ import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
 	getFormHelpers,

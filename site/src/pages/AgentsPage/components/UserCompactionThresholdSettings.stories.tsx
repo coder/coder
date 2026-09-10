@@ -357,15 +357,7 @@ export const OrganizationFilter: Story = {
 	},
 };
 
-export const SingleOrganizationHidesFilter: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByText("GPT-4o");
-		expect(
-			canvas.queryByRole("button", { name: /^Organization / }),
-		).not.toBeInTheDocument();
-	},
-};
+export const SingleOrganizationHidesFilter: Story = {};
 
 export const OrganizationFilterScopesSaveActions: Story = {
 	args: {

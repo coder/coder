@@ -1,4 +1,3 @@
-import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
@@ -26,6 +25,7 @@ interface ModuleSettingsStepProps {
 	) => void;
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
+	showErrors?: boolean;
 }
 
 function variableToField(
@@ -33,6 +33,7 @@ function variableToField(
 	variable: TemplateBuilderModuleVariable,
 	value: string,
 	onChange: (name: string, value: string) => void,
+	error: boolean,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
 	const label = variable.name;
@@ -66,7 +67,7 @@ function variableToField(
 			value,
 			onChange: (e) => onChange(variable.name, e.target.value),
 			onBlur: () => {},
-			error: false,
+			error,
 		},
 	};
 }
@@ -110,6 +111,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	onChangeModuleVariables,
 	onRemoveModule,
 	registerModuleRef,
+	showErrors = false,
 }) => {
 	const { data } = useQuery(templateBuilderModules(baseId));
 	const modules = data?.modules ?? [];
@@ -126,9 +128,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	return (
 		<>
 			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
-			<TemplateBuilderSubtitle>
-				Set values for module variables.
-			</TemplateBuilderSubtitle>
+			<TemplateBuilderSubtitle>Customise your modules.</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
 				{selectedModules.map((mod) => {
@@ -136,13 +136,20 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					const sensitiveVars = mod.variables.filter((v) => v.sensitive);
 					const vars = moduleVariables[mod.id] ?? {};
 
-					const toField = (v: TemplateBuilderModuleVariable) =>
-						variableToField(
+					const toField = (v: TemplateBuilderModuleVariable) => {
+						const rawValue = vars[v.name];
+						const hasError =
+							showErrors &&
+							v.required &&
+							(rawValue === undefined || rawValue === "");
+						return variableToField(
 							mod.id,
 							v,
 							vars[v.name] ?? defaultPlaceholder(v.default) ?? "",
 							(name, val) => handleChange(mod.id, name, val),
+							hasError,
 						);
+					};
 
 					const requiredVars = configurableVars.filter((v) => v.required);
 					const optionalVars = configurableVars.filter((v) => !v.required);
@@ -163,25 +170,9 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 								detailsUrl={moduleDetailsUrl(mod.id)}
 								fields={requiredFields}
 								optionalFields={optionalFields}
+								sensitiveVariables={sensitiveVars}
 								onRemove={() => onRemoveModule(mod.id)}
 							/>
-
-							{sensitiveVars.length > 0 && (
-								<div className="flex items-center gap-2 mt-2 p-3 rounded-md text-xs text-content-secondary">
-									<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />
-									<p>
-										{sensitiveVars.map((v) => (
-											<code
-												key={v.name}
-												className="mr-1 px-1.5 py-1 bg-surface-secondary"
-											>
-												{v.name}
-											</code>
-										))}
-										will be collected from developers at workspace creation.
-									</p>
-								</div>
-							)}
 						</div>
 					);
 				})}

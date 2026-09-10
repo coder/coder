@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -10,7 +11,6 @@ import {
 } from "#/components/StatusIndicator/StatusIndicator";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 
 interface ProxyRowProps {

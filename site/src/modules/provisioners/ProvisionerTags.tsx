@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC, HTMLProps } from "react";
 import { Badge } from "#/components/Badge/Badge";
-import { cn } from "#/utils/cn";
 
 export const ProvisionerTags: FC<HTMLProps<HTMLDivElement>> = ({
 	className,

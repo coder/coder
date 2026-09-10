@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink, useMatch } from "react-router";
 import {
@@ -8,7 +9,6 @@ import {
 	canAccessAnyChatModelConfig,
 	type Permissions,
 } from "#/modules/permissions";
-import { cn } from "#/utils/cn";
 
 interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */

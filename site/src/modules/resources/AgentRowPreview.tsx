@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import { SquareTerminalIcon } from "lucide-react";
 import type { FC } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { cn } from "#/utils/cn";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";

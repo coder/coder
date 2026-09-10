@@ -48,7 +48,9 @@ const withWorkspaceCount = (count: number) => (Story: FC) => {
 	return <Story />;
 };
 
-const withUnavailableWorkspaceCount = (Story: FC) => {
+const withUnavailableWorkspaceCount = function WithUnavailableWorkspaceCount(
+	Story: FC,
+) {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(workspacesKey(userWorkspacesRequest), {
 		workspaces: [],

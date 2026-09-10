@@ -1,4 +1,5 @@
 import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -8,7 +9,6 @@ import {
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
 const alertVariants = cva(
 	"relative w-full rounded-lg border border-solid p-4 text-left",

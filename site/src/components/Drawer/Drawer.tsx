@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { createContext, useContext } from "react";
-import { cn } from "#/utils/cn";
 
 type DrawerDirection = "top" | "bottom" | "left" | "right";
 

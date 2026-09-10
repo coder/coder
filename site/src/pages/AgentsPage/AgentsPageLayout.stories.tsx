@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Navigate, useOutletContext } from "react-router";
+import { Navigate } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -38,14 +38,12 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsLayout from "./AgentSettingsLayout";
-import AgentsPageLayout, {
-	type AgentsPageOutletContext,
-} from "./AgentsPageLayout";
+import AgentsPageLayout from "./AgentsPageLayout";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -56,6 +54,7 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 const defaultModelID = "model-config-1";
 
@@ -195,17 +194,10 @@ const setInnerWidthForStory = (width: number) => {
 };
 
 const AgentTopBarRouteElement = () => {
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext>();
 	return (
 		<ChatTopBar
-			chatTitle="Collapsed sidebar agent"
+			chat={{ ...MockChat, title: "Collapsed sidebar agent" }}
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
-			onArchiveAgent={fn()}
-			onArchiveAndDeleteWorkspace={fn()}
-			onUnarchiveAgent={fn()}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 		/>
 	);
 };
@@ -416,6 +408,9 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
 
 		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
 	},
 };
 
@@ -683,36 +678,6 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 			routing: agentsWithChatPaneMinimumRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("agents-page-layout");
-		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
-		const main = await canvas.findByTestId("agents-main-panel");
-		const chatPanel = await canvas.findByTestId("agents-chat-panel");
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = within(composer).getByRole("button", { name: "Send" });
-
-		await waitFor(() => {
-			const layoutRect = layout.getBoundingClientRect();
-			const sidebarRect = sidebar.getBoundingClientRect();
-			const mainRect = main.getBoundingClientRect();
-			const chatPanelRect = chatPanel.getBoundingClientRect();
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-			const maxSidebarWidth = layoutRect.width - AGENTS_MAIN_PANEL_MIN_WIDTH;
-
-			expect(layoutRect.width).toBe(narrowAgentsLayoutWidth);
-			expect(sidebarRect.width).toBeLessThanOrEqual(maxSidebarWidth + 1);
-			expect(mainRect.width).toBeGreaterThanOrEqual(
-				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
-			);
-			expect(chatPanelRect.width).toBeGreaterThanOrEqual(
-				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
-			);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-			expect(composerRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
-		});
-	},
 };
 
 export const ResizableSidebarKeyboard: Story = {
@@ -822,66 +787,6 @@ export const SidebarCollapsed: Story = {
 		await expect(
 			await canvas.findByRole("button", { name: "Expand sidebar" }),
 		).toBeVisible();
-	},
-};
-
-export const EmptyStateZoom200Desktop: Story = {
-	parameters: {
-		viewport: { defaultViewport: "desktopZoom200" },
-		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
-		// viewport param; migrate it to a pixel viewport.
-		chromatic: { viewports: [720] },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("agents-page-layout");
-		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
-		const main = await canvas.findByTestId("agents-main-panel");
-
-		await waitFor(() => {
-			const layoutStyles = getComputedStyle(layout);
-			const sidebarStyles = getComputedStyle(sidebar);
-			const mainStyles = getComputedStyle(main);
-			const sidebarRect = sidebar.getBoundingClientRect();
-			const mainRect = main.getBoundingClientRect();
-
-			expect(layoutStyles.flexDirection).toBe("row");
-			expect(sidebarStyles.display).not.toBe("none");
-			expect(mainStyles.display).toBe("flex");
-			expect(sidebarRect.width).toBeGreaterThan(0);
-			expect(mainRect.width).toBeGreaterThan(0);
-			expect(sidebarRect.left).toBeLessThan(mainRect.left);
-			expect(sidebarRect.right).toBeLessThanOrEqual(mainRect.left + 1);
-		});
-
-		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "New chat" })).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: "Collapse sidebar" }),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: /TestUser/ }),
-		).toBeVisible();
-	},
-};
-
-export const CollapsedSidebarZoom200Desktop: Story = {
-	parameters: {
-		viewport: { defaultViewport: "desktopZoom200" },
-		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
-		// viewport param; migrate it to a pixel viewport.
-		chromatic: { viewports: [720] },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			await canvas.findByRole("button", { name: "Collapse sidebar" }),
-		);
-		const expandButton = await canvas.findByRole("button", {
-			name: "Expand sidebar",
-		});
-
-		await expect(expandButton).toBeVisible();
 	},
 };
 

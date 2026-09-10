@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { RefreshCwIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
@@ -8,7 +9,6 @@ import {
 } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type { ConnectionStatus } from "./types";
 
@@ -24,10 +24,14 @@ export const WorkspaceTerminalAlerts = ({
 	onAlertChange,
 }: WorkspaceTerminalAlertsProps) => {
 	const lifecycleState = agent?.lifecycle_state;
-	const prevLifecycleState = useRef(lifecycleState);
-	useEffect(() => {
-		prevLifecycleState.current = lifecycleState;
-	}, [lifecycleState]);
+	const [prevLifecycleState, setPrevLifecycleState] = useState(lifecycleState);
+	const [showLoadedScriptsAlert, setShowLoadedScriptsAlert] = useState(false);
+	if (prevLifecycleState !== lifecycleState) {
+		setShowLoadedScriptsAlert(
+			prevLifecycleState === "starting" && lifecycleState === "ready",
+		);
+		setPrevLifecycleState(lifecycleState);
+	}
 
 	// MutationObserver triggers onAlertChange after DOM updates so
 	// the terminal can refit once alert height changes.
@@ -52,8 +56,7 @@ export const WorkspaceTerminalAlerts = ({
 				<ErrorScriptAlert />
 			) : lifecycleState === "starting" ? (
 				<LoadingScriptsAlert />
-			) : lifecycleState === "ready" &&
-				prevLifecycleState.current === "starting" ? (
+			) : lifecycleState === "ready" && showLoadedScriptsAlert ? (
 				<LoadedScriptsAlert />
 			) : null}
 		</div>

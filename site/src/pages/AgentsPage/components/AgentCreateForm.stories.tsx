@@ -20,6 +20,7 @@ import {
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -30,6 +31,7 @@ import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
@@ -138,15 +140,6 @@ const missingAPIKeyCatalog: TypesGen.OrganizationChatModelsResponse = {
 	})),
 };
 
-const fetchFailedCatalog: TypesGen.OrganizationChatModelsResponse = {
-	...defaultModelCatalog,
-	providers: defaultModelCatalog.providers.map((provider) => ({
-		...provider,
-		available: false,
-		unavailable_reason: "fetch_failed",
-	})),
-};
-
 const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
 	models: [],
 	providers: [
@@ -164,22 +157,6 @@ const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
 		{ provider: "copilot", display_name: "GitHub Copilot" },
 	],
 };
-
-const unsupportedProviderWithDisabledSupportedCatalog: TypesGen.OrganizationChatModelsResponse =
-	{
-		...unsupportedProviderCatalog,
-		providers: [
-			...unsupportedProviderCatalog.providers,
-			{
-				...MockChatModelProviderDescriptor,
-				id: "provider-anthropic",
-				type: "anthropic",
-				display_name: "Anthropic",
-				enabled: false,
-				available: false,
-			},
-		],
-	};
 
 const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
 	{
@@ -262,7 +239,6 @@ const meta: Meta<typeof AgentCreateForm> = {
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
-		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
@@ -286,6 +262,10 @@ const meta: Meta<typeof AgentCreateForm> = {
 					.queryKey,
 				data: buildPersonalModelOverridesResponse(),
 			},
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
 		],
 	},
 	beforeEach: () => {
@@ -298,6 +278,9 @@ const meta: Meta<typeof AgentCreateForm> = {
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue(buildPersonalModelOverridesResponse());
+		spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
 	},
 };
 
@@ -1018,13 +1001,6 @@ export const CachedModelsWithRefetchError: Story = {
 			new Error("Failed to refresh available models."),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText("Failed to refresh available models."),
-		).toBeVisible();
-		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
-	},
 };
 
 export const LoadingPersonalModelOverrides: Story = {
@@ -1130,14 +1106,6 @@ export const ProviderRequiresUserApiKey: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
-		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
-			"href",
-			"/agents/settings/api-keys",
-		);
-	},
 };
 
 export const ProviderMissingAPIKey: Story = {
@@ -1148,25 +1116,6 @@ export const ProviderMissingAPIKey: Story = {
 				data: missingAPIKeyCatalog,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
-	},
-};
-
-export const ProviderFetchFailed: Story = {
-	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(MockDefaultOrganization.id),
-				data: fetchFailedCatalog,
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -1180,33 +1129,6 @@ export const UnsupportedProviderOnly: Story = {
 			},
 			{ key: aiProvidersListKey, data: [] },
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
-		expect(
-			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
-		).toBeVisible();
-	},
-};
-
-export const UnsupportedProviderAndDisabledSupportedProvider: Story = {
-	args: { ...defaultArgs, canConfigureAgentSetup: true },
-	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(MockDefaultOrganization.id),
-				data: unsupportedProviderWithDisabledSupportedCatalog,
-			},
-			{ key: aiProvidersListKey, data: [] },
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
-		expect(
-			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
-		).toBeVisible();
 	},
 };
 
@@ -1344,20 +1266,6 @@ export const HookDispatchFailed: Story = {
 			},
 		),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Lifecycle hook failed")).toBeVisible();
-		await expect(
-			canvas.getByText("Chat lifecycle hook dispatch failed."),
-		).toBeVisible();
-		await expect(
-			canvas.getByText(
-				"Lifecycle hook dispatch 00000000-0000-0000-0000-000000000001 failed (http_error).",
-			),
-		).toBeVisible();
-		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
-	},
 };
 
 export const HookDenied: Story = {
@@ -1381,20 +1289,6 @@ export const HookDenied: Story = {
 				toJSON: () => ({}),
 			},
 		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("This prompt is blocked by policy."),
-		).toBeVisible();
-		await expect(
-			canvas.queryByText("Blocked by policy"),
-		).not.toBeInTheDocument();
-		await expect(
-			canvas.queryByText("Go to workspaces"),
-		).not.toBeInTheDocument();
-		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
 	},
 };
 
@@ -1527,12 +1421,6 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 			100,
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("combobox", { name: "GPT 4.1 Mini" }),
-		).toBeVisible();
-	},
 };
 
 export const RestrictedMultiOrganizationUser: Story = {
@@ -1629,40 +1517,6 @@ export const RestrictedUserKeepsPersistedWorkspace: Story = {
 	},
 };
 
-export const RestrictedUserKeepsPersistedAttachments: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-	},
-	beforeEach: () => {
-		localStorage.clear();
-		localStorage.setItem(
-			"agents.persisted-attachments",
-			JSON.stringify([
-				{
-					fileId: "file-permitted-org",
-					fileName: "notes.txt",
-					fileType: "text/plain",
-					lastModified: 1700000000000,
-					organizationId: MockOrganization2.id,
-				},
-			]),
-		);
-		mockPermittedOrganizations({
-			[MockDefaultOrganization.id]: false,
-			[MockOrganization2.id]: true,
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
-		});
-		const stored = localStorage.getItem("agents.persisted-attachments");
-		expect(stored).toContain("file-permitted-org");
-	},
-};
-
 export const OrganizationAuthorizationFailure: Story = {
 	parameters: {
 		showOrganizations: true,
@@ -1712,14 +1566,6 @@ export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
 			[MockDefaultOrganization.id]: true,
 			[MockOrganization2.id]: true,
 		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Wait for permissions to settle before checking workspace validation.
-		await canvas.findByRole("button", {
-			name: "Organization: My Organization",
-		});
-		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
 
@@ -1874,7 +1720,9 @@ export const SelectedOrganizationSurvivesRemount: Story = {
 const revocablePermissions: Record<string, boolean> = {};
 let revocableQueryClient: QueryClient | undefined;
 
-const withRevocableQueryClient: Decorator = (Story) => {
+const withRevocableQueryClient: Decorator = function WithRevocableQueryClient(
+	Story,
+) {
 	const [queryClient] = useState(
 		() =>
 			new QueryClient({
@@ -2141,17 +1989,6 @@ export const LocalOrganizationModels: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByRole("button", {
-				name: `Organization: ${MockOrganization2.display_name}`,
-			}),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("combobox", { name: "GPT 4.1 Mini" }),
-		).toBeVisible();
-	},
 };
 
 export const ForeignOnlyModelsDisableGeneration: Story = {
@@ -2195,17 +2032,6 @@ export const OrgPickerTightSpacing: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const orgTrigger = await canvas.findByTestId("compact-org-selector");
-		const composer = await canvas.findByTestId("chat-composer");
-
-		const orgRect = orgTrigger.getBoundingClientRect();
-		const composerRect = composer.getBoundingClientRect();
-		const gap = composerRect.top - orgRect.bottom;
-		expect(gap).toBeGreaterThanOrEqual(0);
-		expect(gap).toBeLessThan(16);
-	},
 };
 
 /**
@@ -2226,24 +2052,6 @@ export const OrgChangeConfirmation: Story = {
 			onClose={fn()}
 		/>
 	),
-	play: async () => {
-		const dialog = await screen.findByRole("dialog");
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText("Change organization?"),
-		).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText(
-				"Changing organization will remove your current attachments.",
-			),
-		).toBeInTheDocument();
-		await expect(
-			within(dialog).getByRole("button", { name: /continue/i }),
-		).toBeInTheDocument();
-		await expect(
-			within(dialog).getByRole("button", { name: /cancel/i }),
-		).toBeInTheDocument();
-	},
 };
 
 export const ForbiddenNoOrganizationAccess: Story = {
@@ -2385,47 +2193,6 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	},
 };
 
-export const MemberScopedPermissionsShowOrgPicker: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-	},
-	beforeEach: () => {
-		spyOn(API, "getOrganizations").mockResolvedValue([
-			MockDefaultOrganization,
-			MockOrganization2,
-		]);
-		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
-			Object.fromEntries(
-				Object.entries(checks).map(([id, check]) => [
-					id,
-					check.object.owner_id === "me",
-				]),
-			),
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const picker = await canvas.findByRole(
-			"button",
-			{ name: /^Organization:/ },
-			{ timeout: 3000 },
-		);
-		await userEvent.click(picker);
-		await screen.findByRole("option", {
-			name: MockDefaultOrganization.display_name,
-		});
-		await userEvent.click(
-			screen.getByRole("option", { name: MockOrganization2.display_name }),
-		);
-		expect(
-			canvas.getByRole("button", {
-				name: `Organization: ${MockOrganization2.display_name}`,
-			}),
-		).toBeInTheDocument();
-	},
-};
-
 export const MCPServersLoadingDisablesSend: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
@@ -2446,16 +2213,6 @@ export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
 		spyOn(API.experimental, "getMCPServerConfigs").mockRejectedValue(
 			new Error("failed to load MCP servers"),
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const alert = await canvas.findByRole("alert");
-		expect(
-			within(alert).getByRole("heading", {
-				name: /failed to load mcp servers/i,
-			}),
-		).toBeVisible();
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
 

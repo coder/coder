@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	BanIcon,
 	CircleAlertIcon,
@@ -81,7 +82,6 @@ import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "#/modules/workspaces/WorkspaceUpdateDialogs";
-import { cn } from "#/utils/cn";
 import { getDisplayWorkspaceTemplateName } from "#/utils/workspace";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
