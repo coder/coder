@@ -23,8 +23,7 @@ and logs that correlate the Claude Code session and user to that workspace.
 1. Agent Relay claims the pending work order for that session and asks the Coder control plane to provision a workspace from the mapped template for that user.
 1. A Claude Code self-hosted runner inside the workspace registers with the corresponding Claude Code session
    and executes the agent's tool calls.
-1. When the session ends,
-   Agent Relay manages workspace teardown.
+1. When the session ends, Agent Relay manages workspace teardown.
 
 Each Claude Code session gets its own ephemeral workspace.
 
