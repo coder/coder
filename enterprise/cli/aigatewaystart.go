@@ -29,6 +29,7 @@ import (
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
+	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	coderdtracing "github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -72,6 +73,7 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 
 	// Config
 	"CODER_CONFIG_PATH": {},
+	"CODER_EXPERIMENTS": {},
 
 	// AI Gateway
 	"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
@@ -176,13 +178,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 
 			gatewayLogger := logger.Named("ai-gateway")
-			// Standalone Gateway starts with an empty pool. Providers are
-			// fetched later via GetAIProviders DRPC and pool is updated.
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, gatewayLogger.Named("pool"), metrics, tracer)
-			if err != nil {
-				return xerrors.Errorf("create request pool: %w", err)
-			}
-			gatewayRegisterer.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
 			return runStandaloneGateway(signalCtx, standaloneGatewayParams{
 				bridgeConfig: vals.AI.BridgeConfig,
@@ -191,8 +186,9 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				tlsCertFile:  tlsCertFile,
 				tlsKeyFile:   tlsKeyFile,
 
-				dialer: aibridged.NewWebsocketDialer(serverURL, transport, resolvedKey),
-				pool:   pool,
+				dialer:      aibridged.NewWebsocketDialer(serverURL, transport, resolvedKey),
+				experiments: agplcoderd.ReadExperiments(gatewayLogger, vals.Experiments.Value()),
+				registerer:  gatewayRegisterer,
 
 				logger:          gatewayLogger,
 				metrics:         metrics,
@@ -248,6 +244,8 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 type standaloneGatewayParams struct {
 	// Configuration.
 	bridgeConfig codersdk.AIBridgeConfig
+	experiments  codersdk.Experiments
+	registerer   prometheus.Registerer
 	coderURL     string
 	httpAddress  string
 	tlsCertFile  string
@@ -255,7 +253,9 @@ type standaloneGatewayParams struct {
 
 	// Runtime dependencies.
 	dialer aibridged.Dialer
-	pool   aibridged.Pooler
+	// pool is a test seam: production leaves it nil, so the daemon creates
+	// its own pool when interception mode is selected.
+	pool aibridged.Pooler
 
 	// Observability.
 	// logger is the gateway-scoped logger; derived loggers (daemon,
@@ -314,15 +314,19 @@ func runStandaloneGateway(ctx context.Context, params standaloneGatewayParams) e
 func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, error) {
 	// The aibridged daemon must outlive the serving context so in-flight HTTP
 	// requests retain their DRPC connection during graceful HTTP shutdown.
-	daemon, err := aibridged.New(context.Background(), params.pool, params.dialer, params.logger.Named("aibridged"), params.tracer)
+	daemon, err := aibridged.New(context.Background(), params.pool, params.dialer, params.logger.Named("aibridged"), params.tracer, aibridged.WithExperiments(params.experiments), aibridged.WithMetrics(params.metrics))
 	if err != nil {
 		return nil, xerrors.Errorf("start AI Gateway daemon: %w", err)
+	}
+
+	if params.registerer != nil {
+		params.registerer.MustRegister(keypool.NewStateCollector(daemon.KeyPools))
 	}
 
 	providerLogger := params.logger.Named("providers")
 	gateway := &standaloneGateway{
 		daemon:   daemon,
-		reloader: agpl.NewPoolRPCReloader(params.pool, daemon.Client, params.bridgeConfig, providerLogger, params.metrics, params.providerMetrics),
+		reloader: agpl.NewProviderRPCReloader(daemon.ReplaceProviders, daemon.Client, params.bridgeConfig, providerLogger, params.metrics, params.providerMetrics),
 
 		coderURL:    params.coderURL,
 		httpAddress: params.httpAddress,

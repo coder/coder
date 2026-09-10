@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -35,8 +36,20 @@ type Server struct {
 	clientDialer Dialer
 	clientCh     chan DRPCClient
 
-	// A pool of [aibridge.RequestBridge] instances, which service incoming requests.
-	requestBridgePool Pooler
+	// backend is published once after startup mode selection. Provider reloads
+	// replace the pool's provider snapshot or the router it holds.
+	backend     atomic.Pointer[requestBackend]
+	backendMu   sync.Mutex
+	initialPool Pooler
+
+	// inflight tracks proxy-mode requests across router snapshots, so
+	// Shutdown can drain them and cancel their upstream work on deadline.
+	inflight *inflightTracker
+
+	// reverseProxy selects proxy mode at startup and stays fixed for the
+	// lifetime of the server, so a reconnect never re-runs mode selection.
+	reverseProxy bool
+	metrics      *aibridge.Metrics
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -54,7 +67,10 @@ type Server struct {
 	shutdownOnce sync.Once
 }
 
-func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer) (*Server, error) {
+// New starts a gateway server. A nil pool creates a server-owned pool only
+// when interception is selected. A supplied pool is owned by the server and
+// is used only in interception mode.
+func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer, opts ...ServerOption) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -68,7 +84,18 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 		lifecycleCtx: ctx,
 		cancelFn:     cancel,
 
-		requestBridgePool: pool,
+		initialPool: pool,
+		inflight:    newInflightTracker(),
+	}
+
+	for _, opt := range opts {
+		opt(daemon)
+	}
+	if !daemon.reverseProxy {
+		if err := daemon.initializeInterception(); err != nil {
+			cancel(err)
+			return nil, err
+		}
 	}
 
 	daemon.wg.Add(1)
@@ -137,6 +164,12 @@ connectLoop:
 			continue
 		}
 
+		if err := s.initializeBackend(s.lifecycleCtx, client); err != nil {
+			_ = client.DRPCConn().Close()
+			s.logger.Warn(s.lifecycleCtx, "initialize gateway request handler", slog.Error(err))
+			continue
+		}
+
 		// Logged at info so operators of standalone (external) gateways
 		// can see initial connection and reconnection after a dial
 		// failure (paired with the warning logged above).
@@ -192,18 +225,25 @@ func (s *Server) Client(ctx context.Context) (DRPCClient, error) {
 	}
 }
 
-// GetRequestHandler retrieves a (possibly reused) [*aibridge.RequestBridge] from the pool, for the given user.
+// GetRequestHandler retrieves the selected gateway handler for the request.
 func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
-	if s.requestBridgePool == nil {
-		return nil, xerrors.New("nil requestBridgePool")
+	backend := s.backend.Load()
+	if backend == nil {
+		return http.HandlerFunc(notReadyHandler), nil
 	}
-
-	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
-	if err != nil {
-		return nil, xerrors.Errorf("acquire request bridge: %w", err)
+	if backend.pool != nil {
+		reqBridge, err := backend.pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+		if err != nil {
+			return nil, xerrors.Errorf("acquire request bridge: %w", err)
+		}
+		return reqBridge, nil
 	}
-
-	return reqBridge, nil
+	// Proxy mode serves every request from one handler, which does not exist
+	// until the first provider snapshot arrives.
+	if backend.proxy == nil {
+		return http.HandlerFunc(notReadyHandler), nil
+	}
+	return backend.proxy, nil
 }
 
 // Ready reports whether the server currently has an active DRPC connection to coderd.
@@ -230,6 +270,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// Wait for any outstanding connections to terminate.
 		s.wg.Wait()
 
+		// Drain admitted proxy requests. Past the deadline, cancel their
+		// contexts without waiting for handlers to exit. The deadline
+		// itself surfaces from the check below.
+		if drainErr := s.inflight.Shutdown(ctx); drainErr != nil {
+			s.logger.Debug(ctx, "shutdown deadline passed; canceled in-flight proxy requests", slog.Error(drainErr))
+		}
+
 		select {
 		case <-ctx.Done():
 			s.logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
@@ -238,9 +285,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		default:
 		}
 
-		s.logger.Info(ctx, "shutting down request pool")
-		if err = s.requestBridgePool.Shutdown(ctx); err != nil {
-			s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(err))
+		pool := s.initialPool
+		if backend := s.backend.Load(); backend != nil && backend.pool != nil {
+			pool = backend.pool
+		}
+		if pool != nil {
+			s.logger.Info(ctx, "shutting down request pool")
+			if err = pool.Shutdown(ctx); err != nil {
+				s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(err))
+			}
 		}
 
 		s.logger.Info(ctx, "gracefully shutdown")

@@ -21,6 +21,21 @@ import (
 	"github.com/coder/quartz"
 )
 
+// proxyErrorHandler returns the [httputil.ReverseProxy.ErrorHandler] shared by
+// every reverse proxy in aibridge. It answers 413 for a request body that
+// exceeded [maxRequestBodyBytes], attributing the rejection to the body-size
+// limit, and reports any other failure as an upstream error.
+func proxyErrorHandler(logger slog.Logger) func(http.ResponseWriter, *http.Request, error) {
+	return func(rw http.ResponseWriter, req *http.Request, err error) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			writeRequestBodyTooLarge(req.Context(), rw)
+			return
+		}
+		logger.Warn(req.Context(), "reverse proxy error", slog.Error(err), slog.F("path", req.URL.Path))
+		http.Error(rw, "upstream proxy error", http.StatusBadGateway)
+	}
+}
+
 // newPassthroughRouter returns a simple reverse-proxy implementation which will be used when a route is not handled specifically
 // by a [intercept.Provider].
 // A single reverse proxy is created per provider and reused across all requests.
@@ -54,14 +69,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
 			prov.KeyFailoverConfig(logger),
 		),
-		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
-			if _, ok := errors.AsType[*http.MaxBytesError](e); ok {
-				writeRequestBodyTooLarge(req.Context(), rw)
-			} else {
-				logger.Warn(req.Context(), "reverse proxy error", slog.Error(e), slog.F("path", req.URL.Path))
-				http.Error(rw, "upstream proxy error", http.StatusBadGateway)
-			}
-		},
+		ErrorHandler: proxyErrorHandler(logger),
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -24,9 +24,8 @@ import (
 // (e.g. chattest.NewOpenAI) will have their requests proxied through the real
 // aibridged stack as they would in production.
 //
-// The daemon starts with an empty pool and fetches providers from coderd over
-// the in-memory DRPC, then refreshes on ai_providers change events, exactly
-// like cli.newAIBridgeDaemon.
+// The daemon fetches providers from coderd over the in-memory DRPC, then
+// refreshes on ai_providers change events, exactly like cli.newAIBridgeDaemon.
 //
 // metrics is the registry the daemon reports provider reload events to.
 // The caller owns the metrics instance and can assert on it after the daemon
@@ -62,15 +61,9 @@ func StartTestAIBridgeDaemonWithPubsub(
 		metrics = aibridged.NewMetrics(prometheus.NewRegistry())
 	}
 
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger.Named("pool"), nil, tracer)
-	if err != nil {
-		t.Fatalf("create bridge pool: %v", err)
-	}
-	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
-
-	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
+	srv, err := aibridged.New(ctx, nil, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return api.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer)
+	}, logger, tracer, aibridged.WithExperiments(api.Experiments))
 	if err != nil {
 		t.Fatalf("create aibridged server: %v", err)
 	}
@@ -78,7 +71,7 @@ func StartTestAIBridgeDaemonWithPubsub(
 
 	// The reloader fetches providers from coderd over srv's DRPC client; the
 	// subscription drives an initial load and refreshes on change events.
-	reloader := cli.NewPoolRPCReloader(pool, srv.Client, cfg, logger.Named("reloader"), nil, metrics)
+	reloader := cli.NewProviderRPCReloader(srv.ReplaceProviders, srv.Client, cfg, logger.Named("reloader"), nil, metrics)
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, ps, reloader, logger.Named("subscriber"))
 	if err != nil {
 		t.Fatalf("subscribe provider reload: %v", err)
