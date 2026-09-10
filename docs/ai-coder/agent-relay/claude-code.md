@@ -12,8 +12,7 @@ The Claude Code runner's tool calls run inside a Coder workspace on infrastructu
 
 Anthropic's agent orchestration and AI inference remain cloud-hosted.
 Coder doesn't proxy or observe model inference.
-Coder provides the workspace where the runner executes,
-and logs that correlate the Claude Code session and user to that workspace.
+Coder provides the workspace where the runner executes and logs that correlate the Claude Code session and user to that workspace.
 
 ## How it works
 
