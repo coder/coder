@@ -40,6 +40,7 @@ import {
 } from "../DiffViewer/DiffViewer";
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
+import { insertCommitPrompt } from "./commitPrompt";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
@@ -65,15 +66,13 @@ interface GitPanelProps {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
 	onRefresh: () => boolean;
-	/** Called when the user clicks the Commit button for a working repo. */
-	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded?: boolean;
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading?: boolean;
 	/** Diff status for the remote/branch view (includes PR metadata). */
 	remoteDiffStats?: ChatDiffStatus;
-	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
+	/** Chat composer, used to insert commit prompts and file comments. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	/**
 	 * Repo roots that have been dirty at some point during this session.
@@ -111,7 +110,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 	prTab,
 	repositories,
 	onRefresh,
-	onCommit,
 	isExpanded,
 	isGitStatusLoading = false,
 	remoteDiffStats,
@@ -322,6 +320,13 @@ export const GitPanel: FC<GitPanelProps> = ({
 		}
 	};
 
+	const handleCommit = (repoRoot: string) => {
+		const input = chatInputRef?.current;
+		if (input) {
+			insertCommitPrompt(input, repoRoot);
+		}
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
@@ -440,7 +445,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 								deletions: 0,
 							}
 						}
-						onCommit={onCommit}
+						onCommit={handleCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
 						chatInputRef={chatInputRef}

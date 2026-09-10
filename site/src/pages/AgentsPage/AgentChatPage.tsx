@@ -463,17 +463,6 @@ const AgentChatPage: FC = () => {
 		username: currentUser.username,
 	});
 
-	const handleCommit = (repoRoot: string) => {
-		const commitPrompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
-		const current = inputValueRef.current;
-		if (current.includes(commitPrompt)) {
-			return;
-		}
-		const prefix = current.trim() ? "\n\n" : "";
-		chatInputRef.current?.insertText(prefix + commitPrompt);
-		chatInputRef.current?.focus();
-	};
-
 	// Validate explicit and historical choices against organization options.
 	// Prefer the usable organization default before another organization model.
 	const effectiveSelectedModel = (() => {
@@ -1129,7 +1118,6 @@ const AgentChatPage: FC = () => {
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
 					sshCommand={sshCommand}
-					handleCommit={handleCommit}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
