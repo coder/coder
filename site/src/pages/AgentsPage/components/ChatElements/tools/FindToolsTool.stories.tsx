@@ -55,9 +55,30 @@ export const NoMatches: Story = {
 	},
 };
 
-// A long query list overflows the header, so the match count leads the
-// label and only the query list is truncated.
-export const LongQueryListTruncates: Story = {
+// A long match list overflows the header, so the match count leads the
+// label and only the tool names are truncated.
+export const LongMatchListTruncates: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-80">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		queries: ["microsoft documentation", "code samples"],
+		names: [],
+		matches: [
+			"mslearn__microsoft_docs_search",
+			"mslearn__microsoft_docs_fetch",
+			"mslearn__microsoft_code_sample_search",
+			"mslearn__microsoft_learn_catalog",
+		].map((name) => ({ name, description: `${name} description` })),
+	},
+};
+
+// A long search with no results falls back to showing the search terms.
+export const LongSearchNoMatchesTruncates: Story = {
 	decorators: [
 		(Story) => (
 			<div className="w-80">
@@ -69,10 +90,10 @@ export const LongQueryListTruncates: Story = {
 		queries: [
 			"list github issues for a repository",
 			"open pull requests assigned to me",
-			"create a new branch from main",
 			"comment on a pull request review thread",
 		],
-		names: ["github__list_issues", "github__list_pull_requests"],
+		names: ["github__list_issues"],
+		matches: [],
 	},
 };
 

@@ -24,16 +24,23 @@ export const FindToolsTool: FC<FindToolsToolProps> = ({
 	isError,
 	errorMessage,
 }) => {
-	// The header label truncates from the end, so the match count leads
-	// and the query list absorbs any overflow.
-	const queryLabel = [...queries, ...names].join(", ");
-	const querySuffix = queryLabel ? `: ${queryLabel}` : "";
-	const label =
-		status === "running"
-			? `Searching tools${querySuffix}`
-			: isError
-				? `Failed to search tools${querySuffix}`
-				: `Matched ${matches.length} ${matches.length === 1 ? "tool" : "tools"}${querySuffix}`;
+	// The header label truncates from the end, so the outcome leads and
+	// the list absorbs any overflow. Search terms only appear when there
+	// are no matched tool names to show instead.
+	const searchTerms = [...queries, ...names].join(", ");
+	const searchSuffix = searchTerms ? `: ${searchTerms}` : "";
+	let label: string;
+	if (status === "running") {
+		label = `Searching tools${searchSuffix}`;
+	} else if (isError) {
+		label = `Failed to search tools${searchSuffix}`;
+	} else if (matches.length === 0) {
+		label = `No tools matched${searchSuffix}`;
+	} else {
+		const noun = matches.length === 1 ? "tool" : "tools";
+		const matchedNames = matches.map((match) => match.name).join(", ");
+		label = `Matched ${matches.length} ${noun}: ${matchedNames}`;
+	}
 
 	return (
 		<ToolCall.Root
