@@ -8,6 +8,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { toast } from "sonner";
+import type { ChatMessage } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	MockChatMessage,
@@ -213,11 +214,11 @@ describe("submitChatTurn", () => {
 	});
 
 	it("edits with a recovered model and scrolls to the end", async () => {
-		const originalMessage = {
+		const originalMessage: ChatMessage = {
 			...MockChatMessage,
 			id: 5,
 			model_config_id: "stale-model",
-			content: [{ type: "text" as const, text: "old" }],
+			content: [{ type: "text", text: "old" }],
 		};
 		const editMessage = vi.fn().mockResolvedValue(undefined);
 		const scrollToEnd = vi.fn();
@@ -338,10 +339,10 @@ describe("submitChatTurn", () => {
 		store.setActiveChatID("chat-1");
 		const queuedHead = { ...MockChatQueuedMessage, id: 3 };
 		store.setQueuedMessages([queuedHead]);
-		const promotedUser = {
+		const promotedUser: ChatMessage = {
 			...MockChatMessage,
 			id: 10,
-			role: "user" as const,
+			role: "user",
 		};
 		const sendMessage = vi.fn().mockResolvedValue({
 			queued: true,
