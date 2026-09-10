@@ -1,14 +1,23 @@
-import type { FC, FormEvent } from "react";
+import { useFormik } from "formik";
+import type { FC, ReactNode } from "react";
 import { useId, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	deleteUserChatProviderKey,
+	upsertUserChatProviderKey,
+} from "#/api/queries/chats";
 import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Input } from "#/components/Input/Input";
+import { FormField } from "#/components/FormField/FormField";
 import { Loader } from "#/components/Loader/Loader";
-import { passwordManagerIgnoreProps } from "#/utils/formUtils";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers } from "#/utils/formUtils";
 import { SectionHeader } from "./components/SectionHeader";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
@@ -57,10 +66,6 @@ interface ProviderKeyPanelProps {
 	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
-	isSaving: boolean;
-	isRemoving: boolean;
-	onSave: (providerConfigId: string, apiKey: string) => void;
-	onRemove: (providerConfigId: string) => void;
 }
 
 const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
@@ -68,66 +73,120 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	models,
 	isModelsLoading,
 	areModelsUnavailable,
-	isSaving,
-	isRemoving,
-	onSave,
-	onRemove,
 }) => {
-	const apiKeyInputId = useId();
-	const [apiKey, setApiKey] = useState(
-		provider.has_user_api_key ? API_KEY_PLACEHOLDER : "",
-	);
-	const [apiKeyTouched, setApiKeyTouched] = useState(false);
+	const queryClient = useQueryClient();
+	const headingId = useId();
+
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+	const saveMutation = useMutation(upsertUserChatProviderKey(queryClient));
+	const removeMutation = useMutation(deleteUserChatProviderKey(queryClient));
+	const isBusy = saveMutation.isPending || removeMutation.isPending;
+
+	const form = useFormik({
+		initialValues: {
+			apiKey: provider.has_user_api_key ? API_KEY_PLACEHOLDER : "",
+		},
+		onSubmit: async (values, helpers) => {
+			const apiKey = values.apiKey.trim();
+			if (
+				!provider.byok_enabled ||
+				apiKey.length === 0 ||
+				apiKey === API_KEY_PLACEHOLDER ||
+				isBusy
+			) {
+				return;
+			}
+
+			try {
+				await saveMutation.mutateAsync({
+					providerConfigId: provider.provider_id,
+					req: { api_key: apiKey },
+				});
+				helpers.resetForm({ values: { apiKey: API_KEY_PLACEHOLDER } });
+				toast.success("API key saved.");
+			} catch (error) {
+				toast.error(getErrorMessage(error, "Error saving API key."), {
+					description: getErrorDetail(error),
+				});
+			}
+		},
+	});
+	const getFieldHelpers = getFormHelpers(form);
 
 	const status = getProviderStatus(provider);
 	const enabledModels = models.filter(
 		(model) => model.enabled && model.ai_provider_id === provider.provider_id,
 	);
-	const hasApiKeyValue = apiKey.trim().length > 0;
-	const hasAPIKeyWhitespace =
-		apiKey !== API_KEY_PLACEHOLDER && apiKey.trim() !== apiKey;
 	const saveDisabled =
 		!provider.byok_enabled ||
-		!hasApiKeyValue ||
-		hasAPIKeyWhitespace ||
-		apiKey === API_KEY_PLACEHOLDER ||
-		isSaving ||
-		isRemoving;
-	const inputDisabled = !provider.byok_enabled || isSaving || isRemoving;
-	const removeDisabled = isSaving || isRemoving;
+		form.values.apiKey.trim().length === 0 ||
+		form.values.apiKey === API_KEY_PLACEHOLDER ||
+		isBusy;
+	const inputDisabled = !provider.byok_enabled || isBusy;
 	const providerName = provider.display_name || provider.provider;
 
 	const handleApiKeyFocus = () => {
-		if (!apiKeyTouched && apiKey === API_KEY_PLACEHOLDER) {
-			setApiKey("");
-			setApiKeyTouched(true);
+		if (form.values.apiKey === API_KEY_PLACEHOLDER) {
+			void form.setFieldValue("apiKey", "");
 		}
 	};
 
-	const handleSave = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-
-		if (saveDisabled) {
-			return;
+	const handleRemoveKey = async () => {
+		try {
+			await removeMutation.mutateAsync(provider.provider_id);
+			setIsDeleteDialogOpen(false);
+			form.resetForm({ values: { apiKey: "" } });
+			toast.success("API key removed.");
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Error removing API key."), {
+				description: getErrorDetail(error),
+			});
 		}
-
-		onSave(provider.provider_id, apiKey);
-	};
-
-	const handleRemoveKey = () => {
-		onRemove(provider.provider_id);
 	};
 
 	const deleteDescription = provider.has_central_api_key_fallback
-		? "This will remove your personal API key. Requests will fall back to the shared deployment key for this provider."
-		: "This will remove your personal API key. You will need to add a new key before you can use this provider again.";
+		? "Requests will fall back to the shared deployment key for this provider."
+		: "You will need to add a new key before you can use this provider again.";
+
+	let enabledModelsContent: ReactNode;
+	if (isModelsLoading) {
+		enabledModelsContent = <Spinner size="sm" loading label="Loading models" />;
+	} else if (enabledModels.length > 0) {
+		enabledModelsContent = (
+			<div className="flex flex-wrap gap-2">
+				{enabledModels.map((model) => (
+					<Badge key={model.id} size="md" variant="default">
+						{model.display_name || model.model}
+					</Badge>
+				))}
+			</div>
+		);
+	} else if (areModelsUnavailable) {
+		enabledModelsContent = (
+			<p className="m-0 text-sm text-content-secondary">
+				Enabled models are temporarily unavailable.
+			</p>
+		);
+	} else {
+		enabledModelsContent = (
+			<p className="m-0 text-sm text-content-secondary">
+				No enabled models configured.
+			</p>
+		);
+	}
 
 	return (
-		<article className="rounded-lg border border-solid border-border p-6">
+		<article
+			className="rounded-lg border border-solid border-border p-6"
+			aria-labelledby={headingId}
+		>
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<div className="space-y-2">
-					<h5 className="m-0 text-lg font-medium text-content-primary">
+					<h5
+						id={headingId}
+						className="m-0 text-lg font-medium text-content-primary"
+					>
 						{providerName}
 					</h5>
 					{status.note && (
@@ -139,38 +198,23 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				</Badge>
 			</div>
 
-			<form className="mt-6 flex flex-col gap-3" onSubmit={handleSave}>
-				<label
-					htmlFor={apiKeyInputId}
-					className="text-sm font-medium text-content-primary"
-				>
-					API Key
-				</label>
-				<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-					<div className="flex flex-col gap-1.5 lg:flex-1">
-						<Input
-							id={apiKeyInputId}
-							name={`provider-api-key-${provider.provider_id}`}
+			<form className="mt-6" onSubmit={form.handleSubmit}>
+				<div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+					<div className="min-w-0 lg:flex-1">
+						<FormField
+							field={getFieldHelpers("apiKey")}
+							label="API Key"
 							type="password"
-							{...passwordManagerIgnoreProps}
-							className="h-9 font-mono text-[13px]"
 							placeholder="sk-..."
-							value={apiKey}
-							onFocus={handleApiKeyFocus}
-							onChange={(event) => {
-								setApiKey(event.target.value);
-								setApiKeyTouched(true);
-							}}
 							disabled={inputDisabled}
+							className="h-8 font-mono"
+							ignorePasswordManagers
+							onFocus={handleApiKeyFocus}
 						/>
-						{hasAPIKeyWhitespace && (
-							<p className="m-0 text-xs text-content-destructive">
-								API key must not contain leading or trailing whitespace.
-							</p>
-						)}
 					</div>
 					<div className="flex items-center gap-2">
 						<Button type="submit" size="sm" disabled={saveDisabled}>
+							<Spinner loading={saveMutation.isPending} />
 							Save
 						</Button>
 						{provider.has_user_api_key && (
@@ -179,7 +223,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 								variant="outline"
 								size="sm"
 								onClick={() => setIsDeleteDialogOpen(true)}
-								disabled={removeDisabled}
+								disabled={isBusy}
 							>
 								Remove
 							</Button>
@@ -194,62 +238,33 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				</p>
 				{areModelsUnavailable && enabledModels.length > 0 && (
 					<p className="m-0 text-sm text-content-secondary">
-						Some enabled model badges are temporarily unavailable.
+						Some enabled models are temporarily unavailable.
 					</p>
 				)}
-				{isModelsLoading ? (
-					<p className="m-0 text-sm text-content-secondary">
-						Loading models...
-					</p>
-				) : enabledModels.length > 0 ? (
-					<div className="flex flex-wrap gap-2">
-						{enabledModels.map((model) => (
-							<Badge key={model.id} size="md" variant="default">
-								{model.display_name || model.model}
-							</Badge>
-						))}
-					</div>
-				) : areModelsUnavailable ? (
-					<p className="m-0 text-sm text-content-secondary">
-						Enabled model badges are temporarily unavailable.
-					</p>
-				) : (
-					<p className="m-0 text-sm text-content-secondary">
-						No enabled models configured.
-					</p>
-				)}
+				{enabledModelsContent}
 			</div>
 
 			<ConfirmDialog
 				open={isDeleteDialogOpen}
 				onClose={() => setIsDeleteDialogOpen(false)}
 				onConfirm={handleRemoveKey}
-				title="Remove API key?"
+				title="Remove API key"
 				description={deleteDescription}
 				confirmText="Remove"
-				confirmLoading={isRemoving}
+				confirmLoading={removeMutation.isPending}
 				type="delete"
 			/>
 		</article>
 	);
 };
 
-interface AgentSettingsAPIKeysProviderItem {
-	provider: UserChatProviderConfig;
-	renderKey: string;
-	isSaving: boolean;
-	isRemoving: boolean;
-}
-
 export interface AgentSettingsAPIKeysPageViewProps {
 	error: unknown;
 	isLoading: boolean;
-	providerItems: readonly AgentSettingsAPIKeysProviderItem[];
+	providers: readonly UserChatProviderConfig[];
 	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
-	onSave: (providerConfigId: string, apiKey: string) => void;
-	onRemove: (providerConfigId: string) => void;
 }
 
 export const AgentSettingsAPIKeysPageView: FC<
@@ -257,49 +272,39 @@ export const AgentSettingsAPIKeysPageView: FC<
 > = ({
 	error,
 	isLoading,
-	providerItems,
+	providers,
 	models,
 	isModelsLoading,
 	areModelsUnavailable,
-	onSave,
-	onRemove,
 }) => {
 	return (
-		<div>
-			<section className="flex flex-col gap-8">
-				<SectionHeader
-					label="Secrets (API keys)"
-					description="Add a personal API key for each provider. Your personal key takes precedence over the shared deployment key when both are available."
+		<section className="flex flex-col gap-8">
+			<SectionHeader
+				label="Secrets (API keys)"
+				description="Add a personal API key for each provider. Your personal key takes precedence over the shared deployment key when both are available."
+			/>
+			{error ? (
+				<ErrorAlert error={error} />
+			) : isLoading ? (
+				<Loader />
+			) : providers.length === 0 ? (
+				<EmptyState
+					message="No providers allow personal API keys."
+					description="Ask your administrator to enable personal API keys for at least one provider."
 				/>
-				<div>
-					{error ? (
-						<ErrorAlert error={error} />
-					) : isLoading ? (
-						<Loader />
-					) : providerItems.length === 0 ? (
-						<EmptyState
-							message="No providers allow personal API keys."
-							description="Ask your administrator to enable personal API keys for at least one provider."
+			) : (
+				<div className="flex flex-col gap-4">
+					{providers.map((provider) => (
+						<ProviderKeyPanel
+							key={provider.provider_id}
+							provider={provider}
+							models={models}
+							isModelsLoading={isModelsLoading}
+							areModelsUnavailable={areModelsUnavailable}
 						/>
-					) : (
-						<div className="flex flex-col gap-4">
-							{providerItems.map((item) => (
-								<ProviderKeyPanel
-									key={item.renderKey}
-									provider={item.provider}
-									models={models}
-									isModelsLoading={isModelsLoading}
-									areModelsUnavailable={areModelsUnavailable}
-									isSaving={item.isSaving}
-									isRemoving={item.isRemoving}
-									onSave={onSave}
-									onRemove={onRemove}
-								/>
-							))}
-						</div>
-					)}
+					))}
 				</div>
-			</section>
-		</div>
+			)}
+		</section>
 	);
 };
