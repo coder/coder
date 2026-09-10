@@ -172,6 +172,10 @@ jobs:
 
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
+          Follow the skill's evidence discipline. State the evidence for each
+          user-facing change before you decide, and post nothing when the
+          evidence does not show a real unresolved gap.
+
           **Do not comment if no documentation changes are needed.**
 
           If a sticky comment already exists, compare your current findings against it:
@@ -217,6 +221,16 @@ jobs:
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          # The bot account belongs to many organizations on this deployment,
+          # where the action's fallback organization choice is not
+          # deterministic. Pin it, because a model configuration ID only
+          # resolves inside its own organization.
+          coder-organization: coder
+          # Pins the model that reviews the PR. Set this repository variable to
+          # a model configuration ID in the organization above. Unset means the
+          # deployment's default model, so clearing the variable is the
+          # rollback path and needs no code change.
+          model-config-id: ${{ vars.DOC_CHECK_MODEL_CONFIG_ID }}
           chat-prompt: ${{ steps.extract-context.outputs.chat_prompt }}
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
