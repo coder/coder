@@ -124,8 +124,8 @@ func (r *runner) bootstrap() bool {
 	// chat owned by a dead runner until its heartbeat goes stale.
 	// Processing the snapshot here seeds lastSnapshotVersion before the
 	// run loop drains stateCh. The snapshot is at least the one Acquire
-	// allocated, so every pre-acquisition hint has a lower version, fails
-	// isNewer, and never reaches the ownership check that requests cleanup.
+	// allocated, so isNewer returns false for every pre-acquisition hint and
+	// the ownership check that requests cleanup does not run for it.
 	r.processState(stateUpdateFromChat(chat))
 	return true
 }
@@ -165,8 +165,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 	}
 
-	// Once this runner no longer owns the chat, it is only waiting to be canceled;
-	// events that arrive meanwhile must not start work.
+	// Once this runner no longer owns the chat, the manager cancels it; events
+	// that arrive before that must not start work.
 	if !r.activeTaskSet && r.owns(r.latestState) {
 		r.spawnForState(r.latestState)
 	}

@@ -2720,11 +2720,11 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 // with the tool call committed and no result. Once its heartbeat is stale
 // another worker must take over and resolve the call without user action.
 //
-// The first worker keeps running on a mock clock the test never advances, so it
-// neither heartbeats nor syncs; the test backdates its heartbeat so another
-// worker can acquire the chat. The takeover notification then cancels the
-// blocked call, which would not happen to a killed process. The part assertions
-// confirm the canceled call commits nothing.
+// The first worker uses a mock clock, so its heartbeat and sync loops never
+// run. The test sets its heartbeat timestamp an hour into the past so another
+// worker can acquire the chat. The takeover notification makes the first
+// runner cancel the blocked call, which would not happen to a killed process;
+// the part assertions confirm the canceled call commits nothing.
 func TestNewReplicaResolvesInFlightToolCallFromDeadReplica(t *testing.T) {
 	t.Parallel()
 
