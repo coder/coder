@@ -17707,7 +17707,9 @@ WITH
 	),
 	session_digests AS (
 		-- A stable hash of the bucket's session usage: the ordered set of
-		-- (kind, name, minutes). It is carried on the main row so the upsert's
+		-- (kind, name, minutes). Names are length-prefixed so embedded
+		-- delimiters cannot make different row sets encode identically.
+		-- It is carried on the main row so the upsert's
 		-- IS DISTINCT FROM guard fires when session usage changes, which is
 		-- what lets the child writes below skip unchanged buckets.
 		--
@@ -17720,7 +17722,7 @@ WITH
 			template_id,
 			user_id,
 			hashtextextended(string_agg(
-				family_group || ':' || name || ':' || usage_mins,
+				family_group || ':' || length(name) || ':' || name || ':' || usage_mins,
 				'|' ORDER BY family_group, name
 			), 0) AS digest
 		FROM
