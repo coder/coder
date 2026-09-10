@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
+import { isMarkdownFileName } from "../utils/markdownFile";
 import { Response } from "./ChatElements/Response";
 
 interface TextPreviewDialogProps {
@@ -23,11 +24,7 @@ const isMarkdownPreview = (
 	if (mediaType === "text/markdown") {
 		return true;
 	}
-	if (!fileName) {
-		return false;
-	}
-	const lower = fileName.toLowerCase();
-	return lower.endsWith(".md") || lower.endsWith(".markdown");
+	return fileName !== undefined && isMarkdownFileName(fileName);
 };
 
 export const TextPreviewDialog: FC<TextPreviewDialogProps> = ({
