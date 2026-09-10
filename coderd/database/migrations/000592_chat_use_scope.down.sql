@@ -1,0 +1,1 @@
+-- Intentionally leave chat:use in api_key_scope because PostgreSQL cannot remove enum values.

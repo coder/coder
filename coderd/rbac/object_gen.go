@@ -124,6 +124,7 @@ var (
 	//  - "ActionRead" :: read chat messages and metadata
 	//  - "ActionShare" :: share a chat with other users or groups
 	//  - "ActionUpdate" :: update chat title or settings
+	//  - "ActionUse" :: send messages, submit tool results, and interrupt a chat
 	ResourceChat = Object{
 		Type: "chat",
 	}

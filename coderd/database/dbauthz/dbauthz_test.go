@@ -773,7 +773,7 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().LinkChatFiles(gomock.Any(), arg).Return(int32(0), nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int32(0))
+		check.Args(arg).Asserts(chat, policy.ActionUse).Returns(int32(0))
 	}))
 	s.Run("PinChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1401,7 +1401,7 @@ func (s *MethodTestSuite) TestChats() {
 		msgs := []database.InsertChatMessagesRow{testutil.Fake(s.T(), faker, database.InsertChatMessagesRow{ChatID: chat.ID})}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().InsertChatMessages(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(msgs)
+		check.Args(arg).Asserts(chat, policy.ActionUse).Returns(msgs)
 	}))
 
 	s.Run("InsertChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1455,14 +1455,14 @@ func (s *MethodTestSuite) TestChats() {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(chat)
+		check.Args(chat.ID).Asserts(chat, policy.ActionUse).Returns(chat)
 	}))
 	s.Run("UpdateChatExecutionState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatExecutionStateParams{ID: chat.ID, Status: database.ChatStatusRunning}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), arg).Return(chat, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+		check.Args(arg).Asserts(chat, policy.ActionUse).Returns(chat)
 	}))
 	s.Run("IncrementChatGenerationAttempt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1488,7 +1488,7 @@ func (s *MethodTestSuite) TestChats() {
 		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().InsertChatQueuedMessageWithCreator(gomock.Any(), arg).Return(qm, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(qm)
+		check.Args(arg).Asserts(chat, policy.ActionUse).Returns(qm)
 	}))
 	s.Run("GetChatQueuedMessagesByPosition", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1523,7 +1523,7 @@ func (s *MethodTestSuite) TestChats() {
 		arg := database.DeleteChatQueuedMessageReturningCountParams{ID: 1, ChatID: chat.ID}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().DeleteChatQueuedMessageReturningCount(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+		check.Args(arg).Asserts(chat, policy.ActionUse).Returns(int64(1))
 	}))
 	s.Run("DeleteAllChatQueuedMessagesReturningCount", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

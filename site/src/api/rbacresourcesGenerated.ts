@@ -72,6 +72,7 @@ export const RBACResourceActions: Partial<
 		read: "read chat messages and metadata",
 		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
+		use: "send messages, submit tool results, and interrupt a chat",
 	},
 	chat_model_config: {
 		create: "create a new chat model config",

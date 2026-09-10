@@ -59,6 +59,7 @@ const (
 	APIKeyScopeChatRead                            APIKeyScope = "chat:read"
 	APIKeyScopeChatShare                           APIKeyScope = "chat:share"
 	APIKeyScopeChatUpdate                          APIKeyScope = "chat:update"
+	APIKeyScopeChatUse                             APIKeyScope = "chat:use"
 	APIKeyScopeChatModelConfigAll                  APIKeyScope = "chat_model_config:*"
 	APIKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
 	APIKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
@@ -269,6 +270,7 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeChatRead,
 	APIKeyScopeChatShare,
 	APIKeyScopeChatUpdate,
+	APIKeyScopeChatUse,
 	APIKeyScopeChatModelConfigRead,
 	APIKeyScopeChatModelConfigShare,
 	APIKeyScopeCoderAll,

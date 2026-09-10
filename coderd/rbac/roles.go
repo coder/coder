@@ -419,10 +419,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners can inspect and delete personal skills for operability and
 			// abuse handling, but cannot create or edit user-authored instructions.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceChat, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
+				ResourceChat.Type:             slice.Omit(ResourceChat.AvailableActions(), policy.ActionUse),
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
 				// Owners manage AI Gateway keys but cannot update them. The
@@ -596,9 +597,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
 						Org: append(
-							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration),
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceChat, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration),
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
+								ResourceChat.Type:             slice.Omit(ResourceChat.AvailableActions(), policy.ActionUse),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 								// PrebuiltWorkspaces are a subset of Workspaces.
 								// Explicitly setting PrebuiltWorkspace permissions for clarity.
@@ -1208,6 +1210,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceChat.Type: {
 			policy.ActionCreate,
 			policy.ActionRead,
+			policy.ActionUse,
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},

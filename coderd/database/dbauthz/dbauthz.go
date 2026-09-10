@@ -550,7 +550,7 @@ var (
 					rbac.ResourceProvisionerJobs.Type:             {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					rbac.ResourceOauth2App.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceChat.Type:                        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceChat.Type:                        {policy.ActionCreate, policy.ActionRead, policy.ActionUse, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIProvider.Type:                  {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIGatewayKey.Type:                {policy.ActionRead, policy.ActionUpdate},
 				}),
@@ -816,7 +816,7 @@ var (
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceAIProvider.Type:       {policy.ActionRead},
-					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUse, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:  {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
@@ -2284,8 +2284,12 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	if err != nil {
 		return 0, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
+	err = q.authorizeContext(ctx, policy.ActionUse, chat)
+	if err != nil {
+		err = q.authorizeContext(ctx, policy.ActionUpdate, chat)
+		if err != nil {
+			return 0, err
+		}
 	}
 	_ = chat
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
@@ -6228,12 +6232,11 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 }
 
 func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
-	// Authorize create on the parent chat (using update permission).
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUse, chat); err != nil {
 		return nil, err
 	}
 	return q.db.InsertChatMessages(ctx, arg)
@@ -6259,7 +6262,7 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	if err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUse, chat); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
 	_ = chat
@@ -7098,8 +7101,12 @@ func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UU
 	if err != nil {
 		return database.Chat{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
+	err = q.authorizeContext(ctx, policy.ActionUse, chat)
+	if err != nil {
+		err = q.authorizeContext(ctx, policy.ActionUpdate, chat)
+		if err != nil {
+			return database.Chat{}, err
+		}
 	}
 	_ = chat
 	return q.db.LockChatAndBumpSnapshotVersion(ctx, id)
@@ -7550,8 +7557,12 @@ func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.Upd
 	if err != nil {
 		return database.Chat{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
+	err = q.authorizeContext(ctx, policy.ActionUse, chat)
+	if err != nil {
+		err = q.authorizeContext(ctx, policy.ActionUpdate, chat)
+		if err != nil {
+			return database.Chat{}, err
+		}
 	}
 	_ = chat
 	return q.db.UpdateChatExecutionState(ctx, arg)
@@ -9599,7 +9610,7 @@ func (q *querier) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesP
 	if err != nil {
 		return 0, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUse, chat); err != nil {
 		return 0, err
 	}
 	return q.db.LinkChatFiles(ctx, arg)

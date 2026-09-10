@@ -80,6 +80,7 @@ var taskActions = map[Action]ActionDefinition{
 var chatActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new chat",
 	ActionRead:   "read chat messages and metadata",
+	ActionUse:    "send messages, submit tool results, and interrupt a chat",
 	ActionUpdate: "update chat title or settings",
 	ActionDelete: "delete a chat",
 	ActionShare:  "share a chat with other users or groups",

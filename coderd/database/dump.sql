@@ -290,7 +290,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_model_config:read',
     'chat_model_config:update',
     'chat_model_config:delete',
-    'chat_model_config:share'
+    'chat_model_config:share',
+    'chat:use'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

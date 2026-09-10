@@ -39,6 +39,7 @@ var externalLowLevel = map[ScopeName]struct{}{
 	// Chats
 	"chat:read":   {},
 	"chat:create": {},
+	"chat:use":    {},
 	"chat:update": {},
 	"chat:delete": {},
 	"chat:share":  {},
