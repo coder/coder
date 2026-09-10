@@ -178,9 +178,8 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 // isNewer reports whether the runner has not seen this state before.
 //
 // Comparing snapshot versions alone is not enough: a direct chat_messages write
-// can move history_version without a snapshot (ARCHITECTURE.md, Message
-// revisions and history version), so two states with the same snapshot version
-// can require different work.
+// moves history_version without a snapshot, so two states with the same
+// snapshot version can require different work.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion
