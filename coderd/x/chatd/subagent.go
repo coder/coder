@@ -654,6 +654,7 @@ func (p *Server) subagentTools(
 	ctx context.Context,
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
+	actorID uuid.UUID,
 ) []fantasy.AgentTool {
 	currentChatSnapshot := database.Chat{}
 	if currentChat != nil {
@@ -719,6 +720,7 @@ func (p *Server) subagentTools(
 					p,
 					parent,
 					turnParent,
+					actorID,
 					currentModelConfigID,
 					explicitModelConfigID,
 					args.Prompt,
@@ -726,6 +728,7 @@ func (p *Server) subagentTools(
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
+				options.actorID = actorID
 
 				if explicitReasoningEffort != nil {
 					options.reasoningEffortOverride = explicitReasoningEffort
@@ -974,6 +977,7 @@ func (p *Server) subagentTools(
 					ctx,
 					parent.ID,
 					targetChatID,
+					actorID,
 					args.Message,
 					busyBehavior,
 				)
@@ -1149,6 +1153,10 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 // entitlement. resolveExploreToolSnapshot computes and persists it on the
 // child chat. Non-Explore children ignore this field.
 type childSubagentChatOptions struct {
+	// actorID posts the child's first user message so the child's turns
+	// run with the spawning turn's credentials. Zero means the parent
+	// owner.
+	actorID                 uuid.UUID
 	chatMode                database.NullChatMode
 	systemPrompt            string
 	modelConfigIDOverride   *uuid.UUID
@@ -1336,7 +1344,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// workspace context the same way a top-level chat does: pinned from the
 	// agent's latest snapshot (see hydrateChatContextOnCreate below). The
 	// parent's context is not copied into child history.
-	initialMessages = append(initialMessages, userMessage(userContent, modelConfigID, parent.OwnerID, opts.reasoningEffortOverride))
+	actorID := opts.actorID
+	if actorID == uuid.Nil {
+		actorID = parent.OwnerID
+	}
+	initialMessages = append(initialMessages, userMessage(userContent, modelConfigID, actorID, opts.reasoningEffortOverride))
 
 	publisher := p.pubsub
 	if publisher == nil {
@@ -1383,6 +1395,7 @@ func (p *Server) sendSubagentMessage(
 	ctx context.Context,
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
+	actorID uuid.UUID,
 	message string,
 	busyBehavior SendMessageBusyBehavior,
 ) (database.Chat, error) {
@@ -1399,15 +1412,9 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, ErrSubagentNotDescendant
 	}
 
-	// Look up the target chat to get the owner for CreatedBy.
-	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
-	}
-
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
-		CreatedBy:    targetChat.OwnerID,
+		CreatedBy:    actorID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
 		BusyBehavior: busyBehavior,
 	})

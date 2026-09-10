@@ -62,7 +62,7 @@ type subagentDefinition struct {
 	id                string
 	description       string
 	unavailableReason func(context.Context, *Server, database.Chat) string
-	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, *uuid.UUID, string) (childSubagentChatOptions, error)
+	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, uuid.UUID, *uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
 func allSubagentDefinitions() []subagentDefinition {
@@ -70,7 +70,7 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeGeneral,
 			description: "substantial delegated research, analysis, reasoning, review, planning support, and implementation",
-			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				if explicitModelConfigID != nil {
 					return childSubagentChatOptions{modelConfigIDOverride: explicitModelConfigID}, nil
 				}
@@ -94,7 +94,7 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeExplore,
 			description: "narrow repository-local read-only code discovery and code tracing",
-			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, _ uuid.UUID, currentModelConfigID uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				modelConfigID := currentModelConfigID
 				var reasoningEffort *string
 				if explicitModelConfigID != nil {
@@ -156,12 +156,12 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, _ database.Chat, actorID uuid.UUID, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
+				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, actorID, string(provider))
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}

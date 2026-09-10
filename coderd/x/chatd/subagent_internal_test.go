@@ -394,7 +394,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 			http.Error(rw, "hook consumer down", http.StatusInternalServerError)
 		})
 
-		tools := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID)
+		tools := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID, parent.OwnerID)
 		tool := findToolByName(tools, spawnAgentToolName)
 		require.NotNil(t, tool)
 		input, err := json.Marshal(spawnAgentArgs{
@@ -929,6 +929,7 @@ func runSubagentTool(
 		ctx,
 		func() database.Chat { return parentChat },
 		currentModelConfigID,
+		parentChat.OwnerID,
 	)
 	tool := findToolByName(tools, toolName)
 	require.NotNil(t, tool, "%s tool must be present", toolName)
@@ -2474,6 +2475,7 @@ func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
 		ctx,
 		func() database.Chat { return turnParent },
 		turnParent.LastModelConfigID,
+		turnParent.OwnerID,
 	)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
@@ -2629,7 +2631,7 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-all",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID, parentChat.OwnerID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2650,7 +2652,7 @@ func TestSpawnAgent_DescriptionSteersGeneralForSubstantialResearch(t *testing.T)
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-selection-guidance",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID, parentChat.OwnerID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2674,7 +2676,7 @@ func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *test
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-missing-key",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID, parentChat.OwnerID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2708,7 +2710,7 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID, parentChat.OwnerID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -3001,7 +3003,7 @@ func TestSpawnAgent_NotAvailableForChildChats(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, childChat.ParentChatID.Valid, "child chat must have a parent")
 
-	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID, childChat.OwnerID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 
@@ -3038,7 +3040,7 @@ func TestSpawnAgent_NotAvailableForExploreChats(t *testing.T) {
 	currentChat, err := db.GetChatByID(ctx, exploreChat.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return currentChat }, currentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return currentChat }, currentChat.LastModelConfigID, currentChat.OwnerID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 
@@ -4177,7 +4179,7 @@ func TestUnbilledSubagentToolNamesMatchCatalog(t *testing.T) {
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	catalog := make(map[string]bool)
-	for _, tool := range server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID) {
+	for _, tool := range server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID, parent.OwnerID) {
 		catalog[tool.Info().Name] = true
 	}
 	for alias := range subagentToolNameAliases {
@@ -4197,7 +4199,7 @@ func TestWaitAgentToolSchema(t *testing.T) {
 
 	tool := findToolByName(server.subagentTools(ctx, func() database.Chat {
 		return parent
-	}, parent.LastModelConfigID), "wait_agent")
+	}, parent.LastModelConfigID, parent.OwnerID), "wait_agent")
 	require.NotNil(t, tool)
 
 	timeoutSeconds, ok := tool.Info().Parameters["timeout_seconds"].(map[string]any)

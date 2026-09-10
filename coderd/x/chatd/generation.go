@@ -54,6 +54,9 @@ type generationPrepareInput struct {
 type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
+	// ActorID is the user whose credentials the turn runs with. See
+	// turnActorID.
+	ActorID uuid.UUID
 
 	Model              chatprovider.Model
 	Prompt             []fantasy.Message
@@ -566,6 +569,18 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
+// turnActorID returns the user whose credentials a turn runs with: the poster
+// of the user message that started the turn, or the chat owner when that
+// message carries no valid poster.
+func turnActorID(chat database.Chat, messages []database.ChatMessage) uuid.UUID {
+	if index := lastUserPromptIndex(messages); index >= 0 {
+		if createdBy := messages[index].CreatedBy; createdBy.Valid && createdBy.UUID != uuid.Nil {
+			return createdBy.UUID
+		}
+	}
+	return chat.OwnerID
+}
+
 func loadGenerationState(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -1012,6 +1027,7 @@ func (s *taskStarter) generateCompaction(
 		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
 			purpose:          "compaction",
 			chat:             prepared.Chat,
+			actorID:          prepared.ActorID,
 			explicitConfig:   &override.Config,
 			requestedEffort:  override.ReasoningEffort,
 			chatdScopedRoute: true,

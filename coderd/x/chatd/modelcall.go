@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -27,8 +28,11 @@ type fixedModelCall struct {
 
 type modelCallSpec struct {
 	// purpose labels resolver logs only; it does not affect call behavior.
-	purpose        string
-	chat           database.Chat
+	purpose string
+	chat    database.Chat
+	// actorID selects the user whose provider credentials route the call.
+	// Zero means the chat owner.
+	actorID        uuid.UUID
 	explicitConfig *database.ChatModelConfig
 	fixedModel     *fixedModelCall
 	// requestedEffort overrides the config's default reasoning effort,
@@ -118,15 +122,19 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		out.callConfig.MaxOutputTokens = ptr.Ref(defaultChatMaxOutputTokens)
 	}
 
+	actorID := spec.actorID
+	if actorID == uuid.Nil {
+		actorID = spec.chat.OwnerID
+	}
 	routeCtx := ctx
 	if spec.chatdScopedRoute {
 		//nolint:gocritic // Deployment-wide override models need chatd-scoped provider reads for user-owned chats.
 		routeCtx = dbauthz.AsChatd(ctx)
 	}
 	if spec.fixedModel != nil {
-		out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.fixedModel.providerType)
+		out.route, err = p.resolveModelRouteForProviderType(routeCtx, actorID, spec.fixedModel.providerType)
 	} else {
-		out.route, err = p.resolveModelRouteForConfig(routeCtx, spec.chat.OwnerID, out.dbConfig)
+		out.route, err = p.resolveModelRouteForConfig(routeCtx, actorID, out.dbConfig)
 	}
 	if err != nil {
 		return resolvedModelCall{}, err
@@ -152,7 +160,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		Chat:         spec.chat,
 		ModelName:    modelName,
 		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(spec.chat),
+		ExtraHeaders: chatprovider.CoderHeadersForTurn(spec.chat, actorID),
 		CallConfig:   clientCallConfig,
 	}, out.route, buildOpts)
 	if err != nil {

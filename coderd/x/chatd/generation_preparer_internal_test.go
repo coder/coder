@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -357,6 +358,108 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+}
+
+// TestPrepareGenerationBindsCredentialsToTurnActor verifies that a turn
+// started by a user other than the chat owner runs with that user's
+// synthetic gateway key.
+func TestPrepareGenerationBindsCredentialsToTurnActor(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	owner := dbgen.User(t, db, database.User{})
+	actor := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	for _, user := range []database.User{owner, actor} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+	}
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "turn actor attribution",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "inspect the workspace"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: actor.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	require.Equal(t, actor.ID, prepared.ActorID)
+	actorKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    actor.ID,
+		TokenName: GatewayTokenName(actor.ID),
+	})
+	require.NoError(t, err)
+	require.Equal(t, actorKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+	_, err = db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    owner.ID,
+		TokenName: GatewayTokenName(owner.ID),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for the actor's turn")
+}
+
+func TestTurnActorID(t *testing.T) {
+	t.Parallel()
+
+	owner := uuid.New()
+	actor := uuid.New()
+	chat := database.Chat{OwnerID: owner}
+	prompt := func(createdBy uuid.NullUUID) database.ChatMessage {
+		return database.ChatMessage{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			CreatedBy:  createdBy,
+		}
+	}
+
+	require.Equal(t, actor, turnActorID(chat, []database.ChatMessage{
+		prompt(uuid.NullUUID{UUID: owner, Valid: true}),
+		prompt(uuid.NullUUID{UUID: actor, Valid: true}),
+	}), "the last user prompt selects the actor")
+	require.Equal(t, owner, turnActorID(chat, []database.ChatMessage{
+		prompt(uuid.NullUUID{UUID: actor, Valid: true}),
+		prompt(uuid.NullUUID{}),
+	}), "a null poster falls back to the owner")
+	require.Equal(t, owner, turnActorID(chat, []database.ChatMessage{
+		prompt(uuid.NullUUID{UUID: uuid.Nil, Valid: true}),
+	}), "a nil poster falls back to the owner")
+	require.Equal(t, owner, turnActorID(chat, nil), "no user prompt falls back to the owner")
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces

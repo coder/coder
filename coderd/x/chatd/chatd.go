@@ -3673,7 +3673,10 @@ func buildSystemPrompt(
 }
 
 type rootChatToolsOptions struct {
-	chat            database.Chat
+	chat database.Chat
+	// actorID is the user whose credentials the turn runs with. See
+	// turnActorID.
+	actorID         uuid.UUID
 	modelConfigID   uuid.UUID
 	workspaceCtx    *turnWorkspaceContext
 	workspaceMu     *sync.Mutex
@@ -3803,15 +3806,15 @@ func (p *Server) appendRootChatTools(
 
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
-			OwnerID: opts.chat.OwnerID,
+			OwnerID: opts.actorID,
 			Logger:  p.logger,
 			Clock:   p.clock,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
-			OwnerID: opts.chat.OwnerID,
+			OwnerID: opts.actorID,
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
-			OwnerID:                        opts.chat.OwnerID,
+			OwnerID:                        opts.actorID,
 			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
@@ -3820,7 +3823,7 @@ func (p *Server) appendRootChatTools(
 			Logger:                         p.logger,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
+			OwnerID:       opts.actorID,
 			StartFn:       p.startWorkspaceFn,
 			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,
@@ -3828,7 +3831,7 @@ func (p *Server) appendRootChatTools(
 			Logger:        p.logger,
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
+			OwnerID:       opts.actorID,
 			StopFn:        p.stopWorkspaceFn,
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
@@ -3846,7 +3849,7 @@ func (p *Server) appendRootChatTools(
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
-	}, opts.modelConfigID)...)
+	}, opts.modelConfigID, opts.actorID)...)
 }
 
 func appendDynamicTools(

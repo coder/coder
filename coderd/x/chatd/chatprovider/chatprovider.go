@@ -597,6 +597,10 @@ func GoogleThinkingLevelFromChat(value *string) *fantasygoogle.ThinkingLevel {
 const (
 	// HeaderCoderOwnerID identifies the Coder user who owns the chat.
 	HeaderCoderOwnerID = "X-Coder-Owner-Id"
+	// HeaderCoderActorID identifies the Coder user whose credentials
+	// the current turn runs with. It equals the owner unless another
+	// user posted the message that started the turn.
+	HeaderCoderActorID = "X-Coder-Actor-Id"
 	// HeaderCoderChatID identifies the top-level (parent) chat.
 	// For root chats this is the chat's own ID; for subchats it
 	// is the parent chat's ID.
@@ -626,6 +630,14 @@ func CoderHeaders(chat database.Chat) map[string]string {
 	if chat.WorkspaceID.Valid {
 		h[HeaderCoderWorkspaceID] = chat.WorkspaceID.UUID.String()
 	}
+	return h
+}
+
+// CoderHeadersForTurn extends CoderHeaders with the actor whose
+// credentials the turn runs with.
+func CoderHeadersForTurn(chat database.Chat, actorID uuid.UUID) map[string]string {
+	h := CoderHeaders(chat)
+	h[HeaderCoderActorID] = actorID.String()
 	return h
 }
 

@@ -71,9 +71,11 @@ func (server *Server) prepareGeneration(
 	input generationPrepareInput,
 ) (generationPrepared, error) {
 	chat := input.Chat
+	actorID := turnActorID(chat, input.Messages)
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
 		slog.F("owner_id", chat.OwnerID),
+		slog.F("actor_id", actorID),
 	)
 
 	prepStart := server.clock.Now()
@@ -109,7 +111,7 @@ func (server *Server) prepareGeneration(
 		return generationPrepared{}, err
 	}
 
-	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, actorID)
 	if err != nil {
 		return generationPrepared{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
@@ -119,6 +121,7 @@ func (server *Server) prepareGeneration(
 	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "standard_turn",
 		chat:            chat,
+		actorID:         actorID,
 		requestedEffort: requestedEffort,
 		buildOptions:    modelOpts,
 	})
@@ -144,6 +147,7 @@ func (server *Server) prepareGeneration(
 		cuResolved, cuErr := server.resolveModelCall(ctx, modelCallSpec{
 			purpose: "computer_use",
 			chat:    chat,
+			actorID: actorID,
 			fixedModel: &fixedModelCall{
 				providerType: cuModelProvider,
 				modelName:    cuModelName,
@@ -385,7 +389,7 @@ func (server *Server) prepareGeneration(
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
 			var tokenErr error
-			mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+			mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, actorID)
 			if tokenErr != nil {
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
@@ -395,9 +399,9 @@ func (server *Server) prepareGeneration(
 				logger,
 				mcpConnectConfigs,
 				mcpTokens,
-				chat.OwnerID,
+				actorID,
 				server.oidcTokenSource,
-				chatprovider.CoderHeaders(chat),
+				chatprovider.CoderHeadersForTurn(chat, actorID),
 				server.mcpHTTPClient,
 			)
 			return nil
@@ -523,6 +527,7 @@ func (server *Server) prepareGeneration(
 	if isRootChat {
 		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
+			actorID:         actorID,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
 			workspaceMu:     &workspaceMu,
@@ -762,6 +767,7 @@ func (server *Server) prepareGeneration(
 	return generationPrepared{
 		Chat:                 refreshedChat,
 		Messages:             input.Messages,
+		ActorID:              actorID,
 		Model:                model,
 		Prompt:               prompt,
 		Tools:                tools,
@@ -893,7 +899,9 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
-	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	actorID := turnActorID(chat, promptRows)
+	logger = logger.With(slog.F("actor_id", actorID))
+	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, actorID)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
@@ -902,6 +910,7 @@ func (server *Server) deriveFinalTurnRunResult(
 	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
 		purpose:      "turn_status_label",
 		chat:         chat,
+		actorID:      actorID,
 		buildOptions: modelOpts,
 	})
 	if err != nil {
