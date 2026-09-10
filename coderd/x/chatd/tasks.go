@@ -29,6 +29,13 @@ const (
 	// silent provider streams fail through chat-specific retry handling
 	// before the runner retries the whole task.
 	defaultTaskTimeout = 15 * time.Minute
+
+	// The exit log entry is the only trace of a task that exits without
+	// changing the database. Tests synchronize on it, so its message and
+	// reasons are constants.
+	taskExitedLogMessage               = "chatworker task exited"
+	taskExitReasonContextCanceled      = "context_canceled"
+	taskExitReasonExpectedNonRetryable = "expected_non_retryable_exit"
 )
 
 var (
@@ -113,12 +120,12 @@ func runTaskWithRetry(
 		exitReason := ""
 		switch {
 		case ctx.Err() != nil:
-			exitReason = "context_canceled"
+			exitReason = taskExitReasonContextCanceled
 		case errors.Is(err, errTaskExpectedExit) && !errors.Is(err, errTaskRetryable):
-			exitReason = "expected_non_retryable_exit"
+			exitReason = taskExitReasonExpectedNonRetryable
 		}
 		if exitReason != "" {
-			opts.logger.Debug(ctx, "chatworker task exited",
+			opts.logger.Debug(ctx, taskExitedLogMessage,
 				slog.F("task_kind", kind),
 				slog.F("reason", exitReason),
 				slog.F("chat_id", info.ChatID),

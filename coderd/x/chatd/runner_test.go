@@ -314,13 +314,13 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	var exits []slog.SinkEntry
 	testutil.Eventually(ctx, t, func(context.Context) bool {
 		exits = sink.Entries(func(e slog.SinkEntry) bool {
-			return e.Message == "chatworker task exited" &&
+			return e.Message == taskExitedLogMessage &&
 				sinkFieldValue(t, e.Fields, "chat_id") == created.ID.String()
 		})
 		return len(exits) > 0
 	}, testutil.IntervalFast)
 	require.Len(t, exits, 1)
-	require.Equal(t, "expected_non_retryable_exit", sinkFieldValue(t, exits[0].Fields, "reason"))
+	require.Equal(t, taskExitReasonExpectedNonRetryable, sinkFieldValue(t, exits[0].Fields, "reason"))
 	require.Contains(t, sinkFieldValue(t, exits[0].Fields, "error"), "chat history version mismatch")
 
 	// Fire the server's timers one at a time until the runner sync
