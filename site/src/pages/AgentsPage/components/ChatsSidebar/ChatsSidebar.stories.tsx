@@ -309,10 +309,34 @@ export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Advance the harness to the fresh-summary phase and let it settle so
-		// the final state shows the post-stream summary.
+
+		// Phase 1: chat is streaming, the cached summary is suppressed in
+		// favor of the live streaming label.
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
+
+		// Phase 2: status flips to waiting while the previous summary is
+		// still cached server-side. The stale text must not flash; the
+		// fallback (model name) shows instead.
+		await waitFor(() => {
+			expect(canvas.getByTestId("flicker-harness")).toHaveAttribute(
+				"data-phase",
+				"stale-after-stream",
+			);
+		});
+		await expect(
+			canvas.queryByText("GPT-4o streaming…"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Added Docker and Terraform validation"),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+
+		// Phase 3: the async finalizer updates the summary. The new text
+		// is displayed, and the stale-suppression guard is cleared.
 		await userEvent.click(canvas.getByTestId("advance-to-fresh"));
-		await canvas.findByText("Validated provider configs and exited cleanly");
+		await expect(
+			canvas.getByText("Validated provider configs and exited cleanly"),
+		).toBeInTheDocument();
 	},
 };
 
