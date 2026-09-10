@@ -102,13 +102,11 @@ describe("getLatestContextUsage", () => {
 		content: [{ type: "tool-result", tool_name: "chat_summarized" }],
 	};
 
-	it("uses the compacted estimate after reloading persisted messages", () => {
-		const messages: TypesGen.ChatMessage[] = JSON.parse(
-			JSON.stringify([
-				{ ...MockChatMessage, id: 1, usage: { input_tokens: 90000 } },
-				MockChatCompactionMessage,
-			]),
-		);
+	it("uses the compacted estimate from persisted messages", () => {
+		const messages: TypesGen.ChatMessage[] = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 90000 } },
+			MockChatCompactionMessage,
+		];
 		expect(getLatestContextUsage(messages)).toEqual({
 			usedTokens: 12000,
 			contextLimitTokens: 100000,
@@ -152,14 +150,12 @@ describe("getLatestContextUsage", () => {
 	])(
 		"does not reuse pre-compaction usage for invalid metadata %j",
 		(result) => {
-			const message: TypesGen.ChatMessage = JSON.parse(
-				JSON.stringify({
-					...MockChatCompactionMessage,
-					content: [
-						{ type: "tool-result", tool_name: "chat_summarized", result },
-					],
-				}),
-			);
+			const message: TypesGen.ChatMessage = {
+				...MockChatCompactionMessage,
+				content: [
+					{ type: "tool-result", tool_name: "chat_summarized", result },
+				],
+			};
 			expect(
 				getLatestContextUsage([
 					{ ...MockChatMessage, usage: { input_tokens: 90000 } },

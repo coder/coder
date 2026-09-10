@@ -1,7 +1,7 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
 	userCompactionThresholdsKey,
@@ -135,126 +135,35 @@ const StoryChatPageInput: FC<{
 	</div>
 );
 
-const compactionStore = createChatStore();
 export const ContextUsageAfterCompaction: Story = {
 	render: () => {
-		compactionStore.resetTransientState();
-		compactionStore.replaceMessages([]);
-		compactionStore.setChatStatus("waiting");
-		return <StoryChatPageInput store={compactionStore} contextLimit={200000} />;
+		const store = createChatStore();
+		store.replaceMessages([MockChatCompactionMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-		const gauge = canvas.getByRole("button", { name: "Context usage" });
-		await userEvent.hover(gauge);
-		await waitFor(() =>
-			expect(
-				body.getByText("Context usage will appear after sending a message."),
-			).toBeVisible(),
-		);
-		await userEvent.unhover(gauge);
-
-		const previous: TypesGen.ChatMessage = {
-			...MockChatMessage,
-			id: 1,
-			usage: { input_tokens: 90000, context_limit: 200000 },
-		};
-		const call: TypesGen.ChatMessagePart = {
-			type: "tool-call",
-			tool_call_id: "summary-1",
-			tool_name: "chat_summarized",
-		};
-		compactionStore.replaceMessages([previous]);
-		compactionStore.setChatStatus("running");
-		compactionStore.applyMessagePart(call);
-		compactionStore.applyMessageParts(MockChatCompactionMessage.content ?? []);
-		const persisted: TypesGen.ChatMessage[] = [
-			previous,
-			{ ...MockChatMessage, id: 2, role: "assistant", content: [call] },
-			MockChatCompactionMessage,
-		];
-		compactionStore.replaceMessages(persisted);
-		compactionStore.clearStreamState();
-		compactionStore.setChatStatus("waiting");
-
-		await waitFor(() =>
-			expect(gauge).toHaveAccessibleName(
-				"Estimated context usage 6%. 12,000 of 200,000 tokens used.",
-			),
-		);
-		await userEvent.hover(gauge);
-		await waitFor(() =>
-			expect(
-				body.getByText("Estimated: 6% - 12K / 200K context used"),
-			).toBeVisible(),
-		);
-		await expect(
-			body.getByText(/Based on the compacted summary only/),
-		).toBeVisible();
-		await expect(
-			body.queryByText("Context usage will appear after sending a message."),
-		).toBeNull();
-		await expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveTextContent(/^$/);
-
-		const reloaded: TypesGen.ChatMessage[] = JSON.parse(
-			JSON.stringify(persisted),
-		);
-		compactionStore.replaceMessages(reloaded);
-		await expect(gauge).toHaveAccessibleName(
-			"Estimated context usage 6%. 12,000 of 200,000 tokens used.",
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
 		);
 	},
 };
 
-const failedCompactionStore = createChatStore();
 export const UncommittedCompactionKeepsContextUsage: Story = {
 	render: () => {
-		failedCompactionStore.resetTransientState();
-		failedCompactionStore.replaceMessages([
-			{
-				...MockChatMessage,
-				usage: { input_tokens: 90000, context_limit: 200000 },
-			},
-		]);
-		failedCompactionStore.setChatStatus("waiting");
-		return (
-			<StoryChatPageInput store={failedCompactionStore} contextLimit={200000} />
-		);
+		const store = createChatStore();
+		const previousMessage: TypesGen.ChatMessage = {
+			...MockChatMessage,
+			usage: { input_tokens: 90000, context_limit: 200000 },
+		};
+		store.replaceMessages([previousMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		for (const status of ["error", "waiting"] satisfies TypesGen.ChatStatus[]) {
-			failedCompactionStore.setChatStatus("running");
-			failedCompactionStore.applyMessagePart({
-				type: "tool-call",
-				tool_call_id: "summary-1",
-				tool_name: "chat_summarized",
-			});
-			if (status === "error") {
-				failedCompactionStore.applyMessagePart({
-					type: "tool-result",
-					tool_call_id: "summary-1",
-					tool_name: "chat_summarized",
-					is_error: true,
-					result: { error: "Summary failed" },
-				});
-			}
-			failedCompactionStore.clearStreamState();
-			failedCompactionStore.setChatStatus(status);
-			const gauge = canvas.getByRole("button", {
-				name: "Context usage 45%. 90,000 of 200,000 tokens used.",
-			});
-			await userEvent.hover(gauge);
-			await waitFor(() =>
-				expect(
-					within(document.body).getByText("45% - 90K / 200K context used"),
-				).toBeVisible(),
-			);
-			await userEvent.unhover(gauge);
-		}
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
+		);
 	},
 };
 

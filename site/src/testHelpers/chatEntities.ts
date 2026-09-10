@@ -143,9 +143,13 @@ export const MockChatCompactionMessage: ChatMessage = {
 			type: "tool-result",
 			tool_call_id: "summary-1",
 			tool_name: "chat_summarized",
-			result: JSON.parse(
-				'{"summary":"Compacted conversation","source":"manual","context_tokens":90000,"context_limit_tokens":100000,"estimated_context_tokens":12000}',
-			),
+			result: {
+				summary: "Compacted conversation",
+				source: "manual",
+				context_tokens: 90000,
+				context_limit_tokens: 100000,
+				estimated_context_tokens: 12000,
+			},
 		},
 	],
 };
