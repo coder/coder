@@ -270,11 +270,11 @@ func (w *chatWorker) acquireCandidate(
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
+		queue, err := chatstate.LoadQueueState(ctx, store, chatID)
 		if err != nil {
-			return xerrors.Errorf("count queue: %w", err)
+			return xerrors.Errorf("load queue state: %w", err)
 		}
-		if !chatstate.ClassifyExecutionState(chat, queueCount > 0, true).IsRunnable() || chat.Archived {
+		if !chatstate.ClassifyExecutionState(chat, queue, true).IsRunnable() || chat.Archived {
 			return errSkipAcquire
 		}
 		if chat.WorkerID.Valid && chat.RunnerID.Valid {

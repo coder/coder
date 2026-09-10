@@ -74,14 +74,14 @@ func (f *testFixture) readChat(ctx context.Context, t *testing.T, chatID uuid.UU
 	return chat
 }
 
-// classify reads the chat plus queue cardinality and returns the
-// execution state.
+// classify reads the chat plus queue state and returns the execution
+// state.
 func (f *testFixture) classify(ctx context.Context, t *testing.T, chatID uuid.UUID) chatstate.ExecutionState {
 	t.Helper()
 	chat := f.readChat(ctx, t, chatID)
-	count, err := f.DB.CountChatQueuedMessages(ctx, chatID)
+	queue, err := chatstate.LoadQueueState(ctx, f.DB, chatID)
 	require.NoError(t, err)
-	return chatstate.ClassifyExecutionState(chat, count > 0, true)
+	return chatstate.ClassifyExecutionState(chat, queue, true)
 }
 
 // recordingPubsub captures every Publish call so tests can assert on

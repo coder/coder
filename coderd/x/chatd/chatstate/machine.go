@@ -84,7 +84,7 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }
 
-// loadState reads the current chat row and queue cardinality from the
+// loadState reads the current chat row and queue state from the
 // active transaction, classifies the execution state, and returns the
 // inputs every transition method needs. Returns ErrChatNotFound if
 // the chat row was deleted in this transaction (or never existed).
@@ -96,11 +96,11 @@ func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
 		}
 		return database.Chat{}, "", xerrors.Errorf("load chat: %w", err)
 	}
-	count, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
+	queue, err := LoadQueueState(tx.ctx, tx.store, tx.chatID)
 	if err != nil {
-		return database.Chat{}, "", xerrors.Errorf("count queued messages: %w", err)
+		return database.Chat{}, "", xerrors.Errorf("load queue state: %w", err)
 	}
-	return chat, ClassifyExecutionState(chat, count > 0, true), nil
+	return chat, ClassifyExecutionState(chat, queue, true), nil
 }
 
 // requireFromAllowed loads the current state and validates t against
