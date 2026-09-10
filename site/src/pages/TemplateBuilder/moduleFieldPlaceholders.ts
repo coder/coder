@@ -14,7 +14,7 @@
  *   2. Variable's `default` value.
  *   3. `Required` when the variable is required, otherwise empty.
  */
-export const MODULE_FIELD_PLACEHOLDERS: Readonly<
+const MODULE_FIELD_PLACEHOLDERS: Readonly<
 	Record<string, Readonly<Record<string, string>>>
 > = {
 	codex: {
