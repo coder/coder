@@ -24,6 +24,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -159,6 +161,14 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
+
+	// Provider configuration has side effects outside the database, notably
+	// the Bedrock profile lookup below, so the permission is checked before
+	// any of them rather than only by dbauthz on the write.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	var req codersdk.CreateAIProviderRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -297,6 +307,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
+
+	// Matches the create path: the Bedrock profile lookup below runs before
+	// dbauthz sees the write, so gate on the permission first.
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	var req codersdk.UpdateAIProviderRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

@@ -317,4 +317,44 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		require.Equal(t, "anthropic.claude-opus-4-8", updated.Settings.Bedrock.ResolvedModel)
 		require.Len(t, paths(), callsAfterCreate, "an unrelated update does not call AWS")
 	})
+
+	t.Run("NonOwnerCannotDriveResolution", func(t *testing.T) {
+		url, _ := mockBedrock(t, func(http.ResponseWriter, *http.Request) {
+			t.Error("Bedrock called for an unauthorized request")
+		})
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
+
+		ownerClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := ownerClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Name:     "bedrock-owner-only",
+			Type:     codersdk.AIProviderTypeBedrock,
+			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Enabled:  true,
+			Settings: *bedrockSettings("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"),
+		})
+		require.NoError(t, err)
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		_, err = memberClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Name:     "bedrock-member",
+			Type:     codersdk.AIProviderTypeBedrock,
+			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Enabled:  true,
+			Settings: *bedrockSettings(testProfileARN, "anthropic.claude-haiku-4-5"),
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		_, err = memberClient.UpdateAIProvider(ctx, created.ID.String(), codersdk.UpdateAIProviderRequest{
+			Settings: bedrockSettings(testProfileARN, "anthropic.claude-haiku-4-5"),
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
 }
