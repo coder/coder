@@ -346,13 +346,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
+	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
+
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
-	const canSendAskUserQuestionResponse =
-		!isInputDisabled && !isSubmissionPending
-			? onSendAskUserQuestionResponse
-			: undefined;
-
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
@@ -932,12 +929,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
-									isOtherUserReadOnly ? undefined : onImplementPlan
+									isOtherUserReadOnly || !canSubmitChatTurn
+										? undefined
+										: onImplementPlan
 								}
 								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly
+									isOtherUserReadOnly || !canSubmitChatTurn
 										? undefined
-										: canSendAskUserQuestionResponse
+										: onSendAskUserQuestionResponse
 								}
 								footer={
 									chat.queued_for_capacity ? (
