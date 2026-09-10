@@ -23,7 +23,11 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
-import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockNoPermissions,
@@ -959,6 +963,197 @@ const mockAgentChatPageAPIs = () => {
 	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 	spyOn(API.experimental, "updateChat").mockResolvedValue();
 	return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+};
+
+// Owned by the current user and scoped to the default organization so
+// the page renders without the read-only or unavailable-model banners.
+const overlayChat: Chat = watchedChat({
+	id: "chat-overlay",
+	organization_id: MockDefaultOrganization.id,
+	title: "Fix flaky workspace build test",
+	status: "waiting",
+	updated_at: todayTimestamp,
+	summary:
+		"Tracked the flake to a race between the build queue and the provisioner daemon heartbeat. Added a synchronization point in the test harness and confirmed 200 consecutive green runs.",
+	diff_status: {
+		chat_id: "chat-overlay",
+		url: "https://github.com/coder/coder/pull/29142",
+		pr_number: 29142,
+		pull_request_title: "fix(coderd): serialize build queue heartbeat in tests",
+		pull_request_state: "open",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions: 48,
+		deletions: 12,
+		changed_files: 3,
+	},
+});
+
+const overlayChatMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	content: TypesGen.ChatMessagePart[],
+): TypesGen.ChatMessage => ({
+	...MockChatMessage,
+	id,
+	chat_id: overlayChat.id,
+	created_at: new Date(Date.now() - (6 - id) * 90_000).toISOString(),
+	role,
+	content,
+});
+
+const overlayChatMessages: TypesGen.ChatMessage[] = [
+	overlayChatMessage(1, "user", [
+		{
+			type: "text",
+			text: "TestWorkspaceBuild_Queue is flaky on CI. Can you find the cause and fix it?",
+		},
+	]),
+	overlayChatMessage(2, "assistant", [
+		{
+			type: "text",
+			text: "I'll reproduce it locally first to confirm the failure mode.",
+		},
+		{
+			type: "tool-call",
+			tool_call_id: "overlay-execute-1",
+			tool_name: "execute",
+			args: {
+				command: "go test ./coderd/... -run TestWorkspaceBuild_Queue -count=20",
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "overlay-execute-1",
+			tool_name: "execute",
+			result: {
+				output: [
+					"--- FAIL: TestWorkspaceBuild_Queue (2.31s)",
+					"    queue_test.go:88: expected build 3 to start after heartbeat, got pending",
+					"FAIL",
+					"FAIL\tgithub.com/coder/coder/coderd\t41.203s",
+				].join("\n"),
+				exit_code: "1",
+			},
+		},
+		{
+			type: "text",
+			text: "Reproduced: 3 of 20 runs fail. The provisioner heartbeat and the queue drain race on `buildQueue.next()`, so the third build is occasionally observed before the heartbeat commits.",
+		},
+	]),
+	overlayChatMessage(3, "user", [
+		{ type: "text", text: "Fix it in the test harness, not the daemon." },
+	]),
+	overlayChatMessage(4, "assistant", [
+		{
+			type: "tool-call",
+			tool_call_id: "overlay-execute-2",
+			tool_name: "execute",
+			args: {
+				command:
+					"go test ./coderd/... -run TestWorkspaceBuild_Queue -count=200",
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "overlay-execute-2",
+			tool_name: "execute",
+			result: {
+				output: "ok\tgithub.com/coder/coder/coderd\t312.884s",
+				exit_code: "0",
+			},
+		},
+		{
+			type: "text",
+			text: "Added `waitForHeartbeat(t, daemon)` before the queue assertion in `queue_test.go`. 200 consecutive runs pass. I opened a PR with the change and a short note on the race.",
+		},
+	]),
+];
+
+// At 1024px the default 320px sidebar cannot dock beside chat (360px)
+// plus a docked right panel (360px), so expanding it overlays the chat
+// instead of bouncing back to collapsed.
+const overlayAgentsLayoutWidth = 1024;
+
+export const SidebarOverlaysDockedRightPanel: Story = {
+	decorators: [
+		withProxyProvider(),
+		(Story) => (
+			<div
+				style={{
+					height: "100vh",
+					overflow: "hidden",
+					width: overlayAgentsLayoutWidth,
+				}}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		mockChats([
+			overlayChat,
+			buildChat({
+				id: "chat-overlay-2",
+				title: "Add unit tests for API layer",
+				status: "running",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "chat-overlay-3",
+				title: "Update CI/CD pipeline config",
+				status: "requires_action",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "chat-overlay-4",
+				title: "Debug memory leak in worker",
+			}),
+		]);
+		const restoreChatPageAPIs = mockAgentChatPageAPIs();
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		const restoreInnerWidth = setInnerWidthForStory(overlayAgentsLayoutWidth);
+		return () => {
+			restoreInnerWidth();
+			restoreChatPageAPIs();
+		};
+	},
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(overlayChat.id), data: overlayChat },
+			{
+				key: chatMessagesKey(overlayChat.id),
+				data: {
+					pages: [
+						{
+							messages: overlayChatMessages,
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined],
+				},
+			},
+			{ key: chatPromptsKey(overlayChat.id), data: { prompts: [] } },
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/${overlayChat.id}`,
+				pathParams: { agentId: overlayChat.id },
+			},
+			routing: [agentsWithAgentChatPageRouting, aiSettingsRouting],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Close sidebar" }),
+		);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Expand sidebar" }),
+		);
+		await canvas.findByRole("button", { name: "Close sidebar" });
+	},
 };
 
 export const ArchiveWatchEventKeepsOpenChatMounted: Story = {

@@ -57,6 +57,20 @@ export function loadPersistedLeftSidebarWidth(): number {
 	return clampLeftSidebarWidth(parsed);
 }
 
+/**
+ * Reports whether an expanded left sidebar must overlay the main panel
+ * instead of docking beside it. Docking would squeeze the main panel
+ * below the width its current content needs (chat alone, or chat plus
+ * a docked right panel).
+ */
+export function shouldOverlayLeftSidebar(
+	viewportWidth: number,
+	sidebarWidth: number,
+	mainPanelMinWidth: number,
+): boolean {
+	return viewportWidth - sidebarWidth < mainPanelMinWidth;
+}
+
 export function persistLeftSidebarWidth(width: number): void {
 	try {
 		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, String(width));

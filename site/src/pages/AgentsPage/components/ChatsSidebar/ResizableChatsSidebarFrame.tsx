@@ -6,27 +6,30 @@ import {
 	useEffect,
 	useEffectEvent,
 	useRef,
-	useState,
 } from "react";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
-	loadPersistedLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
 
 interface ResizableChatsSidebarFrameProps {
 	children: ReactNode;
 	className?: string;
+	/** Current sidebar width in pixels. The frame clamps every change
+	 * it reports, so the parent can store the value as-is. */
+	width: number;
+	onWidthChange: (width: number) => void;
 }
 
 export const ResizableChatsSidebarFrame = ({
 	children,
 	className,
+	width,
+	onWidthChange,
 }: ResizableChatsSidebarFrameProps) => {
-	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
 	const isDragging = useRef(false);
 	const startX = useRef(0);
@@ -34,7 +37,7 @@ export const ResizableChatsSidebarFrame = ({
 
 	const setVisualWidth = (nextWidth: number): number => {
 		const clampedWidth = clampLeftSidebarWidth(nextWidth);
-		setWidth(clampedWidth);
+		onWidthChange(clampedWidth);
 		return clampedWidth;
 	};
 
@@ -45,7 +48,9 @@ export const ResizableChatsSidebarFrame = ({
 
 	const handleResize = useEffectEvent(() => {
 		const clampedWidth = clampLeftSidebarWidth(width);
-		setVisualWidth(clampedWidth);
+		if (clampedWidth !== width) {
+			onWidthChange(clampedWidth);
+		}
 	});
 
 	useEffect(() => {

@@ -7,13 +7,16 @@ import {
 	useState,
 } from "react";
 import { useOutletContext } from "react-router";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 export const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
 
-const MIN_WIDTH = 360;
+/** Narrowest width the panel occupies when docked beside the chat. */
+export const RIGHT_PANEL_MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
 
@@ -21,7 +24,10 @@ const SNAP_THRESHOLD = 80;
 const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
 
 function getMaxWidth(): number {
-	return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * MAX_WIDTH_RATIO));
+	return Math.max(
+		RIGHT_PANEL_MIN_WIDTH,
+		Math.floor(window.innerWidth * MAX_WIDTH_RATIO),
+	);
 }
 
 function getChatMinWidth(parent: HTMLElement): number {
@@ -42,7 +48,10 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 
 	return Math.min(
 		getMaxWidth(),
-		Math.max(MIN_WIDTH, parent.clientWidth - getChatMinWidth(parent)),
+		Math.max(
+			RIGHT_PANEL_MIN_WIDTH,
+			parent.clientWidth - getChatMinWidth(parent),
+		),
 	);
 }
 
@@ -52,7 +61,11 @@ function loadPersistedWidth(): number {
 		return DEFAULT_WIDTH;
 	}
 	const parsed = Number.parseInt(stored, 10);
-	if (Number.isNaN(parsed) || parsed < MIN_WIDTH || parsed > getMaxWidth()) {
+	if (
+		Number.isNaN(parsed) ||
+		parsed < RIGHT_PANEL_MIN_WIDTH ||
+		parsed > getMaxWidth()
+	) {
 		return DEFAULT_WIDTH;
 	}
 	return parsed;
@@ -144,11 +157,11 @@ function useResizableDrag({
 		let nextSnap: "normal" | "expanded" | "closed";
 		if (raw > maxWidth + SNAP_THRESHOLD) {
 			nextSnap = "expanded";
-		} else if (raw < MIN_WIDTH - SNAP_THRESHOLD) {
+		} else if (raw < RIGHT_PANEL_MIN_WIDTH - SNAP_THRESHOLD) {
 			nextSnap = "closed";
 		} else {
 			nextSnap = "normal";
-			setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
+			setWidth(Math.min(maxWidth, Math.max(RIGHT_PANEL_MIN_WIDTH, raw)));
 		}
 		setDragSnap(nextSnap);
 
@@ -204,10 +217,14 @@ export const RightPanel = ({
 	onVisualExpandedChange,
 	children,
 }: RightPanelProps) => {
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+	const {
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		onRightPanelDockedChange,
+	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
+	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
 
 	// Clamp width when the viewport or parent panel shrinks so the
 	// persisted width matches the rendered side-by-side panel width.
@@ -266,60 +283,14 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
+	// Below lg the open panel covers the chat instead of sitting beside
+	// it, and an expanded panel covers the chat at every width, so only
+	// the docked state competes with the left sidebar for room.
+	const isDocked = visualOpen && !visualExpanded && !isBelowLg;
 	useEffect(() => {
-		if (
-			!visualOpen ||
-			visualExpanded ||
-			isSidebarCollapsed ||
-			!onToggleSidebarCollapsed
-		) {
-			return;
-		}
-
-		const parent = panelRef.current?.parentElement;
-		if (!parent) {
-			return;
-		}
-
-		let frame = 0;
-		let collapseRequested = false;
-		const maybeCollapseSidebar = () => {
-			cancelAnimationFrame(frame);
-			frame = requestAnimationFrame(() => {
-				if (
-					collapseRequested ||
-					innerWidth < RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH
-				) {
-					return;
-				}
-
-				const requiredMainWidth = getChatMinWidth(parent) + MIN_WIDTH;
-
-				if (parent.clientWidth >= requiredMainWidth) {
-					return;
-				}
-
-				collapseRequested = true;
-				onToggleSidebarCollapsed();
-			});
-		};
-
-		maybeCollapseSidebar();
-		const resizeObserver = new ResizeObserver(maybeCollapseSidebar);
-		resizeObserver.observe(parent);
-		addEventListener("resize", maybeCollapseSidebar);
-
-		return () => {
-			cancelAnimationFrame(frame);
-			resizeObserver.disconnect();
-			removeEventListener("resize", maybeCollapseSidebar);
-		};
-	}, [
-		visualOpen,
-		visualExpanded,
-		isSidebarCollapsed,
-		onToggleSidebarCollapsed,
-	]);
+		onRightPanelDockedChange?.(isDocked);
+		return () => onRightPanelDockedChange?.(false);
+	}, [isDocked, onRightPanelDockedChange]);
 
 	return (
 		<div

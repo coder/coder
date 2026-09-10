@@ -4,6 +4,7 @@ import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_MIN_WIDTH,
+	shouldOverlayLeftSidebar,
 } from "./sidebarWidth";
 
 const setViewportWidth = (width: number) => {
@@ -33,5 +34,22 @@ describe("getLeftSidebarMaxWidth", () => {
 		setViewportWidth(1440);
 
 		expect(getLeftSidebarMaxWidth()).toBe(660);
+	});
+});
+
+describe("shouldOverlayLeftSidebar", () => {
+	it("overlays when docking would squeeze the main panel", () => {
+		expect(shouldOverlayLeftSidebar(1024, 320, 720)).toBe(true);
+	});
+
+	it("docks when the main panel keeps its minimum width", () => {
+		expect(shouldOverlayLeftSidebar(1040, 320, 720)).toBe(false);
+		expect(shouldOverlayLeftSidebar(1024, 240, 720)).toBe(false);
+	});
+
+	it("docks when only the chat panel needs room", () => {
+		expect(
+			shouldOverlayLeftSidebar(1024, 660, AGENTS_MAIN_PANEL_MIN_WIDTH),
+		).toBe(false);
 	});
 });

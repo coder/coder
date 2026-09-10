@@ -1,5 +1,11 @@
 import { cn } from "cn";
-import { type FC, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -76,6 +82,12 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import {
+	AGENTS_MAIN_PANEL_MIN_WIDTH,
+	loadPersistedLeftSidebarWidth,
+	shouldOverlayLeftSidebar,
+} from "./components/ChatsSidebar/sidebarWidth";
+import { RIGHT_PANEL_MIN_WIDTH } from "./components/RightPanel/RightPanel";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -119,6 +131,12 @@ export interface AgentsPageOutletContext {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
+	/**
+	 * The right panel reports whether it is docked beside the chat so the
+	 * layout can tell when an expanded left sidebar no longer fits and
+	 * must overlay the chat instead.
+	 */
+	onRightPanelDockedChange?: (docked: boolean) => void;
 	onChatReady: () => void;
 }
 
@@ -152,6 +170,11 @@ export const chatCostIdToInvalidate = (
 		return undefined;
 	}
 	return getChatCostTreeID(chat);
+};
+
+const subscribeToViewportResize = (onStoreChange: () => void) => {
+	addEventListener("resize", onStoreChange);
+	return () => removeEventListener("resize", onStoreChange);
 };
 
 const AgentsPageLayout: FC = () => {
@@ -387,6 +410,42 @@ const AgentsPageLayout: FC = () => {
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+	const [sidebarWidth, setSidebarWidth] = useState(
+		loadPersistedLeftSidebarWidth,
+	);
+	const [isRightPanelDocked, setIsRightPanelDocked] = useState(false);
+	const mainPanelMinWidth = isRightPanelDocked
+		? AGENTS_MAIN_PANEL_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH
+		: AGENTS_MAIN_PANEL_MIN_WIDTH;
+	// Subscribing to the boolean rather than the viewport width keeps
+	// window resizes from re-rendering the layout until a threshold flips.
+	const sidebarNeedsOverlay = useSyncExternalStore(
+		subscribeToViewportResize,
+		() => shouldOverlayLeftSidebar(innerWidth, sidebarWidth, mainPanelMinWidth),
+	);
+	const isSidebarOverlay = sidebarNeedsOverlay && !isSidebarCollapsed;
+	// The overlay is a temporary peek at the chat list, so leave it once
+	// the user picks a destination. Render-time state adjustment; see
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	const [prevAgentId, setPrevAgentId] = useState(agentId);
+	if (agentId !== prevAgentId) {
+		setPrevAgentId(agentId);
+		if (isSidebarOverlay) {
+			setIsSidebarCollapsed(true);
+		}
+	}
+	useEffect(() => {
+		if (!isSidebarOverlay) {
+			return;
+		}
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape" && !event.defaultPrevented) {
+				setIsSidebarCollapsed(true);
+			}
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, [isSidebarOverlay]);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -737,6 +796,7 @@ const AgentsPageLayout: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		onExpandSidebar: () => setIsSidebarCollapsed(false),
+		onRightPanelDockedChange: setIsRightPanelDocked,
 		onChatReady: () => {},
 	};
 
@@ -744,10 +804,20 @@ const AgentsPageLayout: FC = () => {
 		<>
 			<div
 				data-testid="agents-page-layout"
-				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+				className="relative flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 			>
 				<title>{pageTitle("Agents")}</title>
+				{isSidebarOverlay && (
+					<button
+						type="button"
+						aria-label="Close sidebar"
+						onClick={() => setIsSidebarCollapsed(true)}
+						className="absolute inset-0 z-20 hidden cursor-default border-0 bg-overlay p-0 animate-in fade-in-0 duration-200 sm:block"
+					/>
+				)}
 				<ResizableChatsSidebarFrame
+					width={sidebarWidth}
+					onWidthChange={setSidebarWidth}
 					className={cn(
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
@@ -756,6 +826,8 @@ const AgentsPageLayout: FC = () => {
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
+						isSidebarOverlay &&
+							"sm:absolute sm:inset-y-0 sm:left-0 sm:z-30 sm:bg-surface-primary sm:shadow-xl sm:animate-in sm:fade-in-0 sm:slide-in-from-left-2 sm:duration-200 sm:ease-out",
 					)}
 				>
 					<ChatsSidebar
