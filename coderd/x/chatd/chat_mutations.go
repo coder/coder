@@ -103,7 +103,11 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
-		if err := chatstate.CheckSendMessageQueueCapacity(chat, queuedCount, busyBehaviorToChatState(busyBehavior), p.chatLimits.MaxQueuedMessagesPerChat); err != nil {
+		queue, err := chatstate.LoadQueueState(ctx, p.db, opts.ChatID)
+		if err != nil {
+			return SendMessageResult{}, xerrors.Errorf("load queue state: %w", err)
+		}
+		if err := chatstate.CheckSendMessageQueueCapacity(chat, queue, queuedCount, busyBehaviorToChatState(busyBehavior), p.chatLimits.MaxQueuedMessagesPerChat); err != nil {
 			return SendMessageResult{}, err
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
