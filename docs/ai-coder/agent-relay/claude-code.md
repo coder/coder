@@ -7,8 +7,7 @@ title: Agent Relay for Claude Code
 > and is currently in closed preview with select customers.
 
 [Agent Relay](./index.md) connects [Claude Code](https://claude.ai/code) sessions to self-hosted Coder workspaces.
-Anthropic calls this self-hosted worker model bring-your-own-compute (BYOC),
-and also refers to it as [self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments).
+Anthropic calls this self-hosted worker model [self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments).
 Developers keep using the claude.ai/code or Claude Desktop client and workflow they already know.
 The Claude Code runner's tool calls run inside a Coder workspace on infrastructure you control
 instead of an Anthropic-managed environment.
@@ -34,7 +33,9 @@ Each Claude Code session gets its own ephemeral workspace.
 ## Requirements
 
 - A licensed Coder deployment
-- An Anthropic plan with self-hosted runner (BYOC) support
+- An Anthropic Team or Enterprise plan.
+  Self-hosted environments are in public beta on these plans;
+  refer to Anthropic's [self-hosted environment documentation](https://code.claude.com/docs/en/self-hosted-environments) for details.
 
 ## Get started
 
