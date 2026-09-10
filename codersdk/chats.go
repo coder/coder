@@ -1685,6 +1685,37 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	// HeldAt is set while the owner is editing the message. A held
+	// message and every message queued behind it are not processed
+	// until the hold is released; messages ahead of it still are.
+	HeldAt *time.Time `json:"held_at,omitempty" format:"date-time"`
+}
+
+// EditChatQueuedMessageRequest edits a queued message. Omitted fields
+// are left unchanged; a request with no fields is rejected.
+type EditChatQueuedMessageRequest struct {
+	// Content, when present, replaces the queued content. An empty
+	// array is rejected.
+	Content []ChatInputPart `json:"content,omitempty"`
+	// ModelConfigID and ReasoningEffort override the message's model and
+	// effort. They are only applied together with Content.
+	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
+	// Held sets or clears the hold. While held, the message and every
+	// message queued behind it wait; messages ahead of it still run.
+	// Releasing the hold on an idle chat processes the message at once.
+	Held *bool `json:"held,omitempty"`
+}
+
+// EditChatQueuedMessageResponse is the response from editing a queued
+// message.
+type EditChatQueuedMessageResponse struct {
+	// QueuedMessage is the message after the edit. It is nil when
+	// releasing the hold promoted the message into history.
+	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
+	// Messages holds every user-visible message inserted when releasing
+	// the hold promoted the message into history, in insertion order.
+	Messages []ChatMessage `json:"messages,omitempty"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -3154,6 +3185,30 @@ func (c *Client) EditChatMessage(
 	}
 	defer res.Body.Close()
 	var resp EditChatMessageResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// EditChatQueuedMessage edits a queued message's content or hold.
+func (c *Client) EditChatQueuedMessage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	queuedMessageID int64,
+	req EditChatQueuedMessageRequest,
+) (EditChatQueuedMessageResponse, error) {
+	res, err := c.Request(
+		ctx,
+		http.MethodPatch,
+		fmt.Sprintf("/api/v2/chats/%s/queue/%d", chatID, queuedMessageID),
+		req,
+	)
+	if err != nil {
+		return EditChatQueuedMessageResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return EditChatQueuedMessageResponse{}, ReadBodyAsError(res)
+	}
+	var resp EditChatQueuedMessageResponse
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

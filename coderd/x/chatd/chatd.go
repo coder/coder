@@ -2097,7 +2097,8 @@ func (p *Server) setChatFamilyArchived(
 
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
-// consumers.
+// consumers. Deleting a held head from a waiting chat can promote the
+// next row; the sidebar watch event covers that status change.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -2107,14 +2108,182 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
+	var (
+		refreshChat database.Chat
+		promoted    bool
+	)
 	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		res, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		if res.PromotedMessage == nil {
+			return nil
+		}
+		promoted = true
+		refreshChat, err = store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("reload chat after delete: %w", err)
+		}
+		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if promoted {
+		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	return nil
+}
+
+// EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
+// values leave the corresponding attribute untouched.
+type EditQueuedMessageOptions struct {
+	ChatID          uuid.UUID
+	QueuedMessageID int64
+	// Content, when non-empty, replaces the queued content. It goes
+	// through the same user_prompt_submit hook as a new send so the
+	// stored row matches what a fresh send would have queued.
+	Content []codersdk.ChatMessagePart
+	// ModelConfigID, when non-zero, overrides the row's model. It is
+	// only applied together with Content.
+	ModelConfigID uuid.UUID
+	// ReasoningEffort, when non-nil and non-empty, overrides the row's
+	// reasoning effort. It is only applied together with Content.
+	ReasoningEffort *string
+	// Held, when non-nil, sets or clears the row's hold.
+	Held *bool
+}
+
+// EditQueuedMessageResult is returned by [Server.EditQueuedMessage].
+type EditQueuedMessageResult struct {
+	// QueuedMessage is the row after the edit. When Promoted is true the
+	// row was popped into history and no longer exists in the queue.
+	QueuedMessage database.ChatQueuedMessage
+	Promoted      bool
+	// InsertedMessages holds every message a release-from-waiting
+	// promotion inserted, in insertion order: synthetic tool
+	// cancellations, then the promoted user message.
+	InsertedMessages []database.ChatMessage
+	Chat             database.Chat
+}
+
+// EditQueuedMessage rewrites a queued row's content and/or hold through
+// the chatstate.EditQueuedMessage transition. Holding a row parks it
+// and everything queued behind it until the owner saves or cancels the
+// edit; see the transition for the queue semantics.
+func (p *Server) EditQueuedMessage(
+	ctx context.Context,
+	opts EditQueuedMessageOptions,
+) (EditQueuedMessageResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return EditQueuedMessageResult{}, xerrors.New("chat_id is required")
+	}
+	if opts.QueuedMessageID <= 0 {
+		return EditQueuedMessageResult{}, xerrors.New("queued_message_id is required")
+	}
+	if len(opts.Content) == 0 && opts.Held == nil {
+		return EditQueuedMessageResult{}, xerrors.New("content or held is required")
+	}
+
+	contentParts := opts.Content
+	if len(contentParts) > 0 && p.hooks.Enabled() {
+		turnID := uuid.New()
+		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return EditQueuedMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
+		}
+		// Repeat these admission checks under the transaction lock.
+		if chat.Archived {
+			return EditQueuedMessageResult{}, ErrChatArchived
+		}
+		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
+			return EditQueuedMessageResult{}, err
+		}
+		promptMessage, err := chathooks.UserPromptMessage(contentParts)
+		if err != nil {
+			return EditQueuedMessageResult{}, err
+		}
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
+		if err != nil {
+			return EditQueuedMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
+		}
+		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
+		if err != nil {
+			return EditQueuedMessageResult{}, err
+		}
+	}
+
+	input := chatstate.EditQueuedMessageInput{
+		QueuedMessageID: opts.QueuedMessageID,
+		Held:            opts.Held,
+	}
+	if len(contentParts) > 0 {
+		content, err := chatprompt.MarshalParts(contentParts)
+		if err != nil {
+			return EditQueuedMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
+		}
+		input.Content = content.RawMessage
+		if opts.ReasoningEffort != nil && *opts.ReasoningEffort != "" {
+			input.ReasoningEffortOverride = database.NullChatReasoningEffort{
+				ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort),
+				Valid:               true,
+			}
+		}
+	}
+
+	var result EditQueuedMessageResult
+	machine := p.newChatMachine(opts.ChatID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		if len(contentParts) > 0 {
+			input.ModelConfigIDOverride, err = validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
+			if err != nil {
+				return err
+			}
+		}
+		editResult, err := tx.EditQueuedMessage(input)
+		if err != nil {
+			return err
+		}
+		result.QueuedMessage = editResult.QueuedMessage
+		if editResult.PromotedMessage != nil {
+			result.Promoted = true
+			result.InsertedMessages = append(result.InsertedMessages, editResult.CancellationMessages...)
+			result.InsertedMessages = append(result.InsertedMessages, *editResult.PromotedMessage)
+		}
+		if len(contentParts) > 0 {
+			// File-link errors must roll back the edit.
+			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+				return err
+			}
+		}
+		// Capture the chat inside the transaction so the watch event
+		// below uses the snapshot bump and status change produced by
+		// the transition itself.
+		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("reload chat after queued edit: %w", err)
+		}
+		result.Chat = refreshed
+		return nil
+	})
+	if err != nil {
+		return EditQueuedMessageResult{}, err
+	}
+	if result.Promoted {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	return result, nil
 }
 
 // PromoteQueued promotes a queued message through the chatstate state

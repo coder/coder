@@ -3315,6 +3315,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "held_at": "2019-08-24T14:15:22Z",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
@@ -4621,6 +4622,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
+  "held_at": "2019-08-24T14:15:22Z",
   "id": 0,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
@@ -4628,13 +4630,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
+| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                                                                            |
+|-------------------|---------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`         | string                                                        | false    |              |                                                                                                                                                                                        |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                        |
+| `created_at`      | string                                                        | false    |              |                                                                                                                                                                                        |
+| `held_at`         | string                                                        | false    |              | Held at is set while the owner is editing the message. A held message and every message queued behind it are not processed until the hold is released; messages ahead of it still are. |
+| `id`              | integer                                                       | false    |              |                                                                                                                                                                                        |
+| `model_config_id` | string                                                        | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -4910,6 +4913,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "held_at": "2019-08-24T14:15:22Z",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
@@ -5893,6 +5897,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
+    "held_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
   },
@@ -8774,6 +8779,186 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `message`             | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                   |
 | `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
 | `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
+
+## codersdk.EditChatQueuedMessageRequest
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "held": true,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                      |
+|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              | Content, when present, replaces the queued content. An empty array is rejected.                                                                                                                  |
+| `held`             | boolean                                                   | false    |              | Held sets or clears the hold. While held, the message and every message queued behind it wait; messages ahead of it still run. Releasing the hold on an idle chat processes the message at once. |
+| `model_config_id`  | string                                                    | false    |              | Model config ID and ReasoningEffort override the message's model and effort. They are only applied together with Content.                                                                        |
+| `reasoning_effort` | string                                                    | false    |              |                                                                                                                                                                                                  |
+
+## codersdk.EditChatQueuedMessageResponse
+
+```json
+{
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+          "file_name": "string",
+          "hook_rewritten": true,
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
+  "queued_message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "content": "string",
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "file_name": "string",
+        "hook_rewritten": true,
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+        "media_type": "string",
+        "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "result_reset": true,
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "held_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  }
+}
+```
+
+### Properties
+
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                       |
+|------------------|----------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages holds every user-visible message inserted when releasing the hold promoted the message into history, in insertion order. |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued message is the message after the edit. It is nil when releasing the hold promoted the message into history.                |
 
 ## codersdk.Entitlement
 
