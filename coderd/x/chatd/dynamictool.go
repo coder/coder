@@ -19,6 +19,7 @@ import (
 type dynamicTool struct {
 	name        string
 	description string
+	inputSchema map[string]any
 	parameters  map[string]any
 	required    []string
 	opts        fantasy.ProviderOptions
@@ -56,6 +57,13 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 			} else {
 				dt.parameters = schema.Properties
 				dt.required = schema.Required
+				// Also keep the schema whole so keys the typed
+				// extraction cannot carry ($defs, combinators,
+				// additionalProperties, ...) reach the provider.
+				var full map[string]any
+				if err := json.Unmarshal(t.InputSchema, &full); err == nil {
+					dt.inputSchema = full
+				}
 			}
 		}
 		result = append(result, dt)
@@ -70,6 +78,12 @@ func (t *dynamicTool) Info() fantasy.ToolInfo {
 		Parameters:  t.parameters,
 		Required:    t.required,
 	}
+}
+
+// FullInputSchema returns the client-supplied input schema whole, or
+// nil when the client sent none or it failed to parse.
+func (t *dynamicTool) FullInputSchema() map[string]any {
+	return t.inputSchema
 }
 
 func (*dynamicTool) Run(_ context.Context, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {

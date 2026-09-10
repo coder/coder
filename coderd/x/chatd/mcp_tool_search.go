@@ -165,13 +165,26 @@ func configureDeferredMCPToolSearch(
 	return ordered, activeToolNames, candidateNames
 }
 
+// fullSchemaTool mirrors chatloop's structural interface for tools
+// that report their complete input schema, so deferral budgeting
+// reflects the real wire payload size.
+type fullSchemaTool interface {
+	FullInputSchema() map[string]any
+}
+
 func estimateDeferredMCPToolTokens(candidates []deferredMCPTool) float64 {
 	chars := 0
 	for _, candidate := range candidates {
 		info := candidate.tool.Info()
-		schema := map[string]any{"type": "object", "properties": info.Parameters}
-		if len(info.Required) > 0 {
-			schema["required"] = info.Required
+		var schema map[string]any
+		if provider, ok := candidate.tool.(fullSchemaTool); ok {
+			schema = provider.FullInputSchema()
+		}
+		if schema == nil {
+			schema = map[string]any{"type": "object", "properties": info.Parameters}
+			if len(info.Required) > 0 {
+				schema["required"] = info.Required
+			}
 		}
 		serialized, _ := json.Marshal(schema)
 		chars += len(info.Name) + len(info.Description) + len(serialized)
