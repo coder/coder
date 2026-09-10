@@ -681,6 +681,15 @@ func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.String())
 }
 
+// A pending device code has no owner yet, so it authorizes as the bare
+// site-level resource. Once decided it belongs to the deciding user.
+func (c OAuth2ProviderDeviceCode) RBACObject() rbac.Object {
+	if !c.UserID.Valid {
+		return rbac.ResourceOauth2AppCodeToken
+	}
+	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.UUID.String())
+}
+
 func (t OAuth2ProviderAppToken) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppCodeToken.WithOwner(t.UserID.String()).WithID(t.ID)
 }

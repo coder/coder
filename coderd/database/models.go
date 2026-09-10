@@ -5814,6 +5814,25 @@ type OAuth2ProviderAppToken struct {
 	Scope string `db:"scope" json:"scope"`
 }
 
+// RFC 8628 device authorization grant codes. A device code is exchanged for a token once a user approves the matching user code.
+type OAuth2ProviderDeviceCode struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	// Short human-typed code displayed by the device. Compared case-insensitively.
+	UserCode string    `db:"user_code" json:"user_code"`
+	AppID    uuid.UUID `db:"app_id" json:"app_id"`
+	// The user who approved or denied. NULL while the request is pending.
+	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
+	Status string        `db:"status" json:"status"`
+	// Negotiated scope, persisted at authorization and applied to the issued API key at redemption.
+	Scope string `db:"scope" json:"scope"`
+	// RFC 8707 resource parameter for audience restriction.
+	ResourceUri sql.NullString `db:"resource_uri" json:"resource_uri"`
+}
+
 type Organization struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`

@@ -6336,6 +6336,65 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 	}))
 }
 
+func (s *MethodTestSuite) TestOAuth2ProviderDeviceCodes() {
+	s.Run("GetOAuth2ProviderDeviceCodeByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderDeviceCode(s.T(), db, database.OAuth2ProviderDeviceCode{
+			AppID: app.ID,
+		})
+		check.Args(code.ID).Asserts(code, policy.ActionRead).Returns(code)
+	}))
+	s.Run("GetOAuth2ProviderDeviceCodeByPrefix", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderDeviceCode(s.T(), db, database.OAuth2ProviderDeviceCode{
+			AppID: app.ID,
+		})
+		check.Args(code.SecretPrefix).Asserts(code, policy.ActionRead).Returns(code)
+	}))
+	s.Run("GetOAuth2ProviderDeviceCodeByUserCode", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderDeviceCode(s.T(), db, database.OAuth2ProviderDeviceCode{
+			AppID:    app.ID,
+			UserCode: "ABCD-EFGH",
+		})
+		// Lookup is case-insensitive.
+		check.Args("abcd-efgh").Asserts(code, policy.ActionRead).Returns(code)
+	}))
+	s.Run("InsertOAuth2ProviderDeviceCode", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		// A new device code has no owner, so the assertion is on the bare resource.
+		check.Args(database.InsertOAuth2ProviderDeviceCodeParams{
+			AppID:    app.ID,
+			UserCode: "ABCD-EFGH",
+			Scope:    string(database.ApiKeyScopeCoderAll),
+		}).Asserts(rbac.ResourceOauth2AppCodeToken, policy.ActionCreate)
+	}))
+	s.Run("UpdateOAuth2ProviderDeviceCodeStatus", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		// Seeded pending so the row authorizes as the unowned resource. The
+		// verb is ActionCreate on purpose; see the wrapper.
+		code := dbgen.OAuth2ProviderDeviceCode(s.T(), db, database.OAuth2ProviderDeviceCode{
+			AppID: app.ID,
+		})
+		check.Args(database.UpdateOAuth2ProviderDeviceCodeStatusParams{
+			ID:     code.ID,
+			Status: "authorized",
+			UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+		}).Asserts(code, policy.ActionCreate)
+	}))
+	s.Run("DeleteOAuth2ProviderDeviceCodeByID", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderDeviceCode(s.T(), db, database.OAuth2ProviderDeviceCode{
+			AppID:  app.ID,
+			Status: "authorized",
+			UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		check.Args(code.ID).Asserts(code, policy.ActionDelete).Returns(code)
+	}))
+}
+
 func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 	s.Run("InsertOAuth2ProviderAppToken", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})

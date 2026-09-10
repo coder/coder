@@ -260,6 +260,7 @@ sql:
           oauth2_provider_app: OAuth2ProviderApp
           oauth2_provider_app_secret: OAuth2ProviderAppSecret
           oauth2_provider_app_code: OAuth2ProviderAppCode
+          oauth2_provider_device_code: OAuth2ProviderDeviceCode
           oauth2_provider_app_token: OAuth2ProviderAppToken
           api_key_id: APIKeyID
           callback_url: CallbackURL

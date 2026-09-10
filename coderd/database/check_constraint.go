@@ -55,6 +55,8 @@ const (
 	CheckOauth2ProviderAppCodesScopeNotEmpty                 CheckConstraint = "oauth2_provider_app_codes_scope_not_empty"                 // oauth2_provider_app_codes
 	CheckOauth2ProviderAppTokensScopeNotEmpty                CheckConstraint = "oauth2_provider_app_tokens_scope_not_empty"                // oauth2_provider_app_tokens
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps
+	CheckOauth2ProviderDeviceCodesScopeNotEmpty              CheckConstraint = "oauth2_provider_device_codes_scope_not_empty"              // oauth2_provider_device_codes
+	CheckOauth2ProviderDeviceCodesStatusCheck                CheckConstraint = "oauth2_provider_device_codes_status_check"                 // oauth2_provider_device_codes
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
 	CheckMaxLogsLength                                       CheckConstraint = "max_logs_length"                                           // workspace_agents
