@@ -30,9 +30,10 @@ Each Claude Code session gets its own ephemeral workspace.
 ## Requirements
 
 - A licensed Coder deployment
-- An Anthropic Team or Enterprise plan.
-  Self-hosted environments are in public beta on these plans;
-  refer to Anthropic's [self-hosted environment documentation](https://code.claude.com/docs/en/self-hosted-environments) for details.
+- An Anthropic Team or Enterprise plan
+
+Self-hosted environments are in public beta on these plans.
+Refer to Anthropic's [self-hosted environment documentation](https://code.claude.com/docs/en/self-hosted-environments) for details.
 
 ## Get started
 
