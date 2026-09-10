@@ -435,6 +435,61 @@ func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
 		"UPDATE of queued content bumps queue_version")
 }
 
+// TestQueueUpdateHeldAtUpdatesQueueVersion verifies that setting and
+// clearing held_at bumps queue_version, so open streams learn about a
+// hold through the regular queue_update event.
+func TestQueueUpdateHeldAtUpdatesQueueVersion(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:    created.Chat.ID,
+		Content:   userMessageContent(t, "initial"),
+		CreatedBy: f.User.ID,
+	})
+	require.NoError(t, err)
+
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	held, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
+		ChatID: created.Chat.ID,
+		ID:     queued.ID,
+		Held:   true,
+	})
+	require.NoError(t, err)
+	require.True(t, held.HeldAt.Valid)
+	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, bumped.SnapshotVersion, after.QueueVersion,
+		"setting held_at bumps queue_version")
+
+	// Holding again keeps the original timestamp.
+	heldAgain, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
+		ChatID: created.Chat.ID,
+		ID:     queued.ID,
+		Held:   true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, held.HeldAt, heldAgain.HeldAt, "re-holding is idempotent")
+
+	bumped, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	released, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
+		ChatID: created.Chat.ID,
+		ID:     queued.ID,
+		Held:   false,
+	})
+	require.NoError(t, err)
+	require.False(t, released.HeldAt.Valid)
+	after, err = f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, bumped.SnapshotVersion, after.QueueVersion,
+		"clearing held_at bumps queue_version")
+}
+
 // TestQueueUpdatePositionUpdatesQueueVersion verifies that an UPDATE
 // of chat_queued_messages.position (such as the reorder-to-head
 // path) bumps queue_version.

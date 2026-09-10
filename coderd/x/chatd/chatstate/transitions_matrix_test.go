@@ -338,6 +338,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applyDeleteQueuedMessage
 	case chatstate.TransitionPromoteQueuedMessage:
 		return applyPromoteQueuedMessage
+	case chatstate.TransitionEditQueuedMessage:
+		return applyEditQueuedMessage
 	case chatstate.TransitionInterrupt:
 		return applyInterrupt
 	case chatstate.TransitionCompleteRequiresAction:
@@ -389,6 +391,7 @@ type transitionCaseResult struct {
 	clearContext            chatstate.ClearContextResult
 	deleteQueuedMessage     chatstate.DeleteQueuedMessageResult
 	promoteQueuedMessage    chatstate.PromoteQueuedMessageResult
+	editQueuedMessage       chatstate.EditQueuedMessageResult
 	interrupt               chatstate.InterruptResult
 	completeRequiresAction  chatstate.CompleteRequiresActionResult
 	recordGenerationAttempt chatstate.RecordGenerationAttemptResult
@@ -774,7 +777,7 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 // change.
 
 func matrixCases() []transitionCaseSpec {
-	return []transitionCaseSpec{
+	cases := []transitionCaseSpec{
 		// SetArchived cases: each archived/unarchived pair flips the
 		// archived flag, preserves status, history and last_error,
 		// and does not insert anything new.
@@ -924,6 +927,7 @@ func matrixCases() []transitionCaseSpec {
 		reconcileInvalidStateCase(chatstate.StateE0, queueShapeDefault),
 		reconcileInvalidStateCase(chatstate.StateE1, queueShapeMulti),
 	}
+	return append(cases, heldQueueMatrixCases()...)
 }
 
 func setArchivedCase(from, want chatstate.ExecutionState, wantStatus database.ChatStatus) transitionCaseSpec {
