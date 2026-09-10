@@ -48,11 +48,7 @@ writing them.
 
 ## Evidence discipline
 
-Follow this order on every review. It is the discipline that measured best
-when this job was benchmarked against 48 real merged PRs, each judged
-against the docs as they stood at that PR's own base commit. The harness,
-the answer key, and the per-PR results are in the
-[doc-check evals](https://github.com/coder/solstice/tree/main/evals/doccheck).
+Follow this order on every review.
 
 1. **List what the user experiences, not what files changed.**
    "User-facing" means what a user sees, types, clicks, or receives.
