@@ -214,7 +214,7 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 							<span
 								role="img"
 								aria-label={failedLabel}
-								className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive"
+								className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-secondary"
 							>
 								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 								{block.failedCount}
