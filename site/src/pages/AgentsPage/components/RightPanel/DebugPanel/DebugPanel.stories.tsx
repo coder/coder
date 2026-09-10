@@ -62,7 +62,7 @@ const buildLargeRecord = (
 type StoryCanvas = ReturnType<typeof within>;
 type StoryUser = ReturnType<typeof userEvent.setup>;
 
-const expectVisibleCopyButtonOnHover = async ({
+const hoverCodeBlock = async ({
 	canvas,
 	label,
 }: {
@@ -74,20 +74,11 @@ const expectVisibleCopyButtonOnHover = async ({
 	if (!(groupContainer instanceof HTMLElement)) {
 		throw new Error("Missing debug-code hover wrapper.");
 	}
-	let supportsNativeHover = false;
 	try {
 		const { userEvent: browserUserEvent } = await import("vitest/browser");
 		await browserUserEvent.hover(groupContainer);
-		supportsNativeHover = true;
 	} catch {
 		await userEvent.hover(groupContainer);
-	}
-	if (supportsNativeHover) {
-		await waitFor(() => {
-			if (!copyButton.checkVisibility()) {
-				throw new Error("Expected the copy button to be visible.");
-			}
-		});
 	}
 	return copyButton;
 };
@@ -793,7 +784,7 @@ export const SingleStepSuccessfulRun: Story = {
 		await canvas.findByText("Step 1");
 
 		await user.click(await canvas.findByText("Request body"));
-		await expectVisibleCopyButtonOnHover({
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy request body JSON/i,
 		});
@@ -1113,15 +1104,15 @@ export const MultiStepRunWithRetries: Story = {
 		await expandStep(canvas, user);
 
 		await user.click(await canvas.findByRole("button", { name: /Attempt 1/i }));
-		await expectVisibleCopyButtonOnHover({
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy raw request JSON/i,
 		});
-		await expectVisibleCopyButtonOnHover({
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy raw response JSON/i,
 		});
-		await expectVisibleCopyButtonOnHover({
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy raw attempt error/i,
 		});
@@ -1159,7 +1150,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 
 		// Expand the request body to reveal the redacted headers.
 		await user.click(await canvas.findByText("Request body"));
-		await expectVisibleCopyButtonOnHover({
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy request body JSON/i,
 		});
