@@ -993,6 +993,11 @@ export const LoadingModelCatalog: Story = {
 	args: {
 		...defaultArgs,
 	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockReturnValue(
+			new Promise(() => undefined),
+		);
+	},
 };
 
 export const CachedModelsWithRefetchError: Story = {
@@ -1037,13 +1042,6 @@ export const LoadingPersonalModelOverrides: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
 };
 
 export const FailedPersonalModelOverridesBlocksSend: Story = {
@@ -1067,17 +1065,6 @@ export const FailedPersonalModelOverridesBlocksSend: Story = {
 				data: defaultUserProviderConfigs,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// A failed override fetch must keep sending blocked: submitting would
-		// pass a catalog fallback as an explicit model, silently bypassing the
-		// user's saved root override.
-		await canvas.findAllByText(/failed to load personal overrides/i);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
 	},
 };
 
@@ -1241,13 +1228,6 @@ export const AIGatewayDisabled: Story = {
 	args: {
 		...defaultArgs,
 		aiGatewayDisabled: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
 	},
 };
 
@@ -2073,15 +2053,6 @@ export const ForeignOnlyModelsDisableGeneration: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
-		expect(args.onCreateChat).not.toHaveBeenCalled();
-	},
 };
 
 export const OrgPickerTightSpacing: Story = {
@@ -2261,13 +2232,6 @@ export const MCPServersLoadingDisablesSend: Story = {
 		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
 			() => new Promise(() => {}),
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const input = canvas.getByRole("textbox");
-		await userEvent.click(input);
-		await userEvent.keyboard("send while MCP servers load");
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
 

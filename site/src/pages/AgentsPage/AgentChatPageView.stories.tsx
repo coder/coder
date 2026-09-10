@@ -300,7 +300,7 @@ export const CachedModelsWithRefetchError: Story = {
 	),
 };
 
-/** Archived agent displays the read-only banner below the top bar. */
+/** Archived agent hides the composer and shows the read-only banner. */
 export const Archived: Story = {
 	render: () => (
 		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
@@ -448,7 +448,7 @@ export const WithError: Story = {
 	),
 };
 
-/** Input area appears disabled when `isInputDisabled` is true. */
+/** Send is blocked while input stays editable for drafts. */
 export const InputDisabled: Story = {
 	render: () => <StoryAgentChatPageView isInputDisabled />,
 };
