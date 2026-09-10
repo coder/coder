@@ -584,11 +584,11 @@ const sessionFamilySFTP codersdk.AppFamilyName = "sftp"
 func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
 	usageSeconds, err := codersdk.DecodeAppFamilyMap[int64](usage.SessionFamilyUsageSeconds)
 	if err != nil {
-		return nil, xerrors.Errorf("convert template insights apps: decode session family usage seconds: %w", err)
+		return nil, xerrors.Errorf("decode session family usage seconds: %w", err)
 	}
 	templateIDsByFamily, err := codersdk.DecodeAppFamilyMap[[]uuid.UUID](usage.SessionFamilyTemplateIds)
 	if err != nil {
-		return nil, xerrors.Errorf("convert template insights apps: decode session family template ids: %w", err)
+		return nil, xerrors.Errorf("decode session family template ids: %w", err)
 	}
 	// Keep serializing empty template lists as [] instead of null.
 	templateIDs := func(family codersdk.AppFamilyName) []uuid.UUID {

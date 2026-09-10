@@ -57,7 +57,7 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				t.Parallel()
 
 				apps, err := convertTemplateInsightsApps(usage, nil)
-				require.ErrorContains(t, err, "convert template insights apps: decode session family")
+				require.ErrorContains(t, err, "decode session family")
 				require.Nil(t, apps)
 			})
 		}
