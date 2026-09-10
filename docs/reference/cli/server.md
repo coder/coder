@@ -1753,7 +1753,7 @@ The upper limit of attempts to send a notification.
 | Type        | <code>duration</code>                                           |
 | Environment | <code>$CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL</code> |
 | YAML        | <code>workspace_prebuilds.reconciliation_interval</code>        |
-| Default     | <code>1m0s</code>                                               |
+| Default     | <code>5m0s</code>                                               |
 
 How often to reconcile workspace prebuilds state.
 
