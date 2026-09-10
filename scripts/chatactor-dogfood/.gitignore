@@ -1,0 +1,4 @@
+# Run artifacts. state.json holds session, OAuth2, and MCP bearer tokens.
+logs/
+results*.md
+state.json
