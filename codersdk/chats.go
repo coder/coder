@@ -1703,7 +1703,7 @@ type EditChatQueuedMessageRequest struct {
 	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
 	// Held sets or clears the hold. While held, the message and every
 	// message queued behind it wait; messages ahead of it still run.
-	// Releasing the hold on an idle chat processes the message at once.
+	// Releasing the hold on a waiting chat processes the message at once.
 	Held *bool `json:"held,omitempty"`
 }
 

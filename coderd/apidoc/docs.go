@@ -23353,7 +23353,7 @@ const docTemplate = `{
                     }
                 },
                 "held": {
-                    "description": "Held sets or clears the hold. While held, the message and every\nmessage queued behind it wait; messages ahead of it still run.\nReleasing the hold on an idle chat processes the message at once.",
+                    "description": "Held sets or clears the hold. While held, the message and every\nmessage queued behind it wait; messages ahead of it still run.\nReleasing the hold on a waiting chat processes the message at once.",
                     "type": "boolean"
                 },
                 "model_config_id": {
