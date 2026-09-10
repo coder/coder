@@ -894,7 +894,7 @@ const agentsWithAgentChatPageRouting = {
 const WATCHED_CHAT_ID = "chat-watched";
 
 // MockChat is owned by MockUserOwner, so the page renders the owner view
-// (composer enabled unless archived) instead of the other-user banner.
+// instead of the other-user banner. Archived chats hide the composer.
 const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: WATCHED_CHAT_ID,
@@ -973,7 +973,6 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText("This agent has been archived and is read-only.");
-		await canvas.findByRole("textbox");
 	},
 };
 
@@ -988,8 +987,7 @@ export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Let the async watch event land; the archived banner unmounts.
-		await canvas.findByRole("textbox");
+		await canvas.findByRole("textbox", { name: "Chat message" });
 		await waitFor(
 			() =>
 				canvas.queryByText("This agent has been archived and is read-only.") ===
