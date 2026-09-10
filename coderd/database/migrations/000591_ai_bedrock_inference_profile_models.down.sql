@@ -1,1 +1,0 @@
-DROP TABLE ai_bedrock_inference_profile_models;

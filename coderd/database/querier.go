@@ -294,7 +294,6 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
-	GetAIBedrockInferenceProfileModels(ctx context.Context, inferenceProfileArns []string) ([]AIBedrockInferenceProfileModel, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -1660,11 +1659,6 @@ type sqlcQuerier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
-	// Records the model an application inference profile ARN resolves to. The
-	// provider write path resolves the ARN through the Bedrock control plane and
-	// stores the answer here, so the gateway never has to. An upsert rather than
-	// an insert so a later save corrects a stored value.
-	UpsertAIBedrockInferenceProfileModel(ctx context.Context, arg UpsertAIBedrockInferenceProfileModelParams) error
 	// Upsert a batch of model prices from a JSON array, all recorded under the
 	// given source. Each element must have provider, model, and the four price
 	// fields, and null prices are written as SQL NULL.
