@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	getModuleFieldPlaceholder,
-	MODULE_FIELD_PLACEHOLDERS,
-} from "./moduleFieldPlaceholders";
+import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
 
 describe("getModuleFieldPlaceholder", () => {
 	it("returns the override for known module/variable pairs", () => {
