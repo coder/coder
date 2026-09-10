@@ -1,68 +1,123 @@
-import type { FC } from "react";
+import { BotIcon, CpuIcon, MonitorIcon, UserIcon } from "lucide-react";
+import { type FC, useCallback, useMemo } from "react";
+import { useQueryClient } from "react-query";
+import {
+	getValidationErrorMessage,
+	hasError,
+	isApiValidationError,
+} from "#/api/errors";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import { extractFreeText } from "#/components/Filter/FilterCombobox/filterQuery";
+import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import {
-	Filter,
-	MenuSkeleton,
-	type useFilter,
-} from "#/components/Filter/Filter";
-import { type UserFilterMenu, UserMenu } from "#/components/Filter/UserFilter";
-import { ClientFilter, type ClientFilterMenu } from "../filters/ClientFilter";
-import { ModelFilter, type ModelFilterMenu } from "../filters/ModelFilter";
+	parseFilterQuery,
+	stringifyFilter,
+} from "#/components/Filter/filterQuery";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
-	ProviderFilter,
-	type ProviderFilterMenu,
-} from "../filters/ProviderFilter";
+	getClientFilterOptions,
+	getInitiatorFilterOptions,
+	getModelFilterOptions,
+	getProviderFilterOptions,
+} from "../filters/categoryOptions";
 
-// Narrower than the SelectFilter default so the search input keeps most
-// of the row on wide viewports.
-const FILTER_WIDTH = 150;
+// The time range shares the `filter` query string with the combobox filters,
+// but the picker owns these two keys: they are split out of the combobox value
+// and merged back on every change so they never surface as chips or free text.
+const TIME_RANGE_KEYS = ["started_after", "started_before"] as const;
 
-interface ListSessionsFilterProps {
-	filter: ReturnType<typeof useFilter>;
+type ListSessionsFilterProps = Readonly<{
+	filter: UseFilterResult;
 	error?: unknown;
-	menus: {
-		user: UserFilterMenu;
-		provider: ProviderFilterMenu;
-		client: ClientFilterMenu;
-		model: ModelFilterMenu;
-	};
 	timeRange: DateTimeRangeValue;
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
-}
+}>;
 
 export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	filter,
 	error,
-	menus,
 	timeRange,
 	onTimeRangeChange,
 }) => {
+	const { user: me } = useAuthenticated();
+	const queryClient = useQueryClient();
+
+	const categories = useMemo<FilterCategory[]>(
+		() => [
+			{
+				key: "initiator",
+				label: "User",
+				aliases: ["user"],
+				icon: <UserIcon />,
+				getOptions: (query) =>
+					getInitiatorFilterOptions(query, me, queryClient),
+			},
+			{
+				key: "provider_name",
+				label: "Provider",
+				aliases: ["provider"],
+				icon: <BotIcon />,
+				getOptions: getProviderFilterOptions,
+			},
+			{
+				key: "client",
+				label: "Client",
+				icon: <MonitorIcon />,
+				getOptions: getClientFilterOptions,
+			},
+			{
+				key: "model",
+				label: "Model",
+				icon: <CpuIcon />,
+				getOptions: getModelFilterOptions,
+			},
+		],
+		[me, queryClient],
+	);
+
+	const handleChange = useCallback(
+		(query: string) => {
+			const values = parseFilterQuery(filter.query);
+			const timeRangeQuery = stringifyFilter({
+				started_after: values.started_after,
+				started_before: values.started_before,
+			});
+			filter.update(
+				[query, timeRangeQuery].filter((part) => part.length > 0).join(" "),
+			);
+		},
+		[filter],
+	);
+
+	// The page renders no error alert of its own, so the filter surfaces the
+	// actionable "invalid query" message.
+	const showValidationError = hasError(error) && isApiValidationError(error);
+
 	return (
-		<Filter
-			filter={filter}
-			optionsSkeleton={<MenuSkeleton />}
-			isLoading={menus.user.isInitializing}
-			// No preset queries; the search field and menus already cover them.
-			presets={[]}
-			error={error}
-			options={
-				<>
-					<DateTimeRangePicker
-						value={timeRange}
-						onChange={onTimeRangeChange}
-						size="lg"
-					/>
-					<UserMenu
-						menu={menus.user}
-						placeholder="All users"
-						width={FILTER_WIDTH}
-					/>
-					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
-					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
-					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
-				</>
-			}
-		/>
+		<div className="mb-4 flex flex-wrap items-start gap-2">
+			{/* Column wrapper so the validation message sits under the input
+			    instead of beside it in the row. */}
+			<div className="flex min-w-0 max-w-full flex-col gap-2">
+				<FilterCombobox
+					value={extractFreeText(filter.query, TIME_RANGE_KEYS)}
+					onChange={handleChange}
+					categories={categories}
+					placeholder="Search and filter sessions…"
+					// Starts at a compact width and widens to fit chips before wrapping.
+					className="w-auto min-w-lg max-w-full self-start"
+					errorMessage={
+						showValidationError ? getValidationErrorMessage(error) : undefined
+					}
+				/>
+			</div>
+			<DateTimeRangePicker
+				value={timeRange}
+				onChange={onTimeRangeChange}
+				size="lg"
+			/>
+		</div>
 	);
 };

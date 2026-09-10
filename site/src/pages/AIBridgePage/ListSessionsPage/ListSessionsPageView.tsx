@@ -21,7 +21,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
-import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 import { ListSessionsRow } from "./ListSessionsRow";
@@ -76,8 +75,6 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 		return <AIBridgeSetupAlert />;
 	}
 
-	const utcOffset = formatDateTime(new Date(), DATE_FORMAT.UTC_OFFSET);
-
 	return (
 		<>
 			<ListSessionsFilter {...filterProps} />
@@ -92,14 +89,11 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 							<TableHead className="text-nowrap">Client</TableHead>
 							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
 							<TableHead className="text-nowrap">Network Requests</TableHead>
-							<TableHead className="flex items-center flex-nowrap gap-1">
+							<TableHead className="flex w-24 items-center flex-nowrap gap-1">
 								Threads
 								<ThreadTooltip>
 									<InfoIcon className="size-icon-xs" />
 								</ThreadTooltip>
-							</TableHead>
-							<TableHead className="text-nowrap">
-								Last Prompt At [UTC{utcOffset}]
 							</TableHead>
 						</TableRow>
 					</TableHeader>
