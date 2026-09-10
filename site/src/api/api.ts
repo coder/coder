@@ -3380,9 +3380,15 @@ class ExperimentalApiMethods {
 
 	getChatDiffContents = async (
 		chatId: string,
+		ref?: TypesGen.DiffStatusRef,
 	): Promise<TypesGen.ChatDiffContents> => {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/v2/chats/${chatId}/diff`,
+			{
+				params: ref
+					? { origin: ref.remote_origin, branch: ref.git_branch }
+					: {},
+			},
 		);
 		return response.data;
 	};
