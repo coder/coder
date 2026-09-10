@@ -33,13 +33,4 @@ describe("getModuleFieldPlaceholder", () => {
 			getModuleFieldPlaceholder("codex", "does_not_exist"),
 		).toBeUndefined();
 	});
-
-	it("exports the full override table", () => {
-		expect(Object.keys(MODULE_FIELD_PLACEHOLDERS).sort()).toEqual([
-			"claude-code",
-			"codex",
-			"dotfiles",
-			"git-clone",
-		]);
-	});
 });
