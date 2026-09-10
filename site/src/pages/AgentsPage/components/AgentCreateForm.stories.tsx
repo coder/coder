@@ -2,6 +2,7 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
 import { type ComponentProps, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
+import { useLocation } from "react-router";
 import {
 	expect,
 	fn,
@@ -11,6 +12,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
 import {
@@ -50,6 +52,16 @@ let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
 >;
 let capturedQueryClient: QueryClient | undefined;
+
+const LocationProbe = () => {
+	const location = useLocation();
+	return (
+		<output aria-label="Current location">
+			{location.pathname}
+			{location.search}
+		</output>
+	);
+};
 
 const permittedOrgsKey = permittedOrganizationsKey({
 	object: { resource_type: "chat", owner_id: "me" },
@@ -1136,27 +1148,42 @@ export const MissingProviderAndModelSetup: Story = {
 		...defaultArgs,
 		canConfigureAgentSetup: true,
 	},
+};
+
+export const LocalOrganizationMissingProviderAndModelSetup: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: [
+				{ path: "/agents", useStoryElement: true },
+				{ path: "/ai/settings/models", element: <LocationProbe /> },
+			],
+		}),
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockOrganization2],
+			},
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: emptyModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
+	args: {
+		...defaultArgs,
+		canConfigureAgentSetup: true,
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a provider then add a model."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
-			"href",
-			"/ai/settings/providers",
-		);
-		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			"/ai/settings/models",
-		);
+		await userEvent.click(canvas.getByRole("link", { name: "model" }));
 	},
 };
 

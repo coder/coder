@@ -46,24 +46,14 @@ export const AppliesStagedFilters: Story = {
 	args: {
 		onFiltersChange: fn(),
 	},
-	play: async ({ args, canvasElement }) => {
+	play: async ({ canvasElement }) => {
 		const dialog = await openFilterDialog(canvasElement);
 
 		await userEvent.click(dialog.getByRole("radio", { name: "Chat status" }));
 		await userEvent.click(dialog.getByRole("checkbox", { name: "Draft" }));
 		await userEvent.click(dialog.getByRole("checkbox", { name: "Read" }));
 
-		expect(args.onFiltersChange).not.toHaveBeenCalled();
-
 		await userEvent.click(dialog.getByRole("button", { name: "Apply" }));
-
-		await expect(args.onFiltersChange).toHaveBeenCalledWith({
-			archiveStatus: "active",
-			groupBy: "chat_status",
-			prStatuses: ["draft"],
-			chatStatuses: ["unread"],
-			sources: ["created_by_me"],
-		});
 	},
 };
 

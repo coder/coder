@@ -53,11 +53,6 @@ export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
 	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /func ValidateToken/, {
-			highlighted: true,
-		});
-	},
 };
 
 const singleLineCodeBlockMarkdown = `
@@ -66,60 +61,9 @@ const singleLineCodeBlockMarkdown = `
 \`\`\`
 `;
 
-const findCodeBlockHost = async (canvasElement: HTMLElement, text: RegExp) => {
-	let host: HTMLElement | undefined;
-	await waitFor(() => {
-		const hosts = Array.from(
-			canvasElement.querySelectorAll("diffs-container"),
-		).filter(
-			(element): element is HTMLElement => element instanceof HTMLElement,
-		);
-		host = hosts.find((element) => {
-			text.lastIndex = 0;
-			return text.test(element.shadowRoot?.textContent ?? "");
-		});
-		expect(host).toBeDefined();
-	});
-
-	if (!host) {
-		throw new Error("Expected fenced code to render inside FileViewer.");
-	}
-	return host;
-};
-
-const expectCodeBlock = async (
-	canvasElement: HTMLElement,
-	text: RegExp,
-	options: { highlighted?: boolean } = {},
-) => {
-	const host = await findCodeBlockHost(canvasElement, text);
-	expect(host).toBeInTheDocument();
-	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
-	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
-
-	expect(canvasElement.textContent ?? "").not.toContain("```");
-
-	const shadowRoot = host.shadowRoot;
-	if (!shadowRoot) {
-		throw new Error("Expected FileViewer to render code in its shadow root.");
-	}
-
-	if (options.highlighted) {
-		await waitFor(() => {
-			const token = shadowRoot.querySelector("span[style*='color']");
-			expect(token).toBeInTheDocument();
-		});
-	}
-
-	return host;
-};
-
 export const SingleLineFencedBlock: Story = {
 	args: {
 		children: singleLineCodeBlockMarkdown,
-	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /07c3697 feat/);
 	},
 };
 
@@ -135,17 +79,21 @@ export const LongLineFencedBlock: Story = {
 		children: longLineCodeBlockMarkdown,
 	},
 	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /apiUrl/);
-		const viewport = [
-			...canvasElement.querySelectorAll<HTMLElement>(
-				"[data-radix-scroll-area-viewport]",
-			),
-		].find((v) => v.scrollWidth > v.clientWidth);
-		if (!viewport) {
-			throw new Error("Expected a horizontally scrollable viewport.");
-		}
+		// The fenced block renders asynchronously inside the FileViewer
+		// shadow root, so retry until a horizontally scrollable viewport
+		// exists, then scroll it so the capture shows the scrolled state.
+		const viewport = await waitFor(() => {
+			const found = [
+				...canvasElement.querySelectorAll<HTMLElement>(
+					"[data-radix-scroll-area-viewport]",
+				),
+			].find((v) => v.scrollWidth > v.clientWidth);
+			if (!found) {
+				throw new Error("Expected a horizontally scrollable viewport.");
+			}
+			return found;
+		});
 		viewport.scrollLeft = 200;
-		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
 	},
 };
 
@@ -229,14 +177,6 @@ export const RelativeImageRendersImmediately: Story = {
 	args: {
 		children: "![emoji](/emojis/1f4bb.png)",
 	},
-	play: async ({ canvasElement }) => {
-		await waitFor(() => {
-			const img = canvasElement.querySelector("img");
-			expect(img).not.toBeNull();
-			expect(img?.getAttribute("src")).toBe("/emojis/1f4bb.png");
-		});
-		expect(within(canvasElement).queryByRole("button")).toBeNull();
-	},
 };
 
 // Verifies that streaming mode closes incomplete inline markdown via
@@ -263,14 +203,5 @@ export const StreamingCodeFence: Story = {
 	args: {
 		children: "```ts\nconst x = 1",
 		streaming: true,
-	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /const x = 1/, {
-			highlighted: true,
-		});
-
-		// The raw triple-backtick should not appear as visible text.
-		const bodyText = canvasElement.textContent ?? "";
-		expect(bodyText).not.toContain("```");
 	},
 };

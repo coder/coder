@@ -1,9 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockDefaultOrganization } from "#/testHelpers/entities";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 
 const meta: Meta<typeof AgentSetupNotice> = {
 	title: "pages/AgentsPage/AgentSetupNotice",
 	component: AgentSetupNotice,
+	args: {
+		organization: MockDefaultOrganization,
+	},
 };
 
 export default meta;

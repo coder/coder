@@ -3,6 +3,7 @@ package chatd
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -785,9 +786,9 @@ func TestStopAndStoreRecording_Empty(t *testing.T) {
 	assert.Empty(t, result.recordingFileID, "empty recording should not be stored")
 }
 
-// TestStopAndStoreRecording_LinkFailureRollsBackInsert verifies that a
-// chat-file cap rejection does not leave behind an unlinked recording row.
-func TestStopAndStoreRecording_LinkFailureRollsBackInsert(t *testing.T) {
+// TestStopAndStoreRecording_EvictsOldestAtCap verifies that storing a
+// recording on a chat at the file cap evicts the oldest file.
+func TestStopAndStoreRecording_EvictsOldestAtCap(t *testing.T) {
 	t.Parallel()
 
 	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
@@ -802,8 +803,9 @@ func TestStopAndStoreRecording_LinkFailureRollsBackInsert(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
+	var oldest uuid.UUID
 	for i := range codersdk.MaxChatFileIDs {
-		insertLinkedChatFile(
+		id := insertLinkedChatFile(
 			ctx,
 			t,
 			db,
@@ -814,6 +816,9 @@ func TestStopAndStoreRecording_LinkFailureRollsBackInsert(t *testing.T) {
 			"text/plain",
 			[]byte("existing"),
 		)
+		if i == 0 {
+			oldest = id
+		}
 	}
 
 	var beforeCount int
@@ -831,12 +836,14 @@ func TestStopAndStoreRecording_LinkFailureRollsBackInsert(t *testing.T) {
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
 	)
 
-	assert.Empty(t, result.recordingFileID)
+	require.NotEmpty(t, result.recordingFileID)
 	assert.Empty(t, result.thumbnailFileID)
 
 	var afterCount int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&afterCount))
-	assert.Equal(t, beforeCount, afterCount)
+	assert.Equal(t, beforeCount, afterCount, "the recording replaces the evicted file")
+	_, err := db.GetChatFileByID(ctx, oldest)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 // TestStopAndStoreRecording_WithThumbnail verifies that a multipart
