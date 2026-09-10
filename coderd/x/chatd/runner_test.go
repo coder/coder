@@ -172,9 +172,10 @@ func TestWorker_CleanupStopsRoutingAndCancelsTasks(t *testing.T) {
 	starter.assertNoCall(t)
 }
 
-// Nothing in these cases publishes a state update: the task stops on its own,
-// or the chat_messages trigger changes history_version without a snapshot
-// bump. The periodic sync alone must be enough to start the right task.
+// None of these cases publishes a state update: the task stops on its own,
+// a snapshot bump arrives without its notification, or the chat_messages
+// trigger changes history_version without a snapshot bump. The periodic sync
+// alone must be enough to start the right task.
 func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -251,10 +252,10 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	}
 }
 
-// Editing a chat_messages row directly changes the history under a running
-// generation. The generation refuses to commit its stale response and exits,
-// and nothing publishes a state update. The periodic sync must then start a
-// generation from the edited history.
+// Editing a chat_messages row with plain SQL, outside any transition, changes
+// the history under a running generation. The generation refuses to commit its
+// stale response and exits, and nothing publishes a state update. The periodic
+// sync must then start a generation from the edited history.
 func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -309,8 +310,8 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	editUserMessage(t, f.db, f.sqlDB, created.ID, "hello after out-of-band edit")
 	close(releaseResponse)
 
-	// The fence exit changes nothing in the database, so the task log is the
-	// only place the exit is visible.
+	// Wait for the exit log entry; taskExitedLogMessage documents why the log is
+	// the only observable.
 	var exits []slog.SinkEntry
 	testutil.Eventually(ctx, t, func(context.Context) bool {
 		exits = sink.Entries(func(e slog.SinkEntry) bool {

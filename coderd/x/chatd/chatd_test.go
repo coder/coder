@@ -2725,8 +2725,8 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 // it neither heartbeats nor syncs, and its tool call blocks until canceled.
 // Until the takeover the database sees what it would see after a kill. The
 // takeover then cancels the blocked call, which a killed process would not
-// experience; the checks on the committed parts confirm that the cancel
-// leaves nothing behind.
+// experience; the checks on the committed parts confirm that the canceled call
+// commits no result.
 func TestNewReplicaResolvesInFlightToolCallFromDeadReplica(t *testing.T) {
 	t.Parallel()
 

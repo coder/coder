@@ -31,8 +31,8 @@ const (
 	defaultTaskTimeout = 15 * time.Minute
 
 	// The exit log entry is the only trace of a task that exits without
-	// changing the database. Tests synchronize on it, so its message and
-	// reasons are constants.
+	// changing the database. Tests synchronize on it by message and reason, so
+	// the values are constants.
 	taskExitedLogMessage               = "chatworker task exited"
 	taskExitReasonContextCanceled      = "context_canceled"
 	taskExitReasonExpectedNonRetryable = "expected_non_retryable_exit"

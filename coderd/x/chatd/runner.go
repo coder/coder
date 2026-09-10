@@ -167,8 +167,9 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 	}
 
-	// Once another runner owns the chat, this runner is only waiting to be
-	// canceled. Events that arrive in the meantime must not start work.
+	// Once this runner no longer owns the chat, whether another runner took it or
+	// ownership was released, it is only waiting to be canceled. Events that
+	// arrive in the meantime must not start work.
 	if !r.activeTaskSet && r.owns(r.latestState) {
 		r.spawnForState(r.latestState)
 	}
@@ -180,15 +181,12 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 
 // isNewer reports whether the runner has not seen this state before.
 //
-// Comparing snapshot versions alone is not enough. Every write through the
-// state machine increments snapshot_version; a direct write to a chat_messages
-// row does not. Its trigger sets history_version to snapshot_version and
-// generation_attempt to zero, but only when history_version is behind
-// snapshot_version or generation_attempt is non-zero. That is the case after
-// every transition that did not write history, Acquire and
-// RecordGenerationAttempt included, so for the whole of a model call or tool
-// execution. Two states with the same snapshot version can therefore require
-// different work, and the second one is new.
+// Comparing snapshot versions alone is not enough. A direct write to a
+// chat_messages row changes history_version without allocating a snapshot
+// whenever history_version is behind snapshot_version, which holds for the
+// whole of a model call or tool execution (ARCHITECTURE.md, Message revisions
+// and history version). Two states with the same snapshot version can
+// therefore require different work, and the second one is new.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion
