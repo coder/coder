@@ -37,7 +37,7 @@ export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
-export type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
+type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 
 export type SubmitChatTurnParams = {
 	message: string;
