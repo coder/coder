@@ -172,9 +172,12 @@ jobs:
 
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
-          Follow the skill's evidence discipline. State the evidence for each
-          user-facing change before you decide, and post nothing when the
-          evidence does not show a real unresolved gap.
+          Follow the skill's evidence discipline, including its mandatory
+          search: list every literal this diff changes, then search the whole
+          docs tree for each OLD literal before you decide. Do not review only
+          the files in the diff. Report each search you ran and what it
+          returned, and post nothing only after every search came back empty
+          outside \`docs/reference/\`.
 
           **Do not comment if no documentation changes are needed.**
 

@@ -61,24 +61,40 @@ Follow this order on every review.
    of tabs, a list of fields). An auto-generated CLI or API reference
    never closes a gap in a conceptual guide. Treat the reference and the
    guide as two separate checks.
-3. **Find the sentence, not the topic.** For each concrete fact the diff
-   introduces or changes (a default value, a flag name, a version number,
-   a threshold, a UI label), find the exact current sentence in `docs/`
-   that states the old fact. Read the page content, not just the diff. If
-   a page states the old fact, that is a gap. If no page states the fact
-   and the content guidelines require it, that is also a gap. If no page
-   states it and the guidelines do not require it, that is not a gap:
-   absence alone is not drift.
+3. **Search for the old fact, do not read only the diff.** List every
+   literal the diff changes: default values, flag names, env var names,
+   thresholds, UI labels. Search the whole docs tree for each **old**
+   literal before you decide:
+
+   ```sh
+   grep -rn '<the old literal>' docs/ | grep -v '^docs/reference/'
+   ```
+
+   Search the value as a number and as prose, because a guide can spell it
+   out ("thirty days" as well as `30d`). A hit outside `docs/reference/` is
+   a gap: this PR regenerating a reference page never fixes a conceptual
+   guide. Report each search you ran and what it returned. A review that
+   inspects only the files in the diff cannot find this class of gap, which
+   is the most common real one, so it is not a review.
+
+   If no page states the fact and the content guidelines require it, that
+   is also a gap. If no page states it and the guidelines do not require
+   it, that is not a gap: absence alone is not drift.
 4. **A PR that documents itself needs nothing more.** Judge the state
    after the whole diff lands. If the diff already adds or fixes the
    documentation that its own code change requires, the requirement is
    satisfied inside the PR. Post no comment.
 5. **Write the evidence before the verdict.** For each user-facing change,
-   state the change, the page you checked, and what you found on it. Then
-   state whether that evidence shows a real unresolved gap, and comment
-   only when it does. A verdict that contradicts your own evidence is the
-   most common failure mode on this job, so read both once more before you
-   post.
+   state the change, the searches you ran, the page you checked, and what
+   you found on it. Then state whether that evidence shows a real
+   unresolved gap, and comment only when it does. A verdict that
+   contradicts your own evidence is the most common failure mode on this
+   job, so read both once more before you post.
+
+   Staying silent is a finding too, and it earns the same evidence. Post
+   nothing only after every search in step 3 came back empty outside
+   `docs/reference/`. "The diff already updates its own reference page" is
+   not a reason to skip the search.
 
 ## What to Check
 
