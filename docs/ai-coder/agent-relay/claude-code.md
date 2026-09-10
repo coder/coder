@@ -3,8 +3,7 @@ title: Agent Relay for Claude Code
 ---
 
 > [!NOTE]
-> Agent Relay for Claude Code is in [early access](../../install/releases/feature-stages.md#early-access-features)
-> and is currently in closed preview with select customers.
+> Agent Relay for Claude Code is in [early access](../../install/releases/feature-stages.md#early-access-features) and is currently in closed preview with select customers.
 
 [Agent Relay](./index.md) connects [Claude Code](https://claude.ai/code) sessions to self-hosted Coder workspaces.
 Anthropic calls this self-hosted worker model [self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments).
