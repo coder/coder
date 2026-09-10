@@ -34,10 +34,6 @@ export const MODULE_FIELD_PLACEHOLDERS: Readonly<
 	},
 };
 
-/**
- * Returns the placeholder override for the given module and variable,
- * or `undefined` when no override exists.
- */
 export function getModuleFieldPlaceholder(
 	moduleId: string,
 	variableName: string,
