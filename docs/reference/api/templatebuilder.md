@@ -216,6 +216,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "max_port_share_level": "owner",
+    "module_cache_disabled_by_deployment": true,
     "name": "string",
     "organization_display_name": "string",
     "organization_icon": "string",

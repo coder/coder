@@ -826,6 +826,17 @@ Deprecated and ignored.
 
 Time to force cancel provisioning tasks that are stuck.
 
+### --provisioner-disable-module-cache
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_PROVISIONER_DISABLE_MODULE_CACHE</code> |
+| YAML        | <code>provisioning.disableModuleCache</code>         |
+| Default     | <code>false</code>                                   |
+
+Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build, so provisioners may accumulate module files on disk. Individual templates cannot opt back in.
+
 ### --provisioner-daemon-psk
 
 |             |                                            |

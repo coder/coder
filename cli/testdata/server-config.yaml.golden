@@ -494,6 +494,11 @@ provisioning:
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
+  # Disable the reuse of Terraform modules cached at template import for all
+  # templates. Modules are re-downloaded on every workspace build, so provisioners
+  # may accumulate module files on disk. Individual templates cannot opt back in.
+  # (default: false, type: bool)
+  disableModuleCache: false
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

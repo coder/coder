@@ -79,6 +79,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "max_port_share_level": "owner",
+    "module_cache_disabled_by_deployment": true,
     "name": "string",
     "organization_display_name": "string",
     "organization_icon": "string",
@@ -135,12 +136,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
-|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
 |`» id`|string(uuid)|false|||
 |`» max_port_share_level`|[codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel)|false|||
+|`» module_cache_disabled_by_deployment`|boolean|false||Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache.|
 |`» name`|string|false|||
 |`» organization_display_name`|string|false|||
 |`» organization_icon`|string|false|||
@@ -274,6 +276,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
+  "module_cache_disabled_by_deployment": true,
   "name": "string",
   "organization_display_name": "string",
   "organization_icon": "string",
@@ -429,6 +432,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
+  "module_cache_disabled_by_deployment": true,
   "name": "string",
   "organization_display_name": "string",
   "organization_icon": "string",
@@ -854,6 +858,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "max_port_share_level": "owner",
+    "module_cache_disabled_by_deployment": true,
     "name": "string",
     "organization_display_name": "string",
     "organization_icon": "string",
@@ -910,12 +915,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
-|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
 |`» id`|string(uuid)|false|||
 |`» max_port_share_level`|[codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel)|false|||
+|`» module_cache_disabled_by_deployment`|boolean|false||Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache.|
 |`» name`|string|false|||
 |`» organization_display_name`|string|false|||
 |`» organization_icon`|string|false|||
@@ -1064,6 +1070,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
+  "module_cache_disabled_by_deployment": true,
   "name": "string",
   "organization_display_name": "string",
   "organization_icon": "string",
@@ -1244,6 +1251,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
+  "module_cache_disabled_by_deployment": true,
   "name": "string",
   "organization_display_name": "string",
   "organization_icon": "string",

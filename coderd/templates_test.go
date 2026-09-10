@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // TestTemplatesListSingleAuthorizePrepare guards against reintroducing the
@@ -1841,6 +1842,33 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.False(t, updated.DisableModuleCache, "expected false")
+	})
+
+	t.Run("DisableModuleCacheDeploymentWide", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Provisioner.DisableModuleCache = serpent.Bool(true)
+		client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.True(t, template.ModuleCacheDisabledByDeployment, "the deployment disables the module cache")
+		require.False(t, template.DisableModuleCache, "the template itself does not opt out")
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The per-template toggle is read-only while the deployment disables the
+		// cache, so this request does not change anything.
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			DisableModuleCache: new(true),
+		})
+		require.NoError(t, err)
+
+		updated, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.False(t, updated.DisableModuleCache, "expected the stored value to be untouched")
+		assert.True(t, updated.ModuleCacheDisabledByDeployment, "expected true")
 	})
 
 	t.Run("AllowWorkspaceRenames", func(t *testing.T) {

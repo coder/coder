@@ -124,6 +124,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 		helperText: "Use Passthru to bypass Coder's built-in CORS protection.",
 	});
 	const corsBehaviorHelperId = `${corsBehaviorField.id}-helper`;
+	const moduleCacheDisabledByDeployment =
+		template.module_cache_disabled_by_deployment;
 
 	return (
 		<HorizontalForm
@@ -291,22 +293,40 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						<Checkbox
 							id="disable_module_cache"
 							name="disable_module_cache"
-							checked={form.values.disable_module_cache}
+							checked={
+								moduleCacheDisabledByDeployment ||
+								form.values.disable_module_cache
+							}
 							onCheckedChange={(checked) => {
 								form.setFieldValue("disable_module_cache", checked === true);
 							}}
-							disabled={isSubmitting}
+							disabled={isSubmitting || moduleCacheDisabledByDeployment}
 						/>
 						<Label htmlFor="disable_module_cache">
 							<StackLabel>
 								Disable Terraform module caching
 								<StackLabelHelperText>
-									When checked, Terraform modules are re-downloaded for each
-									workspace build instead of using cached versions.{" "}
-									<strong>
-										Warning: This makes workspace builds less predictable and is
-										not recommended for production templates.
-									</strong>
+									{moduleCacheDisabledByDeployment ? (
+										<>
+											Terraform module caching is disabled at the deployment
+											level. Modules will be re-downloaded on each workspace
+											build.{" "}
+											<strong>
+												Note: disabling caching means provisioner nodes may
+												accumulate Terraform module files on disk, which can
+												impact stability at scale.
+											</strong>
+										</>
+									) : (
+										<>
+											When checked, Terraform modules are re-downloaded for each
+											workspace build instead of using cached versions.{" "}
+											<strong>
+												Warning: This makes workspace builds less predictable
+												and is not recommended for production templates.
+											</strong>
+										</>
+									)}
 								</StackLabelHelperText>
 							</StackLabel>
 						</Label>
