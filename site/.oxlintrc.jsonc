@@ -20,6 +20,7 @@
 		"tabindex-no-positive": "error",
 		"img-redundant-alt": "error",
 		"no-redundant-roles": "error",
+		"role-has-required-aria-props": "error",
 		"alt-text": "error",
 		"anchor-has-content": "error",
 		"aria-activedescendant-has-tabindex": "error",
@@ -199,7 +200,6 @@
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
 		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
-		"role-has-required-aria-props": "off", // a11y/useAriaPropsForRole (medium)
 		"no-irregular-whitespace": "off", // suspicious/noIrregularWhitespace (medium)
 		"no-inferrable-types": "off", // style/noInferrableTypes (medium, coder error rule)
 		"consistent-type-imports": "off", // style/useImportType (medium)
