@@ -10,7 +10,7 @@ import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DesktopPanelContext } from "./DesktopPanelContext";
-import { Tool } from "./Tool";
+import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
 const executeIntentCommand = "npm test";
@@ -2723,5 +2723,36 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 				data: [],
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const covered = new Set(allToolShowcaseItems.map((tool) => tool.name));
+		expect(
+			toolRendererNames.filter((name) => !covered.has(name)),
+		).toStrictEqual([]);
+
+		const canvas = within(canvasElement);
+		const rendered = new Set<string>();
+		const missingBadge: string[] = [];
+		allToolShowcaseItems.forEach((tool, index) => {
+			const toolCase = canvas.getByRole("group", {
+				name: policyCaseLabel(tool.name, index),
+			});
+			if (toolCase.textContent?.trim() === "") {
+				return;
+			}
+			rendered.add(tool.name);
+			// checkVisibility, not presence: a badge hidden by the card's own
+			// layout still satisfies a text query.
+			if (
+				!within(toolCase).queryByText("Modified by policy")?.checkVisibility()
+			) {
+				missingBadge.push(tool.name);
+			}
+		});
+
+		expect(missingBadge).toStrictEqual([]);
+		expect(
+			toolRendererNames.filter((name) => !rendered.has(name)),
+		).toStrictEqual([]);
 	},
 };
