@@ -151,7 +151,7 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		require.Empty(t, paths())
 	})
 
-	t.Run("CreateReportsUnresolvableProfile", func(t *testing.T) {
+	t.Run("CreateRejectsUnresolvableProfile", func(t *testing.T) {
 		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-Amzn-Errortype", "AccessDeniedException")
@@ -177,13 +177,58 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Detail, "GetInferenceProfile")
 
-		// The provider is stored with the ARN the operator asked for, and
-		// serves it as its own identity until a later save resolves it.
+		// The write is rejected: a stored ARN with no resolution would be
+		// served as its own identity.
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		providers, err := client.AIProviders(ctx)
 		require.NoError(t, err)
-		require.Len(t, providers, 1)
-		require.Empty(t, providers[0].Settings.Bedrock.ResolvedModel)
+		require.Empty(t, providers)
+	})
+
+	t.Run("UpdateRejectsUnresolvableProfile", func(t *testing.T) {
+		var deny bool
+		url, _ := mockBedrock(t, func(w http.ResponseWriter, r *http.Request) {
+			if !deny {
+				respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8")(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Amzn-Errortype", "AccessDeniedException")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"not authorized to perform bedrock:GetInferenceProfile"}`))
+		})
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Name:     "bedrock-update-denied",
+			Type:     codersdk.AIProviderTypeBedrock,
+			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Enabled:  true,
+			Settings: *bedrockSettings(testProfileARN, "anthropic.claude-haiku-4-5"),
+		})
+		require.NoError(t, err)
+
+		deny = true
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err = client.UpdateAIProvider(ctx, created.ID.String(), codersdk.UpdateAIProviderRequest{
+			Settings: bedrockSettings(testSmallFastProfileARN, "anthropic.claude-haiku-4-5"),
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		// The stored provider still describes what it did before the failed
+		// update.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		current, err := client.AIProvider(ctx, created.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, testProfileARN, current.Settings.Bedrock.Model)
+		require.Equal(t, "anthropic.claude-opus-4-8", current.Settings.Bedrock.ResolvedModel)
 	})
 
 	t.Run("UpdateReresolvesChangedProfile", func(t *testing.T) {
