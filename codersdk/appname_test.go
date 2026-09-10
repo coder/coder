@@ -268,3 +268,42 @@ func TestSessionCountsByFamilyJSONMalformed(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodeAppFamilyMap(t *testing.T) {
+	t.Parallel()
+
+	for name, raw := range map[string]json.RawMessage{
+		"NotJSON":     json.RawMessage(`{`),
+		"NotAnObject": json.RawMessage(`[1, 2]`),
+		"WrongValue":  json.RawMessage(`{"vscode": "sixty"}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// A malformed payload must not decode to zero usage, or an
+			// encoding bug would look like an idle deployment.
+			got, err := codersdk.DecodeAppFamilyMap[int64](raw)
+			require.Error(t, err)
+			require.Nil(t, got)
+		})
+	}
+
+	t.Run("UsageSeconds", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := codersdk.DecodeAppFamilyMap[int64](json.RawMessage(`{"vscode": 60}`))
+		require.NoError(t, err)
+		require.Equal(t, map[codersdk.AppFamilyName]int64{codersdk.AppFamilyVSCode: 60}, got)
+	})
+
+	for name, raw := range map[string]json.RawMessage{"Absent": nil, "EmptyObject": json.RawMessage(`{}`)} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := codersdk.DecodeAppFamilyMap[int64](raw)
+			require.NoError(t, err)
+			require.Equal(t, map[codersdk.AppFamilyName]int64{}, got)
+			require.Zero(t, got[codersdk.AppFamilySSH])
+		})
+	}
+}

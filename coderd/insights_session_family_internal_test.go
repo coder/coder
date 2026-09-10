@@ -11,25 +11,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestDecodeSessionFamilyMap(t *testing.T) {
-	t.Parallel()
-
-	for name, raw := range map[string]json.RawMessage{
-		"NotJSON":     json.RawMessage(`{`),
-		"NotAnObject": json.RawMessage(`[1, 2]`),
-		"WrongValue":  json.RawMessage(`{"vscode": "sixty"}`),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			// A malformed payload must not decode to zero usage, or an
-			// encoding bug would look like an idle deployment.
-			_, err := decodeSessionFamilyMap[int64](raw)
-			require.Error(t, err)
-		})
-	}
-}
-
 func TestConvertTemplateInsightsApps(t *testing.T) {
 	t.Parallel()
 
@@ -42,6 +23,11 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 			SessionFamilyTemplateIds:  json.RawMessage(`{"sftp": ["` + sftpTemplateID.String() + `"]}`),
 		}, nil)
 		require.NoError(t, err)
+		for _, app := range apps {
+			if app.Slug != "sftp" {
+				require.Equal(t, []uuid.UUID{}, app.TemplateIDs)
+			}
+		}
 		require.Contains(t, apps, codersdk.TemplateAppUsage{
 			// The rollup no longer produces SFTP usage, but rows migrated
 			// from the old sftp_mins column still report it.
@@ -71,7 +57,7 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				t.Parallel()
 
 				apps, err := convertTemplateInsightsApps(usage, nil)
-				require.Error(t, err)
+				require.ErrorContains(t, err, "convert template insights apps: decode session family")
 				require.Nil(t, apps)
 			})
 		}

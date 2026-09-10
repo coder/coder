@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -581,89 +580,43 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 // query does not report simply have no usage.
 const sessionFamilySFTP codersdk.AppFamilyName = "sftp"
 
-// templateInsightsSessionFamilies is the decoded form of the per-session-family
-// JSONB columns on database.GetTemplateInsightsRow.
-type templateInsightsSessionFamilies struct {
-	usageSecondsByFamily map[codersdk.AppFamilyName]int64
-	templateIDsByFamily  map[codersdk.AppFamilyName][]uuid.UUID
-}
-
-// usageSeconds returns the usage seconds reported for a session family. A
-// family the query did not report had no usage.
-func (f templateInsightsSessionFamilies) usageSeconds(family codersdk.AppFamilyName) int64 {
-	return f.usageSecondsByFamily[family]
-}
-
-// templateIDs returns the templates that reported usage for a session family.
-// The result is never nil so that the API keeps serializing an empty list
-// instead of null.
-func (f templateInsightsSessionFamilies) templateIDs(family codersdk.AppFamilyName) []uuid.UUID {
-	if ids := f.templateIDsByFamily[family]; ids != nil {
-		return ids
-	}
-	return []uuid.UUID{}
-}
-
-// decodeTemplateInsightsSessionFamilies decodes the JSONB session family
-// columns of a template insights row.
-func decodeTemplateInsightsSessionFamilies(usage database.GetTemplateInsightsRow) (templateInsightsSessionFamilies, error) {
-	usageSeconds, err := decodeSessionFamilyMap[int64](usage.SessionFamilyUsageSeconds)
-	if err != nil {
-		return templateInsightsSessionFamilies{}, xerrors.Errorf("decode session family usage seconds: %w", err)
-	}
-	templateIDs, err := decodeSessionFamilyMap[[]uuid.UUID](usage.SessionFamilyTemplateIds)
-	if err != nil {
-		return templateInsightsSessionFamilies{}, xerrors.Errorf("decode session family template ids: %w", err)
-	}
-	return templateInsightsSessionFamilies{
-		usageSecondsByFamily: usageSeconds,
-		templateIDsByFamily:  templateIDs,
-	}, nil
-}
-
-// decodeSessionFamilyMap decodes a JSONB payload keyed by session family. An
-// absent payload decodes to an empty map, but a malformed one is an error so
-// that callers report the failure instead of reporting zero usage.
-func decodeSessionFamilyMap[V any](raw json.RawMessage) (map[codersdk.AppFamilyName]V, error) {
-	if len(raw) == 0 {
-		return map[codersdk.AppFamilyName]V{}, nil
-	}
-	var decoded map[codersdk.AppFamilyName]V
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, xerrors.Errorf("unmarshal session family map: %w", err)
-	}
-	if decoded == nil {
-		return map[codersdk.AppFamilyName]V{}, nil
-	}
-	return decoded, nil
-}
-
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
 func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
-	families, err := decodeTemplateInsightsSessionFamilies(usage)
+	usageSeconds, err := codersdk.DecodeAppFamilyMap[int64](usage.SessionFamilyUsageSeconds)
 	if err != nil {
-		return nil, xerrors.Errorf("convert template insights apps: %w", err)
+		return nil, xerrors.Errorf("convert template insights apps: decode session family usage seconds: %w", err)
+	}
+	templateIDsByFamily, err := codersdk.DecodeAppFamilyMap[[]uuid.UUID](usage.SessionFamilyTemplateIds)
+	if err != nil {
+		return nil, xerrors.Errorf("convert template insights apps: decode session family template ids: %w", err)
+	}
+	// Keep serializing empty template lists as [] instead of null.
+	templateIDs := func(family codersdk.AppFamilyName) []uuid.UUID {
+		if ids := templateIDsByFamily[family]; ids != nil {
+			return ids
+		}
+		return []uuid.UUID{}
 	}
 
 	// Builtin apps.
 	apps := []codersdk.TemplateAppUsage{
 		{
-			TemplateIDs: families.templateIDs(codersdk.AppFamilyVSCode),
+			TemplateIDs: templateIDs(codersdk.AppFamilyVSCode),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
 			Icon:        "/icon/code.svg",
-			Seconds:     families.usageSeconds(codersdk.AppFamilyVSCode),
+			Seconds:     usageSeconds[codersdk.AppFamilyVSCode],
 		},
 		{
-			TemplateIDs: families.templateIDs(codersdk.AppFamilyJetBrains),
+			TemplateIDs: templateIDs(codersdk.AppFamilyJetBrains),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
 			Icon:        "/icon/intellij.svg",
-			Seconds:     families.usageSeconds(codersdk.AppFamilyJetBrains),
+			Seconds:     usageSeconds[codersdk.AppFamilyJetBrains],
 		},
 		// TODO(mafredri): We could take Web Terminal usage from appUsage since
 		// that should be more accurate. The difference is that this reflects
@@ -672,28 +625,28 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		// condition finding the corresponding app entry in appUsage is:
 		// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
 		{
-			TemplateIDs: families.templateIDs(codersdk.AppFamilyReconnectingPTY),
+			TemplateIDs: templateIDs(codersdk.AppFamilyReconnectingPTY),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			Slug:        "reconnecting-pty",
 			Icon:        "/icon/terminal.svg",
-			Seconds:     families.usageSeconds(codersdk.AppFamilyReconnectingPTY),
+			Seconds:     usageSeconds[codersdk.AppFamilyReconnectingPTY],
 		},
 		{
-			TemplateIDs: families.templateIDs(codersdk.AppFamilySSH),
+			TemplateIDs: templateIDs(codersdk.AppFamilySSH),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
 			Slug:        "ssh",
 			Icon:        "/icon/terminal.svg",
-			Seconds:     families.usageSeconds(codersdk.AppFamilySSH),
+			Seconds:     usageSeconds[codersdk.AppFamilySSH],
 		},
 		{
-			TemplateIDs: families.templateIDs(sessionFamilySFTP),
+			TemplateIDs: templateIDs(sessionFamilySFTP),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
 			Slug:        "sftp",
 			Icon:        "/icon/terminal.svg",
-			Seconds:     families.usageSeconds(sessionFamilySFTP),
+			Seconds:     usageSeconds[sessionFamilySFTP],
 		},
 	}
 
