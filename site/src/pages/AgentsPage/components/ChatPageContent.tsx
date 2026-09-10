@@ -295,7 +295,7 @@ interface ChatPageInputProps {
 	) => void;
 	// Null while composing a new message.
 	editingTarget: EditingTarget | null;
-	onCancelHistoryEdit: () => void;
+	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
@@ -348,7 +348,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	editingTarget,
-	onCancelHistoryEdit,
+	onCancelEdit,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -588,7 +588,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onEditQueuedMessage={onEditQueuedMessage}
 			onResumeQueuedMessage={onResumeQueuedMessage}
 			editingKind={editingTarget?.kind}
-			onCancelHistoryEdit={onCancelHistoryEdit}
+			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}

@@ -12,6 +12,14 @@ import {
 export class BuiltInCommandPendingError extends Error {}
 
 /**
+ * Thrown by the send and resume callbacks when the queued row being edited
+ * no longer exists (it was promoted or deleted, typically from another
+ * client). The composer leaves edit mode instead of retrying against a
+ * row that is gone.
+ */
+export class QueuedEditTargetGoneError extends Error {}
+
+/**
  * The message the composer is editing. History rows and queued rows have
  * independent ID spaces, so the kind is required to interpret the ID.
  */
@@ -74,8 +82,9 @@ export function useConversationEditingState(deps: {
 	const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(
 		null,
 	);
-	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
-		useState<ParsedDraft | null>(null);
+	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
+		null,
+	);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
@@ -94,7 +103,7 @@ export function useConversationEditingState(deps: {
 			const currentEditorState = draftStorageKey
 				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
 				: undefined;
-			setDraftBeforeHistoryEdit({
+			setDraftBeforeEdit({
 				text: inputValueRef.current,
 				editorState: currentEditorState,
 			});
@@ -131,8 +140,8 @@ export function useConversationEditingState(deps: {
 	};
 
 	const restoreDraftBeforeEdit = () => {
-		const savedText = draftBeforeHistoryEdit?.text ?? "";
-		const savedState = draftBeforeHistoryEdit?.editorState;
+		const savedText = draftBeforeEdit?.text ?? "";
+		const savedState = draftBeforeEdit?.editorState;
 		setDraftState({
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
@@ -141,17 +150,19 @@ export function useConversationEditingState(deps: {
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingTarget(null);
-		setDraftBeforeHistoryEdit(null);
+		setDraftBeforeEdit(null);
 		setEditingFileBlocks([]);
 	};
 
-	const handleCancelHistoryEdit = async () => {
+	const handleCancelEdit = async () => {
 		if (editingTarget?.kind === "queued") {
 			try {
 				await onResumeQueuedMessage(editingTarget.id);
-			} catch {
-				// The row is still held, so the edit stays open for a retry.
-				return;
+			} catch (error) {
+				if (!(error instanceof QueuedEditTargetGoneError)) {
+					// The row is still held, so the edit stays open for a retry.
+					return;
+				}
 			}
 		}
 		restoreDraftBeforeEdit();
@@ -195,7 +206,7 @@ export function useConversationEditingState(deps: {
 			localStorage.removeItem(draftStorageKey);
 		}
 		if (target !== undefined) {
-			setDraftBeforeHistoryEdit(null);
+			setDraftBeforeEdit(null);
 			setEditingFileBlocks([]);
 		}
 	};
@@ -220,6 +231,14 @@ export function useConversationEditingState(deps: {
 				return;
 			}
 			rollback?.();
+			if (error instanceof QueuedEditTargetGoneError) {
+				// The edited text is the freshest work, so it stays in the
+				// composer as a new draft instead of an edit of a row that no
+				// longer exists.
+				setEditingTarget(null);
+				setDraftBeforeEdit(null);
+				setEditingFileBlocks([]);
+			}
 			throw error;
 		}
 
@@ -289,7 +308,7 @@ export function useConversationEditingState(deps: {
 		editingFileBlocks,
 		handleEditUserMessage,
 		handleEditQueuedMessage,
-		handleCancelHistoryEdit,
+		handleCancelEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,

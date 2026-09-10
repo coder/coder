@@ -99,7 +99,7 @@ interface EditingState {
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
-	handleCancelHistoryEdit: () => void;
+	handleCancelEdit: () => void;
 	handleSendFromInput: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -999,7 +999,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										remountKey={editing.remountKey}
 										onContentChange={editing.handleContentChange}
 										editingTarget={editing.editingTarget}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+										onCancelEdit={editing.handleCancelEdit}
 										editingFileBlocks={editing.editingFileBlocks}
 										mcpServers={mcpServers}
 										selectedMCPServerIds={selectedMCPServerIds}

@@ -62,7 +62,7 @@ describe("AgentChatInput", () => {
 
 	it("cancels a queued message edit on Escape", async () => {
 		const user = userEvent.setup();
-		const onCancelHistoryEdit = vi.fn();
+		const onCancelEdit = vi.fn();
 		const onEditQueuedMessage = vi.fn();
 
 		renderInput(
@@ -79,7 +79,7 @@ describe("AgentChatInput", () => {
 				queuedMessages={[MockHeldChatQueuedMessage]}
 				onEditQueuedMessage={onEditQueuedMessage}
 				editingKind="queued"
-				onCancelHistoryEdit={onCancelHistoryEdit}
+				onCancelEdit={onCancelEdit}
 			/>,
 		);
 
@@ -90,7 +90,7 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.keyboard("{Escape}");
-		expect(onCancelHistoryEdit).toHaveBeenCalledTimes(1);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not promote a held queue head on Enter with an empty composer", async () => {

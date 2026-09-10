@@ -161,7 +161,7 @@ interface AgentChatInputProps {
 	// Editing state, owned by the parent. Undefined means the composer
 	// is composing a new message.
 	editingKind?: EditingTarget["kind"];
-	onCancelHistoryEdit?: () => void;
+	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
@@ -399,7 +399,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onEditQueuedMessage,
 	onResumeQueuedMessage,
 	editingKind,
-	onCancelHistoryEdit,
+	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
 	onRefreshContext,
@@ -993,7 +993,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (e.key === "Escape") {
 			if (isEditingMessage) {
 				e.preventDefault();
-				onCancelHistoryEdit?.();
+				onCancelEdit?.();
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
 				e.preventDefault();
 				onInterrupt();
@@ -1164,7 +1164,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							variant="subtle"
 							size="icon"
 							aria-label="Cancel editing"
-							onClick={onCancelHistoryEdit}
+							onClick={onCancelEdit}
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
 						>
