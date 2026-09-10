@@ -654,8 +654,12 @@ refresh token is not consumed, so a client that drops the parameter or asks for
 less recovers without re-authorizing.
 
 Checking the `scope` an application registered at
-[Dynamic Client Registration](#dynamic-client-registration) only affects
-deployments running the `oauth2` experiment flag with that setting turned on.
+[Dynamic Client Registration](#dynamic-client-registration) affects any
+application that registered with a `scope` while that setting was on, on a
+deployment running the `oauth2` experiment flag. Turning Dynamic Client
+Registration off only blocks new registrations. Coder checks the stored `scope`
+of an existing application whether or not registration is still allowed, so an
+application registered before the setting was turned off is affected too.
 Dynamic Client Registration is disabled by default, so if you never enabled it,
 nothing changes for you. Earlier versions of Coder accepted any `scope` value at
 registration without checking it, and every token for that application had
