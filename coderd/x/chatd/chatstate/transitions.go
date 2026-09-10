@@ -203,7 +203,7 @@ func insertChat(
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		if ClassifyExecutionState(refreshed, false, true).IsRunnable() {
+		if ClassifyExecutionState(refreshed, QueueState{}, true).IsRunnable() {
 			if err := buffer.Publish(
 				coderdpubsub.ChatStateOwnershipChannel,
 				buildChatOwnershipMessage(refreshed),
@@ -512,7 +512,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 	}
-	if err := CheckSendMessageQueueCapacity(chat, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
+	if err := checkSendMessageQueueCapacity(from, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
 		return SendMessageResult{}, err
 	}
 	if sendMessageInsertsDirectly(from, input.BusyBehavior) {
@@ -554,11 +554,15 @@ func sendMessageInsertsDirectly(from ExecutionState, behavior BusyBehavior) bool
 }
 
 // CheckSendMessageQueueCapacity returns a *MessageQueueFullError when
-// SendMessage from chat, with queuedCount queued messages, would add to
-// a full queue. [Tx.SendMessage] calls it under the row lock; callers
-// outside a transaction can call it first to reject a send early.
-func CheckSendMessageQueueCapacity(chat database.Chat, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
-	from := ClassifyExecutionState(chat, queuedCount > 0, true)
+// SendMessage from chat, with the given queue state and queuedCount
+// queued messages, would add to a full queue. [Tx.SendMessage] runs the
+// same check under the row lock; callers outside a transaction can call
+// it first to reject a send early.
+func CheckSendMessageQueueCapacity(chat database.Chat, queue QueueState, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
+	return checkSendMessageQueueCapacity(ClassifyExecutionState(chat, queue, true), queuedCount, behavior, maxQueueSize)
+}
+
+func checkSendMessageQueueCapacity(from ExecutionState, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
 	if sendMessageInsertsDirectly(from, behavior) {
 		return nil
 	}
