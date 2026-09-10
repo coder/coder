@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -12510,17 +12511,17 @@ func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call 
 }
 
 // UpsertTemplateUsageStats mocks base method.
-func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
+func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx)
+	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx, appFamilies)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertTemplateUsageStats indicates an expected call of UpsertTemplateUsageStats.
-func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx, appFamilies any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx, appFamilies)
 }
 
 // UpsertUserAIBudgetOverride mocks base method.

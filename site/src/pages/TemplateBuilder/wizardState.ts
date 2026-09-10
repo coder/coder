@@ -275,5 +275,7 @@ export const toCreateTemplateRequest = (
 		display_name: customizations.display_name || undefined,
 		description: customizations.description || undefined,
 		icon: customizations.icon || undefined,
+		// Lets the server attribute a build failure to this wizard visit.
+		session_id: state.sessionId || undefined,
 	};
 };

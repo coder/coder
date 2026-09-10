@@ -28,9 +28,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { relativeTime } from "#/utils/time";
+import { getSecretInjectionSummary } from "./secretForm";
 
 type SecretsTableProps = {
 	secrets?: readonly UserSecret[];
+	filePathEnabled: boolean;
 	isLoading: boolean;
 	hasLoaded: boolean;
 	isDeleting: boolean;
@@ -48,6 +50,7 @@ type SecretsTableProps = {
 
 export const SecretsTable: FC<SecretsTableProps> = ({
 	secrets,
+	filePathEnabled,
 	isLoading,
 	hasLoaded,
 	isDeleting,
@@ -125,6 +128,7 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 								<TableCell>
 									<EnabledToggle
 										secret={secret}
+										filePathEnabled={filePathEnabled}
 										isPending={togglingSecretId === secret.id}
 										onToggle={handleToggle}
 									/>
@@ -136,10 +140,18 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 									<OptionalSecretValue value={secret.env_name} />
 								</TableCell>
 								<TableCell>
-									<OptionalSecretValue value={secret.file_path} />
+									<FilePathValue
+										filePath={secret.file_path}
+										isBlocked={!filePathEnabled && secret.file_path !== ""}
+									/>
 								</TableCell>
 								<TableCell>
-									<SecretTypeBadge secret={secret} />
+									<Badge>
+										{
+											getSecretInjectionSummary(secret, filePathEnabled)
+												.typeLabel
+										}
+									</Badge>
 								</TableCell>
 								<TableCell className="max-w-0">
 									{secret.description ? (
@@ -183,40 +195,41 @@ const OptionalSecretValue: FC<{ value?: string; fallback?: string }> = ({
 	return <span className="text-content-disabled">{fallback}</span>;
 };
 
-const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
-	const hasEnv = Boolean(secret.env_name);
-	const hasFile = Boolean(secret.file_path);
+type FilePathValueProps = {
+	filePath: string;
+	isBlocked: boolean;
+};
 
-	if (hasEnv && hasFile) {
-		return <Badge>env var + file</Badge>;
+const FilePathValue: FC<FilePathValueProps> = ({ filePath, isBlocked }) => {
+	if (!isBlocked) {
+		return <OptionalSecretValue value={filePath} />;
 	}
 
-	if (hasEnv) {
-		return <Badge>env var</Badge>;
-	}
-
-	if (hasFile) {
-		return <Badge>file</Badge>;
-	}
-
-	return <Badge>not injected</Badge>;
+	return (
+		<div className="flex flex-col">
+			<span className="text-content-disabled">{filePath}</span>
+			<span className="text-xs text-content-disabled">
+				Saved, not written to workspaces
+			</span>
+		</div>
+	);
 };
 
 type EnabledToggleProps = {
 	secret: UserSecret;
+	filePathEnabled: boolean;
 	isPending: boolean;
 	onToggle: (secret: UserSecret, enabled: boolean) => void;
 };
 
 const EnabledToggle: FC<EnabledToggleProps> = ({
 	secret,
+	filePathEnabled,
 	isPending,
 	onToggle,
 }) => {
-	const hasTarget = Boolean(secret.env_name) || Boolean(secret.file_path);
-	// An enabled secret must have at least one injection target. Prevent
-	// enabling a target-less secret; the user must add a target first.
-	const cannotEnable = !secret.enabled && !hasTarget;
+	const { canEnable } = getSecretInjectionSummary(secret, filePathEnabled);
+	const cannotEnable = !secret.enabled && !canEnable;
 
 	return (
 		<Tooltip>
@@ -238,7 +251,9 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 			</TooltipTrigger>
 			{cannotEnable && (
 				<TooltipContent side="top">
-					Add an environment variable or file path before enabling this secret.
+					{filePathEnabled
+						? "Add an environment variable or file path before enabling this secret."
+						: "Your administrator disabled file path delivery. Add an environment variable to enable this secret."}
 				</TooltipContent>
 			)}
 		</Tooltip>

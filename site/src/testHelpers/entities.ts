@@ -630,6 +630,18 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
+// Legacy file-only secret: not enableable while a deployment blocks file paths.
+export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
+	id: "secret-file-only-disabled",
+	name: "legacy-kubeconfig",
+	description: "Written to a workspace file before file paths were disabled.",
+	env_name: "",
+	file_path: "~/.kube/config",
+	enabled: false,
+	created_at: "2026-04-27T16:30:00Z",
+	updated_at: "2026-05-03T20:30:00Z",
+};
+
 export const MockImportedUserSecret: TypesGen.UserSecret = {
 	id: "imported-database-url",
 	name: "DATABASE_URL",

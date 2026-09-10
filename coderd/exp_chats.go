@@ -6626,7 +6626,7 @@ func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) 
 	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment limit reached.",
-			Detail:  fmt.Sprintf("A chat can reference at most %d attachments. Remove some attachments or start a new chat.", codersdk.MaxChatFileIDs),
+			Detail:  fmt.Sprintf("A message can include at most %d attachments. Remove some attachments and retry.", codersdk.MaxChatFileIDs),
 		})
 	case errors.Is(err, chatstate.ErrChatFileUnavailable):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

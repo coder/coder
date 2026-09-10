@@ -606,10 +606,10 @@
 			"displayName": "GLM-5.3",
 			"aliases": [],
 			"contextLimit": 1310720,
-			"maxOutputTokens": 262144,
+			"maxOutputTokens": 943718,
 			"inputCost": 1.4,
 			"outputCost": 4.4,
-			"cacheReadCost": 0.14
+			"cacheReadCost": 0.26
 		},
 		{
 			"provider": "openrouter",
@@ -713,9 +713,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.07938,
-			"outputCost": 0.15876,
-			"cacheReadCost": 0.015876
+			"inputCost": 0.088606,
+			"outputCost": 0.177212,
+			"cacheReadCost": 0.017721
 		},
 		{
 			"provider": "openrouter",
@@ -724,13 +724,13 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 1.030776,
-			"outputCost": 2.061552,
-			"cacheReadCost": 0.085898
+			"inputCost": 0.95526,
+			"outputCost": 1.91052,
+			"cacheReadCost": 0.079605
 		},
 		{
 			"provider": "openrouter",
-			"modelIdentifier": "qwen/qwen3.8-max",
+			"modelIdentifier": "qwen/qwen3.8-max-0902",
 			"displayName": "Qwen3.8 Max",
 			"aliases": [],
 			"contextLimit": 1000000,
@@ -817,9 +817,9 @@
 			"aliases": [],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 1000000,
-			"inputCost": 0.7,
-			"outputCost": 2.2,
-			"cacheReadCost": 0.13
+			"inputCost": 1.4,
+			"outputCost": 4.4,
+			"cacheReadCost": 0.14
 		},
 		{
 			"provider": "vercel",

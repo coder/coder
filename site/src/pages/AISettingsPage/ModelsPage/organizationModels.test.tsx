@@ -10,6 +10,7 @@ import {
 } from "#/testHelpers/entities";
 import {
 	organizationAddModelPath,
+	organizationModelsPath,
 	selectModelOrganization,
 	useAccessibleModelOrganizations,
 } from "./organizationModels";
@@ -65,6 +66,12 @@ describe("selectModelOrganization", () => {
 			organization: MockDefaultOrganization,
 			requestedOrganizationDenied: true,
 		});
+	});
+
+	it("builds an organization-scoped models path", () => {
+		expect(organizationModelsPath(MockOrganization2)).toBe(
+			`/ai/settings/models?org=${MockOrganization2.name}`,
+		);
 	});
 
 	it("preserves auxiliary parameters in organization model paths", () => {
