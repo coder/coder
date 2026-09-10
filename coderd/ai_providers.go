@@ -457,10 +457,6 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// An update that carries no settings cannot change the configured
-	// identifiers or the credentials they resolve under, so any stored
-	// resolution still holds.
-
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
 	api.publishAIProvidersChanged(ctx)
 
