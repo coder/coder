@@ -148,9 +148,10 @@ func scanAllDirs() ([]Metric, error) {
 		files = append(files, parsed...)
 	}
 
+	resolver := newPrefixResolver(files)
 	var metrics []Metric
 	for _, file := range files {
-		fileMetrics := scanFile(file)
+		fileMetrics := scanFile(file, resolver)
 		if len(fileMetrics) > 0 {
 			logf("scanning %s: found %d metrics", file.path, len(fileMetrics))
 		}
@@ -200,7 +201,7 @@ func parseSourceFile(path string) (*sourceFile, error) {
 }
 
 // scanFile extracts metric definitions from an already parsed file.
-func scanFile(file *sourceFile) []Metric {
+func scanFile(file *sourceFile, resolver *prefixResolver) []Metric {
 	var metrics []Metric
 	ast.Inspect(file.file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -215,7 +216,18 @@ func scanFile(file *sourceFile) []Metric {
 				// or added to the static metrics file with a manual description.
 				return true
 			}
-			metrics = append(metrics, metric)
+			if prefixes, managed := resolver.resolve(file, call); managed {
+				if len(prefixes) == 0 {
+					warnf("metric %q in %s has an unresolved registerer prefix; maintain it in the static metrics file", metric.Name, file.path)
+				}
+				for _, prefix := range prefixes {
+					prefixed := metric
+					prefixed.Name = prefix + metric.Name
+					metrics = append(metrics, prefixed)
+				}
+			} else {
+				metrics = append(metrics, metric)
+			}
 		}
 		return true
 	})
