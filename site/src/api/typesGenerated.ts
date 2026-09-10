@@ -3285,9 +3285,9 @@ export interface ChatRetentionDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatRole = "" | "read" | "write";
+export type ChatRole = "" | "read" | "use";
 
-export const ChatRoles: ChatRole[] = ["", "read", "write"];
+export const ChatRoles: ChatRole[] = ["", "read", "use"];
 
 // From codersdk/chats.go
 export interface ChatSkillPart {

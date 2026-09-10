@@ -56,18 +56,18 @@ When a dev server is already up, keep it running with output teed to `scripts/ch
 
 | ID  | Name                                     | Asserts                                                                                                                                                                                                                                            |
 |-----|------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| S0  | Discovery                                | `GET /.well-known/oauth-authorization-server` lists `chat:read`, `chat:create`, `chat:update`, `chat:delete`, `chat:share`, `chat:*`, and `workspace:share` in `scopes_supported`.                                                                   |
+| S0  | Discovery                                | `GET /.well-known/oauth-authorization-server` lists `chat:read`, `chat:create`, `chat:use`, `chat:update`, `chat:delete`, `chat:share`, `chat:*`, and `workspace:share` in `scopes_supported`.                                                       |
 | S1  | Token identity                           | For alice, bob, carol: `GET /api/v2/users/me` with the OAuth2 token as `Authorization: Bearer` and as `Coder-Session-Token` returns 200 with that user's id and username.                                                                         |
 | S2  | Thread start                             | Alice's token creates a chat bound to `alice/alice-ws`; owner is alice, the `force_on` MCP config is attached, the first user message has `created_by` alice, the turn ends `waiting` with "pong", and `agent_id` resolves to the workspace agent. |
-| S3  | Join ordering and sharing                | Bob posting before any grant is denied (403 or 404); alice's no-share token gets 403 from `PATCH /chats/{id}/acl`; alice's full token sets bob=`write` and carol=`read`, and `GET /chats/{id}/acl` round-trips both roles.                        |
+| S3  | Join ordering and sharing                | Bob posting before any grant is denied (403 or 404); alice's no-share token gets 403 from `PATCH /chats/{id}/acl`; alice's full token sets bob=`use` and carol=`read`, and `GET /chats/{id}/acl` round-trips both roles.                          |
 | S4A | MCP whoami smoke (alice only)            | Same checks as S4 for alice only. Not in the default set.                                                                                                                                                                                          |
 | S4  | Per-user MCP identity                    | Bob, then alice, ask for `whoami`. The tool result has `owner_id` alice, `actor_id` and `token_label` equal to the poster (the per-user MCP token follows the actor), the chat id, and the `whoami` `mcp_server_config_id`.                        |
 | S5  | Workspace denial                         | Bob (no workspace access) asks `execute hostname`; the tool result is an error containing `workspace access denied: user bob does not have access to workspace alice/alice-ws`, the assistant relays it, and `logs/develop.log` has `actor_id=<bob>` lines. |
 | S6  | Share and retry                          | Alice shares `alice-ws` with bob as `use`; bob's `execute hostname` succeeds and the output contains the workspace name.                                                                                                                            |
-| S7  | Handler gates                            | Bob (write) is denied archive and ACL updates; bob can interrupt a running turn; carol (read) is denied posting (403 or 404); the admin session is denied posting with 403 "Only the chat owner..."; bob and carol can read the chat and messages. |
+| S7  | Handler gates                            | Bob (use) is denied archive and ACL updates; bob can interrupt a running turn; carol (read) is denied posting (403 or 404); the admin session is denied posting with 404 (admins hold `update`, not `use`); bob and carol can read the chat and messages. |
 | S8  | Attribution                              | `api_keys` has exactly one `chatd_%_session_token` key each for alice and bob and none for carol or admin; `logs/develop.log` has `actor_id=` lines for alice and bob.                                                                             |
 | S9  | Create workspace from chat (optional)    | Inside alice's bound chat, bob asks `create_workspace bob-from-chat`; the workspace exists owned by bob, the chat rebinds to it, bob's `execute` succeeds there, and alice's `execute` is denied.                                                    |
-| S9B | Writer creates workspace (unbound chat)  | Alice creates an unbound chat and grants bob `write`; bob creates `bob-from-chat`. Owner and build initiator are bob, the chat rebinds while alice stays owner, all `audit_logs` rows are bob's, bob's `execute` and `stop_workspace` succeed, alice's are denied. |
+| S9B | Use sharer creates workspace (unbound)   | Alice creates an unbound chat and grants bob `use`; bob creates `bob-from-chat`. Owner and build initiator are bob, the chat rebinds while alice stays owner, all `audit_logs` rows are bob's, bob's `execute` and `stop_workspace` succeed, alice's are denied. |
 
 ### Rerun a single scenario
 
@@ -88,7 +88,7 @@ Scenarios after S2 reuse the chat stored as `chat_id` in `state.json`. Pass `-ne
 `botemu tokens` requests the scope set in `botScopes` (`botemu/main.go`) and stores the tokens in `state.json`. Override it without editing code:
 
 ```sh
-go run ./scripts/chatactor-dogfood/botemu tokens -scopes "chat:create chat:read chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read"
+go run ./scripts/chatactor-dogfood/botemu tokens -scopes "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read"
 ```
 
 The no-share token always uses `noShareScopes`. Known results by scope set:
@@ -97,22 +97,25 @@ The no-share token always uses `noShareScopes`. Known results by scope set:
 - Without `chat_model_config:read`: S2 failed, `POST /api/v2/chats` returned 400 "No chat model is available in this organization."
 - The full set above: S0 to S8 pass.
 
+### Bot scope set
+
+Posting messages, submitting tool results, and interrupting a chat require the `chat:use` scope and the `use` action on the chat. Chat settings, the queue, clear, and retitle require `chat:update`. A bot that only posts on behalf of users needs this minimum set:
+
+```text
+chat:create chat:read chat:use chat:share workspace:read workspace:share workspace:ssh user:read user:read_personal chat_model_config:read
+```
+
+`botScopes` keeps `chat:update` on top of that set on purpose. With the scope present, the S7 `PATCH /chats/{id}` archive denial for bob comes from the chat ACL (bob holds `use`, not `update`), not from a missing scope.
+
 ### Results and logs
 
 - `scripts/chatactor-dogfood/results.md`: verdict table plus the evidence lines of each scenario from the last `botemu run`. Every run overwrites it.
 - `scripts/chatactor-dogfood/logs/`: `develop.log` (dev server, verbose), `mcpserver.log`, `whoami_calls.jsonl` (one JSON line per `whoami` call), `setup.log`, `tokens.log`, `run.log`.
 - `scripts/chatactor-dogfood/state.json`: ids and secrets. Delete it to start from scratch against a reset database. Deleting it against an existing database recreates the OAuth2 apps and mints new MCP tokens.
 
-## Pending the next commit
-
-The next commit changes chat RBAC. Update the harness and this README with it:
-
-- The chat ACL role granted to bob becomes `use` instead of `write`. `botemu` still uses `codersdk.ChatRoleWrite` in S3, S7, and S9B and expects `write` to round-trip.
-- Admin posting to a shared chat is expected to return 404 instead of the current 403 "Only the chat owner or a user with write access may send messages." S7 still asserts the 403.
-
 ## Last known results
 
-Branch `ethan/chat-actor-prototype` at `9a50b4fde1`, 2026-09-10, model `gpt-4.1-mini` through the Coder AI Gateway.
+Branch `ethan/chat-actor-prototype` at `9a50b4fde1`, 2026-09-10, model `gpt-4.1-mini` through the Coder AI Gateway. These results predate the chat `use` action. Since then the harness grants bob `use` instead of `write` (S3, S7, S9B), requests `chat:use` in the bot tokens, and expects the S7 admin post to return 404 instead of 403. Rerun `run.sh` to refresh the table.
 
 | ID  | Verdict | Notes                                                                                                                                                                     |
 |-----|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

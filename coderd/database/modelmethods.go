@@ -213,7 +213,10 @@ func (t Task) RBACObject() rbac.Object {
 }
 
 func (c Chat) RBACObject() rbac.Object {
-	obj := c.RBACObjectWithoutACL()
+	obj := rbac.ResourceChat.
+		WithID(c.ID).
+		WithOwner(c.OwnerID.String()).
+		InOrg(c.OrganizationID)
 
 	if rbac.ChatACLDisabled() {
 		return obj
@@ -222,15 +225,6 @@ func (c Chat) RBACObject() rbac.Object {
 	return obj.
 		WithACLUserList(c.UserACL.RBACACL()).
 		WithGroupACL(c.GroupACL.RBACACL())
-}
-
-// RBACObjectWithoutACL returns the chat object without its sharing ACL.
-// Handlers use it for settings that only the owner or an admin may change.
-func (c Chat) RBACObjectWithoutACL() rbac.Object {
-	return rbac.ResourceChat.
-		WithID(c.ID).
-		WithOwner(c.OwnerID.String()).
-		InOrg(c.OrganizationID)
 }
 
 func (m MCPServerConfig) RBACObject() rbac.Object {

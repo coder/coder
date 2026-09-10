@@ -125,8 +125,8 @@ func runScenarios(ctx context.Context, st *state, only string, withS9 bool, newC
 		{"S7", "Handler gates", s7HandlerGates},
 		{"S8", "Attribution", s8Attribution},
 		{"S9", "Create workspace from chat (optional)", s9CreateWorkspace},
-		{"S9B", "Writer creates workspace (unbound chat)", func(ctx context.Context, st *state, r *reporter) error {
-			return s9bWriterCreatesWorkspace(ctx, st, r, newChat)
+		{"S9B", "Use sharer creates workspace (unbound chat)", func(ctx context.Context, st *state, r *reporter) error {
+			return s9bUseSharerCreatesWorkspace(ctx, st, r, newChat)
 		}},
 	}
 	for _, s := range steps {
@@ -180,7 +180,7 @@ func s0Discovery(ctx context.Context, st *state, r *reporter) error {
 		}
 	}
 	r.ev("scopes_supported (chat*/workspace:share subset): %v", chatScopes)
-	for _, s := range []string{"chat:read", "chat:create", "chat:update", "chat:delete", "chat:share", "chat:*", "workspace:share"} {
+	for _, s := range []string{"chat:read", "chat:create", "chat:use", "chat:update", "chat:delete", "chat:share", "chat:*", "workspace:share"} {
 		r.check(have[s], "scopes_supported includes %s", s)
 	}
 	return nil
@@ -296,18 +296,18 @@ func s3JoinOrdering(ctx context.Context, st *state, r *reporter) error {
 
 	aliceNoShare := st.client(st.AliceNoShareTk)
 	err = aliceNoShare.UpdateChatACL(ctx, st.ChatID, codersdk.UpdateChatACL{
-		UserRoles: map[string]codersdk.ChatRole{st.Users["bob"].ID.String(): codersdk.ChatRoleWrite},
+		UserRoles: map[string]codersdk.ChatRole{st.Users["bob"].ID.String(): codersdk.ChatRoleUse},
 	})
 	r.check(httpStatus(err) == 403, "alice token WITHOUT chat:share PATCH /chats/{id}/acl -> %s", errBody(err))
 
 	alice := st.tokenClient("alice")
 	err = alice.UpdateChatACL(ctx, st.ChatID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			st.Users["bob"].ID.String():   codersdk.ChatRoleWrite,
+			st.Users["bob"].ID.String():   codersdk.ChatRoleUse,
 			st.Users["carol"].ID.String(): codersdk.ChatRoleRead,
 		},
 	})
-	if !r.check(err == nil, "alice full token PATCH /chats/{id}/acl bob=write carol=read -> %s", errBody(err)) {
+	if !r.check(err == nil, "alice full token PATCH /chats/{id}/acl bob=use carol=read -> %s", errBody(err)) {
 		return nil
 	}
 	acl, err := alice.GetChatACL(ctx, st.ChatID)
@@ -321,7 +321,7 @@ func s3JoinOrdering(ctx context.Context, st *state, r *reporter) error {
 		summary = append(summary, fmt.Sprintf("%s=%s", u.Username, u.Role))
 	}
 	r.ev("GET /chats/{id}/acl users: %v groups=%d", summary, len(acl.Groups))
-	r.check(roles[st.Users["bob"].ID] == codersdk.ChatRoleWrite, "bob role round-trips as write")
+	r.check(roles[st.Users["bob"].ID] == codersdk.ChatRoleUse, "bob role round-trips as use")
 	r.check(roles[st.Users["carol"].ID] == codersdk.ChatRoleRead, "carol role round-trips as read")
 	return nil
 }
@@ -461,7 +461,7 @@ func s7HandlerGates(ctx context.Context, st *state, r *reporter) error {
 	err := bob.UpdateChat(ctx, st.ChatID, codersdk.UpdateChatRequest{Archived: &archived})
 	r.check(httpStatus(err) == 403 || httpStatus(err) == 404, "bob PATCH /chats/{id} archive denied: %s", errBody(err))
 	err = bob.UpdateChatACL(ctx, st.ChatID, codersdk.UpdateChatACL{
-		UserRoles: map[string]codersdk.ChatRole{st.Users["carol"].ID.String(): codersdk.ChatRoleWrite},
+		UserRoles: map[string]codersdk.ChatRole{st.Users["carol"].ID.String(): codersdk.ChatRoleUse},
 	})
 	r.check(httpStatus(err) == 403 || httpStatus(err) == 404, "bob PATCH /chats/{id}/acl denied: %s", errBody(err))
 
@@ -493,8 +493,8 @@ func s7HandlerGates(ctx context.Context, st *state, r *reporter) error {
 	_, err = carol.CreateChatMessage(ctx, st.ChatID, codersdk.CreateChatMessageRequest{
 		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Reply with the single word hi."}},
 	})
-	// Read-only sharers fail the ActionUpdate RBAC gate first and get 404
-	// (httpapi.ResourceNotFound), never reaching the 403 write gate.
+	// Read-only sharers fail the ActionUse RBAC gate and get 404
+	// (httpapi.ResourceNotFound).
 	r.check(httpStatus(err) == 403 || httpStatus(err) == 404, "carol (read) POST /chats/{id}/messages denied (403 or 404): %s", errBody(err))
 
 	admin, err := st.adminClient()
@@ -504,8 +504,9 @@ func s7HandlerGates(ctx context.Context, st *state, r *reporter) error {
 	_, err = admin.CreateChatMessage(ctx, st.ChatID, codersdk.CreateChatMessageRequest{
 		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Reply with the single word hi."}},
 	})
-	body := errBody(err)
-	r.check(httpStatus(err) == 403 && strings.Contains(body, "Only the chat owner"), "admin session POST /chats/{id}/messages denied with 'Only the chat owner': %s", body)
+	// Admins hold update on every chat but not use, so posting fails the
+	// ActionUse RBAC gate with 404.
+	r.check(httpStatus(err) == 404, "admin session POST /chats/{id}/messages denied with 404: %s", errBody(err))
 
 	for _, name := range []string{"bob", "carol"} {
 		c := st.tokenClient(name)
@@ -626,13 +627,13 @@ func s9CreateWorkspace(ctx context.Context, st *state, r *reporter) error {
 
 const s9bWorkspaceName = "bob-from-chat"
 
-// s9bWriterCreatesWorkspace verifies that a chat writer (bob) who creates a
+// s9bUseSharerCreatesWorkspace verifies that a chat use sharer (bob) who creates a
 // workspace from inside alice's UNBOUND chat ends up owning that workspace,
 // and that later tool calls are checked against the actor, not the owner.
 //
 // With newChat=false and an S9B chat already in state, steps 1-4 are skipped
 // and bob starts the (stopped) workspace before steps 5-7 run again.
-func s9bWriterCreatesWorkspace(ctx context.Context, st *state, r *reporter, newChat bool) error { //nolint:revive // newChat mirrors the -new-chat flag.
+func s9bUseSharerCreatesWorkspace(ctx context.Context, st *state, r *reporter, newChat bool) error { //nolint:revive // newChat mirrors the -new-chat flag.
 	alice := st.tokenClient("alice")
 	bob := st.tokenClient("bob")
 	aliceID := st.Users["alice"].ID
@@ -709,11 +710,11 @@ func s9bWriterCreatesWorkspace(ctx context.Context, st *state, r *reporter, newC
 	r.check(strings.Contains(strings.ToLower(t.assistantText()), "pong"), "step1: assistant replied (contains 'pong')")
 	r.check(t.Chat.WorkspaceID == nil, "step1: chat workspace_id still nil after turn (got %s)", uuidStr(t.Chat.WorkspaceID))
 
-	// Step 2: alice grants bob write.
+	// Step 2: alice grants bob use.
 	err = alice.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
-		UserRoles: map[string]codersdk.ChatRole{bobID.String(): codersdk.ChatRoleWrite},
+		UserRoles: map[string]codersdk.ChatRole{bobID.String(): codersdk.ChatRoleUse},
 	})
-	if !r.check(err == nil, "step2: alice PATCH /chats/{id}/acl bob=write -> %s", errBody(err)) {
+	if !r.check(err == nil, "step2: alice PATCH /chats/{id}/acl bob=use -> %s", errBody(err)) {
 		return nil
 	}
 	acl, err := alice.GetChatACL(ctx, chat.ID)
@@ -726,7 +727,7 @@ func s9bWriterCreatesWorkspace(ctx context.Context, st *state, r *reporter, newC
 			bobRole = u.Role
 		}
 	}
-	r.check(bobRole == codersdk.ChatRoleWrite, "step2: GET /chats/{id}/acl bob role round-trips as write (got %q)", bobRole)
+	r.check(bobRole == codersdk.ChatRoleUse, "step2: GET /chats/{id}/acl bob role round-trips as use (got %q)", bobRole)
 
 	// Step 3: bob asks the chat to create a workspace.
 	createPrompt := fmt.Sprintf("Use the create_workspace tool to create a workspace named %s from the docker template (template_id %s), then reply with the single word done.", s9bWorkspaceName, st.TemplateID)

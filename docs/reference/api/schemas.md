@@ -2887,9 +2887,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Property | Value(s)        |
-|----------|-----------------|
-| `role`   | `read`, `write` |
+| Property | Value(s)      |
+|----------|---------------|
+| `role`   | `read`, `use` |
 
 ## codersdk.ChatInputPart
 
@@ -4660,9 +4660,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)            |
-|---------------------|
-| ``, `read`, `write` |
+| Value(s)          |
+|-------------------|
+| ``, `read`, `use` |
 
 ## codersdk.ChatStatus
 
@@ -5148,9 +5148,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Property | Value(s)        |
-|----------|-----------------|
-| `role`   | `read`, `write` |
+| Property | Value(s)      |
+|----------|---------------|
+| `role`   | `read`, `use` |
 
 ## codersdk.ChatWatchEvent
 

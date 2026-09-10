@@ -6236,8 +6236,14 @@ func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertCha
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUse, chat); err != nil {
-		return nil, err
+	// Posting reaches this through use; clearing, reconciling, and
+	// promoting a queued message reach it through update.
+	err = q.authorizeContext(ctx, policy.ActionUse, chat)
+	if err != nil {
+		err = q.authorizeContext(ctx, policy.ActionUpdate, chat)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return q.db.InsertChatMessages(ctx, arg)
 }

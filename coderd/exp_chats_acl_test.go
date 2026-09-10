@@ -332,12 +332,12 @@ func TestChatACLValidation(t *testing.T) {
 			name: "InvalidRole",
 			req: codersdk.UpdateChatACL{
 				UserRoles: map[string]codersdk.ChatRole{
-					uuid.NewString(): codersdk.ChatRole("admin"),
+					uuid.NewString(): codersdk.ChatRole("write"),
 				},
 			},
 			wantValidation: codersdk.ValidationError{
 				Field:  "user_roles",
-				Detail: `role "admin" is not a valid chat role`,
+				Detail: `role "write" is not a valid chat role`,
 			},
 		},
 		{

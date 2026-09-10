@@ -18543,12 +18543,10 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 	})
 }
 
-// TestChatOwnerOnlyWriteHandlers verifies that only the chat owner can
-// call handlers that trigger chat processing. Org admins pass the RBAC
-// ActionUpdate check (org-level permission) but must still be blocked
-// because processing forwards the *owner's* credentials to external
-// services.
-func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
+// TestChatAdminsHoldUpdateNotUse verifies that an org admin holds update on
+// every chat in the org but not use: the admin manages the chat (queue,
+// title) but cannot post into it, submit tool results, or edit messages.
+func TestChatAdminsHoldUpdateNotUse(t *testing.T) {
 	t.Parallel()
 
 	// setupOrgAdminAndOwnerChat creates an org-admin user and a chat
@@ -18601,8 +18599,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "org admin should not be able to send this",
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("CompactChat", func(t *testing.T) {
@@ -18641,7 +18638,22 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 			}},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		require.Contains(t, sdkErr.Message, "requires use access")
+	})
+
+	t.Run("SubmitToolResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{
+				ToolCallID: "call_forbidden",
+				Output:     json.RawMessage(`"forbidden"`),
+			}},
+		})
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
@@ -18657,7 +18669,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		require.NoError(t, err)
 		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
-		// Org admin tries to promote.
+		// Queue management is an update action, so the org admin may promote.
 		promoteRes, err := adminClient.Request(
 			ctx,
 			http.MethodPost,
@@ -18666,23 +18678,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
-	})
-
-	t.Run("SubmitToolResults", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
-
-		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
-			Results: []codersdk.ToolResult{{
-				ToolCallID: "call_forbidden",
-				Output:     json.RawMessage(`"forbidden"`),
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 	})
 
 	t.Run("ProposeChatTitle", func(t *testing.T) {
@@ -18691,9 +18687,16 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
+		// Retitling is an update action, so the admin passes authorization.
+		// The fake model does not serve the structured title call, so only
+		// the authorization outcome is asserted.
 		_, err := adminClient.ProposeChatTitle(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		if err != nil {
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.NotEqual(t, http.StatusForbidden, sdkErr.StatusCode())
+			require.NotEqual(t, http.StatusNotFound, sdkErr.StatusCode())
+		}
 	})
 
 	// Verify the owner can still operate normally.
@@ -18721,18 +18724,18 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 	})
 }
 
-// TestChatWriteSharedActor verifies that a user granted the write role can
-// post into a shared chat and that the turn runs as that user, while chat
+// TestChatUseSharedActor verifies that a user granted the use role can post
+// into a shared chat and that the turn runs as that user, while chat
 // settings and the ACL stay owner-only and read-only sharers cannot post.
-func TestChatWriteSharedActor(t *testing.T) {
+func TestChatUseSharedActor(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ownerClient, db, api := newChatClientWithAPIAndDatabase(t)
 	owner := coderdtest.CreateFirstUser(t, ownerClient.Client)
 	_ = createChatModel(t, ownerClient)
-	writerRaw, writer := coderdtest.CreateAnotherUser(t, ownerClient.Client, owner.OrganizationID)
-	writerClient := codersdk.NewExperimentalClient(writerRaw)
+	userRaw, user := coderdtest.CreateAnotherUser(t, ownerClient.Client, owner.OrganizationID)
+	userClient := codersdk.NewExperimentalClient(userRaw)
 	readerRaw, reader := coderdtest.CreateAnotherUser(t, ownerClient.Client, owner.OrganizationID)
 	readerClient := codersdk.NewExperimentalClient(readerRaw)
 
@@ -18740,7 +18743,7 @@ func TestChatWriteSharedActor(t *testing.T) {
 		OrganizationID: owner.OrganizationID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
-			Text: "write shared chat",
+			Text: "use shared chat",
 		}},
 	})
 	require.NoError(t, err)
@@ -18748,7 +18751,7 @@ func TestChatWriteSharedActor(t *testing.T) {
 
 	err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			writer.ID.String(): codersdk.ChatRoleWrite,
+			user.ID.String():   codersdk.ChatRoleUse,
 			reader.ID.String(): codersdk.ChatRoleRead,
 		},
 	})
@@ -18757,11 +18760,11 @@ func TestChatWriteSharedActor(t *testing.T) {
 	acl, err := ownerClient.GetChatACL(ctx, chat.ID)
 	require.NoError(t, err)
 	gotRoles := make(map[uuid.UUID]codersdk.ChatRole, len(acl.Users))
-	for _, user := range acl.Users {
-		gotRoles[user.ID] = user.Role
+	for _, aclUser := range acl.Users {
+		gotRoles[aclUser.ID] = aclUser.Role
 	}
 	require.Equal(t, map[uuid.UUID]codersdk.ChatRole{
-		writer.ID: codersdk.ChatRoleWrite,
+		user.ID:   codersdk.ChatRoleUse,
 		reader.ID: codersdk.ChatRoleRead,
 	}, gotRoles)
 
@@ -18773,35 +18776,51 @@ func TestChatWriteSharedActor(t *testing.T) {
 	})
 	requireSDKError(t, err, http.StatusNotFound)
 
-	posted, err := writerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+	// Changing persistent chat settings on send requires update, which
+	// the use role does not grant.
+	_, err = userClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
-			Text: "writer can post",
+			Text: "user cannot change plan mode",
 		}},
+		PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+	})
+	sdkErr := requireSDKError(t, err, http.StatusForbidden)
+	require.Contains(t, sdkErr.Message, "requires update access")
+
+	// Echoing the chat's current MCP server selection, as the web UI does
+	// on every send, is not a change. A non-nil slice encodes as a JSON
+	// array so the handler takes the comparison path.
+	posted, err := userClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "user can post",
+		}},
+		MCPServerIDs: ptr.Ref(append([]uuid.UUID{}, chat.MCPServerIDs...)),
 	})
 	require.NoError(t, err)
 	require.False(t, posted.Queued)
 	require.NotNil(t, posted.Message)
 	require.NotNil(t, posted.Message.CreatedBy)
-	require.Equal(t, writer.ID, *posted.Message.CreatedBy)
+	require.Equal(t, user.ID, *posted.Message.CreatedBy)
 
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
-	// The turn ran with the writer's credentials.
+	// The turn ran with the user's credentials.
 	_, err = db.GetChatGatewayAPIKey(dbauthz.AsSystemRestricted(ctx), database.GetChatGatewayAPIKeyParams{
-		UserID:    writer.ID,
-		TokenName: chatd.GatewayTokenName(writer.ID),
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
 
-	err = writerClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+	err = userClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 		Archived: ptr.Ref(true),
 	})
 	requireSDKError(t, err, http.StatusNotFound)
 
-	err = writerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+	err = userClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			reader.ID.String(): codersdk.ChatRoleWrite,
+			reader.ID.String(): codersdk.ChatRoleUse,
 		},
 	})
 	requireSDKError(t, err, http.StatusForbidden)

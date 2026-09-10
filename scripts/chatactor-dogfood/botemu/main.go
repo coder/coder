@@ -44,11 +44,13 @@ const (
 	// botScopes is the scope set known to pass S0..S8. Without user:read
 	// and workspace:ssh, GET /api/v2/users/me returned 404 (S1). Without
 	// chat_model_config:read, POST /api/v2/chats returned 400 "No chat
-	// model is available" (S2).
-	botScopes = "chat:create chat:read chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read"
+	// model is available" (S2). Posting, interrupting, and submitting tool
+	// results need chat:use. A bot does not need chat:update; it stays
+	// here so the S7 archive denial exercises the chat ACL, not the scope.
+	botScopes = "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read"
 	// noShareScopes is a bot scope set without chat:share, used only to
 	// prove that PATCH /chats/{id}/acl is denied without that scope.
-	noShareScopes = "chat:create chat:read chat:update workspace:read workspace:share user:read_personal"
+	noShareScopes = "chat:create chat:read chat:use chat:update workspace:read workspace:share user:read_personal"
 )
 
 // userState holds one Coder user's identity and credentials.

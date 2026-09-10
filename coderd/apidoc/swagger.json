@@ -17969,7 +17969,7 @@
 					"type": "integer"
 				},
 				"role": {
-					"enum": ["read", "write"],
+					"enum": ["read", "use"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatRole"
@@ -18990,8 +18990,8 @@
 		},
 		"codersdk.ChatRole": {
 			"type": "string",
-			"enum": ["read", "write", ""],
-			"x-enum-varnames": ["ChatRoleRead", "ChatRoleWrite", "ChatRoleDeleted"]
+			"enum": ["read", "use", ""],
+			"x-enum-varnames": ["ChatRoleRead", "ChatRoleUse", "ChatRoleDeleted"]
 		},
 		"codersdk.ChatStatus": {
 			"type": "string",
@@ -19204,7 +19204,7 @@
 					"type": "string"
 				},
 				"role": {
-					"enum": ["read", "write"],
+					"enum": ["read", "use"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatRole"

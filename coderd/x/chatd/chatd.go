@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -1345,6 +1346,11 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 	enforcedIDs, err := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requested)
 	if err != nil {
 		return database.Chat{}, err
+	}
+	// Clients resend the current selection with every message. Writing the
+	// row requires update on the chat, which a use-only sharer lacks.
+	if slice.SameElements(enforcedIDs, lockedChat.MCPServerIDs) {
+		return lockedChat, nil
 	}
 	updated, err := store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
 		ID:           lockedChat.ID,

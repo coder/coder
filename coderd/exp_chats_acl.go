@@ -363,15 +363,15 @@ func (c ChatACLUpdateValidator) Groups() (map[string]codersdk.ChatRole, string) 
 
 func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
 	switch role {
-	case codersdk.ChatRoleDeleted, codersdk.ChatRoleRead, codersdk.ChatRoleWrite:
+	case codersdk.ChatRoleDeleted, codersdk.ChatRoleRead, codersdk.ChatRoleUse:
 		return nil
 	}
 	return xerrors.Errorf("role %q is not a valid chat role", role)
 }
 
 func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
-	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleWrite)) {
-		return codersdk.ChatRoleWrite
+	if slices.Contains(actions, policy.ActionUse) {
+		return codersdk.ChatRoleUse
 	}
 	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
 		return codersdk.ChatRoleRead

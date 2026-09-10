@@ -19958,7 +19958,7 @@ const docTemplate = `{
                 "role": {
                     "enum": [
                         "read",
-                        "write"
+                        "use"
                     ],
                     "allOf": [
                         {
@@ -21007,12 +21007,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "read",
-                "write",
+                "use",
                 ""
             ],
             "x-enum-varnames": [
                 "ChatRoleRead",
-                "ChatRoleWrite",
+                "ChatRoleUse",
                 "ChatRoleDeleted"
             ]
         },
@@ -21232,7 +21232,7 @@ const docTemplate = `{
                 "role": {
                     "enum": [
                         "read",
-                        "write"
+                        "use"
                     ],
                     "allOf": [
                         {
