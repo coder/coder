@@ -62,7 +62,7 @@ func (r *RootCmd) expLaunch() *serpent.Command {
 
 			bin, err := exec.LookPath("claude")
 			if err != nil {
-				return xerrors.Errorf("claude not found in PATH; install: https://docs.claude.com/en/docs/claude-code/setup")
+				return xerrors.Errorf("claude not found in PATH; install: https://code.claude.com/docs/en/setup")
 			}
 
 			var args []string
