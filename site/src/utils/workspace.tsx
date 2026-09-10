@@ -64,9 +64,7 @@ const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 };
 
 // Build reasons removed from the API that can still appear on retained
-// workspace builds and their audit logs. Reason labels render only for start
-// builds, and the removed pause reasons were carried by stop builds, so
-// task_resume is the only legacy reason the label paths can surface.
+// workspace builds and their audit logs.
 const legacyBuildReasonLabels: Record<string, string> = {
 	task_resume: "Task Resume",
 };
