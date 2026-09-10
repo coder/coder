@@ -417,7 +417,6 @@ export const ExpandCollapse: Story = {
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-2");
 
 		await userEvent.click(toggle);
-		await userEvent.click(toggle);
 	},
 };
 
@@ -623,8 +622,8 @@ export const SectionHeadersCollapse: Story = {
 		const canvas = within(canvasElement);
 
 		// Exercise both section toggles: collapse then re-expand Pinned,
-		// then collapse and re-expand Today. The final state is fully
-		// expanded and deterministic.
+		// then collapse Today and leave it collapsed so the capture shows
+		// a collapsed section alongside the expanded ones.
 		const pinnedToggle = canvas.getByRole("button", {
 			name: "Collapse Pinned section",
 		});
@@ -633,11 +632,12 @@ export const SectionHeadersCollapse: Story = {
 			await canvas.findByRole("button", { name: "Expand Pinned section" }),
 		);
 
+		// Collapse Today and leave it collapsed so the capture shows a
+		// collapsed section alongside the expanded ones.
 		const todayToggle = canvas.getByRole("button", {
 			name: "Collapse Today section",
 		});
 		await userEvent.click(todayToggle);
-		await userEvent.click(canvas.getByTestId("agents-section-toggle-Today"));
 	},
 };
 
@@ -1972,6 +1972,15 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 			},
 			routing: agentsRouting,
 		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Right-click the archived child row: it has no menu actions, so a
+		// correct render leaves the row undisturbed for the capture. An
+		// erroneous menu would appear in the screenshot.
+		fireEvent.contextMenu(
+			canvas.getByTestId("agents-tree-node-child-archived"),
+		);
 	},
 };
 
