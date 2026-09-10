@@ -298,6 +298,29 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	assert.Contains(t, err.Error(), "tools reload timed out after 1m0s")
 }
 
+// TestToolInputSchemaMap verifies that object schemas pass through
+// whole, so keys beyond type, properties, and required ($defs,
+// additionalProperties, combinators, ...) reach coderd, while
+// non-object and empty schemas leave InputSchema unset.
+func TestToolInputSchemaMap(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, toolInputSchemaMap(nil))
+	require.Nil(t, toolInputSchemaMap("bogus"))
+	require.Nil(t, toolInputSchemaMap(map[string]any{}))
+
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"filter": map[string]any{"$ref": "#/$defs/Filter"},
+		},
+		"required":             []any{"filter"},
+		"additionalProperties": false,
+		"$defs":                map[string]any{"Filter": map[string]any{"type": "string"}},
+	}
+	require.Equal(t, schema, toolInputSchemaMap(schema))
+}
+
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
 // stdin/stdout, just enough for initialize + tools/list.
 func runFakeMCPServer() {

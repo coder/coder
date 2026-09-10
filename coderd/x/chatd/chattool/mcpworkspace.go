@@ -34,6 +34,9 @@ const maxModelToolNameLen = 64
 // registered alongside built-in chat tools.
 type WorkspaceMCPTool struct {
 	info fantasy.ToolInfo
+	// inputSchema is the tool's complete input schema as pushed by the
+	// workspace agent, preserving keys the flattened info cannot carry.
+	inputSchema map[string]any
 	// routingName is the unsanitized "serverName__toolName" form the
 	// workspace agent expects: it splits on "__" to locate the server and
 	// calls the original tool name. info.Name is the sanitized, provider-safe
@@ -114,10 +117,18 @@ func buildWorkspaceMCPTool(
 			Required:    required,
 			Parallel:    true,
 		},
+		inputSchema:     tool.InputSchema,
 		routingName:     tool.Name,
 		getConn:         getConn,
 		invalidateCache: invalidateCache,
 	}
+}
+
+// FullInputSchema returns the tool's complete input schema, or nil for
+// payloads carrying only the flattened Schema/Required pair, in which
+// case callers reconstruct a schema from Info().
+func (t *WorkspaceMCPTool) FullInputSchema() map[string]any {
+	return t.inputSchema
 }
 
 // ServerName returns the originating MCP server name from the unsanitized
