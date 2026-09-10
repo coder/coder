@@ -148,8 +148,8 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 // It runs for every state the runner receives: pubsub hints, the periodic
 // database sync, and the bootstrap read. It must act on a state it has already
 // seen: a task can exit on its own, for example when the chat's history changes
-// while it runs, and only the next sync redelivery tells the runner to start it
-// again.
+// while it runs, and the runner starts it again only when the next sync
+// redelivers the row.
 func (r *runner) processState(state runnerStateUpdate) {
 	r.removeFinishedTasks()
 

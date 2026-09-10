@@ -2721,9 +2721,9 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 // another worker must take over and resolve the call without user action.
 //
 // The first worker stays alive on a clock that never advances and the test
-// ages its heartbeat, so another worker can acquire the chat; the takeover then
-// cancels the blocked call, which a kill would not. The part assertions confirm
-// the canceled call commits nothing.
+// backdates its heartbeat, so another worker can acquire the chat; the takeover
+// then cancels the blocked call, which a killed process would not. The part
+// assertions confirm the canceled call commits nothing.
 func TestNewReplicaResolvesInFlightToolCallFromDeadReplica(t *testing.T) {
 	t.Parallel()
 
@@ -2787,8 +2787,8 @@ func TestNewReplicaResolvesInFlightToolCallFromDeadReplica(t *testing.T) {
 	requireToolCallPart(t, parts, "read_file")
 	require.False(t, toolResultPartExists(parts, "read_file"))
 
-	// The worker is dead as far as the database can tell once its last
-	// heartbeat is older than the stale threshold.
+	// Ownership is stale once the last heartbeat is older than the stale
+	// threshold, and another worker may then acquire the chat.
 	_, err = rawDB.ExecContext(ctx,
 		"UPDATE chat_heartbeats SET heartbeat_at = $1 WHERE chat_id = $2",
 		time.Now().Add(-time.Hour), chat.ID)

@@ -251,10 +251,10 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	}
 }
 
-// A plain-SQL edit to chat_messages changes the history under a running
-// generation, which exits without committing its stale response and without
-// any state update. The periodic sync must then restart generation from the
-// edited history.
+// A plain-SQL edit to chat_messages changes the history while a generation is
+// running. The generation exits without committing its stale response and
+// without any state update. The periodic sync must then restart generation from
+// the edited history.
 func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -324,7 +324,7 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	require.Contains(t, sinkFieldValue(t, exits[0].Fields, "error"), "chat history version mismatch")
 
 	// Fire the server's timers one at a time until the runner sync
-	// redelivers the row and the runner asks the model again.
+	// redelivers the row and the runner calls the model again.
 	var recovered string
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		_, waiter := clock.AdvanceNext()

@@ -311,9 +311,9 @@ type taskCall struct {
 }
 
 // editUserMessage edits a chat_messages row with plain SQL, outside any
-// transition: nothing is published and snapshot_version does not move. It
-// asserts that history_version moved, which requires it to have been lower than
-// snapshot_version.
+// transition: nothing is published and snapshot_version does not change. It
+// asserts that history_version changed, which requires it to have been lower
+// than snapshot_version.
 func editUserMessage(t *testing.T, db database.Store, sqlDB *sql.DB, chatID uuid.UUID, text string) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
