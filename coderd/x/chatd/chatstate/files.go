@@ -12,8 +12,9 @@ import (
 )
 
 // LinkFiles links files, returning [ErrChatFileCapExceeded] for cap rejections
-// and [ErrChatFileUnavailable] for missing files. Use the caller's transaction
-// so failures roll back related writes; existing links use no additional slots.
+// and [ErrChatFileUnavailable] for files that are missing or attached to
+// another chat. Use the caller's transaction so failures roll back related
+// writes; existing links use no additional slots.
 func LinkFiles(ctx context.Context, store database.Store, chatID uuid.UUID, fileIDs []uuid.UUID) error {
 	if len(fileIDs) == 0 {
 		return nil
@@ -25,7 +26,8 @@ func LinkFiles(ctx context.Context, store database.Store, chatID uuid.UUID, file
 	})
 	if err != nil {
 		wrapped := xerrors.Errorf("link chat files: %w", err)
-		if database.IsForeignKeyViolation(err, database.ForeignKeyChatFileLinksFileID) {
+		if database.IsForeignKeyViolation(err, database.ForeignKeyChatFileLinksFileID) ||
+			database.IsUniqueViolation(err, database.UniqueChatFileLinksFileIDKey) {
 			return errors.Join(ErrChatFileUnavailable, wrapped)
 		}
 		return wrapped

@@ -915,6 +915,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								key={agentId}
 								organizationId={organizationId}
 								store={store}
+								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
