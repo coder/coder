@@ -488,6 +488,161 @@ GROUP BY
 	ai.provider_name
 ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model;
 
+-- name: GetOrganizationAIFOCUSUsage :many
+-- Returns raw AI Gateway usage joined for FOCUS-format export over
+-- [period_start, period_end), scoped to @organization_id through the token
+-- usage's effective group, the only tenant-isolation signal that exists for
+-- aibridge data today. A token usage row with a NULL effective_group_id has
+-- no organization signal at all and is excluded here, same trade-off
+-- ExportOrganizationAISpend already accepts. One row per token usage
+-- (priced provider response); the caller fans this out into one FOCUS row
+-- per non-zero token type. Used when the export is requested at raw,
+-- unrolled granularity (granularity_seconds <= 0).
+SELECT
+	tu.id AS token_usage_id,
+	tu.provider_response_id,
+	tu.interception_id,
+	ai.session_id,
+	ai.client AS client_tool,
+	ai.error_type,
+	ai.started_at,
+	COALESCE(ai.ended_at, tu.created_at) AS ended_at,
+	tu.created_at,
+	ai.initiator_id,
+	users.username AS initiator_username,
+	tu.effective_group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	ai.model,
+	ai.provider AS wire_protocol,
+	ai.provider_name AS provider_instance,
+	ai.credential_kind,
+	provider.type AS vendor_type,
+	provider.display_name AS vendor_display_name,
+	tu.input_tokens,
+	tu.output_tokens,
+	tu.cache_read_input_tokens,
+	tu.cache_write_input_tokens,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+LEFT JOIN ai_providers provider ON provider.name = ai.provider_name AND provider.deleted = false
+WHERE groups.organization_id = @organization_id
+	AND tu.created_at >= @period_start::timestamptz
+	AND tu.created_at < @period_end::timestamptz
+ORDER BY tu.created_at, tu.id;
+
+-- name: GetOrganizationAIFOCUSUsageRollup :many
+-- Same source, joins, and tenant-scoping as GetOrganizationAIFOCUSUsage, but
+-- rolled up into fixed-width time buckets of @granularity_seconds seconds,
+-- anchored to the UNIX epoch in UTC (e.g. 3600 produces buckets aligned to
+-- the top of each UTC hour). Only used when granularity_seconds > 0; the
+-- caller is responsible for routing to the raw query otherwise, and for
+-- bounding granularity_seconds to at most one day (see
+-- focus.MaxGranularitySeconds). That bound does not, by itself, keep a
+-- bucket within one calendar month: the last bucket of every month still
+-- straddles the month boundary at any granularity. Callers derive the FOCUS
+-- BillingPeriodStart/End from each row's bucket_start, never from a
+-- bucket's exclusive end, to avoid attributing a bucket's spend to the
+-- wrong (later) month.
+-- Every column the FOCUS Row still needs to report distinctly is part of the
+-- GROUP BY key, so a bucket only ever merges rows that would otherwise be
+-- identical FOCUS rows except for quantity; nothing is summed across a
+-- dimension the export still promises to preserve. The three response-level
+-- identifiers (interception, session, provider response) have no single
+-- well-defined value once more than one distinct value is merged into a
+-- bucket; each is returned alongside a COUNT(DISTINCT ...) so the caller can
+-- treat the *_min value as authoritative only when its matching
+-- *_distinct_count equals 1, and drop it otherwise rather than reporting an
+-- arbitrary pick. row_count tells the caller how many raw token-usage rows a
+-- bucket represents.
+SELECT
+	(to_timestamp(floor(extract(epoch FROM tu.created_at) / @granularity_seconds::bigint) * @granularity_seconds::bigint))::timestamptz AS bucket_start,
+	ai.initiator_id,
+	users.username AS initiator_username,
+	tu.effective_group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	ai.model,
+	ai.provider AS wire_protocol,
+	ai.provider_name AS provider_instance,
+	ai.credential_kind,
+	provider.type AS vendor_type,
+	provider.display_name AS vendor_display_name,
+	ai.client AS client_tool,
+	ai.error_type,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros,
+	-- MIN(...)/COUNT(DISTINCT ...) here relies on interception_id,
+	-- session_id, and provider_response_id all being NOT NULL columns: a
+	-- SQL MIN()/COUNT(DISTINCT) silently ignores NULL inputs, which would
+	-- silently pick a value out of an ambiguous bucket instead of leaving
+	-- distinct_count able to signal ambiguity. If any of the three ever
+	-- becomes nullable, this collapse must be revisited.
+	MIN(tu.interception_id::text)::uuid AS interception_id_min,
+	COUNT(DISTINCT tu.interception_id)::BIGINT AS interception_id_distinct_count,
+	MIN(ai.session_id)::text AS session_id_min,
+	COUNT(DISTINCT ai.session_id)::BIGINT AS session_id_distinct_count,
+	MIN(tu.provider_response_id)::text AS provider_response_id_min,
+	COUNT(DISTINCT tu.provider_response_id)::BIGINT AS provider_response_id_distinct_count,
+	COUNT(*)::BIGINT AS row_count,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_input_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_input_tokens
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+LEFT JOIN ai_providers provider ON provider.name = ai.provider_name AND provider.deleted = false
+WHERE groups.organization_id = @organization_id
+	AND tu.created_at >= @period_start::timestamptz
+	AND tu.created_at < @period_end::timestamptz
+GROUP BY
+	to_timestamp(floor(extract(epoch FROM tu.created_at) / @granularity_seconds::bigint) * @granularity_seconds::bigint),
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	groups.organization_id,
+	ai.model,
+	ai.provider,
+	ai.provider_name,
+	ai.credential_kind,
+	provider.type,
+	provider.display_name,
+	ai.client,
+	ai.error_type,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros
+ORDER BY
+	bucket_start,
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	ai.model,
+	ai.provider,
+	ai.provider_name,
+	ai.credential_kind,
+	provider.type,
+	provider.display_name,
+	ai.client,
+	ai.error_type,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros;
+
 -- name: GetUnpricedAIModelsSince :many
 -- Returns the models used since the given time that hold no price, most used
 -- first. openai-compat providers cannot be priced, so their models are excluded.

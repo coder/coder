@@ -3178,6 +3178,349 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 	return i, err
 }
 
+const getOrganizationAIFOCUSUsage = `-- name: GetOrganizationAIFOCUSUsage :many
+SELECT
+	tu.id AS token_usage_id,
+	tu.provider_response_id,
+	tu.interception_id,
+	ai.session_id,
+	ai.client AS client_tool,
+	ai.error_type,
+	ai.started_at,
+	COALESCE(ai.ended_at, tu.created_at) AS ended_at,
+	tu.created_at,
+	ai.initiator_id,
+	users.username AS initiator_username,
+	tu.effective_group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	ai.model,
+	ai.provider AS wire_protocol,
+	ai.provider_name AS provider_instance,
+	ai.credential_kind,
+	provider.type AS vendor_type,
+	provider.display_name AS vendor_display_name,
+	tu.input_tokens,
+	tu.output_tokens,
+	tu.cache_read_input_tokens,
+	tu.cache_write_input_tokens,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+LEFT JOIN ai_providers provider ON provider.name = ai.provider_name AND provider.deleted = false
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+ORDER BY tu.created_at, tu.id
+`
+
+type GetOrganizationAIFOCUSUsageParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+}
+
+type GetOrganizationAIFOCUSUsageRow struct {
+	TokenUsageID          uuid.UUID                         `db:"token_usage_id" json:"token_usage_id"`
+	ProviderResponseID    string                            `db:"provider_response_id" json:"provider_response_id"`
+	InterceptionID        uuid.UUID                         `db:"interception_id" json:"interception_id"`
+	SessionID             string                            `db:"session_id" json:"session_id"`
+	ClientTool            sql.NullString                    `db:"client_tool" json:"client_tool"`
+	ErrorType             NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
+	StartedAt             time.Time                         `db:"started_at" json:"started_at"`
+	EndedAt               time.Time                         `db:"ended_at" json:"ended_at"`
+	CreatedAt             time.Time                         `db:"created_at" json:"created_at"`
+	InitiatorID           uuid.UUID                         `db:"initiator_id" json:"initiator_id"`
+	InitiatorUsername     string                            `db:"initiator_username" json:"initiator_username"`
+	EffectiveGroupID      uuid.NullUUID                     `db:"effective_group_id" json:"effective_group_id"`
+	GroupName             string                            `db:"group_name" json:"group_name"`
+	OrganizationID        uuid.UUID                         `db:"organization_id" json:"organization_id"`
+	Model                 string                            `db:"model" json:"model"`
+	WireProtocol          string                            `db:"wire_protocol" json:"wire_protocol"`
+	ProviderInstance      string                            `db:"provider_instance" json:"provider_instance"`
+	CredentialKind        CredentialKind                    `db:"credential_kind" json:"credential_kind"`
+	VendorType            NullAIProviderType                `db:"vendor_type" json:"vendor_type"`
+	VendorDisplayName     sql.NullString                    `db:"vendor_display_name" json:"vendor_display_name"`
+	InputTokens           int64                             `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64                             `db:"output_tokens" json:"output_tokens"`
+	CacheReadInputTokens  int64                             `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64                             `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	InputPriceMicros      sql.NullInt64                     `db:"input_price_micros" json:"input_price_micros"`
+	OutputPriceMicros     sql.NullInt64                     `db:"output_price_micros" json:"output_price_micros"`
+	CacheReadPriceMicros  sql.NullInt64                     `db:"cache_read_price_micros" json:"cache_read_price_micros"`
+	CacheWritePriceMicros sql.NullInt64                     `db:"cache_write_price_micros" json:"cache_write_price_micros"`
+}
+
+// Returns raw AI Gateway usage joined for FOCUS-format export over
+// [period_start, period_end), scoped to @organization_id through the token
+// usage's effective group, the only tenant-isolation signal that exists for
+// aibridge data today. A token usage row with a NULL effective_group_id has
+// no organization signal at all and is excluded here, same trade-off
+// ExportOrganizationAISpend already accepts. One row per token usage
+// (priced provider response); the caller fans this out into one FOCUS row
+// per non-zero token type. Used when the export is requested at raw,
+// unrolled granularity (granularity_seconds <= 0).
+func (q *sqlQuerier) GetOrganizationAIFOCUSUsage(ctx context.Context, arg GetOrganizationAIFOCUSUsageParams) ([]GetOrganizationAIFOCUSUsageRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationAIFOCUSUsage, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationAIFOCUSUsageRow
+	for rows.Next() {
+		var i GetOrganizationAIFOCUSUsageRow
+		if err := rows.Scan(
+			&i.TokenUsageID,
+			&i.ProviderResponseID,
+			&i.InterceptionID,
+			&i.SessionID,
+			&i.ClientTool,
+			&i.ErrorType,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+			&i.InitiatorID,
+			&i.InitiatorUsername,
+			&i.EffectiveGroupID,
+			&i.GroupName,
+			&i.OrganizationID,
+			&i.Model,
+			&i.WireProtocol,
+			&i.ProviderInstance,
+			&i.CredentialKind,
+			&i.VendorType,
+			&i.VendorDisplayName,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadInputTokens,
+			&i.CacheWriteInputTokens,
+			&i.InputPriceMicros,
+			&i.OutputPriceMicros,
+			&i.CacheReadPriceMicros,
+			&i.CacheWritePriceMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrganizationAIFOCUSUsageRollup = `-- name: GetOrganizationAIFOCUSUsageRollup :many
+SELECT
+	(to_timestamp(floor(extract(epoch FROM tu.created_at) / $1::bigint) * $1::bigint))::timestamptz AS bucket_start,
+	ai.initiator_id,
+	users.username AS initiator_username,
+	tu.effective_group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	ai.model,
+	ai.provider AS wire_protocol,
+	ai.provider_name AS provider_instance,
+	ai.credential_kind,
+	provider.type AS vendor_type,
+	provider.display_name AS vendor_display_name,
+	ai.client AS client_tool,
+	ai.error_type,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros,
+	-- MIN(...)/COUNT(DISTINCT ...) here relies on interception_id,
+	-- session_id, and provider_response_id all being NOT NULL columns: a
+	-- SQL MIN()/COUNT(DISTINCT) silently ignores NULL inputs, which would
+	-- silently pick a value out of an ambiguous bucket instead of leaving
+	-- distinct_count able to signal ambiguity. If any of the three ever
+	-- becomes nullable, this collapse must be revisited.
+	MIN(tu.interception_id::text)::uuid AS interception_id_min,
+	COUNT(DISTINCT tu.interception_id)::BIGINT AS interception_id_distinct_count,
+	MIN(ai.session_id)::text AS session_id_min,
+	COUNT(DISTINCT ai.session_id)::BIGINT AS session_id_distinct_count,
+	MIN(tu.provider_response_id)::text AS provider_response_id_min,
+	COUNT(DISTINCT tu.provider_response_id)::BIGINT AS provider_response_id_distinct_count,
+	COUNT(*)::BIGINT AS row_count,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_input_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_input_tokens
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+LEFT JOIN ai_providers provider ON provider.name = ai.provider_name AND provider.deleted = false
+WHERE groups.organization_id = $2
+	AND tu.created_at >= $3::timestamptz
+	AND tu.created_at < $4::timestamptz
+GROUP BY
+	to_timestamp(floor(extract(epoch FROM tu.created_at) / $1::bigint) * $1::bigint),
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	groups.organization_id,
+	ai.model,
+	ai.provider,
+	ai.provider_name,
+	ai.credential_kind,
+	provider.type,
+	provider.display_name,
+	ai.client,
+	ai.error_type,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros
+ORDER BY
+	bucket_start,
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	ai.model,
+	ai.provider,
+	ai.provider_name,
+	ai.credential_kind,
+	provider.type,
+	provider.display_name,
+	ai.client,
+	ai.error_type,
+	tu.input_price_micros,
+	tu.output_price_micros,
+	tu.cache_read_price_micros,
+	tu.cache_write_price_micros
+`
+
+type GetOrganizationAIFOCUSUsageRollupParams struct {
+	GranularitySeconds int64     `db:"granularity_seconds" json:"granularity_seconds"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart        time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd          time.Time `db:"period_end" json:"period_end"`
+}
+
+type GetOrganizationAIFOCUSUsageRollupRow struct {
+	BucketStart                     time.Time                         `db:"bucket_start" json:"bucket_start"`
+	InitiatorID                     uuid.UUID                         `db:"initiator_id" json:"initiator_id"`
+	InitiatorUsername               string                            `db:"initiator_username" json:"initiator_username"`
+	EffectiveGroupID                uuid.NullUUID                     `db:"effective_group_id" json:"effective_group_id"`
+	GroupName                       string                            `db:"group_name" json:"group_name"`
+	OrganizationID                  uuid.UUID                         `db:"organization_id" json:"organization_id"`
+	Model                           string                            `db:"model" json:"model"`
+	WireProtocol                    string                            `db:"wire_protocol" json:"wire_protocol"`
+	ProviderInstance                string                            `db:"provider_instance" json:"provider_instance"`
+	CredentialKind                  CredentialKind                    `db:"credential_kind" json:"credential_kind"`
+	VendorType                      NullAIProviderType                `db:"vendor_type" json:"vendor_type"`
+	VendorDisplayName               sql.NullString                    `db:"vendor_display_name" json:"vendor_display_name"`
+	ClientTool                      sql.NullString                    `db:"client_tool" json:"client_tool"`
+	ErrorType                       NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
+	InputPriceMicros                sql.NullInt64                     `db:"input_price_micros" json:"input_price_micros"`
+	OutputPriceMicros               sql.NullInt64                     `db:"output_price_micros" json:"output_price_micros"`
+	CacheReadPriceMicros            sql.NullInt64                     `db:"cache_read_price_micros" json:"cache_read_price_micros"`
+	CacheWritePriceMicros           sql.NullInt64                     `db:"cache_write_price_micros" json:"cache_write_price_micros"`
+	InterceptionIDMin               uuid.UUID                         `db:"interception_id_min" json:"interception_id_min"`
+	InterceptionIDDistinctCount     int64                             `db:"interception_id_distinct_count" json:"interception_id_distinct_count"`
+	SessionIDMin                    string                            `db:"session_id_min" json:"session_id_min"`
+	SessionIDDistinctCount          int64                             `db:"session_id_distinct_count" json:"session_id_distinct_count"`
+	ProviderResponseIDMin           string                            `db:"provider_response_id_min" json:"provider_response_id_min"`
+	ProviderResponseIDDistinctCount int64                             `db:"provider_response_id_distinct_count" json:"provider_response_id_distinct_count"`
+	RowCount                        int64                             `db:"row_count" json:"row_count"`
+	InputTokens                     int64                             `db:"input_tokens" json:"input_tokens"`
+	OutputTokens                    int64                             `db:"output_tokens" json:"output_tokens"`
+	CacheReadInputTokens            int64                             `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens           int64                             `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+}
+
+// Same source, joins, and tenant-scoping as GetOrganizationAIFOCUSUsage, but
+// rolled up into fixed-width time buckets of @granularity_seconds seconds,
+// anchored to the UNIX epoch in UTC (e.g. 3600 produces buckets aligned to
+// the top of each UTC hour). Only used when granularity_seconds > 0; the
+// caller is responsible for routing to the raw query otherwise, and for
+// bounding granularity_seconds to at most one day (see
+// focus.MaxGranularitySeconds). That bound does not, by itself, keep a
+// bucket within one calendar month: the last bucket of every month still
+// straddles the month boundary at any granularity. Callers derive the FOCUS
+// BillingPeriodStart/End from each row's bucket_start, never from a
+// bucket's exclusive end, to avoid attributing a bucket's spend to the
+// wrong (later) month.
+// Every column the FOCUS Row still needs to report distinctly is part of the
+// GROUP BY key, so a bucket only ever merges rows that would otherwise be
+// identical FOCUS rows except for quantity; nothing is summed across a
+// dimension the export still promises to preserve. The three response-level
+// identifiers (interception, session, provider response) have no single
+// well-defined value once more than one distinct value is merged into a
+// bucket; each is returned alongside a COUNT(DISTINCT ...) so the caller can
+// treat the *_min value as authoritative only when its matching
+// *_distinct_count equals 1, and drop it otherwise rather than reporting an
+// arbitrary pick. row_count tells the caller how many raw token-usage rows a
+// bucket represents.
+func (q *sqlQuerier) GetOrganizationAIFOCUSUsageRollup(ctx context.Context, arg GetOrganizationAIFOCUSUsageRollupParams) ([]GetOrganizationAIFOCUSUsageRollupRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationAIFOCUSUsageRollup,
+		arg.GranularitySeconds,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationAIFOCUSUsageRollupRow
+	for rows.Next() {
+		var i GetOrganizationAIFOCUSUsageRollupRow
+		if err := rows.Scan(
+			&i.BucketStart,
+			&i.InitiatorID,
+			&i.InitiatorUsername,
+			&i.EffectiveGroupID,
+			&i.GroupName,
+			&i.OrganizationID,
+			&i.Model,
+			&i.WireProtocol,
+			&i.ProviderInstance,
+			&i.CredentialKind,
+			&i.VendorType,
+			&i.VendorDisplayName,
+			&i.ClientTool,
+			&i.ErrorType,
+			&i.InputPriceMicros,
+			&i.OutputPriceMicros,
+			&i.CacheReadPriceMicros,
+			&i.CacheWritePriceMicros,
+			&i.InterceptionIDMin,
+			&i.InterceptionIDDistinctCount,
+			&i.SessionIDMin,
+			&i.SessionIDDistinctCount,
+			&i.ProviderResponseIDMin,
+			&i.ProviderResponseIDDistinctCount,
+			&i.RowCount,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadInputTokens,
+			&i.CacheWriteInputTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrganizationGroupsAISpend = `-- name: GetOrganizationGroupsAISpend :many
 WITH queried_groups AS (
 	-- The requested groups that belong to the queried organization.
