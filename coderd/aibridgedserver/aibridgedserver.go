@@ -142,6 +142,9 @@ type Options struct {
 	GatewayCfg          codersdk.AIBridgeConfig
 	ExternalAuthConfigs []*externalauth.Config
 	Experiments         codersdk.Experiments
+	// OAuth2ProviderEnabled reports whether Coder's OAuth2 provider is on.
+	// The internal MCP server cannot be used without it.
+	OAuth2ProviderEnabled bool
 
 	Logger  slog.Logger
 	Clock   quartz.Clock
@@ -182,7 +185,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 
 	if opts.GatewayCfg.InjectCoderMCPTools {
 		opts.Logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
-		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.AccessURL)
+		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.OAuth2ProviderEnabled, opts.AccessURL)
 		if err != nil {
 			opts.Logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
 		}
@@ -1061,14 +1064,13 @@ func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto
 }
 
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
-func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
-	// Both the MCP & OAuth2 experiments are currently required in order to use our
-	// internal MCP server.
+func getCoderMCPServerConfig(experiments codersdk.Experiments, oauth2ProviderEnabled bool, accessURL string) (*proto.MCPServerConfig, error) {
+	// The internal MCP server needs the MCP experiment and the OAuth2 provider.
 	if !experiments.Enabled(codersdk.ExperimentMCPServerHTTP) {
 		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentMCPServerHTTP)
 	}
-	if !experiments.Enabled(codersdk.ExperimentOAuth2) {
-		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentOAuth2)
+	if !oauth2ProviderEnabled {
+		return nil, xerrors.New("OAuth2 provider is disabled; set CODER_OAUTH2_PROVIDER_ENABLE=true")
 	}
 
 	u, err := url.JoinPath(accessURL, codermcp.MCPEndpoint)

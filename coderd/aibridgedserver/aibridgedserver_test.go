@@ -59,7 +59,7 @@ import (
 )
 
 var requiredExperiments = []codersdk.Experiment{
-	codersdk.ExperimentMCPServerHTTP, codersdk.ExperimentOAuth2,
+	codersdk.ExperimentMCPServerHTTP,
 }
 
 // TestAuthorization validates the authorization logic.
@@ -831,26 +831,29 @@ func TestGetMCPServerConfigs(t *testing.T) {
 		name                     string
 		disableCoderMCPInjection bool
 		experiments              codersdk.Experiments
+		oauth2ProviderEnabled    bool
 		externalAuthConfigs      []*externalauth.Config
 		expectCoderMCP           bool
 		expectedExternalMCP      bool
 	}{
 		{
-			name:        "experiments not enabled",
+			name:        "MCP experiment off, OAuth2 provider off",
 			experiments: codersdk.Experiments{},
 		},
 		{
-			name:        "MCP experiment enabled, not OAuth2",
-			experiments: codersdk.Experiments{codersdk.ExperimentMCPServerHTTP},
+			name:        "MCP experiment on, OAuth2 provider off",
+			experiments: requiredExperiments,
 		},
 		{
-			name:        "OAuth2 experiment enabled, not MCP",
-			experiments: codersdk.Experiments{codersdk.ExperimentOAuth2},
+			name:                  "OAuth2 provider on, MCP experiment off",
+			experiments:           codersdk.Experiments{},
+			oauth2ProviderEnabled: true,
 		},
 		{
-			name:           "only internal MCP",
-			experiments:    requiredExperiments,
-			expectCoderMCP: true,
+			name:                  "only internal MCP",
+			experiments:           requiredExperiments,
+			oauth2ProviderEnabled: true,
+			expectCoderMCP:        true,
 		},
 		{
 			name:                "only external MCP",
@@ -858,16 +861,18 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			expectedExternalMCP: true,
 		},
 		{
-			name:                "both internal & external MCP",
-			experiments:         requiredExperiments,
-			externalAuthConfigs: externalAuthCfgs,
-			expectCoderMCP:      true,
-			expectedExternalMCP: true,
+			name:                  "both internal & external MCP",
+			experiments:           requiredExperiments,
+			oauth2ProviderEnabled: true,
+			externalAuthConfigs:   externalAuthCfgs,
+			expectCoderMCP:        true,
+			expectedExternalMCP:   true,
 		},
 		{
 			name:                     "both internal & external MCP, but coder MCP tools not injected",
 			disableCoderMCPInjection: true,
 			experiments:              requiredExperiments,
+			oauth2ProviderEnabled:    true,
 			externalAuthConfigs:      externalAuthCfgs,
 			expectCoderMCP:           false,
 			expectedExternalMCP:      true,
@@ -890,10 +895,11 @@ func TestGetMCPServerConfigs(t *testing.T) {
 				GatewayCfg: codersdk.AIBridgeConfig{
 					InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
 				},
-				ExternalAuthConfigs: tc.externalAuthConfigs,
-				Experiments:         tc.experiments,
-				Logger:              logger,
-				Clock:               quartz.NewReal(),
+				ExternalAuthConfigs:   tc.externalAuthConfigs,
+				Experiments:           tc.experiments,
+				OAuth2ProviderEnabled: tc.oauth2ProviderEnabled,
+				Logger:                logger,
+				Clock:                 quartz.NewReal(),
 			})
 			require.NoError(t, err)
 			require.NotNil(t, srv)

@@ -1945,7 +1945,7 @@ communicating directly.`,
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
-		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the \"mcp-server-http\" experiment to be enabled).",
 		Flag:        "ai-gateway-inject-coder-mcp-tools",
 		Env:         "CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS",
 		Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
