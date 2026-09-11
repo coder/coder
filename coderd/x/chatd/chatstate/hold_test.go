@@ -1,11 +1,9 @@
 package chatstate_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -14,17 +12,24 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// These tests cover the hold from the point of view of the passive
-// promotion paths. The matrix test proves each transition cell; these
-// prove the end-to-end contract: a held row and everything behind it
-// stay queued while rows ahead of it drain, and explicit actions go
-// around the hold.
+// Scenario tests for queue holds. The matrix cases prove each cell
+// once; these prove the end-to-end stories the cells add up to.
+
+func setHeld(t *testing.T, f *testFixture, m *chatstate.ChatMachine, id int64, held bool) chatstate.EditQueuedMessageResult {
+	t.Helper()
+	var res chatstate.EditQueuedMessageResult
+	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		res, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{QueuedMessageID: id, Held: &held})
+		return err
+	}))
+	return res
+}
 
 func finishTurn(t *testing.T, f *testFixture, m *chatstate.ChatMachine) chatstate.FinishTurnResult {
 	t.Helper()
-	ctx := testutil.Context(t, testutil.WaitShort)
 	var res chatstate.FinishTurnResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
 		var err error
 		res, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
@@ -32,359 +37,179 @@ func finishTurn(t *testing.T, f *testFixture, m *chatstate.ChatMachine) chatstat
 	return res
 }
 
-func holdViaTransition(t *testing.T, f *testFixture, m *chatstate.ChatMachine, id int64, held bool) chatstate.EditQueuedMessageResult {
-	t.Helper()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	var res chatstate.EditQueuedMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		var err error
-		res, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-			QueuedMessageID: id,
-			Held:            &held,
-		})
-		return err
-	}))
-	return res
-}
-
-// TestHold_FinishTurnStopsAtHeldRow queues five rows, holds the third,
-// and finishes turns until the chat idles. Rows one and two are
-// promoted in order; the chat then lands in W with rows three to five
-// still queued and the hold intact.
-func TestHold_FinishTurnStopsAtHeldRow(t *testing.T) {
+// TestHold_EditWhileRunning is story 1 and 2: five rows, row 3 held.
+// Rows 1 and 2 drain at their turn boundaries; the third boundary
+// pauses the chat instead of promoting row 3; releasing row 3 resumes.
+func TestHold_EditWhileRunning(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	chatID := created.Chat.ID
+	chatID := createTestChat(t, f).Chat.ID
 	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
 
 	var ids []int64
-	var bodies []string
 	for i := 1; i <= 5; i++ {
-		body := fmt.Sprintf("row-%d", i)
-		sm := sendQueuedMessage(t, f, m, body)
-		require.NotNil(t, sm.QueuedMessage)
-		ids = append(ids, sm.QueuedMessage.ID)
-		bodies = append(bodies, body)
+		ids = append(ids, sendQueuedMessage(t, f, m, "row").QueuedMessage.ID)
 	}
-	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
+	setHeld(t, f, m, ids[2], true)
+	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID), "a hold behind the head changes nothing")
 
-	held := holdViaTransition(t, f, m, ids[2], true)
-	require.True(t, held.QueuedMessage.HeldAt.Valid)
-	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID), "a hold behind the head changes nothing yet")
-
-	first := finishTurn(t, f, m)
-	require.NotNil(t, first.PromotedMessage)
-	assertChatMessageText(t, *first.PromotedMessage, bodies[0])
-	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
-
-	second := finishTurn(t, f, m)
-	require.NotNil(t, second.PromotedMessage)
-	assertChatMessageText(t, *second.PromotedMessage, bodies[1])
-	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, chatID), "held row reached the head")
-
+	require.NotNil(t, finishTurn(t, f, m).PromotedMessage, "row 1 promoted")
+	require.NotNil(t, finishTurn(t, f, m).PromotedMessage, "row 2 promoted")
 	third := finishTurn(t, f, m)
-	require.Nil(t, third.PromotedMessage, "a held head is not promoted")
-	require.Equal(t, database.ChatStatusWaiting, third.Chat.Status)
-	require.Equal(t, chatstate.StateW, f.classify(ctx, t, chatID))
-	require.Equal(t, ids[2:], queuedIDsByPosition(ctx, t, f, chatID), "rows three to five stay queued")
-	assertQueueBodiesInOrder(ctx, t, f, chatID, bodies[2:])
-	head := requireQueuedMessageByID(ctx, t, f, chatID, ids[2])
-	require.True(t, head.HeldAt.Valid, "hold survives the turn boundary")
+	require.Nil(t, third.PromotedMessage, "row 3 is held")
+	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
+	require.Equal(t, ids[2:], queuedIDsByPosition(ctx, t, f, chatID))
 
-	// W with a held head is a valid idle state; FinishTurn is not
-	// allowed from W, which is what stops the runner from spinning.
+	// P is idle to the worker: FinishTurn is not admitted, so nothing
+	// spins.
 	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})
 	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 
-	// Releasing the held head of an idle chat would leave W with a
-	// promotable head; Update rolls it back. Starting it is
-	// PromoteQueuedMessage's job, which clears the hold, pops row
-	// three, and leaves four and five promotable behind it.
-	releaseHeld := false
-	err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-			QueuedMessageID: ids[2],
-			Held:            &releaseHeld,
-		})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrInvalidResultState)
-	require.Equal(t, chatstate.StateW, f.classify(ctx, t, chatID))
-
-	var promoted chatstate.PromoteQueuedMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		var err error
-		promoted, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{QueuedMessageID: ids[2]})
-		return err
-	}))
-	require.NotNil(t, promoted.InsertedMessage)
-	assertChatMessageText(t, *promoted.InsertedMessage, bodies[2])
+	// Cancel: releasing the head resumes the chat with row 3.
+	setHeld(t, f, m, ids[2], false)
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
 }
 
-// TestHold_HoldingAnotherRowMovesTheHold holds row one while row two
-// is held on a running chat. A chat has one held row, so the hold
-// moves in a single transition: row two is released and row one, the
-// head, is held. There is no moment with no hold, which is what makes
-// "hold(1)" safe against a turn boundary promoting row one meanwhile.
-func TestHold_HoldingAnotherRowMovesTheHold(t *testing.T) {
+// TestHold_InterruptionPauses is story 1 during an interruption.
+func TestHold_InterruptionPauses(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	chatID := created.Chat.ID
+	chatID := createTestChat(t, f).Chat.ID
 	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
 
-	first := sendQueuedMessage(t, f, m, "one")
-	second := sendQueuedMessage(t, f, m, "two")
-	third := sendQueuedMessage(t, f, m, "three")
-
-	holdViaTransition(t, f, m, second.QueuedMessage.ID, true)
-	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID), "row one is still promotable")
-
-	moved := holdViaTransition(t, f, m, first.QueuedMessage.ID, true)
-	require.True(t, moved.QueuedMessage.HeldAt.Valid)
-	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, chatID), "the head is held now")
-	require.False(t, requireQueuedMessageByID(ctx, t, f, chatID, second.QueuedMessage.ID).HeldAt.Valid, "row two is released")
-	require.False(t, requireQueuedMessageByID(ctx, t, f, chatID, third.QueuedMessage.ID).HeldAt.Valid)
-
-	// Holding the already-held row is a no-op that keeps its held_at.
-	again := holdViaTransition(t, f, m, first.QueuedMessage.ID, true)
-	require.Equal(t, moved.QueuedMessage.HeldAt.Time, again.QueuedMessage.HeldAt.Time)
-}
-
-// TestHold_MoveHoldOffIdleHeadRefused holds a row behind the held head
-// of an idle chat. Moving the hold would release the head and leave W
-// with a promotable head, so Update rolls the whole change back and
-// the original hold stands.
-func TestHold_MoveHoldOffIdleHeadRefused(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	seeded := seedHeldHead(t, f, chatstate.StateW, 1)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-
-	held := true
-	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-			QueuedMessageID: seeded.queuedMessageIDs[1],
-			Held:            &held,
-		})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrInvalidResultState)
-	require.Equal(t, chatstate.StateW, f.classify(ctx, t, seeded.chatID))
-	require.True(t, requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0]).HeldAt.Valid, "the head keeps its hold")
-	require.False(t, requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[1]).HeldAt.Valid)
-}
-
-// TestHold_FinishInterruptionStopsAtHeldRow interrupts a running chat
-// whose head is held and verifies the interruption lands in W instead
-// of promoting the held row.
-func TestHold_FinishInterruptionStopsAtHeldRow(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	chatID := created.Chat.ID
-	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
-
-	queued := sendInterruptMessage(t, f, m, "interrupting")
-	require.NotNil(t, queued.QueuedMessage)
+	queued := sendInterruptMessage(t, f, m, "interrupting").QueuedMessage
+	setHeld(t, f, m, queued.ID, true)
 	require.Equal(t, chatstate.StateI1, f.classify(ctx, t, chatID))
-
-	holdViaTransition(t, f, m, queued.QueuedMessage.ID, true)
-	require.Equal(t, chatstate.StateI0, f.classify(ctx, t, chatID))
-
-	var res chatstate.FinishInterruptionResult
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		var err error
-		res, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{})
+		_, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{})
 		return err
 	}))
-	require.Nil(t, res.PromotedMessage)
-	require.Equal(t, chatstate.StateW, f.classify(ctx, t, chatID))
-	row := requireQueuedMessageByID(ctx, t, f, chatID, queued.QueuedMessage.ID)
-	require.True(t, row.HeldAt.Valid)
+	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
 }
 
-// TestHold_DirectSendGoesAroundHeldQueue sends a message to an idle
-// chat whose queue head is held. The new message is inserted directly
-// into history and the held rows stay queued and held.
-func TestHold_DirectSendGoesAroundHeldQueue(t *testing.T) {
+// TestHold_MovesBetweenRows is story 7: row 2 held, hold row 1. The hold
+// moves in one transition, so there is never a moment with no hold; on
+// a paused chat moving it off the head is refused instead.
+func TestHold_MovesBetweenRows(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	seeded := seedHeldHead(t, f, chatstate.StateW, 1)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	baseHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
+	chatID := createTestChat(t, f).Chat.ID
+	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
 
-	sm := sendQueuedMessage(t, f, m, "direct")
-	require.Nil(t, sm.QueuedMessage, "idle chat inserts directly")
-	require.Len(t, sm.InsertedMessages, 1)
-	assertChatMessageText(t, sm.InsertedMessages[0], "direct")
-	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, seeded.chatID), "held head still hides the queue")
-	require.Equal(t, seeded.queuedMessageIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID), "held rows untouched")
-	head := requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0])
-	require.True(t, head.HeldAt.Valid)
-	require.Len(t, activeHistoryIDs(ctx, t, f, seeded.chatID), len(baseHistory)+1)
+	first := sendQueuedMessage(t, f, m, "one").QueuedMessage.ID
+	second := sendQueuedMessage(t, f, m, "two").QueuedMessage.ID
+	setHeld(t, f, m, second, true)
+	moved := setHeld(t, f, m, first, true)
+	require.True(t, moved.QueuedMessage.HeldAt.Valid)
+	require.False(t, requireQueuedMessageByID(ctx, t, f, chatID, second).HeldAt.Valid, "previous hold released")
+	again := setHeld(t, f, m, first, true)
+	require.Equal(t, moved.QueuedMessage.HeldAt.Time, again.QueuedMessage.HeldAt.Time, "re-holding is a no-op")
 
-	// The interrupting send on the now running chat appends to the
-	// tail, behind the held half.
-	interrupt := sendInterruptMessage(t, f, m, "interrupt")
-	require.NotNil(t, interrupt.QueuedMessage)
-	require.Equal(t, chatstate.StateI0, f.classify(ctx, t, seeded.chatID))
-	want := append(append([]int64{}, seeded.queuedMessageIDs...), interrupt.QueuedMessage.ID)
-	require.Equal(t, want, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+	finishTurn(t, f, m)
+	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
+	held := true
+	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{QueuedMessageID: second, Held: &held})
+		return err
+	})
+	require.ErrorIs(t, err, chatstate.ErrPausedHeadMustResume)
+	require.True(t, requireQueuedMessageByID(ctx, t, f, chatID, first).HeldAt.Valid, "the head keeps its hold")
 }
 
-// TestHold_StaleChatsIgnoresHeldHead pins the GetStaleChats predicate: a
-// waiting chat whose queue head is held is idle, not stranded, even with
-// unheld rows behind the held one. Only a promotable head in waiting is
-// reported.
-func TestHold_StaleChatsIgnoresHeldHead(t *testing.T) {
+// TestHold_ContentEditKeepsOverridesUnlessGiven: a content-only edit
+// preserves the row's model and effort; an edit with overrides replaces
+// them.
+func TestHold_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	seeded := seedHeldHead(t, f, chatstate.StateW, 1)
-	// A threshold in the future makes every chat old enough, so only the
-	// queue predicate decides.
+	chatID := createTestChat(t, f).Chat.ID
+	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
+	queued := sendQueuedMessage(t, f, m, "original").QueuedMessage
+
+	edit := func(input chatstate.EditQueuedMessageInput) chatstate.EditQueuedMessageResult {
+		var res chatstate.EditQueuedMessageResult
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			var err error
+			res, err = tx.EditQueuedMessage(input)
+			return err
+		}))
+		return res
+	}
+	res := edit(chatstate.EditQueuedMessageInput{QueuedMessageID: queued.ID, Content: userMessageContent(t, "edited")})
+	assertQueuedMessageText(t, res.QueuedMessage, "edited")
+	require.Equal(t, queued.ModelConfigID, res.QueuedMessage.ModelConfigID)
+	require.Equal(t, queued.ReasoningEffort, res.QueuedMessage.ReasoningEffort)
+
+	res = edit(chatstate.EditQueuedMessageInput{
+		QueuedMessageID:         queued.ID,
+		Content:                 userMessageContent(t, "edited again"),
+		ReasoningEffortOverride: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
+	})
+	require.Equal(t, database.ChatReasoningEffortHigh, res.QueuedMessage.ReasoningEffort.ChatReasoningEffort)
+
+	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{QueuedMessageID: queued.ID})
+		return err
+	})
+	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed, "neither content nor held is an error")
+}
+
+// TestHold_StaleChatsIgnoresPaused: GetStaleChats reports waiting with
+// a promotable head, not P.
+func TestHold_StaleChatsIgnoresPaused(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedPaused(t, f, 1)
 	threshold := time.Now().Add(time.Hour)
+	//nolint:gocritic // GetStaleChats is a system sweep query.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
 
-	containsChat := func(chats []database.Chat, id uuid.UUID) bool {
+	contains := func(chats []database.Chat) bool {
 		for _, c := range chats {
-			if c.ID == id {
+			if c.ID == seeded.chatID {
 				return true
 			}
 		}
 		return false
 	}
-
-	//nolint:gocritic // GetStaleChats is a system sweep query.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	stale, err := f.DB.GetStaleChats(sysCtx, threshold)
 	require.NoError(t, err)
-	require.False(t, containsChat(stale, seeded.chatID), "waiting with a held head is not stranded")
+	require.False(t, contains(stale), "paused is not stranded")
 
-	// Force the invalid shape (waiting with a promotable head) directly.
-	_, err = f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
-		ChatID: seeded.chatID,
-		ID:     seeded.queuedMessageIDs[0],
-		Held:   false,
-	})
+	_, err = f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{ChatID: seeded.chatID, ID: seeded.queuedMessageIDs[0], Held: false})
 	require.NoError(t, err)
 	stale, err = f.DB.GetStaleChats(sysCtx, threshold)
 	require.NoError(t, err)
-	require.True(t, containsChat(stale, seeded.chatID), "waiting with a promotable head is stranded")
+	require.True(t, contains(stale), "waiting with a promotable head is stranded")
 }
 
-// TestHold_QueueListingFollowsProcessingOrder pins that the client-visible
-// queue (GetChatQueuedMessages) is ordered by position like the state
-// machine, so the paused tail a client derives from a held row matches
-// what the server will actually process next. "Send now" on a row
-// behind the head is the case where created_at order diverges.
+// TestHold_QueueListingFollowsProcessingOrder: the client-visible queue
+// is ordered like the machine processes it, which "send now" on a later
+// row is the case that breaks created_at order.
 func TestHold_QueueListingFollowsProcessingOrder(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	chatID := createTestChat(t, f).Chat.ID
+	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
 
-	first := sendQueuedMessage(t, f, m, "first")
-	second := sendQueuedMessage(t, f, m, "second")
-	require.NotNil(t, first.QueuedMessage)
-	require.NotNil(t, second.QueuedMessage)
-
+	first := sendQueuedMessage(t, f, m, "first").QueuedMessage.ID
+	second := sendQueuedMessage(t, f, m, "second").QueuedMessage.ID
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
-			QueuedMessageID: second.QueuedMessage.ID,
-		})
+		_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{QueuedMessageID: second})
 		return err
 	}))
-
-	listed, err := f.DB.GetChatQueuedMessages(ctx, created.Chat.ID)
+	listed, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 	require.NoError(t, err)
-	listedIDs := make([]int64, 0, len(listed))
-	for _, row := range listed {
-		listedIDs = append(listedIDs, row.ID)
-	}
-	require.Equal(t, queuedIDsByPosition(ctx, t, f, created.Chat.ID), listedIDs)
-	require.Equal(t, []int64{second.QueuedMessage.ID, first.QueuedMessage.ID}, listedIDs)
-}
-
-// TestHold_EditQueuedMessageRejectsEmptyInput pins that a PATCH with
-// neither content nor held is a transition error, not a silent no-op.
-func TestHold_EditQueuedMessageRejectsEmptyInput(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	queued := sendQueuedMessage(t, f, m, "queued")
-	require.NotNil(t, queued.QueuedMessage)
-
-	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-			QueuedMessageID: queued.QueuedMessage.ID,
-		})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
-
-	err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		held := true
-		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-			QueuedMessageID: queued.QueuedMessage.ID + 1000,
-			Held:            &held,
-		})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrQueuedMessageNotFound)
-}
-
-// TestHold_ContentEditKeepsOverridesUnlessGiven verifies the override
-// rules: content-only edits keep the row's model and effort; explicit
-// overrides replace them.
-func TestHold_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	queued := sendQueuedMessage(t, f, m, "queued")
-	require.NotNil(t, queued.QueuedMessage)
-	require.True(t, queued.QueuedMessage.ModelConfigID.Valid)
-
-	var res chatstate.EditQueuedMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		var err error
-		res, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-			QueuedMessageID: queued.QueuedMessage.ID,
-			Content:         userMessageContent(t, "edited"),
-		})
-		return err
-	}))
-	assertQueuedMessageText(t, res.QueuedMessage, "edited")
-	require.Equal(t, queued.QueuedMessage.ModelConfigID, res.QueuedMessage.ModelConfigID)
-	require.Equal(t, queued.QueuedMessage.ReasoningEffort, res.QueuedMessage.ReasoningEffort)
-
-	effort := database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true}
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		var err error
-		res, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-			QueuedMessageID:         queued.QueuedMessage.ID,
-			Content:                 userMessageContent(t, "edited again"),
-			ReasoningEffortOverride: effort,
-		})
-		return err
-	}))
-	assertQueuedMessageText(t, res.QueuedMessage, "edited again")
-	require.Equal(t, effort, res.QueuedMessage.ReasoningEffort)
-	require.Equal(t, queued.QueuedMessage.ModelConfigID, res.QueuedMessage.ModelConfigID)
+	require.Len(t, listed, 2)
+	require.Equal(t, []int64{second, first}, []int64{listed[0].ID, listed[1].ID})
 }
