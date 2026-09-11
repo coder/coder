@@ -5,16 +5,34 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
-	useState,
 } from "react";
 import { useQuery } from "react-query";
+import { boolean, object, string } from "yup";
 import { API } from "#/api/api";
 import { cachedQuery } from "#/api/queries/util";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useStorage } from "#/hooks/useStorage";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { defineStorageKey, yupCodec } from "#/storage";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
+
+const regionSchema = object({
+	id: string().defined(),
+	name: string().defined(),
+	display_name: string().defined(),
+	icon_url: string().defined(),
+	healthy: boolean().defined(),
+	path_app_url: string().defined(),
+	wildcard_hostname: string().defined(),
+});
+
+export const userSelectedProxyStorage = defineStorageKey<Region | null>({
+	key: "user-selected-proxy",
+	codec: yupCodec<Region>(regionSchema),
+	defaultValue: null,
+});
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
 export type ProxyLatencies = Record<string, ProxyLatencyReport>;
@@ -92,9 +110,9 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
-	// Using a useState so the caller always has the latest user saved
-	// proxy.
-	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());
+	const [userSavedProxy, setUserSavedProxy, clearUserSavedProxy] = useStorage(
+		userSelectedProxyStorage,
+	);
 
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
@@ -136,7 +154,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		() =>
 			getPreferredProxy(
 				proxiesResp ?? [],
-				userSavedProxy,
+				userSavedProxy ?? undefined,
 				proxyLatencies,
 				// Do not auto select based on latencies, as inconsistent
 				// latencies can cause this to change on each call. The proxy
@@ -152,7 +170,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	//
 	// Once the page is loaded, or the user selects a proxy, this will not run again.
 	useEffect(() => {
-		if (loadUserSelectedProxy() !== undefined) {
+		if (userSelectedProxyStorage.get() !== null) {
 			return; // User has selected a proxy, do not auto select.
 		}
 		if (!latenciesLoaded) {
@@ -161,23 +179,22 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 		const best = getPreferredProxy(
 			proxiesResp ?? [],
-			loadUserSelectedProxy(),
+			userSelectedProxyStorage.get() ?? undefined,
 			proxyLatencies,
 			true,
 		);
 
 		if (best?.proxy) {
-			saveUserSelectedProxy(best.proxy);
 			setUserSavedProxy(best.proxy);
 		}
-	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
+	}, [latenciesLoaded, proxiesResp, proxyLatencies, setUserSavedProxy]);
 
 	return (
 		<ProxyContext.Provider
 			value={{
 				proxyLatencies,
 				refetchProxyLatencies,
-				userProxy: userSavedProxy,
+				userProxy: userSavedProxy ?? undefined,
 				proxy: proxy,
 				proxies: proxiesResp,
 				latenciesLoaded: latenciesLoaded,
@@ -186,14 +203,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				error: proxiesError,
 
 				// These functions are exposed to allow the user to select a proxy.
-				setProxy: (proxy: Region) => {
-					saveUserSelectedProxy(proxy);
-					setUserSavedProxy(proxy);
-				},
-				clearProxy: () => {
-					clearUserSelectedProxy();
-					setUserSavedProxy(undefined);
-				},
+				setProxy: setUserSavedProxy,
+				clearProxy: clearUserSavedProxy,
 			}}
 		>
 			{children}
@@ -297,23 +308,4 @@ const computeUsableURLS = (proxy?: Region): PreferredProxy => {
 		preferredPathAppURL: pathAppURL,
 		preferredWildcardHostname: proxy.wildcard_hostname,
 	};
-};
-
-// Local storage functions
-
-const clearUserSelectedProxy = (): void => {
-	localStorage.removeItem("user-selected-proxy");
-};
-
-export const saveUserSelectedProxy = (saved: Region): void => {
-	localStorage.setItem("user-selected-proxy", JSON.stringify(saved));
-};
-
-const loadUserSelectedProxy = (): Region | undefined => {
-	const str = localStorage.getItem("user-selected-proxy");
-	if (!str) {
-		return undefined;
-	}
-
-	return JSON.parse(str);
 };
