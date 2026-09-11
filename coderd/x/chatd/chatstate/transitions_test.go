@@ -229,12 +229,11 @@ func promoteQueuedMessageWithModel(
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+	queued := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,
 		ModelConfigID: message.ModelConfigID,
 	})
-	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishError(chatstate.FinishErrorInput{

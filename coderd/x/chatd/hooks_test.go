@@ -448,11 +448,13 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
 	require.NoError(t, err)
-	inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
-		chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
-	))
-	require.NoError(t, err)
-	require.Len(t, inserted, 1)
+	inserted := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content:       content,
+	})
 	type receivedHook struct {
 		request agenthooks.Request
 		claims  agenthooks.Claims
@@ -490,7 +492,7 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       user.ID,
-		EditedMessageID: inserted[0].ID,
+		EditedMessageID: inserted.ID,
 		Content: []codersdk.ChatMessagePart{
 			reference,
 			codersdk.ChatMessageText("edited original"),
@@ -627,15 +629,17 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
 	require.NoError(t, err)
-	inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
-		chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
-	))
-	require.NoError(t, err)
-	require.Len(t, inserted, 1)
+	inserted := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content:       content,
+	})
 	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       user.ID,
-		EditedMessageID: inserted[0].ID,
+		EditedMessageID: inserted.ID,
 		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model edit")},
 		ModelConfigID:   uuid.New(),
 	})
@@ -650,13 +654,12 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
 	require.NoError(t, err)
 	for range chatstate.MaxQueueSize {
-		_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 			ChatID:        busy.ID,
 			Content:       queuedContent.RawMessage,
 			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			CreatedBy:     user.ID,
 		})
-		require.NoError(t, err)
 	}
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:  busy.ID,
