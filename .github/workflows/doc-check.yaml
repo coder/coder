@@ -170,11 +170,11 @@ jobs:
 
           When creating a new workspace, use the \"coder-workflow-bot\" template.
 
-          If any tool call fails with \`get workspace agents in latest build: unauthorized: rbac: forbidden\`, this chat's workspace is stopped or dormant. That is an infrastructure state, not a mistake in your command. Do not retry the same command, because it fails the same way.
+          If a tool call fails because this chat has no working workspace, repair it before you review anything. The clearest sign is \`get workspace agents in latest build: unauthorized: rbac: forbidden\`, which means the workspace is stopped or dormant. It is an infrastructure state, not a mistake in your command, so the same command fails again if you retry it.
 
-          Call \`start_workspace\` with no arguments. It starts the workspace this chat already owns, and it clears dormancy. Wait for it to finish, then run the failed tool call again.
+          Call \`start_workspace\` with no arguments. It starts the workspace this chat already owns, and it clears dormancy. If it answers \`workspace was deleted\` or \`chat has no workspace\`, the old workspace is gone: call \`list_templates\` to get the ID of the \`coder-workflow-bot\` template, then call \`create_workspace\` with that ID. Wait for the workspace to be ready, then run the failed tool call again.
 
-          If \`start_workspace\` fails, or the same error comes back after it, stop. Say that you could not review the PR, and name this error. Post no doc-check comment. Do not say or imply the docs are fine, because you did not read them.
+          If the repair fails, stop. Say that you could not review the PR, and name the error you got. Post no doc-check comment. Do not say or imply the docs are fine, because you did not read them.
 
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
