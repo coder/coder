@@ -265,9 +265,11 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 }
 
 // authenticateClient checks a client secret and confirms it belongs to the
-// app named by client_id. It returns the matched row for the code grant to
-// store on the token. Callers skip it for public clients, which have no
-// secret and are bound by PKCE and the token's app id instead.
+// app named by client_id. That id arrives unverified, so without the app
+// check a valid secret for one app could issue a token for another. It
+// returns the matched row for the code grant to store on the token. Callers
+// skip it for public clients, which have no secret and are bound by PKCE
+// and the token's app id instead.
 func authenticateClient(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, clientSecret string) (database.OAuth2ProviderAppSecret, error) {
 	secret, err := ParseFormattedSecret(clientSecret)
 	if err != nil {
