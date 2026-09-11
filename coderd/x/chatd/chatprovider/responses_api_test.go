@@ -2,6 +2,7 @@ package chatprovider_test
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 
@@ -36,7 +37,6 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 		{"ForceCompletionsOnKnownModel", responsesModel, &forceCompletions, "/chat/completions"},
 		{"ForceResponsesOnKnownModel", responsesModel, &forceResponses, "/responses"},
 		{"ForceCompletionsOnUnknownModel", nonResponsesModel, &forceCompletions, "/chat/completions"},
-		// GPT-6 Astra postdates the SDK's known-model list.
 		{"DefaultGPT6Astra", "gpt-6-astra", nil, "/responses"},
 		{"ForceCompletionsOnGPT6Astra", "gpt-6-astra", &forceCompletions, "/chat/completions"},
 	}
@@ -187,6 +187,65 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 
 			require.Equal(t, tc.wantAcceptText, model.AcceptsFilePartMediaType("text/plain"))
 			require.True(t, model.AcceptsFilePartMediaType("image/png"))
+		})
+	}
+}
+
+func TestModelFromConfig_OpenAIReasoningModelOverride(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		model         string
+		override      *bool
+		wantReasoning bool
+	}{
+		{"ForceReasoningOnUnknownModel", "brand-new-model", new(true), true},
+		{"ForceSamplingOnReasoningModel", "gpt-5", new(false), false},
+		{"UnsetReasoningModel", "gpt-5", nil, true},
+		{"UnsetUnknownModel", "brand-new-model", nil, false},
+		{"UnsetGPT6Astra", "gpt-6-astra", nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			bodies := make(chan []byte, 1)
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				bodies <- req.RawBody
+				return chattest.OpenAINonStreamingResponse("ok")
+			})
+			model, err := chatprovider.ModelFromConfig(
+				fantasyopenai.Name, tc.model,
+				chatprovider.ProviderAPIKeys{
+					ByProvider:        map[string]string{fantasyopenai.Name: "test-key"},
+					BaseURLByProvider: map[string]string{fantasyopenai.Name: serverURL},
+				},
+				chatprovider.UserAgent(), nil, nil,
+				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true), ReasoningModel: tc.override},
+			)
+			require.NoError(t, err)
+			// Client construction must snapshot the override, not retain its pointer.
+			if tc.override != nil {
+				*tc.override = !*tc.override
+			}
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
+				Prompt:      []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}},
+				Temperature: new(0.7), TopP: new(0.9),
+				ProviderOptions: chatprovider.ProviderOptionsForCall(model, codersdk.ChatModelCallConfig{
+					ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{Default: new(codersdk.ChatModelReasoningEffortHigh), Max: new(codersdk.ChatModelReasoningEffortHigh)},
+					ProviderOptions: &codersdk.ChatModelProviderOptions{OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningSummary: new("auto")}},
+				}, nil),
+			})
+			require.NoError(t, err)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(<-bodies, &body))
+			if tc.wantReasoning {
+				require.Equal(t, map[string]any{"effort": "high", "summary": "auto"}, body["reasoning"])
+				require.NotContains(t, body, "temperature")
+				require.NotContains(t, body, "top_p")
+			} else {
+				require.NotContains(t, body, "reasoning")
+				require.Equal(t, 0.7, body["temperature"])
+				require.Equal(t, 0.9, body["top_p"])
+			}
 		})
 	}
 }
