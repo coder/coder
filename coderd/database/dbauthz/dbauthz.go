@@ -830,10 +830,11 @@ var (
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
 					// A workspace's RBAC object is workspace_dormant while
 					// dormant_at is set, and dormancy auto-delete leaves it set
-					// on the soft-deleted row. Without this read chatd cannot
-					// tell a dormant or deleted chat workspace apart from a
-					// permission failure. Starting one runs as the owner.
-					rbac.ResourceWorkspaceDormant.Type: {policy.ActionRead},
+					// on the soft-deleted row. Mirror the workspace grant so
+					// chatd can tell a dormant or deleted chat workspace apart
+					// from a permission failure and heartbeat activity bumps
+					// keep working. Starting one runs as the owner.
+					rbac.ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},

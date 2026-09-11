@@ -7841,11 +7841,16 @@ func TestAsChatd(t *testing.T) {
 			require.NoError(t, err, "workspace %s should be allowed", action)
 		}
 
-		// Dormant (including dormancy-deleted) chat workspaces must stay
-		// readable so tools can report their state instead of a
-		// permission failure.
-		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceWorkspaceDormant)
-		require.NoError(t, err, "dormant workspace read should be allowed")
+		// Dormant (including dormancy-deleted) chat workspaces get the
+		// same grant so tools report their state instead of a permission
+		// failure and activity bumps keep working.
+		var err error
+		for _, action := range []policy.Action{
+			policy.ActionRead, policy.ActionUpdate,
+		} {
+			err = auth.Authorize(ctx, actor, action, rbac.ResourceWorkspaceDormant)
+			require.NoError(t, err, "dormant workspace %s should be allowed", action)
+		}
 
 		// DeploymentConfig reads are allowed, but writes are not.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
@@ -7880,10 +7885,10 @@ func TestAsChatd(t *testing.T) {
 		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceWorkspace)
 		require.Error(t, err, "workspace delete should be denied")
 
-		// Dormant workspaces are read-only for chatd; starting one runs
-		// under the owner actor.
+		// Dormant workspaces share the workspace grant only; lifecycle
+		// transitions run under the owner actor.
 		for _, action := range []policy.Action{
-			policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop,
+			policy.ActionDelete, policy.ActionWorkspaceStop, policy.ActionCreate,
 		} {
 			err = auth.Authorize(ctx, actor, action, rbac.ResourceWorkspaceDormant)
 			require.Error(t, err, "dormant workspace %s should be denied", action)
