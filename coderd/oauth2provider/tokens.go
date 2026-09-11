@@ -247,10 +247,9 @@ func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, 
 	return req, nil, nil
 }
 
-// mergeBasicClientAuth applies RFC 6749 §2.3.1: a confidential client may
-// send its credentials as HTTP Basic instead of, but not in conflict with,
-// form parameters. A parser folds the header in before its handler checks the
-// secret, so every endpoint that authenticates a client accepts either.
+// mergeBasicClientAuth accepts a confidential client's credentials from the
+// HTTP Basic header as well as from form parameters (RFC 6749 §2.3.1). The
+// header fills in whatever the form omitted.
 func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (mergedID, mergedSecret string, err error) {
 	user, pass, ok := r.BasicAuth()
 	if !ok || user == "" {
