@@ -1461,6 +1461,188 @@ func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
 	require.Zero(t, count)
 }
 
+func TestMigration000595RemoveTaskPermissions(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 595
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID, userID, roleID, appID, taskAppID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	const (
+		taskPermission = `{"negate": false, "resource_type": "task", "action": "read"}`
+		userPermission = `{"negate": false, "resource_type": "user", "action": "read"}`
+	)
+	permissions := []struct {
+		column string
+		before string
+		want   string
+	}{
+		{"site_permissions", "[" + taskPermission + ", " + userPermission + "]", "[" + userPermission + "]"},
+		{"org_permissions", "[" + taskPermission + "]", "[]"},
+		{"user_permissions", "[" + userPermission + ", " + taskPermission + "]", "[" + userPermission + "]"},
+		{"member_permissions", "[" + userPermission + "]", "[" + userPermission + "]"},
+	}
+	for _, fixture := range []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', $3, $3, '{}')",
+			[]any{orgID, orgID.String(), now},
+		},
+		{
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', $4, $4)",
+			[]any{userID, userID.String(), userID.String() + "@test.com", now},
+		},
+		{
+			"INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions) VALUES ($1, 'task-role', 'Task Role', $2, $3, $4, $5, $6)",
+			[]any{roleID, orgID, permissions[0].before, permissions[1].before, permissions[2].before, permissions[3].before},
+		},
+	} {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+
+	apps := []struct {
+		id        uuid.UUID
+		name      string
+		scope     string
+		wantScope string
+	}{
+		{appID, "mixed-app", "task:read template:read", "template:read"},
+		// An empty scope reads as unrestricted, so a whitespace-only one stands in for "nothing allowed".
+		{taskAppID, "task-app", "task:read", " "},
+	}
+	for _, app := range apps {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, scope) VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4)",
+			app.id, now, app.name, app.scope)
+		require.NoError(t, err)
+	}
+
+	keys := []struct {
+		id            string
+		scopes        string
+		allowList     string
+		wantDeleted   bool
+		wantScopes    string
+		wantAllowList string
+	}{
+		{id: "mixed-key", scopes: "{task:read,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "multi-task-scopes-key", scopes: "{task:read,task:create,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "task-key", scopes: "{task:read}", allowList: "{*:*}", wantDeleted: true},
+		{id: "mixed-allow-key", scopes: "{template:read}", allowList: "{task:*,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "multi-task-allows-key", scopes: "{template:read}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "task-allow-key", scopes: "{template:read}", allowList: "{task:*}", wantDeleted: true},
+		{id: "task-only-key", scopes: "{task:read,task:create}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e}", wantDeleted: true},
+	}
+	for _, key := range keys {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', $5, $6, $1)",
+			key.id, []byte(key.id), userID, now, key.scopes, key.allowList)
+		require.NoError(t, err)
+	}
+
+	// Each grant is stored as both an authorization code and a token, keyed by the grant name.
+	grants := []struct {
+		key         string
+		scope       string
+		wantDeleted bool
+		wantScope   string
+	}{
+		{key: "mixed-grant", scope: "task:read template:read", wantScope: "template:read"},
+		{key: "task-grant", scope: "task:read", wantDeleted: true},
+	}
+	for _, grant := range grants {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_codes (id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6)",
+			uuid.New(), now, []byte(grant.key), userID, appID, grant.scope)
+		require.NoError(t, err)
+		// oauth2_provider_app_tokens.api_key_id is a NOT NULL foreign key, so this key only satisfies it and is not asserted.
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'oauth2_provider_app', '{template:read}', '{*:*}', $1)",
+			grant.key, []byte(grant.key), userID, now)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)",
+			uuid.New(), now, []byte(grant.key), grant.key, userID, appID, grant.scope)
+		require.NoError(t, err)
+	}
+	grantTables := []struct{ name, prefixColumn string }{
+		{"oauth2_provider_app_codes", "secret_prefix"},
+		{"oauth2_provider_app_tokens", "hash_prefix"},
+	}
+
+	assertMigrated := func() {
+		t.Helper()
+		for _, p := range permissions {
+			var got string
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT "+p.column+" FROM custom_roles WHERE id = $1", roleID).Scan(&got))
+			require.JSONEq(t, p.want, got, p.column)
+		}
+		for _, app := range apps {
+			var scope string
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT scope FROM oauth2_provider_apps WHERE id = $1", app.id).Scan(&scope))
+			require.Equal(t, app.wantScope, scope, app.name)
+		}
+		for _, key := range keys {
+			var scopes, allowList string
+			err := sqlDB.QueryRowContext(ctx, "SELECT scopes::text, allow_list::text FROM api_keys WHERE id = $1", key.id).Scan(&scopes, &allowList)
+			if key.wantDeleted {
+				require.ErrorIs(t, err, sql.ErrNoRows, key.id)
+				continue
+			}
+			require.NoError(t, err, key.id)
+			require.Equal(t, key.wantScopes, scopes, key.id)
+			require.Equal(t, key.wantAllowList, allowList, key.id)
+		}
+		for _, grant := range grants {
+			for _, table := range grantTables {
+				var scope string
+				err := sqlDB.QueryRowContext(ctx, "SELECT scope FROM "+table.name+" WHERE "+table.prefixColumn+" = $1", []byte(grant.key)).Scan(&scope)
+				if grant.wantDeleted {
+					require.ErrorIs(t, err, sql.ErrNoRows, "%s %s", table.name, grant.key)
+					continue
+				}
+				require.NoError(t, err, "%s %s", table.name, grant.key)
+				require.Equal(t, grant.wantScope, scope, "%s %s", table.name, grant.key)
+			}
+		}
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	assertMigrated()
+
+	downSQL, err := os.ReadFile("000595_remove_task_permissions.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	// Downgrading cannot restore revoked grants or stripped permissions.
+	assertMigrated()
+
+	upSQL, err := os.ReadFile("000595_remove_task_permissions.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertMigrated()
+}
+
 func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
 	t.Parallel()
 
