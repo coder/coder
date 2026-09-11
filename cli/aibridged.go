@@ -284,7 +284,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		}), nil
 
 	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
-		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
+		bedrock := agplaibridge.BedrockConfig(spec.BaseURL, spec.Bedrock)
 		// A spec typed 'bedrock' authenticates exclusively via settings;
 		// without populated Bedrock credentials it cannot make upstream
 		// calls, so refuse rather than falling back to an unsigned
@@ -334,12 +334,6 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 // len(keys) > 0 first; keypool.New rejects empty input.
 func buildAIProviderKeyPool(providerName string, keys []string, metrics *aibridge.Metrics) (*keypool.Pool, error) {
 	return keypool.New(providerName, keys, quartz.NewReal(), metrics)
-}
-
-// bedrockConfig is [agplaibridge.BedrockConfig], shared with the provider
-// write path so both map stored settings the same way.
-func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) *aibridge.AWSBedrockConfig {
-	return agplaibridge.BedrockConfig(baseURL, bedrock)
 }
 
 // circuitBreakerConfig returns nil when the breaker is disabled.
