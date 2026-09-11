@@ -6,10 +6,16 @@ import {
 	updateUserChatDebugLogging,
 	userChatDebugLogging,
 } from "#/api/queries/chats";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsGeneralPageView } from "./AgentSettingsGeneralPageView";
+import { VIM_NAVIGATION_EXPERIMENT } from "./hooks/useVimNavigation";
 
 const AgentSettingsGeneralPage: FC = () => {
 	const queryClient = useQueryClient();
+	const { experiments } = useDashboard();
+	const showVimNavigationSettings = experiments.includes(
+		VIM_NAVIGATION_EXPERIMENT,
+	);
 	const userPromptQuery = useQuery(chatUserCustomPrompt());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const saveUserPromptMutation = useMutation(
@@ -29,6 +35,7 @@ const AgentSettingsGeneralPage: FC = () => {
 			onSaveUserDebugLogging={saveUserDebugLoggingMutation.mutate}
 			isSavingUserDebugLogging={saveUserDebugLoggingMutation.isPending}
 			isSaveUserDebugLoggingError={saveUserDebugLoggingMutation.isError}
+			showVimNavigationSettings={showVimNavigationSettings}
 		/>
 	);
 };

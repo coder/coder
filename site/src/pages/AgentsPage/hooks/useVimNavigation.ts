@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from "react";
+import type { Experiment } from "#/api/typesGenerated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	getDefaultVimModifier,
 	isVimModifier,
@@ -8,6 +10,23 @@ import {
 export const VIM_NAVIGATION_STORAGE_KEY = "agents.vim-navigation";
 export const VIM_NAVIGATION_MODIFIER_STORAGE_KEY =
 	"agents.vim-navigation-modifier";
+
+/**
+ * Experiment flag gating vim-style chat navigation.
+ */
+export const VIM_NAVIGATION_EXPERIMENT: Experiment = "chat-vim-navigation";
+
+/**
+ * Reports whether vim-style navigation shortcuts should be active:
+ * the deployment experiment is enabled and the user has turned the
+ * setting on. A stored setting has no effect while the experiment is
+ * off.
+ */
+export function useVimNavigationActive(): boolean {
+	const { experiments } = useDashboard();
+	const [enabled] = useVimNavigationSetting();
+	return experiments.includes(VIM_NAVIGATION_EXPERIMENT) && enabled;
+}
 
 // In-tab subscribers keyed by storage key. The native "storage" event
 // only fires cross-tab, so `writeKey` notifies same-tab subscribers

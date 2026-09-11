@@ -33,8 +33,8 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { getOSKey } from "#/utils/platform";
 import { useChatVimNavigation } from "../../../hooks/useChatVimNavigation";
 import {
+	useVimNavigationActive,
 	useVimNavigationModifier,
-	useVimNavigationSetting,
 } from "../../../hooks/useVimNavigation";
 import {
 	AGENT_CHAT_STATUS_ORDER,
@@ -341,7 +341,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				}))
 	).filter((section) => section.chats.length > 0);
 
-	const [vimNavigationEnabled] = useVimNavigationSetting();
+	const vimNavigationEnabled = useVimNavigationActive();
 	const [vimModifier] = useVimNavigationModifier();
 	const chatOrder = getVisibleChatOrder({
 		sections: [

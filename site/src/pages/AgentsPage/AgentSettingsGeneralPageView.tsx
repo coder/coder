@@ -32,6 +32,7 @@ export interface AgentSettingsGeneralPageViewProps {
 	>;
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
+	showVimNavigationSettings: boolean;
 }
 
 export const AgentSettingsGeneralPageView: FC<
@@ -45,6 +46,7 @@ export const AgentSettingsGeneralPageView: FC<
 	onSaveUserDebugLogging,
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
+	showVimNavigationSettings,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -65,7 +67,7 @@ export const AgentSettingsGeneralPageView: FC<
 					Keyboard shortcuts
 				</h3>
 				<ChatSendShortcutSettings />
-				<ChatVimNavigationSettings />
+				{showVimNavigationSettings && <ChatVimNavigationSettings />}
 			</div>
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />

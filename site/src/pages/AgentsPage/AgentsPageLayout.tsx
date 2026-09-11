@@ -81,8 +81,8 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
+	useVimNavigationActive,
 	useVimNavigationModifier,
-	useVimNavigationSetting,
 } from "./hooks/useVimNavigation";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
@@ -690,7 +690,7 @@ const AgentsPageLayout: FC = () => {
 	const [chatPendingRename, setChatPendingRename] =
 		useState<TypesGen.Chat | null>(null);
 
-	const [vimNavigationEnabled] = useVimNavigationSetting();
+	const vimNavigationEnabled = useVimNavigationActive();
 	const [vimModifier] = useVimNavigationModifier();
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,

@@ -22,6 +22,7 @@ import {
 } from "#/testHelpers/storybook";
 import { withVimNavigationPreference } from "#/testHelpers/vimNavigation";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
+import { VIM_NAVIGATION_EXPERIMENT } from "../../hooks/useVimNavigation";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -2306,18 +2307,21 @@ const focusSearchButton = async ({
 
 export const VimSearchHintCtrlModifier: Story = {
 	args: { chats: sectionHeaderChats },
+	parameters: { experiments: [VIM_NAVIGATION_EXPERIMENT] },
 	beforeEach: withVimNavigationPreference("ctrl"),
 	play: focusSearchButton,
 };
 
 export const VimSearchHintAltModifier: Story = {
 	args: { chats: sectionHeaderChats },
+	parameters: { experiments: [VIM_NAVIGATION_EXPERIMENT] },
 	beforeEach: withVimNavigationPreference("alt"),
 	play: focusSearchButton,
 };
 
 export const VimSearchHintMetaModifier: Story = {
 	args: { chats: sectionHeaderChats },
+	parameters: { experiments: [VIM_NAVIGATION_EXPERIMENT] },
 	beforeEach: withVimNavigationPreference("meta"),
 	play: focusSearchButton,
 };

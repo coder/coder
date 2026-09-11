@@ -30,6 +30,7 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	onSaveUserDebugLogging: fn(),
 	isSavingUserDebugLogging: false,
 	isSaveUserDebugLoggingError: false,
+	showVimNavigationSettings: false,
 };
 
 const meta = {
@@ -153,14 +154,17 @@ export const TogglesSendShortcut: Story = {
 };
 
 export const VimNavigationCtrlModifier: Story = {
+	args: { showVimNavigationSettings: true },
 	beforeEach: withVimNavigationPreference("ctrl"),
 };
 
 export const VimNavigationAltModifier: Story = {
+	args: { showVimNavigationSettings: true },
 	beforeEach: withVimNavigationPreference("alt"),
 };
 
 export const VimNavigationMetaModifier: Story = {
+	args: { showVimNavigationSettings: true },
 	beforeEach: withVimNavigationPreference("meta"),
 };
 
