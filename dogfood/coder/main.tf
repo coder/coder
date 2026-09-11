@@ -728,7 +728,7 @@ resource "coder_devcontainer" "coder" {
   workspace_folder = local.repo_dir
 }
 
-# Add a cost so we get some quota usage in dev.coder.com
+# Add a cost so we get some quota usage in dogfood.cdr.dev
 resource "coder_metadata" "home_volume" {
   resource_id = docker_volume.home_volume.id
   daily_cost  = 1
