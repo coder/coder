@@ -443,6 +443,14 @@ export interface AIProviderBedrockSettings {
 	 * behavior.
 	 */
 	readonly protocol?: AIProviderBedrockProtocol;
+	/**
+	 * ResolvedModel and ResolvedSmallFastModel are the model IDs behind the
+	 * configured identifiers, which differ from them only for application
+	 * inference profile ARNs. The server resolves those through AWS when the
+	 * provider is written and owns the values; a client cannot set them.
+	 */
+	readonly resolved_model?: string;
+	readonly resolved_small_fast_model?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go

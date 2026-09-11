@@ -2209,13 +2209,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg database.DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return 0, err
-	}
-	return q.db.DeleteCachedModuleFilesCreatedBetween(ctx, arg)
-}
-
 func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -2595,19 +2588,6 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
-}
-
-func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (uuid.UUID, error) {
-	task, err := q.db.GetTaskByID(ctx, arg.ID)
-	if err != nil {
-		return uuid.UUID{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionDelete, task.RBACObject()); err != nil {
-		return uuid.UUID{}, err
-	}
-
-	return q.db.DeleteTask(ctx, arg)
 }
 
 func (q *querier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
@@ -4789,32 +4769,6 @@ func (q *querier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.U
 	return q.db.GetTailnetTunnelPeerIDsBatch(ctx, ids)
 }
 
-func (q *querier) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
-	return fetch(q.log, q.auth, q.db.GetTaskByID)(ctx, id)
-}
-
-func (q *querier) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetTaskByOwnerIDAndNameParams) (database.Task, error) {
-	return fetch(q.log, q.auth, q.db.GetTaskByOwnerIDAndName)(ctx, arg)
-}
-
-func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
-	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
-}
-
-func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
-	// Fetch task to build RBAC object for authorization.
-	task, err := q.GetTaskByID(ctx, taskID)
-	if err != nil {
-		return database.TaskSnapshot{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionRead, task.RBACObject()); err != nil {
-		return database.TaskSnapshot{}, err
-	}
-
-	return q.db.GetTaskSnapshot(ctx, taskID)
-}
-
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.TelemetryItem{}, err
@@ -4827,13 +4781,6 @@ func (q *querier) GetTelemetryItems(ctx context.Context) ([]database.TelemetryIt
 		return nil, err
 	}
 	return q.db.GetTelemetryItems(ctx)
-}
-
-func (q *querier) GetTelemetryTaskEvents(ctx context.Context, arg database.GetTelemetryTaskEventsParams) ([]database.GetTelemetryTaskEventsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTask.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetTelemetryTaskEvents(ctx, arg)
 }
 
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
@@ -5439,17 +5386,6 @@ func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserS
 		return nil, err
 	}
 	return q.db.GetUserStatusCounts(ctx, arg)
-}
-
-func (q *querier) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
-	user, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return false, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
-		return false, err
-	}
-	return q.db.GetUserTaskNotificationAlertDismissed(ctx, userID)
 }
 
 func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -6513,17 +6449,6 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 	return q.db.InsertReplica(ctx, arg)
 }
 
-func (q *querier) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
-	// Ensure the actor can access the specified template version (and thus its template).
-	if _, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID); err != nil {
-		return database.TaskTable{}, err
-	}
-
-	obj := rbac.ResourceTask.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
-
-	return insert(q.log, q.auth, obj, q.db.InsertTask)(ctx, arg)
-}
-
 func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -7025,11 +6950,6 @@ func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organiz
 
 func (q *querier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganizationExcludeReserved)(ctx, organizationID)
-}
-
-func (q *querier) ListTasks(ctx context.Context, arg database.ListTasksParams) ([]database.Task, error) {
-	// TODO(Cian): replace this with a sql filter for improved performance. https://github.com/coder/internal/issues/1061
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListTasks)(ctx, arg)
 }
 
 func (q *querier) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg database.ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error) {
@@ -8202,45 +8122,6 @@ func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg 
 	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
 }
 
-func (q *querier) UpdateTaskPrompt(ctx context.Context, arg database.UpdateTaskPromptParams) (database.TaskTable, error) {
-	// An actor is allowed to update the prompt of a task if they have
-	// permission to update the task (same as UpdateTaskWorkspaceID).
-	task, err := q.db.GetTaskByID(ctx, arg.ID)
-	if err != nil {
-		return database.TaskTable{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, task.RBACObject()); err != nil {
-		return database.TaskTable{}, err
-	}
-
-	return q.db.UpdateTaskPrompt(ctx, arg)
-}
-
-func (q *querier) UpdateTaskWorkspaceID(ctx context.Context, arg database.UpdateTaskWorkspaceIDParams) (database.TaskTable, error) {
-	// An actor is allowed to update the workspace ID of a task if they are the
-	// owner of the task and workspace or have the appropriate permissions.
-	task, err := q.db.GetTaskByID(ctx, arg.ID)
-	if err != nil {
-		return database.TaskTable{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, task.RBACObject()); err != nil {
-		return database.TaskTable{}, err
-	}
-
-	ws, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID.UUID)
-	if err != nil {
-		return database.TaskTable{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, ws.RBACObject()); err != nil {
-		return database.TaskTable{}, err
-	}
-
-	return q.db.UpdateTaskWorkspaceID(ctx, arg)
-}
-
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
@@ -8350,7 +8231,7 @@ func (q *querier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.
 }
 
 func (q *querier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg database.UpdateTemplateVersionFlagsByJobIDParams) error {
-	// An actor is allowed to update the template version ai task and external agent flag if they are authorized to update the template.
+	// An actor is allowed to update the template version external agent flag if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
 		return err
@@ -8612,17 +8493,6 @@ func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserS
 		return q.db.GetUserByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserStatus)(ctx, arg)
-}
-
-func (q *querier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
-	user, err := q.db.GetUserByID(ctx, arg.UserID)
-	if err != nil {
-		return false, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
-		return false, err
-	}
-	return q.db.UpdateUserTaskNotificationAlertDismissed(ctx, arg)
 }
 
 func (q *querier) UpdateUserTerminalFont(ctx context.Context, arg database.UpdateUserTerminalFontParams) (database.UserConfig, error) {
@@ -9340,32 +9210,6 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
-}
-
-func (q *querier) UpsertTaskSnapshot(ctx context.Context, arg database.UpsertTaskSnapshotParams) error {
-	// Fetch task to build RBAC object for authorization.
-	task, err := q.GetTaskByID(ctx, arg.TaskID)
-	if err != nil {
-		return err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, task.RBACObject()); err != nil {
-		return err
-	}
-
-	return q.db.UpsertTaskSnapshot(ctx, arg)
-}
-
-func (q *querier) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
-	// Fetch the task to derive the RBAC object and authorize update on it.
-	task, err := q.db.GetTaskByID(ctx, arg.TaskID)
-	if err != nil {
-		return database.TaskWorkspaceApp{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, task); err != nil {
-		return database.TaskWorkspaceApp{}, err
-	}
-	return q.db.UpsertTaskWorkspaceApp(ctx, arg)
 }
 
 func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
