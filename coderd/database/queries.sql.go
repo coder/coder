@@ -10389,8 +10389,8 @@ WHERE
 //     disappeared).
 //  3. Waiting chats with a promotable queue head and stale updated_at
 //     (deferred-promote stranding when the worker dies before its
-//     post-cancel cleanup runs). A held head is not promotable, so
-//     a waiting chat whose head is held is idle, not stranded.
+//     post-cancel cleanup runs). A waiting chat whose head is held is
+//     paused for the owner's edit, not stranded.
 func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getStaleChats, staleThreshold)
 	if err != nil {
@@ -13138,7 +13138,7 @@ type UpdateChatQueuedMessageHeldParams struct {
 // Sets or clears held_at on one row. Setting is idempotent: an
 // already-held row keeps its original held_at. A chat has at most one
 // held row (chat_queued_messages_one_held_per_chat); callers that move
-// the hold clear the previous row first.
+// the hold clear the previous row first, in a separate statement.
 func (q *sqlQuerier) UpdateChatQueuedMessageHeld(ctx context.Context, arg UpdateChatQueuedMessageHeldParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageHeld, arg.Held, arg.ID, arg.ChatID)
 	var i ChatQueuedMessage

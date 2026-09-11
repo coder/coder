@@ -1687,7 +1687,9 @@ type ChatQueuedMessage struct {
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	// HeldAt is set while the owner is editing the message. A held
 	// message and every message queued behind it are not processed
-	// until the hold is released; messages ahead of it still are.
+	// until the hold is released; messages ahead of it still are. A
+	// waiting chat whose first queued message is held is paused for
+	// that edit rather than idle: a send to it is queued.
 	HeldAt *time.Time `json:"held_at,omitempty" format:"date-time"`
 }
 

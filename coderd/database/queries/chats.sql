@@ -1883,8 +1883,8 @@ FROM chats_expanded;
 --      disappeared).
 --   3. Waiting chats with a promotable queue head and stale updated_at
 --      (deferred-promote stranding when the worker dies before its
---      post-cancel cleanup runs). A held head is not promotable, so
---      a waiting chat whose head is held is idle, not stranded.
+--      post-cancel cleanup runs). A waiting chat whose head is held is
+--      paused for the owner's edit, not stranded.
 SELECT
     *
 FROM
@@ -2850,7 +2850,7 @@ WHERE chat_id = @chat_id::uuid;
 -- Sets or clears held_at on one row. Setting is idempotent: an
 -- already-held row keeps its original held_at. A chat has at most one
 -- held row (chat_queued_messages_one_held_per_chat); callers that move
--- the hold clear the previous row first.
+-- the hold clear the previous row first, in a separate statement.
 UPDATE chat_queued_messages
 SET held_at = CASE WHEN @held::boolean THEN COALESCE(held_at, NOW()) ELSE NULL END
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid

@@ -146,11 +146,7 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // without mutating anything.
 //
 // Callbacks that return an error roll back the transaction (rolling
-// back the automatic snapshot bump) and publish nothing. So does a
-// callback whose transitions would commit [StateInvalid]; Update
-// returns [ErrInvalidResultState]. A transition is only admitted from
-// a valid state, so this is the one place the machine checks the state
-// it is about to commit.
+// back the automatic snapshot bump) and publish nothing.
 func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
@@ -183,9 +179,6 @@ func (m *ChatMachine) Update(
 		chat, state, err := tx.loadState()
 		if err != nil {
 			return err
-		}
-		if state == StateInvalid {
-			return ErrInvalidResultState
 		}
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(chat.ID),

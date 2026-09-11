@@ -5345,7 +5345,7 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-	// Set while the owner is editing the row. At most one row per chat is held; the state machine treats the held row and everything behind it as absent from the queue.
+	// Set while the owner is editing the row. At most one row per chat is held. A turn boundary does not promote a held head; the chat pauses at it instead.
 	HeldAt sql.NullTime `db:"held_at" json:"held_at"`
 }
 

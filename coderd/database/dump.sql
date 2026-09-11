@@ -2134,7 +2134,7 @@ CREATE TABLE chat_queued_messages (
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
 
-COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held; the state machine treats the held row and everything behind it as absent from the queue.';
+COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held. A turn boundary does not promote a held head; the chat pauses at it instead.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1

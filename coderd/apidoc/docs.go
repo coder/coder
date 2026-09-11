@@ -21039,7 +21039,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "held_at": {
-                    "description": "HeldAt is set while the owner is editing the message. A held\nmessage and every message queued behind it are not processed\nuntil the hold is released; messages ahead of it still are.",
+                    "description": "HeldAt is set while the owner is editing the message. A held\nmessage and every message queued behind it are not processed\nuntil the hold is released; messages ahead of it still are. A\nwaiting chat whose first queued message is held is paused for\nthat edit rather than idle: a send to it is queued.",
                     "type": "string",
                     "format": "date-time"
                 },

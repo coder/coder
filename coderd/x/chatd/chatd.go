@@ -2107,13 +2107,8 @@ func (p *Server) setChatFamilyArchived(
 
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
-// consumers.
-//
-// On an idle chat the target can only be a held head or a row behind
-// one. Deleting a held head whose successor is sendable would strand
-// the chat, so the successor is promoted first (it is what the user
-// would get by pressing "send now" on it) and the held row is deleted
-// in the same transaction.
+// consumers. Deleting the held head of a paused chat resumes it; the
+// sidebar watch event covers that status change.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -2123,64 +2118,42 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
-	var promotedChat *database.Chat
+	var (
+		after   database.Chat
+		resumed bool
+	)
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		successor, exposes, err := idleSuccessorExposedBy(ctx, store, chatID, queuedMessageID)
+		before, err := store.GetChatByID(ctx, chatID)
 		if err != nil {
-			return err
-		}
-		if exposes {
-			if _, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
-				QueuedMessageID: successor.ID,
-			}); err != nil {
-				return err
-			}
+			return xerrors.Errorf("load chat: %w", err)
 		}
 		if _, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		}); err != nil {
 			return err
 		}
-		if exposes {
-			refreshed, err := store.GetChatByID(ctx, chatID)
-			if err != nil {
-				return xerrors.Errorf("reload chat after delete: %w", err)
-			}
-			promotedChat = &refreshed
-		}
-		return nil
+		after, resumed, err = chatIfStatusChanged(ctx, store, before)
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	if promotedChat != nil {
-		p.publishChatPubsubEvent(*promotedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if resumed {
+		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 	return nil
 }
 
-// idleSuccessorExposedBy returns the row that would become the
-// promotable head of an idle chat if queuedMessageID were deleted: the
-// chat is waiting and the target is its held head. Only one row per
-// chat is held, so any successor is promotable. The boolean is false
-// when no such row exists.
-func idleSuccessorExposedBy(ctx context.Context, store database.Store, chatID uuid.UUID, queuedMessageID int64) (database.ChatQueuedMessage, bool, error) {
-	chat, err := store.GetChatByID(ctx, chatID)
+// chatIfStatusChanged reloads the chat inside the transaction and
+// reports whether its status differs from before, so the caller can
+// publish the sidebar watch event with the committed values.
+func chatIfStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
+	after, err := store.GetChatByID(ctx, before.ID)
 	if err != nil {
-		return database.ChatQueuedMessage{}, false, xerrors.Errorf("load chat: %w", err)
+		return database.Chat{}, false, xerrors.Errorf("reload chat: %w", err)
 	}
-	if chat.Status != database.ChatStatusWaiting || chat.Archived {
-		return database.ChatQueuedMessage{}, false, nil
-	}
-	queue, err := store.GetChatQueuedMessages(ctx, chatID)
-	if err != nil {
-		return database.ChatQueuedMessage{}, false, xerrors.Errorf("load queue: %w", err)
-	}
-	if len(queue) < 2 || queue[0].ID != queuedMessageID {
-		return database.ChatQueuedMessage{}, false, nil
-	}
-	return queue[1], true, nil
+	return after, after.Status != before.Status, nil
 }
 
 // EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
@@ -2203,14 +2176,11 @@ type EditQueuedMessageOptions struct {
 }
 
 // EditQueuedMessage rewrites a queued row's content and/or hold through
-// the chatstate.EditQueuedMessage transition. Holding a row parks it
-// and everything queued behind it until the owner saves or cancels the
-// edit; see the transition for the queue semantics. Stream side effects
-// are handled by chat:update consumers.
-//
-// Releasing the held head of an idle chat means starting it, so that
-// case runs PromoteQueuedMessage after the content write instead of
-// clearing the hold in place.
+// the chatstate.EditQueuedMessage transition. Holding a row pauses the
+// queue at that row until the owner saves or cancels; releasing the
+// head of a paused chat resumes it. Stream side effects are handled by
+// chat:update consumers; a resume also publishes the sidebar watch
+// event.
 func (p *Server) EditQueuedMessage(
 	ctx context.Context,
 	opts EditQueuedMessageOptions,
@@ -2280,7 +2250,10 @@ func (p *Server) EditQueuedMessage(
 		}
 	}
 
-	var promotedChat *database.Chat
+	var (
+		after   database.Chat
+		resumed bool
+	)
 	machine := p.newChatMachine(opts.ChatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
@@ -2296,27 +2269,8 @@ func (p *Server) EditQueuedMessage(
 				return err
 			}
 		}
-
-		promote, err := releaseStartsIdleHead(ctx, store, lockedChat, opts.QueuedMessageID, opts.Held)
-		if err != nil {
+		if _, err := tx.EditQueuedMessage(input); err != nil {
 			return err
-		}
-		if promote {
-			// Write the content first so the promoted row carries it;
-			// Promote clears the hold itself.
-			input.Held = nil
-		}
-		if input.Content != nil || input.Held != nil {
-			if _, err := tx.EditQueuedMessage(input); err != nil {
-				return err
-			}
-		}
-		if promote {
-			if _, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
-				QueuedMessageID: opts.QueuedMessageID,
-			}); err != nil {
-				return err
-			}
 		}
 		if len(contentParts) > 0 {
 			// File-link errors must roll back the edit.
@@ -2324,39 +2278,16 @@ func (p *Server) EditQueuedMessage(
 				return err
 			}
 		}
-		if promote {
-			refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-			if err != nil {
-				return xerrors.Errorf("reload chat after queued edit: %w", err)
-			}
-			promotedChat = &refreshed
-		}
-		return nil
+		after, resumed, err = chatIfStatusChanged(ctx, store, lockedChat)
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	if promotedChat != nil {
-		p.publishChatPubsubEvent(*promotedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if resumed {
+		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 	return nil
-}
-
-// releaseStartsIdleHead reports whether clearing the hold on
-// queuedMessageID would expose it as the promotable head of an idle
-// chat, in which case the release is a promotion.
-func releaseStartsIdleHead(ctx context.Context, store database.Store, chat database.Chat, queuedMessageID int64, held *bool) (bool, error) {
-	if held == nil || *held || chat.Status != database.ChatStatusWaiting || chat.Archived {
-		return false, nil
-	}
-	head, err := store.GetChatQueuedMessageHead(ctx, chat.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, xerrors.Errorf("get queue head: %w", err)
-	}
-	return head.ID == queuedMessageID, nil
 }
 
 // PromoteQueued promotes a queued message through the chatstate state

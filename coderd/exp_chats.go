@@ -3196,9 +3196,9 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, editErr):
 			// response already written
-		case errors.Is(editErr, chatstate.ErrInvalidResultState):
+		case errors.Is(editErr, chatstate.ErrPausedHeadMustResume):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Moving the hold would leave the held message ready to send on an idle chat. Send or remove it first.",
+				Message: "The chat is paused for the held message. Resume, send, or remove it before editing another.",
 			})
 		case errors.Is(editErr, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
