@@ -5,7 +5,7 @@
 //
 //	setup   create users, provider, model, workspace, MCP config, OAuth2 apps
 //	tokens  obtain OAuth2 access tokens for alice, bob, carol (and alice no-share)
-//	run     run scenarios S0..S8 (and S9 with -s9) and write results
+//	run     run scenarios S0..S8 (S9 with -s9; S4A, S9B, S9C only via -only) and write results
 //
 // Run it from the repository root; it reads the develop.sh session and
 // Postgres credentials from .coderv2. Secrets (session tokens, OAuth2
@@ -47,7 +47,9 @@ const (
 	// model is available" (S2). Posting, interrupting, and submitting tool
 	// results need chat:use. A bot does not need chat:update; it stays
 	// here so the S7 archive denial exercises the chat ACL, not the scope.
-	botScopes = "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read"
+	// Without mcp_server_config:read, GET /organizations/{org}/mcp-servers
+	// returns an empty list for a scoped token (S4).
+	botScopes = "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read mcp_server_config:read"
 	// noShareScopes is a bot scope set without chat:share, used only to
 	// prove that PATCH /chats/{id}/acl is denied without that scope.
 	noShareScopes = "chat:create chat:read chat:use chat:update workspace:read workspace:share user:read_personal"
@@ -91,6 +93,10 @@ type state struct {
 	// created by S9B.
 	S9BChatID      uuid.UUID `json:"s9b_chat_id,omitempty"`
 	S9BWorkspaceID uuid.UUID `json:"s9b_workspace_id,omitempty"`
+	// S9CChatID and S9CWorkspaceID are the bound chat and bob's replacement
+	// workspace created by S9C.
+	S9CChatID      uuid.UUID `json:"s9c_chat_id,omitempty"`
+	S9CWorkspaceID uuid.UUID `json:"s9c_workspace_id,omitempty"`
 }
 
 func loadState() (*state, error) {
@@ -172,7 +178,7 @@ func run() error {
 		runErr = runTokens(ctx, st, *scopes)
 	case "run":
 		fs := flag.NewFlagSet("run", flag.ExitOnError)
-		only := fs.String("only", "", "comma-separated scenario IDs to run (default all S0..S8)")
+		only := fs.String("only", "", "comma-separated scenario IDs to run (default all S0..S8; S4A, S9B, S9C run only when listed)")
 		s9 := fs.Bool("s9", false, "also run the optional S9 scenario")
 		newChat := fs.Bool("new-chat", true, "create a fresh chat in S2 (false reuses state chat_id)")
 		_ = fs.Parse(os.Args[2:])

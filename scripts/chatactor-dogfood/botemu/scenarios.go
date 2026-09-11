@@ -102,7 +102,7 @@ func runScenarios(ctx context.Context, st *state, only string, withS9 bool, newC
 			if id == "S4A" {
 				return false
 			}
-			if id == "S9B" {
+			if id == "S9B" || id == "S9C" {
 				return false
 			}
 			return id != "S9" || withS9
@@ -130,6 +130,7 @@ func runScenarios(ctx context.Context, st *state, only string, withS9 bool, newC
 		{"S9B", "Use sharer creates workspace (unbound chat)", func(ctx context.Context, st *state, r *reporter) error {
 			return s9bUseSharerCreatesWorkspace(ctx, st, r, newChat)
 		}},
+		{"S9C", "Use sharer replaces an inaccessible bound workspace", s9cUseSharerReplacesBoundWorkspace},
 	}
 	for _, s := range steps {
 		if !should(s.id) {
@@ -333,6 +334,21 @@ func s3JoinOrdering(ctx context.Context, st *state, r *reporter) error {
 const whoamiPrompt = "Call the whoami tool and reply with its exact output."
 
 func s4MCPIdentity(ctx context.Context, st *state, r *reporter) error {
+	// listMCPServerConfigs filters by mcp_server_config read for non-admins,
+	// so a token without mcp_server_config:read sees an empty list here.
+	bob := st.tokenClient("bob")
+	configs, err := bob.MCPServerConfigs(ctx, st.OrgID)
+	if r.check(err == nil, "bob token GET /organizations/{org}/mcp-servers -> %s (%d configs, token scopes=%q)", errBody(err), len(configs), st.Users["bob"].Scopes) {
+		var slugs []string
+		found := false
+		for _, cfg := range configs {
+			slugs = append(slugs, cfg.Slug)
+			if cfg.Slug == mcpSlug && cfg.ID == st.MCPConfigID {
+				found = true
+			}
+		}
+		r.check(found, "bob token lists the %q MCP server (%s) (got %v)", mcpSlug, st.MCPConfigID, slugs)
+	}
 	return mcpIdentityFor(ctx, st, r, []string{"bob", "alice"})
 }
 
@@ -656,23 +672,51 @@ func deleteWorkspaceIfExists(ctx context.Context, admin *codersdk.Client, owner,
 		return xerrors.Errorf("delete workspace %s/%s: %w", owner, name, err)
 	}
 	r.ev("step0: leftover workspace %s/%s found; delete build %s started", owner, name, build.ID)
-	deadline := time.Now().Add(5 * time.Minute)
+	if _, err := waitForBuild(ctx, admin, build.ID, 5*time.Minute); err != nil {
+		return err
+	}
+	r.ev("step0: leftover workspace %s/%s deleted", owner, name)
+	return nil
+}
+
+// waitForBuild polls a workspace build until its provisioner job finishes.
+func waitForBuild(ctx context.Context, admin *codersdk.Client, buildID uuid.UUID, timeout time.Duration) (codersdk.WorkspaceBuild, error) {
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		b, err := admin.WorkspaceBuild(ctx, build.ID)
+		b, err := admin.WorkspaceBuild(ctx, buildID)
 		if err != nil {
-			return xerrors.Errorf("poll delete build: %w", err)
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("poll build %s: %w", buildID, err)
 		}
 		switch b.Job.Status {
 		case codersdk.ProvisionerJobSucceeded:
-			r.ev("step0: leftover workspace %s/%s deleted", owner, name)
-			return nil
+			return b, nil
 		case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
-			return xerrors.Errorf("delete build %s ended with %s: %s", build.ID, b.Job.Status, b.Job.Error)
+			return b, xerrors.Errorf("build %s ended with %s: %s", buildID, b.Job.Status, b.Job.Error)
 		default:
 			time.Sleep(3 * time.Second)
 		}
 	}
-	return xerrors.Errorf("delete build %s did not finish in time", build.ID)
+	return codersdk.WorkspaceBuild{}, xerrors.Errorf("build %s did not finish within %s", buildID, timeout)
+}
+
+// stopWorkspaceTurn asks the chat to stop its workspace as one user and
+// returns the stop_workspace tool-result. It retries once when the model
+// does not call the tool.
+func stopWorkspaceTurn(ctx context.Context, r *reporter, step, name string, c *codersdk.Client, chatID uuid.UUID) (codersdk.ChatMessagePart, bool, error) {
+	const stopPrompt = "Use the stop_workspace tool to stop the workspace and reply with the result."
+	for attempt := 1; attempt <= 2; attempt++ {
+		t, err := postAndWait(ctx, c, chatID, stopPrompt, 5*time.Minute)
+		if err != nil {
+			return codersdk.ChatMessagePart{}, false, err
+		}
+		r.ev("%s: %s stop turn (attempt %d): %s", step, name, attempt, describeTurn(t))
+		for _, res := range t.toolResults() {
+			if res.ToolName == "stop_workspace" {
+				return res, true, nil
+			}
+		}
+	}
+	return codersdk.ChatMessagePart{}, false, nil
 }
 
 // s9bUseSharerCreatesWorkspace verifies that a chat use sharer (bob) who creates a
@@ -933,23 +977,7 @@ func s9bActorChecks(ctx context.Context, st *state, r *reporter, admin *codersdk
 	}
 
 	// Step 7 (optional): stop_workspace as alice must fail, as bob must succeed.
-	stopPrompt := "Use the stop_workspace tool to stop the workspace and reply with the result."
-	stopResult := func(name string, c *codersdk.Client) (codersdk.ChatMessagePart, bool, error) {
-		for attempt := 1; attempt <= 2; attempt++ {
-			t, err := postAndWait(ctx, c, chat.ID, stopPrompt, 5*time.Minute)
-			if err != nil {
-				return codersdk.ChatMessagePart{}, false, err
-			}
-			r.ev("step7: %s stop turn (attempt %d): %s", name, attempt, describeTurn(t))
-			for _, res := range t.toolResults() {
-				if res.ToolName == "stop_workspace" {
-					return res, true, nil
-				}
-			}
-		}
-		return codersdk.ChatMessagePart{}, false, nil
-	}
-	res, ok, err := stopResult("alice", alice)
+	res, ok, err := stopWorkspaceTurn(ctx, r, "step7", "alice", alice, chat.ID)
 	if err != nil {
 		r.failf("step7: alice stop post/wait: %v", err)
 		return nil
@@ -965,7 +993,7 @@ func s9bActorChecks(ctx context.Context, st *state, r *reporter, admin *codersdk
 	if err == nil {
 		r.check(wsAfter.LatestBuild.Transition == codersdk.WorkspaceTransitionStart, "step7: workspace still on start build after alice's attempt (transition=%s)", wsAfter.LatestBuild.Transition)
 	}
-	res, ok, err = stopResult("bob", bob)
+	res, ok, err = stopWorkspaceTurn(ctx, r, "step7", "bob", bob, chat.ID)
 	if err != nil {
 		r.failf("step7: bob stop post/wait: %v", err)
 		return nil
@@ -980,6 +1008,173 @@ func s9bActorChecks(ctx context.Context, st *state, r *reporter, admin *codersdk
 	if err == nil {
 		r.ev("step7: workspace latest_build id=%s transition=%s initiator_id=%s status=%s", wsAfter.LatestBuild.ID, wsAfter.LatestBuild.Transition, wsAfter.LatestBuild.InitiatorID, wsAfter.LatestBuild.Status)
 		r.check(wsAfter.LatestBuild.Transition == codersdk.WorkspaceTransitionStop && wsAfter.LatestBuild.InitiatorID == bobID, "step7: stop build initiated by bob")
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------- S9C
+
+const s9cWorkspaceName = "bob-from-chat-rebind"
+
+// s9cUseSharerReplacesBoundWorkspace verifies that when a chat is bound to a
+// running workspace the actor cannot reach, create_workspace creates an
+// actor-owned workspace instead of reporting already_exists, and rebinds
+// the chat to it. It needs the createworkspace rebind fix in
+// coderd/x/chatd/chattool.
+func s9cUseSharerReplacesBoundWorkspace(ctx context.Context, st *state, r *reporter) error {
+	alice := st.tokenClient("alice")
+	bob := st.tokenClient("bob")
+	aliceID := st.Users["alice"].ID
+	bobID := st.Users["bob"].ID
+	admin, err := st.adminClient()
+	if err != nil {
+		return err
+	}
+
+	// Step 0: an earlier run leaves bob/bob-from-chat-rebind behind, and
+	// step 3 checks that create_workspace creates it. Delete the leftover.
+	if err := deleteWorkspaceIfExists(ctx, admin, "bob", s9cWorkspaceName, r); err != nil {
+		return err
+	}
+
+	// Step 1: alice creates a chat bound to alice-ws.
+	boundWS := st.WorkspaceID
+	chat, err := alice.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: st.OrgID,
+		WorkspaceID:    &boundWS,
+		SystemPrompt:   systemPrompt,
+		ClientType:     codersdk.ChatClientTypeAPI,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Reply with the single word pong."}},
+	})
+	if err != nil {
+		r.failf("step1: alice token POST /api/v2/chats (workspace_id=%s) failed: %s", boundWS, errBody(err))
+		return nil
+	}
+	st.S9CChatID = chat.ID
+	_ = st.save()
+	r.ev("step1: POST /api/v2/chats -> chat id=%s owner_id=%s workspace_id=%s agent_id=%s status=%s", chat.ID, chat.OwnerID, uuidStr(chat.WorkspaceID), uuidStr(chat.AgentID), chat.Status)
+	r.check(chat.OwnerID == aliceID, "step1: chat owner is alice (%s)", aliceID)
+	r.check(chat.WorkspaceID != nil && *chat.WorkspaceID == boundWS, "step1: chat bound to alice/%s (%s)", st.WorkspaceName, boundWS)
+	t, err := waitTurn(ctx, alice, chat.ID, codersdk.ChatMessage{ID: 0, CreatedAt: time.Now()}, 2*time.Minute)
+	if err != nil {
+		r.failf("step1: turn did not complete: %v", err)
+		return nil
+	}
+	r.ev("step1: turn: %s", describeTurn(t))
+	r.check(strings.Contains(strings.ToLower(t.assistantText()), "pong"), "step1: assistant replied (contains 'pong')")
+
+	// Step 2: alice grants bob use on the chat and makes sure bob has no
+	// entry on the bound workspace ACL (S6 of an earlier run leaves one).
+	err = alice.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{bobID.String(): codersdk.ChatRoleUse},
+	})
+	if !r.check(err == nil, "step2: alice PATCH /chats/{id}/acl bob=use -> %s", errBody(err)) {
+		return nil
+	}
+	err = alice.UpdateWorkspaceACL(ctx, boundWS, codersdk.UpdateWorkspaceACL{
+		UserRoles: map[string]codersdk.WorkspaceRole{bobID.String(): codersdk.WorkspaceRoleDeleted},
+	})
+	if !r.check(err == nil, "step2: alice PATCH /workspaces/{id}/acl bob=removed -> %s", errBody(err)) {
+		return nil
+	}
+	acl, err := alice.WorkspaceACL(ctx, boundWS)
+	if err == nil {
+		bobOnACL := false
+		for _, u := range acl.Users {
+			if u.ID == bobID {
+				bobOnACL = true
+			}
+		}
+		r.check(!bobOnACL, "step2: bob has no entry on the alice/%s ACL (%d users)", st.WorkspaceName, len(acl.Users))
+	}
+
+	// Step 3: bob asks the chat to create his own workspace. Retry once when
+	// the model does not call the tool.
+	createPrompt := fmt.Sprintf("Use the create_workspace tool to create a new workspace for me named %s from the docker template (template_id %s), then reply with the single word done.", s9cWorkspaceName, st.TemplateID)
+	var createRes codersdk.ChatMessagePart
+	createFound := false
+	for attempt := 1; attempt <= 2 && !createFound; attempt++ {
+		t, err = postAndWait(ctx, bob, chat.ID, createPrompt, 10*time.Minute)
+		if err != nil {
+			r.failf("step3: bob post/wait: %v (%s)", err, errBody(err))
+			return nil
+		}
+		r.ev("step3: bob create turn (attempt %d): %s", attempt, describeTurn(t))
+		r.check(t.UserMessage.CreatedBy != nil && *t.UserMessage.CreatedBy == bobID, "step3: bob user message created_by == bob")
+		for _, res := range t.toolResults() {
+			if res.ToolName == "create_workspace" {
+				createRes = res
+				createFound = true
+			}
+		}
+	}
+	if !r.check(createFound, "step3: a create_workspace tool-result was recorded") {
+		return nil
+	}
+	txt := resultText(createRes)
+	r.check(!createRes.IsError, "step3: create_workspace tool-result is_error=false (got %v)", createRes.IsError)
+	r.check(strings.Contains(txt, `"created":true`), "step3: create_workspace tool-result has created=true")
+	r.check(!strings.Contains(txt, "already_exists"), "step3: create_workspace tool-result has no already_exists (bound alice/%s not reused)", st.WorkspaceName)
+
+	// Step 4: admin verifies ownership and the rebind, then waits for the
+	// start build so step 6 can stop the workspace.
+	ws, err := admin.WorkspaceByOwnerAndName(ctx, "bob", s9cWorkspaceName, codersdk.WorkspaceOptions{})
+	if !r.check(err == nil, "step4: GET /api/v2/users/bob/workspace/%s -> %s", s9cWorkspaceName, errBody(err)) {
+		return nil
+	}
+	st.S9CWorkspaceID = ws.ID
+	_ = st.save()
+	r.ev("step4: workspace id=%s owner=%s/%s owner_id=%s latest_build id=%s initiator_id=%s transition=%s status=%s",
+		ws.ID, ws.OwnerName, ws.Name, ws.OwnerID, ws.LatestBuild.ID, ws.LatestBuild.InitiatorID, ws.LatestBuild.Transition, ws.LatestBuild.Status)
+	r.check(ws.OwnerID == bobID, "step4: workspace owner_id == bob (%s)", bobID)
+	r.check(ws.LatestBuild.InitiatorID == bobID, "step4: latest_build.initiator_id == bob (%s)", bobID)
+	chat, err = admin.GetChat(ctx, chat.ID)
+	if err != nil {
+		return err
+	}
+	r.ev("step4: GET /chats/{id} owner_id=%s workspace_id=%s agent_id=%s status=%s", chat.OwnerID, uuidStr(chat.WorkspaceID), uuidStr(chat.AgentID), chat.Status)
+	r.check(chat.WorkspaceID != nil && *chat.WorkspaceID == ws.ID, "step4: chat workspace_id rebound from alice/%s (%s) to bob/%s (%s)", st.WorkspaceName, boundWS, s9cWorkspaceName, ws.ID)
+	r.check(chat.OwnerID == aliceID, "step4: chat owner still alice")
+	if _, err := waitForBuild(ctx, admin, ws.LatestBuild.ID, 10*time.Minute); err != nil {
+		r.failf("step4: start build: %v", err)
+		return nil
+	}
+
+	// Step 5: alice (chat owner, no ACL on bob's workspace) is denied.
+	t, err = postAndWait(ctx, alice, chat.ID, executePrompt, 3*time.Minute)
+	if err != nil {
+		r.failf("step5: alice execute post/wait: %v", err)
+		return nil
+	}
+	r.ev("step5: alice execute turn: %s", describeTurn(t))
+	want := fmt.Sprintf("workspace access denied: user alice does not have access to workspace bob/%s", s9cWorkspaceName)
+	execFound := false
+	for _, res := range t.toolResults() {
+		if res.ToolName != "execute" {
+			continue
+		}
+		execFound = true
+		r.check(res.IsError, "step5: execute tool-result is_error=true (got %v)", res.IsError)
+		r.check(strings.Contains(resultText(res), want), "step5: execute tool-result contains %q", want)
+	}
+	r.check(execFound, "step5: an execute tool-result was recorded for alice")
+
+	// Step 6: bob stops his workspace.
+	res, ok, err := stopWorkspaceTurn(ctx, r, "step6", "bob", bob, chat.ID)
+	if err != nil {
+		r.failf("step6: bob stop post/wait: %v", err)
+		return nil
+	}
+	if !ok {
+		r.skip("step6: model did not call stop_workspace for bob after one retry")
+		return nil
+	}
+	txt = resultText(res)
+	r.check(!res.IsError && strings.Contains(txt, `"stopped":true`), "step6: bob stop_workspace tool-result succeeds (stopped=true)")
+	wsAfter, err := admin.Workspace(ctx, ws.ID)
+	if err == nil {
+		r.ev("step6: workspace latest_build id=%s transition=%s initiator_id=%s status=%s", wsAfter.LatestBuild.ID, wsAfter.LatestBuild.Transition, wsAfter.LatestBuild.InitiatorID, wsAfter.LatestBuild.Status)
+		r.check(wsAfter.LatestBuild.Transition == codersdk.WorkspaceTransitionStop && wsAfter.LatestBuild.InitiatorID == bobID, "step6: stop build initiated by bob")
 	}
 	return nil
 }

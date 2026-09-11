@@ -20,7 +20,7 @@ All commands run from the repository root. `botemu` reads the dev admin session 
 
 ## Prerequisites
 
-- Docker, for the `docker` starter template. The harness creates the workspace `alice/alice-ws` and, in S9 and S9B, `bob/bob-from-chat`.
+- Docker, for the `docker` starter template. The harness creates the workspace `alice/alice-ws`, in S9 and S9B `bob/bob-from-chat`, and in S9C `bob/bob-from-chat-rebind`.
 - `go`, `jq`, `curl`, and the normal `./scripts/develop.sh` toolchain.
 - Ports `3000` (dev API), `8080` (dev web UI), and `3999` (MCP server) free on `127.0.0.1`.
 - Environment variables:
@@ -54,7 +54,7 @@ When a dev server is already up, keep it running with output teed to `scripts/ch
 
 ## Scenarios
 
-`botemu run` executes S0 to S8 by default. `-s9` adds S9. S4A and S9B run only when named with `-only`.
+`botemu run` executes S0 to S8 by default. `-s9` adds S9. S4A, S9B, and S9C run only when named with `-only`.
 
 | ID  | Name                                     | Asserts                                                                                                                                                                                                                                            |
 |-----|------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -63,13 +63,14 @@ When a dev server is already up, keep it running with output teed to `scripts/ch
 | S2  | Thread start                             | Alice's token creates a chat bound to `alice/alice-ws`; owner is alice, the `force_on` MCP config is attached, the first user message has `created_by` alice, the turn ends `waiting` with "pong", and `agent_id` resolves to the workspace agent. |
 | S3  | Join ordering and sharing                | Bob posting before any grant is denied (403 or 404); alice's no-share token gets 403 from `PATCH /chats/{id}/acl`; alice's full token sets bob=`use` and carol=`read`, and `GET /chats/{id}/acl` round-trips both roles.                          |
 | S4A | MCP whoami smoke (alice only)            | Same checks as S4 for alice only. Not in the default set.                                                                                                                                                                                          |
-| S4  | Per-user MCP identity                    | Bob, then alice, ask for `whoami`. The tool result has `owner_id` alice, `actor_id` and `token_label` equal to the poster (the per-user MCP token follows the actor), the chat id, and the `whoami` `mcp_server_config_id`.                        |
+| S4  | Per-user MCP identity                    | Bob's token lists the org MCP servers and sees `whoami` (needs `mcp_server_config:read`; without it the list is empty for a scoped token). Bob, then alice, ask for `whoami`. The tool result has `owner_id` alice, `actor_id` and `token_label` equal to the poster (the per-user MCP token follows the actor), the chat id, and the `whoami` `mcp_server_config_id`.                        |
 | S5  | Workspace denial                         | Alice removes bob from the workspace ACL (a rerun may have left an S6 grant), then bob asks `execute hostname`; the tool result is an error containing `workspace access denied: user bob does not have access to workspace alice/alice-ws`, the assistant relays it, and `logs/develop.log` has `actor_id=<bob>` lines. |
 | S6  | Share and retry                          | Alice shares `alice-ws` with bob as `use`; bob's `execute hostname` succeeds and the output contains the workspace name.                                                                                                                            |
 | S7  | Handler gates                            | Bob (use) is denied archive and ACL updates; bob can interrupt a running turn; carol (read) is denied posting (403 or 404); the admin session is denied posting with 404 (admins hold `update`, not `use`); bob and carol can read the chat and messages. |
 | S8  | Attribution                              | `api_keys` has exactly one `chatd_%_session_token` key each for alice and bob and none for carol or admin; `logs/develop.log` has `actor_id=` lines for alice and bob.                                                                             |
 | S9  | Create workspace from chat (optional)    | Inside alice's bound chat, bob asks `create_workspace bob-from-chat`; the workspace exists owned by bob, the chat rebinds to it, bob's `execute` succeeds there, and alice's `execute` is denied.                                                    |
 | S9B | Use sharer creates workspace (unbound)   | A leftover `bob/bob-from-chat` is deleted first. Alice creates an unbound chat and grants bob `use`; bob creates `bob-from-chat`. Owner and build initiator are bob, the chat rebinds while alice stays owner, all `audit_logs` rows are bob's, bob's `execute` and `stop_workspace` succeed, alice's are denied. |
+| S9C | Use sharer replaces bound workspace      | Needs the `create_workspace` rebind fix in `coderd/x/chatd/chattool`. A leftover `bob/bob-from-chat-rebind` is deleted first. Alice creates a chat bound to `alice/alice-ws`, grants bob `use`, and removes bob from the workspace ACL; bob asks `create_workspace bob-from-chat-rebind`. The tool result has `created:true` and no `already_exists`, the workspace owner and build initiator are bob, the chat `workspace_id` now points at bob's workspace while alice stays owner, alice's `execute` is denied, and bob's `stop_workspace` succeeds with initiator bob. |
 
 ### Rerun a single scenario
 
@@ -90,13 +91,14 @@ Scenarios after S2 reuse the chat stored as `chat_id` in `state.json`. Pass `-ne
 `botemu tokens` requests the scope set in `botScopes` (`botemu/main.go`) and stores the tokens in `state.json`. Override it without editing code:
 
 ```sh
-go run ./scripts/chatactor-dogfood/botemu tokens -scopes "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read"
+go run ./scripts/chatactor-dogfood/botemu tokens -scopes "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read mcp_server_config:read"
 ```
 
 The no-share token always uses `noShareScopes`. Known results by scope set:
 
 - Without `user:read` and `workspace:ssh`: S1 failed, `GET /api/v2/users/me` returned 404.
 - Without `chat_model_config:read`: S2 failed, `POST /api/v2/chats` returned 400 "No chat model is available in this organization."
+- Without `mcp_server_config:read`: `GET /organizations/{org}/mcp-servers` returns an empty list for a scoped token, because `listMCPServerConfigs` filters by `mcp_server_config` read for non-admins. Setup did not notice because it lists with the admin session; the S4 check with bob's token catches it. Requesting the scope needs it in the OAuth2 `externalLowLevel` catalog (`coderd/rbac/scopes_catalog.go`).
 - The full set above: S0 to S8 pass.
 
 ### Bot scope set
@@ -104,7 +106,7 @@ The no-share token always uses `noShareScopes`. Known results by scope set:
 Posting messages, submitting tool results, and interrupting a chat require the `chat:use` scope and the `use` action on the chat. Chat settings, the queue, clear, and retitle require `chat:update`. A bot that only posts on behalf of users needs this minimum set:
 
 ```text
-chat:create chat:read chat:use chat:share workspace:read workspace:share workspace:ssh user:read user:read_personal chat_model_config:read
+chat:create chat:read chat:use chat:share workspace:read workspace:share workspace:ssh user:read user:read_personal chat_model_config:read mcp_server_config:read
 ```
 
 `botScopes` keeps `chat:update` on top of that set on purpose. With the scope present, the S7 `PATCH /chats/{id}` archive denial for bob comes from the chat ACL (bob holds `use`, not `update`), not from a missing scope.
@@ -125,12 +127,13 @@ Branch `ethan/chat-actor-prototype`, 2026-09-11, model `gpt-4.1-mini` through th
 | S1  | PASS    |                                                                                                                                                                                                                                                                                    |
 | S2  | PASS    | The first rerun failed every turn with "Authentication with OpenAI failed" because the stored provider key was the previous session's AI Gateway key. `setup` now replaces a stale key.                                                                                             |
 | S3  | PASS    | bob=`use`, carol=`read` round-trip.                                                                                                                                                                                                                                                |
-| S4  | PASS    |                                                                                                                                                                                                                                                                                    |
+| S4  | PASS    | The MCP server listing check with bob's token was added after this run and needs tokens re-minted with `mcp_server_config:read`. |
 | S5  | PASS    | The first rerun failed because the 2026-09-10 S6 grant was still on the workspace ACL and bob's `execute` succeeded. S5 now revokes bob before posting.                                                                                                                             |
 | S6  | PASS    |                                                                                                                                                                                                                                                                                    |
 | S7  | PASS    | Admin post returns 404. Interrupt ran while the chat was running.                                                                                                                                                                                                                  |
 | S8  | PASS    |                                                                                                                                                                                                                                                                                    |
 | S9  | FAIL    | 2026-09-10 result, not rerun. In the bound chat the model called `create_workspace`, which returned `already_exists` for `alice-ws`. Superseded by S9B.                                                                                                                              |
 | S9B | PASS    | The first rerun failed step 4: bob's `create_workspace` created the workspace but `UpdateChatWorkspaceBinding` returned `rbac: forbidden` because dbauthz required `update` and bob holds `use`. Fixed in `9b19182b8a` (the binding accepts `use` or `update`); the rerun passed fully. |
+| S9C | not run | Added after the 2026-09-11 run. Needs the `create_workspace` rebind fix; before it, the tool returns `already_exists` for the bound `alice-ws` like S9. |
 
 The 2026-09-10 run on `9a50b4fde1` (before the chat `use` action) passed S0 to S8 and S9B with bob as `write`.
