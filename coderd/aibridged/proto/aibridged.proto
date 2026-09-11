@@ -75,6 +75,9 @@ message RecordInterceptionRequest {
   // used to order network requests relative to Agent Firewall audit events.
   // Absent when the request did not pass through Agent Firewall.
   optional int32 agent_firewall_sequence_number = 16;
+  reserved 17, 19;
+  reserved "organization_id", "workspace_name";
+  string workspace_id = 18; // UUID. Empty when workspace attribution is unknown.
 }
 
 message RecordInterceptionResponse {}
@@ -185,6 +188,9 @@ message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
+  reserved 4, 6;
+  reserved "organization_id", "workspace_name";
+  string workspace_id = 5; // UUID. Empty when workspace attribution is unknown.
 }
 
 message IsBudgetExceededRequest {
