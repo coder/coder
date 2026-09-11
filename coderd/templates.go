@@ -37,6 +37,19 @@ import (
 
 const defaultRequirementWeeks = 1
 
+// browserOnlyNotEntitled is the validation detail returned when a template is
+// asked to refuse non-browser connections without the entitlement that the
+// deployment-wide setting also requires.
+const browserOnlyNotEntitled = "Refusing non-browser connections is an Enterprise feature. Contact sales!"
+
+// browserOnlyEntitled reports whether the license permits refusing non-browser
+// connections. The feature's Enabled flag tracks the deployment-wide setting,
+// so only the entitlement is meaningful for a single template.
+func (api *API) browserOnlyEntitled() bool {
+	feature, ok := api.Entitlements.Feature(codersdk.FeatureBrowserOnly)
+	return ok && feature.Entitlement.Entitled()
+}
+
 // Returns a single template.
 //
 // @Summary Get template settings by ID
@@ -375,6 +388,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			maxPortShareLevel = database.AppSharingLevel(*createTemplate.MaxPortShareLevel)
 		}
 	}
+	if ptr.NilToDefault(createTemplate.BrowserOnly, false) && !api.browserOnlyEntitled() {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "browser_only", Detail: browserOnlyNotEntitled})
+	}
 
 	// Default the CORS behavior here to Simple so we don't break all existing templates.
 	val := database.CorsBehaviorSimple
@@ -421,6 +437,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
 		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
 		allowWorkspaceRenames        = ptr.NilToDefault(createTemplate.AllowWorkspaceRenames, false)
+		browserOnly                  = ptr.NilToDefault(createTemplate.BrowserOnly, false)
 	)
 
 	defaultsGroups := database.TemplateACL{}
@@ -452,6 +469,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			CorsBehavior:                 corsBehavior,
 			AgentsAllowed:                agentsAllowed,
 			AllowWorkspaceRenames:        allowWorkspaceRenames,
+			BrowserOnly:                  browserOnly,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -744,6 +762,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Turning browser-only on requires the same entitlement as the
+	// deployment-wide setting. Turning it off does not, so a lapsed license
+	// cannot strand a template with its connections refused.
+	if resolved.browserOnly && !template.BrowserOnly && !api.browserOnlyEntitled() {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "browser_only", Detail: browserOnlyNotEntitled})
+	}
+
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update template metadata!",
@@ -785,6 +810,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisableModuleCache:           resolved.disableModuleCache,
 			AgentsAllowed:                resolved.agentsAllowed,
 			AllowWorkspaceRenames:        resolved.allowWorkspaceRenames,
+			BrowserOnly:                  resolved.browserOnly,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1063,6 +1089,7 @@ func (api *API) convertTemplate(
 		DisableModuleCache:      template.DisableModuleCache,
 		AgentsAllowed:           template.AgentsAllowed,
 		AllowWorkspaceRenames:   template.AllowWorkspaceRenames,
+		BrowserOnly:             template.BrowserOnly,
 	}
 }
 
