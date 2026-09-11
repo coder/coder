@@ -121,6 +121,7 @@ var AllExecutionStates = []ExecutionState{
 	StateI1,
 	StateA0,
 	StateA1,
+	StateP,
 	StateXW,
 	StateXE0,
 	StateXE1,
