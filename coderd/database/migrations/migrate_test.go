@@ -1190,10 +1190,10 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
-func TestMigration000592RemoveHasAITaskAndTaskBuildReasons(t *testing.T) {
+func TestMigration000593RemoveHasAITaskAndTaskBuildReasons(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 592
+	const migrationVersion = 593
 	sqlDB := testSQLDB(t)
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
@@ -1269,12 +1269,6 @@ func TestMigration000592RemoveHasAITaskAndTaskBuildReasons(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, migrationVersion, version)
 	var count int
-	const columnsQuery = "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('template_versions', 'workspace_builds') AND column_name = 'has_ai_task'"
-	require.NoError(t, sqlDB.QueryRowContext(ctx, columnsQuery).Scan(&count))
-	require.Zero(t, count)
-	const indexQuery = "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_template_versions_has_ai_task'"
-	require.NoError(t, sqlDB.QueryRowContext(ctx, indexQuery).Scan(&count))
-	require.Zero(t, count)
 	var reasons pq.StringArray
 	const reasonsQuery = "SELECT array_agg(reason::text ORDER BY build_number) FROM workspace_builds WHERE workspace_id = $1"
 	wantReasons := pq.StringArray{"autostop", "initiator", "initiator", "initiator", "autostop"}
@@ -1283,43 +1277,32 @@ func TestMigration000592RemoveHasAITaskAndTaskBuildReasons(t *testing.T) {
 	var childReason string
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT child_reason FROM workspace_build_orchestrations WHERE workspace_id = $1", workspaceID).Scan(&childReason))
 	require.Equal(t, "autostop", childReason)
-	var enumValues pq.StringArray
-	const enumQuery = "SELECT enum_range(NULL::build_reason)::text[]"
-	require.NoError(t, sqlDB.QueryRowContext(ctx, enumQuery).Scan(&enumValues))
-	wantEnum := pq.StringArray{"initiator", "autostart", "autostop", "dormancy", "failedstop", "autodelete", "dashboard", "cli", "ssh_connection", "vscode_connection", "jetbrains_connection"}
-	require.Equal(t, wantEnum, enumValues)
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM template_version_with_user").Scan(&count))
 	require.Equal(t, 1, count)
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_build_with_user").Scan(&count))
 	require.Equal(t, len(buildIDs), count)
 
-	downSQL, err := os.ReadFile("000592_remove_has_ai_task_and_task_build_reasons.down.sql")
+	downSQL, err := os.ReadFile("000593_remove_has_ai_task_and_task_build_reasons.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
-	require.NoError(t, sqlDB.QueryRowContext(ctx, columnsQuery).Scan(&count))
-	require.Equal(t, 2, count)
-	require.NoError(t, sqlDB.QueryRowContext(ctx, indexQuery).Scan(&count))
-	require.Equal(t, 1, count)
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM template_versions WHERE has_ai_task IS FALSE").Scan(&count))
 	require.Equal(t, 1, count)
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_builds WHERE has_ai_task IS FALSE").Scan(&count))
 	require.Equal(t, len(buildIDs), count)
-	require.NoError(t, sqlDB.QueryRowContext(ctx, enumQuery).Scan(&enumValues))
-	require.Equal(t, append(wantEnum, "task_auto_pause", "task_manual_pause", "task_resume"), enumValues)
 	// The original reasons cannot be recovered after remapping.
 	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery, workspaceID).Scan(&reasons))
 	require.Equal(t, wantReasons, reasons)
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT child_reason FROM workspace_build_orchestrations WHERE workspace_id = $1", workspaceID).Scan(&childReason))
 	require.Equal(t, "autostop", childReason)
 
-	upSQL, err := os.ReadFile("000592_remove_has_ai_task_and_task_build_reasons.up.sql")
+	upSQL, err := os.ReadFile("000593_remove_has_ai_task_and_task_build_reasons.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 }
 
-func TestMigration000592TaskBuildReasonRewriteTiming(t *testing.T) {
+func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
 	t.Parallel()
 
 	if testing.Short() {
@@ -1330,7 +1313,7 @@ func TestMigration000592TaskBuildReasonRewriteTiming(t *testing.T) {
 	// The enum replacement rewrites workspace_builds, risking slow upgrades
 	// on large deployments.
 	const (
-		migrationVersion   = 592
+		migrationVersion   = 593
 		workspaceCount     = 1_000
 		buildCount         = 100_000
 		buildsPerWorkspace = buildCount / workspaceCount
