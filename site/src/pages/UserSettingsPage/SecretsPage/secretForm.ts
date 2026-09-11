@@ -127,12 +127,12 @@ export const buildUpdateUserSecretRequest = (
 	values: SecretFormValues,
 	options: BuildUpdateUserSecretRequestOptions = {},
 ): UpdateUserSecretRequest => {
-	const removesBlockedOnlyTarget =
+	const requiresAtomicDisable =
 		options.filePathEnabled === false &&
 		secret.enabled &&
-		secret.file_path !== "" &&
-		values.file_path === "" &&
-		values.env_name === "";
+		values.env_name === "" &&
+		(secret.env_name !== "" ||
+			(secret.file_path !== "" && values.file_path === ""));
 
 	return {
 		...(options.clearValue
@@ -149,7 +149,7 @@ export const buildUpdateUserSecretRequest = (
 		...(values.file_path !== secret.file_path
 			? { file_path: values.file_path }
 			: {}),
-		...(removesBlockedOnlyTarget ? { enabled: false } : {}),
+		...(requiresAtomicDisable ? { enabled: false } : {}),
 	};
 };
 

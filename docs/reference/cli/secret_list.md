@@ -21,7 +21,7 @@ coder secret list [flags] [name]
 ## Description
 
 ```console
-Secret values are omitted from the output.
+Secret values are omitted. Enabled is stored intent; deployment policy can block file delivery.
 ```
 
 ## Options

@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -106,13 +108,13 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 			{
 				Name:        "file",
 				Flag:        "file",
-				Description: "Workspace file path where this secret will be written. Must start with ~/ or /.",
+				Description: "Workspace file path for this secret. Must start with ~/ or /. Availability depends on deployment policy.",
 				Value:       serpent.StringOf(&file),
 			},
 			{
 				Name:        "enabled",
 				Flag:        "enabled",
-				Description: "Whether the secret is injected into workspaces. An enabled secret must set --env or --file; pass --enabled=false to store a secret without injecting it.",
+				Description: "Whether the secret is eligible for injection. Enabled secrets need an allowed target; use false to store without injecting.",
 				Default:     "true",
 				Value:       serpent.BoolOf(&enabled),
 			},
@@ -199,13 +201,13 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 			{
 				Name:        "file",
 				Flag:        "file",
-				Description: "Workspace file path where this secret will be written. Must start with ~/ or /. Pass an empty string to clear it.",
+				Description: "Workspace file path for this secret. Must start with ~/ or /. Availability depends on deployment policy. Pass an empty string to clear it.",
 				Value:       serpent.StringOf(&file),
 			},
 			{
 				Name:        "enabled",
 				Flag:        "enabled",
-				Description: "Whether the secret is injected into workspaces. An enabled secret must keep at least one of --env or --file; pass --enabled=false to stop injecting it without deleting it.",
+				Description: "Whether the secret is eligible for injection. Enabled secrets need an allowed target; use false to stop injecting without deleting.",
 				Value:       serpent.BoolOf(&enabled),
 			},
 		},
@@ -481,25 +483,25 @@ func warnSuspiciousTrailingNewline(w io.Writer, value string) {
 type secretListRow struct {
 	codersdk.UserSecret `table:"-"`
 
-	Created     string `json:"-" table:"created"`
-	Name        string `json:"-" table:"name,default_sort"`
-	Updated     string `json:"-" table:"updated"`
-	Env         string `json:"-" table:"env"`
-	File        string `json:"-" table:"file"`
-	Enabled     string `json:"-" table:"enabled"`
-	Description string `json:"-" table:"description"`
+	Created       string `json:"-" table:"created"`
+	Name          string `json:"-" table:"name,default_sort"`
+	Updated       string `json:"-" table:"updated"`
+	Env           string `json:"-" table:"env"`
+	File          string `json:"-" table:"file"`
+	EnabledIntent string `json:"-" table:"enabled"`
+	Description   string `json:"-" table:"description"`
 }
 
 func secretListRowFromSecret(secret codersdk.UserSecret) secretListRow {
 	return secretListRow{
-		UserSecret:  secret,
-		Created:     humanize.Time(secret.CreatedAt),
-		Name:        secret.Name,
-		Updated:     humanize.Time(secret.UpdatedAt),
-		Env:         secret.EnvName,
-		File:        secret.FilePath,
-		Enabled:     strconv.FormatBool(secret.Enabled),
-		Description: secret.Description,
+		UserSecret:    secret,
+		Created:       humanize.Time(secret.CreatedAt),
+		Name:          secret.Name,
+		Updated:       humanize.Time(secret.UpdatedAt),
+		Env:           secret.EnvName,
+		File:          secret.FilePath,
+		EnabledIntent: strconv.FormatBool(secret.Enabled),
+		Description:   secret.Description,
 	}
 }
 
@@ -537,7 +539,7 @@ func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command
 	case secretEnabledStateEnabled:
 		verb = "enable"
 		participle = "Enabled"
-		short = "Enable a secret so it is injected into workspaces"
+		short = "Mark a secret enabled for allowed targets"
 		enabled = true
 	case secretEnabledStateDisabled:
 		verb = "disable"
@@ -572,6 +574,49 @@ func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command
 	}
 
 	return cmd
+}
+
+const secretCapabilitiesTimeout = time.Second
+
+// warnBlockedFilePathDelivery warns when listed file targets are ineffective.
+// The capability check is advisory and bounded so it cannot block output
+// indefinitely.
+func warnBlockedFilePathDelivery(inv *serpent.Invocation, client *codersdk.Client, secrets []codersdk.UserSecret) {
+	hasFilePath := false
+	for _, secret := range secrets {
+		if secret.FilePath != "" {
+			hasFilePath = true
+			break
+		}
+	}
+	if !hasFilePath {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(inv.Context(), secretCapabilitiesTimeout)
+	defer cancel()
+
+	capabilities, err := client.UserSecretsCapabilities(ctx)
+	if err != nil {
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			return
+		}
+		cliui.Warn(inv.Stderr,
+			"Could not check whether file path delivery is enabled.",
+			"The file paths shown below may not be written to workspaces.",
+			err.Error(),
+		)
+		return
+	}
+	if capabilities.FilePathDeliveryEnabled {
+		return
+	}
+
+	cliui.Warn(inv.Stderr,
+		"File path delivery is disabled.",
+		"Stored file paths shown below are not written to workspaces.",
+	)
 }
 
 func (r *RootCmd) secretList() *serpent.Command {
@@ -615,7 +660,7 @@ func (r *RootCmd) secretList() *serpent.Command {
 		Use:        "list [name]",
 		Aliases:    []string{"ls"},
 		Short:      "List secrets, or show one by name",
-		Long:       "Secret values are omitted from the output.",
+		Long:       "Secret values are omitted. Enabled is stored intent; deployment policy can block file delivery.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
@@ -623,25 +668,32 @@ func (r *RootCmd) secretList() *serpent.Command {
 				return err
 			}
 
-			var data any
+			var (
+				data    any
+				secrets []codersdk.UserSecret
+			)
 			if len(inv.Args) == 1 {
 				secret, err := client.UserSecretByName(inv.Context(), codersdk.Me, inv.Args[0])
 				if err != nil {
 					return xerrors.Errorf("get secret %q: %w", inv.Args[0], err)
 				}
 				data = secretListRowFromSecret(secret)
+				secrets = []codersdk.UserSecret{secret}
 			} else {
-				secrets, err := client.UserSecrets(inv.Context(), codersdk.Me)
+				listed, err := client.UserSecrets(inv.Context(), codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("list secrets: %w", err)
 				}
 
-				rows := make([]secretListRow, len(secrets))
-				for i := range secrets {
-					rows[i] = secretListRowFromSecret(secrets[i])
+				rows := make([]secretListRow, len(listed))
+				for i := range listed {
+					rows[i] = secretListRowFromSecret(listed[i])
 				}
 				data = rows
+				secrets = listed
 			}
+
+			warnBlockedFilePathDelivery(inv, client, secrets)
 
 			out, err := formatter.Format(inv.Context(), data)
 			if err != nil {
