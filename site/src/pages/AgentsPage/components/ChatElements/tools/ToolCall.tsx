@@ -1,10 +1,5 @@
 import { cn } from "cn";
-import {
-	ChevronDownIcon,
-	LoaderIcon,
-	ShieldIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
+import { ChevronDownIcon, ShieldIcon, TriangleAlertIcon } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	createContext,
@@ -19,6 +14,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { FlipLoader } from "../FlipLoader";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
@@ -264,6 +260,9 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 	if (!name) {
 		return null;
 	}
+	if (active) {
+		return <FlipLoader label="Tool call running" />;
+	}
 
 	return (
 		<ToolIcon
@@ -307,20 +306,10 @@ type ToolCallStatusProps = {
 };
 
 const Status: FC<ToolCallStatusProps> = ({ className }) => {
-	const { active, errorMessage, failed } = useToolCallContext();
+	const { errorMessage, failed } = useToolCallContext();
 	const message = errorMessage || "Tool call failed";
 	return (
 		<>
-			{active && (
-				<LoaderIcon
-					aria-label="Tool call running"
-					role="img"
-					className={cn(
-						"size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current",
-						className,
-					)}
-				/>
-			)}
 			{failed && (
 				<Tooltip>
 					<TooltipTrigger asChild>
