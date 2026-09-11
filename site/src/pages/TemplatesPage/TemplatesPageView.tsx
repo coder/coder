@@ -16,6 +16,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -55,7 +56,7 @@ import {
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
-import { type TemplateFilterState, TemplatesFilter } from "./TemplatesFilter";
+import { TemplatesFilter } from "./filter/TemplatesFilter";
 
 const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 	templateCount,
@@ -243,7 +244,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 
 interface TemplatesPageViewProps {
 	error?: unknown;
-	filterState: TemplateFilterState;
+	filter: UseFilterResult;
 	showOrganizations: boolean;
 	canCreateTemplates: boolean;
 	templateBuilderEnabled: boolean;
@@ -255,7 +256,7 @@ interface TemplatesPageViewProps {
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	error,
-	filterState,
+	filter,
 	showOrganizations,
 	canCreateTemplates,
 	templateBuilderEnabled,
@@ -311,11 +312,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<TemplatesFilter
-				filter={filterState.filter}
-				error={error}
-				userMenu={filterState.menus.user}
-			/>
+			<TemplatesFilter filter={filter} error={error} />
 			{/* Validation errors are shown on the filter, other errors are an alert box. */}
 			{hasError(error) && !isApiValidationError(error) && (
 				<ErrorAlert error={error} />
@@ -341,7 +338,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 							canCreateTemplates={canCreateTemplates}
 							templateBuilderEnabled={templateBuilderEnabled}
 							examples={examples ?? []}
-							isUsingFilter={filterState.filter.used}
+							isUsingFilter={filter.used}
 						/>
 					) : (
 						templates.map((template) => (

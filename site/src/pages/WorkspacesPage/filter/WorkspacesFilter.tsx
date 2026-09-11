@@ -20,14 +20,16 @@ import type {
 	FilterCategory,
 	SearchResult,
 } from "#/components/Filter/FilterCombobox/types";
+import {
+	getSelfUserFilterOptions,
+	getUserFilterOptions,
+} from "#/components/Filter/userFilterOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
-	getOwnerFilterOptions,
-	getSelfOwnerFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
 } from "./categoryOptions";
@@ -99,8 +101,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			aliases: ["user"],
 			icon: <UserIcon />,
 			getOptions: canListUsers
-				? (query) => getOwnerFilterOptions(query, me, queryClient)
-				: (query) => getSelfOwnerFilterOptions(query, me),
+				? (query) => getUserFilterOptions(query, me, queryClient)
+				: (query) => getSelfUserFilterOptions(query, me),
 		});
 
 		return next;

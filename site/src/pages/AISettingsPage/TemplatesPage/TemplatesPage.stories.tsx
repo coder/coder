@@ -106,7 +106,10 @@ export const ServerSideFilter: Story = {
 		expect(await canvas.findByText("Test Template")).toBeVisible();
 		expect(canvas.getByText("Second Template")).toBeVisible();
 
-		await user.type(canvas.getByRole("textbox", { name: "Filter" }), "Second");
+		await user.type(
+			canvas.getByRole("combobox", { name: "Search and filter templates…" }),
+			"Second",
+		);
 
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
@@ -211,7 +214,9 @@ export const ConcurrentToggles: Story = {
 		expect(firstSwitch).toBeChecked();
 		expect(secondSwitch).not.toBeChecked();
 
-		const filter = canvas.getByRole("textbox", { name: "Filter" });
+		const filter = canvas.getByRole("combobox", {
+			name: "Search and filter templates…",
+		});
 		await user.type(filter, "Second");
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
@@ -297,7 +302,6 @@ export const OrganizationTemplateAdmin: Story = {
 			MockTemplate,
 			mockUnauthorizedTemplate,
 		]);
-		spyOn(API, "getUsers").mockResolvedValue({ users: [], count: 0 });
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -359,16 +363,11 @@ export const FetchesWhenAllowed: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API, "getUsers").mockResolvedValue({
-			users: [MockUserOwner],
-			count: 1,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Test Template")).toBeVisible();
 		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
-		await waitFor(() => expect(API.getUsers).toHaveBeenCalled());
 	},
 };
 
