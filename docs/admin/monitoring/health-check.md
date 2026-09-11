@@ -126,6 +126,21 @@ configured threshold to a higher value (this will not address the root cause).
 > [tracing enabled](../../reference/cli/server.md#--trace), these traces may also
 > contain useful information regarding Coder's database activity.
 
+### EDB03
+
+Coder reports this warning when the connected PostgreSQL server runs a major version below 14.
+PostgreSQL 13 is end-of-life and no longer receives upstream fixes.
+New built-in databases use PostgreSQL 16, but existing PostgreSQL 13 databases stay on 13 until you migrate their data.
+Restarting Coder alone doesn't upgrade them.
+
+For a built-in database, follow the [built-in PostgreSQL migration guide](../setup/builtin-postgres-migration.md).
+You can upgrade to built-in PostgreSQL 16 through a dump and restore or move to an external database on a supported version.
+For an external database, upgrade the PostgreSQL server using your database provider's upgrade procedure.
+You don't need to migrate from the built-in database if you're already using an external one.
+
+The warning doesn't prevent Coder from running.
+Restart Coder after upgrading PostgreSQL so the health check reads the new server version.
+
 ## DERP
 
 Coder workspace agents may use

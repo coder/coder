@@ -7,6 +7,8 @@ title: Use Coder with an external database
 For production deployments, we recommend using an external
 [PostgreSQL](https://www.postgresql.org/) database (version 13 or higher).
 
+If your deployment already uses Coder's built-in PostgreSQL database, follow the [built-in PostgreSQL migration guide](../admin/setup/builtin-postgres-migration.md) to preserve its data.
+
 ## Basic configuration
 
 Before starting the Coder server, prepare the database server by creating a role
