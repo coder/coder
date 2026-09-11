@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 
 // Shared by the sessions list badges and the session detail summary card, which
 // render the same two non-numeric states for a session's network requests but
@@ -8,7 +9,11 @@ import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 export const NetworkMonitoringDisabled: FC = () => (
 	<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
 		Disabled
-		<InfoTooltip message="Network request monitoring was not active for this session." />
+		<InfoTooltip>
+			<TooltipMessage>
+				Network request monitoring was not active for this session.
+			</TooltipMessage>
+		</InfoTooltip>
 	</span>
 );
 
