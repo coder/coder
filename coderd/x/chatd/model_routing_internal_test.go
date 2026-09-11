@@ -861,3 +861,138 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	require.Equal(t, "/v1/responses", got.path)
 	require.Equal(t, apiKeyID, got.apiKeyID)
 }
+
+const openaiResponseBody = `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+
+func openaiRoundTrip(t *testing.T, fn func(*http.Request)) roundTripFunc {
+	t.Helper()
+	return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if fn != nil {
+			fn(req)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(openaiResponseBody)),
+			Request:    req,
+		}, nil
+	})
+}
+
+// TestNewModelAttribution verifies that newModel resolves Attribution from the
+// chat's persisted WorkspaceID without any DB lookup and stamps it on every
+// RoundTrip context alongside the delegated API key ID.
+func TestNewModelAttribution(t *testing.T) {
+	t.Parallel()
+
+	// nolint:gosec // Test-only identifier, not a credential.
+	const apiKeyID = "test-api-key-id"
+	provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+
+	t.Run("NoWorkspace", func(t *testing.T) {
+		// When the chat has no workspace bound, Attribution has a zero WorkspaceID.
+		t.Parallel()
+
+		chat := database.Chat{
+			ID:      uuid.New(),
+			OwnerID: uuid.New(),
+			// WorkspaceID is zero (not valid): no workspace bound.
+		}
+
+		seen := make(chan aibridge.Attribution, 1)
+		factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
+			attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
+			seen <- attr
+		})}
+		server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+
+		model, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: apiKeyID})
+		require.NoError(t, err)
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}}})
+		require.NoError(t, err)
+
+		got := <-seen
+		require.Equal(t, uuid.Nil, got.WorkspaceID)
+	})
+
+	t.Run("WithWorkspace", func(t *testing.T) {
+		// When the chat has a persisted WorkspaceID, Attribution carries it
+		// directly without any DB lookup.
+		t.Parallel()
+
+		wsID := uuid.New()
+		chat := database.Chat{
+			ID:          uuid.New(),
+			OwnerID:     uuid.New(),
+			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
+		}
+
+		seen := make(chan aibridge.Attribution, 1)
+		factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
+			attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
+			seen <- attr
+		})}
+		// No db mock: attribution must not require a DB lookup.
+		server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+
+		model, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: apiKeyID})
+		require.NoError(t, err)
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}}})
+		require.NoError(t, err)
+
+		got := <-seen
+		require.Equal(t, wsID, got.WorkspaceID)
+	})
+}
+
+// TestNewModelAttributionImmutablePerRequest verifies that two chats sharing
+// the same synthetic API key ID each receive their own immutable Attribution.
+// A later request must not observe values stamped by an earlier one.
+func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
+	t.Parallel()
+
+	const sharedAPIKeyID = "shared-synthetic-key"
+	provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+
+	wsID1 := uuid.New()
+	wsID2 := uuid.New()
+
+	chat1 := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), WorkspaceID: uuid.NullUUID{UUID: wsID1, Valid: true}}
+	chat2 := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), WorkspaceID: uuid.NullUUID{UUID: wsID2, Valid: true}}
+
+	seen := make(chan aibridge.Attribution, 2)
+	factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
+		attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
+		seen <- attr
+	})}
+	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+
+	// Build two separate models with the same API key ID but different chats.
+	model1, err := server.newModel(t.Context(), aibridgeTestRequest(chat1, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: sharedAPIKeyID})
+	require.NoError(t, err)
+	model2, err := server.newModel(t.Context(), aibridgeTestRequest(chat2, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: sharedAPIKeyID})
+	require.NoError(t, err)
+
+	call := fantasy.Call{Prompt: []fantasy.Message{{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+	}}}
+	_, err = model1.LanguageModel().Generate(t.Context(), call)
+	require.NoError(t, err)
+	_, err = model2.LanguageModel().Generate(t.Context(), call)
+	require.NoError(t, err)
+
+	attr1 := <-seen
+	attr2 := <-seen
+
+	// Each model must carry exactly its own workspace ID, proving request-scoped
+	// isolation: a second request never bleeds attribution from the first.
+	gotWsIDs := []uuid.UUID{attr1.WorkspaceID, attr2.WorkspaceID}
+	require.ElementsMatch(t, []uuid.UUID{wsID1, wsID2}, gotWsIDs)
+}

@@ -416,6 +416,102 @@ func TestAuthorization_Delegated(t *testing.T) {
 	}
 }
 
+func TestAuthorization_WorkspaceAttribution(t *testing.T) {
+	t.Parallel()
+
+	// workspaceAttribution is lookup-free: it parses the workspace UUID from the
+	// strict server-minted token name and validates the embedded owner against
+	// key.UserID without touching the database.
+	tests := []struct {
+		name      string
+		configure func(key *database.APIKey, user database.User, workspaceID uuid.UUID)
+		wantErr   error
+		wantWsID  bool // expect resp.GetWorkspaceId() == workspaceID.String()
+	}{
+		{
+			name: "valid",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", user.ID, workspaceID)
+			},
+			wantWsID: true,
+		},
+		{
+			// LoginType == Token must never yield workspace attribution even when
+			// the token name matches the strict pattern.
+			name: "personal token spoof",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.LoginType = database.LoginTypeToken
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", user.ID, workspaceID)
+			},
+		},
+		{
+			// A token name that matches the suffix but not the strict UUID-pair
+			// prefix must not be attributed to any workspace.
+			name: "chatd lookalike",
+			configure: func(key *database.APIKey, user database.User, _ uuid.UUID) {
+				key.TokenName = fmt.Sprintf("chatd_%s_session_token", user.ID)
+			},
+		},
+		{
+			// An extra word between the UUIDs does not match the strict pattern.
+			name: "oauth lookalike",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_oauth_session_token", user.ID, workspaceID)
+			},
+		},
+		{
+			// The embedded owner UUID in the token name differs from key.UserID.
+			// Fail closed: return ErrWorkspaceAttribution.
+			name: "embedded owner mismatch",
+			configure: func(key *database.APIKey, _ database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", uuid.New(), workspaceID)
+			},
+			wantErr: aibridgedserver.ErrWorkspaceAttribution,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			now := dbtime.Now()
+			user := database.User{ID: uuid.New(), Username: "test", Status: database.UserStatusActive, LoginType: database.LoginTypePassword}
+			workspaceID := uuid.New()
+			keyID, err := cryptorand.String(10)
+			require.NoError(t, err)
+			secret, hashedSecret, err := apikey.GenerateSecret(22)
+			require.NoError(t, err)
+			key := database.APIKey{ID: keyID, UserID: user.ID, HashedSecret: hashedSecret, ExpiresAt: now.Add(time.Hour), LoginType: database.LoginTypePassword}
+			tt.configure(&key, user, workspaceID)
+
+			db.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil)
+			db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+			// No GetWorkspaceByID: attribution is lookup-free.
+
+			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
+				Store: db, AISeatTracker: agplaiseats.Noop{}, AccessURL: "/",
+				GatewayCfg: codersdk.AIBridgeConfig{}, Experiments: requiredExperiments,
+				Logger: testutil.Logger(t), Clock: quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: key.ID + "-" + secret})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			if tt.wantWsID {
+				require.Equal(t, workspaceID.String(), resp.GetWorkspaceId())
+			} else {
+				require.Empty(t, resp.GetWorkspaceId())
+			}
+		})
+	}
+}
+
 func TestIsBudgetExceeded(t *testing.T) {
 	t.Parallel()
 

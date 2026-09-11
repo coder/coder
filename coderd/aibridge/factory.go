@@ -3,7 +3,33 @@ package aibridge
 import (
 	"context"
 	"net/http"
+
+	"github.com/google/uuid"
 )
+
+// Attribution carries trusted per-request AI Gateway attribution. The zero
+// value means no workspace is bound.
+type Attribution struct {
+	// WorkspaceID is the workspace bound to the chat, or uuid.Nil when no
+	// workspace is bound.
+	WorkspaceID uuid.UUID
+}
+
+type attributionCtxKey struct{}
+
+// WithAttribution returns a copy of ctx carrying the trusted Attribution.
+// Attribution is set by authentication or delegated in-process code, never by
+// client-provided HTTP headers.
+func WithAttribution(ctx context.Context, attr Attribution) context.Context {
+	return context.WithValue(ctx, attributionCtxKey{}, attr)
+}
+
+// AttributionFromContext returns the Attribution attached by [WithAttribution]
+// and whether a non-zero WorkspaceID was present.
+func AttributionFromContext(ctx context.Context) (Attribution, bool) {
+	attr, ok := ctx.Value(attributionCtxKey{}).(Attribution)
+	return attr, ok && attr.WorkspaceID != uuid.Nil
+}
 
 // Source identifies the call site that asked aibridge for a transport. It is
 // attached to the request context so downstream handlers and logs can attribute
@@ -29,7 +55,12 @@ func SourceFromContext(ctx context.Context) Source {
 	return src
 }
 
-type delegatedAPIKeyIDCtxKey struct{}
+type delegatedRequest struct {
+	apiKeyID    string
+	attribution Attribution
+}
+
+type delegatedRequestCtxKey struct{}
 
 // WithDelegatedAPIKeyID returns a copy of ctx carrying an API key ID on whose
 // behalf the request is being made. The in-process aibridge transport requires
@@ -40,14 +71,31 @@ type delegatedAPIKeyIDCtxKey struct{}
 // has not expired, and belongs to a non-deleted, non-system user. It does not
 // verify the key secret, because the caller never has it.
 func WithDelegatedAPIKeyID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, delegatedAPIKeyIDCtxKey{}, id)
+	return WithDelegatedRequest(ctx, id, Attribution{})
+}
+
+// WithDelegatedRequest returns a copy of ctx carrying a delegated API key ID
+// and its trusted request attribution as one value.
+func WithDelegatedRequest(ctx context.Context, id string, attr Attribution) context.Context {
+	return context.WithValue(ctx, delegatedRequestCtxKey{}, delegatedRequest{
+		apiKeyID:    id,
+		attribution: attr,
+	})
 }
 
 // DelegatedAPIKeyIDFromContext returns the API key ID attached by
 // [WithDelegatedAPIKeyID] and whether a non-empty value was set.
 func DelegatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
-	id, ok := ctx.Value(delegatedAPIKeyIDCtxKey{}).(string)
-	return id, ok && id != ""
+	req, ok := ctx.Value(delegatedRequestCtxKey{}).(delegatedRequest)
+	return req.apiKeyID, ok && req.apiKeyID != ""
+}
+
+// DelegatedAttributionFromContext returns the trusted attribution attached to
+// the delegated request. Its boolean reports whether delegated authentication,
+// rather than attribution itself, was present.
+func DelegatedAttributionFromContext(ctx context.Context) (Attribution, bool) {
+	req, ok := ctx.Value(delegatedRequestCtxKey{}).(delegatedRequest)
+	return req.attribution, ok && req.apiKeyID != ""
 }
 
 // TransportFactory returns an [http.RoundTripper] that dispatches an aibridge

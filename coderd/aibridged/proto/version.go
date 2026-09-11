@@ -17,9 +17,14 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Adds the ProviderConfigurator.WatchAIProviders streaming RPC, pushing a
 //     change signal to gateways so a running standalone gateway refetches its
 //     provider set when the provider configuration changes.
+//
+// API v1.3:
+//   - Adds workspace attribution to authorization and interception recording.
+//     workspace_id (field 18) in RecordInterceptionRequest and field 5 in
+//     IsAuthorizedResponse carry the bound workspace UUID when known.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 2
+	CurrentMinor = 3
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway
