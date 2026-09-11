@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent } from "storybook/test";
-import { mockApiError } from "#/testHelpers/entities";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 const meta: Meta<typeof ConfirmDialog> = {
@@ -92,10 +91,8 @@ export const FailedConfirm: Story = {
 		type: "delete",
 		confirmText: "Stop",
 		title: "Stop 3 workspaces",
-		error: mockApiError({
-			message: "Failed to stop workspaces.",
-			detail: "workspace-2 is already busy with a build.",
-		}),
+		error: new Error("The network request failed."),
+		errorMessage: "Failed to stop workspaces.",
 	},
 };
 

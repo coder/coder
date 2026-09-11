@@ -77,6 +77,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			disabled={!deletionConfirmed}
 			confirmLoading={confirmLoading}
 			error={error}
+			errorMessage={`Failed to delete workspace "${workspace.name}".`}
 			description={
 				<>
 					<div className="flex items-center justify-between rounded-md border border-solid border-border p-4 mb-5 leading-snug">

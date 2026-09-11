@@ -50,6 +50,7 @@ export interface ConfirmDialogProps {
 	 */
 	readonly onConfirm?: () => void;
 	readonly error?: unknown;
+	readonly errorMessage?: string;
 	readonly type?: ConfirmDialogType;
 	/**
 	 * Defaults to shown for "delete", hidden for "info"/"success".
@@ -74,6 +75,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 	description,
 	disabled = false,
 	error,
+	errorMessage,
 	hideCancel,
 	onClose,
 	onCloseAutoFocus,
@@ -91,7 +93,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 		<Dialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				if (!nextOpen) {
+				if (!nextOpen && !confirmLoading) {
 					onClose();
 				}
 			}}
@@ -111,7 +113,11 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 				</DialogHeader>
 
 				{error != null && !confirmLoading && (
-					<ErrorAlert error={error} showDebugDetail={false} />
+					<ErrorAlert
+						error={error}
+						defaultMessage={errorMessage}
+						showDebugDetail={false}
+					/>
 				)}
 
 				<DialogFooter>

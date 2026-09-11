@@ -93,6 +93,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 			confirmText={confirmText}
 			onConfirm={onProceed}
 			error={error}
+			errorMessage="Failed to delete some workspaces."
 			description={
 				<>
 					{stage === "consequences" && <Consequences />}

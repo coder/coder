@@ -23,6 +23,7 @@ interface DeleteDialogProps {
 	info?: string;
 	confirmLoading?: boolean;
 	error?: unknown;
+	errorMessage?: string;
 	verb?: string;
 	title?: string;
 	label?: string;
@@ -38,6 +39,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	name,
 	confirmLoading = false,
 	error,
+	errorMessage = `Failed to delete ${entity}.`,
 	// Optional overrides for verbiage, e.g. "unlinking" vs "deleting".
 	verb,
 	title,
@@ -60,7 +62,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	};
 
 	const handleOpenChange = (open: boolean) => {
-		if (!open) {
+		if (!open && !confirmLoading) {
 			resetConfirmation();
 			onCancel();
 		}
@@ -122,7 +124,11 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 					</div>
 
 					{error != null && !confirmLoading && (
-						<ErrorAlert error={error} showDebugDetail={false} />
+						<ErrorAlert
+							error={error}
+							defaultMessage={errorMessage}
+							showDebugDetail={false}
+						/>
 					)}
 
 					<DialogFooter>
