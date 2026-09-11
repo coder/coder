@@ -373,49 +373,50 @@ func isZeroQueueState(s chatstate.ExecutionState) bool {
 }
 
 // heldQueueMatrixCases enumerates every matrix cell that exists because
-// of holds, plus the EditQueuedMessage cells on the "1" states. The
-// cases mirror queueTransitionRows: one row per status, both queue
-// variants, the same outputs.
+// of holds, plus the EditQueuedMessage cells on the "1" states.
 func heldQueueMatrixCases() []transitionCaseSpec {
-	// zero is the variant whose head is held; one is the variant with a
-	// promotable head. Waiting has no "1" variant: releasing or deleting
-	// a held head there promotes the exposed head, covered below.
-	statuses := []struct{ zero, one chatstate.ExecutionState }{
-		{chatstate.StateE0, chatstate.StateE1},
-		{chatstate.StateR0, chatstate.StateR1},
-		{chatstate.StateI0, chatstate.StateI1},
-		{chatstate.StateA0, chatstate.StateA1},
-	}
+	return []transitionCaseSpec{
+		// EditQueuedMessage: hold the head of a "1" state.
+		editQueuedHoldCase(chatstate.StateE1, chatstate.StateE0),
+		editQueuedHoldCase(chatstate.StateR1, chatstate.StateR0),
+		editQueuedHoldCase(chatstate.StateI1, chatstate.StateI0),
+		editQueuedHoldCase(chatstate.StateA1, chatstate.StateA0),
 
-	cases := []transitionCaseSpec{
+		// EditQueuedMessage: content only, state unchanged.
 		editQueuedContentCase(chatstate.StateW),
+		editQueuedContentCase(chatstate.StateE0),
+		editQueuedContentCase(chatstate.StateE1),
+		editQueuedContentCase(chatstate.StateR0),
+		editQueuedContentCase(chatstate.StateR1),
+		editQueuedContentCase(chatstate.StateI0),
+		editQueuedContentCase(chatstate.StateI1),
+		editQueuedContentCase(chatstate.StateA0),
+		editQueuedContentCase(chatstate.StateA1),
+
+		// EditQueuedMessage: release the held head.
 		editQueuedReleaseCase(chatstate.StateW, chatstate.StateR0, 0),
 		editQueuedReleaseCase(chatstate.StateW, chatstate.StateR1, 1),
+		editQueuedReleaseCase(chatstate.StateE0, chatstate.StateE1, 0),
+		editQueuedReleaseCase(chatstate.StateR0, chatstate.StateR1, 0),
+		editQueuedReleaseCase(chatstate.StateI0, chatstate.StateI1, 0),
+		editQueuedReleaseCase(chatstate.StateA0, chatstate.StateA1, 0),
+
+		// DeleteQueuedMessage on a held head.
 		heldDeleteQueuedCase(chatstate.StateW, chatstate.StateW, 0),
 		heldDeleteQueuedCase(chatstate.StateW, chatstate.StateR0, 1),
 		heldDeleteQueuedCase(chatstate.StateW, chatstate.StateR1, 2),
+		heldDeleteQueuedCase(chatstate.StateE0, chatstate.StateE0, 0),
+		heldDeleteQueuedCase(chatstate.StateE0, chatstate.StateE1, 1),
+		heldDeleteQueuedCase(chatstate.StateR0, chatstate.StateR0, 0),
+		heldDeleteQueuedCase(chatstate.StateR0, chatstate.StateR1, 1),
+		heldDeleteQueuedCase(chatstate.StateI0, chatstate.StateI0, 0),
+		heldDeleteQueuedCase(chatstate.StateI0, chatstate.StateI1, 1),
+		heldDeleteQueuedCase(chatstate.StateA0, chatstate.StateA0, 0),
+		heldDeleteQueuedCase(chatstate.StateA0, chatstate.StateA1, 1),
+
+		// PromoteQueuedMessage on a held head.
 		heldPromoteQueuedCase(chatstate.StateW, chatstate.StateR0, 0, 0),
 		heldPromoteQueuedCase(chatstate.StateW, chatstate.StateR1, 1, 0),
-	}
-	for _, s := range statuses {
-		cases = append(cases,
-			// Hold the head of the "1" variant; content edits leave
-			// either variant where it is.
-			editQueuedHoldCase(s.one, s.zero),
-			editQueuedContentCase(s.zero),
-			editQueuedContentCase(s.one),
-			// Release or delete the held head: the "1" variant appears
-			// when an unheld row is exposed.
-			editQueuedReleaseCase(s.zero, s.one, 0),
-			heldDeleteQueuedCase(s.zero, s.zero, 0),
-			heldDeleteQueuedCase(s.zero, s.one, 1),
-		)
-	}
-
-	// PromoteQueuedMessage from the "0" variants. Idle-like statuses pop
-	// the target into history; busy statuses reorder it to the head and
-	// interrupt. Targeting a row behind the held head goes around it.
-	cases = append(cases,
 		heldPromoteQueuedCase(chatstate.StateE0, chatstate.StateR0, 0, 0),
 		heldPromoteQueuedCase(chatstate.StateE0, chatstate.StateR1, 1, 0),
 		heldPromoteQueuedCase(chatstate.StateA0, chatstate.StateR0, 0, 0),
@@ -423,6 +424,5 @@ func heldQueueMatrixCases() []transitionCaseSpec {
 		heldPromoteQueuedCase(chatstate.StateR0, chatstate.StateI1, 0, 0),
 		heldPromoteQueuedCase(chatstate.StateR0, chatstate.StateI1, 1, 1),
 		heldPromoteQueuedCase(chatstate.StateI0, chatstate.StateI1, 0, 0),
-	)
-	return cases
+	}
 }
