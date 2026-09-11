@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -14,6 +15,15 @@ import (
 type Config struct {
 	// User is the configuration for the user to create.
 	User createusers.Config `json:"user"`
+
+	// SessionToken, when set, makes the runner reuse PreCreatedUser instead of
+	// creating one. The user in User is then not created, but User.OrganizationID
+	// is still used to scope the workspaces that are built.
+	SessionToken string `json:"-"`
+
+	// PreCreatedUser is the user to run as when SessionToken is set. Only ID and
+	// Email are used.
+	PreCreatedUser codersdk.User `json:"-"`
 
 	// Workspace is the configuration for the workspace to create. The workspace
 	// will be built using the new user.
@@ -39,8 +49,13 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
+	// The organization is always required to scope the workspaces that are built,
+	// even in reuse mode where the user itself is not created.
 	if err := c.User.Validate(); err != nil {
 		return xerrors.Errorf("user config: %w", err)
+	}
+	if c.SessionToken != "" && c.PreCreatedUser.ID == uuid.Nil {
+		return xerrors.New("pre_created_user must be set when session_token is set")
 	}
 	c.Workspace.OrganizationID = c.User.OrganizationID
 	// This value will be overwritten during the test.
