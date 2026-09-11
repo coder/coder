@@ -60,6 +60,11 @@ const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;
 const HUNK_SEPARATOR_HEIGHT = 28;
 
+// Height (px) of each file's horizontal scrollbar track. Large enough to be a
+// comfortable grab target; the virtualizer's per-file bottom padding is kept
+// equal to it below so rendered and estimated file heights stay identical.
+const DIFF_SCROLLBAR_GUTTER = 10;
+
 // Minimum width (px) of the diff container at which the file tree sidebar is
 // shown alongside the diff. Below this the diff takes the full width unless the
 // viewer is explicitly expanded.
@@ -70,12 +75,26 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+	// Each file's code area is its own horizontal scroller. The library sizes
+	// that scroller's bottom strip from this gutter: it styles
+	// ::-webkit-scrollbar to it and subtracts it from the code area's 8px
+	// block gap. Left unset the library measures the platform scrollbar (15px
+	// in Chrome with classic scrollbars) while the virtualizer budgets 8px,
+	// so every file renders 7px taller than estimated and the accumulated
+	// drift cuts the scroll range short of the last file's scrollbar. Pinning
+	// the gutter and mirroring it in the metrics below keeps rendered and
+	// estimated heights equal.
+	"--diffs-scrollbar-gutter-override": `${DIFF_SCROLLBAR_GUTTER}px`,
 } satisfies CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
 	diffHeaderHeight: DIFF_HEADER_HEIGHT,
 	hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT,
 	lineHeight: DIFF_VIEWER_LINE_HEIGHT,
+	// The gutter exceeds the library's 8px block gap, so the rendered bottom
+	// strip is exactly the scrollbar (the gap-minus-gutter padding clamps to
+	// 0). The estimate must budget the same amount.
+	paddingBottom: DIFF_SCROLLBAR_GUTTER,
 };
 
 const fileTreeStyle = {
@@ -187,6 +206,37 @@ const fileTreeUnsafeCSS = [
 	"  scrollbar-width: thin;",
 	"}",
 ].join(" ");
+
+// Coder's global stylesheet sets `scrollbar-color`, which Chrome inherits into
+// the diff's shadow trees. A non-auto `scrollbar-color` makes Chrome ignore the
+// library's `::-webkit-scrollbar { height: var(--diffs-scrollbar-gutter) }`
+// rule, so each file's horizontal scroller falls back to the 15px platform
+// scrollbar instead of the 6px gutter the layout is built around. Resetting the
+// property on the code area restores the library's slim scrollbar so the
+// rendered file height matches the height the virtualizer estimates. The
+// feature query keeps the reset on engines that style scrollbars through
+// ::-webkit-scrollbar, leaving Firefox on the library's own scrollbar-color.
+const codeScrollbarUnsafeCSS = [
+	"@supports selector(::-webkit-scrollbar) {",
+	"  [data-code] {",
+	"    scrollbar-color: auto;",
+	"  }",
+	"}",
+	// The library keeps the thumb transparent until the file is hovered and
+	// then paints it in a near-background color, which reads as broken next
+	// to the app's scrollbars. Match the app-wide thumb color instead, with
+	// a brighter hover state, and clear the 1px inset border so the full
+	// track height stays grabbable.
+	"[data-code]::-webkit-scrollbar-thumb {",
+	"  background-color: hsl(var(--surface-quaternary)) !important;",
+	"  border: 0 !important;",
+	"}",
+	"[data-code]::-webkit-scrollbar-thumb:hover {",
+	"  background-color: hsl(var(--content-secondary)) !important;",
+	"}",
+].join(" ");
+
+const diffViewerUnsafeCSS = `${SEPARATOR_CSS} ${codeScrollbarUnsafeCSS}`;
 
 function gitStatusForFile(
 	fileDiff: FileDiffMetadata,
@@ -453,7 +503,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: SEPARATOR_CSS,
+		unsafeCSS: diffViewerUnsafeCSS,
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
