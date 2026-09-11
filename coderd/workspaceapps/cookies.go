@@ -45,10 +45,10 @@ func (c AppCookies) CookieNameForAccessMethod(accessMethod AccessMethod) string 
 // cookies from one proxy (e.g. the primary) being sent on requests to a
 // different proxy underneath the wildcard.
 //
-// E.g. `*.dogfood.cdr.dev` and `*.sydney.dogfood.cdr.dev`
+// E.g. `*.dev.coder.com` and `*.sydney.dev.coder.com`
 //
 // If you have an expired cookie on the primary proxy (valid for
-// `*.dogfood.cdr.dev`), your browser will send it on all requests to the Sydney
+// `*.dev.coder.com`), your browser will send it on all requests to the Sydney
 // proxy as it's underneath the wildcard.
 //
 // By using a unique cookie name per workspace proxy, we can avoid this issue.
