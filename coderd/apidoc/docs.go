@@ -17471,6 +17471,22 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeInterceptionReference": {
+            "type": "object",
+            "properties": {
+                "attribution": {
+                    "description": "Attribution carries workspace_id when the interception can be attributed\nto a specific workspace. Nil when the workspace context is unknown.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.AIBridgeListSessionsResponse": {
             "type": "object",
             "properties": {
@@ -17778,6 +17794,13 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "interceptions": {
+                    "description": "Interceptions lists every interception in this thread in chronological\nquery order, including tool-less rows. Use this for per-interception\nattribution and audit rather than AgenticActions, which only covers\ninterceptions that produced tool calls.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeInterceptionReference"
+                    }
                 },
                 "model": {
                     "type": "string"

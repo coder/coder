@@ -4805,6 +4805,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// The workspace in which the agent ran. NULL when no workspace context is available.
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge

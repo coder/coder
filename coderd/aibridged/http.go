@@ -203,7 +203,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 // attributionFromAuthorization extracts the workspace ID from the
 // IsAuthorizedResponse. The proto carries only workspace_id for attribution;
-// organisation and workspace name are not returned.
+// organization and workspace name are not returned.
 func attributionFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridge.Attribution, error) {
 	if resp.GetWorkspaceId() == "" {
 		return agplaibridge.Attribution{}, nil

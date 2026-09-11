@@ -58,6 +58,20 @@ export interface AIBridgeConfig {
 }
 
 // From codersdk/aibridge.go
+/**
+ * AIBridgeInterceptionReference is a compact reference to a single
+ * interception within a thread, with optional workspace attribution.
+ */
+export interface AIBridgeInterceptionReference {
+	readonly id: string;
+	/**
+	 * Attribution carries workspace_id when the interception can be attributed
+	 * to a specific workspace. Nil when the workspace context is unknown.
+	 */
+	readonly attribution?: Record<string, string>;
+}
+
+// From codersdk/aibridge.go
 export interface AIBridgeListSessionsResponse {
 	readonly count: number;
 	readonly sessions: readonly AIBridgeSession[];
@@ -214,6 +228,13 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Interceptions lists every interception in this thread in chronological
+	 * query order, including tool-less rows. Use this for per-interception
+	 * attribution and audit rather than AgenticActions, which only covers
+	 * interceptions that produced tool calls.
+	 */
+	readonly interceptions: readonly AIBridgeInterceptionReference[];
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
 	 * ErrorType is the categorized terminal upstream error from the root
