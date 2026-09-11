@@ -6529,7 +6529,7 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertSystemTextMessage(t, db, chat.ID, "sys-2", model.ID)
-	insertAssistantTextMessage(ctx, t, db, chat.ID, "working", model.ID)
+	insertAssistantTextMessage(t, db, chat.ID, "working", model.ID)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -7688,7 +7688,7 @@ func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search")
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-		insertProviderToolPairMessageWithLocalTool(ctx, t, db, chat.ID, model.ID, "ws-allowed")
+		insertProviderToolPairMessageWithLocalTool(t, db, chat.ID, model.ID, "ws-allowed")
 		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:        chat.ID,
 			CreatedBy:     user.ID,
@@ -7724,7 +7724,7 @@ func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search and read")
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-		insertProviderToolPairMessageWithLocalTool(ctx, t, db, chat.ID, model.ID, "ws-disabled")
+		insertProviderToolPairMessageWithLocalTool(t, db, chat.ID, model.ID, "ws-disabled")
 		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:        chat.ID,
 			CreatedBy:     user.ID,
@@ -8606,7 +8606,6 @@ func updateChatModelCallConfig(t *testing.T, db database.Store, model database.C
 }
 
 func insertAssistantTextMessage(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -8620,7 +8619,6 @@ func insertAssistantTextMessage(
 }
 
 func insertProviderToolPairMessageWithLocalTool(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
