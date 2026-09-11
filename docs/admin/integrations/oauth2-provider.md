@@ -653,6 +653,27 @@ enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
 refresh token is not consumed, so a client that drops the parameter or asks for
 less recovers without re-authorizing.
 
+Coder now enforces the `scope` an application declared for itself when it self-registered through [Dynamic Client Registration](#dynamic-client-registration).
+This affects only deployments that enabled Dynamic Client Registration and have an application that self-registered with a `scope`.
+Dynamic Client Registration is disabled by default, so if you never enabled it, nothing changes for you.
+Turning it back off does not clear the check: Coder validates the stored `scope` of an existing application whether or not registration is still allowed, so an application that self-registered before you turned the setting off is affected too.
+
+Earlier versions of Coder accepted any `scope` at registration without checking it, and every token for that application had full access.
+Coder now treats the registered `scope` as the list of scopes the application is allowed to request, as described under [Scopes](#scopes).
+Applications that self-registered without a `scope`, and applications created through the web UI or the management API, have no scope list and are not affected; they continue to receive full access.
+
+An affected application fails in the following ways:
+
+- A request for a scope name this deployment does not offer fails with `invalid_scope`.
+- If none of the registered names are offered, every authorization fails, even one that leaves `scope` out.
+- Authorization codes issued before the upgrade fail at the token endpoint with `invalid_grant` until they expire.
+
+For the full error details, refer to ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback) and ["invalid_grant" for a scope the deployment cannot mint](#invalid_grant-for-a-scope-the-deployment-cannot-mint).
+
+To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
+If that token is lost, register the application again.
+A Coder administrator cannot change an application's registered `scope` from the web UI or the management API; only the self-registration path writes that value.
+
 ## Standards Compliance
 
 This implementation follows established OAuth2 standards including
