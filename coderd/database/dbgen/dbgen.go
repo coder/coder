@@ -96,6 +96,24 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 	return project
 }
 
+func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjectMemory) database.ChatProjectMemory {
+	t.Helper()
+
+	memory, err := db.InsertChatProjectMemory(genCtx, database.InsertChatProjectMemoryParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		ProjectID:      takeFirst(seed.ProjectID, uuid.New()),
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		Type:           takeFirst(seed.Type, database.ChatProjectMemoryTypeProject),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+		Body:           seed.Body,
+		SourceChatID:   seed.SourceChatID,
+		CreatedBy:      takeFirst(seed.CreatedBy, uuid.New()),
+	})
+	require.NoError(t, err, "insert chat project memory")
+	return memory
+}
+
 func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	t.Helper()
 

@@ -1835,6 +1835,42 @@ func ChatProjectRow(row database.GetChatProjectsByOrganizationIDRow) codersdk.Ch
 	return project
 }
 
+func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
+	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+}
+
+func ChatProjectMemoryByName(row database.GetChatProjectMemoryByNameRow) codersdk.ChatProjectMemory {
+	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+}
+
+func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow) []codersdk.ChatProjectMemory {
+	memories := make([]codersdk.ChatProjectMemory, len(rows))
+	for i, row := range rows {
+		memories[i] = convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+	}
+	return memories
+}
+
+func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername string) codersdk.ChatProjectMemory {
+	result := codersdk.ChatProjectMemory{
+		ID:                memory.ID,
+		ProjectID:         memory.ProjectID,
+		OrganizationID:    memory.OrganizationID,
+		Type:              codersdk.ChatProjectMemoryType(memory.Type),
+		Name:              memory.Name,
+		Description:       memory.Description,
+		Body:              memory.Body,
+		CreatedBy:         memory.CreatedBy,
+		CreatedByUsername: createdByUsername,
+		CreatedAt:         memory.CreatedAt,
+		UpdatedAt:         memory.UpdatedAt,
+	}
+	if memory.SourceChatID.Valid {
+		result.SourceChatID = &memory.SourceChatID.UUID
+	}
+	return result
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.

@@ -351,6 +351,235 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/projects/{project}/memories": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project memories",
+                "operationId": "list-chat-project-memories",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project memory",
+                "operationId": "create-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create memory request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/projects/{project}/memories/{memory}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project memory",
+                "operationId": "get-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project memory ID",
+                        "name": "memory",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project memory",
+                "operationId": "delete-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project memory ID",
+                        "name": "memory",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project memory",
+                "operationId": "update-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project memory ID",
+                        "name": "memory",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update memory request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -18465,6 +18694,11 @@ const docTemplate = `{
                 "chat_project:delete",
                 "chat_project:read",
                 "chat_project:update",
+                "chat_project_memory:*",
+                "chat_project_memory:create",
+                "chat_project_memory:delete",
+                "chat_project_memory:read",
+                "chat_project_memory:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -18722,6 +18956,11 @@ const docTemplate = `{
                 "APIKeyScopeChatProjectDelete",
                 "APIKeyScopeChatProjectRead",
                 "APIKeyScopeChatProjectUpdate",
+                "APIKeyScopeChatProjectMemoryAll",
+                "APIKeyScopeChatProjectMemoryCreate",
+                "APIKeyScopeChatProjectMemoryDelete",
+                "APIKeyScopeChatProjectMemoryRead",
+                "APIKeyScopeChatProjectMemoryUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -21189,6 +21428,69 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProjectMemory": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_by_username": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "source_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatProjectMemoryType"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectMemoryType": {
+            "type": "string",
+            "enum": [
+                "user",
+                "feedback",
+                "project",
+                "reference"
+            ],
+            "x-enum-varnames": [
+                "ChatProjectMemoryTypeUser",
+                "ChatProjectMemoryTypeFeedback",
+                "ChatProjectMemoryTypeProject",
+                "ChatProjectMemoryTypeReference"
+            ]
+        },
         "codersdk.ChatPrompt": {
             "type": "object",
             "properties": {
@@ -21877,6 +22179,29 @@ const docTemplate = `{
                 },
                 "model_config": {
                     "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                }
+            }
+        },
+        "codersdk.CreateChatProjectMemoryRequest": {
+            "type": "object",
+            "required": [
+                "body",
+                "description",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatProjectMemoryType"
                 }
             }
         },
@@ -27356,6 +27681,7 @@ const docTemplate = `{
                 "chat",
                 "chat_model_config",
                 "chat_project",
+                "chat_project_memory",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -27412,6 +27738,7 @@ const docTemplate = `{
                 "ResourceChat",
                 "ResourceChatModelConfig",
                 "ResourceChatProject",
+                "ResourceChatProjectMemory",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -27670,6 +27997,7 @@ const docTemplate = `{
                 "user_ai_budget_override",
                 "chat",
                 "chat_project",
+                "chat_project_memory",
                 "mcp_server_config",
                 "chat_model_config",
                 "user_secret",
@@ -27713,6 +28041,7 @@ const docTemplate = `{
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeChatProject",
+                "ResourceTypeChatProjectMemory",
                 "ResourceTypeMCPServerConfig",
                 "ResourceTypeChatModelConfig",
                 "ResourceTypeUserSecret",
@@ -29528,6 +29857,23 @@ const docTemplate = `{
             "properties": {
                 "plan_mode_instructions": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatProjectMemoryRequest": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatProjectMemoryType"
                 }
             }
         },

@@ -73,6 +73,44 @@ export const MockChatProject2: TypesGen.ChatProject = {
 	chat_count: 4,
 };
 
+export const MockChatProjectMemory: TypesGen.ChatProjectMemory = {
+	id: "chat-project-memory-user",
+	project_id: MockChatProject.id,
+	organization_id: MockChatProject.organization_id,
+	type: "user",
+	name: "preferred-editor",
+	description: "The user prefers concise editor instructions.",
+	body: "Use concise editor instructions and include the changed files.",
+	created_by: "user-owner-id",
+	created_by_username: "owner",
+	created_at: "2026-09-01T12:00:00Z",
+	updated_at: "2026-09-02T12:00:00Z",
+};
+
+export const MockChatProjectMemoryFeedback: TypesGen.ChatProjectMemory = {
+	...MockChatProjectMemory,
+	id: "chat-project-memory-feedback",
+	type: "feedback",
+	name: "review-feedback",
+	description: "Keep pull request descriptions concise.",
+};
+
+export const MockChatProjectMemoryProject: TypesGen.ChatProjectMemory = {
+	...MockChatProjectMemory,
+	id: "chat-project-memory-project",
+	type: "project",
+	name: "release-process",
+	description: "Releases require a changelog update.",
+};
+
+export const MockChatProjectMemoryReference: TypesGen.ChatProjectMemory = {
+	...MockChatProjectMemory,
+	id: "chat-project-memory-reference",
+	type: "reference",
+	name: "api-reference",
+	description: "Reference for the project API.",
+};
+
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [

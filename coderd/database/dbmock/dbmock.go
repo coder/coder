@@ -542,6 +542,21 @@ func (mr *MockStoreMockRecorder) CountChatCapacityQueuedByPool(ctx, staleSeconds
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityQueuedByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityQueuedByPool), ctx, staleSeconds)
 }
 
+// CountChatProjectMemoriesByProjectID mocks base method.
+func (m *MockStore) CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountChatProjectMemoriesByProjectID", ctx, projectID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountChatProjectMemoriesByProjectID indicates an expected call of CountChatProjectMemoriesByProjectID.
+func (mr *MockStoreMockRecorder) CountChatProjectMemoriesByProjectID(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatProjectMemoriesByProjectID", reflect.TypeOf((*MockStore)(nil).CountChatProjectMemoriesByProjectID), ctx, projectID)
+}
+
 // CountChatQueuedMessages mocks base method.
 func (m *MockStore) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
@@ -919,6 +934,34 @@ func (m *MockStore) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) err
 func (mr *MockStoreMockRecorder) DeleteChatProjectByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatProjectByID", reflect.TypeOf((*MockStore)(nil).DeleteChatProjectByID), ctx, id)
+}
+
+// DeleteChatProjectMemoryByID mocks base method.
+func (m *MockStore) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatProjectMemoryByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatProjectMemoryByID indicates an expected call of DeleteChatProjectMemoryByID.
+func (mr *MockStoreMockRecorder) DeleteChatProjectMemoryByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatProjectMemoryByID", reflect.TypeOf((*MockStore)(nil).DeleteChatProjectMemoryByID), ctx, id)
+}
+
+// DeleteChatProjectMemoryByName mocks base method.
+func (m *MockStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatProjectMemoryByName", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatProjectMemoryByName indicates an expected call of DeleteChatProjectMemoryByName.
+func (mr *MockStoreMockRecorder) DeleteChatProjectMemoryByName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).DeleteChatProjectMemoryByName), ctx, arg)
 }
 
 // DeleteChatQueuedMessage mocks base method.
@@ -3327,6 +3370,66 @@ func (m *MockStore) GetChatProjectByID(ctx context.Context, id uuid.UUID) (datab
 func (mr *MockStoreMockRecorder) GetChatProjectByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByID", reflect.TypeOf((*MockStore)(nil).GetChatProjectByID), ctx, id)
+}
+
+// GetChatProjectMemoriesByProjectID mocks base method.
+func (m *MockStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectMemoriesByProjectID", ctx, projectID)
+	ret0, _ := ret[0].([]database.GetChatProjectMemoriesByProjectIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectMemoriesByProjectID indicates an expected call of GetChatProjectMemoriesByProjectID.
+func (mr *MockStoreMockRecorder) GetChatProjectMemoriesByProjectID(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoriesByProjectID", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoriesByProjectID), ctx, projectID)
+}
+
+// GetChatProjectMemoryByID mocks base method.
+func (m *MockStore) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (database.GetChatProjectMemoryByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectMemoryByID", ctx, id)
+	ret0, _ := ret[0].(database.GetChatProjectMemoryByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectMemoryByID indicates an expected call of GetChatProjectMemoryByID.
+func (mr *MockStoreMockRecorder) GetChatProjectMemoryByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByID", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByID), ctx, id)
+}
+
+// GetChatProjectMemoryByName mocks base method.
+func (m *MockStore) GetChatProjectMemoryByName(ctx context.Context, arg database.GetChatProjectMemoryByNameParams) (database.GetChatProjectMemoryByNameRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectMemoryByName", ctx, arg)
+	ret0, _ := ret[0].(database.GetChatProjectMemoryByNameRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectMemoryByName indicates an expected call of GetChatProjectMemoryByName.
+func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
+}
+
+// GetChatProjectMemoryCursor mocks base method.
+func (m *MockStore) GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatProjectMemoryCursor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectMemoryCursor", ctx, chatID)
+	ret0, _ := ret[0].(database.ChatProjectMemoryCursor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectMemoryCursor indicates an expected call of GetChatProjectMemoryCursor.
+func (mr *MockStoreMockRecorder) GetChatProjectMemoryCursor(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryCursor", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryCursor), ctx, chatID)
 }
 
 // GetChatProjectsByOrganizationID mocks base method.
@@ -8052,6 +8155,21 @@ func (mr *MockStoreMockRecorder) InsertChatProject(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProject", reflect.TypeOf((*MockStore)(nil).InsertChatProject), ctx, arg)
 }
 
+// InsertChatProjectMemory mocks base method.
+func (m *MockStore) InsertChatProjectMemory(ctx context.Context, arg database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatProjectMemory", ctx, arg)
+	ret0, _ := ret[0].(database.ChatProjectMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatProjectMemory indicates an expected call of InsertChatProjectMemory.
+func (mr *MockStoreMockRecorder) InsertChatProjectMemory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProjectMemory", reflect.TypeOf((*MockStore)(nil).InsertChatProjectMemory), ctx, arg)
+}
+
 // InsertChatQueuedMessage mocks base method.
 func (m *MockStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
 	m.ctrl.T.Helper()
@@ -10356,6 +10474,21 @@ func (mr *MockStoreMockRecorder) UpdateChatProjectByID(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectByID), ctx, arg)
 }
 
+// UpdateChatProjectMemoryByID mocks base method.
+func (m *MockStore) UpdateChatProjectMemoryByID(ctx context.Context, arg database.UpdateChatProjectMemoryByIDParams) (database.ChatProjectMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatProjectMemoryByID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatProjectMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatProjectMemoryByID indicates an expected call of UpdateChatProjectMemoryByID.
+func (mr *MockStoreMockRecorder) UpdateChatProjectMemoryByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectMemoryByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectMemoryByID), ctx, arg)
+}
+
 // UpdateChatRetryState mocks base method.
 func (m *MockStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -12209,6 +12342,36 @@ func (m *MockStore) UpsertChatPlanModeInstructions(ctx context.Context, value st
 func (mr *MockStoreMockRecorder) UpsertChatPlanModeInstructions(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatPlanModeInstructions", reflect.TypeOf((*MockStore)(nil).UpsertChatPlanModeInstructions), ctx, value)
+}
+
+// UpsertChatProjectMemoryByName mocks base method.
+func (m *MockStore) UpsertChatProjectMemoryByName(ctx context.Context, arg database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatProjectMemoryByName", ctx, arg)
+	ret0, _ := ret[0].(database.ChatProjectMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertChatProjectMemoryByName indicates an expected call of UpsertChatProjectMemoryByName.
+func (mr *MockStoreMockRecorder) UpsertChatProjectMemoryByName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).UpsertChatProjectMemoryByName), ctx, arg)
+}
+
+// UpsertChatProjectMemoryCursor mocks base method.
+func (m *MockStore) UpsertChatProjectMemoryCursor(ctx context.Context, arg database.UpsertChatProjectMemoryCursorParams) (database.ChatProjectMemoryCursor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatProjectMemoryCursor", ctx, arg)
+	ret0, _ := ret[0].(database.ChatProjectMemoryCursor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertChatProjectMemoryCursor indicates an expected call of UpsertChatProjectMemoryCursor.
+func (mr *MockStoreMockRecorder) UpsertChatProjectMemoryCursor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatProjectMemoryCursor", reflect.TypeOf((*MockStore)(nil).UpsertChatProjectMemoryCursor), ctx, arg)
 }
 
 // UpsertChatRetentionDays mocks base method.

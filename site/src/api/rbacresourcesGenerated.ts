@@ -86,6 +86,12 @@ export const RBACResourceActions: Partial<
 		read: "read chat projects",
 		update: "update a chat project",
 	},
+	chat_project_memory: {
+		create: "create a chat project memory",
+		delete: "delete a chat project memory",
+		read: "read chat project memories",
+		update: "update a chat project memory",
+	},
 	connection_log: {
 		read: "read connection logs",
 		update: "upsert connection log entries",

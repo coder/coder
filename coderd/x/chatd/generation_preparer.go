@@ -461,12 +461,26 @@ func (server *Server) prepareGeneration(
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	projectMemoryIndex := ""
+	if chat.ProjectID.Valid && isRootChat && server.experiments.Enabled(codersdk.ExperimentChatProjects) {
+		memories, memoryErr := server.db.GetChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
+		if memoryErr != nil {
+			logger.Debug(ctx, "failed to load chat project memories", slog.F("chat_id", chat.ID), slog.Error(memoryErr))
+		} else {
+			entries := make([]chattool.ProjectMemoryIndexEntry, len(memories))
+			for i, memory := range memories {
+				entries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Type: memory.ChatProjectMemory.Type, Description: memory.ChatProjectMemory.Description}
+			}
+			projectMemoryIndex = chattool.FormatProjectMemoryIndex(entries)
+		}
+	}
 
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
 		instruction,
 		initialResolvedSkills,
+		projectMemoryIndex,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -568,6 +582,10 @@ func (server *Server) prepareGeneration(
 		return updated, changed
 	}
 	tools, _ = appendCurrentSkillTools(tools)
+	if chat.ProjectID.Valid && isRootChat && server.experiments.Enabled(codersdk.ExperimentChatProjects) {
+		memoryOpts := chattool.ProjectMemoryOptions{Store: server.db, ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID, ChatID: chat.ID, OwnerID: chat.OwnerID}
+		tools = append(tools, chattool.ReadProjectMemory(memoryOpts), chattool.SaveProjectMemory(memoryOpts), chattool.DeleteProjectMemory(memoryOpts))
+	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -860,6 +878,7 @@ func (server *Server) afterGenerationOutcome(
 		finalizeCtx := context.WithoutCancel(ctx)
 		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
 		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
+		server.maybeExtractProjectMemoriesAsync(finalizeCtx, logger, chat)
 	case runnerActionKindFinishError:
 		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:

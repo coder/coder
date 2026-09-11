@@ -44,6 +44,7 @@ There is other data that is held in the database and is associated with a chat, 
 - model configuration;
 - plan mode;
 - project binding; <!-- TODO(chat-projects): document project membership as metadata -->
+- project memory; <!-- TODO(chat-project-memory): document project memory as metadata -->
 - file links.
 
 We call it **metadata**. The core state machine concerns itself with **execution state**. As a general guideline, a piece of data is execution state if the core state machine needs it to decide what the next state transition may be, or if it's directly modified by a state transition. For example, a queued message is part of the execution state because it impacts what the next action of the agent loop can be. If the agent loop finishes processing a user message and would otherwise stop, but there's a queued message, the agent loop will start processing the queued message instead. On the other hand, a chat's title does not impact the agent loop at all - it's just a label that helps the user identify the chat.
@@ -879,8 +880,11 @@ Parallel tool call results must be inserted in bulk after all parallel tool call
 
 The generation goroutine supports:
 
+<!-- TODO(chat-project-memory): document project memory prompt injection order and detached extraction after FinishTurn. -->
+
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
+- project memory tools <!-- TODO(chat-project-memory): document root-chat project memory tools -->
 - file links
 - workspace binding
 - plan mode
