@@ -586,7 +586,9 @@ func TestAIGatewayModelBedrockReasoningSummary(t *testing.T) {
 				require.NotNil(t, body.Reasoning)
 				require.Equal(t, tt.wantSummary, body.Reasoning.Summary)
 			}
-			require.Equal(t, tt.wantSummary, *resolved.callConfig.ProviderOptions.OpenAI.ReasoningSummary)
+			// The resolved config keeps the configured value so a provider
+			// substitution (computer use) does not inherit the Bedrock coercion.
+			require.Equal(t, "detailed", *resolved.callConfig.ProviderOptions.OpenAI.ReasoningSummary)
 		})
 	}
 }
