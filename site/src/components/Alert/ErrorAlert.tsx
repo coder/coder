@@ -8,15 +8,17 @@ type ErrorAlertProps = Readonly<
 	Omit<AlertProps, "severity" | "children"> & {
 		error: unknown;
 		showDebugDetail?: boolean;
+		defaultMessage?: string;
 	}
 >;
 
 export const ErrorAlert: FC<ErrorAlertProps> = ({
 	error,
 	showDebugDetail = true,
+	defaultMessage = "Something went wrong.",
 	...alertProps
 }) => {
-	const message = getErrorMessage(error, "Something went wrong.");
+	const message = getErrorMessage(error, defaultMessage);
 	const detail = getErrorDetail(error);
 	const status = getErrorStatus(error);
 

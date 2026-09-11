@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { mockApiError } from "#/testHelpers/entities";
 import { DeleteDialog } from "./DeleteDialog";
 
 const meta: Meta<typeof DeleteDialog> = {
@@ -59,10 +58,7 @@ export const FilledWrong: Story = {
 
 export const FailedDelete: Story = {
 	args: {
-		error: mockApiError({
-			message: "Failed to delete foo.",
-			detail: "This foo is still in use.",
-		}),
+		error: new Error("The network request failed."),
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();

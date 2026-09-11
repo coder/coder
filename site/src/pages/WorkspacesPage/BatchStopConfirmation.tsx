@@ -33,6 +33,7 @@ export const BatchStopConfirmation: FC<BatchStopConfirmationProps> = ({
 			confirmText="Stop"
 			onConfirm={onConfirm}
 			error={error}
+			errorMessage="Failed to stop workspaces."
 			description={`Are you sure you want to stop ${workspaceCount}? This will terminate all running processes and disconnect any active sessions.`}
 		/>
 	);
