@@ -57,6 +57,7 @@ type runner struct {
 	tasksByIndex  map[taskIndexKey]taskInstanceID
 	localLocks    *localLockSet
 	debugTurn     *runnerDebugTurn
+	turnSpan      *runnerTurnSpan
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
 }
@@ -71,6 +72,7 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
 		localLocks:   newLocalLockSet(),
 		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
+		turnSpan:     newRunnerTurnSpan(mgr.server.stages),
 	}
 }
 
@@ -86,6 +88,7 @@ func (r *runner) run() {
 			r.cancelActiveTask()
 			r.waitForTasks()
 			r.closeDebugTurn()
+			r.turnSpan.End(nil)
 			return
 		}
 	}
@@ -229,6 +232,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		Status:                   state.Status,
 		RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
 		DebugTurn:                r.debugTurn,
+		Turn:                     r.turnSpan,
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
 	}
