@@ -1108,6 +1108,7 @@ var (
 type CreateOptions struct {
 	OrganizationID          uuid.UUID
 	OwnerID                 uuid.UUID
+	ProjectID               uuid.NullUUID
 	WorkspaceID             uuid.NullUUID
 	BuildID                 uuid.NullUUID
 	AgentID                 uuid.NullUUID
@@ -1404,6 +1405,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
+		ProjectID:         opts.ProjectID,
 		WorkspaceID:       opts.WorkspaceID,
 		BuildID:           opts.BuildID,
 		AgentID:           opts.AgentID,
@@ -3632,13 +3634,14 @@ func mergeTurnSkills(
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
-// order: subagent instruction, chat instruction, skill index, user prompt,
-// then mode overlay prompts.
+// order: subagent instruction, chat instruction, skill index, project memory
+// index, user prompt, then mode overlay prompts.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
 	instruction string,
 	resolvedSkills []skillspkg.ResolvedSkill,
+	projectMemoryIndex string,
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
@@ -3650,6 +3653,9 @@ func buildSystemPrompt(
 	}
 	if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if projectMemoryIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, projectMemoryIndex)
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)

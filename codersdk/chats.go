@@ -109,6 +109,7 @@ type Chat struct {
 	OwnerUsername       string       `json:"owner_username,omitempty"`
 	OwnerName           string       `json:"owner_name,omitempty"`
 	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
+	ProjectID           *uuid.UUID   `json:"project_id,omitempty" format:"uuid"`
 	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
 	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
 	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
@@ -152,6 +153,58 @@ type Chat struct {
 	// subagents, so nesting depth is capped at 1 and this slice is
 	// always empty for child chats.
 	Children []Chat `json:"children"`
+}
+
+// ChatProject groups related chats in an organization.
+type ChatProject struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	CreatedBy      uuid.UUID `json:"created_by" format:"uuid"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	ChatCount      int64     `json:"chat_count"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
+}
+
+// CreateChatProjectRequest creates an organization-scoped chat project.
+type CreateChatProjectRequest struct {
+	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
+	Name           string    `json:"name" validate:"required"`
+	Description    string    `json:"description"`
+}
+
+// UpdateChatProjectRequest updates a chat project.
+type UpdateChatProjectRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+// ChatProjectMemory is a durable memory shared by chats in a project.
+type ChatProjectMemory struct {
+	ID                uuid.UUID  `json:"id" format:"uuid"`
+	ProjectID         uuid.UUID  `json:"project_id" format:"uuid"`
+	OrganizationID    uuid.UUID  `json:"organization_id" format:"uuid"`
+	Name              string     `json:"name"`
+	Description       string     `json:"description"`
+	Body              string     `json:"body"`
+	SourceChatID      *uuid.UUID `json:"source_chat_id,omitempty" format:"uuid"`
+	CreatedBy         uuid.UUID  `json:"created_by" format:"uuid"`
+	CreatedByUsername string     `json:"created_by_username"`
+	CreatedAt         time.Time  `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time  `json:"updated_at" format:"date-time"`
+}
+
+type CreateChatProjectMemoryRequest struct {
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description" validate:"required"`
+	Body        string `json:"body" validate:"required"`
+}
+
+type UpdateChatProjectMemoryRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Body        *string `json:"body,omitempty"`
 }
 
 // ChatContext reports a chat's pinned workspace context and whether it has
@@ -568,6 +621,7 @@ type CreateChatRequest struct {
 	Content         []ChatInputPart   `json:"content"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ProjectID       *uuid.UUID        `json:"project_id,omitempty" format:"uuid"`
 	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
 	MCPServerIDs    []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
@@ -585,6 +639,8 @@ type UpdateChatRequest struct {
 	Title       *string    `json:"title,omitempty"`
 	Archived    *bool      `json:"archived,omitempty"`
 	WorkspaceID *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	// ProjectID changes the chat project. A UUID value of nil clears the project.
+	ProjectID *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// PinOrder controls the chat's pinned state and position.
 	// - nil: no change to pin state.
 	// - 0: unpin the chat.
@@ -1978,8 +2034,9 @@ type ListChatsOptions struct {
 	// Source must be empty.
 	Query string
 	// Source adds a source: term to Query.
-	Source ChatListSource
-	Labels map[string]string
+	Source    ChatListSource
+	Labels    map[string]string
+	ProjectID *uuid.UUID
 	Pagination
 }
 
@@ -1999,6 +2056,13 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
 				q.Set("q", query)
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.ProjectID != nil {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("project_id", opts.ProjectID.String())
 				r.URL.RawQuery = q.Encode()
 			})
 		}
@@ -2022,6 +2086,144 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	}
 	var chats []Chat
 	return chats, ReadBodyAsJSON(res, &chats)
+}
+
+// ListChatProjects lists chat projects in an organization.
+func (c *ExperimentalClient) ListChatProjects(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects?organization=%s", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var projects []ChatProject
+	return projects, ReadBodyAsJSON(res, &projects)
+}
+
+// CreateChatProject creates a chat project.
+func (c *ExperimentalClient) CreateChatProject(ctx context.Context, req CreateChatProjectRequest) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/projects", req)
+	if err != nil {
+		return ChatProject{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ChatProject{}, ReadBodyAsError(res)
+	}
+	var project ChatProject
+	return project, ReadBodyAsJSON(res, &project)
+}
+
+// GetChatProject gets a chat project.
+func (c *ExperimentalClient) GetChatProject(ctx context.Context, projectID uuid.UUID) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), nil)
+	if err != nil {
+		return ChatProject{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProject{}, ReadBodyAsError(res)
+	}
+	var project ChatProject
+	return project, ReadBodyAsJSON(res, &project)
+}
+
+// UpdateChatProject updates a chat project.
+func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, projectID uuid.UUID, req UpdateChatProjectRequest) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), req)
+	if err != nil {
+		return ChatProject{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProject{}, ReadBodyAsError(res)
+	}
+	var project ChatProject
+	return project, ReadBodyAsJSON(res, &project)
+}
+
+// DeleteChatProject deletes a chat project and detaches its chats.
+func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, projectID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ListChatProjectMemories lists memories for a chat project.
+func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, projectID uuid.UUID) ([]ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/memories", projectID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var memories []ChatProjectMemory
+	return memories, ReadBodyAsJSON(res, &memories)
+}
+
+// CreateChatProjectMemory creates a project memory.
+func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, projectID uuid.UUID, req CreateChatProjectMemoryRequest) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/projects/%s/memories", projectID), req)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// GetChatProjectMemory gets a project memory.
+func (c *ExperimentalClient) GetChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), nil)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// UpdateChatProjectMemory updates a project memory.
+func (c *ExperimentalClient) UpdateChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID, req UpdateChatProjectMemoryRequest) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), req)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// DeleteChatProjectMemory deletes a project memory.
+func (c *ExperimentalClient) DeleteChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ListChatProviders returns admin-managed chat provider configs.

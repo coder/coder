@@ -1,10 +1,20 @@
 import { type FC, useState } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useParams } from "react-router";
+import {
+	chatProjects,
+	createChatProject,
+	deleteChatProject,
+	updateChatProject,
+} from "#/api/queries/chatProjects";
 import { userChatProviderConfigs } from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsPanel } from "./chats/ChatsPanel";
+import { ChatProjectDialog } from "./dialogs/ChatProjectDialog";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
 import { SettingsPanel } from "./settings/SettingsPanel";
@@ -95,6 +105,47 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
+	const { organizations, experiments } = useDashboard();
+	const defaultOrganizationId =
+		organizations.find((organization) => organization.is_default)?.id ?? "";
+	const chatProjectsEnabled = experiments.includes("chat-projects");
+	const queryClient = useQueryClient();
+	const projectsQuery = useQuery({
+		...chatProjects(defaultOrganizationId),
+		enabled: chatProjectsEnabled && Boolean(defaultOrganizationId),
+	});
+	const createProjectMutation = useMutation(createChatProject(queryClient));
+	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const deleteProjectMutation = useMutation(deleteChatProject(queryClient));
+	const [projectDialogProject, setProjectDialogProject] = useState<
+		TypesGen.ChatProject | null | undefined
+	>(undefined);
+	const [projectPendingDelete, setProjectPendingDelete] =
+		useState<TypesGen.ChatProject | null>(null);
+	const handleProjectSubmit = async (
+		request:
+			| TypesGen.CreateChatProjectRequest
+			| TypesGen.UpdateChatProjectRequest,
+	) => {
+		if (projectDialogProject) {
+			await updateProjectMutation.mutateAsync({
+				projectId: projectDialogProject.id,
+				request,
+			});
+			return;
+		}
+		if ("organization_id" in request) {
+			await createProjectMutation.mutateAsync(request);
+		}
+	};
+	const handleDeleteProject = () => {
+		if (!projectPendingDelete) {
+			return;
+		}
+		deleteProjectMutation.mutate(projectPendingDelete.id, {
+			onSuccess: () => setProjectPendingDelete(null),
+		});
+	};
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
 		chatId?: string;
@@ -128,6 +179,14 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	return (
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
+				projects={chatProjectsEnabled ? (projectsQuery.data ?? []) : []}
+				isProjectsLoading={chatProjectsEnabled && projectsQuery.isLoading}
+				onOpenProjectDialog={
+					chatProjectsEnabled ? setProjectDialogProject : undefined
+				}
+				onDeleteProject={
+					chatProjectsEnabled ? setProjectPendingDelete : undefined
+				}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
@@ -173,6 +232,24 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onOpenChange={onSearchDialogOpenChange}
 				location={location}
 				recentChats={chats}
+			/>
+			<ChatProjectDialog
+				organizationId={defaultOrganizationId}
+				project={projectDialogProject}
+				open={projectDialogProject !== undefined}
+				onOpenChange={(open) => {
+					if (!open) setProjectDialogProject(undefined);
+				}}
+				onSubmit={handleProjectSubmit}
+			/>
+			<DeleteDialog
+				isOpen={projectPendingDelete !== null}
+				onConfirm={handleDeleteProject}
+				onCancel={() => setProjectPendingDelete(null)}
+				entity="project"
+				name={projectPendingDelete?.name ?? ""}
+				confirmLoading={deleteProjectMutation.isPending}
+				info="Chats in this project will be kept and become independent."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

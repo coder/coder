@@ -85,6 +85,20 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
+var chatProjectActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat project",
+	ActionRead:   "read chat projects",
+	ActionUpdate: "update a chat project",
+	ActionDelete: "delete a chat project",
+}
+
+var chatProjectMemoryActions = map[Action]ActionDefinition{
+	ActionCreate: "create a chat project memory",
+	ActionRead:   "read chat project memories",
+	ActionUpdate: "update a chat project memory",
+	ActionDelete: "delete a chat project memory",
+}
+
 var mcpServerConfigActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new MCP server config",
 	ActionRead:   "read MCP server config",
@@ -129,6 +143,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat": {
 		Actions: chatActions,
+	},
+	"chat_project": {
+		Actions: chatProjectActions,
+	},
+	"chat_project_memory": {
+		Actions: chatProjectMemoryActions,
 	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,

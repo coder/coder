@@ -9,6 +9,10 @@ export const buildAgentChatPath = ({
 	return `/agents/${encodeURIComponent(chatId)}`;
 };
 
+export const buildAgentProjectPath = (projectId: string): string => {
+	return `/agents/projects/${encodeURIComponent(projectId)}`;
+};
+
 export const safeBuildAgentChatPath = ({
 	chatId,
 }: Readonly<{

@@ -54,6 +54,46 @@ export const MockOrganization3: TypesGen.Organization = {
 	default_org_member_roles: ["organization-workspace-access"],
 };
 
+export const MockChatProject: TypesGen.ChatProject = {
+	id: "chat-project-1",
+	organization_id: MockDefaultOrganization.id,
+	created_by: "user-owner-id",
+	name: "Launch",
+	description: "Chats for the launch work.",
+	chat_count: 2,
+	created_at: "2026-09-01T12:00:00Z",
+	updated_at: "2026-09-02T12:00:00Z",
+};
+
+export const MockChatProject2: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "chat-project-2",
+	name: "Maintenance",
+	description: "Chats for maintenance work.",
+	chat_count: 4,
+};
+
+export const MockChatProjectMemory: TypesGen.ChatProjectMemory = {
+	id: "chat-project-memory-preferred-editor",
+	project_id: MockChatProject.id,
+	organization_id: MockChatProject.organization_id,
+	name: "preferred-editor",
+	description: "The user prefers concise editor instructions.",
+	body: "Use concise editor instructions and include the changed files.",
+	created_by: "user-owner-id",
+	created_by_username: "owner",
+	created_at: "2026-09-01T12:00:00Z",
+	updated_at: "2026-09-02T12:00:00Z",
+};
+
+export const MockChatProjectMemory2: TypesGen.ChatProjectMemory = {
+	...MockChatProjectMemory,
+	id: "chat-project-memory-release-process",
+	name: "release-process",
+	description: "Releases require a changelog update.",
+	body: "Update the changelog and publish the release notes before releasing.",
+};
+
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [

@@ -100,6 +100,7 @@ type sqlcQuerier interface {
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
+	CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -150,6 +151,9 @@ type sqlcQuerier interface {
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
+	DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
 	// Deletes a queued message, scoped to the parent chat. Returns the
 	// number of affected rows so callers can detect missing rows without
@@ -507,6 +511,12 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
+	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
+	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
+	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatProjectMemoryCursor, error)
+	GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]GetChatProjectsByOrganizationIDRow, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
@@ -1143,6 +1153,8 @@ type sqlcQuerier interface {
 	// index the result positionally.
 	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]InsertChatMessagesRow, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
+	InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error)
+	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
 	// Legacy queue insertion path. When no caller-supplied creator exists,
 	// preserve the created_by invariant by attributing the queued row to the
 	// chat owner.
@@ -1506,6 +1518,9 @@ type sqlcQuerier interface {
 	UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
+	UpdateChatProjectBinding(ctx context.Context, arg UpdateChatProjectBindingParams) (ChatTable, error)
+	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
+	UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error)
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
@@ -1679,6 +1694,8 @@ type sqlcQuerier interface {
 	// personal chat model overrides.
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
+	UpsertChatProjectMemoryByName(ctx context.Context, arg UpsertChatProjectMemoryByNameParams) (ChatProjectMemory, error)
+	UpsertChatProjectMemoryCursor(ctx context.Context, arg UpsertChatProjectMemoryCursorParams) (ChatProjectMemoryCursor, error)
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error

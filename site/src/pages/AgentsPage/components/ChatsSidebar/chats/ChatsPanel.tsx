@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
-import type { Chat, ChatModel } from "#/api/typesGenerated";
+import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
@@ -57,6 +57,7 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { ProjectsSection } from "./ProjectsSection";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -64,6 +65,10 @@ const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 interface ChatsPanelProps {
+	readonly projects: readonly ChatProject[];
+	readonly isProjectsLoading: boolean;
+	readonly onOpenProjectDialog?: (project: ChatProject | null) => void;
+	readonly onDeleteProject?: (project: ChatProject) => void;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -100,6 +105,10 @@ interface ChatsPanelProps {
 }
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
+	projects,
+	isProjectsLoading,
+	onOpenProjectDialog,
+	onDeleteProject,
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -559,6 +568,19 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 															</DndContext>
 														))}
 												</div>
+											)}
+											{onOpenProjectDialog && onDeleteProject && (
+												<ProjectsSection
+													projects={projects}
+													expanded={!collapsedSections.Projects}
+													onToggle={() => toggleSection("Projects")}
+													onCreate={() => onOpenProjectDialog(null)}
+													onEdit={onOpenProjectDialog}
+													onDelete={onDeleteProject}
+												/>
+											)}
+											{isProjectsLoading && (
+												<Skeleton className="ml-2.5 h-3.5 w-20" />
 											)}
 											{sharedWithYouChats.length > 0 && (
 												<div className="not-first:mt-3">

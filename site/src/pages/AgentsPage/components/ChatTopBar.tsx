@@ -13,6 +13,7 @@ import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import { chatProject } from "#/api/queries/chatProjects";
 import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -24,7 +25,9 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { buildAgentProjectPath } from "../utils/navigation";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
@@ -95,6 +98,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	panel,
 }) => {
 	const { isEmbedded } = useEmbedContext();
+	const { experiments } = useDashboard();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
@@ -102,6 +106,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		enabled: Boolean(parentChatID),
 	});
 	const parentChat = parentChatQuery.data;
+	const projectQuery = useQuery({
+		...chatProject(chat?.project_id ?? ""),
+		enabled: experiments.includes("chat-projects") && Boolean(chat?.project_id),
+	});
 	const isRootChat = chat !== undefined && parentChatID === undefined;
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
 	if (chat !== undefined && isRootChat) {
@@ -199,6 +207,26 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						aria-live="polite"
 						className="flex min-w-0 items-center gap-1.5"
 					>
+						{projectQuery.data && (
+							<>
+								<Button
+									asChild
+									size="sm"
+									variant="subtle"
+									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+								>
+									<Link
+										to={{
+											pathname: buildAgentProjectPath(projectQuery.data.id),
+											search: location.search,
+										}}
+									>
+										<span className="truncate">{projectQuery.data.name}</span>
+									</Link>
+								</Button>
+								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
+							</>
+						)}
 						{parentChat && (
 							<>
 								<Button

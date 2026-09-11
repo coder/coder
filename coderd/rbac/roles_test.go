@@ -231,15 +231,17 @@ func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 		})
 	}
 
-	member := rbac.OrgMemberPermissions(orgSettings).Member
-	require.False(t, hasResource(member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
-	require.True(t, hasResource(member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
-	require.True(t, hasResource(member, rbac.ResourceChat.Type), "organization-member should grant chat access")
+	member := rbac.OrgMemberPermissions(orgSettings)
+	require.False(t, hasResource(member.Member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
+	require.True(t, hasResource(member.Member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
+	require.True(t, hasResource(member.Member, rbac.ResourceChat.Type), "organization-member should grant chat access")
+	require.True(t, hasResource(member.Org, rbac.ResourceChatProjectMemory.Type), "organization-member should grant chat project memory access")
 
-	sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
-	require.False(t, hasResource(sa, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
-	require.True(t, hasResource(sa, rbac.ResourceOrganizationMember.Type), "organization-service-account should grant read-self")
-	require.False(t, hasResource(sa, rbac.ResourceChat.Type), "organization-service-account must not grant chat access")
+	sa := rbac.OrgServiceAccountPermissions(orgSettings)
+	require.False(t, hasResource(sa.Member, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
+	require.True(t, hasResource(sa.Member, rbac.ResourceOrganizationMember.Type), "organization-service-account should grant read-self")
+	require.False(t, hasResource(sa.Member, rbac.ResourceChat.Type), "organization-service-account must not grant chat access")
+	require.False(t, hasResource(sa.Org, rbac.ResourceChatProjectMemory.Type), "organization-service-account must not grant chat project memory access")
 
 	// The registered organization-workspace-access role is the grant
 	// path for workspace permissions.
@@ -1413,6 +1415,42 @@ func TestRolePermissions(t *testing.T) {
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
+			},
+		},
+		{
+			Name:     "ChatProjectRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatProjectCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatProjectManage",
+			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatProjectMemoryCRUD",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{
