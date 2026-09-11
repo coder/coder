@@ -23,11 +23,43 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
 var testTracer = otel.Tracer("bridge_test")
+
+// TestProxyErrorHandler asserts the shared reverse proxy error handler maps an
+// exceeded body limit to 413 with the metric attribution, and everything else
+// to an upstream error.
+func TestProxyErrorHandler(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		err          error
+		wantStatus   int
+		wantExceeded bool
+	}{
+		{name: "BodyTooLarge", err: &http.MaxBytesError{Limit: maxRequestBodyBytes}, wantStatus: http.StatusRequestEntityTooLarge, wantExceeded: true},
+		{name: "Upstream", err: assert.AnError, wantStatus: http.StatusBadGateway},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var tracker httpapi.RequestBodyLimitTracker
+			req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil)
+			req = req.WithContext(httpapi.WithRequestBodyLimitTracker(req.Context(), &tracker))
+			rec := httptest.NewRecorder()
+
+			proxyErrorHandler(slogtest.Make(t, nil))(rec, req, tc.err)
+
+			assert.Equal(t, tc.wantStatus, rec.Code)
+			assert.Equal(t, tc.wantExceeded, tracker.Exceeded())
+		})
+	}
+}
 
 func TestPassthroughRoutes(t *testing.T) {
 	t.Parallel()

@@ -5006,6 +5006,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-gateway-reverse-proxy"
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
@@ -5022,6 +5023,7 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",

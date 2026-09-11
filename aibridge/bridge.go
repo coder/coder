@@ -76,20 +76,16 @@ type RequestBridge struct {
 
 	mcpProxy mcp.ServerProxier
 
+	// inflight provides the shared admission and drain machinery.
+	inflight *InflightGate
+	// inflightReqs is the interception-mode gauge exposed by
+	// InflightRequests. The proxy path tracks in-flight requests
+	// server-wide instead.
 	inflightReqs atomic.Int32
-	inflightWG   sync.WaitGroup // For graceful shutdown.
-
-	// inflightMu orders inflightWG.Add (ServeHTTP, read-held) before
-	// close(b.closed) (Shutdown, write-held), so Add never races Wait.
-	inflightMu sync.RWMutex
-
-	inflightCtx    context.Context
-	inflightCancel func()
 
 	clock quartz.Clock
 
 	shutdownOnce sync.Once
-	closed       chan struct{}
 }
 
 var _ http.Handler = &RequestBridge{}
@@ -127,15 +123,12 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		return nil, err
 	}
 
-	mux := http.NewServeMux()
+	mux := newProviderMux(providers, logger)
 
 	for _, prov := range providers {
-		// Disabled providers serve a 503 sentinel on every path under
-		// "/<name>/". Bound to the bare name (not RoutePrefix) so paths
-		// outside the provider's normal "/v1" subtree are also caught.
+		// Disabled providers already have their 503 sentinel registered by
+		// newProviderMux; skip route registration for them.
 		if !prov.Enabled() {
-			prefix := fmt.Sprintf("/%s/", prov.Name())
-			mux.HandleFunc(prefix, disabledProviderHandler(prov.Name(), logger))
 			continue
 		}
 		// Create per-provider circuit breaker if configured
@@ -194,22 +187,12 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		}
 	}
 
-	// Catch-all.
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.Warn(r.Context(), "route not supported", slog.F("path", r.URL.Path), slog.F("method", r.Method))
-		http.Error(w, fmt.Sprintf("route not supported: %s %s", r.Method, r.URL.Path), http.StatusNotFound)
-	})
-
-	inflightCtx, cancel := context.WithCancel(context.Background())
 	b := &RequestBridge{
-		mux:            mux,
-		logger:         logger,
-		mcpProxy:       mcpProxy,
-		inflightCtx:    inflightCtx,
-		inflightCancel: cancel,
-		clock:          quartz.NewReal(),
-
-		closed: make(chan struct{}, 1),
+		mux:      mux,
+		logger:   logger,
+		mcpProxy: mcpProxy,
+		inflight: NewInflightGate(),
+		clock:    quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(b)
@@ -421,35 +404,28 @@ func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	b.inflightMu.RLock()
-	select {
-	case <-b.closed:
-		b.inflightMu.RUnlock()
+	release, ok := b.inflight.Admit(func() {
+		// Trap point for deterministic race tests.
+		_ = b.clock.Now("serve_admission")
+		b.inflightReqs.Add(1)
+	})
+	if !ok {
 		http.Error(rw, "server closed", http.StatusInternalServerError)
 		return
-	default:
 	}
-
-	// Trap point for deterministic race tests.
-	_ = b.clock.Now("serve_admission")
-
-	b.inflightReqs.Add(1)
-	b.inflightWG.Add(1)
-	b.inflightMu.RUnlock()
 	defer func() {
 		b.inflightReqs.Add(-1)
-		b.inflightWG.Done()
+		release()
 	}()
 
 	// We want to abide by the context passed in without losing any of its
 	// functionality, but we still want to link our shutdown context to each
 	// request.
-	ctx := mergeContexts(r.Context(), b.inflightCtx)
+	ctx, stop := b.inflight.Track(r.Context())
+	defer stop()
 
-	// Enforce the request body size limit. MaxBytesReader counts bytes as
-	// they are read from the connection and fails when the limit is exceeded.
-	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
-	b.mux.ServeHTTP(rw, r.WithContext(ctx))
+	// serveProviderRequest caps the request body as it is read.
+	serveProviderRequest(rw, r.WithContext(ctx), b.mux)
 }
 
 // Shutdown will attempt to gracefully shutdown. This entails waiting for all requests to
@@ -458,23 +434,17 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	var err error
 	b.shutdownOnce.Do(func() {
-		// Close under inflightMu so no ServeHTTP sits mid-admission (see inflightMu).
-		b.inflightMu.Lock()
-		close(b.closed)
-		b.inflightMu.Unlock()
-
-		// Wait for inflight requests to complete or context cancellation.
-		done := make(chan struct{})
-		go func() {
-			b.inflightWG.Wait()
-			close(done)
-		}()
+		// Stop admitting and wait for inflight requests to complete or
+		// context cancellation. Interception waits for the drain even after
+		// forced cancellation, so recording and MCP cleanup never race
+		// requests that are still running.
+		done := b.inflight.BeginShutdown()
 
 		select {
 		case <-ctx.Done():
 			// Cancel all inflight requests, if any are still running.
 			b.logger.Debug(ctx, "shutdown context canceled; canceling inflight requests", slog.Error(ctx.Err()))
-			b.inflightCancel()
+			b.inflight.CancelInflight()
 			<-done
 			err = ctx.Err()
 		case <-done:
@@ -493,21 +463,6 @@ func (b *RequestBridge) Shutdown(ctx context.Context) error {
 
 func (b *RequestBridge) InflightRequests() int32 {
 	return b.inflightReqs.Load()
-}
-
-// mergeContexts merges two contexts together, so that if either is canceled
-// the returned context is canceled. The context values will only be used from
-// the first context.
-func mergeContexts(base, other context.Context) context.Context {
-	ctx, cancel := context.WithCancel(base)
-	go func() {
-		defer cancel()
-		select {
-		case <-base.Done():
-		case <-other.Done():
-		}
-	}()
-	return ctx
 }
 
 // extractAgentFirewallHeaders reads and parses the Agent Firewall
