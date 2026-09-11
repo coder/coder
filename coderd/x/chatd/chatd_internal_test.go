@@ -1187,6 +1187,7 @@ func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -1232,6 +1233,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	buildID := uuid.New()
 	agentID := uuid.New()
 	chat := database.Chat{
@@ -1300,6 +1302,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	staleAgentID := uuid.New()
 	buildID := uuid.New()
 	currentAgentID := uuid.New()
@@ -1356,6 +1359,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	staleAgentID := uuid.New()
 	currentAgentID := uuid.New()
 	buildID := uuid.New()
@@ -1435,6 +1439,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	staleAgentID := uuid.New()
 	resourceID := uuid.New()
 	chat := database.Chat{
@@ -1498,6 +1503,63 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 	require.Equal(t, uuid.NullUUID{}, workspaceCtx.cachedWorkspaceID)
 }
 
+func TestTurnWorkspaceContextGetWorkspaceConnDeletedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	staleAgentID := uuid.New()
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: staleAgentID, Valid: true},
+	}
+
+	// Dormancy auto-delete soft-deletes the row but keeps dormant_at and
+	// the agent rows, so the bound agent must not be dialed.
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{
+			ID:        workspaceID,
+			Deleted:   true,
+			DormantAt: sql.NullTime{Time: time.Now(), Valid: true},
+		}, nil).
+		Times(1)
+
+	server := &Server{
+		db:          db,
+		clock:       quartz.NewReal(),
+		dialTimeout: 30 * time.Second,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		t.Fatal("agentConnFn must not be called for a deleted workspace")
+		return nil, nil, nil
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatWorkspaceDeleted)
+	require.Contains(t, err.Error(), "create_workspace")
+	require.NotContains(t, err.Error(), "forbidden")
+
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.False(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
+}
+
 func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
 	t.Parallel()
 
@@ -1554,6 +1616,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 
 	workspaceOneID := uuid.New()
 	workspaceTwoID := uuid.New()
+	expectLiveWorkspace(db, workspaceTwoID)
 	buildID := uuid.New()
 	cachedAgent := database.WorkspaceAgent{ID: uuid.New()}
 	resolvedAgent := database.WorkspaceAgent{ID: uuid.New()}
@@ -2042,6 +2105,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	oldAgentID := uuid.New()
 	newAgentID := uuid.New()
 	buildID := uuid.New()
@@ -2168,6 +2232,7 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 
 	// Agent: disconnected (crashed on current build).
@@ -2315,6 +2380,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 
 			workspaceID := uuid.New()
+			expectLiveWorkspace(db, workspaceID)
 			agentID := uuid.New()
 			chat := database.Chat{
 				ID: uuid.New(),
@@ -2477,6 +2543,7 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			db := dbmock.NewMockStore(ctrl)
 
 			workspaceID := uuid.New()
+			expectLiveWorkspace(db, workspaceID)
 			agentID := uuid.New()
 			chat := database.Chat{
 				ID: uuid.New(),
@@ -2600,6 +2667,7 @@ func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testin
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2670,6 +2738,7 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2748,6 +2817,7 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2820,6 +2890,7 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2904,6 +2975,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	resourceID := uuid.New()
 	agent := database.WorkspaceAgent{
@@ -2978,6 +3050,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	resourceID := uuid.New()
 	agent := database.WorkspaceAgent{
@@ -3048,6 +3121,7 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	resourceID := uuid.New()
 	chat := database.Chat{
@@ -3600,4 +3674,12 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		})
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
+}
+
+// expectLiveWorkspace satisfies the workspace liveness read in
+// loadWorkspaceAgentLocked for a workspace that still exists.
+func expectLiveWorkspace(db *dbmock.MockStore, workspaceID uuid.UUID) {
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{ID: workspaceID}, nil).
+		AnyTimes()
 }
