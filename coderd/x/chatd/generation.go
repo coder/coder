@@ -61,7 +61,6 @@ type generationPrepared struct {
 	ActiveTools        []string
 	AllowInactiveTools map[string]bool
 	ProviderTools      []chatloop.ProviderTool
-	ModelRoute         aiGatewayModelRoute
 	ModelBuildOptions  modelBuildOptions
 
 	// ResolvedProvider is the configured provider identity used to label
@@ -114,11 +113,9 @@ type generationDebug struct {
 
 // generationOutcome describes a completed generation outcome.
 type generationOutcome struct {
-	Chat              database.Chat
-	Kind              runnerActionKind
-	WatchEventKind    codersdk.ChatWatchEventKind
-	LastError         string
-	PromotedMessageID int64
+	Chat      database.Chat
+	Kind      runnerActionKind
+	LastError string
 }
 
 type generationActionKind string
@@ -148,10 +145,9 @@ var errCompactionStillOverLimit = chaterror.WithClassification(
 )
 
 type generationDecision struct {
-	kind              generationActionKind
-	localToolCalls    []fantasy.ToolCallContent
-	finishReason      generationFinishReason
-	promotedMessageID int64
+	kind           generationActionKind
+	localToolCalls []fantasy.ToolCallContent
+	finishReason   generationFinishReason
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced bool
@@ -512,7 +508,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.enterRequiresAction(ctx, machine, input)
 		case generationActionFinishTurn:
 			cleanup()
-			return s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
+			return s.finishGenerationTurn(ctx, machine, input, generationAttemptNotRequired)
 		case generationActionGenerateAssistant:
 			actionErr = s.generateAssistant(ctx, machine, input, prepared)
 		case generationActionExecuteLocalTools:
@@ -529,9 +525,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		// Task cancellation is handled by the runner, not here.
 		if ctx.Err() != nil && errors.Is(actionErr, context.Canceled) {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr), ctx.Err())
-		}
-		if errors.Is(actionErr, chatloop.ErrInterrupted) {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr))
 		}
 		if errors.Is(actionErr, errTaskExpectedExit) {
 			return xerrors.Errorf("generation action: %w", actionErr)
@@ -758,7 +751,7 @@ func (s *taskStarter) generateAssistant(
 		return xerrors.Errorf("generate assistant: %w", err)
 	}
 	if len(outcome.Step.Content) == 0 {
-		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationTurn(ctx, machine, input, requireGenerationAttempt(attempt.number))
 	}
 	preflight, err := s.admitStepToolCalls(ctx, input, prepared, outcome.Step.Content)
 	if err != nil {
@@ -1078,7 +1071,6 @@ func (s *taskStarter) generateCompaction(
 	persistedPreResult := &chathooks.Result{UserMessage: preResult.GetUserMessage()}
 	commitMessages, err := applyHookResultMessages(stepMessagesForCommit{
 		Messages:                 messages.Messages,
-		VisibleIndexes:           visibleMessageIndexes(messages.Messages),
 		ConsumeCompactionRequest: true,
 	}, []*chathooks.Result{persistedPreResult}, prepared.ModelConfigID)
 	if err != nil {
@@ -1226,7 +1218,7 @@ func (s *taskStarter) commitGenerationStep(
 		if commitHooks.PostCommitError != nil {
 			return s.finishGenerationError(ctx, machine, input, commitHooks.PostCommitError, requireGenerationAttempt(attempt))
 		}
-		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt))
+		return s.finishGenerationTurn(ctx, machine, input, requireGenerationAttempt(attempt))
 	}
 	failClosed := commitHooks.PostCommitError != nil
 	var postCommitLastError pqtype.NullRawMessage
@@ -1282,10 +1274,9 @@ func (s *taskStarter) commitGenerationStep(
 			return xerrors.Errorf("publish watch and route: %w", err)
 		}
 		return s.afterGenerationOutcome(postCommitCtx, generationOutcome{
-			Chat:           committed,
-			Kind:           runnerActionKindFinishError,
-			WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
-			LastError:      postCommitMessage,
+			Chat:      committed,
+			Kind:      runnerActionKindFinishError,
+			LastError: postCommitMessage,
 		})
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
@@ -1322,9 +1313,8 @@ func (s *taskStarter) enterRequiresAction(
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:           committed,
-		Kind:           runnerActionKindEnterRequiresAction,
-		WatchEventKind: codersdk.ChatWatchEventKindActionRequired,
+		Chat: committed,
+		Kind: runnerActionKindEnterRequiresAction,
 	})
 }
 
@@ -1380,7 +1370,6 @@ func (s *taskStarter) completeGenerationTurn(
 	ctx context.Context,
 	input chatWorkerTaskStartInput,
 	committed database.Chat,
-	promotedMessageID int64,
 ) error {
 	input.StopNudges.reset()
 	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
@@ -1390,10 +1379,8 @@ func (s *taskStarter) completeGenerationTurn(
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	if err := s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:              committed,
-		Kind:              runnerActionKindFinishTurn,
-		WatchEventKind:    codersdk.ChatWatchEventKindStatusChange,
-		PromotedMessageID: promotedMessageID,
+		Chat: committed,
+		Kind: runnerActionKindFinishTurn,
 	}); err != nil {
 		return xerrors.Errorf("after generation outcome: %w", err)
 	}
@@ -1405,7 +1392,6 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	decision generationDecision,
 	fence generationAttemptFence,
 ) error {
 	var committed database.Chat
@@ -1417,9 +1403,6 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		if err != nil {
 			return xerrors.Errorf("tx.FinishTurn: %w", err)
 		}
-		if finishResult.PromotedMessage != nil {
-			decision.promotedMessageID = finishResult.PromotedMessage.ID
-		}
 		committed = finishResult.Chat
 		return nil
 	})
@@ -1428,18 +1411,17 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
-	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
+	return s.completeGenerationTurn(ctx, input, committed)
 }
 
 func (s *taskStarter) finishGenerationTurn(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	decision generationDecision,
 	fence generationAttemptFence,
 ) error {
 	if !s.server.hooks.Enabled() {
-		return s.finishGenerationTurnWithoutHook(ctx, machine, input, decision, fence)
+		return s.finishGenerationTurnWithoutHook(ctx, machine, input, fence)
 	}
 	var chat database.Chat
 	var messages []database.ChatMessage
@@ -1490,9 +1472,6 @@ func (s *taskStarter) finishGenerationTurn(
 			if err != nil {
 				return xerrors.Errorf("tx.FinishTurn: %w", err)
 			}
-			if finishResult.PromotedMessage != nil {
-				decision.promotedMessageID = finishResult.PromotedMessage.ID
-			}
 			committed = finishResult.Chat
 			return nil
 		}
@@ -1518,7 +1497,7 @@ func (s *taskStarter) finishGenerationTurn(
 			Kind: runnerActionKind(generationActionGenerateAssistant),
 		})
 	}
-	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
+	return s.completeGenerationTurn(ctx, input, committed)
 }
 
 func (s *taskStarter) finishGenerationError(
@@ -1568,10 +1547,9 @@ func (s *taskStarter) finishGenerationError(
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:           committed,
-		Kind:           runnerActionKindFinishError,
-		WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
-		LastError:      message,
+		Chat:      committed,
+		Kind:      runnerActionKindFinishError,
+		LastError: message,
 	})
 }
 

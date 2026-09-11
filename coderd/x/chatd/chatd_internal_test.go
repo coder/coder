@@ -2812,8 +2812,6 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 	// When the parent context is canceled, the parent's error
 	// must propagate unchanged (not wrapped as a dial timeout).
-	// This is critical because the chatloop checks
-	// context.Cause(ctx) for ErrInterrupted.
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)

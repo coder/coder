@@ -853,7 +853,6 @@ type PromoteQueuedMessageInput struct {
 type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
-	ReorderedQueueOnly   bool
 	CancellationMessages []database.ChatMessage
 }
 
@@ -874,14 +873,13 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	rows, err := tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
+	_, err = tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
 		ID:     input.QueuedMessageID,
 		ChatID: tx.chatID,
 	})
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("reorder queue: %w", err)
 	}
-	reorderOnly := rows > 0
 
 	// R1/I1: leave the target at the queue head and transition to
 	// status `interrupting` so the worker can drain the in-flight
@@ -899,8 +897,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 			return PromoteQueuedMessageResult{}, xerrors.Errorf("set interrupting: %w", err)
 		}
 		return PromoteQueuedMessageResult{
-			QueuedMessage:      target,
-			ReorderedQueueOnly: reorderOnly,
+			QueuedMessage: target,
 		}, nil
 	}
 
@@ -948,7 +945,6 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		QueuedMessage:        target,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
-		ReorderedQueueOnly:   reorderOnly,
 	}, nil
 }
 

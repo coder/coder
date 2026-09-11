@@ -1,7 +1,6 @@
 package chatloop
 
 import (
-	"context"
 	"encoding/json"
 	"iter"
 	"testing"
@@ -35,7 +34,7 @@ func TestProcessStepStreamPreservesReasoningMetadataAcrossNilDelta(t *testing.T)
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 	})
 
-	result, err := processStepStream(context.Background(), stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
+	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
 	require.NoError(t, err)
 	require.Len(t, result.content, 1)
 	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
@@ -71,7 +70,7 @@ func TestProcessStepStreamPersistsRedactedThinkingOnEnd(t *testing.T) {
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 	})
 
-	result, err := processStepStream(context.Background(), stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
+	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
 	require.NoError(t, err)
 	require.Len(t, result.content, 2)
 	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
@@ -126,35 +125,4 @@ func TestBuildToolDefinitionsNilPropertiesBecomesEmptyObject(t *testing.T) {
 	bs, err := json.Marshal(ft.InputSchema)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"type":"object","properties":{}}`, string(bs))
-}
-
-func TestFlushActiveStatePreservesEmptySignedReasoning(t *testing.T) {
-	t.Parallel()
-
-	result := &stepResult{}
-	flushActiveState(
-		result,
-		quartz.NewMock(t),
-		map[string]string{},
-		map[string]reasoningState{
-			"signed": {
-				options: fantasy.ProviderMetadata{
-					fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
-						RedactedData: "redacted-payload",
-					},
-				},
-			},
-			"empty": {},
-		},
-		map[string]*fantasy.ToolCallContent{},
-		map[string]string{},
-	)
-
-	require.Len(t, result.content, 1)
-	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
-	require.True(t, ok)
-	require.Empty(t, reasoning.Text)
-	metadata := fantasyanthropic.GetReasoningMetadata(fantasy.ProviderOptions(reasoning.ProviderMetadata))
-	require.NotNil(t, metadata)
-	require.Equal(t, "redacted-payload", metadata.RedactedData)
 }

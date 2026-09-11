@@ -43,7 +43,6 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 1)
-	require.Equal(t, []int{0}, got.VisibleIndexes)
 
 	msg := got.Messages[0]
 	require.Equal(t, database.ChatMessageRoleAssistant, msg.Role)
@@ -82,7 +81,6 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
-	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[0].RuntimeMs)
 	require.False(t, got.Messages[1].RuntimeMs.Valid)
 
@@ -132,6 +130,7 @@ func TestBuildCommitStepMessages_BatchRuntimeBillsDedicatedUsageRow(t *testing.T
 
 	stamp := got.Messages[2]
 	require.Equal(t, database.ChatMessageRoleTool, stamp.Role)
+	// The usage record is model-only bookkeeping, never published to clients.
 	require.Equal(t, database.ChatMessageVisibilityModel, stamp.Visibility)
 	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, stamp.RuntimeMs)
 	stampParts, err := chatprompt.ParseContent(database.ChatMessage{
@@ -143,9 +142,6 @@ func TestBuildCommitStepMessages_BatchRuntimeBillsDedicatedUsageRow(t *testing.T
 	require.Len(t, stampParts, 1)
 	require.Equal(t, toolBatchUsagePartType, stampParts[0].Type)
 	require.JSONEq(t, `{"billed_ms":10000,"billed_calls":2}`, string(stampParts[0].Result))
-	// The usage record is model-only bookkeeping, never published to
-	// clients.
-	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
 }
 
 func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
@@ -314,7 +310,6 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, 1, got.HiddenCount)
 	require.Len(t, got.Messages, 3)
 
 	require.Equal(t, database.ChatMessageRoleUser, got.Messages[0].Role)

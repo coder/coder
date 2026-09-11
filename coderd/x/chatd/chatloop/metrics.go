@@ -36,7 +36,6 @@ type Metrics struct {
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
-	StreamBufferDroppedTotal  prometheus.Counter
 	FindToolsCallsTotal       prometheus.Counter
 	FindToolsEmptyTotal       prometheus.Counter
 	FindToolsMatchCount       prometheus.Histogram
@@ -137,12 +136,6 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "find_tools_activations_total",
 			Help:      "Total deferred tool activations returned by find_tools.",
 		}),
-		StreamBufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
-			Namespace: metricsNamespace,
-			Subsystem: metricsSubsystem,
-			Name:      "stream_buffer_dropped_total",
-			Help:      "Number of chat stream buffer events dropped due to the per-chat buffer cap.",
-		}),
 	}
 }
 
@@ -207,15 +200,6 @@ func (m *Metrics) RecordToolResultTruncated(provider, model, toolLabel string) {
 		toolLabel = "unknown"
 	}
 	m.ToolResultTruncatedTotal.WithLabelValues(provider, model, toolLabel).Inc()
-}
-
-// RecordStreamBufferDropped increments stream_buffer_dropped_total
-// once per dropped event. No-op when m is nil.
-func (m *Metrics) RecordStreamBufferDropped() {
-	if m == nil {
-		return
-	}
-	m.StreamBufferDroppedTotal.Inc()
 }
 
 // EstimatePromptSize returns a cheap byte-size estimate of a

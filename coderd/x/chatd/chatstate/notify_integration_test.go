@@ -162,54 +162,6 @@ func TestFailedUpdatePublishesNothing(t *testing.T) {
 		"failed update rolls back snapshot bump")
 }
 
-// TestLockPublishesNothing verifies that Lock does not publish even
-// though it locks the chat row.
-func TestLockPublishesNothing(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	publishedBefore := len(f.Pub.channels)
-	require.NoError(t, m.Lock(ctx, func(_ database.Store) error { return nil }))
-	require.Equal(t, publishedBefore, len(f.Pub.channels), "Lock publishes nothing")
-}
-
-// TestPublishBufferWithRolledBackOuterTransactionPublishesNothing
-// wires a chatstate machine through a PublishBuffer and exercises
-// the buffer primitive directly: when the caller discards before
-// flushing, the inner publisher receives nothing. ChatMachine.Update
-// uses the same primitive internally with a deferred Discard;
-// callers no longer drive Flush or Discard themselves.
-func TestPublishBufferWithRolledBackOuterTransactionPublishesNothing(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-
-	// Run one normal Update to establish a stable baseline channel
-	// count. CreateChat plus this Update may publish chat:update
-	// and chat:ownership messages depending on ownership, so we
-	// take the snapshot after that activity settles.
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	require.NoError(t, m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil }))
-	baseline := len(f.Pub.channels)
-
-	// Now exercise the PublishBuffer rollback path explicitly. The
-	// outer transaction "rolls back": the caller buffers messages,
-	// discards them, then flushes. The inner publisher must see
-	// none of the buffered messages.
-	buf := chatstate.NewPublishBuffer(f.Pub)
-	require.NoError(t, buf.Publish("chat:update:bogus", []byte("payload")))
-	require.NoError(t, buf.Publish("chat:ownership", []byte("payload")))
-	buf.Discard()
-	require.NoError(t, buf.Flush())
-
-	require.Equal(t, baseline, len(f.Pub.channels),
-		"discarded buffer publishes nothing through the inner publisher")
-}
-
 // TestChatUpdateMessagePayloadShape verifies the JSON shape of the
 // chat:update payload contains every field consumers depend on:
 // snapshot_version, history_version, queue_version,

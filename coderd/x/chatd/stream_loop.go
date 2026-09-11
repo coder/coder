@@ -57,13 +57,11 @@ type streamSyncHint struct {
 type streamDBSnapshot struct {
 	chat database.Chat
 
-	historyChanged  bool
 	changedMessages []database.ChatMessage
 	historyReset    bool
 	fullHistory     []database.ChatMessage
 
-	queueChanged bool
-	queue        []database.ChatQueuedMessage
+	queue []database.ChatQueuedMessage
 
 	actionRequired *codersdk.ChatStreamActionRequired
 }
@@ -149,7 +147,6 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		snapshot.chat = chat
 
 		if chat.HistoryVersion > l.state.historyVersion {
-			snapshot.historyChanged = true
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        l.chatID,
 				AfterRevision: l.state.historyVersion,
@@ -175,7 +172,6 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		}
 
 		if chat.QueueVersion > l.state.queueVersion {
-			snapshot.queueChanged = true
 			snapshot.queue, err = tx.GetChatQueuedMessages(ctx, l.chatID)
 			if err != nil {
 				return xerrors.Errorf("get chat queue: %w", err)

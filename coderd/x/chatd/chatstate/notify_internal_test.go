@@ -8,9 +8,8 @@ import (
 )
 
 type recordingPublisher struct {
-	calls  []recordedCall
-	errOn  map[string]error
-	failed map[string]int
+	calls []recordedCall
+	errOn map[string]error
 }
 
 type recordedCall struct {
@@ -20,15 +19,13 @@ type recordedCall struct {
 
 func newRecordingPublisher() *recordingPublisher {
 	return &recordingPublisher{
-		errOn:  map[string]error{},
-		failed: map[string]int{},
+		errOn: map[string]error{},
 	}
 }
 
 func (r *recordingPublisher) Publish(channel string, payload []byte) error {
 	r.calls = append(r.calls, recordedCall{Channel: channel, Payload: append([]byte(nil), payload...)})
 	if err, ok := r.errOn[channel]; ok {
-		r.failed[channel]++
 		return err
 	}
 	return nil
