@@ -21,6 +21,14 @@ var (
 	// execution state model.
 	ErrInvalidState = xerrors.New("chat is in an invalid execution state")
 
+	// ErrInvalidResultState is returned by [ChatMachine.Update] when
+	// the callback's transitions would commit a combination outside
+	// the execution state model. The transaction is rolled back. The
+	// one reachable shape is waiting with a promotable queue head,
+	// which a caller produces by releasing or deleting the held head
+	// of an idle chat instead of promoting it.
+	ErrInvalidResultState = xerrors.New("chat state transition would leave the chat in an invalid execution state")
+
 	// ErrQueuedMessageNotFound is returned by queue-targeting
 	// transitions (delete, promote) when the supplied queued message
 	// ID does not match a row on the chat.
