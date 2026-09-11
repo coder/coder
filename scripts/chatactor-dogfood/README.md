@@ -50,6 +50,8 @@ OPENAI_API_KEY=... ./scripts/chatactor-dogfood/run.sh
 
 When a dev server is already up, keep it running with output teed to `scripts/chatactor-dogfood/logs/develop.log`, then run `CODER_DEV_SKIP_START=1 ./scripts/chatactor-dogfood/run.sh`. Without that log file the S5 and S8 server-log checks fail.
 
+`botemu setup` is safe to rerun against the dev database from an earlier session. It replaces the stored `openai` provider key when none of the stored keys masks to the current `OPENAI_API_KEY` (the AI Gateway key rotates between sessions; a stale key fails every turn with "Authentication with OpenAI failed"). It also starts `alice/alice-ws` again when the latest build is `running` but every agent is `disconnected` or `timeout`, which happens when the workspace container from the earlier session is gone.
+
 ## Scenarios
 
 `botemu run` executes S0 to S8 by default. `-s9` adds S9. S4A and S9B run only when named with `-only`.
@@ -62,12 +64,12 @@ When a dev server is already up, keep it running with output teed to `scripts/ch
 | S3  | Join ordering and sharing                | Bob posting before any grant is denied (403 or 404); alice's no-share token gets 403 from `PATCH /chats/{id}/acl`; alice's full token sets bob=`use` and carol=`read`, and `GET /chats/{id}/acl` round-trips both roles.                          |
 | S4A | MCP whoami smoke (alice only)            | Same checks as S4 for alice only. Not in the default set.                                                                                                                                                                                          |
 | S4  | Per-user MCP identity                    | Bob, then alice, ask for `whoami`. The tool result has `owner_id` alice, `actor_id` and `token_label` equal to the poster (the per-user MCP token follows the actor), the chat id, and the `whoami` `mcp_server_config_id`.                        |
-| S5  | Workspace denial                         | Bob (no workspace access) asks `execute hostname`; the tool result is an error containing `workspace access denied: user bob does not have access to workspace alice/alice-ws`, the assistant relays it, and `logs/develop.log` has `actor_id=<bob>` lines. |
+| S5  | Workspace denial                         | Alice removes bob from the workspace ACL (a rerun may have left an S6 grant), then bob asks `execute hostname`; the tool result is an error containing `workspace access denied: user bob does not have access to workspace alice/alice-ws`, the assistant relays it, and `logs/develop.log` has `actor_id=<bob>` lines. |
 | S6  | Share and retry                          | Alice shares `alice-ws` with bob as `use`; bob's `execute hostname` succeeds and the output contains the workspace name.                                                                                                                            |
 | S7  | Handler gates                            | Bob (use) is denied archive and ACL updates; bob can interrupt a running turn; carol (read) is denied posting (403 or 404); the admin session is denied posting with 404 (admins hold `update`, not `use`); bob and carol can read the chat and messages. |
 | S8  | Attribution                              | `api_keys` has exactly one `chatd_%_session_token` key each for alice and bob and none for carol or admin; `logs/develop.log` has `actor_id=` lines for alice and bob.                                                                             |
 | S9  | Create workspace from chat (optional)    | Inside alice's bound chat, bob asks `create_workspace bob-from-chat`; the workspace exists owned by bob, the chat rebinds to it, bob's `execute` succeeds there, and alice's `execute` is denied.                                                    |
-| S9B | Use sharer creates workspace (unbound)   | Alice creates an unbound chat and grants bob `use`; bob creates `bob-from-chat`. Owner and build initiator are bob, the chat rebinds while alice stays owner, all `audit_logs` rows are bob's, bob's `execute` and `stop_workspace` succeed, alice's are denied. |
+| S9B | Use sharer creates workspace (unbound)   | A leftover `bob/bob-from-chat` is deleted first. Alice creates an unbound chat and grants bob `use`; bob creates `bob-from-chat`. Owner and build initiator are bob, the chat rebinds while alice stays owner, all `audit_logs` rows are bob's, bob's `execute` and `stop_workspace` succeed, alice's are denied. |
 
 ### Rerun a single scenario
 

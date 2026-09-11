@@ -58,7 +58,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 healthy() {
-	curl -fsS -o /dev/null --max-time 2 "$1"
+	curl -fs -o /dev/null --max-time 2 "$1" 2>/dev/null
 }
 
 if [[ ${CODER_DEV_SKIP_START:-0} == 1 ]]; then

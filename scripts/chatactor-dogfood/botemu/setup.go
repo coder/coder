@@ -15,6 +15,7 @@ import (
 	_ "github.com/lib/pq"
 	"golang.org/x/xerrors"
 
+	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -131,8 +132,8 @@ func ensureProviderAndModel(ctx context.Context, st *state, admin *codersdk.Clie
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
 	}
+	key := os.Getenv("OPENAI_API_KEY")
 	if provider == nil {
-		key := os.Getenv("OPENAI_API_KEY")
 		if key == "" {
 			return xerrors.New("OPENAI_API_KEY is not set")
 		}
@@ -155,6 +156,18 @@ func ensureProviderAndModel(ctx context.Context, st *state, admin *codersdk.Clie
 		}
 		provider = &p
 		logf("updated provider base_url to %s", baseURL)
+	}
+	// The AI Gateway key in the environment rotates between sessions. Replace
+	// the stored key when none of the stored keys matches the current one.
+	if key != "" && !providerHasKey(*provider, key) {
+		p, err := admin.UpdateAIProvider(ctx, provider.ID.String(), codersdk.UpdateAIProviderRequest{
+			APIKeys: &[]codersdk.AIProviderKeyMutation{{APIKey: &key}},
+		})
+		if err != nil {
+			return xerrors.Errorf("replace provider api key: %w", err)
+		}
+		provider = &p
+		logf("replaced provider api key with the OPENAI_API_KEY from the environment")
 	}
 	st.ProviderID = provider.ID
 	logf("ai provider type=%s name=%s id=%s api_keys=%d enabled=%v base_url=%s", provider.Type, provider.Name, provider.ID, len(provider.APIKeys), provider.Enabled, provider.BaseURL)
@@ -330,6 +343,18 @@ func ensureOAuth2Apps(ctx context.Context, st *state, admin *codersdk.Client) er
 	return nil
 }
 
+// providerHasKey reports whether one of the provider's stored keys masks to
+// the same value as key. The API never returns plaintext keys.
+func providerHasKey(provider codersdk.AIProvider, key string) bool {
+	masked := aibridgeutils.MaskSecret(key)
+	for _, k := range provider.APIKeys {
+		if k.Masked == masked {
+			return true
+		}
+	}
+	return false
+}
+
 func ensureWorkspace(ctx context.Context, st *state, admin *codersdk.Client) error {
 	tpl, err := admin.TemplateByName(ctx, st.OrgID, "docker")
 	if err != nil {
@@ -354,6 +379,7 @@ func ensureWorkspace(ctx context.Context, st *state, admin *codersdk.Client) err
 		return err
 	}
 	deadline := time.Now().Add(15 * time.Minute)
+	rebuilt := false
 	for time.Now().Before(deadline) {
 		ws, err = alice.Workspace(ctx, ws.ID)
 		if err != nil {
@@ -371,8 +397,37 @@ func ensureWorkspace(ctx context.Context, st *state, admin *codersdk.Client) err
 				}
 			}
 		}
+		// A workspace left over from an earlier run reports a running build
+		// after its docker container is gone. Start it again once so the
+		// agent comes back instead of waiting out the deadline.
+		if !rebuilt && ws.LatestBuild.Status == codersdk.WorkspaceStatusRunning && agentsDisconnected(ws) {
+			build, err := alice.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+			})
+			if err != nil {
+				return xerrors.Errorf("restart stale workspace: %w", err)
+			}
+			rebuilt = true
+			logf("workspace agent disconnected; started build %s", build.ID)
+			continue
+		}
 		logf("waiting for workspace: job=%s build_status=%s", ws.LatestBuild.Job.Status, ws.LatestBuild.Status)
 		time.Sleep(5 * time.Second)
 	}
 	return xerrors.New("workspace agent did not become ready in time")
+}
+
+// agentsDisconnected reports whether the workspace has agents and none of
+// them is connected or still connecting.
+func agentsDisconnected(ws codersdk.Workspace) bool {
+	found := false
+	for _, r := range ws.LatestBuild.Resources {
+		for _, a := range r.Agents {
+			found = true
+			if a.Status != codersdk.WorkspaceAgentDisconnected && a.Status != codersdk.WorkspaceAgentTimeout {
+				return false
+			}
+		}
+	}
+	return found
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -375,6 +377,15 @@ func s5WorkspaceDenial(ctx context.Context, st *state, r *reporter) error {
 		r.skip("no chat")
 		return nil
 	}
+	// S6 of an earlier run against the same database leaves bob on the
+	// workspace ACL. Revoke it so this scenario starts from no access.
+	alice := st.tokenClient("alice")
+	err := alice.UpdateWorkspaceACL(ctx, st.WorkspaceID, codersdk.UpdateWorkspaceACL{
+		UserRoles: map[string]codersdk.WorkspaceRole{st.Users["bob"].ID.String(): codersdk.WorkspaceRoleDeleted},
+	})
+	if !r.check(err == nil, "alice token PATCH /workspaces/{id}/acl bob=removed -> %s", errBody(err)) {
+		return nil
+	}
 	bob := st.tokenClient("bob")
 	t, err := postAndWait(ctx, bob, st.ChatID, executePrompt, 2*time.Minute)
 	if err != nil {
@@ -627,6 +638,43 @@ func s9CreateWorkspace(ctx context.Context, st *state, r *reporter) error {
 
 const s9bWorkspaceName = "bob-from-chat"
 
+// deleteWorkspaceIfExists deletes owner/name when it exists and waits for the
+// delete build to finish, so a rerun can create the workspace again.
+func deleteWorkspaceIfExists(ctx context.Context, admin *codersdk.Client, owner, name string, r *reporter) error {
+	ws, err := admin.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
+	if err != nil {
+		var sdkErr *codersdk.Error
+		if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			return nil
+		}
+		return xerrors.Errorf("look up workspace %s/%s: %w", owner, name, err)
+	}
+	build, err := admin.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	if err != nil {
+		return xerrors.Errorf("delete workspace %s/%s: %w", owner, name, err)
+	}
+	r.ev("step0: leftover workspace %s/%s found; delete build %s started", owner, name, build.ID)
+	deadline := time.Now().Add(5 * time.Minute)
+	for time.Now().Before(deadline) {
+		b, err := admin.WorkspaceBuild(ctx, build.ID)
+		if err != nil {
+			return xerrors.Errorf("poll delete build: %w", err)
+		}
+		switch b.Job.Status {
+		case codersdk.ProvisionerJobSucceeded:
+			r.ev("step0: leftover workspace %s/%s deleted", owner, name)
+			return nil
+		case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
+			return xerrors.Errorf("delete build %s ended with %s: %s", build.ID, b.Job.Status, b.Job.Error)
+		default:
+			time.Sleep(3 * time.Second)
+		}
+	}
+	return xerrors.Errorf("delete build %s did not finish in time", build.ID)
+}
+
 // s9bUseSharerCreatesWorkspace verifies that a chat use sharer (bob) who creates a
 // workspace from inside alice's UNBOUND chat ends up owning that workspace,
 // and that later tool calls are checked against the actor, not the owner.
@@ -677,6 +725,12 @@ func s9bUseSharerCreatesWorkspace(ctx context.Context, st *state, r *reporter, n
 			r.check(ws.LatestBuild.Transition == codersdk.WorkspaceTransitionStart && ws.LatestBuild.InitiatorID == bobID, "resume: start build initiated by bob (transition=%s initiator_id=%s)", ws.LatestBuild.Transition, ws.LatestBuild.InitiatorID)
 		}
 		return s9bActorChecks(ctx, st, r, admin, chat, ws)
+	}
+
+	// Step 0: an earlier run leaves bob/bob-from-chat behind, and step 3
+	// checks that create_workspace creates it. Delete the leftover first.
+	if err := deleteWorkspaceIfExists(ctx, admin, "bob", s9bWorkspaceName, r); err != nil {
+		return err
 	}
 
 	// Step 1: alice creates a new chat with no workspace binding.
