@@ -16,6 +16,16 @@ import (
 
 const templateNotAvailableMessage = "template not available for chat workspaces; use list_templates to find allowed templates"
 
+// WorkspaceUnavailableHint follows errors that keep a tool from loading the
+// chat's workspace so the model recovers instead of concluding it is blocked.
+const WorkspaceUnavailableHint = "The workspace is probably gone; use the create_workspace tool to make a new one"
+
+func workspaceLoadErrorResponse(err error) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(
+		xerrors.Errorf("load workspace: %w. %s", err, WorkspaceUnavailableHint).Error(),
+	)
+}
+
 func marshalToolResponse(result any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
