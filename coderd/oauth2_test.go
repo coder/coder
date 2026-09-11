@@ -723,7 +723,7 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	//nolint:gocritic // OAauth2 app management requires owner permission.
 	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 	require.NoError(t, err)
-	//nolint:gocritic // OAauth2 app management requires owner permission.
+	//nolint:gocritic // OAuth2 app management requires owner permission.
 	noPortSecret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.NoPort.ID)
 	require.NoError(t, err)
 

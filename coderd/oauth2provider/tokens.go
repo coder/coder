@@ -380,10 +380,10 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		}
 
 		if errors.Is(err, errBadSecret) {
-			// A refresh or exchange without the client's secret is the shape a
-			// replayed stolen token takes, so it is recorded. Nothing from the
-			// request body: the caller lacked the credential, and the token it
-			// did present should not land in a log.
+			// A missing, wrong, or foreign secret is what a replayed stolen token
+			// looks like, so the refusal is logged. The request body stays out of
+			// the log: the caller never proved its credential, and the token it
+			// sent should not be recorded.
 			logger.Warn(ctx, "oauth2 token request refused: client authentication failed",
 				slog.F("grant_type", req.GrantType), slog.F("app_id", app.ID))
 			writeTokenError(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")

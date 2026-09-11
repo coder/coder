@@ -551,7 +551,7 @@ func requireExactlyOneAccepted(ctx context.Context, t *testing.T, client *coders
 	send := func() attempt {
 		start.Done()
 		start.Wait()
-		status, body, err := tryTokenRequest(ctx, t, client, form)
+		status, _, body, err := tryTokenRequest(ctx, t, client, form)
 		return attempt{status: status, body: body, err: err}
 	}
 
@@ -679,23 +679,14 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
 
-	// Posts the form by hand so the request can carry HTTP Basic credentials
-	// and the response headers can be inspected.
+	// Keeps the response headers and lets the request carry HTTP Basic
+	// credentials.
 	postForm := func(ctx context.Context, t *testing.T, form url.Values, opts ...func(*http.Request)) (status int, header http.Header, body string) {
 		t.Helper()
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+		status, header, body, err := tryTokenRequest(ctx, t, client, form, opts...)
 		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		for _, opt := range opts {
-			opt(req)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		raw, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		return resp.StatusCode, resp.Header, string(raw)
+		return status, header, body
 	}
 
 	// The token must survive the refusal and redeem on the next, correct
@@ -737,8 +728,9 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 	})
 
 	// Right hash, wrong app: the secret is valid, but not for the client_id
-	// it is presented under. This is the fourth step of authenticateClient
-	// and the one a copy of the check would be most likely to lose.
+	// it is presented under. This exercises the secret's app-binding check
+	// in authenticateClient, the one a copy of the check would be most
+	// likely to lose.
 	t.Run("SecretOfAnotherApp", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1150,7 +1142,7 @@ func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, ap
 func postTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string) {
 	t.Helper()
 
-	status, body, err := tryTokenRequest(ctx, t, client, form)
+	status, _, body, err := tryTokenRequest(ctx, t, client, form)
 	require.NoError(t, err)
 	return status, body
 }
@@ -1158,27 +1150,31 @@ func postTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client
 // tryTokenRequest returns the request error instead of asserting on it, so a
 // caller on a spawned goroutine can carry it back to the test goroutine.
 // require there runs runtime.Goexit, which skips whatever the goroutine still
-// owed its parent.
-func tryTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string, error) {
+// owed its parent. The opts run on the built request, for callers that need
+// to set HTTP Basic credentials or other headers.
+func tryTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, opts ...func(*http.Request)) (int, http.Header, string, error) {
 	t.Helper()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
 	if err != nil {
-		return 0, "", xerrors.Errorf("build token request: %w", err)
+		return 0, nil, "", xerrors.Errorf("build token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, opt := range opts {
+		opt(req)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return 0, "", xerrors.Errorf("post token request: %w", err)
+		return 0, nil, "", xerrors.Errorf("post token request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, "", xerrors.Errorf("read token response: %w", err)
+		return 0, nil, "", xerrors.Errorf("read token response: %w", err)
 	}
-	return resp.StatusCode, string(body), nil
+	return resp.StatusCode, resp.Header, string(body), nil
 }
 
 func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2TokenResponse {
