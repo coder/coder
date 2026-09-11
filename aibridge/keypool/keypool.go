@@ -29,9 +29,6 @@ const (
 	// ErrorKindRateLimited means no key is currently available
 	// but at least one key will recover after a cooldown.
 	ErrorKindRateLimited ErrorKind = iota
-	// ErrorKindPermanent means every key is permanently marked
-	// and no key can satisfy the request.
-	ErrorKindPermanent
 	// ErrorKindUnauthorized means every unavailable key is in a
 	// cooldown triggered by an authentication failure.
 	ErrorKindUnauthorized
@@ -47,8 +44,6 @@ type Error struct {
 
 func (e *Error) Error() string {
 	switch e.Kind {
-	case ErrorKindPermanent:
-		return "all configured keys are permanently unavailable"
 	case ErrorKindUnauthorized:
 		return "all configured keys failed authentication. Contact your Administrator"
 	case ErrorKindRateLimited:
@@ -67,9 +62,6 @@ const (
 	// KeyStateTemporary means the key is temporarily unavailable
 	// (e.g. rate-limited) and will recover after a cooldown.
 	KeyStateTemporary KeyState = "temporary"
-	// KeyStatePermanent means the key is permanently unavailable
-	// (e.g. revoked or unauthorized) until process restart.
-	KeyStatePermanent KeyState = "permanent"
 )
 
 // defaultCooldown is applied when a key is marked temporary
@@ -97,7 +89,6 @@ const (
 // Key holds a key value and its runtime state.
 type Key struct {
 	value         string
-	permanent     bool
 	cooldownUntil time.Time
 	// reason records why the current cooldown was applied. It is only
 	// meaningful while cooldownUntil is active.
@@ -170,15 +161,12 @@ func (k *Key) Length() int {
 	return len(k.value)
 }
 
-// State returns the current state of the key, derived from its
-// permanent flag and cooldown deadline.
+// State returns the current state of the key, derived from its cooldown
+// deadline.
 func (k *Key) State() KeyState {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	if k.permanent {
-		return KeyStatePermanent
-	}
 	// Cooldown still active: key is temporarily unavailable.
 	if k.clock.Now().Before(k.cooldownUntil) {
 		return KeyStateTemporary
@@ -192,9 +180,6 @@ func (k *Key) stateAndCooldown() (KeyState, time.Duration, cooldownReason) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	if k.permanent {
-		return KeyStatePermanent, 0, k.reason
-	}
 	now := k.clock.Now()
 	if now.Before(k.cooldownUntil) {
 		return KeyStateTemporary, k.cooldownUntil.Sub(now), k.reason
@@ -202,9 +187,9 @@ func (k *Key) stateAndCooldown() (KeyState, time.Duration, cooldownReason) {
 	return KeyStateValid, 0, k.reason
 }
 
-// MarkTemporary marks the key unavailable for the given cooldown. Returns
+// markTemporary marks the key unavailable for the given cooldown. Returns
 // true on the valid -> temporary transition.
-func (k *Key) MarkTemporary(cooldown time.Duration) bool {
+func (k *Key) markTemporary(cooldown time.Duration) bool {
 	return k.applyCooldown(cooldown, cooldownRateLimited)
 }
 
@@ -213,11 +198,6 @@ func (k *Key) MarkTemporary(cooldown time.Duration) bool {
 func (k *Key) applyCooldown(cooldown time.Duration, reason cooldownReason) bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-
-	// Permanent is irreversible.
-	if k.permanent {
-		return false
-	}
 
 	if cooldown <= 0 {
 		cooldown = defaultCooldown
@@ -238,21 +218,6 @@ func (k *Key) applyCooldown(cooldown time.Duration, reason cooldownReason) bool 
 	return !inCooldown
 }
 
-// MarkPermanent marks the key as permanently unavailable. This
-// is a terminal state. Returns true if this call transitions
-// the key to permanent.
-func (k *Key) MarkPermanent() bool {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	if k.permanent {
-		return false
-	}
-
-	k.permanent = true
-	return true
-}
-
 // keyPoolError returns an Error summarizing why no key is currently
 // available. When at least one key is temporary, the smallest remaining
 // cooldown is used as the retry-after. A rate limit anywhere in the pool
@@ -260,7 +225,6 @@ func (k *Key) MarkPermanent() bool {
 // when every cooldown was triggered by an auth failure.
 func (p *Pool) keyPoolError() *Error {
 	var retryAfter time.Duration
-	var hasCooldown bool
 	var isRateLimited bool
 	for i := range p.keys {
 		state, cooldown, reason := p.keys[i].stateAndCooldown()
@@ -272,35 +236,29 @@ func (p *Pool) keyPoolError() *Error {
 			return &Error{Kind: ErrorKindRateLimited}
 		// Recoverable later: track soonest remaining cooldown and reason.
 		case KeyStateTemporary:
-			if !hasCooldown || cooldown < retryAfter {
+			if retryAfter == 0 || cooldown < retryAfter {
 				retryAfter = cooldown
 			}
-			hasCooldown = true
 			if reason == cooldownRateLimited {
 				isRateLimited = true
 			}
-		// Permanent: keep walking to confirm error type.
-		default:
 		}
 	}
-	if hasCooldown {
-		kind := ErrorKindUnauthorized
-		if isRateLimited {
-			kind = ErrorKindRateLimited
-		}
-		return &Error{Kind: kind, RetryAfter: retryAfter}
+	kind := ErrorKindUnauthorized
+	if isRateLimited {
+		kind = ErrorKindRateLimited
 	}
-	return &Error{Kind: ErrorKindPermanent}
+	return &Error{Kind: kind, RetryAfter: retryAfter}
 }
 
 // recordExhaustion increments the exhaustion counter, labeling the outcome
-// as an auth failure for permanent or unauthorized errors, else a rate limit.
+// as an auth failure for unauthorized errors, else a rate limit.
 func (p *Pool) recordExhaustion(err *Error) {
 	if p.metrics == nil {
 		return
 	}
 	outcome := outcomeRateLimited
-	if err.Kind == ErrorKindPermanent || err.Kind == ErrorKindUnauthorized {
+	if err.Kind == ErrorKindUnauthorized {
 		outcome = outcomeAuthFailed
 	}
 	p.metrics.KeyPoolExhaustions.WithLabelValues(p.providerName, outcome).Inc()

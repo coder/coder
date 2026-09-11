@@ -525,11 +525,6 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 			wantRetryAfter string
 		}{
 			{
-				name:       "permanent_returns_502",
-				err:        &keypool.Error{Kind: keypool.ErrorKindPermanent},
-				wantStatus: http.StatusBadGateway,
-			},
-			{
 				name:           "rate_limited_returns_429_with_retry_after",
 				err:            &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 5 * time.Second},
 				wantStatus:     http.StatusTooManyRequests,
