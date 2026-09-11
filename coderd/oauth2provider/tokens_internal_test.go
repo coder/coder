@@ -18,8 +18,11 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // parseScopes parses a space-delimited scope string into a slice of scopes
@@ -915,6 +918,105 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 }
 
 // TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh
+// Every failure is errBadSecret so the caller cannot tell a malformed secret
+// from a valid one for the wrong app (RFC 6749 §5.2). The fourth row is the
+// step a retyped copy of the check would be most likely to lose.
+func TestAuthenticateClient(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	seed := func(t *testing.T) (database.OAuth2ProviderApp, database.OAuth2ProviderAppSecret, string) {
+		t.Helper()
+
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		secret, err := GenerateSecret()
+		require.NoError(t, err)
+		dbSecret := dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{
+			AppID:        app.ID,
+			SecretPrefix: []byte(secret.Prefix),
+			HashedSecret: secret.Hashed,
+		})
+		return app, dbSecret, secret.Formatted
+	}
+	app, dbSecret, formatted := seed(t)
+	_, _, otherFormatted := seed(t)
+
+	unknown, err := GenerateSecret()
+	require.NoError(t, err)
+	parsed, err := ParseFormattedSecret(formatted)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		secret string
+		want   error
+	}{
+		{name: "Empty", secret: "", want: errBadSecret},
+		{name: "Malformed", secret: "not-a-secret", want: errBadSecret},
+		{name: "UnknownPrefix", secret: unknown.Formatted, want: errBadSecret},
+		{name: "WrongHash", secret: SecretIdentifier + "_" + parsed.Prefix + "_" + unknown.Secret, want: errBadSecret},
+		{name: "OtherAppsSecret", secret: otherFormatted, want: errBadSecret},
+		{name: "OwnSecret", secret: formatted},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := authenticateClient(ctx, db, app, test.secret)
+			if test.want != nil {
+				require.ErrorIs(t, err, test.want)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, dbSecret.ID, got.ID)
+		})
+	}
+}
+
+func TestMergeBasicClientAuth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		basicUser  string
+		basicPass  string
+		bodyID     string
+		bodySecret string
+		wantID     string
+		wantSecret string
+		wantErr    error
+	}{
+		{name: "NoHeader", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		{name: "HeaderOnly", basicUser: "id", basicPass: "s", wantID: "id", wantSecret: "s"},
+		{name: "HeaderAndMatchingBody", basicUser: "id", basicPass: "s", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		// An empty Basic password is still a presented password, so a body
+		// secret beside it is a conflict rather than a fallback.
+		{name: "HeaderEmptyPasswordBodySecret", basicUser: "id", bodySecret: "s", wantErr: errConflictingClientAuth},
+		{name: "ConflictingID", basicUser: "id", basicPass: "s", bodyID: "other", wantErr: errConflictingClientAuth},
+		{name: "ConflictingSecret", basicUser: "id", basicPass: "s", bodySecret: "other", wantErr: errConflictingClientAuth},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &http.Request{Header: http.Header{}}
+			if test.basicUser != "" {
+				r.SetBasicAuth(test.basicUser, test.basicPass)
+			}
+			id, secret, err := mergeBasicClientAuth(r, test.bodyID, test.bodySecret)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantID, id)
+			require.Equal(t, test.wantSecret, secret)
+		})
+	}
+}
+
 func TestRefreshTokenGrant_Scopes(t *testing.T) {
 	t.Parallel()
 
