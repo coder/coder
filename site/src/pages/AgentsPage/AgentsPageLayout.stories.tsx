@@ -564,10 +564,13 @@ export const ResizableSidebar: Story = {
 
 		const sidebarWidth = () =>
 			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+		// Synthetic pointer events default isPrimary to false; a real mouse
+		// always reports true, and the handle ignores non-primary pointers.
+		const pointer = { pointerId: 1, isPrimary: true };
 		const dragSidebar = (fromX: number, toX: number) => {
-			fireEvent.pointerDown(handle, { clientX: fromX, pointerId: 1 });
-			fireEvent.pointerMove(handle, { clientX: toX, pointerId: 1 });
-			fireEvent.pointerUp(handle, { clientX: toX, pointerId: 1 });
+			fireEvent.pointerDown(handle, { ...pointer, clientX: fromX });
+			fireEvent.pointerMove(handle, { ...pointer, clientX: toX });
+			fireEvent.pointerUp(handle, { ...pointer, clientX: toX });
 		};
 
 		const initialWidth = clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
