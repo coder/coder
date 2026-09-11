@@ -7747,8 +7747,14 @@ func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.U
 	if err != nil {
 		return database.Chat{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
+	// The workspace tools bind the workspace they create or start as the
+	// turn actor, who may hold only use; the settings handler holds update.
+	err = q.authorizeContext(ctx, policy.ActionUse, chat)
+	if err != nil {
+		err = q.authorizeContext(ctx, policy.ActionUpdate, chat)
+		if err != nil {
+			return database.Chat{}, err
+		}
 	}
 
 	return q.db.UpdateChatWorkspaceBinding(ctx, arg)

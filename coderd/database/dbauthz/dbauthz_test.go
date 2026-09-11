@@ -1724,7 +1724,7 @@ func (s *MethodTestSuite) TestChats() {
 		updatedChat := testutil.Fake(s.T(), faker, database.Chat{ID: chat.ID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatWorkspaceBinding(gomock.Any(), arg).Return(updatedChat, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updatedChat)
+		check.Args(arg).Asserts(chat, policy.ActionUse).Returns(updatedChat)
 	}))
 	s.Run("UnsetDefaultChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
