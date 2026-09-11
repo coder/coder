@@ -3225,7 +3225,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Terraform Module Cache",
-			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build, so provisioners may accumulate module files on disk. Individual templates cannot opt back in.",
+			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
 			Flag:        "provisioner-disable-module-cache",
 			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
 			Default:     "false",

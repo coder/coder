@@ -1618,15 +1618,6 @@ OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the
 
 Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.
 
-### Disable Terraform module cache
-
-Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build, so provisioners may accumulate module files on disk. Individual templates cannot opt back in.
-
-- Environment variable: `CODER_PROVISIONER_DISABLE_MODULE_CACHE`
-- CLI flag: [`--provisioner-disable-module-cache`](../../reference/cli/server.md#--provisioner-disable-module-cache)
-- YAML key: `provisioning.disableModuleCache`
-- Default value: `false`
-
 ### Force cancel interval
 
 Time to force cancel provisioning tasks that are stuck.
