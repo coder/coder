@@ -4922,11 +4922,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.EditChatQueuedMessageResponse"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -26353,26 +26350,6 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.EditChatQueuedMessageResponse": {
-            "type": "object",
-            "properties": {
-                "messages": {
-                    "description": "Messages holds every user-visible message inserted when releasing\nthe hold promoted the message into history, in insertion order.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatMessage"
-                    }
-                },
-                "queued_message": {
-                    "description": "QueuedMessage is the message after the edit. It is nil when\nreleasing the hold promoted the message into history.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatQueuedMessage"
-                        }
-                    ]
                 }
             }
         },
