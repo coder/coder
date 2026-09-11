@@ -1439,6 +1439,18 @@ func buildAIBridgeThread(
 
 	thread.AgenticActions = actions
 
+	// Build interception references in chronological query order,
+	// including tool-less rows. The slice arrives pre-sorted by the SQL
+	// query so we preserve that order verbatim.
+	refs := make([]codersdk.AIBridgeInterceptionReference, 0, len(interceptions))
+	for _, intc := range interceptions {
+		refs = append(refs, codersdk.AIBridgeInterceptionReference{
+			ID:          intc.ID,
+			Attribution: aiBridgeInterceptionAttribution(intc),
+		})
+	}
+	thread.Interceptions = refs
+
 	// Aggregate thread-level token usage.
 	var threadTokens []database.AIBridgeTokenUsage
 	for _, intc := range interceptions {
@@ -1582,6 +1594,17 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 		})
 	}
 	return presets
+}
+
+// aiBridgeInterceptionAttribution builds attribution from the dedicated
+// interception columns. It returns nil when no workspace context is recorded.
+func aiBridgeInterceptionAttribution(intc database.AIBridgeInterception) map[string]string {
+	if !intc.WorkspaceID.Valid {
+		return nil
+	}
+	return map[string]string{
+		"workspace_id": intc.WorkspaceID.UUID.String(),
+	}
 }
 
 // sanitizeCredentialHint ensures the hint looks masked before exposing

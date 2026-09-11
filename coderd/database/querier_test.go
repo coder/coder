@@ -19084,6 +19084,43 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 	require.Zero(t, unknown.ReconnectingPtyMins)
 }
 
+func TestInsertAIBridgeInterceptionWorkspaceContext(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	user := dbgen.User(t, db, database.User{})
+
+	// insertInterception is a raw-SQL helper that bypasses generated Go types
+	// so we can set the new nullable column before make gen is run.
+	const insertSQL = `
+			INSERT INTO aibridge_interceptions (
+				id, initiator_id, provider, provider_name, model, metadata, started_at,
+				credential_kind, credential_hint,
+				workspace_id
+			) VALUES (
+				$1, $2, 'openai', 'openai', 'gpt-4', '{}', NOW(),
+				'centralized', '',
+				$3
+			)`
+
+	workspaceID := uuid.New()
+
+	t.Run("Null", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, insertSQL, uuid.New(), user.ID, nil)
+		require.NoError(t, err, "null workspace_id must be accepted")
+	})
+
+	t.Run("Set", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, insertSQL, uuid.New(), user.ID, workspaceID)
+		require.NoError(t, err, "non-null workspace_id must be accepted")
+	})
+}
+
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
 	t.Helper()
 	counts, err := codersdk.SessionCountsByFamilyJSON(data)

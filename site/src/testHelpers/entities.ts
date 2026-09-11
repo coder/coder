@@ -5405,6 +5405,14 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_write_input_tokens: 140,
 		metadata: {},
 	},
+	interceptions: [
+		{
+			id: "interception-1",
+			attribution: {
+				workspace_id: "workspace-1",
+			},
+		},
+	],
 	agentic_actions: [
 		{
 			model: "claude-opus-4-6",
