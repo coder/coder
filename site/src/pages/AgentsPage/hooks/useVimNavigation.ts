@@ -1,18 +1,29 @@
 import { useSyncExternalStore } from "react";
+import {
+	getDefaultVimModifier,
+	isVimModifier,
+	type VimModifier,
+} from "../utils/keyboardShortcuts";
 
 export const VIM_NAVIGATION_STORAGE_KEY = "agents.vim-navigation";
-const KEY = VIM_NAVIGATION_STORAGE_KEY;
+export const VIM_NAVIGATION_MODIFIER_STORAGE_KEY =
+	"agents.vim-navigation-modifier";
 
-// In-tab subscribers. The native "storage" event only fires
-// cross-tab, so we maintain our own listener set for same-tab
-// reactivity when the toggle is flipped in settings.
-const listeners = new Set<() => void>();
+// In-tab subscribers keyed by storage key. The native "storage" event
+// only fires cross-tab, so `writeKey` notifies same-tab subscribers
+// directly.
+const listenersByKey = new Map<string, Set<() => void>>();
 
-function subscribe(callback: () => void): () => void {
+function subscribeToKey(key: string, callback: () => void): () => void {
+	let listeners = listenersByKey.get(key);
+	if (!listeners) {
+		listeners = new Set();
+		listenersByKey.set(key, listeners);
+	}
 	listeners.add(callback);
 
 	const onStorage = (e: StorageEvent) => {
-		if (e.key === KEY) {
+		if (e.key === key) {
 			callback();
 		}
 	};
@@ -24,25 +35,56 @@ function subscribe(callback: () => void): () => void {
 	};
 }
 
-function getSnapshot(): boolean {
-	return localStorage.getItem(KEY) === "true";
+function writeKey(key: string, value: string) {
+	localStorage.setItem(key, value);
+	for (const fn of listenersByKey.get(key) ?? []) {
+		fn();
+	}
 }
 
+const subscribeEnabled = (callback: () => void) =>
+	subscribeToKey(VIM_NAVIGATION_STORAGE_KEY, callback);
+
+const getEnabledSnapshot = (): boolean =>
+	localStorage.getItem(VIM_NAVIGATION_STORAGE_KEY) === "true";
+
 /**
- * Reactive hook for the vim-style chat navigation preference.
- * When enabled, Cmd/Ctrl+J and Cmd/Ctrl+K move between chats in
- * the sidebar, Cmd/Ctrl+Shift+O starts a new chat, Cmd/Ctrl+Shift+E
- * renames the active chat, and search moves to Cmd/Ctrl+/.
+ * Reactive hook for the stored vim-style chat navigation preference.
+ * This is the raw user setting; it does not account for the
+ * deployment experiment.
  */
-export function useVimNavigation(): [boolean, (v: boolean) => void] {
-	const enabled = useSyncExternalStore(subscribe, getSnapshot);
+export function useVimNavigationSetting(): [boolean, (v: boolean) => void] {
+	const enabled = useSyncExternalStore(subscribeEnabled, getEnabledSnapshot);
 
 	const setEnabled = (value: boolean) => {
-		localStorage.setItem(KEY, String(value));
-		for (const fn of listeners) {
-			fn();
-		}
+		writeKey(VIM_NAVIGATION_STORAGE_KEY, String(value));
 	};
 
 	return [enabled, setEnabled];
+}
+
+const subscribeModifier = (callback: () => void) =>
+	subscribeToKey(VIM_NAVIGATION_MODIFIER_STORAGE_KEY, callback);
+
+const getModifierSnapshot = (): VimModifier => {
+	const stored = localStorage.getItem(VIM_NAVIGATION_MODIFIER_STORAGE_KEY);
+	return isVimModifier(stored) ? stored : getDefaultVimModifier();
+};
+
+/**
+ * Reactive hook for the modifier key used by vim-style chat
+ * navigation. An unset or unrecognized stored value resolves to
+ * the platform default.
+ */
+export function useVimNavigationModifier(): [
+	VimModifier,
+	(v: VimModifier) => void,
+] {
+	const modifier = useSyncExternalStore(subscribeModifier, getModifierSnapshot);
+
+	const setModifier = (value: VimModifier) => {
+		writeKey(VIM_NAVIGATION_MODIFIER_STORAGE_KEY, value);
+	};
+
+	return [modifier, setModifier];
 }

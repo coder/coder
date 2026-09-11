@@ -3,11 +3,26 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { isMac } from "#/utils/platform";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 
-vi.mock("#/utils/platform", () => ({
+vi.mock("#/utils/platform", async (importOriginal) => ({
+	...(await importOriginal<typeof import("#/utils/platform")>()),
 	isMac: vi.fn(),
 }));
 
 const isMacMock = vi.mocked(isMac);
+
+type Options = Parameters<typeof useAgentsPageKeybindings>[0];
+
+const renderKeybindings = (
+	options: Omit<Options, "vimNavigationEnabled" | "vimModifier"> &
+		Partial<Pick<Options, "vimNavigationEnabled" | "vimModifier">>,
+) =>
+	renderHook(() =>
+		useAgentsPageKeybindings({
+			vimNavigationEnabled: false,
+			vimModifier: "ctrl",
+			...options,
+		}),
+	);
 
 const dispatchKeyDown = (
 	key: string,
@@ -34,12 +49,10 @@ describe("useAgentsPageKeybindings", () => {
 		const onNewAgent = vi.fn();
 		const onToggleSearch = vi.fn();
 
-		renderHook(() =>
-			useAgentsPageKeybindings({
-				onNewAgent,
-				onToggleSearch,
-			}),
-		);
+		renderKeybindings({
+			onNewAgent,
+			onToggleSearch,
+		});
 
 		const firstEvent = dispatchKeyDown("k", { ctrlKey: true });
 		const secondEvent = dispatchKeyDown("k", { ctrlKey: true });
@@ -55,12 +68,10 @@ describe("useAgentsPageKeybindings", () => {
 		const onNewAgent = vi.fn();
 		const onToggleSearch = vi.fn();
 
-		renderHook(() =>
-			useAgentsPageKeybindings({
-				onNewAgent,
-				onToggleSearch,
-			}),
-		);
+		renderKeybindings({
+			onNewAgent,
+			onToggleSearch,
+		});
 
 		const ctrlEvent = dispatchKeyDown("k", { ctrlKey: true });
 		const metaEvent = dispatchKeyDown("k", { metaKey: true });
@@ -75,12 +86,10 @@ describe("useAgentsPageKeybindings", () => {
 		const onNewAgent = vi.fn();
 		const onToggleSearch = vi.fn();
 
-		renderHook(() =>
-			useAgentsPageKeybindings({
-				onNewAgent,
-				onToggleSearch,
-			}),
-		);
+		renderKeybindings({
+			onNewAgent,
+			onToggleSearch,
+		});
 
 		const event = dispatchKeyDown("n", { ctrlKey: true });
 
@@ -96,12 +105,10 @@ describe("useAgentsPageKeybindings", () => {
 		const input = document.createElement("input");
 		document.body.appendChild(input);
 
-		renderHook(() =>
-			useAgentsPageKeybindings({
-				onNewAgent,
-				onToggleSearch,
-			}),
-		);
+		renderKeybindings({
+			onNewAgent,
+			onToggleSearch,
+		});
 
 		const searchEvent = dispatchKeyDown("k", { ctrlKey: true }, input);
 		const newAgentEvent = dispatchKeyDown("n", { ctrlKey: true }, input);
@@ -120,13 +127,11 @@ describe("useAgentsPageKeybindings", () => {
 		const onToggleSearch = vi.fn();
 		const onRenameActiveChat = vi.fn();
 
-		renderHook(() =>
-			useAgentsPageKeybindings({
-				onNewAgent,
-				onToggleSearch,
-				onRenameActiveChat,
-			}),
-		);
+		renderKeybindings({
+			onNewAgent,
+			onToggleSearch,
+			onRenameActiveChat,
+		});
 
 		const slashEvent = dispatchKeyDown("/", { ctrlKey: true });
 		const newEvent = dispatchKeyDown("O", { ctrlKey: true, shiftKey: true });
@@ -144,13 +149,11 @@ describe("useAgentsPageKeybindings", () => {
 		isMacMock.mockReturnValue(false);
 		const onToggleSearch = vi.fn();
 
-		renderHook(() =>
-			useAgentsPageKeybindings({
-				onNewAgent: vi.fn(),
-				onToggleSearch,
-				vimNavigationEnabled: true,
-			}),
-		);
+		renderKeybindings({
+			onNewAgent: vi.fn(),
+			onToggleSearch,
+			vimNavigationEnabled: true,
+		});
 
 		const kEvent = dispatchKeyDown("k", { ctrlKey: true });
 		const slashEvent = dispatchKeyDown("/", { ctrlKey: true });
@@ -171,13 +174,11 @@ describe("useAgentsPageKeybindings", () => {
 		const onNewAgent = vi.fn();
 		const onRenameActiveChat = vi.fn();
 
-		renderHook(() =>
-			useAgentsPageKeybindings({
-				onNewAgent,
-				onRenameActiveChat,
-				vimNavigationEnabled: true,
-			}),
-		);
+		renderKeybindings({
+			onNewAgent,
+			onRenameActiveChat,
+			vimNavigationEnabled: true,
+		});
 
 		const renameEvent = dispatchKeyDown("E", { ctrlKey: true, shiftKey: true });
 		const shiftNEvent = dispatchKeyDown("N", { ctrlKey: true, shiftKey: true });
@@ -192,13 +193,78 @@ describe("useAgentsPageKeybindings", () => {
 		isMacMock.mockReturnValue(false);
 		const onNewAgent = vi.fn();
 
-		renderHook(() =>
-			useAgentsPageKeybindings({ onNewAgent, vimNavigationEnabled: true }),
-		);
+		renderKeybindings({ onNewAgent, vimNavigationEnabled: true });
 
 		const event = dispatchKeyDown("O", { ctrlKey: true, shiftKey: true });
 
 		expect(event.defaultPrevented).toBe(true);
+		expect(onNewAgent).toHaveBeenCalledTimes(1);
+	});
+
+	it("binds vim shortcuts to the Alt modifier, including Option chords on macOS", () => {
+		isMacMock.mockReturnValue(true);
+		const onNewAgent = vi.fn();
+		const onToggleSearch = vi.fn();
+		const onRenameActiveChat = vi.fn();
+
+		renderKeybindings({
+			onNewAgent,
+			onToggleSearch,
+			onRenameActiveChat,
+			vimNavigationEnabled: true,
+			vimModifier: "alt",
+		});
+
+		// Option+/ and Option+Shift+O on a macOS US layout report "÷" and "Ø".
+		const slashEvent = dispatchKeyDown("÷", { altKey: true, code: "Slash" });
+		const newEvent = dispatchKeyDown("Ø", {
+			altKey: true,
+			shiftKey: true,
+			code: "KeyO",
+		});
+		const renameEvent = dispatchKeyDown("E", {
+			altKey: true,
+			shiftKey: true,
+			code: "KeyE",
+		});
+		const metaSlashEvent = dispatchKeyDown("/", { metaKey: true });
+		const metaNEvent = dispatchKeyDown("n", { metaKey: true });
+
+		expect(slashEvent.defaultPrevented).toBe(true);
+		expect(newEvent.defaultPrevented).toBe(true);
+		expect(renameEvent.defaultPrevented).toBe(true);
+		expect(metaSlashEvent.defaultPrevented).toBe(false);
+		expect(metaNEvent.defaultPrevented).toBe(true);
+		expect(onToggleSearch).toHaveBeenCalledTimes(1);
+		expect(onRenameActiveChat).toHaveBeenCalledTimes(1);
+		expect(onNewAgent).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps Ctrl+K search when the vim modifier is not the platform modifier", () => {
+		isMacMock.mockReturnValue(false);
+		const onNewAgent = vi.fn();
+		const onToggleSearch = vi.fn();
+
+		renderKeybindings({
+			onNewAgent,
+			onToggleSearch,
+			vimNavigationEnabled: true,
+			vimModifier: "meta",
+		});
+
+		const metaSlashEvent = dispatchKeyDown("/", { metaKey: true });
+		const ctrlSlashEvent = dispatchKeyDown("/", { ctrlKey: true });
+		const metaShiftOEvent = dispatchKeyDown("O", {
+			metaKey: true,
+			shiftKey: true,
+		});
+		const ctrlKEvent = dispatchKeyDown("k", { ctrlKey: true });
+
+		expect(metaSlashEvent.defaultPrevented).toBe(true);
+		expect(ctrlSlashEvent.defaultPrevented).toBe(false);
+		expect(metaShiftOEvent.defaultPrevented).toBe(true);
+		expect(ctrlKEvent.defaultPrevented).toBe(true);
+		expect(onToggleSearch).toHaveBeenCalledTimes(2);
 		expect(onNewAgent).toHaveBeenCalledTimes(1);
 	});
 });

@@ -80,7 +80,10 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { useVimNavigation } from "./hooks/useVimNavigation";
+import {
+	useVimNavigationModifier,
+	useVimNavigationSetting,
+} from "./hooks/useVimNavigation";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -687,7 +690,8 @@ const AgentsPageLayout: FC = () => {
 	const [chatPendingRename, setChatPendingRename] =
 		useState<TypesGen.Chat | null>(null);
 
-	const [vimNavigationEnabled] = useVimNavigation();
+	const [vimNavigationEnabled] = useVimNavigationSetting();
+	const [vimModifier] = useVimNavigationModifier();
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
@@ -712,6 +716,7 @@ const AgentsPageLayout: FC = () => {
 			}
 		},
 		vimNavigationEnabled,
+		vimModifier,
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only

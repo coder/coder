@@ -20,6 +20,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { withVimNavigationPreference } from "#/testHelpers/vimNavigation";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
@@ -133,6 +134,8 @@ const ChatsSidebarWithKeybindings = (
 	useAgentsPageKeybindings({
 		onNewAgent: args.onBeforeNewAgent ?? (() => {}),
 		onToggleSearch: () => handleSearchDialogOpenChange(!isSearchDialogOpen),
+		vimNavigationEnabled: false,
+		vimModifier: "ctrl",
 	});
 
 	return (
@@ -2285,4 +2288,36 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 			expect(fromValue).toContain("archived=archived");
 		});
 	},
+};
+
+// The search shortcut hint is only shown while the button is hovered or
+// focused, so the play function focuses it for the screenshot.
+const focusSearchButton = async ({
+	canvasElement,
+}: {
+	canvasElement: HTMLElement;
+}) => {
+	const canvas = within(canvasElement);
+	const searchButton = await canvas.findByRole("button", {
+		name: "Search chats",
+	});
+	searchButton.focus();
+};
+
+export const VimSearchHintCtrlModifier: Story = {
+	args: { chats: sectionHeaderChats },
+	beforeEach: withVimNavigationPreference("ctrl"),
+	play: focusSearchButton,
+};
+
+export const VimSearchHintAltModifier: Story = {
+	args: { chats: sectionHeaderChats },
+	beforeEach: withVimNavigationPreference("alt"),
+	play: focusSearchButton,
+};
+
+export const VimSearchHintMetaModifier: Story = {
+	args: { chats: sectionHeaderChats },
+	beforeEach: withVimNavigationPreference("meta"),
+	play: focusSearchButton,
 };

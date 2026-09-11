@@ -1,13 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isMac } from "#/utils/platform";
 import { useChatVimNavigation } from "./useChatVimNavigation";
-
-vi.mock("#/utils/platform", () => ({
-	isMac: vi.fn(),
-}));
-
-const isMacMock = vi.mocked(isMac);
 
 const dispatchKeyDown = (
 	key: string,
@@ -33,6 +26,7 @@ const render = (
 	renderHook(() =>
 		useChatVimNavigation({
 			enabled: true,
+			modifier: "ctrl",
 			visibleChatIds: chatIds,
 			allChatIds: chatIds,
 			activeChatId: "b",
@@ -45,12 +39,10 @@ const render = (
 
 describe("useChatVimNavigation", () => {
 	afterEach(() => {
-		vi.clearAllMocks();
 		document.body.innerHTML = "";
 	});
 
 	it("does nothing when disabled", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render({ enabled: false });
 
 		const event = dispatchKeyDown("j", { ctrlKey: true });
@@ -60,7 +52,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("moves to the next and previous chat with Ctrl+J and Ctrl+K", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render();
 
 		const nextEvent = dispatchKeyDown("j", { ctrlKey: true });
@@ -72,20 +63,42 @@ describe("useChatVimNavigation", () => {
 		expect(onSelectChat).toHaveBeenNthCalledWith(2, "a");
 	});
 
-	it("uses Cmd instead of Ctrl on macOS", () => {
-		isMacMock.mockReturnValue(true);
-		const onSelectChat = render();
+	it("matches only the configured modifier", () => {
+		const onSelectChat = render({ modifier: "meta" });
 
 		const ctrlEvent = dispatchKeyDown("j", { ctrlKey: true });
+		const altEvent = dispatchKeyDown("j", { altKey: true });
 		const metaEvent = dispatchKeyDown("j", { metaKey: true });
 
 		expect(ctrlEvent.defaultPrevented).toBe(false);
+		expect(altEvent.defaultPrevented).toBe(false);
 		expect(metaEvent.defaultPrevented).toBe(true);
 		expect(onSelectChat).toHaveBeenCalledExactlyOnceWith("c");
 	});
 
+	it("navigates with the Alt modifier, including Option+J on macOS", () => {
+		const onSelectChat = render({ modifier: "alt" });
+
+		// Option+J on a macOS US layout reports the character "∆".
+		const nextEvent = dispatchKeyDown("∆", { altKey: true, code: "KeyJ" });
+		const prevEvent = dispatchKeyDown("k", { altKey: true, code: "KeyK" });
+
+		expect(nextEvent.defaultPrevented).toBe(true);
+		expect(prevEvent.defaultPrevented).toBe(true);
+		expect(onSelectChat).toHaveBeenNthCalledWith(1, "c");
+		expect(onSelectChat).toHaveBeenNthCalledWith(2, "a");
+	});
+
+	it("ignores chords with an extra modifier held", () => {
+		const onSelectChat = render();
+
+		const event = dispatchKeyDown("j", { ctrlKey: true, altKey: true });
+
+		expect(event.defaultPrevented).toBe(false);
+		expect(onSelectChat).not.toHaveBeenCalled();
+	});
+
 	it("jumps to the last and first chat with Shift", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render({ activeChatId: "b" });
 
 		dispatchKeyDown("J", { ctrlKey: true, shiftKey: true });
@@ -96,7 +109,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("anchors a hidden active chat to its nearest visible neighbors", () => {
-		isMacMock.mockReturnValue(false);
 		// "b1" is a collapsed child of "b", so it is in the full order
 		// but not the visible one.
 		const onSelectChat = render({
@@ -113,7 +125,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("clamps a hidden active chat at the list edges", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render({
 			visibleChatIds: ["a", "b"],
 			allChatIds: ["a", "b", "c"],
@@ -126,7 +137,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("ignores keys while focus is inside a dialog", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render();
 		const dialog = document.createElement("div");
 		dialog.setAttribute("role", "dialog");
@@ -142,7 +152,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("matches the physical key on non-Latin layouts", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render();
 
 		// Russian layout: the key at the "J" position reports "о".
@@ -153,7 +162,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("stops at the list boundaries", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render({ activeChatId: "c" });
 
 		const event = dispatchKeyDown("j", { ctrlKey: true });
@@ -163,7 +171,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("enters the list from either end when no chat is active", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render({ activeChatId: undefined });
 
 		dispatchKeyDown("j", { ctrlKey: true });
@@ -174,7 +181,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("handles shortcuts from editable elements", () => {
-		isMacMock.mockReturnValue(false);
 		const onSelectChat = render();
 		const input = document.createElement("input");
 		document.body.appendChild(input);
@@ -186,7 +192,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("focuses the composer on Escape from a sidebar row", () => {
-		isMacMock.mockReturnValue(false);
 		render();
 		const row = document.createElement("div");
 		row.dataset.testid = "agents-tree-node-b";
@@ -206,7 +211,6 @@ describe("useChatVimNavigation", () => {
 	});
 
 	it("ignores Escape outside the sidebar", () => {
-		isMacMock.mockReturnValue(false);
 		render();
 		const composer = document.createElement("div");
 		composer.dataset.testid = "chat-message-input";

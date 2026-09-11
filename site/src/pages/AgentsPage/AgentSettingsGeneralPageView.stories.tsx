@@ -2,11 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { withVimNavigationPreference } from "#/testHelpers/vimNavigation";
 import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
 } from "./AgentSettingsGeneralPageView";
-import { VIM_NAVIGATION_STORAGE_KEY } from "./hooks/useVimNavigation";
 
 const preferencesData = {
 	thinking_display_mode: "auto" as const,
@@ -152,24 +152,16 @@ export const TogglesSendShortcut: Story = {
 	},
 };
 
-export const TogglesVimNavigation: Story = {
-	beforeEach: () => {
-		localStorage.removeItem(VIM_NAVIGATION_STORAGE_KEY);
-		return () => localStorage.removeItem(VIM_NAVIGATION_STORAGE_KEY);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const toggle = await canvas.findByRole("switch", {
-			name: "Vim-style chat navigation",
-		});
+export const VimNavigationCtrlModifier: Story = {
+	beforeEach: withVimNavigationPreference("ctrl"),
+};
 
-		expect(toggle).not.toBeChecked();
-		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(toggle).toBeChecked();
-			expect(localStorage.getItem(VIM_NAVIGATION_STORAGE_KEY)).toBe("true");
-		});
-	},
+export const VimNavigationAltModifier: Story = {
+	beforeEach: withVimNavigationPreference("alt"),
+};
+
+export const VimNavigationMetaModifier: Story = {
+	beforeEach: withVimNavigationPreference("meta"),
 };
 
 export const ShowsChatDebugLoggingToggle: Story = {

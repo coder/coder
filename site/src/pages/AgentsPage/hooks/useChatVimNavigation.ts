@@ -1,6 +1,9 @@
 import { useEffect } from "react";
-import { isMac } from "#/utils/platform";
-import { isLetterKey } from "../utils/keyboardShortcuts";
+import {
+	isLetterKey,
+	isModifierPressed,
+	type VimModifier,
+} from "../utils/keyboardShortcuts";
 
 const CHAT_ROW_SELECTOR = '[data-testid^="agents-tree-node-"]';
 const COMPOSER_SELECTOR = '[data-testid="chat-message-input"]';
@@ -9,11 +12,13 @@ const DIALOG_SELECTOR = '[role="dialog"]';
 /**
  * Vim-style keyboard navigation between sidebar chats.
  *
- * - Ctrl+J / Cmd+J: Select the next chat.
- * - Ctrl+K / Cmd+K: Select the previous chat.
- * - Ctrl+Shift+J / Cmd+Shift+J: Select the last chat.
- * - Ctrl+Shift+K / Cmd+Shift+K: Select the first chat.
+ * - Modifier+J: Select the next chat.
+ * - Modifier+K: Select the previous chat.
+ * - Modifier+Shift+J: Select the last chat.
+ * - Modifier+Shift+K: Select the first chat.
  * - Escape while a sidebar chat row has focus: Focus the composer.
+ *
+ * `modifier` is the key held for every chord above.
  *
  * `visibleChatIds` must match the sidebar's visual order. `allChatIds`
  * is the same order including chats hidden by collapsed sections or
@@ -25,12 +30,14 @@ const DIALOG_SELECTOR = '[role="dialog"]';
  */
 export function useChatVimNavigation({
 	enabled,
+	modifier,
 	visibleChatIds,
 	allChatIds,
 	activeChatId,
 	onSelectChat,
 }: {
 	enabled: boolean;
+	modifier: VimModifier;
 	visibleChatIds: readonly string[];
 	allChatIds: readonly string[];
 	activeChatId: string | undefined;
@@ -62,8 +69,7 @@ export function useChatVimNavigation({
 				return;
 			}
 
-			const isModifierPressed = isMac() ? event.metaKey : event.ctrlKey;
-			if (!isModifierPressed || event.altKey) {
+			if (!isModifierPressed(event, modifier)) {
 				return;
 			}
 
@@ -89,7 +95,14 @@ export function useChatVimNavigation({
 
 		document.addEventListener("keydown", handler);
 		return () => document.removeEventListener("keydown", handler);
-	}, [enabled, visibleChatIds, allChatIds, activeChatId, onSelectChat]);
+	}, [
+		enabled,
+		modifier,
+		visibleChatIds,
+		allChatIds,
+		activeChatId,
+		onSelectChat,
+	]);
 }
 
 function findNeighbor({
