@@ -19,7 +19,7 @@ export default {
 	},
 
 	core: {
-		allowedHosts: [".coder", ".dev.coder.com"],
+		allowedHosts: [".coder", ".dogfood.cdr.dev"],
 	},
 
 	async viteFinal(config) {
@@ -28,7 +28,7 @@ export default {
 		// port sharing.
 		config.server = {
 			...config.server,
-			allowedHosts: [".coder", ".dev.coder.com"],
+			allowedHosts: [".coder", ".dogfood.cdr.dev"],
 		};
 		return config;
 	},
