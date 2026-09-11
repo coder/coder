@@ -207,6 +207,10 @@ func DiscriminatedChatMessagePart(ts *guts.Typescript) {
 	// we can copy type information from the original interface.
 	fieldMap := make(map[string]*bindings.PropertySignature, len(iface.Fields))
 	for _, f := range iface.Fields {
+		if f.Name == "result" {
+			unknown := bindings.KeywordUnknown
+			f.Type = &unknown
+		}
 		fieldMap[f.Name] = f
 	}
 

@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
 	ParsedMessageContent,
@@ -275,11 +276,13 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
 	switch (part.type) {
 		case "file":
 			return part.file_id ? [part.file_id] : [];
-		case "tool-result":
-			return [
-				part.result?.recording_file_id,
-				part.result?.thumbnail_file_id,
-			].filter((fileId): fileId is string => Boolean(fileId));
+		case "tool-result": {
+			const result = asRecord(part.result);
+			return [result?.recording_file_id, result?.thumbnail_file_id].filter(
+				(fileId): fileId is string =>
+					typeof fileId === "string" && fileId.length > 0,
+			);
+		}
 		default:
 			return [];
 	}
