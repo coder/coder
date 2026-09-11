@@ -6720,7 +6720,10 @@ export interface OAuth2ProviderAppSecretFull {
 // From codersdk/deployment.go
 /**
  * OAuth2ProviderConfig configures Coder's own OAuth 2.1 authorization server.
- * This is separate from the GitHub login integration.
+ * This is separate from the GitHub login integration. It is also distinct
+ * from OAuth2ProviderSettings: this struct decides whether the server is on
+ * at all, while OAuth2ProviderSettings holds runtime behavior such as
+ * dynamic client registration that admins change while it runs.
  */
 export interface OAuth2ProviderConfig {
 	readonly enable: boolean;

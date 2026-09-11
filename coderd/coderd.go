@@ -773,7 +773,7 @@ func New(options *Options) *API {
 		DeploymentID:          api.DeploymentID,
 		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
-		OAuth2Provider:        options.DeploymentValues.OAuth2.Provider.Enable.Value(),
+		OAuth2Provider:        api.DeploymentValues.OAuth2.Provider.Enable.Value(),
 	}
 	api.SiteHandler, err = site.New(&site.Options{
 		CacheDir:                  siteCacheDir,
