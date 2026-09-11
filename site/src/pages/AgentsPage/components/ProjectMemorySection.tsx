@@ -1,4 +1,5 @@
-import { ChevronDownIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import { cn } from "cn";
+import { ChevronRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -9,39 +10,29 @@ import {
 } from "#/api/queries/chatProjectMemories";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { shortRelativeTime } from "#/utils/time";
 import { ChatProjectMemoryDialog } from "./ChatProjectMemoryDialog";
 
-const memoryTypes = ["user", "feedback", "project", "reference"] as const;
-
 type ProjectMemorySectionProps = {
 	readonly projectId: string;
-	readonly state?: Readonly<{
-		isLoading?: boolean;
-		error?: unknown;
-		memories?: readonly TypesGen.ChatProjectMemory[];
-	}>;
 };
 
+/**
+ * Lists the memories the agent has saved for a project. Rows are collapsed
+ * to name and type by default; the body and actions only appear on expand.
+ * Manual creation is available but intentionally understated: the agent is
+ * the expected writer.
+ */
 export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 	projectId,
-	state,
 }) => {
 	const queryClient = useQueryClient();
-	const memoriesQuery = useQuery({
-		...chatProjectMemories(projectId),
-		enabled: state === undefined,
-	});
+	const memoriesQuery = useQuery(chatProjectMemories(projectId));
 	const createMutation = useMutation(createChatProjectMemory(queryClient));
 	const updateMutation = useMutation(updateChatProjectMemory(queryClient));
 	const deleteMutation = useMutation(deleteChatProjectMemory(queryClient));
@@ -50,130 +41,102 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 	>(undefined);
 	const [deletingMemory, setDeletingMemory] =
 		useState<TypesGen.ChatProjectMemory | null>(null);
-	const [expandedMemoryIDs, setExpandedMemoryIDs] = useState<Set<string>>(
-		new Set(),
-	);
+	const [expandedMemoryID, setExpandedMemoryID] = useState<string | null>(null);
 
-	const isLoading = state?.isLoading ?? memoriesQuery.isLoading;
-	const error = state?.error ?? memoriesQuery.error;
-	const memories = state?.memories ?? memoriesQuery.data ?? [];
-
-	if (isLoading) {
+	if (memoriesQuery.isLoading) {
 		return <Skeleton className="mt-10 h-40 w-full" />;
 	}
-	if (error) {
-		return <ErrorAlert error={error} className="mt-10" />;
+	if (memoriesQuery.error) {
+		return <ErrorAlert error={memoriesQuery.error} className="mt-10" />;
 	}
+	const memories = memoriesQuery.data ?? [];
 
 	return (
 		<section className="mt-10 border-t border-border-default pt-8">
-			<div className="flex items-start justify-between gap-4">
-				<div>
-					<h2 className="m-0 text-lg font-semibold text-content-primary">
-						Memory
-					</h2>
-					<p className="mb-0 mt-1 text-sm text-content-secondary">
-						Memories the agent saves while working in this project. Every chat
-						in the project sees this list.
-					</p>
-				</div>
-				<Button onClick={() => setEditingMemory(null)}>
-					<PlusIcon />
-					Add memory
-				</Button>
-			</div>
+			<h2 className="m-0 text-lg font-semibold text-content-primary">Memory</h2>
+			<p className="mb-0 mt-1 text-sm text-content-secondary">
+				Facts the agent saved while working in this project. Every chat in the
+				project can read them.
+			</p>
 			{memories.length === 0 ? (
 				<p className="mt-6 text-sm text-content-secondary">
 					No memories yet. The agent saves them as it learns durable facts about
 					this project.
 				</p>
 			) : (
-				<div className="mt-6 space-y-6">
-					{memoryTypes.map((type) => {
-						const typeMemories = memories.filter(
-							(memory) => memory.type === type,
-						);
-						if (typeMemories.length === 0) return null;
+				<ul className="mt-4 list-none divide-y divide-border-default rounded-md border border-border-default p-0">
+					{memories.map((memory) => {
+						const expanded = expandedMemoryID === memory.id;
 						return (
-							<div key={type} className="space-y-2">
-								<h3 className="m-0 text-xs font-medium uppercase text-content-secondary">
-									{type}
-								</h3>
-								{typeMemories.map((memory) => {
-									const expanded = expandedMemoryIDs.has(memory.id);
-									return (
-										<div
-											key={memory.id}
-											className="rounded-md border border-border-default p-3"
-										>
-											<div className="flex items-start gap-2">
-												<div className="min-w-0 flex-1">
-													<div className="font-mono text-sm text-content-primary">
-														{memory.name}
-													</div>
-													<p className="mb-0 mt-1 text-sm text-content-secondary">
-														{memory.description}
-													</p>
-													<p className="mb-0 mt-1 text-xs text-content-secondary">
-														updated {shortRelativeTime(memory.updated_at)} by{" "}
-														{memory.created_by_username || "Unknown"}
-													</p>
-												</div>
+							<li key={memory.id}>
+								<button
+									type="button"
+									aria-expanded={expanded}
+									className={cn(
+										"flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left",
+										"text-content-primary hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+									)}
+									onClick={() =>
+										setExpandedMemoryID(expanded ? null : memory.id)
+									}
+								>
+									<ChevronRightIcon
+										className={cn(
+											"size-4 shrink-0 text-content-secondary transition-transform",
+											expanded && "rotate-90",
+										)}
+									/>
+									<span className="min-w-0 flex-1 truncate font-mono text-sm">
+										{memory.name}
+									</span>
+									<Badge size="xs" variant="default">
+										{memory.type}
+									</Badge>
+								</button>
+								{expanded && (
+									<div className="space-y-3 px-3 pb-3 pl-9">
+										<p className="mb-0 text-sm text-content-secondary">
+											{memory.description}
+										</p>
+										<MemoizedMarkdown>{memory.body}</MemoizedMarkdown>
+										<div className="flex items-center justify-between gap-2 text-xs text-content-secondary">
+											<span>
+												Updated {shortRelativeTime(memory.updated_at)} by{" "}
+												{memory.created_by_username || "Unknown"}
+											</span>
+											<span className="flex gap-1">
 												<Button
 													variant="subtle"
-													size="icon"
-													aria-label={`Toggle ${memory.name}`}
-													onClick={() =>
-														setExpandedMemoryIDs((current) => {
-															const next = new Set(current);
-															if (next.has(memory.id)) next.delete(memory.id);
-															else next.add(memory.id);
-															return next;
-														})
-													}
+													size="sm"
+													onClick={() => setEditingMemory(memory)}
 												>
-													<ChevronDownIcon
-														className={expanded ? "rotate-180" : undefined}
-													/>
+													Edit
 												</Button>
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															variant="subtle"
-															size="icon"
-															aria-label={`Open actions for ${memory.name}`}
-														>
-															<EllipsisVerticalIcon />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															onSelect={() => setEditingMemory(memory)}
-														>
-															Edit
-														</DropdownMenuItem>
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onSelect={() => setDeletingMemory(memory)}
-														>
-															Delete
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											</div>
-											{expanded && (
-												<div className="mt-3 border-t border-border-default pt-3">
-													<MemoizedMarkdown>{memory.body}</MemoizedMarkdown>
-												</div>
-											)}
+												<Button
+													variant="subtle"
+													size="sm"
+													className="text-content-destructive"
+													onClick={() => setDeletingMemory(memory)}
+												>
+													Delete
+												</Button>
+											</span>
 										</div>
-									);
-								})}
-							</div>
+									</div>
+								)}
+							</li>
 						);
 					})}
-				</div>
+				</ul>
 			)}
+			<Button
+				variant="subtle"
+				size="sm"
+				className="mt-3 text-content-secondary"
+				onClick={() => setEditingMemory(null)}
+			>
+				Add memory manually
+			</Button>
 			<ChatProjectMemoryDialog
 				open={editingMemory !== undefined}
 				memory={editingMemory}

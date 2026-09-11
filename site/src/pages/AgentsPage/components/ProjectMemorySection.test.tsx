@@ -44,7 +44,9 @@ describe("ProjectMemorySection", () => {
 			</Wrapper>,
 		);
 
-		await user.click(await screen.findByRole("button", { name: "Add memory" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Add memory manually" }),
+		);
 		await user.type(screen.getByLabelText("Name"), "durable-fact");
 		await user.type(screen.getByLabelText("Description"), "A durable fact");
 		await user.type(screen.getByLabelText("Body"), "Project memory body");
@@ -81,12 +83,14 @@ describe("ProjectMemorySection", () => {
 			</Wrapper>,
 		);
 
+		// The body and actions only render after expanding the row.
 		await user.click(
 			await screen.findByRole("button", {
-				name: `Open actions for ${MockChatProjectMemory.name}`,
+				name: new RegExp(MockChatProjectMemory.name),
+				expanded: false,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+		await user.click(screen.getByRole("button", { name: "Delete" }));
 		await user.type(
 			screen.getByLabelText("Name of the memory to delete"),
 			MockChatProjectMemory.name,
