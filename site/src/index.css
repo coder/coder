@@ -751,6 +751,15 @@
 	over Radix's injected !important styles. The @supports guard ensures
 	we only do this on browsers that actually support scrollbar-gutter.
 
+	The reserved gutter is kept while the body is scroll-locked, so the
+	page keeps its width even though Radix hides the body scrollbar. For
+	this to hold, do not force overflow-y on the locked body: hiding the
+	scrollbar while the gutter reserves its space is what prevents the
+	shift, and any forced overflow here would fight react-remove-scroll's
+	lock styles (its lower-specificity selector must lose or the page
+	gains a scrollbar on pages where the body owns the overflow, like
+	/agents).
+
 	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
 	https://github.com/radix-ui/primitives/issues/3251
 	*/
@@ -762,7 +771,6 @@
 		html body[data-scroll-locked] {
 			--removed-body-scroll-bar-size: 0 !important;
 			margin-right: 0 !important;
-			overflow-y: scroll !important;
 		}
 	}
 
