@@ -3019,7 +3019,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
-		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed), errors.Is(err, chatstate.ErrIdleHeadWouldBecomePromotable):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat is not in a state that accepts queued message deletion.",
 				Detail:  err.Error(),
@@ -3251,7 +3251,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, editErr):
 			// response already written
-		case errors.Is(editErr, chatstate.ErrTransitionNotAllowed):
+		case errors.Is(editErr, chatstate.ErrTransitionNotAllowed), errors.Is(editErr, chatstate.ErrIdleHeadWouldBecomePromotable):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat is not in a state that accepts queued message edits.",
 				Detail:  editErr.Error(),
