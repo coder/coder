@@ -8093,7 +8093,7 @@ func ChatProviderAPIKeysFromDeploymentValues(
 	_ *codersdk.DeploymentValues,
 ) chatprovider.ProviderAPIKeys {
 	// AI bridge deployment config is intentionally not reused for chat
-	// provider credentials. Bridge keys serve the AI task subsystem and
+	// provider credentials. Bridge keys serve AI Bridge interception and
 	// should not silently broaden into chat execution paths.
 	return chatprovider.ProviderAPIKeys{}
 }
