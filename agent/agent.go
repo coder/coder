@@ -622,7 +622,7 @@ func (a *agent) runLoop() {
 }
 
 func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription, now time.Time) *codersdk.WorkspaceAgentMetadataResult {
-	var out bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
 		// coderd to the time of server receipt to solve clock skew.
@@ -638,8 +638,11 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	}
 	cmd := cmdPty.AsExec()
 
-	cmd.Stdout = &out
-	cmd.Stderr = &out
+	// Shell startup files commonly write to stderr on every invocation, so
+	// stderr must not become part of the reported value. It is surfaced in the
+	// error instead, where it can explain a failure.
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	cmd.Stdin = io.LimitReader(nil, 0)
 
 	// We split up Start and Wait instead of calling Run so that we can return a more precise error.
@@ -652,21 +655,33 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	// This error isn't mutually exclusive with useful output.
 	err = cmd.Wait()
 	const bufLimit = 10 << 10
-	if out.Len() > bufLimit {
+	if stdout.Len() > bufLimit {
 		err = errors.Join(
 			err,
-			xerrors.Errorf("output truncated from %v to %v bytes", out.Len(), bufLimit),
+			xerrors.Errorf("output truncated from %v to %v bytes", stdout.Len(), bufLimit),
 		)
-		out.Truncate(bufLimit)
+		stdout.Truncate(bufLimit)
+	}
+	if stderr.Len() > bufLimit {
+		stderr.Truncate(bufLimit)
 	}
 
 	// Important: if the command times out, we may see a misleading error like
 	// "exit status 1", so it's important to include the context error.
 	err = errors.Join(err, ctx.Err())
 	if err != nil {
+		if stderr.Len() > 0 {
+			err = errors.Join(err, xerrors.Errorf("stderr: %s", strings.TrimSpace(stderr.String())))
+		}
 		result.Error = fmt.Sprintf("run cmd: %+v", err)
+		// coderd replaces errors above 2048 bytes, discarding their diagnostics.
+		const maxErrorLen = 2048
+		const truncated = " [truncated]"
+		if len(result.Error) > maxErrorLen {
+			result.Error = strings.ToValidUTF8(result.Error[:maxErrorLen-len(truncated)], "") + truncated
+		}
 	}
-	result.Value = out.String()
+	result.Value = stdout.String()
 	return result
 }
 

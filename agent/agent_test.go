@@ -1821,6 +1821,61 @@ func TestAgent_Metadata(t *testing.T) {
 			t.Fatalf("expected metadata to be collected again")
 		}
 	})
+
+	t.Run("Stderr", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("stderr redirection test uses sh syntax")
+		}
+
+		//nolint:dogsled
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+				{
+					Key:      "noisy",
+					Interval: 0,
+					Script:   "echo 'shell startup noise' >&2; echo 'hello'",
+				},
+				{
+					Key:      "failing",
+					Interval: 0,
+					Script:   "echo 'permission denied' >&2; exit 1",
+				},
+				{
+					Key:      "long_stderr",
+					Interval: 0,
+					Script:   "echo 'permission denied: " + strings.Repeat("界", 4096) + "' >&2; echo 'hello'; exit 1",
+				},
+			},
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = testutil.IntervalFast
+		})
+
+		var gotMd map[string]agentsdk.Metadata
+		require.Eventually(t, func() bool {
+			gotMd = client.GetMetadata()
+			return len(gotMd) == 3
+		}, testutil.WaitShort, testutil.IntervalFast/2)
+
+		// A script that succeeds reports stdout only, even when the shell
+		// wrote to stderr on startup.
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["noisy"].Value))
+		require.Empty(t, gotMd["noisy"].Error)
+
+		// A script that fails reports stderr in the error, where it can
+		// explain the failure.
+		require.Empty(t, strings.TrimSpace(gotMd["failing"].Value))
+		require.Contains(t, gotMd["failing"].Error, "permission denied")
+
+		// Keep diagnostics within the server's error budget, including the marker.
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["long_stderr"].Value))
+		require.Contains(t, gotMd["long_stderr"].Error, "exit status 1")
+		require.Contains(t, gotMd["long_stderr"].Error, "permission denied")
+		require.LessOrEqual(t, len(gotMd["long_stderr"].Error), 2048)
+		require.True(t, strings.HasSuffix(gotMd["long_stderr"].Error, " [truncated]"))
+		require.Equal(t, strings.ToValidUTF8(gotMd["long_stderr"].Error, ""), gotMd["long_stderr"].Error)
+	})
 }
 
 func TestAgentMetadata_Timing(t *testing.T) {
