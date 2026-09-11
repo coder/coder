@@ -1180,10 +1180,6 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	computer: ComputerRenderer,
 };
 
-// Exported so tests can assert cross-cutting affordances across every
-// registered renderer instead of a hand-picked subset.
-export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
-
 // ---------------------------------------------------------------------------
 // Public Tool component with a single wrapper div and map dispatch.
 // ---------------------------------------------------------------------------
