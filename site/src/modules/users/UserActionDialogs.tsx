@@ -94,6 +94,7 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 					isOpen
 					confirmLoading={deleteUserMutation.isPending}
 					error={deleteUserMutation.error}
+					errorMessage={`Error deleting user "${user.username}".`}
 					name={user.username}
 					entity="user"
 					onCancel={() => {
@@ -119,6 +120,7 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 					open
 					confirmLoading={suspendUserMutation.isPending}
 					error={suspendUserMutation.error}
+					errorMessage={`Error suspending user "${user.username}".`}
 					title="Suspend user"
 					confirmText="Suspend"
 					onClose={() => {
@@ -151,6 +153,7 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 					open
 					confirmLoading={activateUserMutation.isPending}
 					error={activateUserMutation.error}
+					errorMessage={`Error activating user "${user.username}".`}
 					title="Activate user"
 					confirmText="Activate"
 					onClose={() => {

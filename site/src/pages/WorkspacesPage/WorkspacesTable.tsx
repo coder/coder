@@ -411,11 +411,15 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
+	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
 	const stopWorkspaceOptions = stopWorkspace(workspace, queryClient);
 	const stopWorkspaceMutation = useMutation({
 		...stopWorkspaceOptions,
 		onSuccess: async (build) => {
 			stopWorkspaceOptions.onSuccess(build);
+			setIsStopConfirmOpen(false);
 			await onActionSuccess();
 		},
 	});
@@ -450,9 +454,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		},
 		onError: onActionError,
 	});
-
-	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
-	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
 	const isRetrying =
 		startWorkspaceMutation.isPending ||
@@ -592,12 +593,13 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			</div>
 			{/* Stop workspace confirmation dialog */}
 			<ConfirmDialog
-				open={isStopConfirmOpen && !stopWorkspaceMutation.isSuccess}
+				open={isStopConfirmOpen}
 				title="Stop workspace"
 				description={`Are you sure you want to stop the workspace "${workspace.name}"? This will terminate all running processes and disconnect any active sessions.`}
 				confirmText="Stop"
 				confirmLoading={stopWorkspaceMutation.isPending}
 				error={stopWorkspaceMutation.error}
+				errorMessage={`Failed to stop workspace "${workspace.name}".`}
 				onClose={() => {
 					setIsStopConfirmOpen(false);
 					stopWorkspaceMutation.reset();

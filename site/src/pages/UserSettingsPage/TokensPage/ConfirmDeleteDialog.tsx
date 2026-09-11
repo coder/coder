@@ -37,6 +37,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 			open={Boolean(token)}
 			confirmLoading={isDeleting}
 			error={error}
+			errorMessage="Failed to delete token."
 			onConfirm={() => {
 				if (!token) {
 					return;
