@@ -16,7 +16,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { MCPServerIcon, MCPServerIconStack } from "./MCPServerIconStack";
+import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
+import { MCPServerIconStack } from "./MCPServerIconStack";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -267,6 +268,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 										<div className="flex items-center gap-2 px-2.5 py-1.5">
 											<MCPServerIcon
 												iconUrl={server.icon_url}
+												variant="circle"
 												className="size-5"
 											/>
 											<span className="min-w-0 flex-1 truncate text-xs text-content-primary">

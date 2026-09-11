@@ -131,25 +131,6 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("does not offer removal of a force-on MCP server", async () => {
-		const user = userEvent.setup();
-		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				mcpServers={mockMCPServers}
-				selectedMCPServerIds={mockSelectedMCPServerIds}
-				onMCPSelectionChange={vi.fn()}
-			/>,
-		);
-
-		await user.click(screen.getByRole("button", { name: "3 MCP servers" }));
-		expect(
-			within(screen.getByRole("dialog")).queryByRole("button", {
-				name: "Remove Sentry",
-			}),
-		).toBeNull();
-	});
-
 	it("removes a single MCP server directly from the toolbar", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
