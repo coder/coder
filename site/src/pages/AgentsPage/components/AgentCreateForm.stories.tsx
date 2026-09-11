@@ -2183,3 +2183,280 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		});
 	},
 };
+
+export const HarnessMenu: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Change harness" }),
+		);
+	},
+};
+
+export const CodexHarness: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Change harness" }),
+		);
+		await userEvent.click(await screen.findByRole("option", { name: "Codex" }));
+	},
+};
+export const ClaudeCodeHarness: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Change harness" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Claude Code" }),
+		);
+	},
+};
+export const PiHarness: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Change harness" }),
+		);
+		await userEvent.click(await screen.findByRole("option", { name: "Pi" }));
+	},
+};
+export const HarnessMenuMobile: Story = {
+	...HarnessMenu,
+	decorators: [
+		(Story) => (
+			<div className="flex h-screen flex-col justify-end">
+				<Story />
+			</div>
+		),
+	],
+	globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const CoderAgentsHarnessRestored: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Change harness" }),
+		);
+		await userEvent.click(await screen.findByRole("option", { name: "Codex" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Remove Codex harness" }),
+		);
+	},
+};
+
+export const CodexHarnessSettings: Story = {
+	play: async (context) => {
+		await CodexHarness.play?.(context);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+	},
+};
+export const CodexHarnessModeOptions: Story = {
+	play: async (context) => {
+		await CodexHarnessSettings.play?.(context);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Mode Approve for me" }),
+		);
+	},
+};
+export const ClaudeCodeHarnessSettings: Story = {
+	play: async (context) => {
+		await ClaudeCodeHarness.play?.(context);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+	},
+};
+export const PiHarnessSettings: Story = {
+	play: async (context) => {
+		await PiHarness.play?.(context);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+	},
+};
+export const CodexHarnessSettingsMobile: Story = {
+	...CodexHarnessModeOptions,
+	decorators: HarnessMenuMobile.decorators,
+	globals: HarnessMenuMobile.globals,
+};
+
+export const CustomizedHarnessTiles: Story = {
+	play: async (context) => {
+		await CodexHarnessSettings.play?.(context);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Collaboration mode Default" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: "Plan Plan before making changes",
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Reasoning effort Low" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: "High Greater reasoning depth for complex problems",
+			}),
+		);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+	},
+};
+export const CustomizedHarnessTilesMobile: Story = {
+	...CustomizedHarnessTiles,
+	decorators: HarnessMenuMobile.decorators,
+	globals: HarnessMenuMobile.globals,
+};
+export const ResetHarnessTile: Story = {
+	play: async (context) => {
+		await CustomizedHarnessTiles.play?.(context);
+		await userEvent.click(
+			await screen.findByRole("button", {
+				name: "Reset Collaboration mode to default",
+			}),
+		);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+	},
+};
+
+export const HarnessTemplatePicker: Story = {
+	play: async (context) => {
+		await CodexHarness.play?.(context);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Attach template" }),
+		);
+	},
+};
+export const HarnessTemplateAttached: Story = {
+	play: async (context) => {
+		await HarnessTemplatePicker.play?.(context);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Docker" }),
+		);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+	},
+};
+export const HarnessTemplatePickerMobile: Story = {
+	...HarnessTemplatePicker,
+	decorators: HarnessMenuMobile.decorators,
+	globals: HarnessMenuMobile.globals,
+};
+
+export const HarnessComputePicker: Story = {
+	args: {
+		workspaceOptions: [
+			{ ...MockWorkspace, organization_id: MockDefaultOrganization.id },
+		],
+		workspaceCount: 1,
+	},
+	play: async (context) => {
+		await CodexHarness.play?.(context);
+		const canvas = within(context.canvasElement);
+		if (!canvas.queryByRole("button", { name: "Compute" })) {
+			await userEvent.click(
+				canvas.getByRole("button", { name: /more items?/ }),
+			);
+		}
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Compute" }),
+		);
+	},
+};
+export const HarnessComputePickerEmpty: Story = {
+	...HarnessComputePicker,
+	args: { workspaceOptions: [], workspaceCount: 0 },
+};
+export const HarnessComputePickerMobile: Story = {
+	...HarnessComputePicker,
+	decorators: HarnessMenuMobile.decorators,
+	globals: HarnessMenuMobile.globals,
+};
+
+export const CustomizedHarnessTemplate: Story = {
+	play: async (context) => {
+		await CustomizedHarnessTiles.play?.(context);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Compute" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Docker" }),
+		);
+	},
+};
+export const CustomizedHarnessWorkspace: Story = {
+	args: HarnessComputePicker.args,
+	play: async (context) => {
+		await CustomizedHarnessTiles.play?.(context);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Compute" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: MockWorkspace.name }),
+		);
+	},
+};
+
+export const HarnessWorkingDirectory: Story = {
+	...CodexHarness,
+	play: async (context) => {
+		await CodexHarness.play?.(context);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("button", {
+				name: "More options",
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", {
+				name: "Working directory /home/coder",
+			}),
+		);
+	},
+};
+
+export const HarnessCustomWorkingDirectory: Story = {
+	...CodexHarness,
+	play: async (context) => {
+		await HarnessWorkingDirectory.play?.(context);
+		const input = screen.getByRole("textbox", { name: "Working directory" });
+		await userEvent.clear(input);
+		await userEvent.type(input, "/home/coder/projects/my-app");
+		await userEvent.keyboard("{Enter}{Escape}");
+	},
+};

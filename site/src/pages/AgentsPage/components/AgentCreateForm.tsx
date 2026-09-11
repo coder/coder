@@ -38,6 +38,7 @@ import {
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
+import type { Harness } from "./HarnessPicker";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -155,6 +156,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isWorkspacesLoading,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
+	const [selectedHarness, setSelectedHarness] =
+		useState<Harness>("Coder Agents");
 	const {
 		initialInputValue,
 		initialEditorState,
@@ -632,6 +635,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							/>
 						)}
 					<AgentChatInput
+						selectedHarness={selectedHarness}
+						onHarnessChange={setSelectedHarness}
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={

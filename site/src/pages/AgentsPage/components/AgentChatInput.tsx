@@ -4,6 +4,7 @@ import {
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
+	LayersIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -82,13 +83,27 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import { ChatComputePicker } from "./ChatComputePicker";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import {
+	ChatTemplatePicker,
+	ChatTemplatePickerList,
+	chatTemplateOptions,
+} from "./ChatTemplatePicker";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
+import { HarnessConfigMenu } from "./HarnessConfigMenu";
+import {
+	type Harness,
+	HarnessIcon,
+	HarnessPicker,
+	HarnessPickerList,
+} from "./HarnessPicker";
+import { harnessConfig } from "./harnessConfig";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
@@ -103,6 +118,8 @@ export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
+	selectedHarness?: Harness;
+	onHarnessChange?: (harness: Harness) => void;
 	onSend: (message: string) => void;
 	placeholder?: string;
 	isDisabled: boolean;
@@ -219,10 +236,20 @@ const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
 type ToolBadgeData =
+	| { kind: "compute" }
 	| { kind: "workspace"; name: string }
+	| { kind: "template"; name: string; icon: string; onRemove: () => void }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
-	| { kind: "planning" };
+	| { kind: "planning" }
+	| { kind: "harness"; name: Harness; onRemove: () => void }
+	| {
+			kind: "harness-config";
+			id: string;
+			name: string;
+			value: string;
+			onRemove: () => void;
+	  };
 
 // Small `X` button rendered inside pill-style badges (attached
 // workspace, MCP server, planning indicator) to dismiss or disable
@@ -248,6 +275,7 @@ const BadgeDismissButton: FC<{
 
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
+	computePicker?: React.ReactNode;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
@@ -257,6 +285,7 @@ const ToolBadge: FC<{
 	disableTooltip?: boolean;
 }> = ({
 	badge,
+	computePicker,
 	onRemoveWorkspace,
 	onRemoveMcp,
 	onRemovePlanning,
@@ -269,6 +298,13 @@ const ToolBadge: FC<{
 		className,
 	);
 
+	if (badge.kind === "compute") {
+		return (
+			<span className={cn("inline-flex shrink-0", className)}>
+				{computePicker}
+			</span>
+		);
+	}
 	if (badge.kind === "planning") {
 		return (
 			<span data-testid="planning-badge" className={badgeCls}>
@@ -322,6 +358,47 @@ const ToolBadge: FC<{
 		);
 	}
 
+	if (badge.kind === "harness") {
+		return (
+			<span className={badgeCls}>
+				<HarnessIcon harness={badge.name} />
+				<span className="truncate">{badge.name}</span>
+				<BadgeDismissButton
+					onClick={badge.onRemove}
+					ariaLabel={`Remove ${badge.name} harness`}
+				/>
+			</span>
+		);
+	}
+
+	if (badge.kind === "harness-config") {
+		return (
+			<span className={badgeCls} title={`${badge.name} ${badge.value}`}>
+				<span className="max-w-[12ch] truncate font-normal text-content-tertiary">
+					{badge.name}
+				</span>{" "}
+				<span className="max-w-[16ch] truncate text-content-primary">
+					{badge.value}
+				</span>
+				<BadgeDismissButton
+					onClick={badge.onRemove}
+					ariaLabel={`Reset ${badge.name} to default`}
+				/>
+			</span>
+		);
+	}
+	if (badge.kind === "template") {
+		return (
+			<span className={badgeCls} title={`New workspace from ${badge.name}`}>
+				<ExternalImage src={badge.icon} alt="" className="size-3.5 shrink-0" />
+				<span className="max-w-[16ch] truncate">{badge.name}</span>
+				<BadgeDismissButton
+					onClick={badge.onRemove}
+					ariaLabel={`Remove template ${badge.name}`}
+				/>
+			</span>
+		);
+	}
 	if (badge.kind === "workspace") {
 		return (
 			<span className={badgeCls}>
@@ -385,6 +462,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onInterrupt,
 	isInterruptPending = false,
 	workspaceOptions,
+	selectedHarness,
+	onHarnessChange,
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	chatOrganizationId,
@@ -450,9 +529,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		string | null
 	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
-		"main",
+	const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+		null,
 	);
+	const isCustomHarness = Boolean(
+		selectedHarness && selectedHarness !== "Coder Agents",
+	);
+	const selectedTemplate = isCustomHarness
+		? chatTemplateOptions.find((template) => template.id === selectedTemplateId)
+		: undefined;
+	const needsWorkspace =
+		isCustomHarness && !selectedWorkspaceId && !selectedTemplate;
+
+	const [harnessSettings, setHarnessSettings] = useState<
+		Partial<Record<Harness, Record<string, string>>>
+	>({});
+	const [plusMenuView, setPlusMenuView] = useState<
+		"main" | "workspace" | "harness" | "template"
+	>("main");
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
 		useMCPOAuthFlow({
@@ -620,7 +714,28 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	if (shouldOverflowPlanningBadge) {
+	if (
+		selectedHarness &&
+		selectedHarness !== "Coder Agents" &&
+		onHarnessChange
+	) {
+		allBadges.push({
+			kind: "harness",
+			name: selectedHarness,
+			onRemove: () => onHarnessChange("Coder Agents"),
+		});
+	}
+	if (needsWorkspace) allBadges.push({ kind: "compute" });
+
+	if (selectedTemplate) {
+		allBadges.push({
+			kind: "template",
+			name: selectedTemplate.name,
+			icon: selectedTemplate.icon,
+			onRemove: () => setSelectedTemplateId(null),
+		});
+	}
+	if (shouldOverflowPlanningBadge && !isCustomHarness) {
 		allBadges.push({ kind: "planning" });
 	}
 	if (workspacePillBadge) {
@@ -630,6 +745,50 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	}
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
+	}
+	if (selectedHarness && isCustomHarness) {
+		const directory = harnessSettings[selectedHarness]?.working_directory;
+		if (directory && directory !== "/home/coder") {
+			allBadges.push({
+				kind: "harness-config",
+				id: "working_directory",
+				name: "Directory",
+				value: directory,
+				onRemove: () =>
+					setHarnessSettings((settings) => ({
+						...settings,
+						[selectedHarness]: {
+							...settings[selectedHarness],
+							working_directory: "/home/coder",
+						},
+					})),
+			});
+		}
+	}
+	if (selectedHarness) {
+		for (const config of harnessConfig[selectedHarness]) {
+			const value = harnessSettings[selectedHarness]?.[config.id];
+			if (value === undefined || value === config.currentValue) continue;
+			const option = config.options.find((option) => option.value === value);
+			if (!option) continue;
+			allBadges.push({
+				kind: "harness-config",
+				id: config.id,
+				name: config.name,
+				value: option.name,
+				onRemove: () =>
+					setHarnessSettings((settings) => ({
+						...settings,
+						[selectedHarness]: {
+							...settings[selectedHarness],
+							[config.id]: config.currentValue,
+						},
+					})),
+			});
+		}
+	}
+	if (shouldOverflowPlanningBadge && isCustomHarness) {
+		allBadges.push({ kind: "planning" });
 	}
 	for (const s of activeMcpServers) {
 		allBadges.push({ kind: "mcp", server: s });
@@ -913,6 +1072,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasSendableContent =
 		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
+		!needsWorkspace &&
 		!isDisabled &&
 		!isReadOnly &&
 		!isLoading &&
@@ -945,7 +1105,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			isReadOnly ||
 			isLoading ||
 			hasActiveUploads ||
-			!hasModelOptions
+			!hasModelOptions ||
+			needsWorkspace
 		) {
 			return;
 		}
@@ -1073,6 +1234,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
+	const selectTemplate = (id: string) => {
+		onWorkspaceChange?.(null);
+		setSelectedTemplateId(id);
+		setPlusMenuView("main");
+	};
+	const selectWorkspace = (id: string | null) => {
+		setSelectedTemplateId(null);
+		onWorkspaceChange?.(id);
+	};
+
 	const sendButtonLabel = isEditingHistoryMessage ? "Save Edit" : "Send";
 	const sendShortcutLabel =
 		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
@@ -1083,6 +1254,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			? "Control+Enter Meta+Enter"
 			: "Enter";
 
+	const computePicker = needsWorkspace ? (
+		<ChatComputePicker
+			workspaceOptions={workspaceOptions}
+			isWorkspaceLoading={isWorkspaceLoading}
+			chatOrganizationId={chatOrganizationId}
+			onWorkspaceChange={onWorkspaceChange ? selectWorkspace : undefined}
+			onTemplateChange={selectTemplate}
+		/>
+	) : undefined;
 	const content = (
 		<div
 			className={cn(
@@ -1212,6 +1392,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
+
 				{/* Hidden file input for attaching any server-accepted file type. */}
 				{onAttach && (
 					<input
@@ -1257,7 +1438,25 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								align="start"
 								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
 							>
-								{plusMenuView === "workspace" ? (
+								{plusMenuView === "template" ? (
+									<ChatTemplatePickerList
+										value={selectedTemplateId}
+										onChange={selectTemplate}
+										onBack={() => setPlusMenuView("main")}
+									/>
+								) : plusMenuView === "harness" &&
+									selectedHarness &&
+									onHarnessChange ? (
+									<HarnessPickerList
+										value={selectedHarness}
+										onBack={() => setPlusMenuView("main")}
+										onChange={(harness) => {
+											onHarnessChange(harness);
+											setPlusMenuOpen(false);
+											setPlusMenuView("main");
+										}}
+									/>
+								) : plusMenuView === "workspace" ? (
 									<div className="p-0">
 										<button
 											type="button"
@@ -1273,13 +1472,55 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											selectedWorkspaceId={selectedWorkspaceId}
 											chatOrganizationId={chatOrganizationId}
 											onSelect={(id) => {
-												onWorkspaceChange?.(id);
+												selectWorkspace(id);
 												setPlusMenuOpen(false);
 											}}
 										/>
 									</div>
 								) : (
 									<>
+										{selectedHarness && onHarnessChange && (
+											<>
+												{isBelowMdViewport() ? (
+													<button
+														type="button"
+														onClick={() => setPlusMenuView("harness")}
+														className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+													>
+														<HarnessIcon harness={selectedHarness} />
+														<span>Change harness</span>
+														<ChevronRightIcon className="ml-auto size-icon-sm" />
+													</button>
+												) : (
+													<HarnessPicker
+														value={selectedHarness}
+														onChange={(harness) => {
+															onHarnessChange(harness);
+															setPlusMenuOpen(false);
+														}}
+													/>
+												)}
+												<Separator className="my-1" />
+											</>
+										)}
+										{selectedHarness && selectedHarness !== "Coder Agents" && (
+											<>
+												<HarnessConfigMenu
+													harness={selectedHarness}
+													values={harnessSettings[selectedHarness] ?? {}}
+													onChange={(id, value) =>
+														setHarnessSettings((settings) => ({
+															...settings,
+															[selectedHarness]: {
+																...settings[selectedHarness],
+																[id]: value,
+															},
+														}))
+													}
+												/>
+												<Separator className="my-1" />
+											</>
+										)}
 										{onAttach && (
 											<button
 												type="button"
@@ -1294,22 +1535,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												Attach file
 											</button>
 										)}
-										{onPlanModeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={planModeEnabled}
-												onClick={handlePlanModeToggle}
-												disabled={isDisabled}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<PencilIcon className="size-3.5 shrink-0" />
-												<span>Plan first</span>
-												{planModeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</button>
-										)}
+										{onPlanModeToggle &&
+											(!selectedHarness ||
+												selectedHarness === "Coder Agents") && (
+												<button
+													type="button"
+													role="menuitemcheckbox"
+													aria-checked={planModeEnabled}
+													onClick={handlePlanModeToggle}
+													disabled={isDisabled}
+													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													<PencilIcon className="size-3.5 shrink-0" />
+													<span>Plan first</span>
+													{planModeEnabled && (
+														<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+													)}
+												</button>
+											)}
 										{workspaceOptions &&
 											onWorkspaceChange &&
 											(isBelowMdViewport() ? (
@@ -1355,13 +1598,30 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 															selectedWorkspaceId={selectedWorkspaceId}
 															chatOrganizationId={chatOrganizationId}
 															onSelect={(id) => {
-																onWorkspaceChange(id);
+																selectWorkspace(id);
 																setWorkspacePickerOpen(false);
 																setPlusMenuOpen(false);
 															}}
 														/>
 													</PopoverContent>
 												</Popover>
+											))}
+										{isCustomHarness &&
+											(isBelowMdViewport() ? (
+												<button
+													type="button"
+													onClick={() => setPlusMenuView("template")}
+													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+												>
+													<LayersIcon className="size-3.5 shrink-0" />
+													<span>Attach template</span>
+													<ChevronRightIcon className="ml-auto size-icon-sm" />
+												</button>
+											) : (
+												<ChatTemplatePicker
+													value={selectedTemplateId}
+													onChange={selectTemplate}
+												/>
 											))}
 										{enabledMcpServers.length > 0 && (
 											<>
@@ -1445,23 +1705,25 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</PopoverContent>
 						</Popover>
-						{isModelCatalogLoading ? (
-							<Skeleton className="h-6 w-24 rounded" />
-						) : (
-							<ModelSelector
-								value={selectedModel}
-								onValueChange={onModelChange}
-								options={modelOptions}
-								disabled={isDisabled}
-								placeholder={modelSelectorPlaceholder}
-								className={cn(pillSizingClasses, "md:h-auto")}
-								dropdownSide="top"
-								dropdownAlign="start"
-								enableMobileFullWidthDropdown
-								reasoningEffort={reasoningEffort}
-								onReasoningEffortChange={onReasoningEffortChange}
-							/>
-						)}
+						{(!selectedHarness || selectedHarness === "Coder Agents") &&
+							(isModelCatalogLoading ? (
+								<Skeleton className="h-6 w-24 rounded" />
+							) : (
+								<ModelSelector
+									value={selectedModel}
+									onValueChange={onModelChange}
+									options={modelOptions}
+									disabled={isDisabled}
+									placeholder={modelSelectorPlaceholder}
+									className={cn(pillSizingClasses, "md:h-auto")}
+									dropdownSide="top"
+									dropdownAlign="start"
+									enableMobileFullWidthDropdown
+									reasoningEffort={reasoningEffort}
+									onReasoningEffortChange={onReasoningEffortChange}
+								/>
+							))}
+
 						{planModeEnabled && !shouldOverflowPlanningBadge && (
 							<span
 								data-testid="planning-badge"
@@ -1515,8 +1777,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								}
 								return (
 									<ToolBadge
-										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
+										key={
+											badge.kind === "mcp"
+												? badge.server.id
+												: badge.kind === "harness-config"
+													? `harness-config-${badge.id}`
+													: badge.kind
+										}
 										badge={badge}
+										computePicker={computePicker}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
 										onRemovePlanning={
@@ -1600,6 +1869,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														: `${badge.kind}-overflow-${visibleCount + i}`
 												}
 												badge={badge}
+												computePicker={computePicker}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}
 												onRemovePlanning={
