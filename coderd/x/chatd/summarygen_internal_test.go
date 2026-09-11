@@ -225,30 +225,98 @@ func TestShouldGenerateChatSummary(t *testing.T) {
 func TestValidateGeneratedChatSummary(t *testing.T) {
 	t.Parallel()
 
-	require.Error(t, validateGeneratedChatSummary(""))
-	require.Error(t, validateGeneratedChatSummary(strings.Repeat("a", summaryMaxRunes+1)))
-	require.Error(t, validateGeneratedChatSummary(
-		"Headline.\n- one\n- two\n- three\n- four\n- five\n- six",
-	))
-	// A summary that opens with a bullet or heading lost its headline.
-	require.Error(t, validateGeneratedChatSummary("- one\n- two"))
-	require.Error(t, validateGeneratedChatSummary("# Summary\n- one"))
-	require.NoError(t, validateGeneratedChatSummary(
-		"Defines how chat summaries render.\n- Updates quickgen.go:916\n- Adds tests",
-	))
-}
+	validBullets := []string{"Traces the race in `cache.go:212`", "Adds a regression test"}
 
-func TestNormalizeChatSummaryOutput(t *testing.T) {
-	t.Parallel()
+	tests := []struct {
+		name    string
+		summary generatedChatSummary
+		wantErr bool
+	}{
+		{
+			name:    "Valid",
+			summary: generatedChatSummary{Headline: "Defines how chat summaries render.", Bullets: validBullets},
+		},
+		{
+			name:    "EmptyHeadline",
+			summary: generatedChatSummary{Bullets: validBullets},
+			wantErr: true,
+		},
+		{
+			name: "HeadlineTooLong",
+			summary: generatedChatSummary{
+				Headline: strings.Repeat("a", summaryHeadlineMaxRunes+1),
+				Bullets:  validBullets,
+			},
+			wantErr: true,
+		},
+		{
+			name: "HeadlineTooManyWords",
+			summary: generatedChatSummary{
+				Headline: strings.TrimSpace(strings.Repeat("word ", summaryHeadlineMaxWords+1)),
+				Bullets:  validBullets,
+			},
+			wantErr: true,
+		},
+		{
+			name: "HeadlineTooManySentences",
+			summary: generatedChatSummary{
+				Headline: "One. Two. Three.",
+				Bullets:  validBullets,
+			},
+			wantErr: true,
+		},
+		{
+			name:    "SingleBullet",
+			summary: generatedChatSummary{Headline: "Controls summary rendering.", Bullets: []string{"Only one"}},
+		},
+		{
+			// A trivial chat is fully described by its headline.
+			name:    "NoBullets",
+			summary: generatedChatSummary{Headline: "Fixes a typo in `README.md`."},
+		},
+		{
+			name: "TooManyBullets",
+			summary: generatedChatSummary{
+				Headline: "Controls summary rendering.",
+				Bullets:  []string{"One", "Two", "Three", "Four", "Five"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "BulletTooLong",
+			summary: generatedChatSummary{
+				Headline: "Controls summary rendering.",
+				Bullets:  []string{"Fine", strings.Repeat("b", summaryBulletMaxRunes+1)},
+			},
+			wantErr: true,
+		},
+		{
+			name: "SerializedTooLong",
+			summary: generatedChatSummary{
+				Headline: strings.Repeat("a", summaryHeadlineMaxRunes),
+				Bullets: []string{
+					strings.Repeat("b", summaryBulletMaxRunes),
+					strings.Repeat("c", summaryBulletMaxRunes),
+					strings.Repeat("d", summaryBulletMaxRunes),
+					strings.Repeat("e", summaryBulletMaxRunes),
+				},
+			},
+			wantErr: true,
+		},
+	}
 
-	// Blank lines and stray indentation collapse, line structure survives.
-	require.Equal(t,
-		"Defines how chat summaries render.\n- Updates quickgen.go:916\n- Adds tests",
-		normalizeChatSummaryOutput(
-			"  Defines how chat  summaries render.\n\n-   Updates quickgen.go:916\n\t- Adds tests\n\n",
-		),
-	)
-	require.Equal(t, "", normalizeChatSummaryOutput("   \n\n"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateGeneratedChatSummary(tt.summary)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestCountSentenceTerminators(t *testing.T) {
@@ -258,6 +326,84 @@ func TestCountSentenceTerminators(t *testing.T) {
 	require.Equal(t, 2, countSentenceTerminators("Fixed pkg.cmd.server in file.go. Added a test."))
 	require.Equal(t, 3, countSentenceTerminators("One. Two! Three?"))
 	require.Equal(t, 0, countSentenceTerminators("auth.rbac.Policy"))
+
+	// Dotted identifiers must not push a valid headline over the sentence cap.
+	require.NoError(t, validateGeneratedChatSummary(generatedChatSummary{
+		Headline: "Refactors pkg.cmd.server and auth.rbac.Policy in main.go.",
+		Bullets:  []string{"Updates call sites", "Adds coverage in foo_test.go"},
+	}))
+}
+
+func TestNormalizeSummaryField(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		text string
+		want string
+	}{
+		{name: "Empty", text: "   ", want: ""},
+		{name: "CollapsesNewlines", text: "Defines how summaries\nrender", want: "Defines how summaries render"},
+		{name: "CollapsesRuns", text: "Defines   how\t\tsummaries render", want: "Defines how summaries render"},
+		{name: "StripsSurroundingQuotes", text: `"Defines how summaries render"`, want: "Defines how summaries render"},
+		{
+			// normalizeShortTextOutput would strip this and unbalance the span.
+			name: "PreservesTrailingBacktick",
+			text: "Traces the race in `cache.go:212`",
+			want: "Traces the race in `cache.go:212`",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, normalizeSummaryField(tt.text))
+		})
+	}
+}
+
+func TestNormalizeSummaryBullets(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t,
+		[]string{"First bullet", "Second bullet"},
+		normalizeSummaryBullets([]string{" First\nbullet ", "   ", "Second bullet", ""}),
+	)
+	require.Empty(t, normalizeSummaryBullets(nil))
+}
+
+func TestFormatChatSummaryMarkdown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		headline string
+		bullets  []string
+		want     string
+	}{
+		{
+			name:     "HeadlineOnly",
+			headline: "Defines how chat summaries render.",
+			want:     "Defines how chat summaries render.",
+		},
+		{
+			// Without the blank line, CommonMark folds the first bullet
+			// into the headline paragraph.
+			name:     "HeadlineAndBullets",
+			headline: "Defines how chat summaries render.",
+			bullets:  []string{"Traces the race", "Adds a test"},
+			want:     "Defines how chat summaries render.\n\n- Traces the race\n- Adds a test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, formatChatSummaryMarkdown(tt.headline, tt.bullets))
+		})
+	}
 }
 
 func TestSubagentReportSummarySnippet(t *testing.T) {

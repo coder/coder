@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from "react";
-import { Markdown } from "#/components/Markdown/Markdown";
+import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
@@ -41,11 +41,7 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	return (
 		<div className="flex flex-col gap-4">
 			{trimmedSummary ? (
-				// Generated summaries are a headline sentence plus bullets, so
-				// render markdown instead of a single paragraph.
-				<Markdown className="text-sm leading-6 text-content-primary [&_li]:my-0 [&_p]:m-0 [&_ul]:my-1 [&_ul]:pl-4">
-					{trimmedSummary}
-				</Markdown>
+				<ChatSummaryBody summary={trimmedSummary} />
 			) : (
 				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
 					{isSubagent ? "Summary pending agent completion." : "No summary yet."}
@@ -90,6 +86,50 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 		</div>
 	);
 };
+
+interface ChatSummaryBodyProps {
+	summary: string;
+}
+
+/**
+ * Renders the generated headline paragraph plus its optional bullet list.
+ * Markdown is constrained to lists and inline code: summaries carry verbatim
+ * identifiers in backticks and nothing else.
+ */
+const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
+	<div
+		// Verbatim identifiers can exceed the panel width with no natural
+		// break opportunity, so break anywhere.
+		className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary [overflow-wrap:anywhere]"
+	>
+		<InlineMarkdown
+			// `ol` keeps a legacy prose summary starting with "1. " in a list
+			// parent instead of emitting orphan `li` elements.
+			allowedElements={["ul", "ol", "li"]}
+			components={{
+				// InlineMarkdown renders `p` as a bare fragment, which would
+				// run the headline straight into the bullet list.
+				p: ({ children }) => <p className="m-0 text-pretty">{children}</p>,
+				ul: ({ children }) => (
+					<ul className="my-2 flex list-disc flex-col gap-1 pl-5">
+						{children}
+					</ul>
+				),
+				ol: ({ children }) => (
+					<ol className="my-2 flex list-decimal flex-col gap-1 pl-5">
+						{children}
+					</ol>
+				),
+				li: ({ children }) => <li className="m-0 text-pretty">{children}</li>,
+				// A summary describes the chat rather than linking out of it, so
+				// model-authored URLs render as plain text.
+				a: ({ children }) => children,
+			}}
+		>
+			{summary}
+		</InlineMarkdown>
+	</div>
+);
 
 interface ChatSummaryRowProps {
 	label: string;

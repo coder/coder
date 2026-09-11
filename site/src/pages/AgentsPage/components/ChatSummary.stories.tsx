@@ -5,8 +5,13 @@ const meta: Meta<typeof ChatSummary> = {
 	title: "pages/AgentsPage/ChatSummary",
 	component: ChatSummary,
 	args: {
-		summary:
-			"Investigates a flaky CI job in coder/coder.\n- Traces the failure to a race in cache.go:212\n- Adds a regression test in cache_test.go\n- Leaves PR #29192 open for review",
+		summary: [
+			"Defines how chat summaries are generated and rendered.",
+			"",
+			"- Replaces the prompt in `coderd/x/chatd/quickgen.go:916`",
+			"- Traces the flaky job to a race in `cache.go:212`",
+			"- Adds a regression test in `cache_test.go`",
+		].join("\n"),
 		createdAt: "2024-05-01T12:00:00Z",
 		updatedAt: "2024-05-02T15:30:00Z",
 		costMicros: 1_250_000,
@@ -26,12 +31,11 @@ type Story = StoryObj<typeof ChatSummary>;
 
 export const WithSummary: Story = {};
 
-// Subagent summaries are plain report prose rather than the generated
-// headline-plus-bullets shape.
+// A headline alone is valid when it already covers the whole chat, and
+// subagent summaries are plain report prose.
 export const ProseSummary: Story = {
 	args: {
-		summary:
-			"Investigated the flaky CI job, traced it to a race in the cache layer, and added a regression test.",
+		summary: "Fixes a typo in `README.md`.",
 	},
 };
 
