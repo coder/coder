@@ -22,6 +22,13 @@ export interface AIBridgeAgenticAction {
 	readonly tool_calls: readonly AIBridgeToolCall[];
 }
 
+// From codersdk/aibridge.go
+/**
+ * AIBridgeAttribution contains the attribution fields recorded for one
+ * interception.
+ */
+export type AIBridgeAttribution = Record<string, string>;
+
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
@@ -55,20 +62,6 @@ export interface AIBridgeConfig {
 	 * the provider. Empty disables dumping.
 	 */
 	readonly api_dump_dir: string;
-}
-
-// From codersdk/aibridge.go
-/**
- * AIBridgeInterceptionReference is a compact reference to a single
- * interception within a thread, with optional workspace attribution.
- */
-export interface AIBridgeInterceptionReference {
-	readonly id: string;
-	/**
-	 * Attribution carries workspace_id when the interception can be attributed
-	 * to a specific workspace. Nil when the workspace context is unknown.
-	 */
-	readonly attribution?: Record<string, string>;
 }
 
 // From codersdk/aibridge.go
@@ -229,12 +222,19 @@ export interface AIBridgeThread {
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	/**
-	 * Interceptions lists every interception in this thread in chronological
-	 * query order, including tool-less rows. Use this for per-interception
-	 * attribution and audit rather than AgenticActions, which only covers
-	 * interceptions that produced tool calls.
+	 * InterceptionAttributions maps every interception ID (UUID string) in this
+	 * thread to its attribution, including tool-less rows. The inner map carries
+	 * workspace_id when the interception can be attributed to a specific
+	 * workspace, and is null when the workspace context is unknown. The outer
+	 * map is always present (serializes as {}, never null) so callers can
+	 * distinguish an empty thread from a missing field. Use this for
+	 * per-interception attribution and audit rather than AgenticActions, which
+	 * only covers interceptions that produced tool calls.
 	 */
-	readonly interceptions: readonly AIBridgeInterceptionReference[];
+	readonly interception_attributions: Record<
+		string,
+		AIBridgeAttribution | null
+	>;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
 	 * ErrorType is the categorized terminal upstream error from the root

@@ -364,6 +364,21 @@ title: Schemas
 | `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
 | `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
 
+## codersdk.AIBridgeAttribution
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+|------------------|--------|----------|--------------|-------------|
+| `[any property]` | string | false    |              |             |
+
 ## codersdk.AIBridgeConfig
 
 ```json
@@ -407,26 +422,6 @@ title: Schemas
 | `retention`                         | integer | false    |              |                                                                                                                                                                        |
 | `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
 | `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
-
-## codersdk.AIBridgeInterceptionReference
-
-```json
-{
-  "attribution": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-}
-```
-
-### Properties
-
-| Name               | Type   | Required | Restrictions | Description                                                                                                                                  |
-|--------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `attribution`      | object | false    |              | Attribution carries workspace_id when the interception can be attributed to a specific workspace. Nil when the workspace context is unknown. |
-| » `[any property]` | string | false    |              |                                                                                                                                              |
-| `id`               | string | false    |              |                                                                                                                                              |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -722,15 +717,16 @@ title: Schemas
       "error_message": "string",
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "interceptions": [
-        {
-          "attribution": {
-            "property1": "string",
-            "property2": "string"
-          },
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      "interception_attributions": {
+        "property1": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "property2": {
+          "property1": "string",
+          "property2": "string"
         }
-      ],
+      },
       "model": "string",
       "prompt": "string",
       "provider": "string",
@@ -876,15 +872,16 @@ title: Schemas
   "error_message": "string",
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "interceptions": [
-    {
-      "attribution": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  "interception_attributions": {
+    "property1": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "property2": {
+      "property1": "string",
+      "property2": "string"
     }
-  ],
+  },
   "model": "string",
   "prompt": "string",
   "provider": "string",
@@ -904,23 +901,24 @@ title: Schemas
 
 ### Properties
 
-| Name                             | Type                                                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                             |
-|----------------------------------|-------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_firewall_sequence_number` | integer                                                                                   | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall.               |
-| `agent_firewall_session_id`      | string                                                                                    | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                                     |
-| `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)                 | false    |              |                                                                                                                                                                                                                                                         |
-| `credential_hint`                | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `credential_kind`                | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `ended_at`                       | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `error_message`                  | string                                                                                    | false    |              | Error message is the raw terminal upstream error message from the root interception. Nil when the interception succeeded.                                                                                                                               |
-| `error_type`                     | string                                                                                    | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                                            |
-| `id`                             | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `interceptions`                  | array of [codersdk.AIBridgeInterceptionReference](#codersdkaibridgeinterceptionreference) | false    |              | Interceptions lists every interception in this thread in chronological query order, including tool-less rows. Use this for per-interception attribution and audit rather than AgenticActions, which only covers interceptions that produced tool calls. |
-| `model`                          | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `prompt`                         | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `provider`                       | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `started_at`                     | string                                                                                    | false    |              |                                                                                                                                                                                                                                                         |
-| `token_usage`                    | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)    | false    |              |                                                                                                                                                                                                                                                         |
+| Name                             | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|----------------------------------|----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall.                                                                                                                                                                                                                                                                                                                        |
+| `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `error_message`                  | string                                                                                 | false    |              | Error message is the raw terminal upstream error message from the root interception. Nil when the interception succeeded.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                                                                                                                                                                                                                                                                                                                                                     |
+| `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `interception_attributions`      | object                                                                                 | false    |              | Interception attributions maps every interception ID (UUID string) in this thread to its attribution, including tool-less rows. The inner map carries workspace_id when the interception can be attributed to a specific workspace, and is null when the workspace context is unknown. The outer map is always present (serializes as {}, never null) so callers can distinguish an empty thread from a missing field. Use this for per-interception attribution and audit rather than AgenticActions, which only covers interceptions that produced tool calls. |
+| » `[any property]`               | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `token_usage`                    | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## codersdk.AIBridgeToolCall
 
