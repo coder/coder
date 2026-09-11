@@ -449,12 +449,16 @@ type OAuth2TokenRevocationRequest struct {
 	ClientSecret  string                        `json:"client_secret,omitempty"`
 }
 
-// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token revocation.
-func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, token string) error {
+// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token
+// revocation. A confidential client must present its clientSecret; a public
+// client passes an empty string and is bound to the token by client_id alone.
+func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, clientSecret, token string) error {
 	form := url.Values{}
 	form.Set("token", token)
-	// Client authentication is handled via the client_id in the app middleware
 	form.Set("client_id", clientID.String())
+	if clientSecret != "" {
+		form.Set("client_secret", clientSecret)
+	}
 
 	res, err := c.Request(ctx, http.MethodPost, "/oauth2/revoke", strings.NewReader(form.Encode()), func(r *http.Request) {
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")

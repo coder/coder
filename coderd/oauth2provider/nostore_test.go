@@ -153,8 +153,18 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		form.Set("token", token.RefreshToken)
 		form.Set("client_id", app.ID.String())
 
-		// RFC 7009 success is a bare WriteHeader(200), never httpapi.Write.
+		// A confidential client authenticates at revocation (RFC 7009 §2.1),
+		// and the 401 is a response this route did not produce before.
 		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		requireNoStore(t, resp)
+		require.Equal(t, `Basic realm="coder"`, resp.Header.Get("WWW-Authenticate"))
+
+		form.Set("client_secret", secret)
+
+		// RFC 7009 success is a bare WriteHeader(200), never httpapi.Write.
+		resp = doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		requireNoStore(t, resp)

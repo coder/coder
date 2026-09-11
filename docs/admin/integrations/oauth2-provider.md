@@ -340,6 +340,28 @@ curl -X POST \
   "$CODER_URL/oauth2/tokens"
 ```
 
+### Revoke a Token
+
+Revoke one refresh token or access token through the
+[RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009) endpoint that
+`revocation_endpoint` advertises. A confidential client authenticates exactly
+as it does at the token endpoint, with HTTP Basic or form credentials:
+
+```sh
+curl -X POST \
+  -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "token=$REFRESH_TOKEN" \
+  "$CODER_URL/oauth2/revoke"
+```
+
+A public client sends `client_id` alone. Revoking a refresh token also ends the
+access token issued with it. The endpoint answers HTTP 200 whether or not the
+token existed or belonged to the client, as RFC 7009 requires, so a client
+cannot use it to probe for other clients' tokens. A confidential client that
+fails to authenticate receives HTTP 401 with `error=invalid_client` and nothing
+is revoked.
+
 ### Revoke Access
 
 Revoke all tokens for an application:
@@ -535,18 +557,18 @@ confers `organization_member:read`, which a workspace build needs and which
 can name will fail to create a workspace. Refresh without a `scope` to return to
 the composite.
 
-### "invalid_client" for a refresh
+### "invalid_client" for a refresh or a revocation
 
-`POST /oauth2/tokens` with `grant_type=refresh_token` answers HTTP 401 with
-`error=invalid_client` when a confidential client does not authenticate. The
-usual causes are a `client_secret` that was omitted, a secret that belongs to a
-different client, or a secret that has since been deleted or rotated. Present
-the client's current secret, as HTTP Basic or as a form parameter, following
-[Refresh Tokens](#refresh-tokens). The refresh token is not consumed by the
-refusal, so the retry needs no new authorization. If the secret was deleted,
-the tokens issued under it were revoked with it, and the client must authorize
-again. Public clients have no secret and never receive this error for omitting
-one.
+`POST /oauth2/tokens` with `grant_type=refresh_token` and `POST /oauth2/revoke`
+answer HTTP 401 with `error=invalid_client` when a confidential client does not
+authenticate. The usual causes are a `client_secret` that was omitted, a secret
+that belongs to a different client, or a secret that has since been deleted or
+rotated. Present the client's current secret, as HTTP Basic or as a form
+parameter, following [Refresh Tokens](#refresh-tokens). The refresh token is
+not consumed and nothing is revoked by the refusal, so the retry needs no new
+authorization. If the secret was deleted, the tokens issued under it were
+revoked with it, and the client must authorize again. Public clients have no
+secret and never receive this error for omitting one.
 
 ### "unsupported_response_type" returned to your callback
 
@@ -647,8 +669,8 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
   clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 - **Refresh tokens are not self-sufficient**: a confidential client must present
-  its `client_secret` on every refresh, so a leaked refresh token alone cannot
-  mint new access tokens
+  its `client_secret` to refresh or revoke, so a leaked token alone cannot mint
+  new access tokens or end another client's session
 - **No CORS on the authorization endpoint**: `/oauth2/authorize` is reached
   only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
   The token, registration, revocation, and metadata endpoints do allow
@@ -669,12 +691,13 @@ enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
 refresh token is not consumed, so a client that drops the parameter or asks for
 less recovers without re-authorizing.
 
-Earlier versions did not check `client_secret` on a refresh, so a confidential
-client could refresh with a wrong secret or none. The refresh grant now
-authenticates confidential clients exactly as the authorization code grant
-does, and a refresh without a valid secret answers HTTP 401 with
-`error=invalid_client`. The refresh token is not consumed, so a client that
-adds its secret recovers without re-authorizing. Public clients are unaffected.
+Earlier versions did not check `client_secret` on a refresh or at the RFC 7009
+revocation endpoint, so a confidential client could refresh or revoke with a
+wrong secret or none. Both now authenticate confidential clients exactly as the
+authorization code grant does, and a request without a valid secret answers
+HTTP 401 with `error=invalid_client`. The refresh token is not consumed and
+nothing is revoked, so a client that adds its secret recovers without
+re-authorizing. Public clients are unaffected.
 
 ## Standards Compliance
 
