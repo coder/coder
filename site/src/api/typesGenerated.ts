@@ -3248,6 +3248,14 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
+	/**
+	 * HeldAt is set while the owner is editing the message. A held
+	 * message and every message queued behind it are not processed
+	 * until the hold is released; messages ahead of it still are. A
+	 * waiting chat whose first queued message is held is paused for
+	 * that edit rather than idle: a send to it is queued.
+	 */
+	readonly held_at?: string;
 }
 
 // From codersdk/chats.go
@@ -4950,6 +4958,32 @@ export interface EditChatMessageResponse {
 	 */
 	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
+}
+
+// From codersdk/chats.go
+/**
+ * EditChatQueuedMessageRequest edits a queued message. Omitted fields
+ * are left unchanged; a request with no fields is rejected.
+ */
+export interface EditChatQueuedMessageRequest {
+	/**
+	 * Content, when present, replaces the queued content. An empty
+	 * array is rejected.
+	 */
+	readonly content?: readonly ChatInputPart[];
+	/**
+	 * ModelConfigID and ReasoningEffort override the message's model and
+	 * effort. They are only applied together with Content.
+	 */
+	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
+	/**
+	 * Held sets or clears the hold. A chat has at most one held
+	 * message; holding another moves the hold. While held, the message
+	 * and every message queued behind it wait; messages ahead of it
+	 * still run. Releasing the hold on an idle chat sends the message.
+	 */
+	readonly held?: boolean;
 }
 
 // From codersdk/externalauth.go

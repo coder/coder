@@ -1881,9 +1881,10 @@ FROM chats_expanded;
 --   1. Running chats whose heartbeat has expired (worker crash).
 --   2. requires_action chats past the timeout threshold (client
 --      disappeared).
---   3. Waiting chats with a non-empty queue and stale updated_at
+--   3. Waiting chats with a promotable queue head and stale updated_at
 --      (deferred-promote stranding when the worker dies before its
---      post-cancel cleanup runs).
+--      post-cancel cleanup runs). A waiting chat whose head is held is
+--      paused for the owner's edit, not stranded.
 SELECT
     *
 FROM
@@ -1895,10 +1896,12 @@ WHERE
         AND updated_at < @stale_threshold::timestamptz)
     OR (status = 'waiting'::chat_status
         AND updated_at < @stale_threshold::timestamptz
-        AND EXISTS (
-            SELECT 1 FROM chat_queued_messages cqm
+        AND COALESCE((
+            SELECT cqm.held_at IS NULL FROM chat_queued_messages cqm
             WHERE cqm.chat_id = chats_expanded.id
-        ));
+            ORDER BY cqm.position ASC, cqm.id ASC
+            LIMIT 1
+        ), false));
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -2046,9 +2049,13 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
+-- Client-visible queue in processing order. position, not created_at,
+-- is what promotion follows: "send now" moves a row to the head by
+-- lowering its position, and clients derive the paused tail behind a
+-- held row from this order.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY created_at ASC, id ASC;
+ORDER BY position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -2809,14 +2816,16 @@ WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC;
 
 -- name: CountChatQueuedMessages :one
--- Cheap queue-length check used by ChatMachine.Update when deciding
--- whether the chat is in a "1" sub-state.
+-- Queue-length check used for the queue capacity limit. Held rows
+-- count: a hold does not free capacity.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id).
+-- Returns the queue head (lowest position, then lowest id). The head
+-- may be held; chatstate.LoadQueueState decides whether it is
+-- promotable.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC
@@ -2836,6 +2845,25 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 -- name: DeleteAllChatQueuedMessagesReturningCount :execrows
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
+
+-- name: UpdateChatQueuedMessageHeld :one
+-- Sets or clears held_at on one row. Setting is idempotent: an
+-- already-held row keeps its original held_at. A chat has at most one
+-- held row (chat_queued_messages_one_held_per_chat); callers that move
+-- the hold clear the previous row first, in a separate statement.
+UPDATE chat_queued_messages
+SET held_at = CASE WHEN @held::boolean THEN COALESCE(held_at, NOW()) ELSE NULL END
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
+
+-- name: UpdateChatQueuedMessageContent :one
+-- Replaces the content and per-message overrides of a queued message.
+UPDATE chat_queued_messages
+SET content = @content::jsonb,
+    model_config_id = sqlc.narg('model_config_id')::uuid,
+    reasoning_effort = sqlc.narg('reasoning_effort')::chat_reasoning_effort
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
 
 -- name: ReorderChatQueuedMessageToHead :execrows
 -- Sets the target queued message's position to one less than the

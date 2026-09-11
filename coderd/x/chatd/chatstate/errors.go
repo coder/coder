@@ -21,6 +21,12 @@ var (
 	// execution state model.
 	ErrInvalidState = xerrors.New("chat is in an invalid execution state")
 
+	// ErrPausedHeadMustResume is returned by [Tx.EditQueuedMessage] on a
+	// paused chat (P) when holding another row would release the held
+	// head as a side effect. The head must be resumed, sent, or removed
+	// explicitly.
+	ErrPausedHeadMustResume = xerrors.New("chat is paused for the held queued message; resume, send, or remove it first")
+
 	// ErrQueuedMessageNotFound is returned by queue-targeting
 	// transitions (delete, promote) when the supplied queued message
 	// ID does not match a row on the chat.

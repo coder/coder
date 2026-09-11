@@ -3005,6 +3005,55 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Edit chat queued message",
+                "operationId": "edit-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Edit chat queued message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatQueuedMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}/promote": {
@@ -20983,6 +21032,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "held_at": {
+                    "description": "HeldAt is set while the owner is editing the message. A held\nmessage and every message queued behind it are not processed\nuntil the hold is released; messages ahead of it still are. A\nwaiting chat whose first queued message is held is paused for\nthat edit rather than idle: a send to it is queued.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "integer"
                 },
@@ -23268,6 +23322,30 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.EditChatQueuedMessageRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content, when present, replaces the queued content. An empty\narray is rejected.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "held": {
+                    "description": "Held sets or clears the hold. A chat has at most one held\nmessage; holding another moves the hold. While held, the message\nand every message queued behind it wait; messages ahead of it\nstill run. Releasing the hold on an idle chat sends the message.",
+                    "type": "boolean"
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID and ReasoningEffort override the message's model and\neffort. They are only applied together with Content.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },

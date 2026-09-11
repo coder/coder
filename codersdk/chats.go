@@ -1685,6 +1685,29 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	// HeldAt is set while the owner is editing the message. A held
+	// message and every message queued behind it are not processed
+	// until the hold is released; messages ahead of it still are. A
+	// waiting chat whose first queued message is held is paused for
+	// that edit rather than idle: a send to it is queued.
+	HeldAt *time.Time `json:"held_at,omitempty" format:"date-time"`
+}
+
+// EditChatQueuedMessageRequest edits a queued message. Omitted fields
+// are left unchanged; a request with no fields is rejected.
+type EditChatQueuedMessageRequest struct {
+	// Content, when present, replaces the queued content. An empty
+	// array is rejected.
+	Content []ChatInputPart `json:"content,omitempty"`
+	// ModelConfigID and ReasoningEffort override the message's model and
+	// effort. They are only applied together with Content.
+	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
+	// Held sets or clears the hold. A chat has at most one held
+	// message; holding another moves the hold. While held, the message
+	// and every message queued behind it wait; messages ahead of it
+	// still run. Releasing the hold on an idle chat sends the message.
+	Held *bool `json:"held,omitempty"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -3155,6 +3178,29 @@ func (c *Client) EditChatMessage(
 	defer res.Body.Close()
 	var resp EditChatMessageResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// EditChatQueuedMessage edits a queued message's content or hold.
+func (c *Client) EditChatQueuedMessage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	queuedMessageID int64,
+	req EditChatQueuedMessageRequest,
+) error {
+	res, err := c.Request(
+		ctx,
+		http.MethodPatch,
+		fmt.Sprintf("/api/v2/chats/%s/queue/%d", chatID, queuedMessageID),
+		req,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.

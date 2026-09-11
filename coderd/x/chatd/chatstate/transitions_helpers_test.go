@@ -194,6 +194,9 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	case chatstate.StateN:
 		return seededChat{chatID: uuid.New(), exists: false}
 
+	case chatstate.StateP:
+		return seedPaused(t, f, 0)
+
 	case chatstate.StateR0:
 		created := createTestChat(t, f)
 		initial := firstUserMessageID(ctx, t, f, created.Chat.ID)

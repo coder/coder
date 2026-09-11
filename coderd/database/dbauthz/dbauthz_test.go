@@ -1537,6 +1537,22 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().ReorderChatQueuedMessageToHead(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
+	s.Run("UpdateChatQueuedMessageHeld", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{ChatID: chat.ID})
+		arg := database.UpdateChatQueuedMessageHeldParams{ChatID: chat.ID, ID: qm.ID, Held: true}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatQueuedMessageHeld(gomock.Any(), arg).Return(qm, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(qm)
+	}))
+	s.Run("UpdateChatQueuedMessageContent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{ChatID: chat.ID})
+		arg := database.UpdateChatQueuedMessageContentParams{ChatID: chat.ID, ID: qm.ID, Content: qm.Content}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatQueuedMessageContent(gomock.Any(), arg).Return(qm, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(qm)
+	}))
 	s.Run("UpsertChatHeartbeat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpsertChatHeartbeatParams{ChatID: chat.ID, RunnerID: uuid.New()}

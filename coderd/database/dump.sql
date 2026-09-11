@@ -2125,10 +2125,13 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    held_at timestamp with time zone
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held. A turn boundary does not promote a held head; the chat pauses at it instead.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -4808,6 +4811,8 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
+CREATE UNIQUE INDEX chat_queued_messages_one_held_per_chat ON chat_queued_messages USING btree (chat_id) WHERE (held_at IS NOT NULL);
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -5196,7 +5201,7 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
-CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by, held_at ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

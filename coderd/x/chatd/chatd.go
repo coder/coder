@@ -1487,13 +1487,23 @@ func (p *Server) SendMessage(
 			return SendMessageResult{}, err
 		}
 		// Check queue capacity before dispatch; the transaction
-		// rechecks it under lock.
-		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
+		// rechecks it under lock. From W and E0 the send inserts into
+		// history directly and never touches the queue, even when held
+		// rows fill it (E0 with rows means the head is held).
+		queue, err := chatstate.LoadQueueState(ctx, p.db, opts.ChatID)
 		if err != nil {
-			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
+			return SendMessageResult{}, err
 		}
-		if queuedCount >= chatstate.MaxQueueSize {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
+		switch chatstate.ClassifyExecutionState(chat, queue, true) {
+		case chatstate.StateW, chatstate.StateE0:
+		default:
+			queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
+			if err != nil {
+				return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
+			}
+			if queuedCount >= chatstate.MaxQueueSize {
+				return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
+			}
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
@@ -2097,7 +2107,8 @@ func (p *Server) setChatFamilyArchived(
 
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
-// consumers.
+// consumers. Deleting the held head of a paused chat resumes it; the
+// sidebar watch event covers that status change.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -2107,14 +2118,176 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
+	var (
+		after   database.Chat
+		resumed bool
+	)
 	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		before, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if _, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
-		})
+		}); err != nil {
+			return err
+		}
+		after, resumed, err = chatIfStatusChanged(ctx, store, before)
 		return err
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if resumed {
+		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	return nil
+}
+
+// chatIfStatusChanged reloads the chat inside the transaction and
+// reports whether its status differs from before, so the caller can
+// publish the sidebar watch event with the committed values.
+func chatIfStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
+	after, err := store.GetChatByID(ctx, before.ID)
+	if err != nil {
+		return database.Chat{}, false, xerrors.Errorf("reload chat: %w", err)
+	}
+	return after, after.Status != before.Status, nil
+}
+
+// EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
+// values leave the corresponding attribute untouched.
+type EditQueuedMessageOptions struct {
+	ChatID          uuid.UUID
+	QueuedMessageID int64
+	// Content, when non-empty, replaces the queued content. It goes
+	// through the same user_prompt_submit hook as a new send so the
+	// stored row matches what a fresh send would have queued.
+	Content []codersdk.ChatMessagePart
+	// ModelConfigID, when non-zero, overrides the row's model. It is
+	// only applied together with Content.
+	ModelConfigID uuid.UUID
+	// ReasoningEffort, when non-nil and non-empty, overrides the row's
+	// reasoning effort. It is only applied together with Content.
+	ReasoningEffort *string
+	// Held, when non-nil, sets or clears the row's hold.
+	Held *bool
+}
+
+// EditQueuedMessage rewrites a queued row's content and/or hold through
+// the chatstate.EditQueuedMessage transition. Holding a row pauses the
+// queue at that row until the owner saves or cancels; releasing the
+// head of a paused chat resumes it. Stream side effects are handled by
+// chat:update consumers; a resume also publishes the sidebar watch
+// event.
+func (p *Server) EditQueuedMessage(
+	ctx context.Context,
+	opts EditQueuedMessageOptions,
+) error {
+	if opts.ChatID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+	if opts.QueuedMessageID <= 0 {
+		return xerrors.New("queued_message_id is required")
+	}
+	if len(opts.Content) == 0 && opts.Held == nil {
+		return xerrors.New("content or held is required")
+	}
+
+	contentParts := opts.Content
+	if len(contentParts) > 0 && p.hooks.Enabled() {
+		turnID := uuid.New()
+		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat for user_prompt_submit: %w", err)
+		}
+		// Repeat these admission checks under the transaction lock.
+		if chat.Archived {
+			return ErrChatArchived
+		}
+		if _, err := p.db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
+			ID:     opts.QueuedMessageID,
+			ChatID: opts.ChatID,
+		}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return chatstate.ErrQueuedMessageNotFound
+			}
+			return xerrors.Errorf("load queued message for user_prompt_submit: %w", err)
+		}
+		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
+			return err
+		}
+		promptMessage, err := chathooks.UserPromptMessage(contentParts)
+		if err != nil {
+			return err
+		}
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
+		if err != nil {
+			return p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
+		}
+		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
+		if err != nil {
+			return err
+		}
+	}
+
+	input := chatstate.EditQueuedMessageInput{
+		QueuedMessageID: opts.QueuedMessageID,
+		Held:            opts.Held,
+	}
+	if len(contentParts) > 0 {
+		content, err := chatprompt.MarshalParts(contentParts)
+		if err != nil {
+			return xerrors.Errorf("marshal message content: %w", err)
+		}
+		input.Content = content.RawMessage
+		if opts.ReasoningEffort != nil && *opts.ReasoningEffort != "" {
+			input.ReasoningEffortOverride = database.NullChatReasoningEffort{
+				ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort),
+				Valid:               true,
+			}
+		}
+	}
+
+	var (
+		after   database.Chat
+		resumed bool
+	)
+	machine := p.newChatMachine(opts.ChatID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		if len(contentParts) > 0 {
+			input.ModelConfigIDOverride, err = validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := tx.EditQueuedMessage(input); err != nil {
+			return err
+		}
+		if len(contentParts) > 0 {
+			// File-link errors must roll back the edit.
+			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+				return err
+			}
+		}
+		after, resumed, err = chatIfStatusChanged(ctx, store, lockedChat)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	if resumed {
+		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	return nil
 }
 
 // PromoteQueued promotes a queued message through the chatstate state
