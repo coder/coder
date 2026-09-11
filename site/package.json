@@ -79,6 +79,7 @@
 		"formik": "2.4.9",
 		"front-matter": "4.0.2",
 		"humanize-duration": "3.34.0",
+		"jotai": "3.0.0",
 		"jszip": "3.10.1",
 		"lexical": "0.44.0",
 		"lodash": "4.18.1",
