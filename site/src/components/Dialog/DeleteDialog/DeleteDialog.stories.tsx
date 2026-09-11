@@ -56,6 +56,20 @@ export const FilledWrong: Story = {
 	},
 };
 
+export const FailedDelete: Story = {
+	args: {
+		error: new Error("The network request failed."),
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		await user.type(
+			await body.findByLabelText("Name of the foo to delete"),
+			"MyFoo",
+		);
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		confirmLoading: true,

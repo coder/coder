@@ -155,6 +155,7 @@ const WorkspacesPage: FC = () => {
 		onSuccess: async () => {
 			await refetch();
 			resetChecked();
+			setActiveBatchAction(undefined);
 		},
 	});
 
@@ -239,10 +240,13 @@ const WorkspacesPage: FC = () => {
 				isLoading={batchActions.isProcessing}
 				checkedWorkspaces={checkedWorkspaces}
 				open={activeBatchAction === "delete"}
-				onClose={() => setActiveBatchAction(undefined)}
-				onConfirm={async () => {
-					await batchActions.delete(checkedWorkspaces);
+				error={batchActions.deleteError}
+				onClose={() => {
+					batchActions.resetDelete();
 					setActiveBatchAction(undefined);
+				}}
+				onConfirm={() => {
+					batchActions.delete(checkedWorkspaces);
 				}}
 			/>
 
@@ -250,10 +254,13 @@ const WorkspacesPage: FC = () => {
 				isLoading={batchActions.isProcessing}
 				workspacesToStop={workspacesToStop}
 				open={activeBatchAction === "stop"}
-				onClose={() => setActiveBatchAction(undefined)}
-				onConfirm={async () => {
-					await batchActions.stop(workspacesToStop);
+				error={batchActions.stopError}
+				onClose={() => {
+					batchActions.resetStop();
 					setActiveBatchAction(undefined);
+				}}
+				onConfirm={() => {
+					batchActions.stop(workspacesToStop);
 				}}
 			/>
 

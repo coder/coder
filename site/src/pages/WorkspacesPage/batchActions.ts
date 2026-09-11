@@ -15,8 +15,12 @@ type UpdateAllPayload = Readonly<{
 type UseBatchActionsResult = Readonly<{
 	isProcessing: boolean;
 	start: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
-	stop: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
-	delete: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
+	stop: (workspaces: readonly Workspace[]) => void;
+	stopError: unknown;
+	resetStop: () => void;
+	delete: (workspaces: readonly Workspace[]) => void;
+	deleteError: unknown;
+	resetDelete: () => void;
 	updateTemplateVersions: (
 		payload: UpdateAllPayload,
 	) => Promise<WorkspaceBuild[]>;
@@ -56,11 +60,6 @@ export function useBatchActions(
 			);
 		},
 		onSuccess,
-		onError: (error) => {
-			toast.error("Failed to stop workspaces.", {
-				description: getErrorDetail(error),
-			});
-		},
 	});
 
 	const deleteAllMutation = useMutation({
@@ -68,11 +67,6 @@ export function useBatchActions(
 			return Promise.all(workspaces.map((w) => API.deleteWorkspace(w.id)));
 		},
 		onSuccess,
-		onError: (error) => {
-			toast.error("Failed to delete some workspaces.", {
-				description: getErrorDetail(error),
-			});
-		},
 	});
 
 	const updateAllMutation = useMutation({
@@ -133,8 +127,16 @@ export function useBatchActions(
 		favorite: favoriteAllMutation.mutateAsync,
 		unfavorite: unfavoriteAllMutation.mutateAsync,
 		start: startAllMutation.mutateAsync,
-		stop: stopAllMutation.mutateAsync,
-		delete: deleteAllMutation.mutateAsync,
+		stop: (workspaces) => {
+			stopAllMutation.mutate(workspaces);
+		},
+		stopError: stopAllMutation.error,
+		resetStop: stopAllMutation.reset,
+		delete: (workspaces) => {
+			deleteAllMutation.mutate(workspaces);
+		},
+		deleteError: deleteAllMutation.error,
+		resetDelete: deleteAllMutation.reset,
 		updateTemplateVersions: updateAllMutation.mutateAsync,
 		isProcessing:
 			favoriteAllMutation.isPending ||

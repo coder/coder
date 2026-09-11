@@ -84,6 +84,18 @@ export const SuccessDialogLoading: Story = {
 	},
 };
 
+export const FailedConfirm: Story = {
+	args: {
+		description: "Are you sure you want to stop 3 workspaces?",
+		hideCancel: false,
+		type: "delete",
+		confirmText: "Stop",
+		title: "Stop 3 workspaces",
+		error: new Error("The network request failed."),
+		errorMessage: "Failed to stop workspaces.",
+	},
+};
+
 export const ConfirmAction: Story = {
 	args: {
 		description: "Do you really want to delete me?",
