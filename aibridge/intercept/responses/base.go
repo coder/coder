@@ -123,7 +123,7 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// other headers are set.
 	if i.bedrockMantle != nil {
 		//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
-		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
+		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.logger, i.bedrockMantle.Creds, i.bedrockMantle.Region)))
 	}
 
 	return responses.NewResponseService(opts...)
