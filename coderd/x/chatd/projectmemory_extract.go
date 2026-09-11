@@ -33,7 +33,7 @@ const projectMemoryExtractionPrompt = "You review a completed coding-chat turn a
 	chattool.ProjectMemoryGuidance + " " +
 	"Record only facts the user stated or explicitly confirmed in this turn. " +
 	"Never record that something is unknown, unspecified, undecided, or pending, and never record questions or the assistant's own guesses. " +
-	"Skip facts that already appear in the memory index unless the user changed them, and reuse the existing name when updating. " +
+	"Skip anything already covered by a memory in the index; existing memories are updated by the main agent, not by you. " +
 	"Most turns contain nothing new: return an empty list in that case."
 
 type projectMemoryExtraction struct {
@@ -141,6 +141,10 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 	}
 }
 
+// applyProjectMemoryUpsert records a memory the extractor proposed. It only
+// creates: dogfooding showed the extractor rewriting a correct memory with
+// hallucinated content after a question-only turn, so updates to existing
+// memories are reserved for the main agent's tool and the UI.
 func applyProjectMemoryUpsert(ctx context.Context, store database.Store, chat database.Chat, upsert projectMemoryExtractionUpsert) error {
 	normalized, err := normalizeProjectMemoryExtraction(upsert)
 	if err != nil {
@@ -148,14 +152,18 @@ func applyProjectMemoryUpsert(ctx context.Context, store database.Store, chat da
 	}
 	name, memoryType, description, body := normalized.Name, normalized.Type, normalized.Description, normalized.Body
 	_, existingErr := store.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: name})
-	if existingErr != nil {
-		count, countErr := store.CountChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
-		if countErr != nil {
-			return xerrors.Errorf("count project memories: %w", countErr)
-		}
-		if count >= chattool.MaxProjectMemories {
-			return xerrors.New("project memory limit reached")
-		}
+	if existingErr == nil {
+		return xerrors.Errorf("memory %q already exists", name)
+	}
+	if !errors.Is(existingErr, sql.ErrNoRows) {
+		return xerrors.Errorf("look up project memory: %w", existingErr)
+	}
+	count, countErr := store.CountChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
+	if countErr != nil {
+		return xerrors.Errorf("count project memories: %w", countErr)
+	}
+	if count >= chattool.MaxProjectMemories {
+		return xerrors.New("project memory limit reached")
 	}
 	_, err = store.UpsertChatProjectMemoryByName(ctx, database.UpsertChatProjectMemoryByNameParams{
 		ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID, Type: memoryType,

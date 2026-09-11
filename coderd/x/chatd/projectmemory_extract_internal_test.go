@@ -274,7 +274,8 @@ func TestExtractProjectMemories(t *testing.T) {
 			db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{
 				ProjectID: chat.ProjectID.UUID,
 				Name:      "release_notes",
-			}).Return(database.GetChatProjectMemoryByNameRow{}, nil),
+			}).Return(database.GetChatProjectMemoryByNameRow{}, sql.ErrNoRows),
+			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(0), nil),
 			db.EXPECT().UpsertChatProjectMemoryByName(gomock.Any(), validUpsert).Return(database.ChatProjectMemory{}, nil),
 			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
 				ChatID:         chat.ID,
@@ -288,6 +289,50 @@ func TestExtractProjectMemories(t *testing.T) {
 		require.NotContains(t, capturedPrompt, "old detail")
 		// Deletion is intentionally absent from the extraction schema.
 		require.NotContains(t, capturedPrompt, `"deletes"`)
+	})
+
+	t.Run("NeverOverwritesExistingMemory", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		server := newServer(t, db, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			response := objectResponse(t, map[string]any{
+				"upserts": []map[string]any{{
+					"name":        "release_notes",
+					"type":        database.ChatProjectMemoryTypeProject,
+					"description": "Hallucinated rewrite",
+					"body":        "Deploy day is Friday.",
+				}},
+			})
+			response.Request = req
+			return response, nil
+		}))
+		gomock.InOrder(
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
+				database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
+			),
+			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+				message(t, 1, database.ChatMessageRoleUser, "when do we deploy?", 5),
+			}, nil),
+			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
+		)
+		expectModelResolution(db, chat)
+		gomock.InOrder(
+			db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{
+				ProjectID: chat.ProjectID.UUID,
+				Name:      "release_notes",
+			}).Return(database.GetChatProjectMemoryByNameRow{}, nil),
+			// No UpsertChatProjectMemoryByName: the existing memory is left alone.
+			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
+				ChatID:         chat.ID,
+				HistoryVersion: chat.HistoryVersion,
+			}).Return(database.ChatProjectMemoryCursor{}, nil),
+		)
+
+		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
 
 	t.Run("RespectsCapForNewNames", func(t *testing.T) {
