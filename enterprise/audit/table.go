@@ -490,6 +490,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+		"compaction_requested_by":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
