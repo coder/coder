@@ -1337,6 +1337,8 @@ type sqlcQuerier interface {
 	// row, which is several times slower on large deployments.
 	ListAIBridgeSpendByUser(ctx context.Context, arg ListAIBridgeSpendByUserParams) ([]ListAIBridgeSpendByUserRow, error)
 	ListAIBridgeSpendRollups(ctx context.Context, arg ListAIBridgeSpendRollupsParams) ([]ListAIBridgeSpendRollupsRow, error)
+	// A session can span clients, so the total dedupes the pairs again.
+	ListAIBridgeSpendSessionCounts(ctx context.Context, arg ListAIBridgeSpendSessionCountsParams) ([]ListAIBridgeSpendSessionCountsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)

@@ -20439,6 +20439,17 @@ func TestAIBridgeSpend(t *testing.T) {
 			{Grain: "provider", Provider: "anthropic", ProviderName: "anthropic-main", TotalCostMicros: 1500, RequestCount: 2, InputTokens: 120, OutputTokens: 60, CacheReadInputTokens: 10, CacheWriteInputTokens: 5, TotalCount: 2},
 			{Grain: "total", TotalCostMicros: 4700, RequestCount: 4, UnpricedRequestCount: 1, InputTokens: 455, OutputTokens: 180, CacheReadInputTokens: 10, CacheWriteInputTokens: 5, TotalCount: 1},
 		}, rows)
+
+		// Alice's sess-a1 spans claude-code and cursor, so the per-client
+		// counts add up to four while the total dedupes it to three.
+		sessions, err := db.ListAIBridgeSpendSessionCounts(ctx, database.ListAIBridgeSpendSessionCountsParams{StartDate: start, EndDate: end})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []database.ListAIBridgeSpendSessionCountsRow{
+			{Grain: "client", Client: "claude-code", SessionCount: 1},
+			{Grain: "client", Client: "cursor", SessionCount: 2},
+			{Grain: "client", Client: "Unknown", SessionCount: 1},
+			{Grain: "total", SessionCount: 3},
+		}, sessions)
 	})
 
 	t.Run("UserRollups", func(t *testing.T) {
@@ -20472,6 +20483,19 @@ func TestAIBridgeSpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, []database.ListAIBridgeSpendRollupsRow{rows[0], rows[3], rows[5], rows[7]}, capped)
+
+		sessions, err := db.ListAIBridgeSpendSessionCounts(ctx, database.ListAIBridgeSpendSessionCountsParams{
+			UserID:    alice.ID,
+			StartDate: start,
+			EndDate:   end,
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []database.ListAIBridgeSpendSessionCountsRow{
+			{Grain: "client", Client: "claude-code", SessionCount: 1},
+			{Grain: "client", Client: "cursor", SessionCount: 1},
+			{Grain: "client", Client: "Unknown", SessionCount: 1},
+			{Grain: "total", SessionCount: 2},
+		}, sessions)
 	})
 
 	t.Run("EmptyRollups", func(t *testing.T) {
@@ -20486,5 +20510,13 @@ func TestAIBridgeSpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, []database.ListAIBridgeSpendRollupsRow{{Grain: "total", TotalCount: 1}}, rows)
+
+		sessions, err := db.ListAIBridgeSpendSessionCounts(ctx, database.ListAIBridgeSpendSessionCountsParams{
+			UserID:    carol.ID,
+			StartDate: start,
+			EndDate:   end,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []database.ListAIBridgeSpendSessionCountsRow{{Grain: "total"}}, sessions)
 	})
 }
