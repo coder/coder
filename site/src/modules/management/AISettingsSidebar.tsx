@@ -10,7 +10,7 @@ import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPa
  */
 export const AISettingsSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { entitlements, organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);
 	const organizationMCPSharing = useCanShareOrganizationMCPServers(
 		organizations,
@@ -20,6 +20,10 @@ export const AISettingsSidebar: FC = () => {
 	return (
 		<AISettingsSidebarView
 			permissions={permissions}
+			canViewAISpend={
+				entitlements.features.aibridge.enabled &&
+				permissions.viewAnyAIBridgeInterception
+			}
 			canAccessOrganizationModels={
 				(accessibleOrgsQuery.organizations.length ?? 0) > 0
 			}
