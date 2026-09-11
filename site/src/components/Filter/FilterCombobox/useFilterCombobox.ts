@@ -510,7 +510,7 @@ export const useFilterCombobox = ({
 	};
 
 	// From inside a category the toggle steps back to the category list rather
-	// than closing, so a mis-click can be corrected without reopening the menu.
+	// than closing, so an accidental click can be corrected without reopening the menu.
 	const toggleFilterMenu = () => {
 		if (mode === "category") {
 			dispatch({ type: "leaveCategory" });
