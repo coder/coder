@@ -1281,6 +1281,9 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 	// Authentication runs before the token is classified, so a caller without
 	// the secret learns nothing from the token it presents: 401, not the 200
 	// an unknown token would otherwise receive under RFC 7009 §2.2.
+	// The fake token is not tied to the session, so only the status check
+	// carries this case; the session probe is the shared helper's
+	// post-condition.
 	t.Run("MissingSecretUnknownToken", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

@@ -96,7 +96,8 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 			if _, err := authenticateClient(ctx, db, app, req.ClientSecret); err != nil {
 				if errors.Is(err, errBadSecret) {
 					logger.Warn(ctx, "oauth2 revocation refused: client authentication failed",
-						slog.F("app_id", app.ID))
+						slog.F("client_id", app.ID.String()),
+						slog.F("app_name", app.Name))
 					httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 					return
 				}

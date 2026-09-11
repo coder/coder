@@ -154,7 +154,7 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		form.Set("client_id", app.ID.String())
 
 		// A confidential client authenticates at revocation (RFC 7009 §2.1),
-		// and the 401 is a response this route did not produce before.
+		// so the 401 refusal must be no-store as well.
 		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
