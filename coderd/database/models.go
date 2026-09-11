@@ -1366,9 +1366,6 @@ const (
 	BuildReasonSshConnection       BuildReason = "ssh_connection"
 	BuildReasonVscodeConnection    BuildReason = "vscode_connection"
 	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
-	BuildReasonTaskAutoPause       BuildReason = "task_auto_pause"
-	BuildReasonTaskManualPause     BuildReason = "task_manual_pause"
-	BuildReasonTaskResume          BuildReason = "task_resume"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -1418,10 +1415,7 @@ func (e BuildReason) Valid() bool {
 		BuildReasonCli,
 		BuildReasonSshConnection,
 		BuildReasonVscodeConnection,
-		BuildReasonJetbrainsConnection,
-		BuildReasonTaskAutoPause,
-		BuildReasonTaskManualPause,
-		BuildReasonTaskResume:
+		BuildReasonJetbrainsConnection:
 		return true
 	}
 	return false
@@ -1440,9 +1434,6 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonSshConnection,
 		BuildReasonVscodeConnection,
 		BuildReasonJetbrainsConnection,
-		BuildReasonTaskAutoPause,
-		BuildReasonTaskManualPause,
-		BuildReasonTaskResume,
 	}
 }
 
@@ -6214,7 +6205,6 @@ type TemplateVersion struct {
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
-	HasAITask             sql.NullBool    `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
@@ -6306,7 +6296,6 @@ type TemplateVersionTable struct {
 	Message          string         `db:"message" json:"message"`
 	Archived         bool           `db:"archived" json:"archived"`
 	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
-	HasAITask        sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
 }
 
@@ -6840,7 +6829,6 @@ type WorkspaceBuild struct {
 	DailyCost                int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline              time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID  uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasAITask                sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent         sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	NotifiedAutostopDeadline time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
 	InitiatorByAvatarUrl     string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
@@ -6897,7 +6885,6 @@ type WorkspaceBuildTable struct {
 	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	// The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.
 	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
