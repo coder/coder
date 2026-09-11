@@ -19106,3 +19106,133 @@ func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFam
 	require.NoError(t, err)
 	return counts
 }
+
+func TestUpdateUserEmail(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	t.Run("UpdatesMatchingNonDeletedUser", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		newEmail := "updated+" + user.Email
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  newEmail,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, newEmail, updated.Email)
+		require.Equal(t, user.ID, updated.ID)
+	})
+
+	t.Run("ClearsOTPColumns", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		// Set OTP columns so we can verify they are cleared.
+		err := db.UpdateUserHashedOneTimePasscode(ctx, database.UpdateUserHashedOneTimePasscodeParams{
+			ID:                       user.ID,
+			HashedOneTimePasscode:    []byte("somehashvalue"),
+			OneTimePasscodeExpiresAt: sql.NullTime{Time: dbtime.Now().Add(time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  "cleared@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Nil(t, updated.HashedOneTimePasscode)
+		require.False(t, updated.OneTimePasscodeExpiresAt.Valid)
+	})
+
+	t.Run("MatchesCaseInsensitively", func(t *testing.T) {
+		t.Parallel()
+		origEmail := "CaseSensitive" + testutil.GetRandomName(t) + "@example.com"
+		user := dbgen.User(t, db, database.User{Email: origEmail})
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  strings.ToLower(origEmail),
+			NewEmail:  "newcase" + testutil.GetRandomName(t) + "@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, user.ID, updated.ID, "should match the same user case-insensitively")
+	})
+
+	t.Run("DoesNotMatchDeletedUsers", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		err := db.UpdateUserDeletedByID(ctx, user.ID)
+		require.NoError(t, err)
+
+		_, err = db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  "shouldfail@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("ReturnsNoRowsForMissingOldEmail", func(t *testing.T) {
+		t.Parallel()
+		_, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  "doesnotexist" + testutil.GetRandomName(t) + "@example.com",
+			NewEmail:  "new@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("PreservesNewEmailCasing", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		mixedCase := "Mixed.Case." + testutil.GetRandomName(t) + "@Example.COM"
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  mixedCase,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, mixedCase, updated.Email, "new email casing must be preserved exactly")
+	})
+
+	t.Run("RejectsUniqueEmailCollision", func(t *testing.T) {
+		t.Parallel()
+		user1 := dbgen.User(t, db, database.User{})
+		user2 := dbgen.User(t, db, database.User{})
+		// Try to set user1's email to a case-variant of user2's email.
+		_, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user1.Email,
+			NewEmail:  strings.ToUpper(user2.Email),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.True(t, database.IsUniqueViolation(err, database.UniqueUsersEmailLowerIndex),
+			"expected unique_violation on users_email_lower_idx, got: %v", err)
+	})
+
+	t.Run("DoesNotAffectOtherUsers", func(t *testing.T) {
+		t.Parallel()
+		user1 := dbgen.User(t, db, database.User{})
+		user2 := dbgen.User(t, db, database.User{})
+		user2EmailBefore := user2.Email
+
+		_, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user1.Email,
+			NewEmail:  "onlyone" + testutil.GetRandomName(t) + "@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		user2After, err := db.GetUserByID(ctx, user2.ID)
+		require.NoError(t, err)
+		require.Equal(t, user2EmailBefore, user2After.Email, "other user email must not change")
+	})
+}

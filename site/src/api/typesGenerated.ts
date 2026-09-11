@@ -10018,6 +10018,16 @@ export interface UpdateUserChatPersonalModelOverrideRequest {
 	readonly reasoning_effort?: string;
 }
 
+// From codersdk/users.go
+/**
+ * UpdateUserEmailRequest changes a user's email by matching their current
+ * email address. This API is experimental and may change without notice.
+ */
+export interface UpdateUserEmailRequest {
+	readonly old_email: string;
+	readonly new_email: string;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
