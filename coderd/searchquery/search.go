@@ -366,18 +366,19 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
-		Deleted:          parser.Boolean(values, false, "deleted"),
-		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
-		ExactName:        parser.String(values, "", "exact_name"),
-		ExactDisplayName: parser.String(values, "", "exact_display_name"),
-		FuzzyName:        parser.String(values, "", "name"),
-		FuzzyDisplayName: parser.String(values, "", "display_name"),
-		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
-		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		AgentsAllowed:    parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
-		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
-		AuthorUsername:   parser.String(values, "", "author"),
-		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
+		Deleted:                 parser.Boolean(values, false, "deleted"),
+		OrganizationID:          parseOrganization(ctx, db, parser, values, "organization"),
+		ExactName:               parser.String(values, "", "exact_name"),
+		ExactDisplayName:        parser.String(values, "", "exact_display_name"),
+		FuzzyName:               parser.String(values, "", "name"),
+		FuzzyDisplayName:        parser.String(values, "", "display_name"),
+		IDs:                     parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated:              parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+		UseClassicParameterFlow: parser.NullableBoolean(values, sql.NullBool{}, "compatibility-mode"),
+		AgentsAllowed:           parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
+		AuthorID:                parser.UUID(values, uuid.Nil, "author_id"),
+		AuthorUsername:          parser.String(values, "", "author"),
+		HasExternalAgent:        parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
 	}
 
 	if filter.AuthorUsername == codersdk.Me {
