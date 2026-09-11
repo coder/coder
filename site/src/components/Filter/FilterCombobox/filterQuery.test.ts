@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	categoryPreview,
+	chipDisplay,
 	collectValueSuggestions,
 	composeFilterQuery,
 	dedupeChips,
@@ -227,10 +229,10 @@ describe("filterQuery", () => {
 	});
 
 	it("uses an option's explicit token when suggesting values", () => {
-		const categories = [{ key: "attributes", label: "Attributes" }];
+		const categories = [{ key: "attribute", label: "Attributes" }];
 		const optionsByKey = new Map([
 			[
-				"attributes",
+				"attribute",
 				[
 					{ label: "Outdated", value: "outdated", token: "outdated:true" },
 					{ label: "Dormant", value: "dormant", token: "dormant:true" },
@@ -249,5 +251,107 @@ describe("filterQuery", () => {
 				"dormant:true",
 			]),
 		).toEqual([]);
+	});
+});
+
+describe("chipDisplay", () => {
+	const categories = [
+		{ key: "owner" },
+		{ key: "attribute", chipKeys: ["outdated", "dormant", "shared"] },
+	];
+
+	it("shows single-key chips as-is", () => {
+		expect(chipDisplay("owner:me", categories)).toEqual({
+			key: "owner",
+			value: "me",
+		});
+	});
+
+	it("presents multi-key boolean chips under the category key", () => {
+		expect(chipDisplay("outdated:true", categories)).toEqual({
+			key: "attribute",
+			value: "outdated",
+		});
+		expect(chipDisplay("Dormant:true", categories)).toEqual({
+			key: "attribute",
+			value: "dormant",
+		});
+	});
+
+	it("passes through tokens without a separator", () => {
+		expect(chipDisplay("plain", categories)).toEqual({
+			key: "",
+			value: "plain",
+		});
+	});
+});
+
+describe("categoryPreview", () => {
+	const statusOptions = [
+		{ label: "Running", value: "running" },
+		{ label: "Stopped", value: "stopped" },
+		{ label: "Failed", value: "failed" },
+		{ label: "Pending", value: "pending" },
+		{ label: "Starting", value: "starting" },
+	];
+
+	it("samples the first options when nothing is applied", () => {
+		expect(
+			categoryPreview({ key: "status" }, ["owner:me"], statusOptions),
+		).toEqual({ selected: [], hint: "Running, Stopped, Failed, Pending" });
+	});
+
+	it("prefers a fixed category hint over the options sample", () => {
+		expect(
+			categoryPreview(
+				{ key: "owner", hint: "me" },
+				[],
+				[{ label: "alice", value: "alice" }],
+			),
+		).toEqual({ selected: [], hint: "me" });
+	});
+
+	it("has no hint while options are still loading", () => {
+		expect(categoryPreview({ key: "template" }, [], undefined).hint).toBe("");
+	});
+
+	it("shows applied chips by option label", () => {
+		expect(
+			categoryPreview({ key: "status" }, ["status:stopped"], statusOptions)
+				.selected,
+		).toEqual(["Stopped"]);
+	});
+
+	it("prefers an option's applied label", () => {
+		expect(
+			categoryPreview(
+				{ key: "owner" },
+				["owner:me"],
+				[{ label: "admin (you)", appliedLabel: "me", value: "me" }],
+			).selected,
+		).toEqual(["me"]);
+	});
+
+	it("shows the raw value when the chip has no matching option", () => {
+		expect(
+			categoryPreview(
+				{ key: "owner" },
+				["owner:me"],
+				[{ label: "alice", value: "alice" }],
+			).selected,
+		).toEqual(["me"]);
+	});
+
+	it("lists every applied chip of a multi-key category", () => {
+		expect(
+			categoryPreview(
+				{ key: "attribute", chipKeys: ["outdated", "dormant"] },
+				["outdated:true", "dormant:true"],
+				[
+					{ label: "Outdated", value: "outdated", token: "outdated:true" },
+					{ label: "Dormant", value: "dormant", token: "dormant:true" },
+				],
+			).selected,
+		).toEqual(["Outdated", "Dormant"]);
 	});
 });

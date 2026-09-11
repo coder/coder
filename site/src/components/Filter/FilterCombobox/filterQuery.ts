@@ -4,9 +4,79 @@ import {
 	needsQuotes,
 	parseFilterTokens,
 } from "#/components/Filter/filterQuery";
-import type { FilterOption } from "./types";
+import type { FilterCategory, FilterOption } from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
+
+type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
+
+const PREVIEW_OPTION_LIMIT = 4;
+
+export type CategoryPreview = {
+	/** Labels of the chips currently applied for this category. */
+	selected: string[];
+	/** Comma-separated sample of available options, or the category hint. */
+	hint: string;
+};
+
+/**
+ * Right-hand text for a category row: the applied chip labels when the
+ * category has a chip, otherwise its fixed hint or a short sample of options.
+ */
+export const categoryPreview = (
+	category: Pick<FilterCategory, "key" | "chipKeys" | "hint">,
+	chips: readonly string[],
+	options: readonly FilterOption[] | undefined,
+): CategoryPreview => {
+	const ownedKeys = category.chipKeys ?? [category.key];
+	const optionToken = (option: FilterOption) =>
+		option.token ?? chipToken(category.key, option.value);
+	const selected = chips.flatMap((chip) => {
+		const parsed = parseChipToken(chip, ownedKeys);
+		if (!parsed) {
+			return [];
+		}
+		const option = options?.find((entry) => optionToken(entry) === chip);
+		return [
+			option?.appliedLabel ??
+				option?.label ??
+				chipDisplay(chip, [category]).value,
+		];
+	});
+	const hint =
+		category.hint ??
+		(options ?? [])
+			.slice(0, PREVIEW_OPTION_LIMIT)
+			.map((option) => option.label)
+			.join(", ");
+	return { selected, hint };
+};
+
+/**
+ * Key and value to display for a chip token. Tokens owned by a multi-key
+ * category (`outdated:true` under Attributes) display under the category key
+ * (`attribute:outdated`); the query string itself is unchanged.
+ */
+export const chipDisplay = (
+	token: string,
+	categories: readonly ChipDisplaySource[],
+): { key: string; value: string } => {
+	const separatorIndex = token.indexOf(":");
+	if (separatorIndex <= 0) {
+		return { key: "", value: token };
+	}
+	const key = token.slice(0, separatorIndex);
+	const value = token.slice(separatorIndex + 1);
+	const owner = categories.find(
+		(category) =>
+			category.key !== key.toLowerCase() &&
+			category.chipKeys?.includes(key.toLowerCase()),
+	);
+	if (owner) {
+		return { key: owner.key, value: key.toLowerCase() };
+	}
+	return { key, value };
+};
 
 // Collapses a stream of key/value pairs to one chip per key, keeping each key's
 // first-seen position and its last-seen value. Shared by `queryToChips` (pairs
