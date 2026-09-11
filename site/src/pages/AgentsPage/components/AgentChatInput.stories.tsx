@@ -7,6 +7,8 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
+	MockChatQueuedMessage,
+	MockHeldChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import {
@@ -109,8 +111,20 @@ export const NoPromptHistoryUpArrowIsNoOp: Story = {
 
 export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	args: {
-		isEditingHistoryMessage: true,
+		editingKind: "history",
 		userPromptHistory: promptHistory,
+	},
+};
+
+export const EditingQueuedMessage: Story = {
+	args: {
+		editingKind: "queued",
+		queuedMessages: [
+			MockHeldChatQueuedMessage,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+		onEditQueuedMessage: fn(),
+		onResumeQueuedMessage: fn(),
 	},
 };
 

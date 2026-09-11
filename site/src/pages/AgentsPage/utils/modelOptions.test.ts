@@ -26,6 +26,7 @@ import {
 	providerInfoByIDFromUserConfigs,
 	providerTypeByIDFromUserConfigs,
 	resolveCompactionThreshold,
+	resolveEditModelConfigID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./modelOptions";
@@ -333,6 +334,29 @@ describe("resolveModelOptionId", () => {
 				modelOptions,
 			),
 		).toBe(false);
+	});
+
+	it("resolves the edit model override from the original and picker models", () => {
+		// Original still selectable and unchanged: keep it.
+		expect(
+			resolveEditModelConfigID("config-1", "config-1", modelOptions),
+		).toBeUndefined();
+		// Original selectable and the user picked another: override.
+		expect(resolveEditModelConfigID("config-1", "config-2", modelOptions)).toBe(
+			"config-2",
+		);
+		// Original unavailable: fall back to the picker.
+		expect(
+			resolveEditModelConfigID("foreign-config", "config-1", modelOptions),
+		).toBe("config-1");
+		// No original recorded: keep the backend default.
+		expect(
+			resolveEditModelConfigID(undefined, "config-1", modelOptions),
+		).toBeUndefined();
+		// Nothing picked: never override.
+		expect(
+			resolveEditModelConfigID("foreign-config", undefined, modelOptions),
+		).toBeUndefined();
 	});
 });
 

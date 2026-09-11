@@ -64,6 +64,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import type { EditingTarget } from "../hooks/useConversationEditingState";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -155,9 +156,12 @@ interface AgentChatInputProps {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
-	// History editing state, owned by the parent.
-	isEditingHistoryMessage?: boolean;
-	onCancelHistoryEdit?: () => void;
+	onEditQueuedMessage?: (id: number) => Promise<void> | void;
+	onResumeQueuedMessage?: (id: number) => Promise<void> | void;
+	// Editing state, owned by the parent. Undefined means the composer
+	// is composing a new message.
+	editingKind?: EditingTarget["kind"];
+	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
@@ -392,8 +396,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
-	isEditingHistoryMessage = false,
-	onCancelHistoryEdit,
+	onEditQueuedMessage,
+	onResumeQueuedMessage,
+	editingKind,
+	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
 	onRefreshContext,
@@ -423,6 +429,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const isEditingMessage = editingKind !== undefined;
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
 		preferencesQuery.data?.agent_chat_send_shortcut,
@@ -923,7 +930,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
 		// If the input is empty and there are queued messages,
-		// promote the first one instead of submitting.
+		// promote the first one instead of submitting. A held head is
+		// being edited, so Enter must not release it behind the user's
+		// back.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -933,6 +942,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
+			!queuedMessages[0].held_at &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -981,9 +991,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
-			if (isEditingHistoryMessage) {
+			if (isEditingMessage) {
 				e.preventDefault();
-				onCancelHistoryEdit?.();
+				onCancelEdit?.();
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
 				e.preventDefault();
 				onInterrupt();
@@ -1010,7 +1020,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isReadOnly || isLoading;
+			isEditingMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1073,7 +1083,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingHistoryMessage ? "Save Edit" : "Send";
+	const sendButtonLabel = isEditingMessage ? "Save Edit" : "Send";
 	const sendShortcutLabel =
 		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
 			? "Cmd/Ctrl+Enter"
@@ -1088,7 +1098,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			className={cn(
 				"mx-auto w-full pb-0 sm:pb-4",
 				chatWidthClass(chatFullWidth),
-				isEditingHistoryMessage && "pt-1",
+				isEditingMessage && "pt-1",
 			)}
 		>
 			{queuedMessages.length > 0 && (
@@ -1096,6 +1106,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					messages={queuedMessages}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onEdit={onEditQueuedMessage}
+					onResume={onResumeQueuedMessage}
 					className="mb-2"
 				/>
 			)}
@@ -1131,7 +1143,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					isEditingHistoryMessage &&
+					isEditingMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 				onKeyDown={handleComposerKeyDown}
@@ -1139,19 +1151,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
-				{isEditingHistoryMessage && (
+				{isEditingMessage && (
 					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
+							{editingKind === "queued"
+								? "Editing a queued message. It and the messages behind it are paused until you save or cancel."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button
 							type="button"
 							variant="subtle"
 							size="icon"
 							aria-label="Cancel editing"
-							onClick={onCancelHistoryEdit}
+							onClick={onCancelEdit}
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
 						>

@@ -52,6 +52,7 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import type { EditingTarget } from "./hooks/useConversationEditingState";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
@@ -91,10 +92,11 @@ const buildEditing = (
 	editorInitialValue: "",
 	initialEditorState: undefined,
 	remountKey: 0,
+	editingTarget: null as EditingTarget | null,
 	editingMessageId: null as number | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
-	handleCancelHistoryEdit: fn(),
+	handleCancelEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,
@@ -188,6 +190,8 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
+		handleEditQueuedMessage: fn(),
+		handleResumeQueuedMessage: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -914,6 +918,7 @@ export const EditingMessage: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages)}
 			editing={{
+				editingTarget: { kind: "history", id: 3 },
 				editingMessageId: 3,
 				editorInitialValue: "Now tell me a joke",
 			}}

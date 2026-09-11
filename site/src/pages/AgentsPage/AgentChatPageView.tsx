@@ -59,6 +59,7 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import type { EditingTarget } from "./hooks/useConversationEditingState";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
@@ -88,6 +89,9 @@ interface EditingState {
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
+	editingTarget: EditingTarget | null;
+	// The history message being edited, for timeline highlighting. Null
+	// while composing or editing a queued row.
 	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
@@ -95,7 +99,7 @@ interface EditingState {
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
-	handleCancelHistoryEdit: () => void;
+	handleCancelEdit: () => void;
 	handleSendFromInput: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -169,6 +173,8 @@ interface AgentChatPageViewProps {
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+	handleEditQueuedMessage: (id: number) => Promise<void>;
+	handleResumeQueuedMessage: (id: number) => Promise<void>;
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -317,6 +323,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
+	handleEditQueuedMessage,
+	handleResumeQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
@@ -814,8 +822,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	});
 
-	const isEditing = editing.editingMessageId !== null;
-
 	const chatOwnerUsername = chat.owner_username?.trim();
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
@@ -957,6 +963,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
+										onEditQueuedMessage={
+											isOtherUserReadOnly ? undefined : handleEditQueuedMessage
+										}
+										onResumeQueuedMessage={
+											isOtherUserReadOnly
+												? undefined
+												: handleResumeQueuedMessage
+										}
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
 										isReadOnly={isOtherUserReadOnly}
@@ -984,8 +998,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										initialEditorState={editing.initialEditorState}
 										remountKey={editing.remountKey}
 										onContentChange={editing.handleContentChange}
-										isEditing={isEditing}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+										editingTarget={editing.editingTarget}
+										onCancelEdit={editing.handleCancelEdit}
 										editingFileBlocks={editing.editingFileBlocks}
 										mcpServers={mcpServers}
 										selectedMCPServerIds={selectedMCPServerIds}
