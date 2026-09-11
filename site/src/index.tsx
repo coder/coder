@@ -1,6 +1,14 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
+import { defineStorageKey, integerCodec } from "./storage";
+
+const preloadReloadStorage = defineStorageKey<number | null>({
+	key: "preload-reload",
+	codec: integerCodec,
+	defaultValue: null,
+	area: "session",
+});
 
 console.info(`      -#######          +######-      ########+       ##########  ########+.      ###########
    +#####--######    +#####--#####+   ############    ##########  ####+++#####-   ###########
@@ -18,12 +26,14 @@ console.info(`      -#######          +######-      ########+       ##########  
 // silently reload so the browser fetches a fresh index.html with the new
 // chunk names. A sessionStorage guard prevents infinite reload loops.
 window.addEventListener("vite:preloadError", () => {
-	const key = "preload-reload";
-	const last = sessionStorage.getItem(key);
+	const last = preloadReloadStorage.get();
 	const now = Date.now();
-	if (!last || now - Number(last) > 10_000) {
-		sessionStorage.setItem(key, String(now));
-		location.reload();
+	if (last === null || now - last > 10_000) {
+		// Reload only when the guard actually persisted; otherwise a
+		// persistent preload error would reload forever.
+		if (preloadReloadStorage.set(now).ok) {
+			location.reload();
+		}
 	}
 });
 
