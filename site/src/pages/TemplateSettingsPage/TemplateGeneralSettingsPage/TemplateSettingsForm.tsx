@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
+import { LockIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import * as Yup from "yup";
 import {
@@ -8,6 +9,7 @@ import {
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
 } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -304,28 +306,39 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						/>
 						<Label htmlFor="disable_module_cache">
 							<StackLabel>
-								Disable Terraform module caching
+								<span className="flex flex-row gap-2 items-center">
+									Disable Terraform module caching
+									{moduleCacheDisabledByDeployment && (
+										<Badge variant="warning" size="sm" svgSize="sm">
+											<LockIcon />
+											Set deployment wide
+										</Badge>
+									)}
+								</span>
 								<StackLabelHelperText>
-									{moduleCacheDisabledByDeployment ? (
-										<>
-											Terraform module caching is disabled at the deployment
-											level. Modules will be re-downloaded on each workspace
-											build.{" "}
-											<strong>
-												Note: disabling caching means provisioner nodes may
-												accumulate Terraform module files on disk, which can
-												impact stability at scale.
-											</strong>
-										</>
-									) : (
-										<>
-											When checked, Terraform modules are re-downloaded for each
-											workspace build instead of using cached versions.{" "}
-											<strong>
-												Warning: This makes workspace builds less predictable
-												and is not recommended for production templates.
-											</strong>
-										</>
+									<span>
+										When checked, Terraform modules are re-downloaded for each
+										workspace build instead of using cached versions.{" "}
+										<strong>
+											Warning: This makes workspace builds less predictable and
+											is not recommended for production templates.
+										</strong>
+									</span>
+
+									{moduleCacheDisabledByDeployment && (
+										<span className="flex flex-row gap-2 items-start mt-4">
+											<TriangleAlertIcon className="size-icon-sm shrink-0 mt-0.5 text-content-warning" />
+											<span>
+												<strong>
+													This setting is locked because module caching is
+													disabled for every template by the deployment option{" "}
+													<code>CODER_PROVISIONER_DISABLE_MODULE_CACHE</code>.
+												</strong>{" "}
+												This template cannot turn caching back on, so modules
+												are re-downloaded on each workspace build. Ask a
+												deployment admin to clear that option to change it here.
+											</span>
+										</span>
 									)}
 								</StackLabelHelperText>
 							</StackLabel>
