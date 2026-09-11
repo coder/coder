@@ -149,7 +149,6 @@ func newChatClientWithoutAIBridge(t testing.TB, overrides ...func(*coderdtest.Op
 }
 
 func insertTestChatQueuedMessage(
-	ctx context.Context,
 	t testing.TB,
 	db database.Store,
 	chatID uuid.UUID,
@@ -157,11 +156,10 @@ func insertTestChatQueuedMessage(
 	modelConfigID uuid.UUID,
 ) database.ChatQueuedMessage {
 	t.Helper()
-	return insertTestChatQueuedMessageWithReasoningEffort(ctx, t, db, chatID, content, modelConfigID, "")
+	return insertTestChatQueuedMessageWithReasoningEffort(t, db, chatID, content, modelConfigID, "")
 }
 
 func insertTestChatQueuedMessageWithReasoningEffort(
-	_ context.Context,
 	t testing.TB,
 	db database.Store,
 	chatID uuid.UUID,
@@ -12761,7 +12759,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText("queued message for delete route"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, deleteContent, modelConfig.ID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, deleteContent, modelConfig.ID)
 
 		res, err := client.Request(
 			ctx,
@@ -12850,7 +12848,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText(queuedText),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		promoteRes, err := client.Request(
 			ctx,
@@ -12937,7 +12935,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText("queued head"),
 		})
 		require.NoError(t, err)
-		head := insertTestChatQueuedMessage(ctx, t, db, chat.ID, headContent, chat.LastModelConfigID)
+		head := insertTestChatQueuedMessage(t, db, chat.ID, headContent, chat.LastModelConfigID)
 
 		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -12985,7 +12983,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText("require a local model for promotion"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, foreignConfig.ID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, foreignConfig.ID)
 
 		promoteRes, err := memberClient.Request(
 			ctx,
@@ -13061,7 +13059,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText("queued message promoted by member"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		promoteRes, err := memberClient.Request(
 			ctx,
@@ -13093,7 +13091,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText("queued"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		// Archive the chat.
 		_, err = db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
@@ -13169,7 +13167,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText(queuedText),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		promoteRes, err := client.Request(
 			ctx,
@@ -13262,7 +13260,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			codersdk.ChatMessageText("running-promote"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		promoteRes, err := client.Request(
 			ctx,
@@ -19037,7 +19035,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 				codersdk.ChatMessageText("queued"),
 			})
 			require.NoError(t, err)
-			_ = insertTestChatQueuedMessage(ctx, t, db, chat.ID, content, modelConfig.ID)
+			_ = insertTestChatQueuedMessage(t, db, chat.ID, content, modelConfig.ID)
 
 			var opts *codersdk.ChatMessagesPaginationOptions
 			if tc.opts != nil {
@@ -19407,7 +19405,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			codersdk.ChatMessageText("queued"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		res, err := sharedClient.Request(
 			ctx,
@@ -19442,7 +19440,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			codersdk.ChatMessageText("queued"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		res, err := sharedClient.Request(
 			ctx,
@@ -19595,7 +19593,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 			codersdk.ChatMessageText("queued"),
 		})
 		require.NoError(t, err)
-		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		queuedMessage := insertTestChatQueuedMessage(t, db, chat.ID, queuedContent, chat.LastModelConfigID)
 
 		// Org admin tries to promote.
 		promoteRes, err := adminClient.Request(

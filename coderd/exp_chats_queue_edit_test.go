@@ -49,8 +49,8 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
 			LastModelConfigID: modelConfig.ID, Title: "queued edit", Status: database.ChatStatusError,
 		})
-		head := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
-		next := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "next"), modelConfig.ID)
+		head := insertTestChatQueuedMessage(t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
+		next := insertTestChatQueuedMessage(t, db, chat.ID, queuedTextContent(t, "next"), modelConfig.ID)
 		watch, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 		require.NoError(t, err)
 		defer watch.Close(websocket.StatusNormalClosure, "done")
@@ -133,7 +133,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
 			LastModelConfigID: modelConfig.ID, Title: "queued edit overrides", Status: database.ChatStatusError,
 		})
-		queued := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
+		queued := insertTestChatQueuedMessage(t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
 
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
 			Content:         []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "with overrides"}},
@@ -176,7 +176,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 			ParentChatID: uuid.NullUUID{UUID: root.ID, Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: root.ID, Valid: true},
 		})
-		queued := insertTestChatQueuedMessage(ctx, t, db, child.ID, queuedTextContent(t, "under edit"), modelConfig.ID)
+		queued := insertTestChatQueuedMessage(t, db, child.ID, queuedTextContent(t, "under edit"), modelConfig.ID)
 		err := db.InTx(func(tx database.Store) error {
 			if _, err := tx.LockChatAndBumpSnapshotVersion(sysCtx, child.ID); err != nil {
 				return err
@@ -205,7 +205,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
 			LastModelConfigID: modelConfig.ID, Title: "queued edit guards", Status: database.ChatStatusError,
 		})
-		queued := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
+		queued := insertTestChatQueuedMessage(t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
 		path := fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queued.ID)
 
 		err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{})

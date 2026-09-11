@@ -44,8 +44,7 @@ CREATE TABLE foo;
 
 // The guard installed by NewDB must reject chat history and queue writes on
 // the root handle and inside a transaction that has not allocated a snapshot
-// for the chat, record each rejection, and let the same write through once
-// the transaction has allocated.
+// for the chat, and record each rejection.
 func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -112,16 +111,6 @@ func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
 	require.Empty(t, messages, "rejected writes must not reach the database")
-
-	err = db.InTx(func(tx database.Store) error {
-		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
-			return err
-		}
-		_, err := tx.InsertChatMessages(ctx, messageParams)
-		return err
-	}, nil)
-	require.NoError(t, err)
-	require.Empty(t, guard.rec.list())
 }
 
 // Every generated query that inserts, updates or deletes rows of

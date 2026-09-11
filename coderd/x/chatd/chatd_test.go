@@ -6585,7 +6585,7 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-	insertSystemTextMessage(ctx, t, db, chat.ID, "sys-2", model.ID)
+	insertSystemTextMessage(t, db, chat.ID, "sys-2", model.ID)
 	insertAssistantTextMessage(ctx, t, db, chat.ID, "working", model.ID)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
@@ -7725,7 +7725,7 @@ func TestActiveServer_AnthropicSanitizesProviderToolBeforeRequest(t *testing.T) 
 	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-	insertOrphanProviderToolCall(ctx, t, db, chat.ID, model.ID)
+	insertOrphanProviderToolCall(t, db, chat.ID, model.ID)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -8607,7 +8607,7 @@ func insertAssistantTextMessage(
 	modelID uuid.UUID,
 ) {
 	t.Helper()
-	insertChatMessageParts(ctx, t, db, chatID, database.ChatMessageRoleAssistant, modelID, uuid.Nil, []codersdk.ChatMessagePart{
+	insertChatMessageParts(t, db, chatID, database.ChatMessageRoleAssistant, modelID, uuid.Nil, []codersdk.ChatMessagePart{
 		codersdk.ChatMessageText(text),
 	})
 }
@@ -8654,8 +8654,8 @@ func insertProviderToolPairMessageWithLocalTool(
 		ToolName:   "read_file",
 		Args:       json.RawMessage(`{"path":"main.go"}`),
 	})
-	insertChatMessageParts(ctx, t, db, chatID, database.ChatMessageRoleAssistant, modelID, uuid.Nil, parts)
-	insertChatMessageParts(ctx, t, db, chatID, database.ChatMessageRoleTool, modelID, uuid.Nil, []codersdk.ChatMessagePart{
+	insertChatMessageParts(t, db, chatID, database.ChatMessageRoleAssistant, modelID, uuid.Nil, parts)
+	insertChatMessageParts(t, db, chatID, database.ChatMessageRoleTool, modelID, uuid.Nil, []codersdk.ChatMessagePart{
 		{
 			Type:       codersdk.ChatMessagePartTypeToolResult,
 			ToolCallID: "tc-1",
@@ -8666,7 +8666,6 @@ func insertProviderToolPairMessageWithLocalTool(
 }
 
 func insertChatMessageParts(
-	_ context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -13505,7 +13504,7 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
 		testutil.TryReceive(ctx, t, firstRunStarted)
-		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+		insertQueuedMessage(t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		close(allowFirstRunFinish)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -13558,7 +13557,7 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
 		testutil.TryReceive(ctx, t, streamStarted)
-		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+		insertQueuedMessage(t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		current, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		_, err = server.InterruptChat(ctx, current)
@@ -13600,7 +13599,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 			Title:             "resolve explicit queued promotion",
 			Status:            database.ChatStatusError,
 		})
-		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+		queued := insertQueuedMessage(t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 
 		result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
@@ -13625,7 +13624,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 			Title:             "resolve error send promotion",
 			Status:            database.ChatStatusError,
 		})
-		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+		insertQueuedMessage(t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 
 		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:       chat.ID,
@@ -13655,7 +13654,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 			Title:             "keep unresolved queued row",
 			Status:            database.ChatStatusError,
 		})
-		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+		queued := insertQueuedMessage(t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 
 		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
@@ -13673,7 +13672,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 }
 
 func insertQueuedMessage(
-	_ context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -14233,7 +14231,7 @@ func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
 	})
 	require.NoError(t, err)
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-	insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, mA.ID, uuid.Nil,
+	insertChatMessageParts(t, db, chat.ID, database.ChatMessageRoleAssistant, mA.ID, uuid.Nil,
 		[]codersdk.ChatMessagePart{
 			{
 				Type:             codersdk.ChatMessagePartTypeToolCall,
