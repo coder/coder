@@ -329,6 +329,80 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List AI Gateway spend by user
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/spend/users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/spend/users`
+
+Returns AI Gateway spend for every user with finished requests in the window. Defaults to most expensive first. Requires permission to read any AI Gateway interception.
+start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
+
+### Parameters
+
+| Name            | In    | Type              | Required | Description                                                                                                   |
+|-----------------|-------|-------------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `start_date`    | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary. |
+| `end_date`      | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                                                             |
+| `provider_name` | query | string            | false    | Only count requests through this provider configuration name                                                  |
+| `client`        | query | string            | false    | Only count requests from this client. Unknown matches requests without a recorded client.                     |
+| `model`         | query | string            | false    | Only count requests for this model                                                                            |
+| `search`        | query | string            | false    | Case-insensitive match on username or name                                                                    |
+| `sort_by`       | query | string            | false    | Sort column                                                                                                   |
+| `sort_order`    | query | string            | false    | Sort direction                                                                                                |
+| `limit`         | query | integer           | false    | Page limit (default 10, maximum 100)                                                                          |
+| `offset`        | query | integer           | false    | Page offset                                                                                                   |
+
+#### Enumerated Values
+
+| Parameter    | Value(s)                                                                                                                                                  |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `sort_by`    | `cache_read_input_tokens`, `cache_write_input_tokens`, `input_tokens`, `output_tokens`, `request_count`, `session_count`, `total_cost_micros`, `username` |
+| `sort_order` | `asc`, `desc`                                                                                                                                             |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "end_date": "2019-08-24T14:15:22Z",
+  "start_date": "2019-08-24T14:15:22Z",
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "name": "string",
+      "output_tokens": 0,
+      "request_count": 0,
+      "session_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0,
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                 |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewaySpendUsersResponse](schemas.md#codersdkaigatewayspendusersresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get appearance
 
 ### Code samples
