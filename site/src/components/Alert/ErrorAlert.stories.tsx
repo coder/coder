@@ -43,6 +43,17 @@ export const APIErrorWithDetail: Story = {
 	},
 };
 
+export const ForbiddenError: Story = {
+	args: {
+		error: mockApiError({
+			message: "Forbidden.",
+			detail:
+				"You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
+			status: 403,
+		}),
+	},
+};
+
 export const WithDismiss: Story = {
 	args: {
 		dismissible: true,
