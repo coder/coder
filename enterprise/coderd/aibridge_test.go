@@ -1391,6 +1391,16 @@ func TestAIGatewaySpend(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err = client.AIGatewaySpendUserSummary(ctx, codersdk.Me, codersdk.AIGatewaySpendFilter{})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err = client.AIGatewaySpendSummary(ctx, codersdk.AIGatewaySpendFilter{})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
 
 	t.Run("MemberForbidden", func(t *testing.T) {
@@ -1401,6 +1411,14 @@ func TestAIGatewaySpend(t *testing.T) {
 
 		_, err := memberClient.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{})
 		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		_, err = memberClient.AIGatewaySpendUserSummary(ctx, codersdk.Me, codersdk.AIGatewaySpendFilter{})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		_, err = memberClient.AIGatewaySpendSummary(ctx, codersdk.AIGatewaySpendFilter{})
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
@@ -1420,6 +1438,11 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "end_date", sdkErr.Validations[0].Field)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err = client.AIGatewaySpendUserSummary(ctx, codersdk.Me, spendWindow(now, now.Add(-time.Hour)))
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 
 		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/spend/users?start_date=yesterday", nil)
 		require.NoError(t, err)
@@ -1493,6 +1516,17 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.EqualValues(t, 1000, res.Users[0].TotalCostMicros)
 		require.EqualValues(t, 1, res.Users[0].RequestCount)
 
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, window)
+		require.NoError(t, err)
+		require.True(t, retentionStart.Equal(summary.StartDate))
+		require.EqualValues(t, 1000, summary.TotalCostMicros)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		global, err := client.AIGatewaySpendSummary(ctx, window)
+		require.NoError(t, err)
+		require.Equal(t, summary, global)
+
 		// The default window also starts at the boundary.
 		//nolint:gocritic // Owner role is irrelevant here.
 		defaulted, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{})
@@ -1508,6 +1542,63 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, stale.EndDate.Equal(stale.StartDate))
 		require.Empty(t, stale.Users)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		empty, err := client.AIGatewaySpendSummary(ctx, spendWindow(retentionStart.Add(-48*time.Hour), retentionStart.Add(-24*time.Hour)))
+		require.NoError(t, err)
+		require.True(t, empty.StartDate.Equal(empty.EndDate))
+		require.Equal(t, codersdk.AIGatewaySpendTotals{}, empty.AIGatewaySpendTotals)
+		require.Empty(t, empty.ByProvider)
+		require.Empty(t, empty.ByModel)
+		require.Empty(t, empty.ByClient)
+	})
+
+	t.Run("BreakdownsCapped", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		start := dbtime.Now().Add(-time.Hour).Truncate(time.Second)
+
+		// One more distinct model and client than the cap, cheapest first so
+		// the cap has to drop the first one inserted.
+		total := codersdk.AIGatewaySpendBreakdownLimit + 1
+		for i := 0; i < total; i++ {
+			startedAt := start.Add(time.Duration(i) * time.Second)
+			endedAt := startedAt.Add(time.Second)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:  firstUser.UserID,
+				Provider:     "openai",
+				ProviderName: fmt.Sprintf("provider-%03d", i),
+				Model:        fmt.Sprintf("model-%03d", i),
+				StartedAt:    startedAt,
+				Client:       sql.NullString{String: fmt.Sprintf("client-%03d", i), Valid: true},
+			}, &endedAt)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID,
+				CostMicros:     sql.NullInt64{Int64: int64(i + 1), Valid: true},
+			})
+		}
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, spendWindow(start, start.Add(time.Hour)))
+		require.NoError(t, err)
+		require.EqualValues(t, total, summary.RequestCount)
+		require.EqualValues(t, total, summary.ModelCount)
+		require.EqualValues(t, total, summary.ClientCount)
+		require.Len(t, summary.ByModel, codersdk.AIGatewaySpendBreakdownLimit)
+		require.Equal(t, fmt.Sprintf("model-%03d", total-1), summary.ByModel[0].Model)
+		require.Equal(t, "model-001", summary.ByModel[len(summary.ByModel)-1].Model)
+		require.Len(t, summary.ByClient, codersdk.AIGatewaySpendBreakdownLimit)
+		require.Equal(t, fmt.Sprintf("client-%03d", total-1), summary.ByClient[0].Client)
+		require.EqualValues(t, total, summary.ProviderCount)
+		require.Len(t, summary.ByProvider, codersdk.AIGatewaySpendBreakdownLimit)
+		require.Equal(t, fmt.Sprintf("provider-%03d", total-1), summary.ByProvider[0].ProviderName)
+		require.Equal(t, "provider-001", summary.ByProvider[len(summary.ByProvider)-1].ProviderName)
+		require.EqualValues(t, total*(total+1)/2, summary.TotalCostMicros)
+		//nolint:gocritic // Owner role is irrelevant here.
+		global, err := client.AIGatewaySpendSummary(ctx, spendWindow(start, start.Add(time.Hour)))
+		require.NoError(t, err)
+		require.Equal(t, summary, global)
 	})
 
 	t.Run("OK", func(t *testing.T) {
@@ -1688,6 +1779,99 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.EqualValues(t, 0, empty.Count)
 		require.Empty(t, empty.Users)
 
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, alice.Username, window)
+		require.NoError(t, err)
+		require.True(t, start.Equal(summary.StartDate))
+		require.True(t, end.Equal(summary.EndDate))
+		require.Equal(t, aliceTotals, summary.AIGatewaySpendTotals)
+		require.EqualValues(t, 2, summary.ProviderCount)
+		require.Equal(t, []codersdk.AIGatewaySpendProviderBreakdown{
+			{Provider: "anthropic", ProviderName: "anthropic-main", AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{TotalCostMicros: 1000, RequestCount: 2, InputTokens: 100, OutputTokens: 50}},
+			{Provider: "openai", ProviderName: "openai-main", AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{TotalCostMicros: 200, RequestCount: 1, UnpricedRequestCount: 1, InputTokens: 35, OutputTokens: 20}},
+		}, summary.ByProvider)
+		require.EqualValues(t, 2, summary.ModelCount)
+		require.EqualValues(t, 3, summary.ClientCount)
+		require.Equal(t, []codersdk.AIGatewaySpendModelBreakdown{
+			{
+				Provider: "anthropic", ProviderName: "anthropic-main", Model: "claude",
+				AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+					TotalCostMicros: 1000, RequestCount: 2, InputTokens: 100, OutputTokens: 50,
+				},
+			},
+			{
+				Provider: "openai", ProviderName: "openai-main", Model: "gpt-4",
+				AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+					TotalCostMicros: 200, RequestCount: 1, UnpricedRequestCount: 1, InputTokens: 35, OutputTokens: 20,
+				},
+			},
+		}, summary.ByModel)
+		require.Equal(t, []codersdk.AIGatewaySpendClientBreakdown{
+			{
+				Client: string(aiblib.ClientClaudeCode),
+				AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+					AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+						TotalCostMicros: 1000, RequestCount: 1, InputTokens: 100, OutputTokens: 50,
+					},
+					SessionCount: 1,
+				},
+			},
+			{
+				Client: string(aiblib.ClientCursor),
+				AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+					AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+						TotalCostMicros: 200, RequestCount: 1, UnpricedRequestCount: 1, InputTokens: 35, OutputTokens: 20,
+					},
+					SessionCount: 1,
+				},
+			},
+			{
+				Client: "Unknown",
+				AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+					AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{RequestCount: 1},
+					SessionCount:        1,
+				},
+			},
+		}, summary.ByClient)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		global, err := client.AIGatewaySpendSummary(ctx, window)
+		require.NoError(t, err)
+		require.True(t, start.Equal(global.StartDate))
+		require.True(t, end.Equal(global.EndDate))
+		require.Equal(t, codersdk.AIGatewaySpendTotals{
+			AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{TotalCostMicros: 4200, RequestCount: 4, UnpricedRequestCount: 1, InputTokens: 435, OutputTokens: 170},
+			SessionCount:        3,
+		}, global.AIGatewaySpendTotals)
+		require.EqualValues(t, 2, global.ProviderCount)
+		require.EqualValues(t, 3, global.ModelCount)
+		require.EqualValues(t, 3, global.ClientCount)
+		require.Equal(t, []codersdk.AIGatewaySpendProviderBreakdown{
+			{Provider: "openai", ProviderName: "openai-main", AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{TotalCostMicros: 3200, RequestCount: 2, UnpricedRequestCount: 1, InputTokens: 335, OutputTokens: 120}},
+			summary.ByProvider[0],
+		}, global.ByProvider)
+		require.Equal(t, []codersdk.AIGatewaySpendModelBreakdown{
+			{Provider: "openai", ProviderName: "openai-main", Model: "gpt-5", AIGatewaySpendUsage: res.Users[0].AIGatewaySpendUsage},
+			summary.ByModel[0], summary.ByModel[1],
+		}, global.ByModel)
+		require.Equal(t, []codersdk.AIGatewaySpendClientBreakdown{
+			{Client: string(aiblib.ClientCursor), AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{AIGatewaySpendUsage: global.ByProvider[0].AIGatewaySpendUsage, SessionCount: 2}},
+			summary.ByClient[0], summary.ByClient[2],
+		}, global.ByClient)
+
+		// A user without requests gets zero totals and empty breakdowns.
+		//nolint:gocritic // Owner role is irrelevant here.
+		none, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, window)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIGatewaySpendTotals{}, none.AIGatewaySpendTotals)
+		require.Zero(t, none.ModelCount)
+		require.Zero(t, none.ClientCount)
+		require.Empty(t, none.ByModel)
+		require.Empty(t, none.ByClient)
+		require.Zero(t, none.ProviderCount)
+		require.NotNil(t, none.ByProvider)
+		require.Empty(t, none.ByProvider)
+
 		// A provider filter narrows every endpoint to that provider's requests;
 		// the page count and the overshot-page fallback report the filtered
 		// total.
@@ -1713,6 +1897,20 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 2, overshotFiltered.Count)
 		require.Empty(t, overshotFiltered.Users)
+		//nolint:gocritic // Owner role is irrelevant here.
+		openaiGlobal, err := client.AIGatewaySpendSummary(ctx, openai)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIGatewaySpendTotals{
+			AIGatewaySpendUsage: global.ByProvider[0].AIGatewaySpendUsage,
+			SessionCount:        2,
+		}, openaiGlobal.AIGatewaySpendTotals)
+		require.EqualValues(t, 1, openaiGlobal.ProviderCount)
+		require.Equal(t, global.ByProvider[:1], openaiGlobal.ByProvider)
+		require.EqualValues(t, 2, openaiGlobal.ModelCount)
+		require.Equal(t, []codersdk.AIGatewaySpendModelBreakdown{global.ByModel[0], global.ByModel[2]}, openaiGlobal.ByModel)
+		require.EqualValues(t, 1, openaiGlobal.ClientCount)
+		require.Equal(t, global.ByClient[:1], openaiGlobal.ByClient)
+
 		// A model filter keeps requests without usage, so the session count
 		// still spans both of alice's claude sessions.
 		claude := window
@@ -1727,6 +1925,16 @@ func TestAIGatewaySpend(t *testing.T) {
 			AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{TotalCostMicros: 1000, RequestCount: 2, InputTokens: 100, OutputTokens: 50},
 			SessionCount:        2,
 		}, byModel.Users[0].AIGatewaySpendTotals)
+
+		// The Unknown client filter matches requests without a recorded client.
+		unknown := window
+		unknown.Client = "Unknown"
+		//nolint:gocritic // Owner role is irrelevant here.
+		unknownSummary, err := client.AIGatewaySpendUserSummary(ctx, alice.Username, unknown)
+		require.NoError(t, err)
+		require.Equal(t, summary.ByClient[2].AIGatewaySpendTotals, unknownSummary.AIGatewaySpendTotals)
+		require.EqualValues(t, 1, unknownSummary.ClientCount)
+		require.Equal(t, summary.ByClient[2:], unknownSummary.ByClient)
 
 		// Dimensions intersect with each other and with the user search.
 		cursorGPT4 := openai
@@ -1748,6 +1956,13 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, noUsers.Count)
 		require.Empty(t, noUsers.Users)
+		//nolint:gocritic // Owner role is irrelevant here.
+		noSpend, err := client.AIGatewaySpendSummary(ctx, missing)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIGatewaySpendTotals{}, noSpend.AIGatewaySpendTotals)
+		require.Empty(t, noSpend.ByProvider)
+		require.Empty(t, noSpend.ByModel)
+		require.Empty(t, noSpend.ByClient)
 	})
 }
 
