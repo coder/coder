@@ -484,29 +484,28 @@ func TestAIBridgeConfigWIFIdentityTokenFileAllowed(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		file    string
-		baseURL string
-		want    bool
+		name string
+		file string
+		want bool
 	}{
-		{name: "allowlisted any base URL", file: allowedToken, baseURL: "https://attacker.example", want: true},
-		{name: "allowlisted dot-dot normalized", file: allowedTokenDotDot, baseURL: "https://api.anthropic.com", want: true},
-		{name: "relative candidate rejected", file: "var/run/secrets/allowed/token", baseURL: "https://api.anthropic.com", want: false},
-		{name: "relative allowlist entry ignored", file: "relative/entry", baseURL: "https://api.anthropic.com", want: false},
-		{name: "empty candidate rejected", file: "", baseURL: "https://api.anthropic.com", want: false},
-		{name: "dot candidate rejected", file: ".", baseURL: "https://api.anthropic.com", want: false},
-		{name: "unlisted file rejected", file: wifTestPath("etc", "coder", "secret.pem"), baseURL: "https://api.anthropic.com", want: false},
+		{name: "allowlisted any base URL", file: allowedToken, want: true},
+		{name: "allowlisted dot-dot normalized", file: allowedTokenDotDot, want: true},
+		{name: "relative candidate rejected", file: "var/run/secrets/allowed/token", want: false},
+		{name: "relative allowlist entry ignored", file: "relative/entry", want: false},
+		{name: "empty candidate rejected", file: "", want: false},
+		{name: "dot candidate rejected", file: ".", want: false},
+		{name: "unlisted file rejected", file: wifTestPath("etc", "coder", "secret.pem"), want: false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, cfg.WIFIdentityTokenFileAllowed(tc.file, tc.baseURL))
+			require.Equal(t, tc.want, cfg.WIFIdentityTokenFileAllowed(tc.file))
 		})
 	}
 
 	t.Run("zero config rejects everything", func(t *testing.T) {
 		t.Parallel()
-		require.False(t, codersdk.AIBridgeConfig{}.WIFIdentityTokenFileAllowed(allowedToken, "https://api.anthropic.com"))
+		require.False(t, codersdk.AIBridgeConfig{}.WIFIdentityTokenFileAllowed(allowedToken))
 	})
 }

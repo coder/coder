@@ -188,7 +188,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	// only paths blessed by deployment configuration may be referenced;
 	// see codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed.
 	if req.Settings.WIF != nil &&
-		!api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(req.Settings.WIF.IdentityTokenFile, req.BaseURL) {
+		!api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(req.Settings.WIF.IdentityTokenFile) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: wifUntrustedIdentityTokenFileMessage,
 		})
@@ -364,8 +364,8 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		}
 		// A WIF provider's effective state must satisfy the same
 		// invariants the create path enforces: the base URL must not be
-		// cleartext, and the post-merge (token file, base URL) pair must
-		// be blessed by deployment configuration (see
+		// cleartext, and the post-merge token file must be blessed by
+		// deployment configuration (see
 		// codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed). aibridged
 		// refuses to build a provider violating either, so saving it
 		// would strand a provider that never serves traffic. The
@@ -386,7 +386,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			if verrs := codersdk.ValidateAIProviderWIFBaseURL(ptr.NilToDefault(req.BaseURL, old.BaseUrl)); len(verrs) > 0 {
 				return errWIFCleartextBaseURL
 			}
-			if !api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile, ptr.NilToDefault(req.BaseURL, old.BaseUrl)) {
+			if !api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile) {
 				return errWIFUntrustedIdentityTokenFile
 			}
 		}

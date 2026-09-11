@@ -313,6 +313,14 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 - YAML key: `ai_gateway.structured_logging`
 - Default value: `false`
 
+### WIF allowed identity token files
+
+Absolute paths of OIDC identity token files that Workload Identity Federation (WIF) AI providers may read. A file listed here can be sent to any HTTPS base URL a Coder administrator configures on a WIF provider, so list only tokens intended for AI provider federation. coderd enforces this list when providers are created or updated through the API, and the process performing the token exchanges enforces it again before reading a file; when the AI Gateway runs standalone, set the same value on both coderd and the gateway process.
+
+- Environment variable: `CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES`
+- CLI flag: [`--ai-gateway-wif-allowed-identity-token-files`](../../reference/cli/server.md#--ai-gateway-wif-allowed-identity-token-files)
+- YAML key: `ai_gateway.wif_allowed_identity_token_files`
+
 ## AI Gateway Proxy
 
 ### API dump directory

@@ -68,7 +68,7 @@ func (AIProviderWIFSettings) settingsVersion() int {
 // Matching is lexical on cleaned absolute paths. Allowlisted paths are
 // assumed to live on an operator-controlled filesystem, so symlink
 // swaps are outside the threat model and symlinks are not resolved.
-func (c AIBridgeConfig) WIFIdentityTokenFileAllowed(identityTokenFile, _ string) bool {
+func (c AIBridgeConfig) WIFIdentityTokenFileAllowed(identityTokenFile string) bool {
 	if identityTokenFile == "" {
 		return false
 	}
