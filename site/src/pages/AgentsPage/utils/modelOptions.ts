@@ -342,6 +342,52 @@ export function resolveCompactionThreshold(
 	return model.compression_threshold;
 }
 
+interface UnavailableModelNoticeOptions {
+	/**
+	 * False while the model queries are pending or errored. Notices stay hidden
+	 * until the data settles so a usable model is not reported as missing.
+	 */
+	readonly hasResolvedModelData: boolean;
+	readonly storedModelRef: string | null | undefined;
+	readonly modelOptions: readonly ModelSelectorOption[];
+	readonly catalog: TypesGen.OrganizationChatModelsResponse | null | undefined;
+}
+
+/**
+ * Explains why a chat cannot use its stored model, or why no model is usable
+ * at all. Returns undefined when generation can proceed normally.
+ */
+export const getUnavailableModelNotice = ({
+	hasResolvedModelData,
+	storedModelRef,
+	modelOptions,
+	catalog,
+}: UnavailableModelNoticeOptions): string | undefined => {
+	if (!hasResolvedModelData) {
+		return undefined;
+	}
+
+	const hasModelOptions = modelOptions.length > 0;
+	const hasUserFixableModelProviders = hasUserFixableProviders(catalog);
+
+	if (isUnavailableHistoricalModelID(storedModelRef, modelOptions)) {
+		if (hasModelOptions) {
+			return "The model used by this chat is not available. A usable model is selected for new messages.";
+		}
+		return hasUserFixableModelProviders
+			? "The model used by this chat is not available. Add your API key in provider settings to enable models."
+			: "The model used by this chat is not available. Generation is disabled because no usable model is available.";
+	}
+
+	if (!hasModelOptions) {
+		return hasUserFixableModelProviders
+			? "No usable chat model is available. Add your API key in provider settings to enable models."
+			: "No usable chat model is currently available. Generation is disabled.";
+	}
+
+	return undefined;
+};
+
 export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,
