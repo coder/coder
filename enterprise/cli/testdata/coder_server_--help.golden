@@ -694,6 +694,13 @@ OAUTH2 / GITHUB OPTIONS:
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.
 
+OAUTH2 / PROVIDER OPTIONS: 
+      --oauth2-provider-enable bool, $CODER_OAUTH2_PROVIDER_ENABLE (default: false)
+          Enable the OAuth 2.1 authorization server, which lets external
+          applications (such as MCP clients) obtain tokens for Coder on behalf
+          of users. Disabled by default. When disabled, the OAuth2 endpoints and
+          discovery documents return 404.
+
 OIDC OPTIONS: 
       --oidc-group-auto-create bool, $CODER_OIDC_GROUP_AUTO_CREATE (default: false)
           Automatically creates missing groups from a user's groups claim.
