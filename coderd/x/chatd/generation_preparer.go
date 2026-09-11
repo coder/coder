@@ -462,6 +462,33 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
+	var currentGoal *database.ChatGoal
+	chatGoalsEnabled := server.experiments.Enabled(codersdk.ExperimentChatGoals)
+	if chatGoalsEnabled {
+		currentGoal, err = currentChatGoal(ctx, server.db, chatRootID(chat))
+		if err != nil {
+			cleanup()
+			return generationPrepared{}, err
+		}
+	}
+	activeGoal := currentGoal
+	if activeGoal != nil && activeGoal.Status != database.ChatGoalStatusActive {
+		activeGoal = nil
+	}
+	goalBehaviorTurn := chatGoalsEnabled && isRootChat && !isPlanModeTurn && !isExploreSubagent
+	canCompleteGoal := goalBehaviorTurn && activeGoal != nil
+	// complete_goal transitions the goal before its tool result is
+	// committed, so the turn's next preparation no longer offers it and
+	// a history scan keyed on the offered set would miss the stop marker
+	// and invoke the model again. Keep it recognized only while the
+	// transition belongs to the current turn; on later turns the
+	// recognition is dropped so a same-name dynamic tool can neither
+	// impersonate the built-in stop marker nor stay suppressed forever.
+	goalStopAfterRecognized := canCompleteGoal ||
+		(goalBehaviorTurn && currentGoal != nil &&
+			currentGoal.Status == database.ChatGoalStatusComplete &&
+			goalTransitionInCurrentTurn(currentGoal, input.Messages))
+
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
@@ -469,10 +496,12 @@ func (server *Server) prepareGeneration(
 		initialResolvedSkills,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
+			planMode:                  currentPlanMode,
+			chatMode:                  chat.Mode,
+			planModeInstructions:      planModeInstructions,
+			activeGoal:                activeGoal,
+			isRootChat:                isRootChat,
+			completeGoalToolAvailable: canCompleteGoal,
 		},
 	)
 	if advisorRuntime != nil {
@@ -516,6 +545,39 @@ func (server *Server) prepareGeneration(
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+	}
+	if chatGoalsEnabled {
+		rootChatID := chatRootID(chat)
+		tools = append(tools, chattool.GetGoal(server.db, chattool.GoalToolOptions{
+			ChatID:     chat.ID,
+			RootChatID: rootChatID,
+			IsRootChat: isRootChat,
+		}))
+		// Registration follows stop-after recognition, not just the
+		// active goal: after a crash between the goal transition commit
+		// and its tool-result commit, the next preparation must still
+		// dispatch the pending call to the tool's replay handler
+		// instead of failing it as an unknown tool, which would let the
+		// model run again past the stop marker.
+		if goalStopAfterRecognized {
+			var fence *chattool.GoalToolFence
+			if chat.WorkerID.Valid && chat.RunnerID.Valid {
+				fence = &chattool.GoalToolFence{
+					WorkerID:       chat.WorkerID.UUID,
+					RunnerID:       chat.RunnerID.UUID,
+					HistoryVersion: chat.HistoryVersion,
+				}
+			}
+			tools = append(tools, chattool.CompleteGoal(server.db, chattool.GoalToolOptions{
+				ChatID:     chat.ID,
+				RootChatID: rootChatID,
+				IsRootChat: true,
+				Fence:      fence,
+				OnGoalUpdated: func(_ context.Context, updatedChat database.Chat, _ database.ChatGoal) {
+					server.publishChatGoalChange(updatedChat)
+				},
+			}))
+		}
 	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
@@ -577,10 +639,7 @@ func (server *Server) prepareGeneration(
 		}))
 	}
 
-	var exclusiveToolNames map[string]bool
-	if advisorRuntime != nil {
-		exclusiveToolNames = map[string]bool{chatadvisor.ToolName: true}
-	}
+	exclusiveToolNames := exclusiveGenerationToolNames(advisorRuntime != nil, goalStopAfterRecognized)
 
 	builtinToolNames := make(map[string]bool, len(tools))
 	for _, t := range tools {
@@ -606,7 +665,11 @@ func (server *Server) prepareGeneration(
 	}
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 
-	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
+	var reservedGoalToolNames map[string]bool
+	if goalStopAfterRecognized {
+		reservedGoalToolNames = map[string]bool{chattool.CompleteGoalToolName: true}
+	}
+	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode, reservedGoalToolNames)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
@@ -775,11 +838,16 @@ func (server *Server) prepareGeneration(
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
-		ExclusiveToolNames:   exclusiveToolNames,
-		BuiltinToolNames:     builtinToolNames,
-		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             maxChatSteps,
+		// Key stop-after on the offered built-in tool, not the turn
+		// mode: without an active goal a colliding user-defined dynamic
+		// tool would otherwise stop the turn after its result.
+		StopAfterTools: stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID, stopAfterBehaviorToolOptions{
+			stopAfterCompleteGoal: goalStopAfterRecognized,
+		}),
+		ExclusiveToolNames: exclusiveToolNames,
+		BuiltinToolNames:   builtinToolNames,
+		ToolNameToConfigID: toolNameToConfigID,
+		MaxSteps:           maxChatSteps,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,
@@ -790,6 +858,23 @@ func (server *Server) prepareGeneration(
 		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
+}
+
+// goalTransitionInCurrentTurn reports whether the current goal's last
+// mutation happened during the turn the loaded history generates for,
+// meaning at or after the turn's triggering user message. The boundary
+// is lastUserPromptIndex, not the last user-role row: hook context rows
+// reuse the user role and are persisted after the transition, so they
+// must not disarm recognition mid-turn. Both timestamps come from the
+// database clock and the mutation transaction can only start after the
+// trigger message committed, so the comparison cannot invert across
+// turns.
+func goalTransitionInCurrentTurn(goal *database.ChatGoal, messages []database.ChatMessage) bool {
+	index := lastUserPromptIndex(messages)
+	if index < 0 {
+		return false
+	}
+	return !goal.UpdatedAt.Before(messages[index].CreatedAt)
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
@@ -812,6 +897,25 @@ func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, threshold
 	}
 	usagePercent := (float64(contextTokens) / float64(contextLimit)) * 100
 	return usagePercent >= float64(thresholdPercent)
+}
+
+// exclusiveGenerationToolNames lists tools that must be a batch's only
+// call. complete_goal is exclusive so a mixed batch cannot commit the
+// goal and then park the chat in requires_action for a stale action.
+//
+//nolint:revive // hasAdvisor and goalToolsRegistered are domain capabilities of the turn, not control coupling.
+func exclusiveGenerationToolNames(hasAdvisor bool, goalToolsRegistered bool) map[string]bool {
+	names := map[string]bool{}
+	if hasAdvisor {
+		names[chatadvisor.ToolName] = true
+	}
+	if goalToolsRegistered {
+		names[chattool.CompleteGoalToolName] = true
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return names
 }
 
 func contextTokensFromUsage(usage fantasy.Usage) int64 {
