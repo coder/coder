@@ -18854,3 +18854,124 @@ func TestChatUseSharedActor(t *testing.T) {
 	})
 	requireSDKError(t, err, http.StatusForbidden)
 }
+
+// TestChatUseSharedUpdateHandlers verifies that the use role does not grant
+// update: a use sharer is denied on every handler that authorizes update
+// first, while the owner still succeeds on the same fixture.
+func TestChatUseSharedUpdateHandlers(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) (
+		context.Context,
+		*codersdk.ExperimentalClient,
+		*codersdk.ExperimentalClient,
+		codersdk.Chat,
+		database.Store,
+	) {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db, api := newChatClientWithAPIAndDatabase(t)
+		owner := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModel(t, ownerClient)
+		sharerRaw, sharer := coderdtest.CreateAnotherUser(t, ownerClient.Client, owner.OrganizationID)
+		sharerClient := codersdk.NewExperimentalClient(sharerRaw)
+
+		chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: owner.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "use shared chat",
+			}},
+		})
+		require.NoError(t, err)
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+		err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{
+				sharer.ID.String(): codersdk.ChatRoleUse,
+			},
+		})
+		require.NoError(t, err)
+		return ctx, ownerClient, sharerClient, chat, db
+	}
+
+	t.Run("PatchChatMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, ownerClient, sharerClient, chat, _ := setup(t)
+		messagesResult, err := ownerClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		_, err = sharerClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "use sharer cannot edit",
+			}},
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharerClient, chat, db := setup(t)
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+
+		res, err := sharerClient.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("CompactChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharerClient, chat, _ := setup(t)
+		_, err := sharerClient.CompactChat(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("ClearChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharerClient, chat, _ := setup(t)
+		_, err := sharerClient.ClearChat(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("ProposeChatTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharerClient, chat, _ := setup(t)
+		_, err := sharerClient.ProposeChatTitle(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("OwnerClearsChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, ownerClient, _, chat, _ := setup(t)
+		cleared, err := ownerClient.ClearChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, cleared.ID)
+		require.Equal(t, codersdk.ChatStatusWaiting, cleared.Status)
+	})
+}
