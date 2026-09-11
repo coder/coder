@@ -4821,6 +4821,214 @@ func TestCreateWorkspaceTool_UseSharerBindsChat(t *testing.T) {
 	require.Equal(t, sharer.ID, workspace.LatestBuild.InitiatorID)
 }
 
+// TestCreateWorkspaceTool_UseSharerReplacesInaccessibleWorkspace verifies
+// that create_workspace keeps returning the bound workspace to the owner
+// who can access it, and creates an actor-owned workspace for a use
+// sharer who cannot access it, rebinding the chat to the new workspace.
+func TestCreateWorkspaceTool_UseSharerReplacesInaccessibleWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	ownerClient := codersdk.NewExperimentalClient(client)
+	sharerRaw, sharer := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	sharerClient := codersdk.NewExperimentalClient(sharerRaw)
+
+	// Each workspace needs its own template so its agent has a unique
+	// auth token, since agent tokens resolve to exactly one workspace.
+	newTemplate := func() codersdk.Template {
+		t.Helper()
+		agentToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		_ = agenttest.New(t, client.URL, agentToken)
+		return coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+	}
+	ownerTemplate := newTemplate()
+	sharerTemplate := newTemplate()
+
+	ownerWorkspaceName := "owner-ws-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	sharerWorkspaceName := "sharer-ws-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	ownerCreateArgs := fmt.Sprintf(`{"template_id":%q,"name":%q}`, ownerTemplate.ID.String(), ownerWorkspaceName)
+	sharerCreateArgs := fmt.Sprintf(`{"template_id":%q,"name":%q}`, sharerTemplate.ID.String(), sharerWorkspaceName)
+
+	// Every prompt gets the create_workspace tool call once, then plain
+	// text. The prompts are distinct so no prompt contains another.
+	const (
+		ownerPrompt       = "Owner asks: create a workspace from the template."
+		ownerRepeatPrompt = "Owner asks again: create a second workspace."
+		sharerPrompt      = "Sharer asks: create a workspace from the template."
+	)
+	var ownerToolCallSent, ownerRepeatToolCallSent, sharerToolCallSent atomic.Bool
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Use sharer replaces workspace test")
+		}
+		var lastUserMessage string
+		for _, message := range req.Messages {
+			if message.Role == "user" {
+				lastUserMessage = message.Content
+			}
+		}
+		switch {
+		case strings.Contains(lastUserMessage, ownerPrompt) && ownerToolCallSent.CompareAndSwap(false, true):
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace", ownerCreateArgs),
+			)
+		case strings.Contains(lastUserMessage, ownerRepeatPrompt) && ownerRepeatToolCallSent.CompareAndSwap(false, true):
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace", sharerCreateArgs),
+			)
+		case strings.Contains(lastUserMessage, sharerPrompt) && sharerToolCallSent.CompareAndSwap(false, true):
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace", sharerCreateArgs),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done.")...,
+		)
+	})
+	coderdtest.CreateOpenAICompatChatModel(t, ownerClient, openAIURL)
+
+	waitForChatIdle := func(chatID uuid.UUID) codersdk.Chat {
+		t.Helper()
+		var chatResult codersdk.Chat
+		require.Eventually(t, func() bool {
+			got, getErr := ownerClient.GetChat(ctx, chatID)
+			if getErr != nil {
+				return false
+			}
+			chatResult = got
+			return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
+		}, testutil.WaitLong, testutil.IntervalFast)
+		if chatResult.Status == codersdk.ChatStatusError {
+			lastError := ""
+			if chatResult.LastError != nil {
+				lastError = chatResult.LastError.Message
+			}
+			require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
+		}
+		return chatResult
+	}
+
+	// latestCreateWorkspaceResult returns the create_workspace tool
+	// result with the highest message ID and the number of such results
+	// in the chat.
+	latestCreateWorkspaceResult := func(chatID uuid.UUID) (map[string]any, int) {
+		t.Helper()
+		chatMsgs, err := ownerClient.GetChatMessages(ctx, chatID, nil)
+		require.NoError(t, err)
+		var (
+			latest   map[string]any
+			latestID int64
+			count    int
+		)
+		for _, message := range chatMsgs.Messages {
+			if message.Role != codersdk.ChatMessageRoleTool {
+				continue
+			}
+			for _, part := range message.Content {
+				if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolName != "create_workspace" {
+					continue
+				}
+				var result map[string]any
+				require.NoError(t, json.Unmarshal(part.Result, &result))
+				count++
+				if message.ID > latestID {
+					latestID = message.ID
+					latest = result
+				}
+			}
+		}
+		return latest, count
+	}
+
+	// The owner's opening turn creates and binds the owner's workspace.
+	chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: owner.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: ownerPrompt,
+		}},
+	})
+	require.NoError(t, err)
+	chatResult := waitForChatIdle(chat.ID)
+	require.True(t, ownerToolCallSent.Load(), "the owner's turn did not reach the model")
+	require.NotNil(t, chatResult.WorkspaceID)
+	ownerWorkspaceID := *chatResult.WorkspaceID
+	ownerWorkspace, err := client.Workspace(ctx, ownerWorkspaceID)
+	require.NoError(t, err)
+	require.Equal(t, ownerWorkspaceName, ownerWorkspace.Name)
+	require.Equal(t, owner.UserID, ownerWorkspace.OwnerID)
+	result, count := latestCreateWorkspaceResult(chat.ID)
+	require.Equal(t, 1, count)
+	require.Equal(t, true, result["created"])
+
+	// The owner can access the bound running workspace, so a second
+	// create_workspace call returns it instead of creating another.
+	_, err = ownerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: ownerRepeatPrompt,
+		}},
+	})
+	require.NoError(t, err)
+	chatResult = waitForChatIdle(chat.ID)
+	require.True(t, ownerRepeatToolCallSent.Load(), "the owner's repeat turn did not reach the model")
+	require.NotNil(t, chatResult.WorkspaceID)
+	require.Equal(t, ownerWorkspaceID, *chatResult.WorkspaceID)
+	result, count = latestCreateWorkspaceResult(chat.ID)
+	require.Equal(t, 2, count)
+	require.Equal(t, false, result["created"])
+	require.Equal(t, "already_exists", result["status"])
+
+	// The sharer holds use on the chat but not on the owner's workspace.
+	err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			sharer.ID.String(): codersdk.ChatRoleUse,
+		},
+	})
+	require.NoError(t, err)
+
+	posted, err := sharerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: sharerPrompt,
+		}},
+	})
+	require.NoError(t, err)
+	require.False(t, posted.Queued)
+	require.NotNil(t, posted.Message)
+	require.NotNil(t, posted.Message.CreatedBy)
+	require.Equal(t, sharer.ID, *posted.Message.CreatedBy)
+
+	chatResult = waitForChatIdle(chat.ID)
+	require.True(t, sharerToolCallSent.Load(), "the sharer's turn did not reach the model")
+	result, count = latestCreateWorkspaceResult(chat.ID)
+	require.Equal(t, 3, count)
+	require.Equal(t, true, result["created"],
+		"the sharer cannot access the owner's workspace, so create_workspace must create a new one")
+
+	require.NotNil(t, chatResult.WorkspaceID)
+	require.NotEqual(t, ownerWorkspaceID, *chatResult.WorkspaceID,
+		"the chat must be rebound to the sharer's workspace")
+	sharerWorkspace, err := client.Workspace(ctx, *chatResult.WorkspaceID)
+	require.NoError(t, err)
+	require.Equal(t, sharerWorkspaceName, sharerWorkspace.Name)
+	require.Equal(t, sharer.ID, sharerWorkspace.OwnerID)
+	require.Equal(t, sharer.ID, sharerWorkspace.LatestBuild.InitiatorID)
+}
+
 func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 

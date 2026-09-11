@@ -142,8 +142,9 @@ var (
 	errInflightClosed               = xerrors.New("chatd server inflight closed")
 
 	// ErrWorkspaceAccessDenied is returned when the turn actor lacks
-	// ActionSSH on the workspace a tool is about to dial.
-	ErrWorkspaceAccessDenied = xerrors.New("workspace access denied")
+	// ActionSSH on the workspace a tool is about to dial. It is the
+	// chattool sentinel so create_workspace can recognize denial.
+	ErrWorkspaceAccessDenied = chattool.ErrWorkspaceAccessDenied
 )
 
 type chatExternalAgentUnavailableError struct {
@@ -3927,6 +3928,7 @@ func (p *Server) appendRootChatTools(
 			OwnerID:                        opts.actorID,
 			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    p.actorAgentConnFunc(opts.actorID),
+			AuthorizeWorkspaceAccess:       p.authorizeWorkspaceAccess,
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,

@@ -62,11 +62,29 @@ type AgentConnFunc func(
 	agentID uuid.UUID,
 ) (workspacesdk.AgentConn, func(), error)
 
+// ErrWorkspaceAccessDenied reports that an actor lacks access to a
+// workspace. AuthorizeWorkspaceAccessFn returns an error wrapping it so
+// callers can tell denial apart from lookup failures.
+var ErrWorkspaceAccessDenied = xerrors.New("workspace access denied")
+
+// AuthorizeWorkspaceAccessFn checks that actorID may use the workspace.
+// It returns an error wrapping ErrWorkspaceAccessDenied when access is
+// denied and any other error when the check itself failed.
+type AuthorizeWorkspaceAccessFn func(
+	ctx context.Context,
+	actorID uuid.UUID,
+	workspaceID uuid.UUID,
+) error
+
 // CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
-	OwnerID                        uuid.UUID
-	CreateFn                       CreateWorkspaceFn
-	AgentConnFn                    AgentConnFunc
+	OwnerID     uuid.UUID
+	CreateFn    CreateWorkspaceFn
+	AgentConnFn AgentConnFunc
+	// AuthorizeWorkspaceAccess decides whether OwnerID may keep using
+	// the workspace already bound to the chat. When nil, the bound
+	// workspace is treated as accessible.
+	AuthorizeWorkspaceAccess       AuthorizeWorkspaceAccessFn
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
@@ -82,9 +100,11 @@ type createWorkspaceArgs struct {
 
 // CreateWorkspace returns a tool that creates a new workspace from a
 // template. The tool is idempotent: if the chat already has a
-// workspace that is building or running, it returns the existing
-// workspace instead of creating a new one. A mutex prevents parallel
-// calls from creating duplicate workspaces.
+// workspace that is building or running and options.OwnerID can access
+// it, it returns the existing workspace instead of creating a new one.
+// When OwnerID cannot access the bound workspace, the tool creates a
+// workspace owned by OwnerID and rebinds the chat to it. A mutex
+// prevents parallel calls from creating duplicate workspaces.
 // db must not be nil and chatID must not be uuid.Nil.
 func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, options CreateWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
@@ -99,7 +119,8 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"omitted), parameter values, and a preset_id from read_template "+
 			"to apply preset parameters and potentially claim a prebuilt "+
 			"workspace for faster startup. Idempotent: if the chat already "+
-			"has a workspace building or running, it is returned.",
+			"has a workspace building or running that you can access, it is "+
+			"returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.CreateFn == nil {
 				return fantasy.NewTextErrorResponse("workspace creator is not configured"), nil
@@ -365,7 +386,7 @@ type existingWorkspaceResult struct {
 // existingWorkspaceResult with Done set when the caller should
 // return early (workspace exists and is alive or building).
 // Returns Done unset if the caller should proceed with creation
-// (workspace is dead or missing).
+// (workspace is dead, missing, or not accessible to o.OwnerID).
 func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
 	db database.Store,
@@ -389,6 +410,16 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	// Workspace was soft-deleted — allow creation.
 	if ws.Deleted {
 		return existingWorkspaceResult{}
+	}
+	// An actor without access to the bound workspace cannot use any
+	// workspace tool, so fall through to actor-owned creation.
+	if o.AuthorizeWorkspaceAccess != nil {
+		if err := o.AuthorizeWorkspaceAccess(ctx, o.OwnerID, ws.ID); err != nil {
+			if errors.Is(err, ErrWorkspaceAccessDenied) {
+				return existingWorkspaceResult{}
+			}
+			return existingWorkspaceResult{Err: xerrors.Errorf("authorize workspace access: %w", err)}
+		}
 	}
 
 	// Check the latest build status.
