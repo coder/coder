@@ -111,8 +111,8 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// The settle step promoted the edited row into history and
-		// started the chat.
+		// Releasing the held head of an idle chat is a promotion: the
+		// edited row is in history and the chat is running.
 		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		require.Empty(t, listed.QueuedMessages, "promoted row is no longer queued")
@@ -231,6 +231,16 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		})
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Only the chat owner may edit queued messages.", sdkErr.Message)
+
+		// Non-owner delete: deleting a held head can start the next
+		// message under the owner's credentials, so delete is owner-only
+		// like promote.
+		res, err = adminClientRaw.Request(ctx, http.MethodDelete,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, queued.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		sdkErr = requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusForbidden)
+		require.Equal(t, "Only the chat owner may delete queued messages.", sdkErr.Message)
 
 		// Archived chat.
 		archived := dbgen.Chat(t, db, database.Chat{
