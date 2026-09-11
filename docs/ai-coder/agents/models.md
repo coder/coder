@@ -113,6 +113,11 @@ not by per-provider key policy flags. When BYOK is enabled, users can save a
 personal API key for any enabled AI provider. When BYOK is disabled, saved user
 keys are ignored and users cannot add or update personal keys.
 
+For AWS Bedrock providers (type `bedrock`, or `anthropic` providers configured
+with Bedrock settings), the personal key is an AWS Bedrock API key. AI Gateway
+forwards it as a bearer token, which authenticates that user's requests instead
+of the deployment-managed AWS credentials (SigV4).
+
 For each provider request, Coder selects credentials in this order:
 
 1. If BYOK is enabled and the user has saved a personal key for the selected
