@@ -236,4 +236,11 @@ message AIProviderKindBedrock {
   // protocol selects the Bedrock wire protocol ("invoke-model" or "mantle").
   // Empty falls back to invoke-model.
   string protocol = 8;
+  // resolved_model is the model ID behind model, which differs from it only
+  // when model is an application inference profile ARN. coderd resolves it when
+  // the provider is written, so the gateway never calls the Bedrock control
+  // plane.
+  string resolved_model = 9;
+  // resolved_small_fast_model is resolved_model for small_fast_model.
+  string resolved_small_fast_model = 10;
 }

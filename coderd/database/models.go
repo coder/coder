@@ -4024,76 +4024,6 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
-type TaskStatus string
-
-const (
-	TaskStatusPending      TaskStatus = "pending"
-	TaskStatusInitializing TaskStatus = "initializing"
-	TaskStatusActive       TaskStatus = "active"
-	TaskStatusPaused       TaskStatus = "paused"
-	TaskStatusUnknown      TaskStatus = "unknown"
-	TaskStatusError        TaskStatus = "error"
-)
-
-func (e *TaskStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = TaskStatus(s)
-	case string:
-		*e = TaskStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TaskStatus: %T", src)
-	}
-	return nil
-}
-
-type NullTaskStatus struct {
-	TaskStatus TaskStatus `json:"task_status"`
-	Valid      bool       `json:"valid"` // Valid is true if TaskStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTaskStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.TaskStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TaskStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTaskStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TaskStatus), nil
-}
-
-func (e TaskStatus) Valid() bool {
-	switch e {
-	case TaskStatusPending,
-		TaskStatusInitializing,
-		TaskStatusActive,
-		TaskStatusPaused,
-		TaskStatusUnknown,
-		TaskStatusError:
-		return true
-	}
-	return false
-}
-
-func AllTaskStatusValues() []TaskStatus {
-	return []TaskStatus{
-		TaskStatusPending,
-		TaskStatusInitializing,
-		TaskStatusActive,
-		TaskStatusPaused,
-		TaskStatusUnknown,
-		TaskStatusError,
-	}
-}
-
 // Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
@@ -6066,64 +5996,6 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
-type Task struct {
-	ID                           uuid.UUID                        `db:"id" json:"id"`
-	OrganizationID               uuid.UUID                        `db:"organization_id" json:"organization_id"`
-	OwnerID                      uuid.UUID                        `db:"owner_id" json:"owner_id"`
-	Name                         string                           `db:"name" json:"name"`
-	WorkspaceID                  uuid.NullUUID                    `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID            uuid.UUID                        `db:"template_version_id" json:"template_version_id"`
-	TemplateParameters           json.RawMessage                  `db:"template_parameters" json:"template_parameters"`
-	Prompt                       string                           `db:"prompt" json:"prompt"`
-	CreatedAt                    time.Time                        `db:"created_at" json:"created_at"`
-	DeletedAt                    sql.NullTime                     `db:"deleted_at" json:"deleted_at"`
-	DisplayName                  string                           `db:"display_name" json:"display_name"`
-	WorkspaceGroupACL            WorkspaceACL                     `db:"workspace_group_acl" json:"workspace_group_acl"`
-	WorkspaceUserACL             WorkspaceACL                     `db:"workspace_user_acl" json:"workspace_user_acl"`
-	Status                       TaskStatus                       `db:"status" json:"status"`
-	StatusDebug                  json.RawMessage                  `db:"status_debug" json:"status_debug"`
-	WorkspaceBuildNumber         sql.NullInt32                    `db:"workspace_build_number" json:"workspace_build_number"`
-	WorkspaceAgentID             uuid.NullUUID                    `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID               uuid.NullUUID                    `db:"workspace_app_id" json:"workspace_app_id"`
-	WorkspaceAgentLifecycleState NullWorkspaceAgentLifecycleState `db:"workspace_agent_lifecycle_state" json:"workspace_agent_lifecycle_state"`
-	WorkspaceAppHealth           NullWorkspaceAppHealth           `db:"workspace_app_health" json:"workspace_app_health"`
-	OwnerUsername                string                           `db:"owner_username" json:"owner_username"`
-	OwnerName                    string                           `db:"owner_name" json:"owner_name"`
-	OwnerAvatarUrl               string                           `db:"owner_avatar_url" json:"owner_avatar_url"`
-}
-
-// Stores snapshots of task state when paused, currently limited to conversation history.
-type TaskSnapshot struct {
-	// The task this snapshot belongs to.
-	TaskID uuid.UUID `db:"task_id" json:"task_id"`
-	// Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.
-	LogSnapshot json.RawMessage `db:"log_snapshot" json:"log_snapshot"`
-	// When this log snapshot was captured.
-	LogSnapshotCreatedAt time.Time `db:"log_snapshot_created_at" json:"log_snapshot_created_at"`
-}
-
-type TaskTable struct {
-	ID                 uuid.UUID       `db:"id" json:"id"`
-	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
-	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
-	Name               string          `db:"name" json:"name"`
-	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
-	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
-	Prompt             string          `db:"prompt" json:"prompt"`
-	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
-	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
-	// Display name is a custom, human-friendly task name.
-	DisplayName string `db:"display_name" json:"display_name"`
-}
-
-type TaskWorkspaceApp struct {
-	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
-	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
-	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
-}
-
 type TelemetryItem struct {
 	Key       string    `db:"key" json:"key"`
 	Value     string    `db:"value" json:"value"`
@@ -6589,7 +6461,6 @@ type Workspace struct {
 	TemplateDisplayName     string                  `db:"template_display_name" json:"template_display_name"`
 	TemplateIcon            string                  `db:"template_icon" json:"template_icon"`
 	TemplateDescription     string                  `db:"template_description" json:"template_description"`
-	TaskID                  uuid.NullUUID           `db:"task_id" json:"task_id"`
 	GroupACLDisplayInfo     WorkspaceACLDisplayInfo `db:"group_acl_display_info" json:"group_acl_display_info"`
 	UserACLDisplayInfo      WorkspaceACLDisplayInfo `db:"user_acl_display_info" json:"user_acl_display_info"`
 }

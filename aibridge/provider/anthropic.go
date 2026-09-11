@@ -83,16 +83,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			return nil, xerrors.Errorf("bedrock config: %w", err)
 		}
 
-		// Resolution only calls AWS for application inference profile ARNs, so
-		// deployments configured with plain model IDs need no extra permission.
-		resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
-		defer cancel()
-		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, awsCfg)
-		if err != nil {
-			return nil, xerrors.Errorf("resolve bedrock models: %w", err)
-		}
-
-		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials, model, smallFastModel)
+		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials)
 	}
 
 	return &Anthropic{

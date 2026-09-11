@@ -44,7 +44,8 @@ writing them.
    - Or is everything already covered?
 
 6. **Report findings.** Use the method provided in the prompt, or if none
-   specified, summarize findings directly.
+   specified, summarize findings directly. When the prompt asks for a
+   comment on a pull request, follow [Writing the comment](#writing-the-comment).
 
 ## Evidence discipline
 
@@ -95,6 +96,81 @@ Follow this order on every review.
    nothing only after every search in step 3 came back empty outside
    `docs/reference/`. "The diff already updates its own reference page" is
    not a reason to skip the search.
+
+## Writing the comment
+
+### A finding needs a page and a sentence
+
+Name the page, and name the sentence that is now wrong or the list that is
+now missing an entry. If you cannot name both, you have a hunch, not a
+finding, and a hunch costs the author more than it saves.
+
+Two habits produce weak findings:
+
+- **Documenting the interface.** A button, a filter preset, or a dialog is
+  not a documented surface on its own. Flag it only when a page already
+  enumerates the thing it belongs to, such as a table of settings or a
+  list of filters.
+- **Filing on the nearest page instead of the right one.** An
+  admin-facing change does not belong on an agents page because that page
+  happens to mention a similar option. When no page is the right home,
+  say so in one sentence and file nothing.
+
+One surface earns one item. Do not split a single change into a required
+item plus two nearby suggestions.
+
+### Checkboxes are work, not opinions
+
+Every `[ ]` is work the author owes. Anything optional belongs in the
+sentence under an item, or nowhere. An item that says "consider" or "not
+strictly required" is not an item.
+
+### Links resolve on GitHub, not in the docs tree
+
+A relative docs link resolves against the repository in a comment and
+404s. Write the path in backticks, or link the published page in full,
+such as `https://coder.com/docs/reference/api/enterprise`.
+
+Link an anchor only when that heading exists on the base branch today. A
+heading this pull request generates does not exist yet, so name the
+endpoint or section in words instead.
+
+### One comment per pull request
+
+Search the pull request for `<!-- doc-check-sticky -->` and edit that
+comment instead of adding another. Search again immediately before you
+post: a comment you wrote earlier in this same review counts, and reviews
+of one pull request can overlap. Edit it, never post a second.
+
+When a comment already exists, compare your findings against it. Check off
+`[x]` items that are now addressed, strike through items the code reverted,
+and add `[ ]` items for new gaps. If an item is checked but you cannot
+verify the documentation landed, add a warning note below it. If nothing
+meaningful changed, leave the comment alone.
+
+### Comment format
+
+Include only the sections that apply.
+
+```markdown
+## Documentation Check
+
+### Updates Needed
+- [ ] `docs/path/file.md` - What needs to change
+- [x] `docs/other/file.md` - This was addressed
+- ~~`docs/removed.md` - No longer needed~~ *(reverted in abc123)*
+
+### New Documentation Needed
+- [ ] `docs/suggested/path.md` - What should be documented
+  > ⚠️ *Checked but no corresponding documentation changes found in this PR*
+
+---
+*Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
+<!-- doc-check-sticky -->
+```
+
+The `<!-- doc-check-sticky -->` marker goes last, so the next review can
+find this comment.
 
 ## What to Check
 
