@@ -667,15 +667,8 @@ func TestOAuth2RefreshRevokedToken(t *testing.T) {
 	})
 }
 
-// A token row whose api_key_id names no key. The FK cascade makes that
-// unreachable through any API, so the constraints come off to seed it, and
-// this test takes a database of its own because disabling them applies to
-// every table in it. The refresh reads nothing from api_keys before the
-// returning-row delete, so the missing key surfaces there as invalid_grant;
-// a read of the key ahead of the delete answered HTTP 500 here.
-// A confidential client authenticates on refresh as it does on the code
-// exchange (RFC 6749 §6, OAuth 2.1 §3.2.1). A refusal mints nothing and
-// leaves the token usable, so the client recovers by presenting its secret.
+// A confidential client authenticates on refresh as on the code exchange
+// (RFC 6749 §6). A refusal leaves the token usable for a correct retry.
 func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 	t.Parallel()
 
@@ -841,6 +834,10 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 	})
 }
 
+// A token row whose api_key_id names no key is unreachable through the API
+// because of the FK cascade, so the constraints come off to seed it. That
+// applies to every table, hence the private database. The missing key must
+// surface as invalid_grant, not HTTP 500.
 func TestOAuth2RefreshKeyMissing(t *testing.T) {
 	t.Parallel()
 
