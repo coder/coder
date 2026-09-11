@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { ChatSummary } from "./ChatSummary";
 
 const meta: Meta<typeof ChatSummary> = {
@@ -29,13 +30,57 @@ const meta: Meta<typeof ChatSummary> = {
 export default meta;
 type Story = StoryObj<typeof ChatSummary>;
 
-export const WithSummary: Story = {};
+export const WithSummary: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Defines how chat summaries are generated/),
+		).toBeInTheDocument();
+
+		const list = canvas.getByRole("list");
+		await expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+
+		// Backticked identifiers render as inline code, not literal backticks.
+		await expect(canvas.getByText("cache.go:212").tagName).toBe("CODE");
+		await expect(canvas.queryByText(/`/)).not.toBeInTheDocument();
+	},
+};
 
 // A headline alone is valid when it already covers the whole chat, and
 // subagent summaries are plain report prose.
 export const ProseSummary: Story = {
 	args: {
 		summary: "Fixes a typo in `README.md`.",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/Fixes a typo in/)).toBeInTheDocument();
+		await expect(canvas.queryByRole("list")).not.toBeInTheDocument();
+	},
+};
+
+// A legacy prose summary starting with "1. " parses as an ordered list; `ol`
+// is allowlisted so the items keep a list parent.
+export const LegacyOrderedList: Story = {
+	args: { summary: "1. Fixed the race\n2. Added a test" },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const list = canvas.getByRole("list");
+		await expect(list.tagName).toBe("OL");
+		await expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+	},
+};
+
+// A summary describes the chat rather than linking out of it, so a
+// model-authored URL keeps its text and drops the anchor.
+export const LinksRenderAsPlainText: Story = {
+	args: {
+		summary: "Changes the summary prompt in [PR #29203](https://example.com).",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/PR #29203/)).toBeInTheDocument();
+		await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
 	},
 };
 

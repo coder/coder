@@ -915,13 +915,14 @@ func generateManualTitle(
 
 const chatSummaryGenerationPrompt = `Summarize an AI coding chat for a quick-reference popover.
 
-Populate the headline field with one sentence under 20 words, present tense,
-starting with the capability or behavior - "Defines how...", "Controls...",
-"Configures...". Use "Investigates..." if nothing was resolved.
+Populate the headline field with one sentence of 20 words or fewer, present
+tense, starting with the capability or behavior - "Defines how...",
+"Controls...", "Configures...", "Changes...". Use "Investigates..." if nothing
+was resolved.
 
-Populate the bullets field with 2-4 bullets, same declarative phrasing, each a
-single line. Leave the bullets field empty when the headline already covers the
-whole chat, rather than padding it with filler.
+Populate the bullets field with 2-4 bullets in the same declarative present
+tense, each a single line. Leave the bullets field empty when the headline
+already covers the whole chat, rather than padding it with filler.
 
 Preserve identifiers verbatim, wrapped in backticks: PR numbers, repos, file
 paths with line numbers, function and constant names, error messages.
@@ -940,7 +941,7 @@ const (
 	summaryMaxRunes             = 750
 	summaryHeadlineMaxRunes     = 200
 	summaryHeadlineMaxSentences = 2
-	// The prompt asks for a headline under 20 words; enforce it so a
+	// The prompt asks for a headline of 20 words or fewer; enforce it so a
 	// rambling headline cannot pass on rune count alone.
 	summaryHeadlineMaxWords = 20
 	summaryBulletMaxRunes   = 160
@@ -950,8 +951,8 @@ const (
 )
 
 type generatedChatSummary struct {
-	Headline string   `json:"headline" description:"One sentence under 20 words, present tense, starting with the capability or behavior"`
-	Bullets  []string `json:"bullets" description:"2-4 declarative bullets, each one line; empty when the headline already covers the whole chat"`
+	Headline string   `json:"headline" description:"One sentence of 20 words or fewer, present tense, starting with the capability or behavior"`
+	Bullets  []string `json:"bullets" description:"2-4 declarative present-tense bullets, each one line; empty when the headline already covers the whole chat"`
 }
 
 // renderChatSummaryTranscript renders chat history as plain text for summary
