@@ -138,8 +138,11 @@ func (g *chatWriteGuard) InsertChatMessages(ctx context.Context, arg database.In
 }
 
 // SoftDeleteChatMessageByID resolves the chat from the message because the
-// parameters carry no chat id. A missing message passes through unchecked
-// because the underlying update affects no row.
+// parameters carry no chat id. GetChatMessageByID excludes deleted rows, so
+// a missing or already deleted id passes through unchecked; the update then
+// matches no row or rewrites a row with identical values, which the BEFORE
+// UPDATE trigger on chat_messages treats as a no-op without assigning a
+// revision or bumping history_version.
 func (g *chatWriteGuard) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	msg, err := g.GetChatMessageByID(ctx, id)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

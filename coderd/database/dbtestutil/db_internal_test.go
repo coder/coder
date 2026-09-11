@@ -1,6 +1,7 @@
 package dbtestutil
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -160,5 +161,58 @@ func TestChatWriteGuardCoversEveryChatHistoryWriter(t *testing.T) {
 	slices.Sort(writers)
 	slices.Sort(covered)
 	require.Equal(t, writers, covered,
-		"queries writing chat_messages or chat_queued_messages must be guarded by chatWriteGuard or listed here as search_tsv maintenance")
+		"every query writing chat_messages or chat_queued_messages must have a chatWriteGuard override "+
+			"or be listed here as search_tsv maintenance, and every chatWriteGuard override must be one of "+
+			"those writers or be listed in notWriters")
+}
+
+// rejectionReportingTB records the Cleanup functions and Errorf calls that
+// NewDB makes so a test can run the cleanup itself and inspect what it
+// reported. Every other testing.TB method goes to the embedded test.
+type rejectionReportingTB struct {
+	*testing.T
+	cleanups []func()
+	errors   []string
+}
+
+func (tb *rejectionReportingTB) Cleanup(f func()) {
+	tb.cleanups = append(tb.cleanups, f)
+}
+
+func (tb *rejectionReportingTB) Errorf(format string, args ...any) {
+	tb.errors = append(tb.errors, fmt.Sprintf(format, args...))
+}
+
+// A rejection must fail the test at cleanup even when the caller drops the
+// returned error.
+func TestChatWriteGuardReportsRejectionsAtCleanup(t *testing.T) {
+	t.Parallel()
+
+	tb := &rejectionReportingTB{T: t}
+	db, _ := NewDB(tb)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	_, _ = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:    chat.ID,
+		Content:   []byte(`[]`),
+		CreatedBy: user.ID,
+	})
+
+	// NewDB registers its cleanups on tb, so they run here instead of at the
+	// end of the test, in the order testing would use.
+	for i := len(tb.cleanups) - 1; i >= 0; i-- {
+		tb.cleanups[i]()
+	}
+
+	require.Len(t, tb.errors, 1)
+	require.Contains(t, tb.errors[0], "chat write guard rejected InsertChatQueuedMessageWithCreator for chat "+chat.ID.String())
 }
