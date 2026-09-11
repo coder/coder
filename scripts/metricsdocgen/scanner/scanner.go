@@ -28,21 +28,23 @@ import (
 // Add or remove directories here to control the scanner's scope.
 var scanDirs = []string{
 	"agent",
+	"aibridge",
 	"coderd",
 	"enterprise",
 	"provisionerd",
 	"tailnet",
 }
 
+// registrationFiles are inspected for registerer wiring without expanding the
+// metric extraction scope to all CLI files.
+var registrationFiles = []string{
+	"cli/server.go",
+	"cli/aibridged.go",
+}
+
 // skipPaths lists files that should be excluded from scanning. Their metrics
 // must be maintained in the static metrics file instead.
-// TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
-//
-//	eliminate the need for this skip list.
 var skipPaths = []string{
-	"coderd/aibridged/metrics.go",
-	"coderd/aibridgedserver/metrics.go",
-	"enterprise/aibridgeproxyd/metrics.go",
 	"enterprise/scaletest/agentfake/metrics.go",
 }
 
@@ -148,7 +150,15 @@ func scanAllDirs() ([]Metric, error) {
 		files = append(files, parsed...)
 	}
 
-	resolver := newPrefixResolver(files)
+	registrationSources := append([]*sourceFile(nil), files...)
+	for _, path := range registrationFiles {
+		file, err := parseSourceFile(path)
+		if err != nil {
+			return nil, xerrors.Errorf("parsing registration source %s: %w", path, err)
+		}
+		registrationSources = append(registrationSources, file)
+	}
+	resolver := newPrefixResolver(registrationSources)
 	var metrics []Metric
 	for _, file := range files {
 		fileMetrics := scanFile(file, resolver)
@@ -381,6 +391,20 @@ func collectDecls(file *ast.File) declarations {
 //   - myLabels: resolved value of myLabels variable (variable reference)
 func extractLabels(expr ast.Expr, decls declarations) []string {
 	switch e := expr.(type) {
+	case *ast.CallExpr:
+		fn, ok := e.Fun.(*ast.Ident)
+		if !ok || fn.Name != "append" || len(e.Args) == 0 {
+			return nil
+		}
+		labels := append([]string(nil), extractLabels(e.Args[0], decls)...)
+		for _, arg := range e.Args[1:] {
+			if e.Ellipsis.IsValid() {
+				labels = append(labels, extractLabels(arg, decls)...)
+			} else if label := resolveStringExpr(arg, decls); label != "" {
+				labels = append(labels, label)
+			}
+		}
+		return labels
 	case *ast.CompositeLit:
 		// []string{"label1", "label2"}
 		return extractStringSlice(e, decls)
