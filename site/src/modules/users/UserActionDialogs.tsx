@@ -93,26 +93,21 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 				<DeleteDialog
 					isOpen
 					confirmLoading={deleteUserMutation.isPending}
+					error={deleteUserMutation.error}
 					name={user.username}
 					entity="user"
-					onCancel={onClose}
-					onConfirm={async () => {
-						try {
-							await deleteUserMutation.mutateAsync(user.id);
-							onClose();
-							toast.success(`User "${user.username}" deleted successfully.`);
-							onDeleted?.(user);
-						} catch (error) {
-							toast.error(
-								getErrorMessage(
-									error,
-									`Error deleting user "${user.username}".`,
-								),
-								{
-									description: getErrorDetail(error),
-								},
-							);
-						}
+					onCancel={() => {
+						deleteUserMutation.reset();
+						onClose();
+					}}
+					onConfirm={() => {
+						deleteUserMutation.mutate(user.id, {
+							onSuccess: () => {
+								onClose();
+								toast.success(`User "${user.username}" deleted successfully.`);
+								onDeleted?.(user);
+							},
+						});
 					}}
 				/>
 			)}
@@ -123,26 +118,23 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 					hideCancel={false}
 					open
 					confirmLoading={suspendUserMutation.isPending}
+					error={suspendUserMutation.error}
 					title="Suspend user"
 					confirmText="Suspend"
-					onClose={onClose}
-					onConfirm={async () => {
-						try {
-							await suspendUserMutation.mutateAsync(user.id);
-							await invalidateUser(user);
-							onClose();
-							toast.success(`User "${user.username}" suspended successfully.`);
-						} catch (error) {
-							toast.error(
-								getErrorMessage(
-									error,
-									`Error suspending user "${user.username}".`,
-								),
-								{
-									description: getErrorDetail(error),
-								},
-							);
-						}
+					onClose={() => {
+						suspendUserMutation.reset();
+						onClose();
+					}}
+					onConfirm={() => {
+						suspendUserMutation.mutate(user.id, {
+							onSuccess: async () => {
+								await invalidateUser(user);
+								onClose();
+								toast.success(
+									`User "${user.username}" suspended successfully.`,
+								);
+							},
+						});
 					}}
 					description={
 						<>
@@ -158,26 +150,23 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 					hideCancel={false}
 					open
 					confirmLoading={activateUserMutation.isPending}
+					error={activateUserMutation.error}
 					title="Activate user"
 					confirmText="Activate"
-					onClose={onClose}
-					onConfirm={async () => {
-						try {
-							await activateUserMutation.mutateAsync(user.id);
-							await invalidateUser(user);
-							onClose();
-							toast.success(`User "${user.username}" activated successfully.`);
-						} catch (error) {
-							toast.error(
-								getErrorMessage(
-									error,
-									`Error activating user "${user.username}".`,
-								),
-								{
-									description: getErrorDetail(error),
-								},
-							);
-						}
+					onClose={() => {
+						activateUserMutation.reset();
+						onClose();
+					}}
+					onConfirm={() => {
+						activateUserMutation.mutate(user.id, {
+							onSuccess: async () => {
+								await invalidateUser(user);
+								onClose();
+								toast.success(
+									`User "${user.username}" activated successfully.`,
+								);
+							},
+						});
 					}}
 					description={
 						<>

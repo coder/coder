@@ -8,7 +8,11 @@ import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
 import { MockGroups } from "#/pages/UsersPage/storybookData/groups";
 import { MockRoles } from "#/pages/UsersPage/storybookData/roles";
-import { MockAuthMethodsAll, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockAuthMethodsAll,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -108,14 +112,19 @@ export const SuspendUserError: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(document.body);
-		spyOn(API, "suspendUser").mockRejectedValue(undefined);
+		spyOn(API, "suspendUser").mockRejectedValue(
+			mockApiError({
+				message: "Failed to suspend user.",
+				detail: "The user is already busy.",
+			}),
+		);
 
 		await openUserMenu(canvas, user);
 		await user.click(await body.findByRole("menuitem", { name: "Suspend…" }));
 
 		const dialog = await body.findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Suspend" }));
-		await body.findByText(/Error suspending user/);
+		await within(dialog).findByRole("alert");
 	},
 };
 
@@ -152,7 +161,12 @@ export const DeleteUserError: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(document.body);
-		spyOn(API, "deleteUser").mockRejectedValue({});
+		spyOn(API, "deleteUser").mockRejectedValue(
+			mockApiError({
+				message: "Failed to delete user.",
+				detail: "The user still owns workspaces.",
+			}),
+		);
 
 		await openUserMenu(canvas, user);
 		await user.click(await body.findByRole("menuitem", { name: "Delete…" }));
@@ -163,7 +177,7 @@ export const DeleteUserError: Story = {
 			MockUsers[0].username,
 		);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-		await body.findByText(/Error deleting user/);
+		await within(dialog).findByRole("alert");
 	},
 };
 
@@ -214,14 +228,19 @@ export const ActivateUserError: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(document.body);
-		spyOn(API, "activateUser").mockRejectedValue({});
+		spyOn(API, "activateUser").mockRejectedValue(
+			mockApiError({
+				message: "Failed to activate user.",
+				detail: "The identity provider rejected the request.",
+			}),
+		);
 
 		await openUserMenu(canvas, user);
 		await user.click(await body.findByRole("menuitem", { name: "Activate…" }));
 
 		const dialog = await body.findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await body.findByText(/Error activating user/);
+		await within(dialog).findByRole("alert");
 	},
 };
 

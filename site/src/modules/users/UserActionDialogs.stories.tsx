@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import { MockUserMember, mockApiError } from "#/testHelpers/entities";
+import {
+	MockUserMember,
+	mockApiError,
+	SuspendedMockUser,
+} from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
 import { UserActionDialogs } from "./UserActionDialogs";
 
@@ -34,6 +38,73 @@ export const Suspend: Story = {
 			within(dialog).getByRole("button", { name: "Suspend" }),
 		);
 		await within(document.body).findByText(/suspended successfully/);
+	},
+};
+
+export const FailedSuspend: Story = {
+	args: {
+		action: { type: "suspend", user: MockUserMember },
+	},
+	beforeEach: () => {
+		spyOn(API, "suspendUser").mockRejectedValue(
+			mockApiError({
+				message: "Failed to suspend user.",
+				detail: "The user is already busy.",
+			}),
+		);
+	},
+	play: async () => {
+		const dialog = await within(document.body).findByRole("dialog");
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Suspend" }),
+		);
+		await within(dialog).findByRole("alert");
+	},
+};
+
+export const FailedDelete: Story = {
+	args: {
+		action: { type: "delete", user: MockUserMember },
+	},
+	beforeEach: () => {
+		spyOn(API, "deleteUser").mockRejectedValue(
+			mockApiError({
+				message: "Failed to delete user.",
+				detail: "The user still owns workspaces.",
+			}),
+		);
+	},
+	play: async () => {
+		const dialog = await within(document.body).findByRole("dialog");
+		await userEvent.type(
+			within(dialog).getByLabelText("Name of the user to delete"),
+			MockUserMember.username,
+		);
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Delete" }),
+		);
+		await within(dialog).findByRole("alert");
+	},
+};
+
+export const FailedActivate: Story = {
+	args: {
+		action: { type: "activate", user: SuspendedMockUser },
+	},
+	beforeEach: () => {
+		spyOn(API, "activateUser").mockRejectedValue(
+			mockApiError({
+				message: "Failed to activate user.",
+				detail: "The identity provider rejected the request.",
+			}),
+		);
+	},
+	play: async () => {
+		const dialog = await within(document.body).findByRole("dialog");
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Activate" }),
+		);
+		await within(dialog).findByRole("alert");
 	},
 };
 
