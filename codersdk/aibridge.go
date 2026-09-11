@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -407,6 +408,259 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	}
 	var clients []string
 	return clients, ReadBodyAsJSON(res, &clients)
+}
+
+// AIGatewaySpendUsage aggregates finished AI Gateway requests over a window.
+// A request with usage that has no recorded cost contributes its tokens but
+// no cost and is counted in UnpricedRequestCount, so TotalCostMicros is a
+// lower bound whenever that count is non-zero.
+type AIGatewaySpendUsage struct {
+	TotalCostMicros       int64 `json:"total_cost_micros"`
+	RequestCount          int64 `json:"request_count"`
+	UnpricedRequestCount  int64 `json:"unpriced_request_count"`
+	InputTokens           int64 `json:"input_tokens"`
+	OutputTokens          int64 `json:"output_tokens"`
+	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64 `json:"cache_write_input_tokens"`
+}
+
+// AIGatewaySpendTotals is AIGatewaySpendUsage plus the number of distinct
+// sessions, which is only meaningful for groupings that span whole sessions.
+type AIGatewaySpendTotals struct {
+	AIGatewaySpendUsage
+	SessionCount int64 `json:"session_count"`
+}
+
+// AIGatewaySpendUser is one user's AI Gateway spend over the requested window.
+type AIGatewaySpendUser struct {
+	MinimalUser
+	AIGatewaySpendTotals
+}
+
+// AIGatewaySpendUsersResponse lists per-user AI Gateway spend.
+// Count is the total number of users with requests in the window.
+type AIGatewaySpendUsersResponse struct {
+	StartDate time.Time            `json:"start_date" format:"date-time"`
+	EndDate   time.Time            `json:"end_date" format:"date-time"`
+	Count     int64                `json:"count"`
+	Users     []AIGatewaySpendUser `json:"users"`
+}
+
+// AIGatewaySpendModelBreakdown is spend on a single model.
+type AIGatewaySpendModelBreakdown struct {
+	Provider     string `json:"provider"`
+	ProviderName string `json:"provider_name"`
+	Model        string `json:"model"`
+	AIGatewaySpendUsage
+}
+
+// AIGatewaySpendProviderBreakdown is spend through a single provider.
+type AIGatewaySpendProviderBreakdown struct {
+	Provider     string `json:"provider"`
+	ProviderName string `json:"provider_name"`
+	AIGatewaySpendUsage
+}
+
+// AIGatewaySpendClientBreakdown is spend through a single client.
+type AIGatewaySpendClientBreakdown struct {
+	Client string `json:"client"`
+	AIGatewaySpendTotals
+}
+
+// AIGatewaySpendBreakdownLimit caps the breakdowns in an AI Gateway spend
+// summary. Request-supplied dimensions otherwise have unbounded cardinality.
+const AIGatewaySpendBreakdownLimit = 100
+
+// AIGatewaySpendUserSummary is AI Gateway spend, optionally scoped to one user.
+// Each breakdown holds the AIGatewaySpendBreakdownLimit most expensive entries;
+// totals cover every request in the window.
+type AIGatewaySpendUserSummary struct {
+	StartDate time.Time `json:"start_date" format:"date-time"`
+	EndDate   time.Time `json:"end_date" format:"date-time"`
+	AIGatewaySpendTotals
+	// Counts include all distinct values, including truncated entries.
+	ProviderCount int64                             `json:"provider_count"`
+	ByProvider    []AIGatewaySpendProviderBreakdown `json:"by_provider"`
+	ModelCount    int64                             `json:"model_count"`
+	ClientCount   int64                             `json:"client_count"`
+	ByModel       []AIGatewaySpendModelBreakdown    `json:"by_model"`
+	ByClient      []AIGatewaySpendClientBreakdown   `json:"by_client"`
+}
+
+// AIGatewaySpendWindow bounds an AI Gateway spend query. Zero values are
+// omitted from the request so the server applies its default window.
+type AIGatewaySpendWindow struct {
+	StartDate time.Time `json:"start_date,omitempty" format:"date-time"`
+	EndDate   time.Time `json:"end_date,omitempty" format:"date-time"`
+}
+
+func (w AIGatewaySpendWindow) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if !w.StartDate.IsZero() {
+			q.Set("start_date", w.StartDate.UTC().Format(time.RFC3339Nano))
+		}
+		if !w.EndDate.IsZero() {
+			q.Set("end_date", w.EndDate.UTC().Format(time.RFC3339Nano))
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// AIGatewaySpendFilter narrows an AI Gateway spend query to a window and,
+// optionally, to requests through one provider, client, or model. Empty
+// dimensions match every request. Client matches the same "Unknown" bucket the
+// breakdowns report for requests without a recorded client.
+type AIGatewaySpendFilter struct {
+	AIGatewaySpendWindow
+	ProviderName string `json:"provider_name,omitempty"`
+	Client       string `json:"client,omitempty"`
+	Model        string `json:"model,omitempty"`
+}
+
+func (f AIGatewaySpendFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		f.AIGatewaySpendWindow.asRequestOption()(r)
+		q := r.URL.Query()
+		if f.ProviderName != "" {
+			q.Set("provider_name", f.ProviderName)
+		}
+		if f.Client != "" {
+			q.Set("client", f.Client)
+		}
+		if f.Model != "" {
+			q.Set("model", f.Model)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// AIGatewaySpendSortBy selects the column used to order users by spend.
+type AIGatewaySpendSortBy string
+
+// #nosec G101 - These values are sort columns, not credentials.
+const (
+	AIGatewaySpendSortByUsername              AIGatewaySpendSortBy = "username"
+	AIGatewaySpendSortByTotalCostMicros       AIGatewaySpendSortBy = "total_cost_micros"
+	AIGatewaySpendSortByRequestCount          AIGatewaySpendSortBy = "request_count"
+	AIGatewaySpendSortBySessionCount          AIGatewaySpendSortBy = "session_count"
+	AIGatewaySpendSortByInputTokens           AIGatewaySpendSortBy = "input_tokens"
+	AIGatewaySpendSortByOutputTokens          AIGatewaySpendSortBy = "output_tokens"
+	AIGatewaySpendSortByCacheReadInputTokens  AIGatewaySpendSortBy = "cache_read_input_tokens"
+	AIGatewaySpendSortByCacheWriteInputTokens AIGatewaySpendSortBy = "cache_write_input_tokens"
+)
+
+// Valid reports whether the sort column is supported.
+func (s AIGatewaySpendSortBy) Valid() bool {
+	switch s {
+	case AIGatewaySpendSortByUsername,
+		AIGatewaySpendSortByTotalCostMicros,
+		AIGatewaySpendSortByRequestCount,
+		AIGatewaySpendSortBySessionCount,
+		AIGatewaySpendSortByInputTokens,
+		AIGatewaySpendSortByOutputTokens,
+		AIGatewaySpendSortByCacheReadInputTokens,
+		AIGatewaySpendSortByCacheWriteInputTokens:
+		return true
+	default:
+		return false
+	}
+}
+
+// AIGatewaySpendSortOrder selects ascending or descending spend order.
+type AIGatewaySpendSortOrder string
+
+const (
+	AIGatewaySpendSortOrderAsc  AIGatewaySpendSortOrder = "asc"
+	AIGatewaySpendSortOrderDesc AIGatewaySpendSortOrder = "desc"
+)
+
+// Valid reports whether the sort direction is supported.
+func (s AIGatewaySpendSortOrder) Valid() bool {
+	return s == AIGatewaySpendSortOrderAsc || s == AIGatewaySpendSortOrderDesc
+}
+
+// AIGatewaySpendUsersFilter filters the per-user AI Gateway spend list. The
+// list is offset paginated only; it has no cursor.
+type AIGatewaySpendUsersFilter struct {
+	AIGatewaySpendFilter
+	// Sorting defaults to total_cost_micros descending.
+	SortBy    AIGatewaySpendSortBy    `json:"sort_by,omitempty"`
+	SortOrder AIGatewaySpendSortOrder `json:"sort_order,omitempty"`
+	// Search matches the username or display name, case-insensitively.
+	Search string `json:"search,omitempty"`
+	// Limit is the page size. Zero applies the server default.
+	Limit int `json:"limit,omitempty"`
+	// Offset is the number of users to skip; the first page is offset 0.
+	Offset int `json:"offset,omitempty"`
+}
+
+// AIGatewaySpendUsers returns per-user AI Gateway spend for the deployment.
+func (c *Client) AIGatewaySpendUsers(ctx context.Context, filter AIGatewaySpendUsersFilter) (AIGatewaySpendUsersResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/spend/users", nil,
+		filter.asRequestOption(),
+		func(r *http.Request) {
+			q := r.URL.Query()
+			if filter.SortBy != "" {
+				q.Set("sort_by", string(filter.SortBy))
+			}
+			if filter.SortOrder != "" {
+				q.Set("sort_order", string(filter.SortOrder))
+			}
+			if filter.Search != "" {
+				q.Set("search", filter.Search)
+			}
+			if filter.Limit > 0 {
+				q.Set("limit", strconv.Itoa(filter.Limit))
+			}
+			if filter.Offset > 0 {
+				q.Set("offset", strconv.Itoa(filter.Offset))
+			}
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return AIGatewaySpendUsersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewaySpendUsersResponse{}, ReadBodyAsError(res)
+	}
+	var resp AIGatewaySpendUsersResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// AIGatewaySpendUserSummary returns one user's AI Gateway spend broken down by
+// provider, model, and client. The user may be an ID, a username, or "me".
+func (c *Client) AIGatewaySpendUserSummary(ctx context.Context, user string, filter AIGatewaySpendFilter) (AIGatewaySpendUserSummary, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/ai-gateway/spend/users/%s/summary", user),
+		nil, filter.asRequestOption(),
+	)
+	if err != nil {
+		return AIGatewaySpendUserSummary{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewaySpendUserSummary{}, ReadBodyAsError(res)
+	}
+	var resp AIGatewaySpendUserSummary
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// AIGatewaySpendSummary returns deployment-wide AI Gateway spend broken down
+// by provider, model, and client.
+func (c *Client) AIGatewaySpendSummary(ctx context.Context, filter AIGatewaySpendFilter) (AIGatewaySpendUserSummary, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/spend/summary", nil, filter.asRequestOption())
+	if err != nil {
+		return AIGatewaySpendUserSummary{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewaySpendUserSummary{}, ReadBodyAsError(res)
+	}
+	var resp AIGatewaySpendUserSummary
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
