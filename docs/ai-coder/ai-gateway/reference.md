@@ -113,16 +113,6 @@ The Anthropic provider also serves the AWS Bedrock provider type.
 #### Passthrough
 
 All Copilot routes other than the intercepted routes listed above pass through to the configured upstream provider.
-Examples include:
-
-- `/models(/*)`
-- `/_ping`
-- `/auto`
-- `/agents/*`
-- `/mcp/*`
-- `/.well-known/*`
-
-AI Gateway authentication is still required.
 
 ## Troubleshooting
 
