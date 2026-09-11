@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDeleteToken } from "./hooks";
@@ -18,21 +17,12 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 }) => {
 	const tokenName = token?.token_name;
 
-	const { mutate: deleteToken, isPending: isDeleting } =
-		useDeleteToken(queryKey);
-
-	const onDeleteSuccess = () => {
-		toast.success("Token has been deleted.");
-		setToken(undefined);
-	};
-
-	const onDeleteError = (error: Error) => {
-		const message = getErrorMessage(error, "Failed to delete token");
-		toast.error(message, {
-			description: getErrorDetail(error),
-		});
-		setToken(undefined);
-	};
+	const {
+		mutate: deleteToken,
+		isPending: isDeleting,
+		error,
+		reset,
+	} = useDeleteToken(queryKey);
 
 	return (
 		<ConfirmDialog
@@ -44,18 +34,23 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 					<strong>{tokenName}</strong>?
 				</>
 			}
-			open={Boolean(token) || isDeleting}
+			open={Boolean(token)}
 			confirmLoading={isDeleting}
+			error={error}
+			errorMessage="Failed to delete token."
 			onConfirm={() => {
 				if (!token) {
 					return;
 				}
 				deleteToken(token.id, {
-					onError: onDeleteError,
-					onSuccess: onDeleteSuccess,
+					onSuccess: () => {
+						toast.success("Token has been deleted.");
+						setToken(undefined);
+					},
 				});
 			}}
 			onClose={() => {
+				reset();
 				setToken(undefined);
 			}}
 		/>

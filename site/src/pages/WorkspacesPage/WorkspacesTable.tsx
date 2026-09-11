@@ -411,14 +411,17 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
+	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
 	const stopWorkspaceOptions = stopWorkspace(workspace, queryClient);
 	const stopWorkspaceMutation = useMutation({
 		...stopWorkspaceOptions,
 		onSuccess: async (build) => {
 			stopWorkspaceOptions.onSuccess(build);
+			setIsStopConfirmOpen(false);
 			await onActionSuccess();
 		},
-		onError: onActionError,
 	});
 
 	const cancelJobOptions = cancelBuild(workspace, queryClient);
@@ -452,9 +455,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
-	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
-	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
-
 	const isRetrying =
 		startWorkspaceMutation.isPending ||
 		stopWorkspaceMutation.isPending ||
@@ -466,7 +466,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				startWorkspaceMutation.mutate({});
 				break;
 			case "stop":
-				stopWorkspaceMutation.mutate({});
+				stopWorkspaceMutation.mutate(
+					{},
+					{
+						onError: onActionError,
+					},
+				);
 				break;
 			case "delete":
 				deleteWorkspaceMutation.mutate({});
@@ -576,7 +581,10 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					disabled={!abilities.canAcceptJobs}
 					onStop={
 						abilities.actions.includes("stop")
-							? () => setIsStopConfirmOpen(true)
+							? () => {
+									stopWorkspaceMutation.reset();
+									setIsStopConfirmOpen(true);
+								}
 							: undefined
 					}
 					isStopping={stopWorkspaceMutation.isPending}
@@ -589,10 +597,15 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				title="Stop workspace"
 				description={`Are you sure you want to stop the workspace "${workspace.name}"? This will terminate all running processes and disconnect any active sessions.`}
 				confirmText="Stop"
-				onClose={() => setIsStopConfirmOpen(false)}
+				confirmLoading={stopWorkspaceMutation.isPending}
+				error={stopWorkspaceMutation.error}
+				errorMessage={`Failed to stop workspace "${workspace.name}".`}
+				onClose={() => {
+					setIsStopConfirmOpen(false);
+					stopWorkspaceMutation.reset();
+				}}
 				onConfirm={() => {
 					stopWorkspaceMutation.mutate({});
-					setIsStopConfirmOpen(false);
 				}}
 				type="delete"
 			/>
