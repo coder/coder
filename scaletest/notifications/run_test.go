@@ -55,9 +55,9 @@ func TestRun(t *testing.T) {
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
-	expectedNotificationsIDs := map[uuid.UUID]struct{}{
-		notificationsLib.TemplateUserAccountCreated: {},
-		notificationsLib.TemplateUserAccountDeleted: {},
+	expectedNotifications := map[uuid.UUID]int{
+		notificationsLib.TemplateUserAccountCreated: 1,
+		notificationsLib.TemplateUserAccountDeleted: 1,
 	}
 
 	// Start receiving runners who will receive notifications
@@ -67,14 +67,14 @@ func TestRun(t *testing.T) {
 		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
 		receivingUsernames = append(receivingUsernames, user.Username)
 		runnerCfg := notifications.Config{
-			SessionToken:             userClient.SessionToken(),
-			PreCreatedUser:           user,
-			NotificationTimeout:      testutil.WaitLong,
-			DialTimeout:              testutil.WaitLong,
-			Metrics:                  metrics,
-			DialBarrier:              dialBarrier,
-			ReceivingWatchBarrier:    receivingWatchBarrier,
-			ExpectedNotificationsIDs: expectedNotificationsIDs,
+			SessionToken:          userClient.SessionToken(),
+			PreCreatedUser:        user,
+			NotificationTimeout:   testutil.WaitLong,
+			DialTimeout:           testutil.WaitLong,
+			Metrics:               metrics,
+			DialBarrier:           dialBarrier,
+			ReceivingWatchBarrier: receivingWatchBarrier,
+			ExpectedNotifications: expectedNotifications,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestRun(t *testing.T) {
 
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
+		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time)
 
 		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
 		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
@@ -203,9 +203,9 @@ func TestRunWithSMTP(t *testing.T) {
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
-	expectedNotificationsIDs := map[uuid.UUID]struct{}{
-		notificationsLib.TemplateUserAccountCreated: {},
-		notificationsLib.TemplateUserAccountDeleted: {},
+	expectedNotifications := map[uuid.UUID]int{
+		notificationsLib.TemplateUserAccountCreated: 1,
+		notificationsLib.TemplateUserAccountDeleted: 1,
 	}
 
 	mClock := quartz.NewMock(t)
@@ -221,17 +221,17 @@ func TestRunWithSMTP(t *testing.T) {
 		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
 		receivingUsernames = append(receivingUsernames, user.Username)
 		runnerCfg := notifications.Config{
-			SessionToken:             userClient.SessionToken(),
-			PreCreatedUser:           user,
-			NotificationTimeout:      testutil.WaitLong,
-			DialTimeout:              testutil.WaitLong,
-			Metrics:                  metrics,
-			DialBarrier:              dialBarrier,
-			ReceivingWatchBarrier:    receivingWatchBarrier,
-			ExpectedNotificationsIDs: expectedNotificationsIDs,
-			SMTPApiURL:               smtpAPIServer.URL,
-			SMTPRequestTimeout:       testutil.WaitLong,
-			SMTPHttpClient:           httpClient,
+			SessionToken:          userClient.SessionToken(),
+			PreCreatedUser:        user,
+			NotificationTimeout:   testutil.WaitLong,
+			DialTimeout:           testutil.WaitLong,
+			Metrics:               metrics,
+			DialBarrier:           dialBarrier,
+			ReceivingWatchBarrier: receivingWatchBarrier,
+			ExpectedNotifications: expectedNotifications,
+			SMTPApiURL:            smtpAPIServer.URL,
+			SMTPRequestTimeout:    testutil.WaitLong,
+			SMTPHttpClient:        httpClient,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -314,8 +314,8 @@ func TestRunWithSMTP(t *testing.T) {
 	// Verify that notifications were received via both websocket and SMTP
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
-		smtpReceiptTimes := metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
+		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time)
+		smtpReceiptTimes := metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time)
 
 		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
 		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
