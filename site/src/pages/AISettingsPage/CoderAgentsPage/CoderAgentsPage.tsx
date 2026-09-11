@@ -9,6 +9,7 @@ import {
 	updateChatComputerUseProvider,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
+import { deploymentAgentTime } from "#/api/queries/deployment";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -25,7 +26,7 @@ import { OrganizationAgentSettings } from "./OrganizationAgentSettings";
 
 const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { experiments, organizations } = useDashboard();
+	const { entitlements, experiments, organizations } = useDashboard();
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
@@ -49,6 +50,11 @@ const CoderAgentsPage: FC = () => {
 	const showVirtualDesktopSettings = experiments.includes(
 		"chat-virtual-desktop",
 	);
+	const agentRuntimeHoursFeature = entitlements.features.agent_runtime_hours;
+	const agentTimeQuery = useQuery({
+		...deploymentAgentTime(agentRuntimeHoursFeature?.usage_period),
+		enabled: canEditDeploymentConfig,
+	});
 	const personalOverridesQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
 		enabled: canEditDeploymentConfig,
@@ -70,6 +76,15 @@ const CoderAgentsPage: FC = () => {
 	const saveComputerUseProviderMutation = useMutation(
 		updateChatComputerUseProvider(queryClient),
 	);
+	const hasAgentRuntimeLicense = agentRuntimeHoursFeature
+		? agentRuntimeHoursFeature.enabled &&
+			agentRuntimeHoursFeature.usage_period !== undefined &&
+			(agentRuntimeHoursFeature.limit === undefined ||
+				agentRuntimeHoursFeature.limit > 0)
+		: undefined;
+	const isAgentRuntimeUsageUnavailable =
+		agentTimeQuery.data !== undefined &&
+		!Number.isFinite(agentTimeQuery.data.total_runtime_ms);
 	const canAccessOrganizationSettings =
 		accessibleOrganizationsQuery.organizations.length > 0;
 	const isFeatureVisible =
@@ -116,6 +131,15 @@ const CoderAgentsPage: FC = () => {
 				isOrganizationAccessLoading={accessibleOrganizationsQuery.isLoading}
 				organizationSettings={organizationSettings}
 				canEditDeploymentConfig={canEditDeploymentConfig}
+				hasDeploymentLicense={entitlements.has_license}
+				hasAgentRuntimeLicense={hasAgentRuntimeLicense}
+				agentRuntimeHoursFeature={agentRuntimeHoursFeature}
+				agentRuntimeTotalMs={agentTimeQuery.data?.total_runtime_ms}
+				isAgentRuntimeUsageLoading={agentTimeQuery.isLoading}
+				isAgentRuntimeUsageUnavailable={isAgentRuntimeUsageUnavailable}
+				agentRuntimeUsageError={agentTimeQuery.error}
+				onRetryAgentRuntimeUsage={() => void agentTimeQuery.refetch()}
+				isRetryingAgentRuntimeUsage={agentTimeQuery.isFetching}
 				adminOverridesData={personalOverridesQuery.data}
 				adminOverridesError={personalOverridesQuery.error}
 				onRetryAdminOverrides={() => void personalOverridesQuery.refetch()}

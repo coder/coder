@@ -2,7 +2,9 @@ package coderd
 
 import (
 	"net/http"
+	"time"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -35,6 +37,40 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 			Options: api.DeploymentOptions,
 		},
 	)
+}
+
+// @Summary Get deployment Agent Time
+// @ID get-deployment-agent-time
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.DeploymentAgentTime
+// @Router /api/v2/deployment/agent-time [get]
+func (api *API) deploymentAgentTime(rw http.ResponseWriter, r *http.Request) {
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	startTime := time.Unix(0, 0).UTC()
+	endTime := api.Clock.Now().UTC()
+	if feature, ok := api.Entitlements.Feature(codersdk.FeatureAgentRuntimeHours); ok && feature.UsagePeriod != nil {
+		startTime = feature.UsagePeriod.Start
+		endTime = feature.UsagePeriod.End
+	}
+
+	totalRuntimeMs, err := api.Database.GetDeploymentAgentTimeMsInRange(r.Context(), database.GetDeploymentAgentTimeMsInRangeParams{
+		StartTime: startTime,
+		EndTime:   endTime,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.DeploymentAgentTime{
+		TotalRuntimeMs: totalRuntimeMs,
+	})
 }
 
 // @Summary Get deployment stats

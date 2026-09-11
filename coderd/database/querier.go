@@ -582,6 +582,9 @@ type sqlcQuerier interface {
 	GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error)
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
 	GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error)
+	// Reports retained Agent Time to deployment administrators. Deliberately
+	// includes soft-deleted messages and messages from archived chats.
+	GetDeploymentAgentTimeMsInRange(ctx context.Context, arg GetDeploymentAgentTimeMsInRangeParams) (int64, error)
 	GetDeploymentID(ctx context.Context) (string, error)
 	// The session count sum runs in its own subquery: decomposing session_counts
 	// in the FROM clause would emit one row per app name and multiply the byte and
