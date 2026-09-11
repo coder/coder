@@ -1,6 +1,6 @@
 ALTER TABLE chat_queued_messages ADD COLUMN held_at timestamptz;
 
-COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held; the state machine treats the held row and everything behind it as absent from the queue.';
+COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held. A turn boundary does not promote a held head; the chat pauses at it instead.';
 
 -- A chat has at most one held row. Holding another row moves the hold.
 CREATE UNIQUE INDEX chat_queued_messages_one_held_per_chat
