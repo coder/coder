@@ -279,8 +279,15 @@ func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 			client := mock.NewMockDRPCClient(ctrl)
 			pool := mock.NewMockPooler(ctrl)
 			closedCh := make(chan struct{})
-			conn := newCountingDRPCConn(closedCh)
-			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			// firstConn drives the initial connection and is closed to force a
+			// reconnect. secondConn is a fresh, never-closed connection returned
+			// on redial so the reconnect settles instead of looping on an
+			// already-closed connection.
+			firstConn := newCountingDRPCConn(closedCh)
+			secondConn := newCountingDRPCConn(nil)
+			var activeConn atomic.Pointer[countingDRPCConn]
+			activeConn.Store(firstConn)
+			client.EXPECT().DRPCConn().AnyTimes().DoAndReturn(func() drpc.Conn { return activeConn.Load() })
 
 			first, second := tc.first, tc.second
 			calls := expectMCPConfigs(client, func(call int32) (*proto.GetMCPServerConfigsResponse, error) {
@@ -292,7 +299,9 @@ func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 
 			var dials atomic.Int32
 			srv, err := aibridged.New(t.Context(), pool, func(context.Context) (aibridged.DRPCClient, error) {
-				dials.Add(1)
+				if dials.Add(1) >= 2 {
+					activeConn.Store(secondConn)
+				}
 				return client, nil
 			}, slogtest.Make(t, nil), testTracer, aibridged.WithExperiments(proxyExperiments()))
 			require.NoError(t, err)
@@ -565,12 +574,10 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 			start := make(chan struct{})
 
 			providers := []aibridge.Provider{openAIProvider("openai", singleKeyPool(t, "openai", "key"))}
-			for i := 0; i < workers; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+			for range workers {
+				wg.Go(func() {
 					<-start
-					for j := 0; j < 20; j++ {
+					for range 20 {
 						h, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 						if err != nil {
 							continue
@@ -578,26 +585,22 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 						rec := httptest.NewRecorder()
 						h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil))
 					}
-				}()
+				})
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					<-start
-					for j := 0; j < 20; j++ {
+					for range 20 {
 						// Errors are expected once shutdown wins the race.
 						_ = f.srv.ReplaceProviders(ctx, providers)
 						_ = f.srv.KeyPools()
 					}
-				}()
+				})
 			}
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				<-start
 				_ = f.srv.Shutdown(context.Background())
-			}()
+			})
 
 			close(start)
 			wg.Wait()

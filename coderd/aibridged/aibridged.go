@@ -36,8 +36,9 @@ type Server struct {
 	clientDialer Dialer
 	clientCh     chan DRPCClient
 
-	// backend is published once after startup mode selection. Provider reloads
-	// replace the pool's provider snapshot or the router it holds.
+	// backend holds the request handler selected at startup. Interception
+	// reloads mutate the pool's provider snapshot in place; proxy reloads
+	// publish a new backend carrying a freshly built router.
 	backend     atomic.Pointer[requestBackend]
 	backendMu   sync.Mutex
 	initialPool Pooler
@@ -46,8 +47,10 @@ type Server struct {
 	// Shutdown can drain them and cancel their upstream work on deadline.
 	inflight *inflightTracker
 
-	// reverseProxy selects proxy mode at startup and stays fixed for the
-	// lifetime of the server, so a reconnect never re-runs mode selection.
+	// reverseProxy enables proxy-mode selection at startup. When set, the
+	// first connection inspects MCP configuration and chooses proxy or
+	// interception; when unset, interception is selected before connecting.
+	// It is fixed for the lifetime of the server.
 	reverseProxy bool
 	metrics      *aibridge.Metrics
 
@@ -166,7 +169,7 @@ connectLoop:
 
 		if err := s.initializeBackend(s.lifecycleCtx, client); err != nil {
 			_ = client.DRPCConn().Close()
-			s.logger.Warn(s.lifecycleCtx, "initialize gateway request handler", slog.Error(err))
+			s.logger.Warn(s.lifecycleCtx, "failed to initialize gateway request handler", slog.Error(err))
 			continue
 		}
 

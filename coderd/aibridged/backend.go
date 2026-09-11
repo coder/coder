@@ -22,6 +22,8 @@ type ServerOption func(*Server)
 
 // WithExperiments enables the gateway's experiments, which select the request
 // backend at startup. The selection is fixed for the lifetime of the server.
+// Restart the gateway to apply MCP configuration changes, including changes
+// received after reconnecting to a restarted coderd.
 func WithExperiments(experiments codersdk.Experiments) ServerOption {
 	return func(s *Server) {
 		s.reverseProxy = experiments.Enabled(codersdk.ExperimentAIGatewayReverseProxy)
@@ -116,7 +118,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 		return s.initializeInterception()
 	}
 	s.backend.Store(&requestBackend{})
-	s.logger.Info(ctx, "using reverse proxy routing; restart to change gateway mode")
+	s.logger.Warn(ctx, "reverse proxy routing is not yet functional; enabled provider requests return 404 until AIGOV-615; restart to change gateway mode")
 	return nil
 }
 

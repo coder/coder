@@ -171,14 +171,7 @@ func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
 
 // KeyPools returns the key pools of the current live providers.
 func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
-	providers := p.loadProviders()
-	pools := make([]*keypool.Pool, 0, len(providers))
-	for _, prov := range providers {
-		if pool := prov.KeyPool(); pool != nil {
-			pools = append(pools, pool)
-		}
-	}
-	return pools
+	return aibridge.CollectKeyPools(p.loadProviders())
 }
 
 // Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.

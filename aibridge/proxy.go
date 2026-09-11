@@ -1,7 +1,6 @@
 package aibridge
 
 import (
-	"fmt"
 	"net/http"
 	"slices"
 
@@ -33,29 +32,14 @@ var _ http.Handler = (*ProxyRouter)(nil)
 // Each configured-but-disabled provider serves a 503 sentinel on every path
 // under its name. Enabled providers have no routes registered yet, so their
 // requests reach the catch-all 404 until the bridged and passthrough routes
-// are added.
+// are added in AIGOV-615.
 func NewProxyRouter(providers []Provider, logger slog.Logger) (*ProxyRouter, error) {
 	if err := validateProviders(providers); err != nil {
 		return nil, err
 	}
 
 	snapshot := slices.Clone(providers)
-	mux := http.NewServeMux()
-
-	for _, prov := range snapshot {
-		// Disabled providers serve a 503 sentinel on every path under
-		// "/<name>/". Bound to the bare name (not RoutePrefix) so paths
-		// outside the provider's normal "/v1" subtree are also caught.
-		if !prov.Enabled() {
-			mux.HandleFunc(fmt.Sprintf("/%s/", prov.Name()), disabledProviderHandler(prov.Name(), logger))
-		}
-	}
-
-	// Catch-all.
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.Warn(r.Context(), "route not supported", slog.F("path", r.URL.Path), slog.F("method", r.Method))
-		http.Error(w, fmt.Sprintf("route not supported: %s %s", r.Method, r.URL.Path), http.StatusNotFound)
-	})
+	mux := newProviderMux(snapshot, logger)
 
 	return &ProxyRouter{
 		mux:       mux,
@@ -65,22 +49,11 @@ func NewProxyRouter(providers []Provider, logger slog.Logger) (*ProxyRouter, err
 
 // ServeHTTP serves the routes registered for the router's providers.
 func (p *ProxyRouter) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	// Enforce the request body size limit. MaxBytesReader counts bytes as
-	// they are read from the connection and fails when the limit is exceeded;
-	// routes built on httputil.ReverseProxy answer 413 through
-	// [proxyErrorHandler].
-	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
-	p.mux.ServeHTTP(rw, r)
+	serveProviderRequest(rw, r, p.mux)
 }
 
 // KeyPools returns the key pools of the router's providers, skipping
 // providers which have none. It feeds [keypool.NewStateCollector].
 func (p *ProxyRouter) KeyPools() []*keypool.Pool {
-	pools := make([]*keypool.Pool, 0, len(p.providers))
-	for _, prov := range p.providers {
-		if pool := prov.KeyPool(); pool != nil {
-			pools = append(pools, pool)
-		}
-	}
-	return pools
+	return CollectKeyPools(p.providers)
 }

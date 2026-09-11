@@ -4,51 +4,42 @@ import (
 	"context"
 	"net/http"
 	"sync"
+
+	"github.com/coder/coder/v2/aibridge"
 )
 
-// inflightTracker admits requests until Shutdown begins, then waits for the
-// admitted ones to finish. Each request runs under a context that Shutdown
-// cancels once its own context expires, without waiting for handlers to
-// observe cancellation. It mirrors [aibridge.RequestBridge]'s tracking for
-// the proxy path, whose routers are swapped on reload and so cannot own it.
+// inflightTracker admits requests until Shutdown begins, then drains the
+// admitted ones. Each request runs under a context that Shutdown cancels once
+// its own context expires. Unlike [aibridge.RequestBridge], whose Shutdown
+// waits for the drain even after cancellation, the proxy tracker returns as
+// soon as the shutdown context expires and does not wait for handlers to
+// observe cancellation. The proxy path needs its own tracker because its
+// routers are swapped on reload and so cannot own it.
+//
+// It builds on [aibridge.InflightGate] for the shared admission and drain
+// machinery; the proxy-specific 503 refusal and deadline-without-waiting
+// shutdown live here.
 type inflightTracker struct {
-	// mu orders wg.Add (Serve, read-held) before close(closed) (Shutdown,
-	// write-held), so Add never races Wait.
-	mu     sync.RWMutex
-	wg     sync.WaitGroup
-	closed chan struct{}
-
-	// ctx is canceled by a forced shutdown to abort admitted requests.
-	ctx    context.Context
-	cancel context.CancelFunc
-
+	gate         *aibridge.InflightGate
 	shutdownOnce sync.Once
 }
 
 func newInflightTracker() *inflightTracker {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &inflightTracker{closed: make(chan struct{}), ctx: ctx, cancel: cancel}
+	return &inflightTracker{gate: aibridge.NewInflightGate()}
 }
 
 // Serve admits r and serves it with next, or refuses it with 503 once
 // Shutdown has begun.
 func (t *inflightTracker) Serve(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-	t.mu.RLock()
-	select {
-	case <-t.closed:
-		t.mu.RUnlock()
+	release, ok := t.gate.Admit(nil)
+	if !ok {
 		http.Error(rw, "AI Gateway is shutting down", http.StatusServiceUnavailable)
 		return
-	default:
 	}
-	t.wg.Add(1)
-	t.mu.RUnlock()
-	defer t.wg.Done()
+	defer release()
 
 	// Keep the request context, and cancel it too when shutdown is forced.
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-	stop := context.AfterFunc(t.ctx, cancel)
+	ctx, stop := t.gate.Track(r.Context())
 	defer stop()
 	next.ServeHTTP(rw, r.WithContext(ctx))
 }
@@ -59,17 +50,7 @@ func (t *inflightTracker) Serve(rw http.ResponseWriter, r *http.Request, next ht
 func (t *inflightTracker) Shutdown(ctx context.Context) error {
 	var err error
 	t.shutdownOnce.Do(func() {
-		t.mu.Lock()
-		close(t.closed)
-		t.mu.Unlock()
-
-		done := make(chan struct{})
-		// The waiter exits once all admitted handlers return, even if
-		// Shutdown has already returned because its context expired.
-		go func() {
-			t.wg.Wait()
-			close(done)
-		}()
+		done := t.gate.BeginShutdown()
 		select {
 		case <-done:
 		case <-ctx.Done():
@@ -78,7 +59,7 @@ func (t *inflightTracker) Shutdown(ctx context.Context) error {
 			err = ctx.Err()
 		}
 		// Nothing can be admitted anymore; release the context.
-		t.cancel()
+		t.gate.CancelInflight()
 	})
 	return err
 }
