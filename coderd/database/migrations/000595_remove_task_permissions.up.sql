@@ -35,17 +35,15 @@ WHERE member_permissions @> '[{"resource_type": "task"}]';
 -- expansion cannot hit the deleted task scope definitions. Keys and grants
 -- left with no other scope are revoked outright.
 DELETE FROM api_keys
-WHERE EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text LIKE 'task:%')
-  AND NOT EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text NOT LIKE 'task:%');
+WHERE NOT EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text NOT LIKE 'task:%');
 
 UPDATE api_keys
 SET scopes = ARRAY(SELECT s FROM unnest(scopes) s WHERE s::text NOT LIKE 'task:%')
 WHERE EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text LIKE 'task:%');
 
 -- Remove task entries from API key allow lists; loading a key reparses every
--- entry against the RBAC resource catalog, which no longer knows task. Keys
--- whose allow list only referenced tasks are revoked outright rather than
--- retained with an empty allow list that denies all access.
+-- entry against the RBAC resource catalog, which no longer knows task. The
+-- allow list cannot be empty, so keys that only referenced tasks are revoked.
 DELETE FROM api_keys
 WHERE NOT EXISTS (SELECT 1 FROM unnest(allow_list) e WHERE e NOT LIKE 'task:%');
 
