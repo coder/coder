@@ -9,7 +9,7 @@ import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 export const NetworkMonitoringDisabled: FC = () => (
 	<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
 		Disabled
-		<InfoTooltip>
+		<InfoTooltip size="small">
 			<TooltipMessage>
 				Network request monitoring was not active for this session.
 			</TooltipMessage>

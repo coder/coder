@@ -5,17 +5,12 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 } from "#/api/typesGenerated";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverText,
-	HelpPopoverTitle,
-	HelpPopoverTrigger,
-} from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
@@ -57,9 +52,11 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 	variant = "warning",
 }) => {
 	return (
-		<HelpPopover>
-			<HelpPopoverTrigger asChild role="status" aria-label={ariaLabel}>
+		<Tooltip>
+			<TooltipTrigger asChild>
 				<TriangleAlertIcon
+					role="status"
+					aria-label={ariaLabel}
 					className={cn(
 						"relative size-3.5",
 						variant === "warning"
@@ -67,15 +64,16 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 							: "text-content-destructive",
 					)}
 				/>
-			</HelpPopoverTrigger>
-			<HelpPopoverContent>
-				<HelpPopoverTitle>{title}</HelpPopoverTitle>
-				<HelpPopoverText>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-xs">
+				<TooltipTitle>{title}</TooltipTitle>
+				<TooltipMessage>
 					{detail}
 					{troubleshootingURL && (
 						<>
 							{" "}
 							<Link
+								size="sm"
 								target="_blank"
 								rel="noreferrer"
 								href={troubleshootingURL}
@@ -86,9 +84,9 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 							</Link>
 						</>
 					)}
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
+				</TooltipMessage>
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
