@@ -143,7 +143,11 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // without mutating anything.
 //
 // Callbacks that return an error roll back the transaction (rolling
-// back the automatic snapshot bump) and publish nothing.
+// back the automatic snapshot bump) and publish nothing. So does a
+// callback whose transitions would commit [StateInvalid]; Update
+// returns [ErrInvalidResultState]. A transition is only admitted from
+// a valid state, so this is the one place the machine checks the state
+// it is about to commit.
 //
 // Lock order is the chat row first, then automations in ascending id
 // order (see [LockAutomations]). When an attempt that took automation
@@ -208,6 +212,9 @@ func (m *ChatMachine) updateOnce(
 		chat, state, err := tx.loadState()
 		if err != nil {
 			return err
+		}
+		if state == StateInvalid {
+			return ErrInvalidResultState
 		}
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(chat.ID),
