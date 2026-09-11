@@ -13,6 +13,7 @@ import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../filters/ProviderFilter";
+import { formatTimeRangeQuery, parseTimeRangeQuery } from "./timeRange";
 
 // Narrower than the SelectFilter default so the search input keeps most
 // of the row on wide viewports.
@@ -46,6 +47,8 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 			// No preset queries; the search field and menus already cover them.
 			presets={[]}
 			error={error}
+			formatQuery={formatTimeRangeQuery}
+			parseQuery={parseTimeRangeQuery}
 			options={
 				<>
 					<DateTimeRangePicker
