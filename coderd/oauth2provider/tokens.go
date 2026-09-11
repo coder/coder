@@ -681,12 +681,6 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 }
 
 func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	// A confidential client proves possession of its secret before anything
-	// is learned about the token it presents (RFC 6749 §6, OAuth 2.1 §3.2.1).
-	// A public client has no secret; the dbToken.AppID check below and the
-	// single-use rotation are what bind its refresh to the client. The
-	// refreshed row keeps the secret the grant was obtained under, so the
-	// matched secret is not needed here.
 	if !app.IsPublic() {
 		if _, err := authenticateClient(ctx, db, app, req.ClientSecret); err != nil {
 			return codersdk.OAuth2TokenResponse{}, err
