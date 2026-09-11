@@ -125,6 +125,23 @@ Every `[ ]` is work the author owes. Anything optional belongs in the
 sentence under an item, or nowhere. An item that says "consider" or "not
 strictly required" is not an item.
 
+### Every item carries a link
+
+An item names a page, so it can always link that page. Give the published
+URL, which is `https://coder.com/docs/` plus the path with the `docs/`
+prefix and the `.md` suffix removed. `docs/ai-coder/ai-gateway/reference.md`
+becomes `https://coder.com/docs/ai-coder/ai-gateway/reference`.
+
+Write the path in backticks so it is greppable, then link it, so a reader
+can open the page in one click:
+
+```markdown
+- [ ] `docs/ai-coder/ai-gateway/reference.md` ([open](https://coder.com/docs/ai-coder/ai-gateway/reference)) - What needs to change
+```
+
+A page this pull request creates has no published URL yet. Name the path in
+backticks alone and say the page is new.
+
 ### Links resolve on GitHub, not in the docs tree
 
 A relative docs link resolves against the repository in a comment and
@@ -134,6 +151,18 @@ such as `https://coder.com/docs/reference/api/enterprise`.
 Link an anchor only when that heading exists on the base branch today. A
 heading this pull request generates does not exist yet, so name the
 endpoint or section in words instead.
+
+### The marker is not optional
+
+The comment ends with `<!-- doc-check-sticky -->`, on its own line, every
+time. It is how the next review finds this comment instead of posting a
+second one, and how the Slack notice knows a review had findings. A
+comment without it reads as silence to everything downstream.
+
+After you post or edit, read the comment back and confirm the marker is
+there. If it is not, edit the comment to add it. This happened on
+`coder/coder#28723`: the review found a real gap, posted it without the
+marker, and the notice said "No docs needed".
 
 ### One comment per pull request
 
@@ -156,18 +185,22 @@ Include only the sections that apply.
 ## Documentation Check
 
 ### Updates Needed
-- [ ] `docs/path/file.md` - What needs to change
-- [x] `docs/other/file.md` - This was addressed
+- [ ] `docs/path/file.md` ([open](https://coder.com/docs/path/file)) - What needs to change
+- [x] `docs/other/file.md` ([open](https://coder.com/docs/other/file)) - This was addressed
 - ~~`docs/removed.md` - No longer needed~~ *(reverted in abc123)*
 
 ### New Documentation Needed
-- [ ] `docs/suggested/path.md` - What should be documented
+- [ ] `docs/suggested/path.md` - What should be documented, on a page that does not exist yet
   > ⚠️ *Checked but no corresponding documentation changes found in this PR*
 
 ---
 *Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
 <!-- doc-check-sticky -->
 ```
+
+Keep to this structure. Do not add sections it does not have, such as an
+evidence block. The evidence belongs in your answer, not in the author's
+comment.
 
 The `<!-- doc-check-sticky -->` marker goes last, so the next review can
 find this comment.

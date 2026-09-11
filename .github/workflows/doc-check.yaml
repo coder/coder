@@ -213,8 +213,9 @@ jobs:
           Use \`gh\` to read the PR details, the diff, and every comment.
 
           Follow the skill in full: its evidence discipline, its comment
-          rules, and its comment format. **Do not comment if no
-          documentation changes are needed.**
+          rules, and its comment format. Every item links its page, and the
+          comment ends with \`<!-- doc-check-sticky -->\` on its own line.
+          **Do not comment if no documentation changes are needed.**
 
           ## When the workspace is broken
 
