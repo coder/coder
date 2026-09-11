@@ -17,6 +17,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -456,6 +457,140 @@ func TestAIGatewayModelBedrockInferredOpenAIDefaultsToResponses(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "/v1/responses", <-paths)
+}
+
+func TestBedrockReasoningSummary(t *testing.T) {
+	t.Parallel()
+
+	for _, summary := range []*string{nil, new("auto"), new("concise"), new("detailed"), new(""), new("other")} {
+		name := "Unset"
+		if summary != nil {
+			name = "Set_" + *summary
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			config := codersdk.ChatModelCallConfig{
+				Temperature: new(0.5),
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						ReasoningSummary: summary,
+						User:             new("test-user"),
+					},
+					Anthropic: &codersdk.ChatModelAnthropicProviderOptions{SendReasoning: new(true)},
+				},
+			}
+			before, err := json.Marshal(config)
+			require.NoError(t, err)
+			got := coerceBedrockReasoningSummary(database.AIProviderTypeBedrock, "openai.gpt-5.6-luna", config)
+			after, err := json.Marshal(config)
+			require.NoError(t, err)
+			require.JSONEq(t, string(before), string(after), "input config must not be mutated")
+			require.Equal(t, config.Temperature, got.Temperature)
+			require.Equal(t, config.ProviderOptions.OpenAI.User, got.ProviderOptions.OpenAI.User)
+			require.Same(t, config.ProviderOptions.Anthropic, got.ProviderOptions.Anthropic)
+			if summary == nil || *summary == "auto" {
+				require.Same(t, config.ProviderOptions, got.ProviderOptions)
+			} else {
+				require.NotSame(t, config.ProviderOptions, got.ProviderOptions)
+				require.NotSame(t, config.ProviderOptions.OpenAI, got.ProviderOptions.OpenAI)
+				require.Equal(t, "auto", *got.ProviderOptions.OpenAI.ReasoningSummary)
+			}
+		})
+	}
+
+	for _, config := range []codersdk.ChatModelCallConfig{{}, {ProviderOptions: &codersdk.ChatModelProviderOptions{}}} {
+		got := coerceBedrockReasoningSummary(database.AIProviderTypeBedrock, "openai.gpt-5.6-luna", config)
+		require.Equal(t, config, got)
+	}
+}
+
+func TestAIGatewayModelBedrockReasoningSummary(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name         string
+		providerType database.AIProviderType
+		model        string
+		wantSummary  string
+		wantPath     string
+	}{
+		{name: "BedrockOpenAI", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.6-luna", wantSummary: "auto", wantPath: "/v1/responses"},
+		{name: "BedrockAnthropic", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-4", wantSummary: "detailed", wantPath: "/v1/messages"},
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "openai.gpt-5.6-luna", wantSummary: "detailed", wantPath: "/v1/responses"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			requests := make(chan *http.Request, 1)
+			factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				requests <- req
+				body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+				if tt.wantPath == "/v1/messages" {
+					body = `{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"text","text":"hello"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(body)),
+					Request:    req,
+				}, nil
+			})}
+			provider := aibridgeTestAIProvider(uuid.New(), "test-provider", tt.providerType)
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			db.EXPECT().GetAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil)
+			server := &Server{
+				db:                       db,
+				logger:                   slogtest.Make(t, nil),
+				aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+			}
+			config := codersdk.ChatModelCallConfig{
+				MaxOutputTokens: new(int64(64)),
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningSummary: new("detailed")},
+				},
+			}
+			if tt.providerType == database.AIProviderTypeOpenai {
+				config.OpenAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true)}
+			}
+			options, err := json.Marshal(config)
+			require.NoError(t, err)
+			resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
+				chat: database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+				explicitConfig: &database.ChatModelConfig{
+					ID:           uuid.New(),
+					Model:        tt.model,
+					AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+					Options:      options,
+				},
+				buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			})
+			require.NoError(t, err)
+			call := resolved.newCall()
+			call.Prompt = []fantasy.Message{{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			}}
+			_, err = resolved.model.LanguageModel().Generate(t.Context(), call)
+			require.NoError(t, err)
+			request := <-requests
+			require.Equal(t, tt.wantPath, request.URL.Path)
+			var body struct {
+				Reasoning *struct {
+					Summary string `json:"summary"`
+				} `json:"reasoning"`
+			}
+			require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
+			if tt.wantPath == "/v1/messages" {
+				require.Nil(t, body.Reasoning)
+				require.Equal(t, config.ProviderOptions, resolved.callConfig.ProviderOptions)
+			} else {
+				require.NotNil(t, body.Reasoning)
+				require.Equal(t, tt.wantSummary, body.Reasoning.Summary)
+			}
+			// The resolved config keeps the configured value so a provider
+			// substitution (computer use) does not inherit the Bedrock coercion.
+			require.Equal(t, "detailed", *resolved.callConfig.ProviderOptions.OpenAI.ReasoningSummary)
+		})
+	}
 }
 
 func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {

@@ -189,6 +189,25 @@ func (p *Server) newModel(
 	)
 }
 
+func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {
+	if providerType != database.AIProviderTypeBedrock || bedrockIsAnthropicModel(model) ||
+		callConfig.ProviderOptions == nil || callConfig.ProviderOptions.OpenAI == nil ||
+		callConfig.ProviderOptions.OpenAI.ReasoningSummary == nil ||
+		*callConfig.ProviderOptions.OpenAI.ReasoningSummary == "auto" {
+		return callConfig
+	}
+
+	// Mantle rejects concise/detailed with HTTP 400 and only accepts auto.
+	// Coercing rather than dropping keeps configs portable to direct OpenAI
+	// and allows summaries if AWS adds support later.
+	providerOptions := *callConfig.ProviderOptions
+	openAI := *providerOptions.OpenAI
+	openAI.ReasoningSummary = new("auto")
+	providerOptions.OpenAI = &openAI
+	callConfig.ProviderOptions = &providerOptions
+	return callConfig
+}
+
 func parseModelConfigOptions(configOptions json.RawMessage) (codersdk.ChatModelCallConfig, error) {
 	var callConfig codersdk.ChatModelCallConfig
 	if len(configOptions) == 0 {
