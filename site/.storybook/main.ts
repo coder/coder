@@ -1,3 +1,5 @@
+import type { StorybookConfig } from "@storybook/react-vite";
+
 export default {
 	stories: ["../src/**/*.stories.tsx"],
 
@@ -32,4 +34,4 @@ export default {
 		};
 		return config;
 	},
-} satisfies import("@storybook/react-vite").StorybookConfig;
+} satisfies StorybookConfig;
