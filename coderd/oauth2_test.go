@@ -1100,6 +1100,9 @@ func TestOAuth2ProviderRevokeCrossApp(t *testing.T) {
 	//nolint:gocritic // OAauth2 app management requires owner permission.
 	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 	require.NoError(t, err)
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	noPortSecret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.NoPort.ID)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name string
@@ -1154,17 +1157,199 @@ func TestOAuth2ProviderRevokeCrossApp(t *testing.T) {
 
 			// RFC 7009: revoking under a different app than the one that
 			// issued the token must not reveal whether it exists (no
-			// error), and must not actually end the session.
-			err = userClient.RevokeOAuth2Token(ctx, apps.NoPort.ID, tokenUnderTest)
+			// error), and must not actually end the session. The other app
+			// authenticates as itself, so this reaches the ownership check.
+			err = userClient.RevokeOAuth2Token(ctx, apps.NoPort.ID, noPortSecret.ClientSecretFull, tokenUnderTest)
 			require.NoError(t, err, "cross-app revoke must appear to succeed per RFC 7009")
 			require.True(t, sessionWorks(), "cross-app revoke must not actually end the session")
 
 			// Revoking under the correct, issuing app must actually work.
-			err = userClient.RevokeOAuth2Token(ctx, apps.Default.ID, tokenUnderTest)
+			err = userClient.RevokeOAuth2Token(ctx, apps.Default.ID, secret.ClientSecretFull, tokenUnderTest)
 			require.NoError(t, err)
 			require.False(t, sessionWorks(), "same-app revoke must end the session")
 		})
 	}
+}
+
+// A confidential client authenticates at revocation as it does at the token
+// endpoint (RFC 7009 §2.1). Each case gets its own session because a
+// successful revocation ends it.
+func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	apps := generateApps(ctx, t, ownerClient, "revoke-client-auth")
+
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	require.NoError(t, err)
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	noPortSecret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.NoPort.ID)
+	require.NoError(t, err)
+
+	// Mints a session for apps.Default and returns the refresh token with a
+	// probe reporting whether the session's access token still authenticates.
+	newSession := func(ctx context.Context, t *testing.T) (*codersdk.Client, string, func() bool) {
+		t.Helper()
+
+		userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		cfg := &oauth2.Config{
+			ClientID:     apps.Default.ID.String(),
+			ClientSecret: secret.ClientSecretFull,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:   apps.Default.Endpoints.Authorization,
+				TokenURL:  apps.Default.Endpoints.Token,
+				AuthStyle: oauth2.AuthStyleInParams,
+			},
+			RedirectURL: apps.Default.CallbackURL,
+			Scopes:      []string{},
+		}
+		code, verifier, err := authorizationFlow(ctx, userClient, cfg)
+		require.NoError(t, err)
+		token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+		require.NoError(t, err)
+
+		works := func() bool {
+			checkClient := codersdk.New(userClient.URL)
+			checkClient.SetSessionToken(token.AccessToken)
+			_, err := checkClient.User(ctx, codersdk.Me)
+			return err == nil
+		}
+		require.True(t, works(), "session should be valid before any revoke attempt")
+		return userClient, token.RefreshToken, works
+	}
+
+	// Posts the revocation form by hand so the request can carry HTTP Basic
+	// credentials, which the SDK method does not send. A 200 has no body
+	// (RFC 7009), so the decoded error is zero on success.
+	postRevoke := func(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, opts ...codersdk.RequestOption) (status int, header http.Header, oauthErr codersdk.OAuth2Error) {
+		t.Helper()
+
+		opts = append(opts, func(r *http.Request) {
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		})
+		resp, err := client.Request(ctx, http.MethodPost, "/oauth2/revoke", strings.NewReader(form.Encode()), opts...)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&oauthErr))
+		}
+		return resp.StatusCode, resp.Header, oauthErr
+	}
+
+	requireInvalidClient := func(t *testing.T, err error, works func() bool) {
+		t.Helper()
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Error(), string(codersdk.OAuth2ErrorCodeInvalidClient))
+		require.True(t, works(), "a refused revocation must not end the session")
+	}
+
+	t.Run("MissingSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		err := userClient.RevokeOAuth2Token(ctx, apps.Default.ID, "", refreshToken)
+		requireInvalidClient(t, err, works)
+	})
+
+	t.Run("WrongSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		err := userClient.RevokeOAuth2Token(ctx, apps.Default.ID, secret.ClientSecretFull+"x", refreshToken)
+		requireInvalidClient(t, err, works)
+	})
+
+	// Right hash, wrong app: the secret is valid, but not for the client_id
+	// it is presented under.
+	t.Run("SecretOfAnotherApp", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		err := userClient.RevokeOAuth2Token(ctx, apps.Default.ID, noPortSecret.ClientSecretFull, refreshToken)
+		requireInvalidClient(t, err, works)
+	})
+
+	// Authentication runs before the token is classified, so a caller without
+	// the secret learns nothing from the token it presents: 401, not the 200
+	// an unknown token would otherwise receive under RFC 7009 §2.2.
+	// The fake token is not tied to the session, so only the status check
+	// carries this case; the session probe is the shared helper's
+	// post-condition.
+	t.Run("MissingSecretUnknownToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, _, works := newSession(ctx, t)
+
+		err := userClient.RevokeOAuth2Token(ctx, apps.Default.ID, "", "coder_notreal_notreal")
+		requireInvalidClient(t, err, works)
+	})
+
+	t.Run("CorrectSecretOwnToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		err := userClient.RevokeOAuth2Token(ctx, apps.Default.ID, secret.ClientSecretFull, refreshToken)
+		require.NoError(t, err)
+		require.False(t, works(), "an authenticated revocation must end the session")
+	})
+
+	t.Run("BasicAuth", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		status, _, _ := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.SetBasicAuth(apps.Default.ID.String(), secret.ClientSecretFull)
+		})
+		require.Equal(t, http.StatusOK, status)
+		require.False(t, works(), "a Basic-authenticated revocation must end the session")
+	})
+
+	t.Run("BasicAuthWrongSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		status, header, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.SetBasicAuth(apps.Default.ID.String(), secret.ClientSecretFull+"x")
+		})
+		require.Equal(t, http.StatusUnauthorized, status)
+		require.Equal(t, `Basic realm="coder"`, header.Get("WWW-Authenticate"))
+		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidClient, oauthErr.Error)
+		require.True(t, works(), "a refused revocation must not end the session")
+	})
+
+	t.Run("BasicAndBodyConflict", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		form.Set("client_secret", secret.ClientSecretFull+"x")
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.SetBasicAuth(apps.Default.ID.String(), secret.ClientSecretFull)
+		})
+		require.Equal(t, http.StatusBadRequest, status)
+		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, oauthErr.Error)
+		require.Contains(t, oauthErr.ErrorDescription, "Conflicting client credentials")
+		require.True(t, works(), "a refused revocation must not end the session")
+	})
 }
 
 func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {
@@ -1193,11 +1378,12 @@ func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {
 			session := refreshedPublicClientSession(ctx, t)
 			tokenUnderTest := test.tokenFor(session.token)
 
-			err := session.userClient.RevokeOAuth2Token(ctx, session.otherAppID, tokenUnderTest)
+			// Public clients have no secret to present.
+			err := session.userClient.RevokeOAuth2Token(ctx, session.otherAppID, "", tokenUnderTest)
 			require.NoError(t, err, "cross-app revoke must appear to succeed per RFC 7009")
 			require.True(t, session.works(), "cross-app revoke must not end the session")
 
-			err = session.userClient.RevokeOAuth2Token(ctx, session.appID, tokenUnderTest)
+			err = session.userClient.RevokeOAuth2Token(ctx, session.appID, "", tokenUnderTest)
 			require.NoError(t, err)
 			require.False(t, session.works(), "public client must be able to revoke its own token")
 		})
@@ -2253,7 +2439,7 @@ func TestOAuth2CoderClient(t *testing.T) {
 
 	// Revoking the refresh token should prevent further access
 	// Revoking the refresh also invalidates the associated access token.
-	err = usingOauth.RevokeOAuth2Token(ctx, app.ID, token.RefreshToken)
+	err = usingOauth.RevokeOAuth2Token(ctx, app.ID, appsecret.ClientSecretFull, token.RefreshToken)
 	require.NoError(t, err)
 
 	_, err = usingOauth.User(ctx, codersdk.Me)
