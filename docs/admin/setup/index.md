@@ -138,10 +138,10 @@ $ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
-### Migrating from the built-in database to an external database
+### Migrate the built-in database
 
-To move an existing deployment, follow the [built-in PostgreSQL migration guide](./builtin-postgres-migration.md).
-It covers stopping Coder, exporting and restoring the database, and verifying the deployment before decommissioning the original data.
+To upgrade the built-in database to PostgreSQL 16 or move to an external database, follow the [built-in PostgreSQL migration guide](./builtin-postgres-migration.md).
+Both options cover stopping Coder, exporting and restoring the database, and verifying the deployment before decommissioning the original data.
 
 ## Configuring Coder behind a proxy
 
