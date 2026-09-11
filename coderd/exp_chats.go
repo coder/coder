@@ -3547,9 +3547,22 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 		RemoteOrigin: strings.TrimSpace(r.URL.Query().Get("origin")),
 		GitBranch:    strings.TrimSpace(r.URL.Query().Get("branch")),
 	}
+	if (selector.RemoteOrigin == "") != (selector.GitBranch == "") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The origin and branch query parameters must be set together.",
+		})
+		return
+	}
 
 	diff, err := api.resolveChatDiffContents(ctx, chat, selector)
 	if err != nil {
+		if xerrors.Is(err, errNoDiffStatusForRef) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "The chat does not track that ref.",
+				Detail:  fmt.Sprintf("origin %q, branch %q", selector.RemoteOrigin, selector.GitBranch),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat diff.",
 			Detail:  err.Error(),
@@ -3804,11 +3817,8 @@ func (api *API) resolveChatDiffContents(
 	}
 
 	status, found := selectChatDiffStatus(statuses, selector)
-	if !found && len(statuses) > 0 {
-		// A selector that matches nothing is an error only when the
-		// chat tracks other refs. A chat with no refs stays on inline
-		// resolution.
-		return result, xerrors.Errorf("no diff status for ref %s/%s", selector.RemoteOrigin, selector.GitBranch)
+	if !found && selector.RemoteOrigin != "" {
+		return result, errNoDiffStatusForRef
 	}
 
 	reference, err := api.resolveChatDiffReference(ctx, chat, found, status)
@@ -8104,6 +8114,7 @@ var (
 	errChatProviderDisabled    = xerrors.New("AI provider is disabled")
 	errChatProviderMissing     = xerrors.New("AI provider is not configured")
 	errChatModelConfigNotFound = xerrors.New("chat model config not found")
+	errNoDiffStatusForRef      = xerrors.New("no diff status for ref")
 )
 
 // ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat

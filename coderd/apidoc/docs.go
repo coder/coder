@@ -19527,12 +19527,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.DiffStatusRef"
                 },
                 "status": {
-                    "description": "Status is the ref's state after the change.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatDiffStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
                 }
             }
         },
@@ -19991,7 +19986,6 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "remote_origin": {
-                    "description": "RemoteOrigin and GitBranch identify the ref this status belongs\nto. Both are empty when the agent never reported the ref.",
                     "type": "string"
                 },
                 "reviewer_count": {
@@ -21456,12 +21450,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "changed_diff_status": {
-                    "description": "ChangedDiffStatus is set only on diff_status_change events. It\nidentifies the single ref whose status changed. The embedded\nchat's diff_status carries the primary.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChangedDiffStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ChangedDiffStatus"
                 },
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"
