@@ -993,8 +993,10 @@ func TestWorker(t *testing.T) {
 	require.Equal(t, int32(1), publishCount.Load())
 
 	// 9. Read back and verify persisted fields.
-	status, err := db.GetChatDiffStatusByChatID(ctx, chat.ID)
+	statuses, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
+	require.Len(t, statuses, 1)
+	status := statuses[0]
 
 	// The mock resolveBranchPR returns PRRef{Owner: "o", Repo: "r", Number: 1}
 	// and buildPullRequestURL formats it as https://github.com/o/r/pull/1.

@@ -3281,13 +3281,17 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 		return xerrors.Errorf("get chat: %w", err)
 	}
 
-	dbStatus, err := p.db.GetChatDiffStatusByChatID(ctx, chatID)
+	dbStatuses, err := p.db.GetChatDiffStatusesByChatID(ctx, chatID)
 	if err != nil {
 		return xerrors.Errorf("get chat diff status: %w", err)
 	}
 
-	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &sdkStatus)
+	var sdkStatus *codersdk.ChatDiffStatus
+	if len(dbStatuses) > 0 {
+		s := db2sdk.ChatDiffStatus(chatID, &dbStatuses[0])
+		sdkStatus = &s
+	}
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, sdkStatus)
 	return nil
 }
 
