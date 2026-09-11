@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -436,6 +437,83 @@ func TestPrepareGenerationBindsCredentialsToTurnActor(t *testing.T) {
 		TokenName: GatewayTokenName(owner.ID),
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for the actor's turn")
+}
+
+// TestPrepareGenerationBindsCredentialsToCompactionRequester verifies that
+// a pending manual compaction request runs with the synthetic gateway key of
+// the user who requested it, not the owner who posted the last prompt.
+func TestPrepareGenerationBindsCredentialsToCompactionRequester(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	owner := dbgen.User(t, db, database.User{})
+	requester := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	for _, user := range []database.User{owner, requester} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+	}
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "compaction requester attribution",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "inspect the workspace"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+	chat := created.Chat
+	chat.CompactionRequestedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+	chat.CompactionRequestedBy = uuid.NullUUID{UUID: requester.ID, Valid: true}
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	require.Equal(t, requester.ID, prepared.ActorID)
+	requesterKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    requester.ID,
+		TokenName: GatewayTokenName(requester.ID),
+	})
+	require.NoError(t, err)
+	require.Equal(t, requesterKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+	_, err = db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    owner.ID,
+		TokenName: GatewayTokenName(owner.ID),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for the requester's compaction")
 }
 
 // TestGenerateChatSummaryBindsCredentialsToTurnActor verifies that the

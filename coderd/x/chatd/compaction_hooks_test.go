@@ -184,7 +184,7 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 			require.Equal(t, int32(1), streamCalls.Load())
 
-			_, err := server.CompactChat(ctx, chat)
+			_, err := server.CompactChat(ctx, chat, user.ID)
 			require.NoError(t, err)
 			chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 			require.False(t, chat.LastError.Valid)

@@ -581,6 +581,16 @@ func turnActorID(chat database.Chat, messages []database.ChatMessage) uuid.UUID 
 	return chat.OwnerID
 }
 
+// generationActorID returns the user whose credentials a generation turn
+// runs with. A pending manual compaction request started the turn, so its
+// requester is the actor; otherwise the turn follows turnActorID.
+func generationActorID(chat database.Chat, messages []database.ChatMessage) uuid.UUID {
+	if chat.CompactionRequestedAt.Valid && chat.CompactionRequestedBy.Valid && chat.CompactionRequestedBy.UUID != uuid.Nil {
+		return chat.CompactionRequestedBy.UUID
+	}
+	return turnActorID(chat, messages)
+}
+
 func loadGenerationState(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,

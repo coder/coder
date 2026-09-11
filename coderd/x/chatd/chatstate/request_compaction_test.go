@@ -44,11 +44,13 @@ func requestCompaction(t *testing.T, f *testFixture) (uuid.UUID, *chatstate.Chat
 	ownershipBefore := f.Pub.ownershipPublishCount()
 
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{RequesterID: f.User.ID})
 		return err
 	}))
 	chat := f.readChat(ctx, t, seeded.chatID)
 	require.True(t, chat.CompactionRequestedAt.Valid, "request must set the marker")
+	require.Equal(t, uuid.NullUUID{UUID: f.User.ID, Valid: true}, chat.CompactionRequestedBy,
+		"request must record the requester")
 	require.Equal(t, database.ChatStatusRunning, chat.Status)
 	require.False(t, chat.WorkerID.Valid, "request must clear worker_id")
 	require.False(t, chat.RunnerID.Valid, "request must clear runner_id")
@@ -79,6 +81,7 @@ func TestRequestCompaction_PreservedByAcquireAndQueueAppend(t *testing.T) {
 	}))
 	chat := f.readChat(ctx, t, chatID)
 	require.True(t, chat.CompactionRequestedAt.Valid, "Acquire preserves the marker")
+	require.True(t, chat.CompactionRequestedBy.Valid, "Acquire preserves the requester")
 
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
@@ -89,6 +92,7 @@ func TestRequestCompaction_PreservedByAcquireAndQueueAppend(t *testing.T) {
 	}))
 	chat = f.readChat(ctx, t, chatID)
 	require.True(t, chat.CompactionRequestedAt.Valid, "queue append preserves the marker")
+	require.True(t, chat.CompactionRequestedBy.Valid, "queue append preserves the requester")
 }
 
 // TestRequestCompaction_ConsumedByCommitStep verifies the compaction
@@ -124,6 +128,8 @@ func TestRequestCompaction_ConsumedByCommitStep(t *testing.T) {
 	chat = f.readChat(ctx, t, chatID)
 	require.False(t, chat.CompactionRequestedAt.Valid,
 		"CommitStep with ConsumeCompactionRequest clears the marker")
+	require.False(t, chat.CompactionRequestedBy.Valid,
+		"CommitStep with ConsumeCompactionRequest clears the requester")
 }
 
 // TestRequestCompaction_ClearedOnTerminalTransitions verifies that
@@ -176,6 +182,8 @@ func TestRequestCompaction_ClearedOnTerminalTransitions(t *testing.T) {
 			chat := f.readChat(ctx, t, chatID)
 			require.False(t, chat.CompactionRequestedAt.Valid,
 				"%s must clear the compaction request marker", tc.name)
+			require.False(t, chat.CompactionRequestedBy.Valid,
+				"%s must clear the compaction requester", tc.name)
 		})
 	}
 }
