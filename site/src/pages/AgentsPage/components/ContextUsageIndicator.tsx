@@ -169,7 +169,7 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 21.5;
+const RING_SIZE = 22;
 const RING_STROKE = 2.25;
 
 const GLYPH_HEIGHT = 11;
