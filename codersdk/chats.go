@@ -3120,6 +3120,20 @@ func (c *Client) RefreshChatContext(ctx context.Context, chatID uuid.UUID) (Chat
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
+// UpdateChatGoal applies a metadata-only chat goal mutation.
+func (c *Client) UpdateChatGoal(ctx context.Context, chatID uuid.UUID, req ChatGoalUpdateRequest) (ChatGoalResponse, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/%s/goal", chatID), req)
+	if err != nil {
+		return ChatGoalResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatGoalResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatGoalResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
 func (c *Client) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/acl", chatID), nil)
 	if err != nil {
