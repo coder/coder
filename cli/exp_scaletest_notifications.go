@@ -505,8 +505,9 @@ func triggerNotifications(
 	logger.Info(ctx, "test templates created", slog.F("count", len(templateIDs)))
 
 	// Each deletion notifies every template admin. Record a single trigger time
-	// for the batch just before the first deletion; latency is measured from here
-	// to each admin's first received notification.
+	// for the batch just before the first deletion; every delivered notification
+	// is measured against this batch start, yielding one latency sample per
+	// received notification.
 	triggerTime := time.Now()
 	for _, templateID := range templateIDs {
 		if err := client.DeleteTemplate(ctx, templateID); err != nil {
