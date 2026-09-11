@@ -1386,6 +1386,19 @@ func (b *Builder) checkRunningBuild() error {
 			xerrors.New(msg),
 		}
 	}
+	if b.trans == database.WorkspaceTransitionStart && b.reason == database.BuildReasonSshConnection && job.JobStatus == database.ProvisionerJobStatusSucceeded {
+		build, err := b.getLastBuild()
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "failed to fetch prior build", err}
+		}
+		if build.Transition == database.WorkspaceTransitionStart {
+			// An SSH client can read a stopped workspace before another client
+			// starts it, then submit its request after that build completes.
+			// Preserve the running build and let the client reconnect on 409.
+			msg := "The workspace is already running."
+			return BuildError{http.StatusConflict, msg, xerrors.New(msg)}
+		}
+	}
 	return nil
 }
 
