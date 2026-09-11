@@ -374,7 +374,6 @@ export function Autocomplete<TOption>({
 					data-testid={testId}
 					aria-expanded={isOpen}
 					aria-haspopup="listbox"
-					aria-invalid={triggerAriaInvalid}
 					aria-describedby={triggerAriaDescribedBy}
 					disabled={disabled}
 					className={cn(

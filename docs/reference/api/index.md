@@ -32,9 +32,7 @@ See some common [use cases](../../reference/index.md#use-cases) for the REST API
 ## Request size limits
 
 An endpoint that accepts a request body reads at most 4 MiB of it, unless it
-sets a limit of its own. Those limits go in both directions:
-`POST /api/v2/files` accepts 100 MiB, while
-`POST /api/v2/workspaceagents/me/tasks/{task}/log-snapshot` accepts 64 KiB.
+sets a limit of its own.
 An endpoint that sets its own limit declares `413` in this reference and
 names the limit in the description, so the per-endpoint page is where to look
 one up. A few endpoints answer `413` for a reason other than the size of

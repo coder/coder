@@ -32,7 +32,5 @@
   "Parameters": [],
   "Presets": [],
   "ExternalAuthProviders": [],
-  "AITasks": [],
-  "HasAITasks": false,
   "HasExternalAgents": false
 }
