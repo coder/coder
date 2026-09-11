@@ -4,6 +4,7 @@ import { HttpResponse, http } from "msw";
 import type {
 	CreateUserSecretRequest,
 	CreateWorkspaceBuildRequest,
+	ListInboxNotificationsResponse,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
@@ -12,6 +13,13 @@ import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 
 export const handlers = [
+	http.get("/api/v2/notifications/inbox", () => {
+		return HttpResponse.json<ListInboxNotificationsResponse>({
+			notifications: [],
+			unread_count: 0,
+		});
+	}),
+
 	http.get("/api/v2/templates/:templateId/daus", () => {
 		return HttpResponse.json(M.MockTemplateDAUResponse);
 	}),
