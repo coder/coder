@@ -380,10 +380,10 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		}
 
 		if errors.Is(err, errBadSecret) {
-			// A refresh or exchange without the client's secret is the shape a
-			// replayed stolen token takes, so it is recorded. Nothing from the
-			// request body: the caller lacked the credential, and the token it
-			// did present should not land in a log.
+			// A missing, wrong, or foreign secret is what a replayed stolen token
+			// looks like, so the refusal is logged. The request body stays out of
+			// the log: the caller never proved its credential, and the token it
+			// sent should not be recorded.
 			logger.Warn(ctx, "oauth2 token request refused: client authentication failed",
 				slog.F("grant_type", req.GrantType), slog.F("app_id", app.ID))
 			writeTokenError(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
@@ -681,12 +681,6 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 }
 
 func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	// A confidential client proves possession of its secret before anything
-	// is learned about the token it presents (RFC 6749 §6, OAuth 2.1 §3.2.1).
-	// A public client has no secret; the dbToken.AppID check below and the
-	// single-use rotation are what bind its refresh to the client. The
-	// refreshed row keeps the secret the grant was obtained under, so the
-	// matched secret is not needed here.
 	if !app.IsPublic() {
 		if _, err := authenticateClient(ctx, db, app, req.ClientSecret); err != nil {
 			return codersdk.OAuth2TokenResponse{}, err
