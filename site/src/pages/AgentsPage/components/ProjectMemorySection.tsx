@@ -64,10 +64,9 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 					</p>
 				</div>
 				<Button
-					variant="subtle"
+					variant="outline"
 					size="icon"
 					aria-label="Add memory"
-					className="text-content-secondary"
 					onClick={() => setEditingMemory(null)}
 				>
 					<PlusIcon />
