@@ -74,10 +74,9 @@ export const MockChatProject2: TypesGen.ChatProject = {
 };
 
 export const MockChatProjectMemory: TypesGen.ChatProjectMemory = {
-	id: "chat-project-memory-user",
+	id: "chat-project-memory-preferred-editor",
 	project_id: MockChatProject.id,
 	organization_id: MockChatProject.organization_id,
-	type: "user",
 	name: "preferred-editor",
 	description: "The user prefers concise editor instructions.",
 	body: "Use concise editor instructions and include the changed files.",
@@ -87,28 +86,12 @@ export const MockChatProjectMemory: TypesGen.ChatProjectMemory = {
 	updated_at: "2026-09-02T12:00:00Z",
 };
 
-export const MockChatProjectMemoryFeedback: TypesGen.ChatProjectMemory = {
+export const MockChatProjectMemory2: TypesGen.ChatProjectMemory = {
 	...MockChatProjectMemory,
-	id: "chat-project-memory-feedback",
-	type: "feedback",
-	name: "review-feedback",
-	description: "Keep pull request descriptions concise.",
-};
-
-export const MockChatProjectMemoryProject: TypesGen.ChatProjectMemory = {
-	...MockChatProjectMemory,
-	id: "chat-project-memory-project",
-	type: "project",
+	id: "chat-project-memory-release-process",
 	name: "release-process",
 	description: "Releases require a changelog update.",
-};
-
-export const MockChatProjectMemoryReference: TypesGen.ChatProjectMemory = {
-	...MockChatProjectMemory,
-	id: "chat-project-memory-reference",
-	type: "reference",
-	name: "api-reference",
-	description: "Reference for the project API.",
+	body: "Update the changelog and publish the release notes before releasing.",
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {

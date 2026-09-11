@@ -180,44 +180,31 @@ type UpdateChatProjectRequest struct {
 	Description *string `json:"description,omitempty"`
 }
 
-// ChatProjectMemoryType classifies durable chat project memory.
-type ChatProjectMemoryType string
-
-const (
-	ChatProjectMemoryTypeUser      ChatProjectMemoryType = "user"
-	ChatProjectMemoryTypeFeedback  ChatProjectMemoryType = "feedback"
-	ChatProjectMemoryTypeProject   ChatProjectMemoryType = "project"
-	ChatProjectMemoryTypeReference ChatProjectMemoryType = "reference"
-)
-
 // ChatProjectMemory is a durable memory shared by chats in a project.
 type ChatProjectMemory struct {
-	ID                uuid.UUID             `json:"id" format:"uuid"`
-	ProjectID         uuid.UUID             `json:"project_id" format:"uuid"`
-	OrganizationID    uuid.UUID             `json:"organization_id" format:"uuid"`
-	Type              ChatProjectMemoryType `json:"type"`
-	Name              string                `json:"name"`
-	Description       string                `json:"description"`
-	Body              string                `json:"body"`
-	SourceChatID      *uuid.UUID            `json:"source_chat_id,omitempty" format:"uuid"`
-	CreatedBy         uuid.UUID             `json:"created_by" format:"uuid"`
-	CreatedByUsername string                `json:"created_by_username"`
-	CreatedAt         time.Time             `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time             `json:"updated_at" format:"date-time"`
+	ID                uuid.UUID  `json:"id" format:"uuid"`
+	ProjectID         uuid.UUID  `json:"project_id" format:"uuid"`
+	OrganizationID    uuid.UUID  `json:"organization_id" format:"uuid"`
+	Name              string     `json:"name"`
+	Description       string     `json:"description"`
+	Body              string     `json:"body"`
+	SourceChatID      *uuid.UUID `json:"source_chat_id,omitempty" format:"uuid"`
+	CreatedBy         uuid.UUID  `json:"created_by" format:"uuid"`
+	CreatedByUsername string     `json:"created_by_username"`
+	CreatedAt         time.Time  `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time  `json:"updated_at" format:"date-time"`
 }
 
 type CreateChatProjectMemoryRequest struct {
-	Type        ChatProjectMemoryType `json:"type" validate:"required"`
-	Name        string                `json:"name" validate:"required"`
-	Description string                `json:"description" validate:"required"`
-	Body        string                `json:"body" validate:"required"`
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description" validate:"required"`
+	Body        string `json:"body" validate:"required"`
 }
 
 type UpdateChatProjectMemoryRequest struct {
-	Type        *ChatProjectMemoryType `json:"type,omitempty"`
-	Name        *string                `json:"name,omitempty"`
-	Description *string                `json:"description,omitempty"`
-	Body        *string                `json:"body,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Body        *string `json:"body,omitempty"`
 }
 
 // ChatContext reports a chat's pinned workspace context and whether it has

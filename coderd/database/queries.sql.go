@@ -7074,7 +7074,7 @@ func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg Dele
 
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.type, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
@@ -7100,7 +7100,6 @@ func (q *sqlQuerier) GetChatProjectMemoriesByProjectID(ctx context.Context, proj
 			&i.ChatProjectMemory.ID,
 			&i.ChatProjectMemory.ProjectID,
 			&i.ChatProjectMemory.OrganizationID,
-			&i.ChatProjectMemory.Type,
 			&i.ChatProjectMemory.Name,
 			&i.ChatProjectMemory.Description,
 			&i.ChatProjectMemory.Body,
@@ -7125,7 +7124,7 @@ func (q *sqlQuerier) GetChatProjectMemoriesByProjectID(ctx context.Context, proj
 
 const getChatProjectMemoryByID = `-- name: GetChatProjectMemoryByID :one
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.type, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
@@ -7144,7 +7143,6 @@ func (q *sqlQuerier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 		&i.ChatProjectMemory.ID,
 		&i.ChatProjectMemory.ProjectID,
 		&i.ChatProjectMemory.OrganizationID,
-		&i.ChatProjectMemory.Type,
 		&i.ChatProjectMemory.Name,
 		&i.ChatProjectMemory.Description,
 		&i.ChatProjectMemory.Body,
@@ -7159,7 +7157,7 @@ func (q *sqlQuerier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 
 const getChatProjectMemoryByName = `-- name: GetChatProjectMemoryByName :one
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.type, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
@@ -7184,7 +7182,6 @@ func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChat
 		&i.ChatProjectMemory.ID,
 		&i.ChatProjectMemory.ProjectID,
 		&i.ChatProjectMemory.OrganizationID,
-		&i.ChatProjectMemory.Type,
 		&i.ChatProjectMemory.Name,
 		&i.ChatProjectMemory.Description,
 		&i.ChatProjectMemory.Body,
@@ -7215,7 +7212,6 @@ INSERT INTO chat_project_memories (
     id,
     project_id,
     organization_id,
-    type,
     name,
     description,
     body,
@@ -7226,26 +7222,24 @@ VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
-    $4::chat_project_memory_type,
+    $4::text,
     $5::text,
     $6::text,
-    $7::text,
-    $8::uuid,
-    $9::uuid
+    $7::uuid,
+    $8::uuid
 )
-RETURNING id, project_id, organization_id, type, name, description, body, source_chat_id, created_by, created_at, updated_at
+RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
 `
 
 type InsertChatProjectMemoryParams struct {
-	ID             uuid.NullUUID         `db:"id" json:"id"`
-	ProjectID      uuid.UUID             `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID             `db:"organization_id" json:"organization_id"`
-	Type           ChatProjectMemoryType `db:"type" json:"type"`
-	Name           string                `db:"name" json:"name"`
-	Description    string                `db:"description" json:"description"`
-	Body           string                `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID         `db:"source_chat_id" json:"source_chat_id"`
-	CreatedBy      uuid.UUID             `db:"created_by" json:"created_by"`
+	ID             uuid.NullUUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error) {
@@ -7253,7 +7247,6 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 		arg.ID,
 		arg.ProjectID,
 		arg.OrganizationID,
-		arg.Type,
 		arg.Name,
 		arg.Description,
 		arg.Body,
@@ -7265,7 +7258,6 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 		&i.ID,
 		&i.ProjectID,
 		&i.OrganizationID,
-		&i.Type,
 		&i.Name,
 		&i.Description,
 		&i.Body,
@@ -7280,26 +7272,23 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 const updateChatProjectMemoryByID = `-- name: UpdateChatProjectMemoryByID :one
 UPDATE chat_project_memories
 SET
-    type = $1::chat_project_memory_type,
-    name = $2::text,
-    description = $3::text,
-    body = $4::text,
+    name = $1::text,
+    description = $2::text,
+    body = $3::text,
     updated_at = now()
-WHERE id = $5::uuid
-RETURNING id, project_id, organization_id, type, name, description, body, source_chat_id, created_by, created_at, updated_at
+WHERE id = $4::uuid
+RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
 `
 
 type UpdateChatProjectMemoryByIDParams struct {
-	Type        ChatProjectMemoryType `db:"type" json:"type"`
-	Name        string                `db:"name" json:"name"`
-	Description string                `db:"description" json:"description"`
-	Body        string                `db:"body" json:"body"`
-	ID          uuid.UUID             `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Body        string    `db:"body" json:"body"`
+	ID          uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error) {
 	row := q.db.QueryRowContext(ctx, updateChatProjectMemoryByID,
-		arg.Type,
 		arg.Name,
 		arg.Description,
 		arg.Body,
@@ -7310,7 +7299,6 @@ func (q *sqlQuerier) UpdateChatProjectMemoryByID(ctx context.Context, arg Update
 		&i.ID,
 		&i.ProjectID,
 		&i.OrganizationID,
-		&i.Type,
 		&i.Name,
 		&i.Description,
 		&i.Body,
@@ -7326,7 +7314,6 @@ const upsertChatProjectMemoryByName = `-- name: UpsertChatProjectMemoryByName :o
 INSERT INTO chat_project_memories (
     project_id,
     organization_id,
-    type,
     name,
     description,
     body,
@@ -7336,39 +7323,35 @@ INSERT INTO chat_project_memories (
 VALUES (
     $1::uuid,
     $2::uuid,
-    $3::chat_project_memory_type,
+    $3::text,
     $4::text,
     $5::text,
-    $6::text,
-    $7::uuid,
-    $8::uuid
+    $6::uuid,
+    $7::uuid
 )
 ON CONFLICT (project_id, lower(name)) DO UPDATE
 SET
-    type = EXCLUDED.type,
     description = EXCLUDED.description,
     body = EXCLUDED.body,
     source_chat_id = EXCLUDED.source_chat_id,
     updated_at = now()
-RETURNING id, project_id, organization_id, type, name, description, body, source_chat_id, created_by, created_at, updated_at
+RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
 `
 
 type UpsertChatProjectMemoryByNameParams struct {
-	ProjectID      uuid.UUID             `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID             `db:"organization_id" json:"organization_id"`
-	Type           ChatProjectMemoryType `db:"type" json:"type"`
-	Name           string                `db:"name" json:"name"`
-	Description    string                `db:"description" json:"description"`
-	Body           string                `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID         `db:"source_chat_id" json:"source_chat_id"`
-	CreatedBy      uuid.UUID             `db:"created_by" json:"created_by"`
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) UpsertChatProjectMemoryByName(ctx context.Context, arg UpsertChatProjectMemoryByNameParams) (ChatProjectMemory, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatProjectMemoryByName,
 		arg.ProjectID,
 		arg.OrganizationID,
-		arg.Type,
 		arg.Name,
 		arg.Description,
 		arg.Body,
@@ -7380,7 +7363,6 @@ func (q *sqlQuerier) UpsertChatProjectMemoryByName(ctx context.Context, arg Upse
 		&i.ID,
 		&i.ProjectID,
 		&i.OrganizationID,
-		&i.Type,
 		&i.Name,
 		&i.Description,
 		&i.Body,

@@ -59,7 +59,6 @@ func TestNormalizeProjectMemoryExtraction(t *testing.T) {
 
 	normalized, err := normalizeProjectMemoryExtraction(projectMemoryExtractionUpsert{
 		Name:        "Release_Notes",
-		Type:        database.ChatProjectMemoryTypeProject,
 		Description: "<project-memory>Durable release process</project-memory>",
 		Body:        "<project-memory>Run the checklist.</project-memory>",
 	})
@@ -70,7 +69,6 @@ func TestNormalizeProjectMemoryExtraction(t *testing.T) {
 
 	_, err = normalizeProjectMemoryExtraction(projectMemoryExtractionUpsert{
 		Name:        "invalid name",
-		Type:        database.ChatProjectMemoryTypeProject,
 		Description: "Description",
 		Body:        "Body",
 	})
@@ -232,13 +230,11 @@ func TestExtractProjectMemories(t *testing.T) {
 				"upserts": []map[string]any{
 					{
 						"name":        "Release_Notes",
-						"type":        database.ChatProjectMemoryTypeProject,
 						"description": "<project-memory>Durable release process</project-memory>",
 						"body":        "<project-memory>Run the release checklist.</project-memory>",
 					},
 					{
 						"name":        "Bad Name!",
-						"type":        database.ChatProjectMemoryTypeProject,
 						"description": "Ignored",
 						"body":        "Ignored",
 					},
@@ -250,7 +246,6 @@ func TestExtractProjectMemories(t *testing.T) {
 		validUpsert := database.UpsertChatProjectMemoryByNameParams{
 			ProjectID:      chat.ProjectID.UUID,
 			OrganizationID: chat.OrganizationID,
-			Type:           database.ChatProjectMemoryTypeProject,
 			Name:           "release_notes",
 			Description:    "Durable release process",
 			Body:           "Run the release checklist.",
@@ -301,7 +296,6 @@ func TestExtractProjectMemories(t *testing.T) {
 			response := objectResponse(t, map[string]any{
 				"upserts": []map[string]any{{
 					"name":        "release_notes",
-					"type":        database.ChatProjectMemoryTypeProject,
 					"description": "Hallucinated rewrite",
 					"body":        "Deploy day is Friday.",
 				}},
@@ -345,7 +339,6 @@ func TestExtractProjectMemories(t *testing.T) {
 			response := objectResponse(t, map[string]any{
 				"upserts": []map[string]any{{
 					"name":        "release_notes",
-					"type":        database.ChatProjectMemoryTypeProject,
 					"description": "Durable release process",
 					"body":        "Run the release checklist.",
 				}},

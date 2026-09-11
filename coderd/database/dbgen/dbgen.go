@@ -103,7 +103,6 @@ func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjec
 		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		ProjectID:      takeFirst(seed.ProjectID, uuid.New()),
 		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
-		Type:           takeFirst(seed.Type, database.ChatProjectMemoryTypeProject),
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 		Body:           seed.Body,

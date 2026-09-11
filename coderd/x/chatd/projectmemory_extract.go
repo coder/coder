@@ -41,10 +41,9 @@ type projectMemoryExtraction struct {
 }
 
 type projectMemoryExtractionUpsert struct {
-	Name        string                         `json:"name"`
-	Type        database.ChatProjectMemoryType `json:"type"`
-	Description string                         `json:"description"`
-	Body        string                         `json:"body"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Body        string `json:"body"`
 }
 
 func (p *Server) maybeExtractProjectMemoriesAsync(ctx context.Context, logger slog.Logger, chat database.Chat) {
@@ -109,7 +108,7 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 	}
 	entries := make([]chattool.ProjectMemoryIndexEntry, len(memories))
 	for i, memory := range memories {
-		entries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Type: memory.ChatProjectMemory.Type, Description: memory.ChatProjectMemory.Description}
+		entries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Description: memory.ChatProjectMemory.Description}
 	}
 
 	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
@@ -150,7 +149,7 @@ func applyProjectMemoryUpsert(ctx context.Context, store database.Store, chat da
 	if err != nil {
 		return err
 	}
-	name, memoryType, description, body := normalized.Name, normalized.Type, normalized.Description, normalized.Body
+	name, description, body := normalized.Name, normalized.Description, normalized.Body
 	_, existingErr := store.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: name})
 	if existingErr == nil {
 		return xerrors.Errorf("memory %q already exists", name)
@@ -166,7 +165,7 @@ func applyProjectMemoryUpsert(ctx context.Context, store database.Store, chat da
 		return xerrors.New("project memory limit reached")
 	}
 	_, err = store.UpsertChatProjectMemoryByName(ctx, database.UpsertChatProjectMemoryByNameParams{
-		ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID, Type: memoryType,
+		ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID,
 		Name: name, Description: description, Body: body,
 		SourceChatID: uuid.NullUUID{UUID: chat.ID, Valid: true}, CreatedBy: chat.OwnerID,
 	})
@@ -175,7 +174,6 @@ func applyProjectMemoryUpsert(ctx context.Context, store database.Store, chat da
 
 type normalizedProjectMemoryExtraction struct {
 	Name        string
-	Type        database.ChatProjectMemoryType
 	Description string
 	Body        string
 }
@@ -185,9 +183,6 @@ func normalizeProjectMemoryExtraction(upsert projectMemoryExtractionUpsert) (nor
 	if err := chattool.ValidateProjectMemoryName(name); err != nil {
 		return normalizedProjectMemoryExtraction{}, err
 	}
-	if !upsert.Type.Valid() {
-		return normalizedProjectMemoryExtraction{}, xerrors.New("invalid memory type")
-	}
 	description := chattool.NormalizeProjectMemoryText(upsert.Description)
 	body := chattool.NormalizeProjectMemoryText(upsert.Body)
 	if description == "" || len([]rune(description)) > chattool.MaxProjectMemoryDescriptionChars {
@@ -196,7 +191,7 @@ func normalizeProjectMemoryExtraction(upsert projectMemoryExtractionUpsert) (nor
 	if body == "" || len(body) > chattool.MaxProjectMemoryBodyBytes {
 		return normalizedProjectMemoryExtraction{}, xerrors.New("invalid memory body")
 	}
-	return normalizedProjectMemoryExtraction{Name: name, Type: upsert.Type, Description: description, Body: body}, nil
+	return normalizedProjectMemoryExtraction{Name: name, Description: description, Body: body}, nil
 }
 
 // turnUsedProjectMemoryTools reports whether the messages written after the

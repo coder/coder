@@ -35,7 +35,6 @@ func TestFormatProjectMemoryIndex(t *testing.T) {
 	for i := range entries {
 		entries[i] = chattool.ProjectMemoryIndexEntry{
 			Name:        "memory-" + strings.Repeat("x", 50) + string(rune('a'+i%26)),
-			Type:        database.ChatProjectMemoryTypeProject,
 			Description: strings.Repeat("description ", 20),
 		}
 	}
@@ -80,7 +79,6 @@ func TestSaveProjectMemoryCapAndUpsert(t *testing.T) {
 		db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), gomock.Any()).Return(database.GetChatProjectMemoryByNameRow{ChatProjectMemory: database.ChatProjectMemory{ID: uuid.New()}}, nil)
 		db.EXPECT().UpsertChatProjectMemoryByName(gomock.Any(), gomock.AssignableToTypeOf(database.UpsertChatProjectMemoryByNameParams{})).DoAndReturn(func(_ context.Context, arg database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
 			require.Equal(t, "durable-fact", arg.Name)
-			require.Equal(t, database.ChatProjectMemoryTypeProject, arg.Type)
 			require.Equal(t, projectID, arg.ProjectID)
 			require.Equal(t, organizationID, arg.OrganizationID)
 			require.Equal(t, chatID, arg.SourceChatID.UUID)

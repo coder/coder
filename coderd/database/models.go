@@ -1821,70 +1821,6 @@ func AllChatPlanModeValues() []ChatPlanMode {
 	}
 }
 
-type ChatProjectMemoryType string
-
-const (
-	ChatProjectMemoryTypeUser      ChatProjectMemoryType = "user"
-	ChatProjectMemoryTypeFeedback  ChatProjectMemoryType = "feedback"
-	ChatProjectMemoryTypeProject   ChatProjectMemoryType = "project"
-	ChatProjectMemoryTypeReference ChatProjectMemoryType = "reference"
-)
-
-func (e *ChatProjectMemoryType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ChatProjectMemoryType(s)
-	case string:
-		*e = ChatProjectMemoryType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ChatProjectMemoryType: %T", src)
-	}
-	return nil
-}
-
-type NullChatProjectMemoryType struct {
-	ChatProjectMemoryType ChatProjectMemoryType `json:"chat_project_memory_type"`
-	Valid                 bool                  `json:"valid"` // Valid is true if ChatProjectMemoryType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullChatProjectMemoryType) Scan(value interface{}) error {
-	if value == nil {
-		ns.ChatProjectMemoryType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ChatProjectMemoryType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullChatProjectMemoryType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ChatProjectMemoryType), nil
-}
-
-func (e ChatProjectMemoryType) Valid() bool {
-	switch e {
-	case ChatProjectMemoryTypeUser,
-		ChatProjectMemoryTypeFeedback,
-		ChatProjectMemoryTypeProject,
-		ChatProjectMemoryTypeReference:
-		return true
-	}
-	return false
-}
-
-func AllChatProjectMemoryTypeValues() []ChatProjectMemoryType {
-	return []ChatProjectMemoryType{
-		ChatProjectMemoryTypeUser,
-		ChatProjectMemoryTypeFeedback,
-		ChatProjectMemoryTypeProject,
-		ChatProjectMemoryTypeReference,
-	}
-}
-
 type ChatReasoningEffort string
 
 const (
@@ -5440,17 +5376,16 @@ type ChatProject struct {
 
 // Organization-scoped durable memories for chat projects.
 type ChatProjectMemory struct {
-	ID             uuid.UUID             `db:"id" json:"id"`
-	ProjectID      uuid.UUID             `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID             `db:"organization_id" json:"organization_id"`
-	Type           ChatProjectMemoryType `db:"type" json:"type"`
-	Name           string                `db:"name" json:"name"`
-	Description    string                `db:"description" json:"description"`
-	Body           string                `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID         `db:"source_chat_id" json:"source_chat_id"`
-	CreatedBy      uuid.UUID             `db:"created_by" json:"created_by"`
-	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time             `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 // Per-chat cursors for project memory extraction.

@@ -6,13 +6,10 @@ ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_project_memory:read';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_project_memory:update';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_project_memory:delete';
 
-CREATE TYPE chat_project_memory_type AS ENUM ('user', 'feedback', 'project', 'reference');
-
 CREATE TABLE chat_project_memories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id uuid NOT NULL REFERENCES chat_projects(id) ON DELETE CASCADE,
     organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    type chat_project_memory_type NOT NULL,
     name text NOT NULL,
     description text NOT NULL,
     body text NOT NULL,

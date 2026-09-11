@@ -3217,7 +3217,6 @@ export interface ChatProjectMemory {
 	readonly id: string;
 	readonly project_id: string;
 	readonly organization_id: string;
-	readonly type: ChatProjectMemoryType;
 	readonly name: string;
 	readonly description: string;
 	readonly body: string;
@@ -3227,20 +3226,6 @@ export interface ChatProjectMemory {
 	readonly created_at: string;
 	readonly updated_at: string;
 }
-
-// From codersdk/chats.go
-export type ChatProjectMemoryType =
-	| "feedback"
-	| "project"
-	| "reference"
-	| "user";
-
-export const ChatProjectMemoryTypes: ChatProjectMemoryType[] = [
-	"feedback",
-	"project",
-	"reference",
-	"user",
-];
 
 // From codersdk/chats.go
 /**
@@ -3913,7 +3898,6 @@ export interface CreateChatModelRequest {
 
 // From codersdk/chats.go
 export interface CreateChatProjectMemoryRequest {
-	readonly type: ChatProjectMemoryType;
 	readonly name: string;
 	readonly description: string;
 	readonly body: string;
@@ -9756,7 +9740,6 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 export interface UpdateChatProjectMemoryRequest {
-	readonly type?: ChatProjectMemoryType;
 	readonly name?: string;
 	readonly description?: string;
 	readonly body?: string;

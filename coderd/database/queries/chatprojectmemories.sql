@@ -3,7 +3,6 @@ INSERT INTO chat_project_memories (
     id,
     project_id,
     organization_id,
-    type,
     name,
     description,
     body,
@@ -14,7 +13,6 @@ VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @project_id::uuid,
     @organization_id::uuid,
-    @type::chat_project_memory_type,
     @name::text,
     @description::text,
     @body::text,
@@ -27,7 +25,6 @@ RETURNING *;
 INSERT INTO chat_project_memories (
     project_id,
     organization_id,
-    type,
     name,
     description,
     body,
@@ -37,7 +34,6 @@ INSERT INTO chat_project_memories (
 VALUES (
     @project_id::uuid,
     @organization_id::uuid,
-    @type::chat_project_memory_type,
     @name::text,
     @description::text,
     @body::text,
@@ -46,7 +42,6 @@ VALUES (
 )
 ON CONFLICT (project_id, lower(name)) DO UPDATE
 SET
-    type = EXCLUDED.type,
     description = EXCLUDED.description,
     body = EXCLUDED.body,
     source_chat_id = EXCLUDED.source_chat_id,
@@ -87,7 +82,6 @@ WHERE project_id = @project_id::uuid;
 -- name: UpdateChatProjectMemoryByID :one
 UPDATE chat_project_memories
 SET
-    type = @type::chat_project_memory_type,
     name = @name::text,
     description = @description::text,
     body = @body::text,

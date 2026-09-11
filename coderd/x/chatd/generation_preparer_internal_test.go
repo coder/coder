@@ -360,7 +360,6 @@ func TestPrepareGenerationProjectMemory(t *testing.T) {
 					OrganizationID: org.ID,
 					CreatedBy:      user.ID,
 					Name:           "release_notes",
-					Type:           database.ChatProjectMemoryTypeProject,
 					Description:    "Durable release process",
 					Body:           "Run the release checklist.",
 				})
@@ -434,7 +433,7 @@ func TestPrepareGenerationProjectMemory(t *testing.T) {
 			gotSystemPrompt := systemPrompt.String()
 			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<project-memory>"))
 			if tt.wantMemoryBlock {
-				require.Contains(t, gotSystemPrompt, "- release_notes [project]: Durable release process")
+				require.Contains(t, gotSystemPrompt, "- release_notes: Durable release process")
 				require.Less(t, strings.Index(gotSystemPrompt, "<project-memory>"), strings.Index(gotSystemPrompt, "<user-instructions>"))
 			}
 

@@ -21,7 +21,6 @@ describe("ChatProjectMemoryDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith({
-			type: "project",
 			name: "durable-fact",
 			description: "A durable fact",
 			body: "Project memory body",

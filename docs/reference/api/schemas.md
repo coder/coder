@@ -4570,41 +4570,25 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "source_chat_id": "5fa953ed-8c56-4ffd-9537-cfa0711f78cc",
-  "type": "user",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                             | Required | Restrictions | Description |
-|-----------------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `body`                | string                                                           | false    |              |             |
-| `created_at`          | string                                                           | false    |              |             |
-| `created_by`          | string                                                           | false    |              |             |
-| `created_by_username` | string                                                           | false    |              |             |
-| `description`         | string                                                           | false    |              |             |
-| `id`                  | string                                                           | false    |              |             |
-| `name`                | string                                                           | false    |              |             |
-| `organization_id`     | string                                                           | false    |              |             |
-| `project_id`          | string                                                           | false    |              |             |
-| `source_chat_id`      | string                                                           | false    |              |             |
-| `type`                | [codersdk.ChatProjectMemoryType](#codersdkchatprojectmemorytype) | false    |              |             |
-| `updated_at`          | string                                                           | false    |              |             |
-
-## codersdk.ChatProjectMemoryType
-
-```json
-"user"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                   |
-|--------------------------------------------|
-| `feedback`, `project`, `reference`, `user` |
+| Name                  | Type   | Required | Restrictions | Description |
+|-----------------------|--------|----------|--------------|-------------|
+| `body`                | string | false    |              |             |
+| `created_at`          | string | false    |              |             |
+| `created_by`          | string | false    |              |             |
+| `created_by_username` | string | false    |              |             |
+| `description`         | string | false    |              |             |
+| `id`                  | string | false    |              |             |
+| `name`                | string | false    |              |             |
+| `organization_id`     | string | false    |              |             |
+| `project_id`          | string | false    |              |             |
+| `source_chat_id`      | string | false    |              |             |
+| `updated_at`          | string | false    |              |             |
 
 ## codersdk.ChatPrompt
 
@@ -6180,19 +6164,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "body": "string",
   "description": "string",
-  "name": "string",
-  "type": "user"
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                             | Required | Restrictions | Description |
-|---------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `body`        | string                                                           | true     |              |             |
-| `description` | string                                                           | true     |              |             |
-| `name`        | string                                                           | true     |              |             |
-| `type`        | [codersdk.ChatProjectMemoryType](#codersdkchatprojectmemorytype) | true     |              |             |
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `body`        | string | true     |              |             |
+| `description` | string | true     |              |             |
+| `name`        | string | true     |              |             |
 
 ## codersdk.CreateChatProjectRequest
 
@@ -15596,19 +15578,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "body": "string",
   "description": "string",
-  "name": "string",
-  "type": "user"
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                             | Required | Restrictions | Description |
-|---------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `body`        | string                                                           | false    |              |             |
-| `description` | string                                                           | false    |              |             |
-| `name`        | string                                                           | false    |              |             |
-| `type`        | [codersdk.ChatProjectMemoryType](#codersdkchatprojectmemorytype) | false    |              |             |
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `body`        | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `name`        | string | false    |              |             |
 
 ## codersdk.UpdateChatProjectRequest
 

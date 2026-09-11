@@ -11,19 +11,10 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 
 const memoryNamePattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
-const memoryTypes = ["user", "feedback", "project", "reference"] as const;
 
 type ChatProjectMemoryDialogProps = {
 	readonly memory?: TypesGen.ChatProjectMemory | null;
@@ -40,13 +31,9 @@ export const ChatProjectMemoryDialog: FC<ChatProjectMemoryDialogProps> = ({
 	onOpenChange,
 	onSubmit,
 }) => {
-	const typeId = useId();
 	const nameId = useId();
 	const descriptionId = useId();
 	const bodyId = useId();
-	const [type, setType] = useState<TypesGen.ChatProjectMemoryType>(
-		memory?.type ?? "project",
-	);
 	const [name, setName] = useState(memory?.name ?? "");
 	const [description, setDescription] = useState(memory?.description ?? "");
 	const [body, setBody] = useState(memory?.body ?? "");
@@ -70,7 +57,7 @@ export const ChatProjectMemoryDialog: FC<ChatProjectMemoryDialogProps> = ({
 		}
 		setIsSaving(true);
 		setError(undefined);
-		await onSubmit({ type, name, description, body })
+		await onSubmit({ name, description, body })
 			.then(() => {
 				onOpenChange(false);
 			})
@@ -87,27 +74,6 @@ export const ChatProjectMemoryDialog: FC<ChatProjectMemoryDialogProps> = ({
 					<DialogTitle>{isEditing ? "Edit memory" : "Add memory"}</DialogTitle>
 				</DialogHeader>
 				<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-					<div className="flex flex-col gap-2">
-						<Label htmlFor={typeId}>Type</Label>
-						<Select
-							value={type}
-							onValueChange={(value: TypesGen.ChatProjectMemoryType) =>
-								setType(value)
-							}
-							disabled={isSaving}
-						>
-							<SelectTrigger id={typeId}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{memoryTypes.map((memoryType) => (
-									<SelectItem key={memoryType} value={memoryType}>
-										{memoryType}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
 					<div className="flex flex-col gap-2">
 						<Label htmlFor={nameId}>Name</Label>
 						<Input

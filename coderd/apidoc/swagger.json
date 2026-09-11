@@ -19409,24 +19409,11 @@
 					"type": "string",
 					"format": "uuid"
 				},
-				"type": {
-					"$ref": "#/definitions/codersdk.ChatProjectMemoryType"
-				},
 				"updated_at": {
 					"type": "string",
 					"format": "date-time"
 				}
 			}
-		},
-		"codersdk.ChatProjectMemoryType": {
-			"type": "string",
-			"enum": ["user", "feedback", "project", "reference"],
-			"x-enum-varnames": [
-				"ChatProjectMemoryTypeUser",
-				"ChatProjectMemoryTypeFeedback",
-				"ChatProjectMemoryTypeProject",
-				"ChatProjectMemoryTypeReference"
-			]
 		},
 		"codersdk.ChatPrompt": {
 			"type": "object",
@@ -20102,7 +20089,7 @@
 		},
 		"codersdk.CreateChatProjectMemoryRequest": {
 			"type": "object",
-			"required": ["body", "description", "name", "type"],
+			"required": ["body", "description", "name"],
 			"properties": {
 				"body": {
 					"type": "string"
@@ -20112,9 +20099,6 @@
 				},
 				"name": {
 					"type": "string"
-				},
-				"type": {
-					"$ref": "#/definitions/codersdk.ChatProjectMemoryType"
 				}
 			}
 		},
@@ -27463,9 +27447,6 @@
 				},
 				"name": {
 					"type": "string"
-				},
-				"type": {
-					"$ref": "#/definitions/codersdk.ChatProjectMemoryType"
 				}
 			}
 		},

@@ -379,13 +379,6 @@ CREATE TYPE chat_plan_mode AS ENUM (
     'plan'
 );
 
-CREATE TYPE chat_project_memory_type AS ENUM (
-    'user',
-    'feedback',
-    'project',
-    'reference'
-);
-
 CREATE TYPE chat_reasoning_effort AS ENUM (
     'none',
     'minimal',
@@ -2133,7 +2126,6 @@ CREATE TABLE chat_project_memories (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     project_id uuid NOT NULL,
     organization_id uuid NOT NULL,
-    type chat_project_memory_type NOT NULL,
     name text NOT NULL,
     description text NOT NULL,
     body text NOT NULL,

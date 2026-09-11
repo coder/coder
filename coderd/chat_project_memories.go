@@ -66,7 +66,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	normalized, resp := validateChatProjectMemory(req.Type, req.Name, req.Description, req.Body)
+	normalized, resp := validateChatProjectMemory(req.Name, req.Description, req.Body)
 	if resp != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
@@ -82,7 +82,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionCreate, OrganizationID: project.OrganizationID})
 	defer commit()
-	memory, err := api.Database.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Type: database.ChatProjectMemoryType(normalized.Type), Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, SourceChatID: uuid.NullUUID{}, CreatedBy: apiKey.UserID})
+	memory, err := api.Database.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, SourceChatID: uuid.NullUUID{}, CreatedBy: apiKey.UserID})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project memory with this name already exists."})
 		return
@@ -148,10 +148,6 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	memoryType := codersdk.ChatProjectMemoryType(memory.Type)
-	if req.Type != nil {
-		memoryType = *req.Type
-	}
 	name := memory.Name
 	if req.Name != nil {
 		name = *req.Name
@@ -164,7 +160,7 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 	if req.Body != nil {
 		body = *req.Body
 	}
-	normalized, resp := validateChatProjectMemory(memoryType, name, description, body)
+	normalized, resp := validateChatProjectMemory(name, description, body)
 	if resp != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
@@ -172,7 +168,7 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite, OrganizationID: project.OrganizationID})
 	defer commit()
 	aReq.Old = memory
-	updated, err := api.Database.UpdateChatProjectMemoryByID(ctx, database.UpdateChatProjectMemoryByIDParams{ID: memory.ID, Type: database.ChatProjectMemoryType(normalized.Type), Name: normalized.Name, Description: normalized.Description, Body: normalized.Body})
+	updated, err := api.Database.UpdateChatProjectMemoryByID(ctx, database.UpdateChatProjectMemoryByIDParams{ID: memory.ID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project memory with this name already exists."})
 		return
@@ -222,20 +218,16 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 
 type normalizedChatProjectMemory struct {
 	Name        string
-	Type        codersdk.ChatProjectMemoryType
 	Description string
 	Body        string
 }
 
-func validateChatProjectMemory(memoryType codersdk.ChatProjectMemoryType, name, description, body string) (normalizedChatProjectMemory, *codersdk.Response) {
+func validateChatProjectMemory(name, description, body string) (normalizedChatProjectMemory, *codersdk.Response) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	description = chattool.NormalizeProjectMemoryText(description)
 	body = chattool.NormalizeProjectMemoryText(body)
 	if err := chattool.ValidateProjectMemoryName(name); err != nil {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: err.Error()}
-	}
-	if !database.ChatProjectMemoryType(memoryType).Valid() {
-		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "Invalid chat project memory type."}
 	}
 	if description == "" || utf8.RuneCountInString(description) > chattool.MaxProjectMemoryDescriptionChars {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "description must be at most 150 characters."}
@@ -243,7 +235,7 @@ func validateChatProjectMemory(memoryType codersdk.ChatProjectMemoryType, name, 
 	if body == "" || len(body) > chattool.MaxProjectMemoryBodyBytes {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "body must be at most 8192 bytes."}
 	}
-	return normalizedChatProjectMemory{Name: name, Type: memoryType, Description: description, Body: body}, nil
+	return normalizedChatProjectMemory{Name: name, Description: description, Body: body}, nil
 }
 
 func rbacMemoryObject(organizationID uuid.UUID) database.ChatProjectMemory {

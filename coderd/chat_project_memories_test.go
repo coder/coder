@@ -22,7 +22,6 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	project := createChatProject(t, client, firstUser.OrganizationID, "Memory Project")
 
 	created, err := client.CreateChatProjectMemory(ctx, project.ID, codersdk.CreateChatProjectMemoryRequest{
-		Type:        codersdk.ChatProjectMemoryTypeProject,
 		Name:        "release-process",
 		Description: "Release process notes",
 		Body:        "Use the release checklist before tagging.",
@@ -48,7 +47,6 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	require.Equal(t, updatedDescription, updated.Description)
 
 	_, err = client.CreateChatProjectMemory(ctx, project.ID, codersdk.CreateChatProjectMemoryRequest{
-		Type:        codersdk.ChatProjectMemoryTypeProject,
 		Name:        "release-process",
 		Description: "Duplicate",
 		Body:        "Duplicate body.",
@@ -84,14 +82,12 @@ func TestChatProjectMemoryCap(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			CreatedBy:      firstUser.UserID,
 			Name:           "memory-" + uuid.NewString() + string(rune('a'+i%26)),
-			Type:           database.ChatProjectMemoryTypeProject,
 			Description:    "Seeded memory",
 			Body:           "Seeded durable memory.",
 		})
 	}
 
 	_, err := client.CreateChatProjectMemory(ctx, project.ID, codersdk.CreateChatProjectMemoryRequest{
-		Type:        codersdk.ChatProjectMemoryTypeProject,
 		Name:        "one-too-many",
 		Description: "Too many memories",
 		Body:        "This should be rejected.",

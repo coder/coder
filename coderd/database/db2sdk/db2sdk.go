@@ -1856,7 +1856,6 @@ func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUserna
 		ID:                memory.ID,
 		ProjectID:         memory.ProjectID,
 		OrganizationID:    memory.OrganizationID,
-		Type:              codersdk.ChatProjectMemoryType(memory.Type),
 		Name:              memory.Name,
 		Description:       memory.Description,
 		Body:              memory.Body,

@@ -10,7 +10,6 @@ import {
 } from "#/api/queries/chatProjectMemories";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
@@ -24,7 +23,7 @@ type ProjectMemorySectionProps = {
 
 /**
  * Lists the memories the agent has saved for a project. Rows are collapsed
- * to name and type by default; the body and actions only appear on expand.
+ * to their names by default; the body and actions only appear on expand.
  * Manual creation is available but intentionally understated: the agent is
  * the expected writer.
  */
@@ -99,9 +98,6 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 									<span className="min-w-0 flex-1 truncate font-mono text-sm">
 										{memory.name}
 									</span>
-									<Badge size="xs" variant="default">
-										{memory.type}
-									</Badge>
 								</button>
 								{expanded && (
 									<div className="space-y-3 px-3 pb-3 pl-9">

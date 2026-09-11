@@ -52,7 +52,6 @@ describe("ProjectMemorySection", () => {
 
 		await waitFor(() => {
 			expect(requestBody).toEqual({
-				type: "project",
 				name: "durable-fact",
 				description: "A durable fact",
 				body: "Project memory body",

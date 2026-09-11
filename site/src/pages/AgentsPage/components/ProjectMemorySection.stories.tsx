@@ -3,9 +3,7 @@ import { chatProjectMemoriesKey } from "#/api/queries/chatProjectsKeys";
 import {
 	MockChatProject,
 	MockChatProjectMemory,
-	MockChatProjectMemoryFeedback,
-	MockChatProjectMemoryProject,
-	MockChatProjectMemoryReference,
+	MockChatProjectMemory2,
 } from "#/testHelpers/entities";
 import { ProjectMemorySection } from "./ProjectMemorySection";
 
@@ -29,12 +27,7 @@ export const Populated: Story = {
 		queries: [
 			{
 				key: chatProjectMemoriesKey(MockChatProject.id),
-				data: [
-					MockChatProjectMemory,
-					MockChatProjectMemoryFeedback,
-					MockChatProjectMemoryProject,
-					MockChatProjectMemoryReference,
-				],
+				data: [MockChatProjectMemory, MockChatProjectMemory2],
 			},
 		],
 	},

@@ -469,7 +469,7 @@ func (server *Server) prepareGeneration(
 		} else {
 			entries := make([]chattool.ProjectMemoryIndexEntry, len(memories))
 			for i, memory := range memories {
-				entries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Type: memory.ChatProjectMemory.Type, Description: memory.ChatProjectMemory.Description}
+				entries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Description: memory.ChatProjectMemory.Description}
 			}
 			projectMemoryIndex = chattool.FormatProjectMemoryIndex(entries)
 		}
