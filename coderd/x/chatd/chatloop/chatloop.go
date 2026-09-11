@@ -40,7 +40,6 @@ const (
 )
 
 var (
-	ErrInterrupted = xerrors.New("chat interrupted")
 	// ErrContentFiltered is returned when the provider's safety
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
@@ -127,7 +126,6 @@ type AssistantOutcome struct {
 	Step         PersistedStep
 	ToolCalls    []fantasy.ToolCallContent
 	FinishReason fantasy.FinishReason
-	ModelStopped bool
 }
 
 // ExecuteLocalToolsOptions configures one local tool execution batch.
@@ -197,7 +195,6 @@ type GenerateCompactionOptions struct {
 	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
-	StepMetadata         fantasy.ProviderMetadata
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,
@@ -339,11 +336,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 	defer attempt.release()
 
-	result, processErr := processStepStream(attempt.ctx, attempt.stream, opts.Clock, publishMessagePart)
+	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
-		if errors.Is(err, ErrInterrupted) {
-			return AssistantOutcome{}, ErrInterrupted
-		}
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
@@ -385,7 +379,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Step:         step,
 		ToolCalls:    append([]fantasy.ToolCallContent(nil), result.toolCalls...),
 		FinishReason: result.finishReason,
-		ModelStopped: len(result.content) == 0,
 	}, nil
 }
 
@@ -814,14 +807,13 @@ func clockNow(clock quartz.Clock) time.Time {
 // accumulates all content into a stepResult. Callbacks fire
 // inline and their errors propagate directly.
 func processStepStream(
-	ctx context.Context,
 	stream fantasy.StreamResponse,
 	clock quartz.Clock,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) (stepResult, error) {
 	var result stepResult
 
-	activeToolCalls := make(map[string]*fantasy.ToolCallContent)
+	providerExecutedCalls := make(map[string]bool)
 	activeTextContent := make(map[string]string)
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
@@ -884,22 +876,13 @@ func processStepStream(
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
-			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
-				ToolCallID:       part.ID,
-				ToolName:         part.ToolCallName,
-				Input:            "",
-				ProviderExecuted: part.ProviderExecuted,
-			}
+			providerExecutedCalls[part.ID] = part.ProviderExecuted
 			if strings.TrimSpace(part.ToolCallName) != "" {
 				toolNames[part.ID] = part.ToolCallName
 			}
 
 		case fantasy.StreamPartTypeToolInputDelta:
-			var providerExecuted bool
-			if toolCall, exists := activeToolCalls[part.ID]; exists {
-				toolCall.Input += part.Delta
-				providerExecuted = toolCall.ProviderExecuted
-			}
+			providerExecuted := providerExecutedCalls[part.ID]
 			toolName := toolNames[part.ID]
 			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
 				Type:             codersdk.ChatMessagePartTypeToolCall,
@@ -926,7 +909,7 @@ func processStepStream(
 				toolNames[part.ID] = part.ToolCallName
 			}
 			// Clean up active tool call tracking.
-			delete(activeToolCalls, part.ID)
+			delete(providerExecutedCalls, part.ID)
 
 			// Record when the model emitted this tool call
 			// so the persisted part carries an accurate
@@ -991,47 +974,10 @@ func processStepStream(
 			result.providerMetadata = part.ProviderMetadata
 
 		case fantasy.StreamPartTypeError:
-			// Detect interruption: the stream may surface the
-			// cancel as context.Canceled or propagate the
-			// ErrInterrupted cause directly, depending on
-			// the provider implementation.
-			if errors.Is(context.Cause(ctx), ErrInterrupted) &&
-				(errors.Is(part.Error, context.Canceled) || errors.Is(part.Error, ErrInterrupted)) {
-				// Flush in-progress content so that
-				// persistInterruptedStep has access to partial
-				// text, reasoning, and tool calls that were
-				// still streaming when the interrupt arrived.
-				flushActiveState(
-					&result,
-					clock,
-					activeTextContent,
-					activeReasoningContent,
-					activeToolCalls,
-					toolNames,
-				)
-				return result, ErrInterrupted
-			}
 			return result, part.Error
 		}
 	}
 
-	// The stream iterator may stop yielding parts without
-	// producing a StreamPartTypeError when the context is
-	// canceled (e.g. some providers close the response body
-	// silently). Detect this case and flush partial content
-	// so that persistInterruptedStep can save it.
-	if ctx.Err() != nil &&
-		errors.Is(context.Cause(ctx), ErrInterrupted) {
-		flushActiveState(
-			&result,
-			clock,
-			activeTextContent,
-			activeReasoningContent,
-			activeToolCalls,
-			toolNames,
-		)
-		return result, ErrInterrupted
-	}
 	return result, nil
 }
 
@@ -1417,69 +1363,6 @@ func executeSingleTool(
 		}
 	}
 	return result
-}
-
-// flushActiveState moves any in-progress text, reasoning, and
-// tool calls from the active tracking maps into result.content
-// and result.toolCalls. This is called on interruption so that
-// partial content from an incomplete stream is available for
-// persistence.
-func flushActiveState(
-	result *stepResult,
-	clock quartz.Clock,
-	activeText map[string]string,
-	activeReasoning map[string]reasoningState,
-	activeToolCalls map[string]*fantasy.ToolCallContent,
-	toolNames map[string]string,
-) {
-	// Flush partial text content.
-	for _, text := range activeText {
-		if text != "" {
-			result.content = append(result.content, fantasy.TextContent{Text: text})
-		}
-	}
-
-	// Flush partial reasoning content. The matching
-	// completedAt is filled in here with the interruption
-	// time so partial reasoning shows the time spent before
-	// the interruption.
-	flushedAt := clockNow(clock)
-	for _, rs := range activeReasoning {
-		if rs.text == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
-			continue
-		}
-		result.content = append(result.content, fantasy.ReasoningContent{
-			Text:             rs.text,
-			ProviderMetadata: rs.options,
-		})
-		result.reasoningStartedAt = append(result.reasoningStartedAt, rs.startedAt)
-		result.reasoningCompletedAt = append(result.reasoningCompletedAt, flushedAt)
-	}
-
-	// Flush in-progress tool calls. These haven't received a
-	// StreamPartTypeToolCall yet, so they only exist in
-	// activeToolCalls. We add them to both content and toolCalls
-	// so persistInterruptedStep can generate synthetic error
-	// results for them.
-	for id, tc := range activeToolCalls {
-		if tc == nil {
-			continue
-		}
-		// Prefer the tool name from the toolNames map since
-		// ToolInputStart may provide a cleaner name.
-		toolName := tc.ToolName
-		if name, ok := toolNames[id]; ok && strings.TrimSpace(name) != "" {
-			toolName = name
-		}
-		flushed := fantasy.ToolCallContent{
-			ToolCallID:       tc.ToolCallID,
-			ToolName:         toolName,
-			Input:            tc.Input,
-			ProviderExecuted: tc.ProviderExecuted,
-		}
-		result.content = append(result.content, flushed)
-		result.toolCalls = append(result.toolCalls, flushed)
-	}
 }
 
 func isToolActive(name string, activeTools []string) bool {
@@ -1880,12 +1763,6 @@ func metadataKeyWords(key string) []string {
 
 func numericContextLimitValue(value any) (int64, bool) {
 	switch typed := value.(type) {
-	case int64:
-		return positiveInt64(typed)
-	case int32:
-		return positiveInt64(int64(typed))
-	case int:
-		return positiveInt64(int64(typed))
 	case float64:
 		casted := int64(typed)
 		if typed > 0 && float64(casted) == typed {
@@ -1893,11 +1770,6 @@ func numericContextLimitValue(value any) (int64, bool) {
 		}
 	case string:
 		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
-		if err == nil {
-			return positiveInt64(parsed)
-		}
-	case json.Number:
-		parsed, err := typed.Int64()
 		if err == nil {
 			return positiveInt64(parsed)
 		}

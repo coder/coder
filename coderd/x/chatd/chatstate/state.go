@@ -47,26 +47,6 @@ const (
 // String implements fmt.Stringer.
 func (s ExecutionState) String() string { return string(s) }
 
-// AllExecutionStates is the canonical enumeration of every value the
-// classifier can return. Tests rely on this list to iterate over every
-// state when verifying transition coverage.
-var AllExecutionStates = []ExecutionState{
-	StateN,
-	StateW,
-	StateE0,
-	StateE1,
-	StateR0,
-	StateR1,
-	StateI0,
-	StateI1,
-	StateA0,
-	StateA1,
-	StateXW,
-	StateXE0,
-	StateXE1,
-	StateInvalid,
-}
-
 // IsRunnable returns true for the execution states that the chat
 // worker is allowed to acquire and drive forward: R0, R1, I0, I1,
 // A0, and A1. Requires-action states need worker ownership for

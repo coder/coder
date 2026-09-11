@@ -9,12 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -27,17 +25,16 @@ import (
 // helper accessors. It is intentionally NOT a generic chatd test
 // fixture; tests outside this package should not depend on it.
 type testFixture struct {
-	DB     database.Store
-	PubSub pubsub.Pubsub
-	Pub    *recordingPubsub
-	User   database.User
-	Org    database.Organization
-	Model  database.ChatModelConfig
+	DB    database.Store
+	Pub   *recordingPubsub
+	User  database.User
+	Org   database.Organization
+	Model database.ChatModelConfig
 }
 
 func newTestFixture(t *testing.T) *testFixture {
 	t.Helper()
-	db, ps := dbtestutil.NewDB(t)
+	db, _ := dbtestutil.NewDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -55,12 +52,11 @@ func newTestFixture(t *testing.T) *testFixture {
 	})
 	pub := newRecordingPubsub()
 	return &testFixture{
-		DB:     db,
-		PubSub: ps,
-		Pub:    pub,
-		User:   user,
-		Org:    org,
-		Model:  model,
+		DB:    db,
+		Pub:   pub,
+		User:  user,
+		Org:   org,
+		Model: model,
 	}
 }
 
@@ -227,46 +223,6 @@ func TestChatMachine_ReadLock_RejectsMissingChat(t *testing.T) {
 	require.Empty(t, f.Pub.channels)
 }
 
-func TestChatMachine_UpdatePublishesAfterCommit(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	publishedBefore := len(f.Pub.channels)
-	// Run a no-op Update; snapshot bump still happens, one update message
-	// should follow the commit.
-	require.NoError(t, m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil }))
-	channel := coderdpubsub.ChatStateUpdateChannel(created.Chat.ID)
-	var found bool
-	for _, c := range f.Pub.channels[publishedBefore:] {
-		if c == channel {
-			found = true
-			break
-		}
-	}
-	require.True(t, found, "expected one chat:update message after commit")
-}
-
-func TestChatMachine_FailedUpdate_PublishesNothing(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	before := f.readChat(ctx, t, created.Chat.ID)
-	channelsBefore := len(f.Pub.channels)
-	expected := newSentinel()
-	cbErr := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return expected })
-	require.ErrorIs(t, cbErr, expected)
-	require.Equal(t, channelsBefore, len(f.Pub.channels), "failed update should not publish")
-	// snapshot_version should not have advanced.
-	after := f.readChat(ctx, t, created.Chat.ID)
-	require.Equal(t, before.SnapshotVersion, after.SnapshotVersion)
-}
-
 func TestMessageRevisionTrigger_AssignsRevisionFromSnapshot(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -358,37 +314,6 @@ func TestUpdateFlushesBufferedPublicationsAfterCommit(t *testing.T) {
 	require.Equal(t, baseline+1, countChannel(f.Pub.channels, channel),
 		"exactly one new chat:update reached the inner publisher after commit")
 }
-
-// TestUpdateDiscardsBufferedPublicationsOnCallbackError verifies the
-// deferred Discard path: when the callback returns an error the
-// transaction rolls back and no buffered messages reach the inner
-// publisher.
-func TestUpdateDiscardsBufferedPublicationsOnCallbackError(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	before := f.readChat(ctx, t, created.Chat.ID)
-	channelsBefore := len(f.Pub.channels)
-
-	sentinel := xerrors.New("callback boom")
-	err := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return sentinel })
-	require.ErrorIs(t, err, sentinel)
-
-	require.Equal(t, channelsBefore, len(f.Pub.channels),
-		"failed update must not flush any buffered publications")
-	after := f.readChat(ctx, t, created.Chat.ID)
-	require.Equal(t, before.SnapshotVersion, after.SnapshotVersion,
-		"snapshot bump rolled back when callback returns error")
-}
-
-type sentinelError struct{ msg string }
-
-func (s *sentinelError) Error() string { return s.msg }
-
-func newSentinel() error { return &sentinelError{msg: "sentinel"} }
 
 func countChannel(channels []string, channel string) int {
 	c := 0

@@ -36,8 +36,7 @@ type buildCommitStepMessagesInput struct {
 }
 
 type stepMessagesForCommit struct {
-	Messages       []chatstate.Message
-	VisibleIndexes []int
+	Messages []chatstate.Message
 	// ConsumeCompactionRequest clears the manual compaction marker
 	// atomically with the commit. Set on compaction commits.
 	ConsumeCompactionRequest bool
@@ -87,8 +86,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	return stepMessagesForCommit{
-		Messages:       messages,
-		VisibleIndexes: visibleMessageIndexes(messages),
+		Messages: messages,
 	}, nil
 }
 
@@ -283,16 +281,6 @@ func batchUsageMessage(
 	return msg, true, nil
 }
 
-func visibleMessageIndexes(messages []chatstate.Message) []int {
-	indexes := make([]int, 0, len(messages))
-	for i, msg := range messages {
-		if msg.Visibility == database.ChatMessageVisibilityBoth || msg.Visibility == database.ChatMessageVisibilityUser {
-			indexes = append(indexes, i)
-		}
-	}
-	return indexes
-}
-
 func textFromParts(parts []codersdk.ChatMessagePart) string {
 	var builder strings.Builder
 	for _, part := range parts {
@@ -313,8 +301,7 @@ type buildCompactionMessagesInput struct {
 }
 
 type compactionMessagesForCommit struct {
-	Messages    []chatstate.Message
-	HiddenCount int
+	Messages []chatstate.Message
 }
 
 func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMessagesForCommit, error) {
@@ -391,7 +378,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			ContentVersion: row.ContentVersion,
 		})
 	}
-	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
+	return compactionMessagesForCommit{Messages: messages}, nil
 }
 
 type buildClearMessagesInput struct {

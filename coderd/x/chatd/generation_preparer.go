@@ -768,7 +768,6 @@ func (server *Server) prepareGeneration(
 		ActiveTools:          activeToolNames,
 		AllowInactiveTools:   allowInactiveTools,
 		ProviderTools:        providerTools,
-		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
 		ModelConfigID:        modelConfig.ID,

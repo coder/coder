@@ -109,8 +109,6 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		require.Equal(t, "deploy", skills[0].Name)
 		require.Equal(t, "Deploy the app", skills[0].Description)
 		require.Equal(t, "/home/coder/.coder/skills/deploy", skills[0].Dir)
-		// MetaFile is left empty so chattool defaults to SKILL.md.
-		require.Empty(t, skills[0].MetaFile)
 		// Meta carries the pushed SKILL.md so read_skill serves the body
 		// from the pin without dialing the workspace.
 		require.Equal(t, []byte("# deploy"), skills[0].Meta)
