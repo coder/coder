@@ -223,6 +223,17 @@ message AIProvider {
   // bedrock is populated when the provider's settings include Bedrock
   // credentials (regardless of provider type).
   AIProviderKindBedrock bedrock = 6;
+  // wif is populated when the provider's settings include WIF
+  // configuration (regardless of provider type).
+  AIProviderKindWIF wif = 7;
+}
+
+message AIProviderKindWIF {
+  string federation_rule_id = 1;
+  string organization_id = 2;
+  string identity_token_file = 3;
+  string service_account_id = 4;
+  string workspace_id = 5;
 }
 
 message AIProviderKindBedrock {

@@ -150,6 +150,240 @@ func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
 	})
 }
 
+func TestNewAnthropic_WIF(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MissingIdentityToken", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewAnthropic(context.Background(), config.Anthropic{
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+			},
+		}, nil)
+		require.ErrorContains(t, err, "IdentityToken")
+	})
+
+	t.Run("RejectsCleartextBaseURL", func(t *testing.T) {
+		t.Parallel()
+
+		// WIF sends the identity assertion and access tokens in requests
+		// to the base URL; a non-loopback http scheme must fail at
+		// construction rather than leak credentials over cleartext.
+		_, err := NewAnthropic(context.Background(), config.Anthropic{
+			BaseURL: "http://proxy.example/api",
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+				IdentityToken: func(context.Context) (string, error) {
+					return "jwt", nil
+				},
+			},
+		}, nil)
+		require.ErrorContains(t, err, "non-https")
+	})
+
+	t.Run("ResolvesWIFCredential", func(t *testing.T) {
+		t.Parallel()
+
+		p := newTestAnthropic(t, config.Anthropic{
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+				IdentityToken: func(context.Context) (string, error) {
+					return "jwt", nil
+				},
+			},
+		}, nil)
+		require.NotNil(t, p.wif)
+
+		req := httptest.NewRequest(http.MethodPost, routeMessages, nil)
+		cred, err := p.resolveCredential(req)
+		require.NoError(t, err)
+		assert.Equal(t, intercept.AnthropicWIF{FederationRuleID: "fdrl_test"}, cred)
+	})
+
+	t.Run("MessagesAppendsOAuthBeta", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			clientBeta string
+			wantBeta   string
+		}{
+			{
+				name:       "no_client_beta",
+				clientBeta: "",
+				wantBeta:   "oauth-2025-04-20",
+			},
+			{
+				name:       "client_beta_preserved",
+				clientBeta: "claude-code-20250219,effort-2025-11-24",
+				wantBeta:   "claude-code-20250219,effort-2025-11-24,oauth-2025-04-20",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var receivedHeaders http.Header
+				mux := http.NewServeMux()
+				mux.HandleFunc("POST /v1/oauth/token", func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"access_token":"tok-federated","token_type":"Bearer","expires_in":3600}`))
+				})
+				mux.HandleFunc("POST /v1/messages", func(w http.ResponseWriter, r *http.Request) {
+					receivedHeaders = r.Header.Clone()
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
+				})
+				upstream := httptest.NewServer(mux)
+				t.Cleanup(upstream.Close)
+
+				provider := newTestAnthropic(t, config.Anthropic{
+					BaseURL: upstream.URL,
+					WIF: &config.AnthropicWIF{
+						FederationRuleID: "fdrl_test",
+						OrganizationID:   "org-test",
+						IdentityToken: func(context.Context) (string, error) {
+							return "test-jwt", nil
+						},
+					},
+				}, nil)
+
+				body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
+				req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
+				if tc.clientBeta != "" {
+					req.Header.Set("Anthropic-Beta", tc.clientBeta)
+				}
+				w := httptest.NewRecorder()
+
+				interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+				require.NoError(t, err)
+				interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+
+				processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)
+				require.NoError(t, interceptor.ProcessRequest(w, processReq))
+
+				// The federation token authenticates the request, and the
+				// OAuth beta flag must survive the client-header rewrite:
+				// the API rejects bearer-token requests without it.
+				assert.Equal(t, "Bearer tok-federated", receivedHeaders.Get("Authorization"))
+				assert.Equal(t, tc.wantBeta, receivedHeaders.Get("Anthropic-Beta"))
+			})
+		}
+	})
+
+	t.Run("MessagesPathAwareTokenExchange", func(t *testing.T) {
+		t.Parallel()
+
+		// The provider base URL carries a path prefix, as when Anthropic
+		// is reached through a gateway. The token exchange must respect
+		// it: deriving the exchange URL from the scheme and host alone
+		// (as the SDK's own federation middleware does) posts to the
+		// host root and breaks such deployments.
+		var exchangePath string
+		var receivedAuth string
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /api/v1/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+			exchangePath = r.URL.Path
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"tok-federated","token_type":"Bearer","expires_in":3600}`))
+		})
+		mux.HandleFunc("POST /api/v1/messages", func(w http.ResponseWriter, r *http.Request) {
+			receivedAuth = r.Header.Get("Authorization")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
+		})
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			t.Errorf("unexpected upstream request outside base path: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		})
+		upstream := httptest.NewServer(mux)
+		t.Cleanup(upstream.Close)
+
+		provider := newTestAnthropic(t, config.Anthropic{
+			BaseURL: upstream.URL + "/api",
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+				IdentityToken: func(context.Context) (string, error) {
+					return "test-jwt", nil
+				},
+			},
+		}, nil)
+
+		body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
+		req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+
+		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		require.NoError(t, err)
+		interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+
+		processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)
+		require.NoError(t, interceptor.ProcessRequest(w, processReq))
+
+		assert.Equal(t, "/api/v1/oauth/token", exchangePath)
+		assert.Equal(t, "Bearer tok-federated", receivedAuth)
+	})
+}
+
+// TestNewAnthropic_WIFIgnoresAmbientEnvCredentials pins the invariant that
+// the bridged pipeline builds its SDK service from explicit options only
+// (anthropic.NewMessageService), never from the SDK's env credential chain
+// (anthropic.NewClient). Ambient ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN
+// values in the gateway process must not populate auth headers, which would
+// trip the WIF transport's credential passthrough and replace the
+// federation token with the ambient key.
+//
+// Not parallel: t.Setenv mutates process-wide state.
+func TestNewAnthropic_WIFIgnoresAmbientEnvCredentials(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-ambient")
+	t.Setenv("ANTHROPIC_AUTH_TOKEN", "ambient-bearer")
+
+	var receivedHeaders http.Header
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/oauth/token", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"tok-federated","token_type":"Bearer","expires_in":3600}`))
+	})
+	mux.HandleFunc("POST /v1/messages", func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
+	})
+	upstream := httptest.NewServer(mux)
+	t.Cleanup(upstream.Close)
+
+	provider := newTestAnthropic(t, config.Anthropic{
+		BaseURL: upstream.URL,
+		WIF: &config.AnthropicWIF{
+			FederationRuleID: "fdrl_test",
+			OrganizationID:   "org-test",
+			IdentityToken: func(context.Context) (string, error) {
+				return "test-jwt", nil
+			},
+		},
+	}, nil)
+
+	body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
+	req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+
+	interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+	require.NoError(t, err)
+	interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+
+	processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)
+	require.NoError(t, interceptor.ProcessRequest(w, processReq))
+
+	assert.Equal(t, "Bearer tok-federated", receivedHeaders.Get("Authorization"))
+	assert.Empty(t, receivedHeaders.Get("X-Api-Key"))
+}
+
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 

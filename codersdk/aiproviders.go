@@ -90,30 +90,51 @@ type AIProviderSettings struct {
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
+	// WIF, when set, indicates this provider authenticates via Anthropic
+	// Workload Identity Federation. Only meaningful for
+	// AIProviderTypeAnthropic.
+	WIF *AIProviderWIFSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil
+	return s.Bedrock == nil && s.WIF == nil
 }
 
-// MarshalJSON emits the discriminated wire form. Empty settings encode
-// as JSON null so the column round-trips cleanly through SQL NULL.
+// MarshalJSON emits the discriminated wire form. The zero value encodes
+// as JSON null, keeping provider responses on the shape earlier clients
+// decode (their UnmarshalJSON rejects objects without a _type
+// discriminator). The explicit-clear form for update requests is a
+// literal {}, which only UnmarshalJSON accepts; Go clients that need to
+// clear stored settings must send it as raw JSON, since marshaling a
+// zero value produces null, which keeps the stored value. Database
+// encoding maps the zero value to SQL NULL separately (see coderd
+// encodeAIProviderSettings).
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	switch {
 	case s.Bedrock != nil:
 		return marshalSettings(*s.Bedrock)
+	case s.WIF != nil:
+		return marshalSettings(*s.WIF)
 	default:
 		return []byte("null"), nil
 	}
 }
 
 // UnmarshalJSON inspects the _type discriminator and routes to the
-// concrete settings struct that matches it.
+// concrete settings struct that matches it. A literal empty object is
+// an explicit clear: PATCH callers send "settings": {} to drop the
+// stored type-specific settings, e.g. when migrating a WIF provider
+// back to bearer keys. Objects that carry fields without a _type stay
+// errors so a typo'd payload cannot be mistaken for a clear.
 func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 	*s = AIProviderSettings{}
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err == nil && len(fields) == 0 {
 		return nil
 	}
 	var header aiProviderSettingsHeader
@@ -136,6 +157,17 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 			return xerrors.Errorf("decode bedrock settings: %w", err)
 		}
 		s.Bedrock = &b
+		return nil
+	case AIProviderSettingsTypeWIF:
+		if header.Version != AIProviderWIFSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderWIFSettingsVersion)
+		}
+		var w AIProviderWIFSettings
+		if err := json.Unmarshal(data, &w); err != nil {
+			return xerrors.Errorf("decode WIF settings: %w", err)
+		}
+		s.WIF = &w
 		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
@@ -296,6 +328,33 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
 	}
+	if req.Settings.WIF != nil && req.Type != AIProviderTypeAnthropic {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings are only valid for type=anthropic",
+		})
+	}
+	if req.Settings.WIF != nil && req.Settings.Bedrock != nil {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF and Bedrock settings are mutually exclusive",
+		})
+	}
+	if req.Settings.WIF != nil && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings and api_keys are mutually exclusive",
+		})
+	}
+	if req.Settings.WIF != nil && !req.Settings.WIF.IsConfigured() {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings require federation_rule_id, organization_id, and identity_token_file",
+		})
+	}
+	if req.Settings.WIF != nil {
+		validations = append(validations, ValidateAIProviderWIFBaseURL(req.BaseURL)...)
+	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
 			Field:  "api_keys",
@@ -318,7 +377,12 @@ type UpdateAIProviderRequest struct {
 	Enabled     *bool                    `json:"enabled,omitempty"`
 	BaseURL     *string                  `json:"base_url,omitempty"`
 	APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
-	Settings    *AIProviderSettings      `json:"settings,omitempty"`
+	// Settings patches the type-specific settings. Omitted or null keeps
+	// the stored value, a literal {} clears it (mirroring api_keys: []
+	// for keys), and a discriminated object replaces or merges it. Note
+	// that a zero *AIProviderSettings marshals to null, so Go clients
+	// must send the {} clear form as raw JSON.
+	Settings *AIProviderSettings `json:"settings,omitempty"`
 }
 
 // AIProviderKeyMutation describes the intended state of a single key
@@ -356,6 +420,24 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
+	}
+	if req.Settings != nil && req.Settings.WIF != nil && req.Settings.Bedrock != nil {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF and Bedrock settings are mutually exclusive",
+		})
+	}
+	if req.Settings != nil && req.Settings.WIF != nil && !req.Settings.WIF.IsConfigured() {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings require federation_rule_id, organization_id, and identity_token_file",
+		})
+	}
+	// The patch-only view: when the patch carries both WIF settings and a
+	// base URL, their combination must be secure. Combinations against
+	// stored state are enforced by the update handler.
+	if req.Settings != nil && req.Settings.WIF != nil && req.BaseURL != nil {
+		validations = append(validations, ValidateAIProviderWIFBaseURL(*req.BaseURL)...)
 	}
 	return validations
 }
@@ -473,6 +555,36 @@ func validateAIProviderBaseURL(raw string) []ValidationError {
 		})
 	}
 	return validations
+}
+
+// ValidateAIProviderWIFBaseURL returns validation errors when a WIF
+// provider's base URL would send the identity assertion and minted
+// access tokens over cleartext HTTP. Loopback hosts are allowed for
+// local development. This mirrors the runtime check aibridge applies
+// when building the provider, so a configuration that passes here does
+// not seed a provider the daemon then refuses to serve. An empty base
+// URL is allowed: it means the default https://api.anthropic.com.
+func ValidateAIProviderWIFBaseURL(raw string) []ValidationError {
+	if raw == "" {
+		return nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		// Malformed URLs are reported by the base_url validation.
+		return nil
+	}
+	if parsed.Scheme == "https" || (parsed.Scheme == "http" && isLoopbackHost(parsed.Hostname())) {
+		return nil
+	}
+	return []ValidationError{{
+		Field:  "base_url",
+		Detail: "WIF providers require an https base_url; http is allowed for loopback hosts only",
+	}}
+}
+
+func isLoopbackHost(host string) bool {
+	host = strings.ToLower(host)
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // validateAIProviderAPIKeys checks that each supplied key is non-empty

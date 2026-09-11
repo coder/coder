@@ -140,6 +140,53 @@ func TestPassthroughRoutes(t *testing.T) {
 	}
 }
 
+// TestPassthroughRoutes_WIF verifies that a WIF-only Anthropic provider
+// (no key pool) authenticates passthrough requests by exchanging its
+// identity token and injecting the minted bearer token, instead of
+// forwarding them upstream unauthenticated.
+func TestPassthroughRoutes_WIF(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+
+	var sawModels atomic.Bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"tok-federated","token_type":"Bearer","expires_in":3600}`))
+	})
+	mux.HandleFunc("GET /v1/models", func(w http.ResponseWriter, r *http.Request) {
+		sawModels.Store(true)
+		assert.Equal(t, "Bearer tok-federated", r.Header.Get("Authorization"))
+		assert.Contains(t, r.Header.Get("Anthropic-Beta"), "oauth-")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	})
+	upstream := httptest.NewServer(mux)
+	t.Cleanup(upstream.Close)
+
+	prov, err := provider.NewAnthropic(context.Background(), config.Anthropic{
+		BaseURL: upstream.URL,
+		WIF: &config.AnthropicWIF{
+			FederationRuleID: "fdrl_test",
+			OrganizationID:   "org-test",
+			IdentityToken: func(context.Context) (string, error) {
+				return "test-jwt", nil
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	handler := newPassthroughRouter(prov, logger, nil, testTracer)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.True(t, sawModels.Load(), "request must reach the upstream models endpoint")
+}
+
 func TestRewritePassthroughRequest(t *testing.T) {
 	t.Parallel()
 

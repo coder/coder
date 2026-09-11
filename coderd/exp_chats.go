@@ -6918,12 +6918,20 @@ func (api *API) configuredProvidersFromAIProviders(ctx context.Context, provider
 	}
 	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
 	for _, provider := range providers {
-		configuredProviders = append(configuredProviders, api.configuredProviderFromAIProviderKeys(provider, keysByProviderID[provider.ID]))
+		configuredProvider, err := api.configuredProviderFromAIProviderKeys(provider, keysByProviderID[provider.ID])
+		if err != nil {
+			return nil, xerrors.Errorf("build configured provider %s: %w", provider.ID, err)
+		}
+		configuredProviders = append(configuredProviders, configuredProvider)
 	}
 	return configuredProviders, nil
 }
 
-func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvider, keys []database.AIProviderKey) chatprovider.ConfiguredProvider {
+func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
+	settings, err := db2sdk.AIProviderSettings(provider.Settings)
+	if err != nil {
+		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("decode AI provider settings: %w", err)
+	}
 	apiKey := ""
 	for _, key := range keys {
 		if key.APIKey != "" {
@@ -6939,7 +6947,14 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		AllowCentralAPIKeyFallback: true,
-	}
+		// A WIF provider intentionally has no api_keys: aibridged
+		// exchanges the identity token and authenticates requests
+		// itself, so the provider is usable without a central key.
+		// Mirrors chatd's aiProviderConfigFromKeys; without this flag
+		// the models listing would report credentials missing for a
+		// provider aibridged can serve.
+		AmbientCredentials: settings.WIF != nil && provider.Type == database.AIProviderTypeAnthropic,
+	}, nil
 }
 
 func writeLegacyChatProviderGone(rw http.ResponseWriter, r *http.Request) {

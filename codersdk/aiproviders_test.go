@@ -2,6 +2,8 @@ package codersdk_test
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -9,16 +11,31 @@ import (
 
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
+
+// wifTestPath builds a platform-absolute path for identity token file
+// fixtures: the WIF trust check requires absolute paths, and
+// filepath.IsAbs rejects Unix-style paths on Windows.
+func wifTestPath(parts ...string) string {
+	root := "/"
+	if runtime.GOOS == "windows" {
+		root = `C:\`
+	}
+	return filepath.Join(append([]string{root}, parts...)...)
+}
 
 func TestAIProviderSettings_Marshal(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EmptyEmitsNull", func(t *testing.T) {
 		t.Parallel()
+		// The zero value marshals to JSON null so provider responses
+		// keep the shape earlier clients decode; the {} clear form is
+		// request-only and must be sent as raw JSON.
 		got, err := json.Marshal(codersdk.AIProviderSettings{})
 		require.NoError(t, err)
-		require.JSONEq(t, `null`, string(got))
+		require.Equal(t, `null`, string(got))
 	})
 
 	t.Run("BedrockEmitsDiscriminator", func(t *testing.T) {
@@ -99,6 +116,19 @@ func TestAIProviderSettings_Unmarshal(t *testing.T) {
 		var s codersdk.AIProviderSettings
 		err := json.Unmarshal([]byte(`{"_version":1,"region":"us-east-1"}`), &s)
 		require.ErrorContains(t, err, "missing _type discriminator")
+	})
+
+	t.Run("EmptyObjectClears", func(t *testing.T) {
+		t.Parallel()
+		// A literal {} is the explicit clear form used by PATCH callers,
+		// e.g. migrating a WIF provider back to bearer keys. Only the
+		// field-free object qualifies; see MissingTypeDiscriminator for
+		// the typo'd-payload case that must stay an error.
+		s := codersdk.AIProviderSettings{
+			WIF: &codersdk.AIProviderWIFSettings{FederationRuleID: "fdrl_test"},
+		}
+		require.NoError(t, json.Unmarshal([]byte(`{}`), &s))
+		require.True(t, s.IsZero())
 	})
 
 	t.Run("UnsupportedVersion", func(t *testing.T) {
@@ -404,4 +434,78 @@ func TestAIProviderRequest_ValidationInSync(t *testing.T) {
 				"the API disagrees with the expected verdict")
 		})
 	}
+}
+
+func TestValidateAIProviderWIFBaseURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		wantErr bool
+	}{
+		{name: "empty uses default https endpoint", baseURL: "", wantErr: false},
+		{name: "https allowed", baseURL: "https://proxy.example/api", wantErr: false},
+		{name: "loopback http allowed", baseURL: "http://localhost:8080", wantErr: false},
+		{name: "loopback ipv4 allowed", baseURL: "http://127.0.0.1:8080", wantErr: false},
+		{name: "cleartext http rejected", baseURL: "http://proxy.example/api", wantErr: true},
+		// Malformed URLs are left to the general base_url validation.
+		{name: "malformed deferred", baseURL: "://", wantErr: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			verrs := codersdk.ValidateAIProviderWIFBaseURL(tc.baseURL)
+			if !tc.wantErr {
+				require.Empty(t, verrs)
+				return
+			}
+			require.NotEmpty(t, verrs)
+			require.Equal(t, "base_url", verrs[0].Field)
+			require.Contains(t, verrs[0].Detail, "https base_url")
+		})
+	}
+}
+
+func TestAIBridgeConfigWIFIdentityTokenFileAllowed(t *testing.T) {
+	t.Parallel()
+
+	allowedToken := wifTestPath("var", "run", "secrets", "allowed", "token")
+	// A dot-dot spelling of allowedToken that filepath.Clean collapses
+	// back to it.
+	allowedTokenDotDot := wifTestPath("var", "run", "secrets", "allowed") +
+		string(filepath.Separator) + filepath.Join("..", "allowed", "token")
+
+	cfg := codersdk.AIBridgeConfig{
+		// The empty entry must be ignored: filepath.Clean("") is ".",
+		// which must never match anything.
+		WIFAllowedIdentityTokenFiles: serpent.StringArray{allowedToken, "", "relative/entry"},
+	}
+
+	tests := []struct {
+		name string
+		file string
+		want bool
+	}{
+		{name: "allowlisted any base URL", file: allowedToken, want: true},
+		{name: "allowlisted dot-dot normalized", file: allowedTokenDotDot, want: true},
+		{name: "relative candidate rejected", file: "var/run/secrets/allowed/token", want: false},
+		{name: "relative allowlist entry ignored", file: "relative/entry", want: false},
+		{name: "empty candidate rejected", file: "", want: false},
+		{name: "dot candidate rejected", file: ".", want: false},
+		{name: "unlisted file rejected", file: wifTestPath("etc", "coder", "secret.pem"), want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, cfg.WIFIdentityTokenFileAllowed(tc.file))
+		})
+	}
+
+	t.Run("zero config rejects everything", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, codersdk.AIBridgeConfig{}.WIFIdentityTokenFileAllowed(allowedToken))
+	})
 }

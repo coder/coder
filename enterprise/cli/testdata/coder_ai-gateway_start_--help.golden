@@ -63,6 +63,16 @@ AI GATEWAY OPTIONS:
           making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
           username).
 
+      --ai-gateway-wif-allowed-identity-token-files string-array, $CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES
+          Absolute paths of OIDC identity token files that Workload Identity
+          Federation (WIF) AI providers may read. A file listed here can be sent
+          to any HTTPS base URL a Coder administrator configures on a WIF
+          provider, so list only tokens intended for AI provider federation.
+          coderd enforces this list when providers are created or updated
+          through the API, and the process performing the token exchanges
+          enforces it again before reading a file; when the AI Gateway runs
+          standalone, set the same value on both coderd and the gateway process.
+
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.
 

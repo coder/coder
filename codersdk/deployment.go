@@ -2012,6 +2012,18 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "allow_byok",
 	}
+	aiGatewayWIFAllowedIdentityTokenFiles := serpent.Option{
+		Name: "AI Gateway WIF Allowed Identity Token Files",
+		Description: "Absolute paths of OIDC identity token files that Workload Identity Federation (WIF) AI providers may read. " +
+			"A file listed here can be sent to any HTTPS base URL a Coder administrator configures on a WIF provider, so list only tokens intended for AI provider federation. " +
+			"coderd enforces this list when providers are created or updated through the API, and the process performing the token exchanges enforces it again before reading a file; " +
+			"when the AI Gateway runs standalone, set the same value on both coderd and the gateway process.",
+		Flag:  "ai-gateway-wif-allowed-identity-token-files",
+		Env:   "CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES",
+		Value: &c.AI.BridgeConfig.WIFAllowedIdentityTokenFiles,
+		Group: &deploymentGroupAIGateway,
+		YAML:  "wif_allowed_identity_token_files",
+	}
 
 	// validateCircuitBreakerPercent is shared by AI Gateway circuit breaker options
 	validateCircuitBreakerPercent := func(value *serpent.Int64) error {
@@ -4451,6 +4463,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayAllowBYOK},
 		},
 		aiGatewayAllowBYOK,
+		aiGatewayWIFAllowedIdentityTokenFiles,
 		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
 			Description: "Deprecated: use --ai-gateway-circuit-breaker-enabled or CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED instead. Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).",
@@ -4788,6 +4801,11 @@ type AIBridgeConfig struct {
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	// WIFAllowedIdentityTokenFiles lists identity token files that WIF
+	// providers managed through the HTTP API may read. See
+	// AIBridgeConfig.WIFIdentityTokenFileAllowed for the full trust
+	// semantics.
+	WIFAllowedIdentityTokenFiles serpent.StringArray `json:"wif_allowed_identity_token_files" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
 	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`

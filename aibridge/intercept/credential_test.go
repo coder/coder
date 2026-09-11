@@ -13,7 +13,7 @@ import (
 )
 
 // TestCredential covers the public surface of the Credential interface and its
-// three implementations (BYOK, Bedrock, CentralizedPool), plus the
+// implementations (BYOK, Bedrock, AnthropicWIF, CentralizedPool), plus the
 // AsBYOK/AsCentralizedPool helpers interceptors use to route. Only
 // CentralizedPool fails over, so AsCentralizedPool must be true only for it.
 func TestCredential(t *testing.T) {
@@ -77,6 +77,19 @@ func TestCredential(t *testing.T) {
 			expectAuthHeader: "",
 			expectHint:       "<aws chain>",
 			expectLength:     0,
+		},
+		{
+			// Anthropic WIF: the bearer token is exchanged externally, so there
+			// is no static key to mask; the hint is a descriptive placeholder
+			// that must fit the credential_hint VARCHAR(15) column.
+			name: "centralized_anthropic_wif",
+			newCred: func(*testing.T) intercept.Credential {
+				return intercept.AnthropicWIF{FederationRuleID: "rule-abc-123"}
+			},
+			expectKind:       intercept.CredentialKindCentralized,
+			expectAuthHeader: intercept.AuthHeaderAuthorization,
+			expectHint:       "<wif fed>",
+			expectLength:     len("rule-abc-123"),
 		},
 		{
 			// Pool before failover selects a key: the hint is a placeholder
