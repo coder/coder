@@ -155,7 +155,6 @@ func editQueuedHoldCase(from, want chatstate.ExecutionState) transitionCaseSpec 
 			row := requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0])
 			require.True(t, row.HeldAt.Valid, "head is held")
 			require.True(t, result.editQueuedMessage.QueuedMessage.HeldAt.Valid)
-			require.Nil(t, result.editQueuedMessage.PromotedMessage, "holding never promotes")
 		},
 	}
 }
@@ -192,7 +191,6 @@ func editQueuedContentCase(from chatstate.ExecutionState) transitionCaseSpec {
 			wantHeld := isZeroQueueState(from)
 			require.Equal(t, wantHeld, row.HeldAt.Valid, "content edit leaves the hold as it was")
 			require.True(t, row.ModelConfigID.Valid, "content edit keeps the model override")
-			require.Nil(t, result.editQueuedMessage.PromotedMessage)
 		},
 	}
 	if isZeroQueueState(from) {
@@ -204,9 +202,10 @@ func editQueuedContentCase(from chatstate.ExecutionState) transitionCaseSpec {
 }
 
 // editQueuedReleaseCase clears the hold on the head of a "0" state
-// seeded with extraUnheld rows behind it. From W the head is promoted
-// into history in the same transaction; elsewhere it becomes the
-// promotable head and the chat lands in the "1" sibling.
+// seeded with extraUnheld rows behind it. From W the machine's settle
+// step promotes the exposed head into history in the same transaction;
+// elsewhere it becomes the promotable head and the chat lands in the
+// "1" sibling.
 func editQueuedReleaseCase(from, want chatstate.ExecutionState, extraUnheld int) transitionCaseSpec {
 	sc := scenarioRelease
 	if extraUnheld > 0 {
@@ -236,17 +235,15 @@ func editQueuedReleaseCase(from, want chatstate.ExecutionState, extraUnheld int)
 			headID := seeded.queuedMessageIDs[0]
 			require.False(t, result.editQueuedMessage.QueuedMessage.HeldAt.Valid, "release clears held_at")
 			if from == chatstate.StateW {
-				require.NotNil(t, result.editQueuedMessage.PromotedMessage, "release from W promotes the head")
-				require.Equal(t, database.ChatStatusRunning, after.Status)
+				require.Equal(t, database.ChatStatusRunning, after.Status, "release from W settles into running")
 				require.False(t, after.LastError.Valid, "promotion clears last_error")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, headID)
 				require.Equal(t, base.queueIDs[1:], queuedIDsByPosition(ctx, t, f, seeded.chatID), "rows behind the head stay queued")
-				promoted := requireChatMessageByID(ctx, t, f, result.editQueuedMessage.PromotedMessage.ID)
+				promoted := requireLatestHistoryMessage(ctx, t, f, seeded.chatID)
 				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
 				require.Contains(t, newActiveMessageIDs(base, activeHistoryIDs(ctx, t, f, seeded.chatID)), promoted.ID)
 				return
 			}
-			require.Nil(t, result.editQueuedMessage.PromotedMessage, "release outside W does not promote")
 			require.Equal(t, base.chat.Status, after.Status, "release outside W keeps the status")
 			require.Equal(t, base.chat.LastError, after.LastError, "release outside W keeps last_error")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID), "release keeps the queue")
@@ -258,7 +255,8 @@ func editQueuedReleaseCase(from, want chatstate.ExecutionState, extraUnheld int)
 }
 
 // heldDeleteQueuedCase deletes the held head of a "0" state. From W
-// with unheld rows behind it the next row is promoted.
+// with unheld rows behind it the machine's settle step promotes the
+// next row.
 func heldDeleteQueuedCase(from, want chatstate.ExecutionState, extraUnheld int) transitionCaseSpec {
 	sc := scenarioHeldHead
 	if extraUnheld > 0 {
@@ -281,14 +279,11 @@ func heldDeleteQueuedCase(from, want chatstate.ExecutionState, extraUnheld int) 
 			requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, headID)
 			remaining := queuedIDsByPosition(ctx, t, f, seeded.chatID)
 			if from == chatstate.StateW && extraUnheld > 0 {
-				require.NotNil(t, result.deleteQueuedMessage.PromotedMessage, "deleting a held head from W promotes the exposed head")
-				require.Equal(t, database.ChatStatusRunning, after.Status)
+				require.Equal(t, database.ChatStatusRunning, after.Status, "deleting a held head from W settles into running")
 				require.Equal(t, base.queueIDs[2:], remaining, "the exposed head left the queue")
-				promoted := requireChatMessageByID(ctx, t, f, result.deleteQueuedMessage.PromotedMessage.ID)
-				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[1])
+				assertChatMessageText(t, requireLatestHistoryMessage(ctx, t, f, seeded.chatID), seeded.queuedMessageBodies[1])
 				return
 			}
-			require.Nil(t, result.deleteQueuedMessage.PromotedMessage)
 			require.Equal(t, base.chat.Status, after.Status, "delete keeps the status")
 			require.Equal(t, base.queueIDs[1:], remaining, "delete removes exactly the head")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID), "delete does not touch history")
