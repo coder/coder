@@ -978,6 +978,7 @@ export const MockTemplate: TypesGen.Template = {
 	cors_behavior: "simple",
 	disable_module_cache: false,
 	allow_workspace_renames: false,
+	browser_only: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {

@@ -191,6 +191,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,

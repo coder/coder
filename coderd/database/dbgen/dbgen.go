@@ -597,6 +597,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 		AgentsAllowed:                seed.AgentsAllowed,
 		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
+		BrowserOnly:                  seed.BrowserOnly,
 	})
 	require.NoError(t, err, "insert template")
 

@@ -29,6 +29,18 @@ func (e InvalidNodeAddressError) Error() string {
 	return fmt.Sprintf("invalid node address, got %s", e.Addr)
 }
 
+// TunnelPolicyError is returned by a TunnelAuthorizer when a tunnel is refused
+// by deployment or template policy rather than by the actor's permissions.
+// Unlike an authorization failure its message describes the policy, so it is
+// returned to the client instead of the generic denial.
+type TunnelPolicyError struct {
+	Message string
+}
+
+func (e TunnelPolicyError) Error() string {
+	return e.Message
+}
+
 type CoordinateeAuth interface {
 	Authorize(ctx context.Context, req *proto.CoordinateRequest) error
 }
@@ -146,6 +158,10 @@ func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coo
 			return xerrors.Errorf("parse add tunnel id: %w", err), false
 		}
 		if err := a.Auth.AuthorizeTunnel(ctx, agentID); err != nil {
+			var policyErr TunnelPolicyError
+			if xerrors.As(err, &policyErr) {
+				return policyErr, true
+			}
 			return xerrors.New("workspace agent not found or you do not have permission"), true
 		}
 		return nil, true

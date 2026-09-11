@@ -294,9 +294,16 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 	return out
 }
 
+// tunnelQuerier reads the workspace and template behind an agent so a tunnel
+// request to it can be authorized.
+type tunnelQuerier interface {
+	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error)
+	templateQuerier
+}
+
 type rbacAuthorizer struct {
 	sshPrep rbac.PreparedAuthorized
-	db      UpdatesQuerier
+	db      tunnelQuerier
 }
 
 func (r *rbacAuthorizer) AuthorizeTunnel(ctx context.Context, agentID uuid.UUID) error {
@@ -305,7 +312,19 @@ func (r *rbacAuthorizer) AuthorizeTunnel(ctx context.Context, agentID uuid.UUID)
 		return xerrors.Errorf("get workspace by agent ID: %w", err)
 	}
 	// Authorizes against `ActionSSH`
-	return r.sshPrep.Authorize(ctx, ws.RBACObject())
+	if err := r.sshPrep.Authorize(ctx, ws.RBACObject()); err != nil {
+		return err
+	}
+	// The user-scoped tailnet endpoint spans templates, so unlike the
+	// deployment-wide setting this can only be refused per tunnel.
+	browserOnly, err := templateRefusesNonBrowserConnections(ctx, r.db, ws.TemplateID)
+	if err != nil {
+		return err
+	}
+	if browserOnly {
+		return tailnet.TunnelPolicyError{Message: browserOnlyTemplateMessage}
+	}
+	return nil
 }
 
 var _ tailnet.TunnelAuthorizer = (*rbacAuthorizer)(nil)
