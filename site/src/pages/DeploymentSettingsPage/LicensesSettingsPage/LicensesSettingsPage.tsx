@@ -89,9 +89,6 @@ const LicensesSettingsPage: FC = () => {
 				isRemovingLicense={isRemovingLicense}
 				removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
 				activeUsers={userStatusCount?.active}
-				managedAgentFeature={
-					entitlementsQuery.data?.features.managed_agent_limit
-				}
 				aiGovernanceUserFeature={
 					entitlementsQuery.data?.features.ai_governance_user_limit
 				}
