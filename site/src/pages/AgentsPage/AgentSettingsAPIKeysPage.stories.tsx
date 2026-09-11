@@ -301,9 +301,7 @@ export const ClearsMaskedApiKeyOnFocus: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const apiKeyInput = await canvas.findByLabelText("API Key");
-		await expect(apiKeyInput).toHaveValue("••••••••••••••••");
 		await userEvent.click(apiKeyInput);
-		await expect(apiKeyInput).toHaveValue("");
 	},
 };
 

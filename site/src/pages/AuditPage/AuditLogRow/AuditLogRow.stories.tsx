@@ -146,6 +146,32 @@ export const NoUserAgent: Story = {
 	},
 };
 
+export const WithLegacyTaskResumeReason: Story = {
+	args: {
+		auditLog: {
+			...MockAuditLogWithWorkspaceBuild,
+			action: "start",
+			description: "{user} started build for workspace {target}",
+			additional_fields: {
+				...MockAuditLogWithWorkspaceBuild.additional_fields,
+				build_reason: "task_resume",
+			},
+		},
+	},
+};
+
+export const WithLegacyTaskAutoPause: Story = {
+	args: {
+		auditLog: {
+			...MockAuditLogWithWorkspaceBuild,
+			additional_fields: {
+				...MockAuditLogWithWorkspaceBuild.additional_fields,
+				build_reason: "task_auto_pause",
+			},
+		},
+	},
+};
+
 export const WithConnectionType: Story = {
 	args: {
 		showOrgDetails: true,

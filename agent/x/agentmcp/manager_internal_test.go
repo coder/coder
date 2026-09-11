@@ -7,16 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -253,7 +256,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	m := &Manager{execer: agentexec.DefaultExecer}
+	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}}
 	client, err := m.connectServer(ctx, cfg)
 	require.NoError(t, err, "connectServer should succeed")
 	t.Cleanup(func() { _ = client.Close() })
@@ -278,7 +281,7 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
 	defer timerTrap.Close()
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	m.clock = clock
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -296,6 +299,65 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Contains(t, err.Error(), "tools reload timed out after 1m0s")
+}
+
+// TestCreateTransport_StdioSetsWorkingDir verifies a stdio server's command
+// is launched in the workspace dir, so relative Args resolve there rather
+// than the agent's cwd.
+func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	workDir := t.TempDir()
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil,
+		func() string { return workDir })
+	t.Cleanup(func() { _ = m.Close() })
+
+	transport, err := m.createTransport(ctx, ServerConfig{
+		Name:      "fake",
+		Transport: "stdio",
+		Command:   "true",
+	})
+	require.NoError(t, err)
+
+	cmdTransport, ok := transport.(*mcp.CommandTransport)
+	require.True(t, ok)
+	assert.Equal(t, workDir, cmdTransport.Command.Dir)
+}
+
+// TestResolveWorkingDir covers resolveWorkingDir's fallback: nil/empty,
+// a missing path, or a file all fall back to home; an existing dir is used.
+func TestResolveWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	envInfo := &usershell.SystemEnvInfo{}
+	home, err := envInfo.HomeDir()
+	require.NoError(t, err)
+
+	existing := t.TempDir()
+	file := filepath.Join(existing, "a-file")
+	require.NoError(t, os.WriteFile(file, []byte("x"), 0o600))
+	missing := filepath.Join(existing, "does-not-exist")
+
+	tests := []struct {
+		name       string
+		workingDir func() string
+		want       string
+	}{
+		{name: "NilCallback", workingDir: nil, want: home},
+		{name: "EmptyResult", workingDir: func() string { return "" }, want: home},
+		{name: "ExistingDir", workingDir: func() string { return existing }, want: existing},
+		{name: "MissingDir", workingDir: func() string { return missing }, want: home},
+		{name: "PathIsFile", workingDir: func() string { return file }, want: home},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := &Manager{fs: afero.NewOsFs(), envInfo: envInfo, workingDir: tt.workingDir}
+			assert.Equal(t, tt.want, m.resolveWorkingDir())
+		})
+	}
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over

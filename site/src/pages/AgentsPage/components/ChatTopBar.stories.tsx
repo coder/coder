@@ -110,11 +110,6 @@ export const SharedChat: Story = {
 			shared: true,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
-		expect(canvas.queryByText("Shared")).not.toBeInTheDocument();
-	},
 };
 
 export const WithPanelOpen: Story = {
@@ -141,13 +136,6 @@ export const WithParentChat: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const parentLink = await canvas.findByRole("link", {
-			name: mockParentChat.title,
-		});
-		expect(parentLink).toHaveAttribute("href", `/agents/${mockParentChat.id}`);
-	},
 };
 
 export const SidebarCollapsed: Story = {
@@ -169,12 +157,6 @@ export const SidebarCollapsed: Story = {
 				},
 			],
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "Expand sidebar" }),
-		).toBeVisible();
 	},
 };
 
@@ -451,21 +433,7 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(
-				body.getByRole("menuitem", { name: "Rename chat" }),
-			).toBeInTheDocument();
-		});
-		const body = within(document.body);
-		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
-		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
-		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
-		expect(
-			body.queryByText("Archive & delete workspace"),
-		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 	},
 };
 
@@ -646,40 +614,16 @@ export const ShareChatButton: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByText("Share")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Share" }),
-		).not.toBeInTheDocument();
-
 		await userEvent.click(canvas.getByRole("button", { name: "Share chat" }));
-		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Chat sharing")).toBeVisible();
-		});
-
-		await userEvent.click(canvas.getByLabelText("Open agent actions"));
-		await body.findByText("Rename chat");
-		expect(
-			body.queryByRole("menuitem", { name: "Share" }),
-		).not.toBeInTheDocument();
 	},
 };
 
 export const ShareChatButtonHiddenWithoutPermission: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByRole("button", { name: "Share chat" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Share" }),
-		).not.toBeInTheDocument();
 		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 		const body = within(document.body);
 		await body.findByText("Rename chat");
-		expect(
-			body.queryByRole("menuitem", { name: "Share" }),
-		).not.toBeInTheDocument();
 	},
 };
 

@@ -10,12 +10,10 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import {
-	type ConfigurationFieldDefinition,
-	ConfigurationFieldLabel,
-} from "./ConfigurationField";
+import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
+import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
 
 interface ModuleSettingsStepProps {
 	baseId: string;
@@ -38,7 +36,7 @@ function variableToField(
 	error: boolean,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
-	const label = <ConfigurationFieldLabel variable={variable} />;
+	const label = variable.name;
 
 	if (variable.type === "bool") {
 		return {
@@ -60,8 +58,9 @@ function variableToField(
 		description: variable.description || undefined,
 		required: variable.required,
 		placeholder:
+			getModuleFieldPlaceholder(moduleId, variable.name) ??
 			defaultPlaceholder(variable.default) ??
-			(variable.required ? "Required" : "Optional"),
+			(variable.required ? "Required" : ""),
 		field: {
 			name: variable.name,
 			id,
