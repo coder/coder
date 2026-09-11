@@ -363,11 +363,7 @@ const ToolBadge: FC<{
 							key={server.id}
 							className="flex items-center gap-1.5 px-1 py-1.5 text-xs"
 						>
-							<MCPServerIcon
-								iconUrl={server.icon_url}
-								name={server.display_name}
-								className="size-4"
-							/>
+							<MCPServerIcon iconUrl={server.icon_url} className="size-4" />
 							<span className="flex-1 truncate">{server.display_name}</span>
 							{server.availability === "force_on" ? (
 								<LockIcon className="size-3 text-content-secondary" />
