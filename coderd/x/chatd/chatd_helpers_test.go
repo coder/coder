@@ -85,7 +85,6 @@ func anthropicRequestBody(t *testing.T, req chattest.AnthropicRequest) string {
 }
 
 func insertSystemTextMessage(
-	_ context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -103,7 +102,7 @@ func insertSystemTextMessage(
 	})
 }
 
-func insertOrphanProviderToolCall(_ context.Context, t *testing.T, db database.Store, chatID uuid.UUID, modelID uuid.UUID) {
+func insertOrphanProviderToolCall(t *testing.T, db database.Store, chatID uuid.UUID, modelID uuid.UUID) {
 	t.Helper()
 	reasoningMetadata, err := json.Marshal(fantasy.ProviderMetadata{
 		fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{RedactedData: "redacted-payload"},
