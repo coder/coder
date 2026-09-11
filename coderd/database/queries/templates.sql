@@ -145,10 +145,11 @@ INSERT INTO
 		use_classic_parameter_flow,
 		cors_behavior,
 		agents_allowed,
-		allow_workspace_renames
+		allow_workspace_renames,
+		browser_only
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -184,7 +185,8 @@ SET
 	cors_behavior = $11,
 	disable_module_cache = $12,
 	agents_allowed = $13,
-	allow_workspace_renames = $14
+	allow_workspace_renames = $14,
+	browser_only = $15
 WHERE
 	id = $1
 ;

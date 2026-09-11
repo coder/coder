@@ -15,9 +15,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -30,8 +33,11 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
+	"github.com/coder/websocket"
 )
 
 // App names for each app sharing level.
@@ -82,6 +88,116 @@ func TestBlockNonBrowser(t *testing.T) {
 		conn, err := workspacesdk.New(client).DialAgent(ctx, r.sdkAgent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
+	})
+}
+
+func TestBlockNonBrowserTemplate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AgentCoordinate", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBrowserOnly: 1,
+				},
+			},
+		})
+		r := setupWorkspaceAgent(t, client, user, 0)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The deployment-wide setting is off, so the agent starts reachable.
+		//nolint:gocritic // The owner is used so the refusal below cannot be an RBAC denial.
+		conn, err := workspacesdk.New(client).DialAgent(ctx, r.sdkAgent.ID, nil)
+		require.NoError(t, err)
+		_ = conn.Close()
+
+		//nolint:gocritic // Template settings are admin-only.
+		updated, err := client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+			BrowserOnly: new(true),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.BrowserOnly)
+
+		//nolint:gocritic // Testing that even the owner gets blocked.
+		_, err = workspacesdk.New(client).DialAgent(ctx, r.sdkAgent.ID, nil)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	// The user-scoped tailnet endpoint spans every template the user can
+	// reach, so the template setting has to be enforced per tunnel rather than
+	// on the endpoint as a whole.
+	t.Run("UserTailnet", func(t *testing.T) {
+		t.Parallel()
+
+		// The coordinator logs the refusal at error level, as it does for any
+		// unauthorized tunnel request.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		connLogger := connectionlog.NewFake()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Coordinator:              tailnet.NewCoordinator(logger),
+				ConnectionLogger:         connLogger,
+				Logger:                   &logger,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBrowserOnly:   1,
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+		r := setupWorkspaceAgent(t, client, user, 0)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Template settings are admin-only.
+		_, err := client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+			BrowserOnly: new(true),
+		})
+		require.NoError(t, err)
+
+		u, err := client.URL.Parse("/api/v2/tailnet?version=2.0")
+		require.NoError(t, err)
+		//nolint:bodyclose // websocket.Dial owns the HTTP response body on success.
+		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{client.SessionToken()},
+			},
+		})
+		if err != nil && resp != nil {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+		rpcClient, err := tailnet.NewDRPCClient(
+			websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+			logger,
+		)
+		require.NoError(t, err)
+		stream, err := rpcClient.Coordinate(ctx)
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(&tailnetproto.CoordinateRequest{
+			AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(r.sdkAgent.ID)},
+		}))
+
+		require.Eventually(t, func() bool {
+			return connLogger.Contains(t, database.UpsertConnectionLogParams{
+				WorkspaceID:      r.workspace.ID,
+				AgentName:        r.sdkAgent.Name,
+				Type:             database.ConnectionTypeTunnel,
+				Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
+				UserID:           uuid.NullUUID{UUID: user.UserID, Valid: true},
+				ConnectionStatus: database.ConnectionStatusConnected,
+			})
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
