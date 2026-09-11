@@ -7,7 +7,7 @@
     "nameOverride": {"type": "string"},
     "coder": {
       "type": "object", "additionalProperties": false,
-      "required": ["env", "envFrom", "image", "initContainers", "annotations", "labels", "podAnnotations", "podLabels", "serviceAccount", "securityContext", "podSecurityContext", "volumes", "volumeMounts", "replicaCount", "lifecycle", "resources", "startupProbe", "livenessProbe", "readinessProbe", "certs", "affinity", "tolerations", "nodeSelector", "topologySpreadConstraints", "priorityClassName", "command"],
+      "required": ["env", "envFrom", "image", "initContainers", "annotations", "labels", "podAnnotations", "podLabels", "serviceAccount", "securityContext", "podSecurityContext", "volumes", "volumeMounts", "replicaCount", "deploymentStrategy", "lifecycle", "resources", "startupProbe", "livenessProbe", "readinessProbe", "certs", "affinity", "tolerations", "nodeSelector", "topologySpreadConstraints", "priorityClassName", "command"],
       "properties": {
         "env": {"type": "array", "items": {"type": "object", "required": ["name"]}},
         "envFrom": {"type": "array", "items": {"type": "object"}},
@@ -41,6 +41,20 @@
         "volumes": {"type": "array"},
         "volumeMounts": {"type": "array"},
         "replicaCount": {"type": "integer", "minimum": 0},
+        "deploymentStrategy": {
+          "type": "object", "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {"enum": ["Recreate", "RollingUpdate"]},
+            "rollingUpdate": {
+              "type": "object", "additionalProperties": false,
+              "properties": {
+                "maxSurge": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 0}]},
+                "maxUnavailable": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 0}]}
+              }
+            }
+          }
+        },
         "lifecycle": {"type": "object"},
         "resources": {"type": "object"},
         "startupProbe": {"$ref": "#/definitions/healthProbe"},

@@ -232,6 +232,24 @@ coder:
   # This is an Enterprise feature. Contact sales@coder.com.
   replicaCount: 1
 
+  # coder.deploymentStrategy -- The deployment strategy to use for rolling updates.
+  # See: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+  deploymentStrategy:
+    # coder.deploymentStrategy.type -- The type of deployment strategy to use.
+    # Valid values are "Recreate" or "RollingUpdate" (default).
+    type: RollingUpdate
+    # coder.deploymentStrategy.rollingUpdate -- Configuration for rolling updates.
+    # Only applicable when type is "RollingUpdate".
+    rollingUpdate:
+      # coder.deploymentStrategy.rollingUpdate.maxSurge -- The maximum number of
+      # pods that can be scheduled above the desired number of pods.
+      # Can be an absolute number or a percentage of desired pods.
+      maxSurge: 25%
+      # coder.deploymentStrategy.rollingUpdate.maxUnavailable -- The maximum number
+      # of pods that can be unavailable during the update.
+      # Can be an absolute number or a percentage of desired pods.
+      maxUnavailable: 25%
+
   # coder.workspaceProxy -- Whether or not this deployment of Coder is a Coder
   # Workspace Proxy. Workspace Proxies reduce the latency between the user and
   # their workspace for web connections (workspace apps and web terminal) and
