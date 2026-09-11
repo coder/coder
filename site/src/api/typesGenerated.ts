@@ -5006,24 +5006,6 @@ export interface EditChatQueuedMessageRequest {
 	readonly held?: boolean;
 }
 
-// From codersdk/chats.go
-/**
- * EditChatQueuedMessageResponse is the response from editing a queued
- * message.
- */
-export interface EditChatQueuedMessageResponse {
-	/**
-	 * QueuedMessage is the message after the edit. It is nil when
-	 * releasing the hold promoted the message into history.
-	 */
-	readonly queued_message?: ChatQueuedMessage;
-	/**
-	 * Messages holds every user-visible message inserted when releasing
-	 * the hold promoted the message into history, in insertion order.
-	 */
-	readonly messages?: readonly ChatMessage[];
-}
-
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
 	| "azure-devops"

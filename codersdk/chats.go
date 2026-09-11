@@ -1707,17 +1707,6 @@ type EditChatQueuedMessageRequest struct {
 	Held *bool `json:"held,omitempty"`
 }
 
-// EditChatQueuedMessageResponse is the response from editing a queued
-// message.
-type EditChatQueuedMessageResponse struct {
-	// QueuedMessage is the message after the edit. It is nil when
-	// releasing the hold promoted the message into history.
-	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
-	// Messages holds every user-visible message inserted when releasing
-	// the hold promoted the message into history, in insertion order.
-	Messages []ChatMessage `json:"messages,omitempty"`
-}
-
 // ChatStreamMessagePart is a streamed message part update.
 type ChatStreamMessagePart struct {
 	Role              ChatMessageRole `json:"role,omitempty"`
@@ -3194,7 +3183,7 @@ func (c *Client) EditChatQueuedMessage(
 	chatID uuid.UUID,
 	queuedMessageID int64,
 	req EditChatQueuedMessageRequest,
-) (EditChatQueuedMessageResponse, error) {
+) error {
 	res, err := c.Request(
 		ctx,
 		http.MethodPatch,
@@ -3202,14 +3191,13 @@ func (c *Client) EditChatQueuedMessage(
 		req,
 	)
 	if err != nil {
-		return EditChatQueuedMessageResponse{}, err
+		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return EditChatQueuedMessageResponse{}, ReadBodyAsError(res)
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
 	}
-	var resp EditChatQueuedMessageResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return nil
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.
