@@ -723,6 +723,9 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	//nolint:gocritic // OAauth2 app management requires owner permission.
 	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 	require.NoError(t, err)
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	noPortSecret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.NoPort.ID)
+	require.NoError(t, err)
 
 	// One path not tested here is when the token is empty, because Go's OAuth2
 	// client library will not even try to make the request.
@@ -735,6 +738,8 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 		// a different app's client_id is rejected outright, rather than
 		// silently re-parenting the token to the presented client_id.
 		refreshAsApp *codersdk.OAuth2ProviderApp
+		// refreshSecret, if set, is presented instead of apps.Default's.
+		refreshSecret string
 		// If null, assume the token should be valid.
 		defaultToken *string
 		error        string
@@ -777,16 +782,32 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 			error:   "The refresh token is invalid or expired",
 		},
 		{
-			// The token belongs to apps.Default, but the refresh request
-			// presents apps.NoPort's client_id. This must be rejected
+			// The token belongs to apps.Default, but apps.NoPort, correctly
+			// authenticated as itself, presents it. This must be rejected
 			// outright: silently accepting it (and re-parenting the
 			// token's app_id to whatever client_id is presented) would let
 			// a stolen refresh token be laundered to a different app,
 			// after which the issuing app could no longer revoke it.
-			name:         "WrongApp",
+			name:          "WrongAppOwnSecret",
+			app:           apps.Default,
+			refreshAsApp:  &apps.NoPort,
+			refreshSecret: noPortSecret.ClientSecretFull,
+			error:         "The refresh token is invalid or expired",
+		},
+		{
+			// The advisory's shape: any client_id, without that client's
+			// secret. Client authentication refuses before the token is
+			// examined, so the answer names the credentials, not the token.
+			name:         "WrongAppOtherSecret",
 			app:          apps.Default,
 			refreshAsApp: &apps.NoPort,
-			error:        "The refresh token is invalid or expired",
+			error:        "The client credentials are invalid",
+		},
+		{
+			name:          "WrongSecret",
+			app:           apps.Default,
+			refreshSecret: secret.ClientSecretFull + "x",
+			error:         "The client credentials are invalid",
 		},
 		{
 			name: "OK",
@@ -844,9 +865,13 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 			if test.refreshAsApp != nil {
 				refreshAsApp = *test.refreshAsApp
 			}
+			refreshSecret := secret.ClientSecretFull
+			if test.refreshSecret != "" {
+				refreshSecret = test.refreshSecret
+			}
 			cfg := &oauth2.Config{
 				ClientID:     refreshAsApp.ID.String(),
-				ClientSecret: secret.ClientSecretFull,
+				ClientSecret: refreshSecret,
 				Endpoint: oauth2.Endpoint{
 					AuthURL:       refreshAsApp.Endpoints.Authorization,
 					DeviceAuthURL: refreshAsApp.Endpoints.DeviceAuth,

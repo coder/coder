@@ -643,8 +643,10 @@ func TestOAuth2RefreshRevokedToken(t *testing.T) {
 
 		require.NoError(t, client.DeleteOAuth2ProviderAppSecret(ctx, app.ID, app.SecretID))
 
+		// The cascade removed the token row too, but the deleted secret fails
+		// client authentication first, so the answer names the credentials.
 		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
-		requireTokenGrantError(t, status, body)
+		requireTokenClientError(t, status, body)
 	})
 
 	// The third revocation path FR12 names. It never reaches the grant: the
@@ -671,6 +673,174 @@ func TestOAuth2RefreshRevokedToken(t *testing.T) {
 // every table in it. The refresh reads nothing from api_keys before the
 // returning-row delete, so the missing key surfaces there as invalid_grant;
 // a read of the key ahead of the delete answered HTTP 500 here.
+// A confidential client authenticates on refresh as it does on the code
+// exchange (RFC 6749 §6, OAuth 2.1 §3.2.1). A refusal mints nothing and
+// leaves the token usable, so the client recovers by presenting its secret.
+func TestOAuth2RefreshClientAuthentication(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Posts the form by hand so the request can carry HTTP Basic credentials
+	// and the response headers can be inspected.
+	postForm := func(ctx context.Context, t *testing.T, form url.Values, opts ...func(*http.Request)) (status int, header http.Header, body string) {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		for _, opt := range opts {
+			opt(req)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		raw, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, resp.Header, string(raw)
+	}
+
+	// The token must survive the refusal and redeem on the next, correct
+	// attempt: nothing was consumed.
+	requireRefused := func(ctx context.Context, t *testing.T, app appWithSecret, refreshToken string, status int, body string) {
+		t.Helper()
+
+		requireTokenClientError(t, status, body)
+		_ = tokenRow(ctx, t, db, refreshToken)
+		status, body = postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
+		requireTokenResponse(t, status, body)
+	}
+
+	t.Run("MissingSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Del("client_secret")
+		status, header, body := postForm(ctx, t, form)
+		require.Equal(t, `Basic realm="coder"`, header.Get("WWW-Authenticate"))
+		requireRefused(ctx, t, app, refreshToken, status, body)
+	})
+
+	t.Run("WrongSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Set("client_secret", app.ClientSecret+"x")
+		status, body := postTokenRequest(ctx, t, client, form)
+		requireRefused(ctx, t, app, refreshToken, status, body)
+	})
+
+	// Right hash, wrong app: the secret is valid, but not for the client_id
+	// it is presented under. This is the fourth step of authenticateClient
+	// and the one a copy of the check would be most likely to lose.
+	t.Run("SecretOfAnotherApp", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		other := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Set("client_secret", other.ClientSecret)
+		status, body := postTokenRequest(ctx, t, client, form)
+		requireRefused(ctx, t, app, refreshToken, status, body)
+	})
+
+	// Authentication runs before the token is examined, so a caller without
+	// the secret cannot learn whether a token is live: 401 either way, never
+	// the invalid_grant an authenticated caller gets for a dead token.
+	t.Run("WrongSecretUnknownToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+
+		form := refreshForm(app, "coder_notreal_notreal")
+		form.Set("client_secret", app.ClientSecret+"x")
+		status, body := postTokenRequest(ctx, t, client, form)
+		requireTokenClientError(t, status, body)
+	})
+
+	t.Run("BasicAuth", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Del("client_id")
+		form.Del("client_secret")
+		status, _, body := postForm(ctx, t, form, func(r *http.Request) {
+			r.SetBasicAuth(app.ID.String(), app.ClientSecret)
+		})
+		requireTokenResponse(t, status, body)
+	})
+
+	t.Run("BasicAndBodyConflict", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Set("client_secret", app.ClientSecret+"x")
+		status, _, body := postForm(ctx, t, form, func(r *http.Request) {
+			r.SetBasicAuth(app.ID.String(), app.ClientSecret)
+		})
+		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		require.Contains(t, desc, "Conflicting client credentials")
+		_ = tokenRow(ctx, t, db, refreshToken)
+	})
+
+	// A public client has no secret to check; the token's app binding and
+	// single-use rotation are what tie its refresh to the client.
+	t.Run("PublicClientNoSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedPublicApp(t, db)
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Del("client_secret")
+		status, body := postTokenRequest(ctx, t, client, form)
+		token := requireTokenResponse(t, status, body)
+		require.False(t, tokenRow(ctx, t, db, token.RefreshToken).AppSecretID.Valid,
+			"a public client's refreshed token must reference no secret")
+	})
+
+	// No secret to compare against, so one sent anyway is ignored rather than
+	// rejected, as on the code exchange.
+	t.Run("PublicClientIgnoresSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedPublicApp(t, db)
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Set("client_secret", "coder_unnecessary_secret")
+		status, body := postTokenRequest(ctx, t, client, form)
+		requireTokenResponse(t, status, body)
+	})
+}
+
 func TestOAuth2RefreshKeyMissing(t *testing.T) {
 	t.Parallel()
 
@@ -812,6 +982,19 @@ func seedAppWithSecret(t *testing.T, db database.Store, allowlist sql.NullString
 	}
 }
 
+// seedPublicApp seeds a public client, which holds no secret. The zero
+// SecretID tells seedRefreshToken to leave app_secret_id NULL.
+func seedPublicApp(t *testing.T, db database.Store) appWithSecret {
+	t.Helper()
+
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		Name:        testutil.GetRandomName(t),
+		CallbackURL: appCallbackURL,
+		ClientType:  database.OAuth2ProviderAppClientTypePublic,
+	})
+	return appWithSecret{OAuth2ProviderApp: app}
+}
+
 // setAppAllowlist rewrites an app's registered scopes, leaving every other
 // column as seeded.
 func setAppAllowlist(ctx context.Context, t *testing.T, db database.Store, app appWithSecret, allowlist sql.NullString) {
@@ -864,7 +1047,8 @@ func seedRefreshToken(ctx context.Context, t *testing.T, db database.Store, app 
 		HashPrefix:  []byte(secret.Prefix),
 		RefreshHash: secret.Hashed,
 		AppID:       app.ID,
-		AppSecretID: uuid.NullUUID{UUID: app.SecretID, Valid: true},
+		// A public client's token references no secret.
+		AppSecretID: uuid.NullUUID{UUID: app.SecretID, Valid: app.SecretID != uuid.Nil},
 		APIKeyID:    key.ID,
 		UserID:      userID,
 		Scope:       scope,
@@ -1026,6 +1210,17 @@ func requireTokenError(t *testing.T, status int, body string, want codersdk.OAut
 func requireTokenGrantError(t *testing.T, status int, body string) string {
 	t.Helper()
 	return requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidGrant)
+}
+
+// requireTokenClientError asserts the RFC 6749 §5.2 invalid_client response:
+// 401 rather than the 400 every other token error carries.
+func requireTokenClientError(t *testing.T, status int, body string) {
+	t.Helper()
+
+	require.Equal(t, http.StatusUnauthorized, status, body)
+	var oauthErr codersdk.OAuth2Error
+	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
+	require.Equal(t, codersdk.OAuth2ErrorCodeInvalidClient, oauthErr.Error)
 }
 
 func requireTokenScopeError(t *testing.T, status int, body string) string {
