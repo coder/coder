@@ -1,0 +1,3105 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Where time goes in Coder Agents chat turns, from the coderd_chatd_stage_duration_seconds stage histogram.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "The --chat-stage-metrics level each coderd replica runs at, from coderd_chatd_stage_metrics_level. The visible rows work at basic; the collapsed rows need full. At off, every stage panel is empty.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 107,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (level) (coderd_chatd_stage_metrics_level)",
+          "instant": true,
+          "legendFormat": "stage metrics level: {{level}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Stage metrics level",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 108,
+      "panels": [],
+      "title": "Level 0: Turn",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Wall time of a whole chat turn, from the chat_turn stage, split by model.\n\nOne sample per turn, so this is the top of the tree and the denominator every other level is measured against. Splitting by model keeps a slow model from hiding inside a blended line; $model and $chat_kind still narrow which turns are counted.\n\nMean is rate(_sum)/rate(_count); percentiles are histogram_quantile over the bucket rates. Idle models drop out instead of returning NaN.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 0,
+        "y": 4
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, model) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"chat_turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(model) (sum by (model) (rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (model) (rate(coderd_chatd_stage_duration_seconds_sum{stage=\"chat_turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", scope=\"turn\"}[$__rate_interval])) / (sum by (model) (rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{model}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Turn duration (${stat:text})",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Completed chat turns per minute, from the chat_turn sample count, split by model.\n\nRead it next to turn duration: a duration change with flat throughput is a latency regression, while both moving together usually means the workload changed. Only turns that finished are counted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "opm"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 8,
+        "y": 4
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "60 * sum by (model) (rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", scope=\"turn\"}[$__rate_interval]))",
+          "legendFormat": "{{model}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Turns per minute",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "How turn wall time splits across the exclusive turn-time categories, per model, over the dashboard time range. Each bar is one model and sums to 100%; the value is that category's total seconds divided by all categories' total seconds, from increase() over the range.\n\nThe categories partition the turn, so unlike the stage panels they do not overlap and do add up. unattributed is the remainder the stage instrumentation could not place; watch it as the completeness check for the model.\n\n$chat_kind and $model apply. Grouping is fixed to model because Grafana transformation options do not interpolate dashboard variables.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "lineWidth": 1
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scheduling"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time_to_first_token"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "streaming"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tool_execution"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "provider_error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retry_backoff"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "compaction"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "preparation"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "persistence"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chatd_overhead"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unattributed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#808080",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 4
+      },
+      "id": 10,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "xField": "model\\category"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum by (model, category) (increase(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__range]))\n/ on(model) group_left() (sum by (model) (increase(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__range])) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "title": "Turn time mix by model",
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "category",
+            "emptyValue": "zero",
+            "rowField": "model",
+            "valueField": "Value"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {
+              "model": 0,
+              "model\\category": 0,
+              "scheduling": 1,
+              "time_to_first_token": 2,
+              "streaming": 3,
+              "tool_execution": 4,
+              "provider_error": 5,
+              "retry_backoff": 6,
+              "compaction": 7,
+              "chatd_overhead": 8,
+              "unattributed": 9
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 109,
+      "panels": [],
+      "title": "Level 0: Turn time partition",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Mean seconds per turn spent in each turn-time category, stacked, plus the total turn duration as a line. Each category's seconds are divided by the turn count, taken from the unattributed category's _count because every category is observed once per turn, including when it is zero.\n\nBecause the categories are exclusive, the stack height equals the mean turn duration and the line should sit on top of the stack. A gap between them means categories were dropped by the $model or $chat_kind selection rather than by the partition.\n\nIntervals with no completed turns are dropped instead of dividing by zero.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scheduling"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time_to_first_token"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "streaming"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tool_execution"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "provider_error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retry_backoff"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "compaction"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "preparation"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "persistence"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chatd_overhead"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unattributed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#808080",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total per turn"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "group": false,
+                  "mode": "none"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "text",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (category) (rate(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval]))\n/ on() group_left() (sum(rate(coderd_chatd_turn_time_seconds_count{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{category}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval]))\n/ on() group_left() (sum(rate(coderd_chatd_turn_time_seconds_count{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval])) > 0)",
+          "legendFormat": "total per turn",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Seconds per turn by category",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Turn time the stage instrumentation could not place in any category: mean unattributed seconds per turn.\n\nThis is the completeness check for the stage model. Near zero means the categories account for the turn. A rising line means real turn time is happening outside every instrumented stage, so the profile and partition panels are understating something; treat it as a bug in the instrumentation rather than as a workload change.\n\n$chat_kind and $model apply. The per-turn share distribution is in the collapsed row below.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(coderd_chatd_turn_time_seconds_sum{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval]))\n/ (sum(rate(coderd_chatd_turn_time_seconds_count{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval])) > 0)",
+          "legendFormat": "seconds per turn",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Unattributed turn time",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 110,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Distribution of each category's share of a turn, from the coderd_chatd_turn_time_share histogram recorded once per turn. $stat selects the statistic, so p99 reads as \"in the worst turns, this category took this fraction of the turn\".\n\nUse it next to the mix bar: the bar shows where aggregate time goes, this shows how much a category varies per turn. A category with a small mean and a large p99 is bursty (a slow tool call or a retry storm in a minority of turns) rather than a steady cost.\n\nQuantiles are per category, so unlike the mean shares they do not sum to 100%. $chat_kind and $model apply.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "scheduling"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "time_to_first_token"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "purple",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "streaming"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "tool_execution"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "orange",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "provider_error"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "retry_backoff"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "semi-dark-yellow",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "compaction"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "light-blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "preparation"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "semi-dark-purple",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "persistence"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "dark-blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "chatd_overhead"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "dark-purple",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "unattributed"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#808080",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 26
+          },
+          "id": 13,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, category) (rate(coderd_chatd_turn_time_share_bucket{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(category) (sum by (category) (rate(coderd_chatd_turn_time_share_count{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (category) (rate(coderd_chatd_turn_time_share_sum{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval])) / (sum by (category) (rate(coderd_chatd_turn_time_share_count{chat_kind=~\"$chat_kind\", model=~\"$model\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{category}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Category share per turn (${stat:text})",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Level 0: Turn time partition (full level only: --chat-stage-metrics=full)",
+      "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 111,
+      "panels": [],
+      "title": "Level 1: Turn children",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Stages that hang directly off chat_turn: the three scheduling waits before generation starts.\n\nMembers: acquisition, queue_wait, capacity_wait. generation_step, which repeats once per step of the turn, is in the collapsed row below because it is observed only at --chat-stage-metrics=full.\n\nOne sample per occurrence of the stage: a stage that runs several times in a turn contributes several samples, so this is \"how long does one of these take\".\n\n$chat_kind applies to every series. These stages are not tied to a model call, so $model does not apply.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"acquisition|queue_wait|capacity_wait\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"acquisition|queue_wait|capacity_wait\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"acquisition|queue_wait|capacity_wait\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"acquisition|queue_wait|capacity_wait\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{stage}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Duration per occurrence (${stat:text})",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 112,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "generation_step: one iteration of the generation loop, which repeats once per step of the turn. Observed only at --chat-stage-metrics=full.\n\nOne sample per occurrence. $chat_kind and $model apply.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 37
+          },
+          "id": 105,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=\"generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Duration per occurrence, full-level stages (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total seconds each stage occupied within a turn, from coderd_chatd_turn_stage_seconds.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats.\n\nCompare with duration per occurrence: a stage can be fast per occurrence and still dominate a turn by repeating. Both variables apply, because the turn-end metrics are stamped with the turn's model even for stages that are not tied to a model call.\n\ncapacity_wait is not in this panel: it is measured before the turn exists and reaches only the per-occurrence profile, and its window lies inside acquisition.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 37
+          },
+          "id": 22,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_seconds_bucket{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_seconds_sum{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Seconds per turn (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "How many times each stage ran in a turn, from coderd_chatd_turn_stage_count.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. A stage that did not occur in a turn is not recorded for that turn, so this reads as the count among turns where the stage happened at all.\n\nThis is the multiplier between the other two panels: seconds per turn is roughly occurrences per turn times duration per occurrence.\n\ncapacity_wait is not in this panel: it is measured before the turn exists and reaches only the per-occurrence profile, and its window lies inside acquisition.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 45
+          },
+          "id": 23,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_count_bucket{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_count_sum{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Occurrences per turn (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Fraction of the turn each stage occupied, from coderd_chatd_stage_share_of_turn.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. Stages overlap in wall time, so shares at one level do not sum to 1 and several stages can each approach the whole turn.\n\nUse it to compare levels: a level whose shares are all small means turn time is going somewhere else, which the turn time partition row attributes.\n\ncapacity_wait is not in this panel: it is measured before the turn exists and reaches only the per-occurrence profile, and its window lies inside acquisition.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 45
+          },
+          "id": 24,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_share_of_turn_bucket{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_share_of_turn_sum{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Share of turn (${stat:text})",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Level 1: Turn children (full level only: --chat-stage-metrics=full)",
+      "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 113,
+      "panels": [],
+      "title": "Level 2: Step children",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Stages inside one generation_step. They overlap each other in wall time, so read them as a profile of the step rather than as a partition of it. mcp_connect (inside prepare) and time_to_first_token and provider_attempt (inside stream) are at level 3.\n\nMembers: retry_backoff, stream, tool_call, commit. prepare, thinking, and compaction are in the collapsed row below because they are observed only at --chat-stage-metrics=full.\n\nOne sample per occurrence of the stage: a stage that runs several times in a turn contributes several samples, so this is \"how long does one of these take\".\n\n$chat_kind applies to every series. $model applies to stream and tool_call; commit and retry_backoff are not tied to a model call and are matched without it.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"commit|retry_backoff\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"commit|retry_backoff\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"commit|retry_backoff\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"commit|retry_backoff\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{stage}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"stream|tool_call\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"stream|tool_call\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"stream|tool_call\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"stream|tool_call\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{stage}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Duration per occurrence (${stat:text})",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "id": 114,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "prepare (generation preparation, including model resolution and tool assembly), thinking (a reasoning block inside the stream), and compaction (a compaction pass). Observed only at --chat-stage-metrics=full.\n\nOne sample per occurrence. $chat_kind and $model apply.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 48
+          },
+          "id": 106,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"prepare|thinking|compaction\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"prepare|thinking|compaction\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"prepare|thinking|compaction\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"prepare|thinking|compaction\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Duration per occurrence, full-level stages (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total seconds each stage occupied within a turn, from coderd_chatd_turn_stage_seconds.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats.\n\nCompare with duration per occurrence: a stage can be fast per occurrence and still dominate a turn by repeating. Both variables apply, because the turn-end metrics are stamped with the turn's model even for stages that are not tied to a model call.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 48
+          },
+          "id": 32,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_seconds_bucket{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_seconds_sum{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Seconds per turn (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "How many times each stage ran in a turn, from coderd_chatd_turn_stage_count.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. A stage that did not occur in a turn is not recorded for that turn, so this reads as the count among turns where the stage happened at all.\n\nThis is the multiplier between the other two panels: seconds per turn is roughly occurrences per turn times duration per occurrence.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 56
+          },
+          "id": 33,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_count_bucket{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_count_sum{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Occurrences per turn (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Fraction of the turn each stage occupied, from coderd_chatd_stage_share_of_turn.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. Stages overlap in wall time, so shares at one level do not sum to 1 and several stages can each approach the whole turn.\n\nUse it to compare levels: a level whose shares are all small means turn time is going somewhere else, which the turn time partition row attributes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 56
+          },
+          "id": 34,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_share_of_turn_bucket{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_share_of_turn_sum{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"prepare|stream|thinking|tool_call|commit|compaction|retry_backoff\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Share of turn (${stat:text})",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Level 2: Step children (full level only: --chat-stage-metrics=full)",
+      "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 115,
+      "panels": [],
+      "title": "Level 3: Prepare and stream children",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Stages nested one level below the step children: mcp_connect inside prepare; time_to_first_token and provider_attempt inside stream. time_to_first_token and provider_attempt overlap each other: the attempt closes on response headers, the first token usually arrives shortly after.\n\nMembers: mcp_connect, time_to_first_token, provider_attempt.\n\nOne sample per occurrence of the stage: a stage that runs several times in a turn contributes several samples, so this is \"how long does one of these take\".\n\n$chat_kind applies to every series. $model applies to time_to_first_token and provider_attempt; mcp_connect is not tied to a model call and is matched without it.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"mcp_connect\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=\"mcp_connect\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{stage}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\", scope=\"turn\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{stage}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Duration per occurrence (${stat:text})",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "id": 116,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total seconds each stage occupied within a turn, from coderd_chatd_turn_stage_seconds.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats.\n\nCompare with duration per occurrence: a stage can be fast per occurrence and still dominate a turn by repeating. Both variables apply, because the turn-end metrics are stamped with the turn's model even for stages that are not tied to a model call.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 59
+          },
+          "id": 42,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_seconds_bucket{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_seconds_sum{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Seconds per turn (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "How many times each stage ran in a turn, from coderd_chatd_turn_stage_count.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. A stage that did not occur in a turn is not recorded for that turn, so this reads as the count among turns where the stage happened at all.\n\nThis is the multiplier between the other two panels: seconds per turn is roughly occurrences per turn times duration per occurrence.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 59
+          },
+          "id": 43,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_count_bucket{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_count_sum{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Occurrences per turn (${stat:text})",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Fraction of the turn each stage occupied, from coderd_chatd_stage_share_of_turn.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. Stages overlap in wall time, so shares at one level do not sum to 1 and several stages can each approach the whole turn.\n\nUse it to compare levels: a level whose shares are all small means turn time is going somewhere else, which the turn time partition row attributes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 67
+          },
+          "id": 44,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_share_of_turn_bucket{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_share_of_turn_sum{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"mcp_connect|time_to_first_token|provider_attempt\", model=~\"$model\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+              "legendFormat": "{{stage}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Share of turn (${stat:text})",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Level 3: Prepare and stream children (full level only: --chat-stage-metrics=full)",
+      "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      },
+      "id": 117,
+      "panels": [],
+      "title": "Throughput and TTFT",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Time to first token from coderd_chatd_ttft_seconds, the histogram recorded when the first streamed part arrives. The time_to_first_token stage in the profile above measures the same interval scoped to a provider attempt. This histogram carries none of the stage labels, so $model and $chat_kind do not apply to it.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(coderd_chatd_ttft_seconds_bucket[$__rate_interval])))\n  and on() (sum(rate(coderd_chatd_ttft_seconds_count[$__rate_interval])) > 0)",
+          "range": true,
+          "refId": "A",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.9, sum by (le) (rate(coderd_chatd_ttft_seconds_bucket[$__rate_interval])))\n  and on() (sum(rate(coderd_chatd_ttft_seconds_count[$__rate_interval])) > 0)",
+          "range": true,
+          "refId": "B",
+          "legendFormat": "p90"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(coderd_chatd_ttft_seconds_bucket[$__rate_interval])))\n  and on() (sum(rate(coderd_chatd_ttft_seconds_count[$__rate_interval])) > 0)",
+          "range": true,
+          "refId": "C",
+          "legendFormat": "p99"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(coderd_chatd_ttft_seconds_sum[$__rate_interval])) / (sum(rate(coderd_chatd_ttft_seconds_count[$__rate_interval])) > 0)",
+          "range": true,
+          "refId": "D",
+          "legendFormat": "mean"
+        }
+      ],
+      "title": "Time to first token",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Provider calls made outside a chat turn (scope=\"background\"): detached quickgen and title generation requests. These are excluded from the stage profile and the other stage panels, which are scoped to scope=\"turn\". Rate is on the right axis; duration uses the selected $stat and is guarded so an idle period drops out instead of returning NaN. Background work runs outside a chat turn and carries an empty chat_kind, so $chat_kind is not applied here either.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "calls"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ops"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"background\"}[$__rate_interval]))",
+          "range": true,
+          "refId": "A",
+          "legendFormat": "calls"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"provider_attempt\", scope=\"background\"}[$__rate_interval])))\n    and on() (vector($stat) > bool 0) == 1\n    and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"background\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"provider_attempt\", scope=\"background\"}[$__rate_interval])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"background\"}[$__rate_interval])) > 0)\n    and on() (vector($stat) == bool 0) == 1\n)",
+          "range": true,
+          "refId": "B",
+          "legendFormat": "${stat:text}"
+        }
+      ],
+      "title": "Background provider calls (${stat:text})",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": [
+    "coder",
+    "chatd",
+    "agents"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "p95",
+          "value": "0.95"
+        },
+        "description": "Statistic used by the stage profile and stage duration panels. The value 0 selects the mean (rate of _sum over rate of _count); any other value is used as the quantile.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Statistic",
+        "multi": false,
+        "name": "stat",
+        "options": [
+          {
+            "selected": false,
+            "text": "mean",
+            "value": "0"
+          },
+          {
+            "selected": false,
+            "text": "p50",
+            "value": "0.5"
+          },
+          {
+            "selected": false,
+            "text": "p90",
+            "value": "0.9"
+          },
+          {
+            "selected": true,
+            "text": "p95",
+            "value": "0.95"
+          },
+          {
+            "selected": false,
+            "text": "p99",
+            "value": "0.99"
+          }
+        ],
+        "query": "mean : 0,p50 : 0.5,p90 : 0.9,p95 : 0.95,p99 : 0.99",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(coderd_chatd_stage_duration_seconds_count{scope=\"turn\"}, chat_kind)",
+        "description": "Whether the turn belongs to a root chat or to a subagent chat spawned by a parent agent. Every turn-scoped stage carries this label, so the filter applies to all stage panels. Background provider calls carry an empty value and are not filtered.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Chat kind",
+        "multi": true,
+        "name": "chat_kind",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(coderd_chatd_stage_duration_seconds_count{scope=\"turn\"}, chat_kind)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(coderd_chatd_stage_duration_seconds_count{scope=\"turn\"}, model)",
+        "description": "Model the stage ran against. Stages that run before a model is resolved carry an empty value and are only included under All, whose value is the regex .* and matches the empty label.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Model",
+        "multi": true,
+        "name": "model",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(coderd_chatd_stage_duration_seconds_count{scope=\"turn\"}, model)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Chatd: chat lifecycle",
+  "uid": "chatd-lifecycle",
+  "version": 1,
+  "weekStart": ""
+}
