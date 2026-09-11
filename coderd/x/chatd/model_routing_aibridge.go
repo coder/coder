@@ -112,7 +112,7 @@ func isOpenRouterLikeAIGatewayProvider(provider database.AIProvider) bool {
 }
 
 func (p *Server) newModel(
-	ctx context.Context,
+	_ context.Context,
 	req modelClientRequest,
 	route aiGatewayModelRoute,
 	opts modelBuildOptions,
@@ -145,9 +145,7 @@ func (p *Server) newModel(
 		)
 	}
 
-	// Resolve per-request attribution from the chat's persisted workspace binding.
-	// The WorkspaceID is trusted as set by the caller when creating the chat;
-	// no DB lookup is required.
+	// Use the trusted workspace binding already persisted on the chat.
 	attr := aibridge.Attribution{}
 	if req.Chat.WorkspaceID.Valid {
 		attr.WorkspaceID = req.Chat.WorkspaceID.UUID
