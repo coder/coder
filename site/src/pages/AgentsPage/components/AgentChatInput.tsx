@@ -60,6 +60,7 @@ import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -105,6 +106,7 @@ interface AgentChatInputProps {
 	onSend: (message: string) => void;
 	placeholder?: string;
 	isDisabled: boolean;
+	isReadOnly?: boolean;
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
@@ -362,6 +364,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
 	isDisabled,
+	isReadOnly = false,
 	isLoading,
 	inputRef,
 	initialValue,
@@ -426,6 +429,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		preferencesQuery.isLoading,
 	);
 	const [chatFullWidth] = useChatFullWidth();
+	const { organizations } = useDashboard();
+	const chatOrganization = organizations.find(
+		(organization) => organization.id === chatOrganizationId,
+	);
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup
@@ -907,6 +914,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
+		!isReadOnly &&
 		!isLoading &&
 		hasModelOptions &&
 		hasSendableContent &&
@@ -921,6 +929,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!hasUploadedAttachments &&
 			!hasFileReferences &&
 			!isDisabled &&
+			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
@@ -933,6 +942,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (
 			(!text && !hasUploadedAttachments && !hasFileReferences) ||
 			isDisabled ||
+			isReadOnly ||
 			isLoading ||
 			hasActiveUploads ||
 			!hasModelOptions
@@ -1000,7 +1010,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isDisabled || isLoading;
+			isEditingHistoryMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1098,6 +1108,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin
 							providerCount={providerCount ?? 0}
 							modelCount={modelCount ?? 0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
@@ -1106,6 +1117,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
@@ -1173,7 +1185,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					sendShortcut={sendShortcut}
-					disabled={isDisabled || isLoading}
+					disabled={isReadOnly || isLoading}
 					hasWorkspace={hasSkillsWorkspace}
 					workspaceSkills={workspaceSkills}
 					autoFocus

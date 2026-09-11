@@ -74,7 +74,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 		require.Equal(t, int64(2), stats.WorkspaceRxBytes)
 		require.Equal(t, 1.5, stats.WorkspaceConnectionLatency50)
 		require.Equal(t, 1.95, stats.WorkspaceConnectionLatency95)
-		require.Equal(t, int64(2), stats.SessionCountVSCode)
+		require.Equal(t, int64(2), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
 	})
 
 	t.Run("GroupsByAgentID", func(t *testing.T) {
@@ -111,8 +111,88 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 		require.Equal(t, int64(2), stats.WorkspaceRxBytes)
 		require.Equal(t, 1.5, stats.WorkspaceConnectionLatency50)
 		require.Equal(t, 1.95, stats.WorkspaceConnectionLatency95)
-		require.Equal(t, int64(1), stats.SessionCountVSCode)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
 	})
+
+	// The per-app sums live in their own subquery, because decomposing
+	// session_counts in the FROM clause emits one row per app name and
+	// multiplies every other aggregate.
+	t.Run("MultipleAppNamesDoNotMultiplyAggregates", func(t *testing.T) {
+		t.Parallel()
+
+		sqlDB := testSQLDB(t)
+		err := migrations.Up(sqlDB)
+		require.NoError(t, err)
+		db := database.New(sqlDB)
+		ctx := context.Background()
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			AgentID:                   uuid.New(),
+			TxBytes:                   1,
+			RxBytes:                   1,
+			ConnectionMedianLatencyMS: 1,
+			SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "jetbrains": 1, "ssh": 1}),
+		})
+
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
+		require.NoError(t, err)
+
+		require.Equal(t, int64(1), stats.WorkspaceTxBytes, "bytes must not be multiplied by the app name count")
+		require.Equal(t, int64(1), stats.WorkspaceRxBytes)
+		require.Equal(t, float64(1), stats.WorkspaceConnectionLatency50)
+		require.Equal(t, float64(1), stats.WorkspaceConnectionLatency95)
+		counts := sessionFamilyCounts(t, stats.SessionCounts)
+		require.Equal(t, int64(1), counts["vscode"])
+		require.Equal(t, int64(1), counts["jetbrains"])
+		require.Equal(t, int64(1), counts["ssh"])
+	})
+}
+
+// The per-agent sessions come from a separate CTE that is joined back, so an
+// agent whose latest row reports no sessions must keep its row with zero
+// sessions instead of disappearing or inheriting the previous row's counts.
+func TestGetWorkspaceAgentStats(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := context.Background()
+	now := dbtime.Now()
+
+	// The query groups by the owner columns, so both rows must share them.
+	owner := database.WorkspaceAgentStat{
+		UserID:      uuid.New(),
+		AgentID:     uuid.New(),
+		WorkspaceID: uuid.New(),
+		TemplateID:  uuid.New(),
+	}
+
+	stat := owner
+	stat.CreatedAt = now.Add(-2 * time.Minute)
+	stat.RxBytes = 10
+	stat.TxBytes = 1
+	stat.ConnectionMedianLatencyMS = 5
+	stat.SessionCounts = dbgen.SessionCounts(t, map[string]int64{"vscode": 2})
+	dbgen.WorkspaceAgentStat(t, db, stat)
+
+	stat = owner
+	stat.CreatedAt = now.Add(-time.Minute)
+	stat.RxBytes = 10
+	stat.TxBytes = 1
+	stat.ConnectionMedianLatencyMS = 5
+	dbgen.WorkspaceAgentStat(t, db, stat)
+
+	stats, err := db.GetWorkspaceAgentStats(ctx, now.Add(-time.Hour))
+	require.NoError(t, err)
+	require.Len(t, stats, 1, "an agent whose latest row reports no sessions must keep its row")
+	require.Equal(t, owner.AgentID, stats[0].AgentID)
+	require.Empty(t, sessionFamilyCounts(t, stats[0].SessionCounts),
+		"the previous row's sessions must not be resurrected")
+	require.Equal(t, int64(20), stats[0].WorkspaceRxBytes)
+	require.Equal(t, int64(2), stats[0].WorkspaceTxBytes)
 }
 
 func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
@@ -180,10 +260,10 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 		require.Equal(t, int64(2), stats.WorkspaceRxBytes)
 		require.Equal(t, 1.5, stats.WorkspaceConnectionLatency50)
 		require.Equal(t, 1.95, stats.WorkspaceConnectionLatency95)
-		require.Equal(t, int64(1), stats.SessionCountVSCode)
-		require.Equal(t, int64(1), stats.SessionCountSSH)
-		require.Equal(t, int64(0), stats.SessionCountReconnectingPTY)
-		require.Equal(t, int64(0), stats.SessionCountJetBrains)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	})
 
 	t.Run("ExcludesStatsBeforeCutoffInSameMinute", func(t *testing.T) {
@@ -212,8 +292,8 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 
 		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, cutoff)
 		require.NoError(t, err)
-		require.Zero(t, stats.SessionCountVSCode)
-		require.Equal(t, int64(1), stats.SessionCountSSH)
+		require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
 	})
 
 	t.Run("NoUsage", func(t *testing.T) {
@@ -241,10 +321,10 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 
 		require.Equal(t, int64(3), stats.WorkspaceTxBytes)
 		require.Equal(t, int64(4), stats.WorkspaceRxBytes)
-		require.Equal(t, int64(0), stats.SessionCountVSCode)
-		require.Equal(t, int64(0), stats.SessionCountSSH)
-		require.Equal(t, int64(0), stats.SessionCountReconnectingPTY)
-		require.Equal(t, int64(0), stats.SessionCountJetBrains)
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	})
 }
 
@@ -765,28 +845,39 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(40*time.Second, templateID, userID, otherWorkspaceID, 0, map[string]int64{"reconnecting_pty": 1, "vscode": 1})
 	insertStat(time.Minute+5*time.Second, templateID, userID, otherWorkspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
 
-	// Unknown apps do not contribute activity or active users.
-	insertStat(10*time.Second, templateID, uuid.New(), uuid.New(), 1, map[string]int64{"unknown": 1})
+	// An app outside every family is still activity, so its user counts as
+	// active even though the session lands in no usage bucket.
+	unattributedUserID := uuid.New()
+	insertStat(10*time.Second, templateID, unattributedUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	// Unknown activity cannot supply a connection for known activity.
-	noKnownConnectionTemplateID := uuid.New()
-	noKnownConnectionUserID := uuid.New()
-	insertStat(15*time.Second, noKnownConnectionTemplateID, noKnownConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
-	insertStat(30*time.Second, noKnownConnectionTemplateID, noKnownConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
+	// Connections are read across the whole minute, so an unattributed session
+	// supplies the connection its user's attributed sessions lack.
+	sharedConnectionTemplateID := uuid.New()
+	sharedConnectionUserID := uuid.New()
+	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
+	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
+	appFamilies := codersdk.SessionCountAppFamiliesJSON()
 	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime: startTime,
-		EndTime:   endTime,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		AppFamilies: appFamilies,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []database.GetTemplateInsightsByTemplateRow{
+	// The query does not order its rows.
+	require.ElementsMatch(t, []database.GetTemplateInsightsByTemplateRow{
 		{
 			TemplateID:                  templateID,
-			ActiveUsers:                 1,
+			ActiveUsers:                 2,
 			UsageVscodeSeconds:          120,
 			UsageJetbrainsSeconds:       60,
 			UsageReconnectingPtySeconds: 60,
 			UsageSshSeconds:             120,
+		},
+		{
+			TemplateID:         sharedConnectionTemplateID,
+			ActiveUsers:        1,
+			UsageVscodeSeconds: 60,
 		},
 	}, insights)
 }
@@ -917,17 +1008,17 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 		}
 		require.Equal(t, int64(3), ws1Stats.WorkspaceTxBytes)
 		require.Equal(t, int64(3), ws1Stats.WorkspaceRxBytes)
-		require.Equal(t, int64(1), ws1Stats.SessionCountVSCode)
-		require.Equal(t, int64(1), ws1Stats.SessionCountJetBrains)
-		require.Equal(t, int64(0), ws1Stats.SessionCountSSH)
-		require.Equal(t, int64(0), ws1Stats.SessionCountReconnectingPTY)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws1Stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws1Stats.SessionCounts)["jetbrains"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws1Stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws1Stats.SessionCounts)["reconnecting_pty"])
 
 		require.Equal(t, int64(6), ws2Stats.WorkspaceTxBytes)
 		require.Equal(t, int64(11), ws2Stats.WorkspaceRxBytes)
-		require.Equal(t, int64(1), ws2Stats.SessionCountSSH)
-		require.Equal(t, int64(1), ws2Stats.SessionCountJetBrains)
-		require.Equal(t, int64(0), ws2Stats.SessionCountVSCode)
-		require.Equal(t, int64(0), ws2Stats.SessionCountReconnectingPTY)
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws2Stats.SessionCounts)["ssh"])
+		require.Equal(t, int64(1), sessionFamilyCounts(t, ws2Stats.SessionCounts)["jetbrains"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws2Stats.SessionCounts)["vscode"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, ws2Stats.SessionCounts)["reconnecting_pty"])
 	})
 
 	t.Run("NoUsage", func(t *testing.T) {
@@ -957,10 +1048,10 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 		require.Len(t, stats, 1)
 		require.Equal(t, int64(3), stats[0].WorkspaceTxBytes)
 		require.Equal(t, int64(4), stats[0].WorkspaceRxBytes)
-		require.Equal(t, int64(0), stats[0].SessionCountVSCode)
-		require.Equal(t, int64(0), stats[0].SessionCountSSH)
-		require.Equal(t, int64(0), stats[0].SessionCountReconnectingPTY)
-		require.Equal(t, int64(0), stats[0].SessionCountJetBrains)
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["vscode"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["ssh"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["reconnecting_pty"])
+		require.Equal(t, int64(0), sessionFamilyCounts(t, stats[0].SessionCounts)["jetbrains"])
 	})
 }
 
@@ -1191,14 +1282,13 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 
 		require.Len(t, stats, 2)
 		require.Contains(t, stats, database.GetWorkspaceAgentUsageStatsAndLabelsRow{
-			Username:                    user1.Username,
-			AgentName:                   agent1.Name,
-			WorkspaceName:               workspace1.Name,
-			TxBytes:                     3,
-			RxBytes:                     3,
-			SessionCountJetBrains:       1,
-			SessionCountReconnectingPTY: 1,
-			ConnectionMedianLatencyMS:   1,
+			Username:                  user1.Username,
+			AgentName:                 agent1.Name,
+			WorkspaceName:             workspace1.Name,
+			TxBytes:                   3,
+			RxBytes:                   3,
+			SessionCounts:             json.RawMessage(`{"jetbrains": 1, "reconnecting_pty": 1}`),
+			ConnectionMedianLatencyMS: 1,
 		})
 
 		require.Contains(t, stats, database.GetWorkspaceAgentUsageStatsAndLabelsRow{
@@ -1207,8 +1297,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			WorkspaceName:             workspace2.Name,
 			RxBytes:                   8,
 			TxBytes:                   4,
-			SessionCountVSCode:        1,
-			SessionCountSSH:           1,
+			SessionCounts:             json.RawMessage(`{"ssh": 1, "vscode": 1}`),
 			ConnectionMedianLatencyMS: 1,
 		})
 	})
@@ -1263,6 +1352,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			WorkspaceName:             workspace.Name,
 			RxBytes:                   4,
 			TxBytes:                   5,
+			SessionCounts:             json.RawMessage(`{}`),
 			ConnectionMedianLatencyMS: 1,
 		})
 	})
@@ -2114,6 +2204,115 @@ func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, files, 1)
 	require.Equal(t, file.ID, files[0].ID)
+}
+
+func TestLinkChatFilesEvictsOldest(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	newChat := func() database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+	}
+	const maxLinks = 3
+	base := dbtime.Now().Add(-time.Hour)
+	newFiles := func(n int) []uuid.UUID {
+		ids := make([]uuid.UUID, 0, n)
+		for i := 0; i < n; i++ {
+			file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				Name:           fmt.Sprintf("file-%d.txt", i),
+				Mimetype:       "text/plain",
+				Data:           []byte("data"),
+			})
+			require.NoError(t, err)
+			_, err = sqlDB.ExecContext(ctx,
+				"UPDATE chat_files SET created_at = $1 WHERE id = $2",
+				base.Add(time.Duration(i)*time.Second), file.ID)
+			require.NoError(t, err)
+			ids = append(ids, file.ID)
+		}
+		return ids
+	}
+	linkedIDs := func(chatID uuid.UUID) []uuid.UUID {
+		files, err := db.GetChatFileMetadataByChatID(ctx, chatID)
+		require.NoError(t, err)
+		ids := make([]uuid.UUID, 0, len(files))
+		for _, f := range files {
+			ids = append(ids, f.ID)
+		}
+		return ids
+	}
+
+	// Linking one file past the cap deletes the oldest file.
+	chat := newChat()
+	files := newFiles(maxLinks + 1)
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files[:maxLinks],
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files[maxLinks:],
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+	require.Equal(t, files[1:], linkedIDs(chat.ID))
+	_, err = db.GetChatFileByID(ctx, files[0])
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// A single batch over the cap is rejected and deletes nothing.
+	chat = newChat()
+	files = newFiles(maxLinks + 1)
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, maxLinks+1, rejected)
+	require.Empty(t, linkedIDs(chat.ID))
+	for _, id := range files {
+		_, err = db.GetChatFileByID(ctx, id)
+		require.NoError(t, err)
+	}
+
+	// A file links to one chat only.
+	chat = newChat()
+	files = newFiles(1)
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+	_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       newChat().ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.True(t, database.IsUniqueViolation(err, database.UniqueChatFileLinksFileIDKey))
+	require.Equal(t, files, linkedIDs(chat.ID))
 }
 
 func TestGetChatFileDataPrefixesByIDs(t *testing.T) {
@@ -10114,735 +10313,6 @@ func TestGetLatestWorkspaceBuildsByWorkspaceIDs(t *testing.T) {
 	}
 }
 
-func TestTasksWithStatusView(t *testing.T) {
-	t.Parallel()
-
-	createProvisionerJob := func(t *testing.T, db database.Store, org database.Organization, user database.User, buildStatus database.ProvisionerJobStatus) database.ProvisionerJob {
-		t.Helper()
-
-		var jobParams database.ProvisionerJob
-
-		switch buildStatus {
-		case database.ProvisionerJobStatusPending:
-			jobParams = database.ProvisionerJob{
-				OrganizationID: org.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				InitiatorID:    user.ID,
-			}
-		case database.ProvisionerJobStatusRunning:
-			jobParams = database.ProvisionerJob{
-				OrganizationID: org.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				InitiatorID:    user.ID,
-				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
-			}
-		case database.ProvisionerJobStatusFailed:
-			jobParams = database.ProvisionerJob{
-				OrganizationID: org.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				InitiatorID:    user.ID,
-				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
-				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
-				Error:          sql.NullString{Valid: true, String: "job failed"},
-			}
-		case database.ProvisionerJobStatusSucceeded:
-			jobParams = database.ProvisionerJob{
-				OrganizationID: org.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				InitiatorID:    user.ID,
-				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
-				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
-			}
-		case database.ProvisionerJobStatusCanceling:
-			jobParams = database.ProvisionerJob{
-				OrganizationID: org.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				InitiatorID:    user.ID,
-				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
-				CanceledAt:     sql.NullTime{Valid: true, Time: dbtime.Now()},
-			}
-		case database.ProvisionerJobStatusCanceled:
-			jobParams = database.ProvisionerJob{
-				OrganizationID: org.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				InitiatorID:    user.ID,
-				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
-				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
-				CanceledAt:     sql.NullTime{Valid: true, Time: dbtime.Now()},
-			}
-		default:
-			t.Errorf("invalid build status: %v", buildStatus)
-		}
-
-		return dbgen.ProvisionerJob(t, db, nil, jobParams)
-	}
-
-	createTask := func(
-		ctx context.Context,
-		t *testing.T,
-		db database.Store,
-		org database.Organization,
-		user database.User,
-		buildStatus database.ProvisionerJobStatus,
-		buildTransition database.WorkspaceTransition,
-		agentState database.WorkspaceAgentLifecycleState,
-		appHealths []database.WorkspaceAppHealth,
-	) database.Task {
-		t.Helper()
-
-		template := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-
-		if buildStatus == "" {
-			return dbgen.Task(t, db, database.TaskTable{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				Name:              "test-task",
-				TemplateVersionID: templateVersion.ID,
-				Prompt:            "Test prompt",
-			})
-		}
-
-		job := createProvisionerJob(t, db, org, user, buildStatus)
-
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			TemplateID:     template.ID,
-			OwnerID:        user.ID,
-		})
-		workspaceID := uuid.NullUUID{Valid: true, UUID: workspace.ID}
-
-		task := dbgen.Task(t, db, database.TaskTable{
-			OrganizationID:    org.ID,
-			OwnerID:           user.ID,
-			Name:              "test-task",
-			WorkspaceID:       workspaceID,
-			TemplateVersionID: templateVersion.ID,
-			Prompt:            "Test prompt",
-		})
-
-		workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       1,
-			Transition:        buildTransition,
-			InitiatorID:       user.ID,
-			JobID:             job.ID,
-		})
-		workspaceBuildNumber := workspaceBuild.BuildNumber
-
-		_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
-			TaskID:               task.ID,
-			WorkspaceBuildNumber: workspaceBuildNumber,
-		})
-		require.NoError(t, err)
-
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
-
-		if agentState != "" {
-			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ResourceID: resource.ID,
-			})
-			workspaceAgentID := agent.ID
-
-			_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
-				TaskID:               task.ID,
-				WorkspaceBuildNumber: workspaceBuildNumber,
-				WorkspaceAgentID:     uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
-			})
-			require.NoError(t, err)
-
-			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-				ID:             agent.ID,
-				LifecycleState: agentState,
-			})
-			require.NoError(t, err)
-
-			for i, health := range appHealths {
-				app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-					AgentID:     workspaceAgentID,
-					Slug:        fmt.Sprintf("test-app-%d", i),
-					DisplayName: fmt.Sprintf("Test App %d", i+1),
-					Health:      health,
-				})
-				if i == 0 {
-					// Assume the first app is the tasks app.
-					_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
-						TaskID:               task.ID,
-						WorkspaceBuildNumber: workspaceBuildNumber,
-						WorkspaceAgentID:     uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
-						WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
-					})
-					require.NoError(t, err)
-				}
-			}
-		}
-
-		return task
-	}
-
-	tests := []struct {
-		name                      string
-		buildStatus               database.ProvisionerJobStatus
-		buildTransition           database.WorkspaceTransition
-		agentState                database.WorkspaceAgentLifecycleState
-		appHealths                []database.WorkspaceAppHealth
-		expectedStatus            database.TaskStatus
-		description               string
-		expectBuildNumberValid    bool
-		expectBuildNumber         int32
-		expectWorkspaceAgentValid bool
-		expectWorkspaceAppValid   bool
-	}{
-		{
-			name:                      "NoWorkspace",
-			expectedStatus:            "pending",
-			description:               "Task with no workspace assigned",
-			expectBuildNumberValid:    false,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "FailedBuild",
-			buildStatus:               database.ProvisionerJobStatusFailed,
-			buildTransition:           database.WorkspaceTransitionStart,
-			expectedStatus:            database.TaskStatusError,
-			description:               "Latest workspace build failed",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "CancelingBuild",
-			buildStatus:               database.ProvisionerJobStatusCanceling,
-			buildTransition:           database.WorkspaceTransitionStart,
-			expectedStatus:            database.TaskStatusError,
-			description:               "Latest workspace build is canceling",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "CanceledBuild",
-			buildStatus:               database.ProvisionerJobStatusCanceled,
-			buildTransition:           database.WorkspaceTransitionStart,
-			expectedStatus:            database.TaskStatusError,
-			description:               "Latest workspace build was canceled",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "StoppedWorkspace",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStop,
-			expectedStatus:            database.TaskStatusPaused,
-			description:               "Workspace is stopped",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "DeletedWorkspace",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionDelete,
-			expectedStatus:            database.TaskStatusPaused,
-			description:               "Workspace is deleted",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "PendingStart",
-			buildStatus:               database.ProvisionerJobStatusPending,
-			buildTransition:           database.WorkspaceTransitionStart,
-			expectedStatus:            database.TaskStatusPending,
-			description:               "Workspace build pending (not yet picked up by provisioner)",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "RunningStart",
-			buildStatus:               database.ProvisionerJobStatusRunning,
-			buildTransition:           database.WorkspaceTransitionStart,
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Workspace build is starting (running)",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: false,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "StartingAgent",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateStarting,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Workspace is running but agent is starting",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "CreatedAgent",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateCreated,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Workspace is running but agent is created",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "ReadyAgentInitializingApp",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Agent is ready but app is initializing",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "ReadyAgentHealthyApp",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
-			expectedStatus:            database.TaskStatusActive,
-			description:               "Agent is ready and app is healthy",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "ReadyAgentDisabledApp",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
-			expectedStatus:            database.TaskStatusActive,
-			description:               "Agent is ready and app health checking is disabled",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "ReadyAgentUnhealthyApp",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
-			expectedStatus:            database.TaskStatusError,
-			description:               "Agent is ready but app is unhealthy",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "AgentStartTimeout",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateStartTimeout,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
-			expectedStatus:            database.TaskStatusActive,
-			description:               "Agent start timed out but app is healthy, defer to app",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "AgentStartError",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateStartError,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
-			expectedStatus:            database.TaskStatusActive,
-			description:               "Agent start failed but app is healthy, defer to app",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "AgentShuttingDown",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateShuttingDown,
-			expectedStatus:            database.TaskStatusUnknown,
-			description:               "Agent is shutting down",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "AgentOff",
-			buildStatus:               database.ProvisionerJobStatusSucceeded,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateOff,
-			expectedStatus:            database.TaskStatusUnknown,
-			description:               "Agent is off",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   false,
-		},
-		{
-			name:                      "RunningJobReadyAgentHealthyApp",
-			buildStatus:               database.ProvisionerJobStatusRunning,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
-			expectedStatus:            database.TaskStatusActive,
-			description:               "Running job with ready agent and healthy app should be active",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "RunningJobReadyAgentInitializingApp",
-			buildStatus:               database.ProvisionerJobStatusRunning,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Running job with ready agent but initializing app should be initializing",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "RunningJobReadyAgentUnhealthyApp",
-			buildStatus:               database.ProvisionerJobStatusRunning,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
-			expectedStatus:            database.TaskStatusError,
-			description:               "Running job with ready agent but unhealthy app should be error",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "RunningJobConnectingAgent",
-			buildStatus:               database.ProvisionerJobStatusRunning,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateStarting,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Running job with connecting agent should be initializing",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "RunningJobReadyAgentDisabledApp",
-			buildStatus:               database.ProvisionerJobStatusRunning,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
-			expectedStatus:            database.TaskStatusActive,
-			description:               "Running job with ready agent and disabled app health checking should be active",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-		{
-			name:                      "RunningJobReadyAgentHealthyTaskAppUnhealthyOtherAppIsOK",
-			buildStatus:               database.ProvisionerJobStatusRunning,
-			buildTransition:           database.WorkspaceTransitionStart,
-			agentState:                database.WorkspaceAgentLifecycleStateReady,
-			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthUnhealthy},
-			expectedStatus:            database.TaskStatusActive,
-			description:               "Running job with ready agent and multiple healthy apps should be active",
-			expectBuildNumberValid:    true,
-			expectBuildNumber:         1,
-			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			db, _ := dbtestutil.NewDB(t)
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			org := dbgen.Organization(t, db, database.Organization{})
-			user := dbgen.User(t, db, database.User{})
-
-			task := createTask(ctx, t, db, org, user, tt.buildStatus, tt.buildTransition, tt.agentState, tt.appHealths)
-
-			got, err := db.GetTaskByID(ctx, task.ID)
-			require.NoError(t, err)
-
-			t.Logf("Task status debug: %s", got.StatusDebug)
-
-			require.Equal(t, tt.expectedStatus, got.Status)
-
-			require.Equal(t, tt.expectBuildNumberValid, got.WorkspaceBuildNumber.Valid)
-			if tt.expectBuildNumberValid {
-				require.Equal(t, tt.expectBuildNumber, got.WorkspaceBuildNumber.Int32)
-			}
-
-			require.Equal(t, tt.expectWorkspaceAgentValid, got.WorkspaceAgentID.Valid)
-			if tt.expectWorkspaceAgentValid {
-				require.NotEqual(t, uuid.Nil, got.WorkspaceAgentID.UUID)
-			}
-
-			require.Equal(t, tt.expectWorkspaceAppValid, got.WorkspaceAppID.Valid)
-			if tt.expectWorkspaceAppValid {
-				require.NotEqual(t, uuid.Nil, got.WorkspaceAppID.UUID)
-			}
-		})
-	}
-}
-
-func TestGetTaskByWorkspaceID(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		setupTask func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable)
-		wantErr   bool
-	}{
-		{
-			name:    "task doesn't exist",
-			wantErr: true,
-		},
-		{
-			name: "task with no workspace id",
-			setupTask: func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable) {
-				dbgen.Task(t, db, database.TaskTable{
-					OrganizationID:    org.ID,
-					OwnerID:           user.ID,
-					Name:              "test-task",
-					TemplateVersionID: templateVersion.ID,
-					Prompt:            "Test prompt",
-				})
-			},
-			wantErr: true,
-		},
-		{
-			name: "task with workspace id",
-			setupTask: func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable) {
-				workspaceID := uuid.NullUUID{Valid: true, UUID: workspace.ID}
-				dbgen.Task(t, db, database.TaskTable{
-					OrganizationID:    org.ID,
-					OwnerID:           user.ID,
-					Name:              "test-task",
-					WorkspaceID:       workspaceID,
-					TemplateVersionID: templateVersion.ID,
-					Prompt:            "Test prompt",
-				})
-			},
-			wantErr: false,
-		},
-	}
-
-	db, _ := dbtestutil.NewDB(t)
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			org := dbgen.Organization(t, db, database.Organization{})
-			user := dbgen.User(t, db, database.User{})
-			template := dbgen.Template(t, db, database.Template{
-				OrganizationID: org.ID,
-				CreatedBy:      user.ID,
-			})
-			templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: org.ID,
-				TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
-				CreatedBy:      user.ID,
-			})
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				OrganizationID: org.ID,
-				OwnerID:        user.ID,
-				TemplateID:     template.ID,
-			})
-
-			if tt.setupTask != nil {
-				tt.setupTask(t, db, org, user, templateVersion, workspace)
-			}
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.False(t, task.WorkspaceBuildNumber.Valid)
-				require.False(t, task.WorkspaceAgentID.Valid)
-				require.False(t, task.WorkspaceAppID.Valid)
-			}
-		})
-	}
-}
-
-func TestDeleteTaskDeletesTaskSnapshot(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	org := dbgen.Organization(t, db, database.Organization{})
-	user := dbgen.User(t, db, database.User{})
-	template := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	task := dbgen.Task(t, db, database.TaskTable{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		TemplateVersionID: templateVersion.ID,
-		Prompt:            "Test prompt",
-	})
-
-	err := db.UpsertTaskSnapshot(ctx, database.UpsertTaskSnapshotParams{
-		TaskID:               task.ID,
-		LogSnapshot:          json.RawMessage(`{"messages":[]}`),
-		LogSnapshotCreatedAt: dbtime.Now(),
-	})
-	require.NoError(t, err)
-
-	_, err = db.DeleteTask(ctx, database.DeleteTaskParams{
-		ID:        task.ID,
-		DeletedAt: dbtime.Now(),
-	})
-	require.NoError(t, err)
-
-	_, err = db.GetTaskSnapshot(ctx, task.ID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-}
-
-func TestTaskNameUniqueness(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-
-	org := dbgen.Organization(t, db, database.Organization{})
-	user1 := dbgen.User(t, db, database.User{})
-	user2 := dbgen.User(t, db, database.User{})
-	template := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      user1.ID,
-	})
-	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-		OrganizationID: org.ID,
-		CreatedBy:      user1.ID,
-	})
-
-	taskName := "my-task"
-
-	// Create initial task for user1.
-	task1 := dbgen.Task(t, db, database.TaskTable{
-		OrganizationID:    org.ID,
-		OwnerID:           user1.ID,
-		Name:              taskName,
-		TemplateVersionID: tv.ID,
-		Prompt:            "Test prompt",
-	})
-	require.NotEqual(t, uuid.Nil, task1.ID)
-
-	tests := []struct {
-		name     string
-		ownerID  uuid.UUID
-		taskName string
-		wantErr  bool
-	}{
-		{
-			name:     "duplicate task name same user",
-			ownerID:  user1.ID,
-			taskName: taskName,
-			wantErr:  true,
-		},
-		{
-			name:     "duplicate task name different case same user",
-			ownerID:  user1.ID,
-			taskName: "MY-TASK",
-			wantErr:  true,
-		},
-		{
-			name:     "same task name different user",
-			ownerID:  user2.ID,
-			taskName: taskName,
-			wantErr:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitShort)
-
-			taskID := uuid.New()
-			task, err := db.InsertTask(ctx, database.InsertTaskParams{
-				ID:                 taskID,
-				OrganizationID:     org.ID,
-				OwnerID:            tt.ownerID,
-				Name:               tt.taskName,
-				TemplateVersionID:  tv.ID,
-				TemplateParameters: json.RawMessage("{}"),
-				Prompt:             "Test prompt",
-				CreatedAt:          dbtime.Now(),
-			})
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.NotEqual(t, uuid.Nil, task.ID)
-				require.NotEqual(t, task1.ID, task.ID)
-				require.Equal(t, taskID, task.ID)
-			}
-		})
-	}
-}
-
 func TestUsageEventsTrigger(t *testing.T) {
 	t.Parallel()
 
@@ -11368,334 +10838,6 @@ func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
 		normalized[i] = ts.UTC()
 	}
 	require.ElementsMatch(t, []time.Time{since, since.Add(time.Hour)}, normalized)
-}
-
-func TestListTasks(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-
-	// Given: two organizations and two users, one of which is a member of both
-	org1 := dbgen.Organization(t, db, database.Organization{})
-	org2 := dbgen.Organization(t, db, database.Organization{})
-	user1 := dbgen.User(t, db, database.User{})
-	user2 := dbgen.User(t, db, database.User{})
-	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         user1.ID,
-	})
-	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org2.ID,
-		UserID:         user2.ID,
-	})
-
-	// Given: a template with an active version
-	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		CreatedBy:      user1.ID,
-		OrganizationID: org1.ID,
-	})
-	tpl := dbgen.Template(t, db, database.Template{
-		CreatedBy:       user1.ID,
-		OrganizationID:  org1.ID,
-		ActiveVersionID: tv.ID,
-	})
-
-	// Helper function to create a task
-	createTask := func(orgID, ownerID uuid.UUID) database.Task {
-		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OrganizationID: orgID,
-			OwnerID:        ownerID,
-			TemplateID:     tpl.ID,
-		})
-		pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{})
-		sidebarAppID := uuid.New()
-		wb := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			JobID:             pj.ID,
-			TemplateVersionID: tv.ID,
-			WorkspaceID:       ws.ID,
-		})
-		wr := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: pj.ID,
-		})
-		agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: wr.ID,
-		})
-		wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-			ID:      sidebarAppID,
-			AgentID: agt.ID,
-		})
-		tsk := dbgen.Task(t, db, database.TaskTable{
-			OrganizationID:    orgID,
-			OwnerID:           ownerID,
-			Prompt:            testutil.GetRandomName(t),
-			TemplateVersionID: tv.ID,
-			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-		})
-		_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-			TaskID:               tsk.ID,
-			WorkspaceBuildNumber: wb.BuildNumber,
-			WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: agt.ID},
-			WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: wa.ID},
-		})
-		t.Logf("task_id:%s owner_id:%s org_id:%s", tsk.ID, ownerID, orgID)
-		return tsk
-	}
-
-	// Given: user1 has one task, user2 has one task, user3 has two tasks (one in each org)
-	task1 := createTask(org1.ID, user1.ID)
-	task2 := createTask(org1.ID, user2.ID)
-	task3 := createTask(org2.ID, user2.ID)
-
-	// Then: run various filters and assert expected results
-	for _, tc := range []struct {
-		name      string
-		filter    database.ListTasksParams
-		expectIDs []uuid.UUID
-	}{
-		{
-			name: "no filter",
-			filter: database.ListTasksParams{
-				OwnerID:        uuid.Nil,
-				OrganizationID: uuid.Nil,
-			},
-			expectIDs: []uuid.UUID{task3.ID, task2.ID, task1.ID},
-		},
-		{
-			name: "filter by user ID",
-			filter: database.ListTasksParams{
-				OwnerID:        user1.ID,
-				OrganizationID: uuid.Nil,
-			},
-			expectIDs: []uuid.UUID{task1.ID},
-		},
-		{
-			name: "filter by organization ID",
-			filter: database.ListTasksParams{
-				OwnerID:        uuid.Nil,
-				OrganizationID: org1.ID,
-			},
-			expectIDs: []uuid.UUID{task2.ID, task1.ID},
-		},
-		{
-			name: "filter by user and organization ID",
-			filter: database.ListTasksParams{
-				OwnerID:        user2.ID,
-				OrganizationID: org2.ID,
-			},
-			expectIDs: []uuid.UUID{task3.ID},
-		},
-		{
-			name: "no results",
-			filter: database.ListTasksParams{
-				OwnerID:        user1.ID,
-				OrganizationID: org2.ID,
-			},
-			expectIDs: nil,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			tasks, err := db.ListTasks(ctx, tc.filter)
-			require.NoError(t, err)
-			require.Len(t, tasks, len(tc.expectIDs))
-
-			for idx, eid := range tc.expectIDs {
-				task := tasks[idx]
-				assert.Equal(t, eid, task.ID, "task ID mismatch at index %d", idx)
-
-				require.True(t, task.WorkspaceBuildNumber.Valid)
-				require.Greater(t, task.WorkspaceBuildNumber.Int32, int32(0))
-				require.True(t, task.WorkspaceAgentID.Valid)
-				require.NotEqual(t, uuid.Nil, task.WorkspaceAgentID.UUID)
-				require.True(t, task.WorkspaceAppID.Valid)
-				require.NotEqual(t, uuid.Nil, task.WorkspaceAppID.UUID)
-			}
-		})
-	}
-}
-
-func TestUpdateTaskWorkspaceID(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-
-	// Create organization, users, template, and template version.
-	org := dbgen.Organization(t, db, database.Organization{})
-	user := dbgen.User(t, db, database.User{})
-	template := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
-		CreatedBy:      user.ID,
-	})
-
-	// Create another template for mismatch test.
-	template2 := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-
-	tests := []struct {
-		name      string
-		setupTask func(t *testing.T) database.Task
-		setupWS   func(t *testing.T) database.WorkspaceTable
-		wantErr   bool
-		wantNoRow bool
-	}{
-		{
-			name: "successful update with matching template",
-			setupTask: func(t *testing.T) database.Task {
-				return dbgen.Task(t, db, database.TaskTable{
-					OrganizationID:    org.ID,
-					OwnerID:           user.ID,
-					Name:              testutil.GetRandomName(t),
-					WorkspaceID:       uuid.NullUUID{},
-					TemplateVersionID: templateVersion.ID,
-					Prompt:            "Test prompt",
-				})
-			},
-			setupWS: func(t *testing.T) database.WorkspaceTable {
-				return dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: org.ID,
-					OwnerID:        user.ID,
-					TemplateID:     template.ID,
-				})
-			},
-			wantErr:   false,
-			wantNoRow: false,
-		},
-		{
-			name: "task already has workspace_id",
-			setupTask: func(t *testing.T) database.Task {
-				existingWS := dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: org.ID,
-					OwnerID:        user.ID,
-					TemplateID:     template.ID,
-				})
-				return dbgen.Task(t, db, database.TaskTable{
-					OrganizationID:    org.ID,
-					OwnerID:           user.ID,
-					Name:              testutil.GetRandomName(t),
-					WorkspaceID:       uuid.NullUUID{Valid: true, UUID: existingWS.ID},
-					TemplateVersionID: templateVersion.ID,
-					Prompt:            "Test prompt",
-				})
-			},
-			setupWS: func(t *testing.T) database.WorkspaceTable {
-				return dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: org.ID,
-					OwnerID:        user.ID,
-					TemplateID:     template.ID,
-				})
-			},
-			wantErr:   false,
-			wantNoRow: true, // No row should be returned because WHERE condition fails.
-		},
-		{
-			name: "template mismatch between task and workspace",
-			setupTask: func(t *testing.T) database.Task {
-				return dbgen.Task(t, db, database.TaskTable{
-					OrganizationID:    org.ID,
-					OwnerID:           user.ID,
-					Name:              testutil.GetRandomName(t),
-					WorkspaceID:       uuid.NullUUID{}, // NULL workspace_id
-					TemplateVersionID: templateVersion.ID,
-					Prompt:            "Test prompt",
-				})
-			},
-			setupWS: func(t *testing.T) database.WorkspaceTable {
-				return dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: org.ID,
-					OwnerID:        user.ID,
-					TemplateID:     template2.ID, // Different template, JOIN will fail.
-				})
-			},
-			wantErr:   false,
-			wantNoRow: true, // No row should be returned because JOIN condition fails.
-		},
-		{
-			name: "task does not exist",
-			setupTask: func(t *testing.T) database.Task {
-				return database.Task{
-					ID: uuid.New(), // Non-existent task ID.
-				}
-			},
-			setupWS: func(t *testing.T) database.WorkspaceTable {
-				return dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: org.ID,
-					OwnerID:        user.ID,
-					TemplateID:     template.ID,
-				})
-			},
-			wantErr:   false,
-			wantNoRow: true,
-		},
-		{
-			name: "workspace does not exist",
-			setupTask: func(t *testing.T) database.Task {
-				return dbgen.Task(t, db, database.TaskTable{
-					OrganizationID:    org.ID,
-					OwnerID:           user.ID,
-					Name:              testutil.GetRandomName(t),
-					WorkspaceID:       uuid.NullUUID{},
-					TemplateVersionID: templateVersion.ID,
-					Prompt:            "Test prompt",
-				})
-			},
-			setupWS: func(t *testing.T) database.WorkspaceTable {
-				return database.WorkspaceTable{
-					ID: uuid.New(), // Non-existent workspace ID.
-				}
-			},
-			wantErr:   false,
-			wantNoRow: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitShort)
-
-			task := tt.setupTask(t)
-			workspace := tt.setupWS(t)
-
-			updatedTask, err := db.UpdateTaskWorkspaceID(ctx, database.UpdateTaskWorkspaceIDParams{
-				ID:          task.ID,
-				WorkspaceID: uuid.NullUUID{Valid: true, UUID: workspace.ID},
-			})
-
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			if tt.wantNoRow {
-				require.ErrorIs(t, err, sql.ErrNoRows)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, task.ID, updatedTask.ID)
-			require.True(t, updatedTask.WorkspaceID.Valid)
-			require.Equal(t, workspace.ID, updatedTask.WorkspaceID.UUID)
-			require.Equal(t, task.OrganizationID, updatedTask.OrganizationID)
-			require.Equal(t, task.OwnerID, updatedTask.OwnerID)
-			require.Equal(t, task.Name, updatedTask.Name)
-			require.Equal(t, task.TemplateVersionID, updatedTask.TemplateVersionID)
-
-			// Verify the update persisted by fetching the task again.
-			fetchedTask, err := db.GetTaskByID(ctx, task.ID)
-			require.NoError(t, err)
-			require.True(t, fetchedTask.WorkspaceID.Valid)
-			require.Equal(t, workspace.ID, fetchedTask.WorkspaceID.UUID)
-		})
-	}
 }
 
 func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
@@ -14373,8 +13515,8 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Given: an org with two members whose implicit Everyone group carries the
-		// only budget.
+		// Given: an org with two members and the prebuilds system user whose
+		// implicit Everyone group carries the only budget.
 		org := dbgen.Organization(t, db, database.Organization{})
 		for range 2 {
 			user := dbgen.User(t, db, database.User{})
@@ -14383,6 +13525,10 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 				OrganizationID: org.ID,
 			})
 		}
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         database.PrebuildsSystemUserID,
+			OrganizationID: org.ID,
+		})
 		// The Everyone group has ID equal to the organization ID and must be
 		// inserted explicitly for the group_ai_budgets FK constraint.
 		//nolint:gocritic // Requires system context.
@@ -14402,7 +13548,7 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: every org member counts toward the total.
+		// Then: only non-system org members count toward the total.
 		require.Len(t, got, 1)
 		require.Equal(t, sql.NullInt64{Int64: 100, Valid: true}, got[0].SpendLimitMicros, "spend_limit_micros")
 		require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, got[0].TotalSpendLimitMicros, "total_spend_limit_micros")
@@ -15321,6 +14467,28 @@ func TestGetOverBudgetUsersPerGroup(t *testing.T) {
 				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 0})
 				require.NoError(t, err)
 				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: group.ID, OverBudgetUsers: 1}}
+			},
+		},
+		{
+			// A system user in a budgeted group is not counted.
+			name: "SystemUserNotCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					OrganizationID: org.ID,
+					UserID:         database.PrebuildsSystemUserID,
+				})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{
+					GroupID: group.ID,
+					UserID:  database.PrebuildsSystemUserID,
+				})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+					GroupID:          group.ID,
+					SpendLimitMicros: 0,
+				})
+				require.NoError(t, err)
+				return nil
 			},
 		},
 		{
@@ -19426,6 +18594,35 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 	})
 }
 
+func TestSingleUseDelete(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// Callers rely on this delete to arbitrate single use, so a delete that
+	// removed nothing must report sql.ErrNoRows rather than succeed.
+	t.Run("OAuth2ProviderAppCode", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderAppCode(t, db, database.OAuth2ProviderAppCode{
+			AppID:  app.ID,
+			UserID: user.ID,
+		})
+
+		deleted, err := db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
+		require.NoError(t, err)
+		require.Equal(t, code, deleted)
+
+		_, err = db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+}
+
 func TestGetUnpricedAIModelsSince(t *testing.T) {
 	t.Parallel()
 
@@ -19742,4 +18939,154 @@ func TestGetChatSiteConfigValue(t *testing.T) {
 	value, err = db.GetChatSiteConfigValue(ctx, "derp_mesh_key")
 	require.NoError(t, err)
 	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
+}
+
+func TestSessionCountsAttributeByFamily(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	cursorTemplate := uuid.New()
+	zedTemplate := uuid.New()
+	unknownTemplate := uuid.New()
+	for _, tc := range []struct {
+		templateID uuid.UUID
+		counts     map[string]int64
+	}{
+		{cursorTemplate, map[string]int64{"cursor": 2}},
+		{zedTemplate, map[string]int64{"zed": 1}},
+		{unknownTemplate, map[string]int64{"some_new_ide": 5}},
+	} {
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			TemplateID:                tc.templateID,
+			UserID:                    uuid.New(),
+			AgentID:                   uuid.New(),
+			ConnectionCount:           1,
+			ConnectionMedianLatencyMS: 1,
+			Usage:                     true,
+			SessionCounts:             dbgen.SessionCounts(t, tc.counts),
+		})
+	}
+
+	appFamilies := codersdk.SessionCountAppFamiliesJSON()
+
+	// A VS Code fork counts as VS Code, and Zed counts as SSH.
+	stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, int64(2), sessionFamilyCounts(t, stats.SessionCounts)["vscode"])
+	require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
+	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
+	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
+
+	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
+		StartTime:   dbtime.Now().Add(-time.Hour),
+		EndTime:     dbtime.Now().Add(time.Hour),
+		AppFamilies: appFamilies,
+	})
+	require.NoError(t, err)
+
+	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow, len(insights))
+	for _, row := range insights {
+		byTemplate[row.TemplateID] = row
+	}
+	require.Equal(t, int64(60), byTemplate[cursorTemplate].UsageVscodeSeconds)
+	require.Equal(t, int64(60), byTemplate[zedTemplate].UsageSshSeconds)
+
+	// An app with no family is still activity, so the user is not counted idle.
+	unknown, ok := byTemplate[unknownTemplate]
+	require.True(t, ok, "a session with no family must still appear as usage")
+	require.Equal(t, int64(1), unknown.ActiveUsers)
+	require.Zero(t, unknown.UsageVscodeSeconds)
+	require.Zero(t, unknown.UsageSshSeconds)
+}
+
+// The rollup attributes session counts the same way the read queries do, so a
+// VS Code fork rolls up as VS Code, an SSH-speaking editor as SSH, and an app
+// with no family is still usage.
+func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	cursorTemplate := uuid.New()
+	zedTemplate := uuid.New()
+	unknownTemplate := uuid.New()
+	// Stats must land in a bucket the rollup has already closed, and only rows
+	// reporting a connection are rolled up.
+	createdAt := dbtime.Now().Add(-time.Hour)
+	for _, tc := range []struct {
+		templateID uuid.UUID
+		counts     map[string]int64
+	}{
+		{cursorTemplate, map[string]int64{"cursor": 2}},
+		{zedTemplate, map[string]int64{"zed": 1}},
+		{unknownTemplate, map[string]int64{"some_new_ide": 5}},
+	} {
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt:                 createdAt,
+			TemplateID:                tc.templateID,
+			UserID:                    uuid.New(),
+			AgentID:                   uuid.New(),
+			ConnectionCount:           1,
+			ConnectionMedianLatencyMS: 1,
+			Usage:                     true,
+			SessionCounts:             dbgen.SessionCounts(t, tc.counts),
+		})
+	}
+
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx, codersdk.SessionCountAppFamiliesJSON()))
+
+	stats, err := db.GetTemplateUsageStats(ctx, database.GetTemplateUsageStatsParams{
+		StartTime: createdAt.Add(-time.Hour),
+		EndTime:   dbtime.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	byTemplate := make(map[uuid.UUID]database.TemplateUsageStat, len(stats))
+	for _, row := range stats {
+		byTemplate[row.TemplateID] = row
+	}
+
+	cursor, ok := byTemplate[cursorTemplate]
+	require.True(t, ok, "a VS Code fork must be rolled up")
+	require.Equal(t, int16(1), cursor.UsageMins)
+	require.Equal(t, int16(1), cursor.VscodeMins)
+	require.Zero(t, cursor.SshMins)
+
+	zed, ok := byTemplate[zedTemplate]
+	require.True(t, ok, "an SSH-speaking editor must be rolled up")
+	require.Equal(t, int16(1), zed.UsageMins)
+	require.Equal(t, int16(1), zed.SshMins)
+	require.Zero(t, zed.VscodeMins)
+
+	// An app with no family is still activity, so it produces usage minutes
+	// without any family minutes.
+	unknown, ok := byTemplate[unknownTemplate]
+	require.True(t, ok, "a session with no family must still appear as usage")
+	require.Equal(t, int16(1), unknown.UsageMins)
+	require.Zero(t, unknown.VscodeMins)
+	require.Zero(t, unknown.SshMins)
+	require.Zero(t, unknown.JetbrainsMins)
+	require.Zero(t, unknown.ReconnectingPtyMins)
+}
+
+func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
+	t.Helper()
+	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	require.NoError(t, err)
+	return counts
 }

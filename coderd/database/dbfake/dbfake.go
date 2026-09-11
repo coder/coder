@@ -40,7 +40,6 @@ type WorkspaceResponse struct {
 	Agents     []database.WorkspaceAgent
 	AgentToken string
 	TemplateVersionResponse
-	Task database.Task
 }
 
 // WorkspaceBuildBuilder generates workspace builds and associated
@@ -56,8 +55,6 @@ type WorkspaceBuildBuilder struct {
 	params     []database.WorkspaceBuildParameter
 	agentToken string
 	jobStatus  database.ProvisionerJobStatus
-	taskAppID  uuid.UUID
-	taskSeed   database.TaskTable
 
 	// Individual timestamp fields for job customization.
 	jobCreatedAt   time.Time
@@ -192,31 +189,6 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 	return b
 }
 
-func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sdkproto.App) WorkspaceBuildBuilder {
-	//nolint:revive // returns modified struct
-	b.taskSeed = taskSeed
-
-	if appSeed == nil {
-		appSeed = &sdkproto.App{}
-	}
-
-	var err error
-	//nolint: revive // returns modified struct
-	b.taskAppID, err = uuid.Parse(takeFirst(appSeed.Id, uuid.NewString()))
-	require.NoError(b.t, err)
-
-	return b.WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
-		a[0].Apps = []*sdkproto.App{
-			{
-				Id:   b.taskAppID.String(),
-				Slug: takeFirst(appSeed.Slug, "task-app"),
-				Url:  takeFirst(appSeed.Url, ""),
-			},
-		}
-		return a
-	})
-}
-
 // Starting sets the job to running status.
 func (b WorkspaceBuildBuilder) Starting(opts ...BuilderOption) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
@@ -297,13 +269,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	b.seed.ID = uuid.New()
 	b.seed.JobID = jobID
 
-	if b.taskAppID != uuid.Nil {
-		b.seed.HasAITask = sql.NullBool{
-			Bool:  true,
-			Valid: true,
-		}
-	}
-
 	resp := WorkspaceResponse{
 		AgentToken: b.agentToken,
 		Agents:     make([]database.WorkspaceAgent, 0),
@@ -342,39 +307,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	resp.Workspace = b.ws
 	b.seed.WorkspaceID = b.ws.ID
 	b.seed.InitiatorID = takeFirst(b.seed.InitiatorID, b.ws.OwnerID)
-
-	// If a task was requested, ensure it exists and is associated with this
-	// workspace.
-	if b.taskAppID != uuid.Nil {
-		b.logger.Debug(context.Background(), "creating or updating task", slog.F("task_id", b.taskSeed.ID))
-		b.taskSeed.OrganizationID = takeFirst(b.taskSeed.OrganizationID, b.ws.OrganizationID)
-		b.taskSeed.OwnerID = takeFirst(b.taskSeed.OwnerID, b.ws.OwnerID)
-		b.taskSeed.Name = takeFirst(b.taskSeed.Name, b.ws.Name)
-		b.taskSeed.WorkspaceID = uuid.NullUUID{UUID: takeFirst(b.taskSeed.WorkspaceID.UUID, b.ws.ID), Valid: true}
-		b.taskSeed.TemplateVersionID = takeFirst(b.taskSeed.TemplateVersionID, b.seed.TemplateVersionID)
-
-		// Try to fetch existing task and update its workspace ID.
-		if task, err := b.db.GetTaskByID(ownerCtx, b.taskSeed.ID); err == nil {
-			if !task.WorkspaceID.Valid {
-				b.logger.Info(context.Background(), "updating task workspace id",
-					slog.F("task_id", b.taskSeed.ID),
-					slog.F("workspace_id", b.ws.ID))
-				_, err = b.db.UpdateTaskWorkspaceID(ownerCtx, database.UpdateTaskWorkspaceIDParams{
-					ID:          b.taskSeed.ID,
-					WorkspaceID: uuid.NullUUID{UUID: b.ws.ID, Valid: true},
-				})
-				require.NoError(b.t, err, "update task workspace id")
-			} else if task.WorkspaceID.UUID != b.ws.ID {
-				require.Fail(b.t, "task already has a workspace id, mismatch", task.WorkspaceID.UUID, b.ws.ID)
-			}
-		} else if errors.Is(err, sql.ErrNoRows) {
-			task := dbgen.Task(b.t, b.db, b.taskSeed)
-			b.taskSeed.ID = task.ID
-			b.logger.Info(context.Background(), "created new task", slog.F("task_id", b.taskSeed.ID))
-		} else {
-			require.NoError(b.t, err, "get task by id")
-		}
-	}
 
 	// Create a provisioner job for the build!
 	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
@@ -498,45 +430,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		slog.F("build_id", resp.Build.ID),
 		slog.F("workspace_id", resp.Workspace.ID),
 		slog.F("build_number", resp.Build.BuildNumber))
-
-	// If this is a task workspace, link it to the workspace build.
-	task, err := b.db.GetTaskByWorkspaceID(ownerCtx, resp.Workspace.ID)
-	if err != nil {
-		if b.taskAppID != uuid.Nil {
-			require.Fail(b.t, "task app configured but failed to get task by workspace id", err)
-		}
-	} else {
-		if b.taskAppID == uuid.Nil {
-			require.Fail(b.t, "task app not configured but workspace is a task workspace")
-		}
-
-		workspaceAgentID := uuid.NullUUID{}
-		workspaceAppID := uuid.NullUUID{}
-		// Workspace agent and app are only properly set upon job completion, and
-		// only start builds have agents.
-		isStart := b.seed.Transition == "" || b.seed.Transition == database.WorkspaceTransitionStart
-		if isStart && b.jobStatus != database.ProvisionerJobStatusPending && b.jobStatus != database.ProvisionerJobStatusRunning {
-			app := mustWorkspaceAppByWorkspaceAndBuildAndAppID(ownerCtx, b.t, b.db, resp.Workspace.ID, resp.Build.BuildNumber, b.taskAppID)
-			workspaceAgentID = uuid.NullUUID{UUID: app.AgentID, Valid: true}
-			workspaceAppID = uuid.NullUUID{UUID: app.ID, Valid: true}
-		}
-
-		_, err = b.db.UpsertTaskWorkspaceApp(ownerCtx, database.UpsertTaskWorkspaceAppParams{
-			TaskID:               task.ID,
-			WorkspaceBuildNumber: resp.Build.BuildNumber,
-			WorkspaceAgentID:     workspaceAgentID,
-			WorkspaceAppID:       workspaceAppID,
-		})
-		require.NoError(b.t, err, "upsert task workspace app")
-		b.logger.Debug(context.Background(), "linked task to workspace build",
-			slog.F("task_id", task.ID),
-			slog.F("build_number", resp.Build.BuildNumber))
-
-		// Update task after linking.
-		task, err = b.db.GetTaskByID(ownerCtx, task.ID)
-		require.NoError(b.t, err, "get task by id")
-		resp.Task = task
-	}
 
 	for i := range b.params {
 		b.params[i].WorkspaceBuildID = resp.Build.ID
@@ -910,31 +803,4 @@ func takeFirstTime(values ...time.Time) time.Time {
 		}
 	}
 	return time.Time{}
-}
-
-// mustWorkspaceAppByWorkspaceAndBuildAndAppID finds a workspace app by
-// workspace ID, build number, and app ID. It returns the workspace app
-// if found, otherwise fails the test.
-func mustWorkspaceAppByWorkspaceAndBuildAndAppID(ctx context.Context, t testing.TB, db database.Store, workspaceID uuid.UUID, buildNumber int32, appID uuid.UUID) database.WorkspaceApp {
-	t.Helper()
-
-	agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
-		WorkspaceID: workspaceID,
-		BuildNumber: buildNumber,
-	})
-	require.NoError(t, err, "get workspace agents")
-	require.NotEmpty(t, agents, "no agents found for workspace")
-
-	for _, agent := range agents {
-		apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.ID)
-		require.NoError(t, err, "get workspace apps")
-		for _, app := range apps {
-			if app.ID == appID {
-				return app
-			}
-		}
-	}
-
-	require.FailNow(t, "could not find workspace app", "workspaceID=%s buildNumber=%d appID=%s", workspaceID, buildNumber, appID)
-	return database.WorkspaceApp{} // Unreachable.
 }

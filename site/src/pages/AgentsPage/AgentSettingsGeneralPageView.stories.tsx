@@ -8,7 +8,6 @@ import {
 } from "./AgentSettingsGeneralPageView";
 
 const preferencesData = {
-	task_notification_alert_dismissed: false,
 	thinking_display_mode: "auto" as const,
 	shell_tool_display_mode: "auto" as const,
 	code_diff_display_mode: "auto" as const,
@@ -52,14 +51,6 @@ export const InvisibleUnicodeWarningUserPrompt: Story = {
 			custom_prompt: "My custom prompt\u200b\u200c\u200dhidden",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByText("Personal instructions");
-		const alert = await canvas.findByText(/invisible Unicode/);
-		expect(alert).toBeInTheDocument();
-		expect(alert.textContent).toContain("2");
-	},
 };
 
 export const InvisibleUnicodeWarningOnType: Story = {
@@ -74,12 +65,10 @@ export const InvisibleUnicodeWarningOnType: Story = {
 			"Additional behavior, style, and tone preferences",
 		);
 
-		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
 		await userEvent.type(textarea, "hello\u200bworld");
 
-		await waitFor(() => {
-			expect(canvas.getByText(/invisible Unicode/)).toBeInTheDocument();
-		});
+		// Wait for the warning to render so the snapshot captures it.
+		await canvas.findByText(/invisible Unicode/);
 	},
 };
 
@@ -124,17 +113,6 @@ export const SavesUserPrompt: Story = {
 	},
 };
 
-export const RendersChatLayoutSection: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("Chat layout")).toBeInTheDocument();
-		expect(
-			await canvas.findByRole("switch", { name: "Full-width chat" }),
-		).toBeInTheDocument();
-	},
-};
-
 export const TogglesSendShortcut: Story = {
 	beforeEach: () => {
 		let agentChatSendShortcut: AgentChatSendShortcut =
@@ -173,16 +151,6 @@ export const TogglesSendShortcut: Story = {
 	},
 };
 
-export const RendersAgentDisplayModeSettings: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("Thinking display")).toBeVisible();
-		expect(await canvas.findByText("Shell output display")).toBeVisible();
-		expect(await canvas.findByText("Code diff display")).toBeVisible();
-	},
-};
-
 export const ShowsChatDebugLoggingToggle: Story = {
 	args: {
 		userDebugLoggingData: {
@@ -206,25 +174,5 @@ export const ShowsChatDebugLoggingToggle: Story = {
 				debug_logging_enabled: true,
 			});
 		});
-	},
-};
-
-export const HidesChatDebugLoggingToggle: Story = {
-	args: {
-		userDebugLoggingData: {
-			debug_logging_enabled: false,
-			user_toggle_allowed: false,
-			forced_by_deployment: false,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.queryByText("Record debug logs for my chats")).toBeNull();
-		expect(
-			canvas.queryByRole("switch", {
-				name: "Enable personal chat debug logging",
-			}),
-		).toBeNull();
 	},
 };

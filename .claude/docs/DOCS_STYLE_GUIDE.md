@@ -248,6 +248,11 @@ Link to specific endpoints:
 
 ## Accuracy Standards
 
+The exact-value instructions in this section are about how to state a value
+once it belongs on the page; whether it belongs there at all is governed by
+[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines.
+
 ### Specific Numbers Matter
 
 Document exact values from code:
@@ -362,7 +367,9 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 ## Key Principles
 
 1. **Research first** - Verify against actual code implementation
-2. **Be precise** - Use exact numbers, permission names, API paths
+2. **Be precise** - Use exact numbers, permission names, and API paths for
+   the values that belong on the page per
+   [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 3. **Visual structure** - Organize around screenshots when available
 4. **Link everything** - Related docs, API endpoints, CLI references
 5. **Manifest inclusion** - Add to manifest.json for navigation

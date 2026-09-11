@@ -3582,34 +3582,6 @@ func TestListChatProviders(t *testing.T) {
 		require.True(t, openAIProvider.HasAPIKey)
 	})
 
-	t.Run("IgnoresDeploymentKeyWhenCentralKeyDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
-		})
-		require.NoError(t, err)
-		require.False(t, provider.HasAPIKey)
-
-		providers, err := client.ListChatProviders(ctx)
-		require.NoError(t, err)
-		for _, listed := range providers {
-			if listed.Provider == "openai" {
-				require.False(t, listed.HasAPIKey)
-				return
-			}
-		}
-		t.Fatal("openai provider not found")
-	})
-
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -3831,22 +3803,6 @@ func TestCreateChatProvider(t *testing.T) {
 		require.False(t, provider.HasAPIKey)
 	})
 
-	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider: "openai",
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
-	})
-
 	t.Run("RejectsInvalidPolicyTuple", func(t *testing.T) {
 		t.Parallel()
 
@@ -4062,29 +4018,6 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.False(t, updated.HasAPIKey)
 	})
 
-	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
-		})
-		require.NoError(t, err)
-
-		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled: ptr.Ref(true),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
-	})
-
 	t.Run("RejectsClearingLastCentralKey", func(t *testing.T) {
 		t.Parallel()
 
@@ -4226,13 +4159,10 @@ func TestDeleteChatProvider(t *testing.T) {
 func TestChatProviderAPIKeysFromDeploymentValues(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DoesNotReuseBridgeConfig", func(t *testing.T) {
+	t.Run("NonNilDeploymentValues", func(t *testing.T) {
 		t.Parallel()
 
 		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		values.AI.BridgeConfig.LegacyAnthropic.Key = serpent.String("deployment-anthropic-key")
-		values.AI.BridgeConfig.LegacyOpenAI.BaseURL = serpent.String("https://custom-openai.example.com")
 
 		keys := coderd.ChatProviderAPIKeysFromDeploymentValues(values)
 		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
@@ -4435,9 +4365,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
+		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
@@ -6569,7 +6497,7 @@ func TestGetChat(t *testing.T) {
 		require.Equal(t, "text/markdown", f.MimeType)
 
 		// Fill up to the cap by inserting more files via the
-		// chatd DB path, then verify the cap is enforced.
+		// chatd DB path, then verify the oldest file is evicted.
 		for i := 1; i < codersdk.MaxChatFileIDs; i++ {
 			extra, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 				OwnerID:        firstUser.UserID,
@@ -6592,7 +6520,7 @@ func TestGetChat(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
 
-		// Attempt to add one more file — should be rejected (0 rows).
+		// Adding one more file evicts the oldest one.
 		overflow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 			OwnerID:        firstUser.UserID,
 			OrganizationID: firstUser.OrganizationID,
@@ -6607,18 +6535,20 @@ func TestGetChat(t *testing.T) {
 			FileIds:      []uuid.UUID{overflow.ID},
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(1), rejected, "cap should reject the 21st file")
+		require.Equal(t, int32(0), rejected, "linking past the cap should evict, not reject")
+		chatResult, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+		require.NotEqual(t, fileRow.ID, chatResult.Files[0].ID, "the oldest file should be evicted")
+		require.Equal(t, overflow.ID, chatResult.Files[len(chatResult.Files)-1].ID)
 
-		// Re-appending an already-linked ID at cap should succeed
-		// (dedup means no array growth).
+		// Re-appending an already-linked ID at cap is a no-op.
 		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
 			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-			FileIds:      []uuid.UUID{fileRow.ID},
+			FileIds:      []uuid.UUID{overflow.ID},
 		})
 		require.NoError(t, err)
-		// ON CONFLICT DO NOTHING returns 0 rows when the link
-		// already exists, which is fine — the file is still linked.
 		require.Equal(t, int32(0), rejected, "dedup of existing ID should be a no-op")
 
 		// Count should still be exactly MaxChatFileIDs.
@@ -9814,7 +9744,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, uploadResp.ID, chatResult.Files[0].ID)
 	})
 
-	t.Run("FileCapExceeded", func(t *testing.T) {
+	t.Run("FileCapEvictsOldest", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -9853,45 +9783,30 @@ func TestChatMessageWithFiles(t *testing.T) {
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extraResp.ID},
 			},
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "attachment limit")
+		require.NoError(t, err, "linking past the cap should evict the oldest file")
 
-		// getChatMessages reads history before queued messages, so a promotion
-		// can make one response miss the message in both places. Wait for the
-		// queue to empty, then read history again because promotion inserts a
-		// history row.
-		require.Eventually(t, func() bool {
-			m, err := client.GetChatMessages(ctx, chat.ID, nil)
-			return err == nil && len(m.QueuedMessages) == 0
-		}, testutil.WaitLong, testutil.IntervalMedium)
-
-		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		for _, msg := range messages.Messages {
-			for _, part := range msg.Content {
-				require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
+		chatFileIDs := func() []uuid.UUID {
+			chatResult, err := client.GetChat(ctx, chat.ID)
+			require.NoError(t, err)
+			ids := make([]uuid.UUID, 0, len(chatResult.Files))
+			for _, f := range chatResult.Files {
+				ids = append(ids, f.ID)
 			}
+			return ids
 		}
-		for _, queued := range messages.QueuedMessages {
-			for _, part := range queued.Content {
-				require.NotContains(t, part.Text, "one too many", "rejected send should not queue a message")
-			}
-		}
-		chatResult, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
-			"file count should not exceed the cap")
+		linked := chatFileIDs()
+		require.Len(t, linked, codersdk.MaxChatFileIDs, "file count should not exceed the cap")
+		require.Contains(t, linked, extraResp.ID)
+		require.NotContains(t, linked, fileIDs[0], "the oldest file should be evicted")
 
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
-				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[0]},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[1]},
 			},
 		})
 		require.NoError(t, err, "re-referencing an already-linked file must not count against the cap")
+		require.Equal(t, linked, chatFileIDs(), "re-referencing an already-linked file must not evict anything")
 	})
 
 	t.Run("FileCapOnCreate", func(t *testing.T) {
@@ -10538,7 +10453,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.Equal(t, "image/png", f.MimeType)
 	})
 
-	t.Run("CapExceededOnEdit", func(t *testing.T) {
+	t.Run("CapEvictsOldestOnEdit", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -10551,9 +10466,11 @@ func TestPatchChatMessage(t *testing.T) {
 			{Type: codersdk.ChatInputPartTypeText, Text: "fill to cap"},
 		}
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
 		for i := range codersdk.MaxChatFileIDs {
 			up, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("cap-%d.png", i), bytes.NewReader(pngData))
 			require.NoError(t, err)
+			fileIDs = append(fileIDs, up.ID)
 			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: up.ID})
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
@@ -10572,7 +10489,7 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		require.NotZero(t, userMessageID)
 
-		// Upload one more file and try to link via edit.
+		// Upload one more file and link it via edit.
 		extra, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
@@ -10581,26 +10498,18 @@ func TestPatchChatMessage(t *testing.T) {
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extra.ID},
 			},
 		})
-		require.Error(t, err, "edit over the cap should fail")
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "attachment limit")
+		require.NoError(t, err, "edit past the cap should evict the oldest file")
 
-		messagesResult, err = client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		var found bool
-		for _, msg := range messagesResult.Messages {
-			if msg.ID == userMessageID {
-				found = true
-				break
-			}
-		}
-		require.True(t, found, "original user message should survive a rejected edit")
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
 			"file count should not exceed the cap")
+		linked := make([]uuid.UUID, 0, len(chatResult.Files))
+		for _, f := range chatResult.Files {
+			linked = append(linked, f.ID)
+		}
+		require.Contains(t, linked, extra.ID)
+		require.NotContains(t, linked, fileIDs[0], "the oldest file should be evicted")
 	})
 
 	t.Run("ArchivedChat", func(t *testing.T) {

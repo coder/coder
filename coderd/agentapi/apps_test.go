@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -269,10 +268,6 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 
 		workspace := database.Workspace{
 			ID: uuid.UUID{9},
-			TaskID: uuid.NullUUID{
-				Valid: true,
-				UUID:  uuid.UUID{7},
-			},
 		}
 		cachedWs := &agentapi.CachedWorkspaceFields{}
 		cachedWs.UpdateValues(workspace)
@@ -301,14 +296,6 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			AgentID: agent.ID,
 			Slug:    "vscode",
 		}).Times(1).Return(app, nil)
-		task := database.Task{
-			ID: uuid.UUID{7},
-			WorkspaceAppID: uuid.NullUUID{
-				Valid: true,
-				UUID:  app.ID,
-			},
-		}
-		mDB.EXPECT().GetTaskByID(gomock.Any(), task.ID).Times(1).Return(task, nil)
 		appStatus := database.WorkspaceAppStatus{
 			ID: uuid.UUID{6},
 		}
@@ -336,8 +323,6 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 
 		kind := testutil.RequireReceive(ctx, t, workspaceUpdates)
 		require.Equal(t, wspubsub.WorkspaceEventKindAgentAppStatusUpdate, kind)
-		sent := fEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskCompleted))
-		require.Len(t, sent, 1)
 	})
 
 	t.Run("FailUnknownApp", func(t *testing.T) {

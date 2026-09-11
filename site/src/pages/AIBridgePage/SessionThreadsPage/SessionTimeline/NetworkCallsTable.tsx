@@ -173,7 +173,7 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
 							title={call.detail}
 						>
 							{call.detail ? (
-								<HighlightText text={call.detail} query={query} />
+								<HighlightText text={call.detail} highlight={query} />
 							) : (
 								"N/A"
 							)}
