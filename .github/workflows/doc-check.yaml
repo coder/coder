@@ -203,61 +203,35 @@ jobs:
               ;;
           esac
 
-          # Build chat prompt with sticky comment logic
+          # Build the chat prompt. Durable rules live in the skill
+          # (.claude/skills/doc-check/SKILL.md), so this prompt stays short
+          # and carries only what changes per run.
           CHAT_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
 
           ${CONTEXT}
 
-          When creating a new workspace, use the \"coder-workflow-bot\" template.
+          Use \`gh\` to read the PR details, the diff, and every comment.
 
-          If a tool call fails with \`get workspace agents in latest build: unauthorized: rbac: forbidden\`, this chat has no working workspace. That is an infrastructure state, not a mistake in your command, so the same command fails again if you retry it.
+          Follow the skill in full: its evidence discipline, its comment
+          rules, and its comment format. **Do not comment if no
+          documentation changes are needed.**
 
-          Call \`start_workspace\` with no arguments to start the workspace this chat owns. If it answers \`workspace was deleted\` or \`chat has no workspace\`, the old one is gone: call \`list_templates\` to get the ID of the \`coder-workflow-bot\` template, then call \`create_workspace\` with that ID. Wait for the workspace to be ready, then run the failed tool call again.
+          ## When the workspace is broken
 
-          If \`start_workspace\` answers \`load workspace: unauthorized: rbac: forbidden\`, the workspace is dormant and you cannot repair it. Stop there.
+          A tool call that fails with \`unauthorized: rbac: forbidden\` is an
+          infrastructure state, not a bad command, so retrying the same
+          command changes nothing.
 
-          When you cannot repair the workspace, say that you could not review the PR, and name the error you got. Post no doc-check comment. Do not say or imply the docs are fine, because you did not read them.
+          Call \`start_workspace\` with no arguments. If it answers
+          \`workspace was deleted\` or \`chat has no workspace\`, call
+          \`list_templates\` for the \`coder-workflow-bot\` template ID, then
+          \`create_workspace\` with it, and run the failed call again. If it
+          answers \`load workspace: unauthorized: rbac: forbidden\`, the
+          workspace is dormant and you cannot repair it: stop, say you could
+          not review the PR, and name the error. Post no comment, and do not
+          imply the docs are fine, because you did not read them.
 
-          Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
-
-          Follow the skill's evidence discipline, including its mandatory
-          search: list every literal this diff changes, then search the whole
-          docs tree for each OLD literal before you decide. Do not review only
-          the files in the diff. Report each search you ran and what it
-          returned, and post nothing only after every search came back empty
-          outside \`docs/reference/\`.
-
-          **Do not comment if no documentation changes are needed.**
-
-          If a sticky comment already exists, compare your current findings against it:
-          - Check off \`[x]\` items that are now addressed
-          - Strikethrough items no longer needed (e.g., code was reverted)
-          - Add new unchecked \`[ ]\` items for newly discovered needs
-          - If an item is checked but you can't verify the docs were added, add a warning note below it
-          - If nothing meaningful changed, don't update the comment at all
-
-          ## Comment format
-
-          Use this structure (only include relevant sections):
-
-          \`\`\`
-          ## Documentation Check
-
-          ### Updates Needed
-          - [ ] \`docs/path/file.md\` - What needs to change
-          - [x] \`docs/other/file.md\` - This was addressed
-          - ~~\`docs/removed.md\` - No longer needed~~ *(reverted in abc123)*
-
-          ### New Documentation Needed
-          - [ ] \`docs/suggested/path.md\` - What should be documented
-            > ⚠️ *Checked but no corresponding documentation changes found in this PR*
-
-          ---
-          *Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
-          <!-- doc-check-sticky -->
-          \`\`\`
-
-          The \`<!-- doc-check-sticky -->\` marker must be at the end so future runs can find and update this comment."
+          Create any new workspace from the \"coder-workflow-bot\" template."
 
           # Output the prompt
           {
