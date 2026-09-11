@@ -71,7 +71,9 @@ type chatWriteGuard struct {
 	database.Store
 	rec *chatWriteRecorder
 	// allocated is nil on the root handle and holds the chats whose snapshot
-	// this transaction allocated otherwise.
+	// this transaction allocated otherwise. mu guards it because a Store,
+	// including a transaction handle, may be used from several goroutines.
+	mu        sync.Mutex
 	allocated map[uuid.UUID]struct{}
 }
 
@@ -93,6 +95,8 @@ func (g *chatWriteGuard) InTx(fn func(database.Store) error, opts *database.TxOp
 }
 
 func (g *chatWriteGuard) mark(chatID uuid.UUID) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.allocated != nil {
 		g.allocated[chatID] = struct{}{}
 	}
@@ -101,7 +105,10 @@ func (g *chatWriteGuard) mark(chatID uuid.UUID) {
 // require returns the rejection error unless this transaction allocated a
 // snapshot for chatID.
 func (g *chatWriteGuard) require(method string, chatID uuid.UUID) error {
-	if _, ok := g.allocated[chatID]; ok {
+	g.mu.Lock()
+	_, ok := g.allocated[chatID]
+	g.mu.Unlock()
+	if ok {
 		return nil
 	}
 	return g.rec.add(method, chatID)
