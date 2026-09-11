@@ -641,10 +641,19 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					.join(".");
 				const fieldKey = `config.${camelName}`;
 
+				// The tri-state switch cannot shrink below its three labels, so in
+				// the two-column phone layout adjacent switches collide; give each
+				// one the full row there.
+				const isSegmented =
+					field.input_type === "select" && field.type === "boolean";
 				return (
 					<div
 						key={fieldKey}
-						className={cn("min-w-0", colSpanClass[colSpan(field)])}
+						className={cn(
+							"min-w-0",
+							colSpanClass[colSpan(field)],
+							isSegmented && "col-span-2 sm:col-span-1",
+						)}
 					>
 						<SchemaField
 							{...ctx}

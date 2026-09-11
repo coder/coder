@@ -780,6 +780,10 @@ func ModelFromConfig(
 		if httpClient != nil {
 			options = append(options, fantasyopenai.WithHTTPClient(httpClient))
 		}
+		if openAIConfig != nil && openAIConfig.ReasoningModel != nil {
+			reasoningModel := *openAIConfig.ReasoningModel
+			options = append(options, fantasyopenai.WithReasoningModelFunc(func(string) bool { return reasoningModel }))
+		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
 		httpClient = withOpenAICompatRequestPatches(httpClient, baseURL, modelID)

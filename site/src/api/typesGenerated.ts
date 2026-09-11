@@ -2872,10 +2872,11 @@ export interface ChatModelOpenAICompatProviderOptions {
 // From codersdk/chats.go
 /**
  * ChatModelOpenAIConfig holds settings applied once when the OpenAI client
- * is built, not per request.
+ * is built, not per request, including OpenAI-format models on Bedrock.
  */
 export interface ChatModelOpenAIConfig {
 	readonly use_responses_api?: boolean;
+	readonly reasoning_model?: boolean;
 }
 
 // From codersdk/chats.go

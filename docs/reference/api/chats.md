@@ -3815,6 +3815,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
         "frequency_penalty": 0,
         "max_output_tokens": 0,
         "openai_config": {
+          "reasoning_model": true,
           "use_responses_api": true
         },
         "presence_penalty": 0,
@@ -4032,6 +4033,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -4210,6 +4212,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,

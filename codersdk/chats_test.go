@@ -492,6 +492,35 @@ func TestChatModelCallConfig_UseResponsesAPIRoundTrip(t *testing.T) {
 	require.NotContains(t, string(raw), "use_responses_api")
 }
 
+func TestChatModelCallConfig_ReasoningModelRoundTrip(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"true", "false", "null"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			input := `{"openai_config":{"reasoning_model":` + value + `}}`
+			var decoded codersdk.ChatModelCallConfig
+			require.NoError(t, decoded.UnmarshalStrict([]byte(input)))
+			require.NotNil(t, decoded.OpenAIConfig)
+			raw, err := json.Marshal(decoded)
+			require.NoError(t, err)
+			if value == "null" {
+				require.Nil(t, decoded.OpenAIConfig.ReasoningModel)
+				require.JSONEq(t, `{"openai_config":{}}`, string(raw))
+			} else {
+				require.NotNil(t, decoded.OpenAIConfig.ReasoningModel)
+				require.Equal(t, value == "true", *decoded.OpenAIConfig.ReasoningModel)
+				require.JSONEq(t, input, string(raw))
+			}
+		})
+	}
+	var unset codersdk.ChatModelCallConfig
+	require.NoError(t, unset.UnmarshalStrict([]byte(`{"openai_config":{}}`)))
+	require.Nil(t, unset.OpenAIConfig.ReasoningModel)
+	raw, err := json.Marshal(unset)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"openai_config":{}}`, string(raw))
+}
+
 // TestChat_JSONRoundTrip verifies that every field of codersdk.Chat
 // survives a JSON marshal/unmarshal cycle. This catches omitempty
 // silently eating zero-ish values, struct tag typos, and similar
