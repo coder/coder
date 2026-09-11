@@ -15564,7 +15564,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
                         "name": "q",
                         "in": "query"
                     },
@@ -19299,10 +19299,7 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_auto_pause",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -19313,10 +19310,7 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection",
-                "BuildReasonTaskAutoPause",
-                "BuildReasonTaskManualPause",
-                "BuildReasonTaskResume"
+                "BuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -22439,18 +22433,14 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
                 "CreateWorkspaceBuildReasonCLI",
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
-                "CreateWorkspaceBuildReasonJetbrainsConnection",
-                "CreateWorkspaceBuildReasonTaskManualPause",
-                "CreateWorkspaceBuildReasonTaskResume"
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -22492,8 +22482,7 @@ const docTemplate = `{
                         "cli",
                         "ssh_connection",
                         "vscode_connection",
-                        "jetbrains_connection",
-                        "task_manual_pause"
+                        "jetbrains_connection"
                     ],
                     "allOf": [
                         {
@@ -22952,9 +22941,6 @@ const docTemplate = `{
                 },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
-                },
-                "enable_ai_tasks": {
-                    "type": "boolean"
                 },
                 "enable_authz_recording": {
                     "type": "boolean"
@@ -29746,9 +29732,6 @@ const docTemplate = `{
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
-                },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
@@ -30435,9 +30418,6 @@ const docTemplate = `{
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
-                },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
@@ -30770,10 +30750,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.SharedWorkspaceActor"
                     }
-                },
-                "task_id": {
-                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
-                    "type": "string"
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -31728,10 +31704,6 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "has_ai_task": {
-                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
-                    "type": "boolean"
                 },
                 "has_external_agent": {
                     "type": "boolean"
