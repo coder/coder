@@ -49,6 +49,9 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"chat_model_config:read":  {},
 	"chat_model_config:share": {},
 
+	// MCP server configs
+	"mcp_server_config:read": {},
+
 	// Files
 	"file:read":   {},
 	"file:create": {},
