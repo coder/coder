@@ -238,6 +238,13 @@ type UpdateUserProfileRequest struct {
 	AvatarURL string `json:"avatar_url" format:"uri"`
 }
 
+// UpdateUserEmailRequest changes a user's email by matching their current
+// email address. This API is experimental and may change without notice.
+type UpdateUserEmailRequest struct {
+	OldEmail string `json:"old_email" validate:"required,email" format:"email"`
+	NewEmail string `json:"new_email" validate:"required,email" format:"email"`
+}
+
 type ValidateUserPasswordRequest struct {
 	Password string `json:"password" validate:"required"`
 }
@@ -606,6 +613,20 @@ func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateU
 	}
 	var resp User
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateUserEmail changes a user's email address. This API is experimental and
+// may change without notice.
+func (c *Client) UpdateUserEmail(ctx context.Context, req UpdateUserEmailRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/users/email", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ValidateUserPassword validates the complexity of a user password and that it is secured enough.

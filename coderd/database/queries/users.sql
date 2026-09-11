@@ -396,6 +396,19 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateUserEmail :one
+UPDATE
+	users
+SET
+	email = @new_email,
+	updated_at = @updated_at,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
+WHERE
+	LOWER(email) = LOWER(@old_email)
+	AND deleted = false
+RETURNING *;
+
 -- name: UpdateUserDeletedByID :exec
 UPDATE
 	users
