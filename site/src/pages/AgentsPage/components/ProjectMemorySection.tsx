@@ -140,6 +140,9 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 				</ul>
 			)}
 			<ChatProjectMemoryDialog
+				// Remount per memory so the form state re-initializes from the
+				// selected memory instead of carrying over the previous one.
+				key={editingMemory?.id ?? "new"}
 				open={editingMemory !== undefined}
 				memory={editingMemory}
 				onOpenChange={(open) => {

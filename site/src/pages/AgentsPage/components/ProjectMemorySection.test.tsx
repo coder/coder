@@ -60,6 +60,39 @@ describe("ProjectMemorySection", () => {
 		});
 	});
 
+	it("prefills the edit dialog with the selected memory", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects/:projectId/memories", () =>
+				HttpResponse.json([MockChatProjectMemory]),
+			),
+		);
+
+		render(
+			<Wrapper>
+				<ProjectMemorySection projectId={MockChatProject.id} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: new RegExp(MockChatProjectMemory.name),
+				expanded: false,
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+
+		expect(screen.getByLabelText("Name")).toHaveValue(
+			MockChatProjectMemory.name,
+		);
+		expect(screen.getByLabelText("Description")).toHaveValue(
+			MockChatProjectMemory.description,
+		);
+		expect(screen.getByLabelText("Body")).toHaveValue(
+			MockChatProjectMemory.body,
+		);
+	});
+
 	it("deletes a memory after confirmation", async () => {
 		const user = userEvent.setup();
 		let deletedMemoryID: string | undefined;
