@@ -22,10 +22,42 @@ type Config struct {
 	LatestBuild *LatestBuild // latest_build
 }
 
+func (c *Config) ensureLatestBuild() *LatestBuild {
+	if c.LatestBuild == nil {
+		c.LatestBuild = &LatestBuild{}
+	}
+	return c.LatestBuild
+}
+
 type LatestBuild struct {
 	Job             *Job       // latest_build.job
 	Resources       *Resources // latest_build.resources
 	TemplateVersion bool       // latest_build.template_version
+}
+
+func (c *LatestBuild) ensureJob() *Job {
+	if c.Job == nil {
+		c.Job = &Job{}
+	}
+	return c.Job
+}
+
+func (c *LatestBuild) ensureResources() *Resources {
+	if c.Resources == nil {
+		c.Resources = &Resources{}
+	}
+	return c.Resources
+}
+
+// AppStatuses reports whether app statuses
+// (latest_build.resources.agents.apps.statuses) are selected. It is nil-safe so
+// callers holding a possibly-nil subtree can descend without a chain of guards.
+func (c *LatestBuild) AppStatuses() bool {
+	return c != nil &&
+		c.Resources != nil &&
+		c.Resources.Agents != nil &&
+		c.Resources.Agents.Apps != nil &&
+		c.Resources.Agents.Apps.Statuses
 }
 
 type Job struct {
@@ -37,10 +69,24 @@ type Resources struct {
 	Agents   *Agents // latest_build.resources.agents
 }
 
+func (c *Resources) ensureAgents() *Agents {
+	if c.Agents == nil {
+		c.Agents = &Agents{}
+	}
+	return c.Agents
+}
+
 type Agents struct {
 	Apps       *Apps // latest_build.resources.agents.apps
 	Scripts    bool  // latest_build.resources.agents.scripts
 	LogSources bool  // latest_build.resources.agents.log_sources
+}
+
+func (c *Agents) ensureApps() *Apps {
+	if c.Apps == nil {
+		c.Apps = &Apps{}
+	}
+	return c.Apps
 }
 
 type Apps struct {
@@ -71,15 +117,4 @@ func AllLatestBuild() LatestBuild {
 		},
 		TemplateVersion: true,
 	}
-}
-
-// AppStatuses reports whether app statuses
-// (latest_build.resources.agents.apps.statuses) are selected. It is nil-safe so
-// callers holding a possibly-nil subtree can descend without a chain of guards.
-func (c *LatestBuild) AppStatuses() bool {
-	return c != nil &&
-		c.Resources != nil &&
-		c.Resources.Agents != nil &&
-		c.Resources.Agents.Apps != nil &&
-		c.Resources.Agents.Apps.Statuses
 }

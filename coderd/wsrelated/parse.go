@@ -24,41 +24,6 @@ type relatedNode struct {
 	children   []relatedNode
 }
 
-func (c *Config) ensureLatestBuild() *LatestBuild {
-	if c.LatestBuild == nil {
-		c.LatestBuild = &LatestBuild{}
-	}
-	return c.LatestBuild
-}
-
-func (c *LatestBuild) ensureJob() *Job {
-	if c.Job == nil {
-		c.Job = &Job{}
-	}
-	return c.Job
-}
-
-func (c *LatestBuild) ensureResources() *Resources {
-	if c.Resources == nil {
-		c.Resources = &Resources{}
-	}
-	return c.Resources
-}
-
-func (c *Resources) ensureAgents() *Agents {
-	if c.Agents == nil {
-		c.Agents = &Agents{}
-	}
-	return c.Agents
-}
-
-func (c *Agents) ensureApps() *Apps {
-	if c.Apps == nil {
-		c.Apps = &Apps{}
-	}
-	return c.Apps
-}
-
 // buildSchema constructs the include_related hierarchy. Each node's name matches
 // a segment in a dotted path, and its selectInto closure mirrors the
 // corresponding node in Config.
