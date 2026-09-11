@@ -2129,6 +2129,30 @@
   },
   {
     "provider": "copilot",
+    "model": "gpt-4.1",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "copilot",
+    "model": "gpt-4o",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "copilot",
+    "model": "gpt-4o-mini",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "copilot",
     "model": "gpt-5-mini",
     "input_price": 250000,
     "output_price": 2000000,
