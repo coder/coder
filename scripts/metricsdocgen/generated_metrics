@@ -319,6 +319,15 @@ coderd_chatd_message_count{provider="",model=""} 0
 # HELP coderd_chatd_prompt_size_bytes Estimated byte size of the prompt per LLM request.
 # TYPE coderd_chatd_prompt_size_bytes histogram
 coderd_chatd_prompt_size_bytes{provider="",model=""} 0
+# HELP coderd_chatd_stage_anomalies_total Chat lifecycle stage observations dropped by reason. Reasons: negative_elapsed and inverted_window (clock inconsistencies).
+# TYPE coderd_chatd_stage_anomalies_total counter
+coderd_chatd_stage_anomalies_total{reason=""} 0
+# HELP coderd_chatd_stage_duration_seconds Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat, and the model label is empty for stages that are not tied to a model call. At the basic stage metrics level only the wait, connect, and model-call stages are observed.
+# TYPE coderd_chatd_stage_duration_seconds histogram
+coderd_chatd_stage_duration_seconds{stage="",scope="",chat_kind="",model=""} 0
+# HELP coderd_chatd_stage_metrics_level Always 1, labeled with the configured chat stage metrics level (off, basic, or full). Tells dashboards and alerts which stage and turn families this replica exposes.
+# TYPE coderd_chatd_stage_metrics_level gauge
+coderd_chatd_stage_metrics_level{level=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
 coderd_chatd_steps_total{provider="",model=""} 0

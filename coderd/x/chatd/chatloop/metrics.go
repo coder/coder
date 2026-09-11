@@ -3,12 +3,14 @@ package chatloop
 import (
 	"context"
 	"errors"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -23,7 +25,43 @@ const (
 	CompactionResultSuccess = "success"
 	CompactionResultError   = "error"
 	CompactionResultTimeout = "timeout"
+
+	// Label values for StageAnomaliesTotal.
+	// StageAnomalyNegativeElapsed is a stage whose measured duration
+	// was negative and was not observed.
+	StageAnomalyNegativeElapsed = "negative_elapsed"
+	// StageAnomalyInvertedWindow is a stage reconstructed from
+	// timestamps whose end preceded its start, or which lacked one of
+	// them, and was not observed.
+	StageAnomalyInvertedWindow = "inverted_window"
 )
+
+// basicStages is the set of stages observed into StageDurationSeconds
+// at codersdk.ChatStageMetricsLevelBasic. It holds the wait, connect, and
+// model-call stages; the stages that only describe chatd's own work
+// inside a step (generation_step, prepare, thinking, compaction) are
+// left to the full level.
+var basicStages = map[string]struct{}{
+	StageChatTurn:         {},
+	StageQueueWait:        {},
+	StageCapacityWait:     {},
+	StageAcquisition:      {},
+	StageMCPConnect:       {},
+	StageStream:           {},
+	StageTimeToFirstToken: {},
+	StageProviderAttempt:  {},
+	StageToolCall:         {},
+	StageCommit:           {},
+	StageRetryBackoff:     {},
+}
+
+// MetricsOptions configures which optional metric families NewMetrics
+// registers.
+type MetricsOptions struct {
+	// StageMetrics selects the chat lifecycle stage families to expose.
+	// Unrecognized or empty values mean codersdk.ChatStageMetricsLevelOff.
+	StageMetrics codersdk.ChatStageMetricsLevel
+}
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
@@ -34,6 +72,9 @@ type Metrics struct {
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
+	StageMetricsLevel         *prometheus.GaugeVec
+	StageDurationSeconds      *prometheus.HistogramVec
+	StageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
@@ -42,13 +83,31 @@ type Metrics struct {
 	FindToolsEmptyTotal       prometheus.Counter
 	FindToolsMatchCount       prometheus.Histogram
 	FindToolsActivationsTotal prometheus.Counter
+
+	// stageMetrics is the level the stage families were built for.
+	stageMetrics codersdk.ChatStageMetricsLevel
 }
 
 // NewMetrics creates a new Metrics instance registered with the
-// given registerer.
+// given registerer, with every stage metric family enabled.
 func NewMetrics(reg prometheus.Registerer) *Metrics {
+	return NewMetricsWithOptions(reg, MetricsOptions{StageMetrics: codersdk.ChatStageMetricsLevelFull})
+}
+
+// NewMetricsWithOptions creates a new Metrics instance registered with
+// the given registerer. Stage families that opts leaves disabled are
+// still constructed, against no registerer, so every recorder can be
+// called at any level; they simply never appear in a scrape.
+func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metrics {
+	level := codersdk.NewChatStageMetricsLevelFromString(string(opts.StageMetrics))
 	factory := promauto.With(reg)
-	return &Metrics{
+	// stageFactory registers the families exposed at basic and full.
+	stageFactory := factory
+	if level == codersdk.ChatStageMetricsLevelOff {
+		stageFactory = promauto.With(nil)
+	}
+	m := &Metrics{
+		stageMetrics: level,
 		Chats: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -95,6 +154,25 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
+		StageMetricsLevel: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_metrics_level",
+			Help:      "Always 1, labeled with the configured chat stage metrics level (off, basic, or full). Tells dashboards and alerts which stage and turn families this replica exposes.",
+		}, []string{"level"}),
+		StageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_duration_seconds",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat, and the model label is empty for stages that are not tied to a model call. At the basic stage metrics level only the wait, connect, and model-call stages are observed.",
+			Buckets:   stageDurationBuckets(),
+		}, []string{"stage", "scope", "chat_kind", "model"}),
+		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_anomalies_total",
+			Help:      "Chat lifecycle stage observations dropped by reason. Reasons: negative_elapsed and inverted_window (clock inconsistencies).",
+		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -145,12 +223,54 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Number of chat stream buffer events dropped due to the per-chat buffer cap.",
 		}),
 	}
+	m.StageMetricsLevel.WithLabelValues(string(level)).Set(1)
+	return m
+}
+
+// stageDurationBuckets returns the duration buckets for the
+// per-occurrence stage histogram: round boundaries from 50ms to 1h so
+// alert thresholds land on bucket edges, denser between 1s and 10min
+// where model calls, tool calls, and turns concentrate. Faster stages
+// (a warm mcp_connect, commit) collapse into the first bucket.
+func stageDurationBuckets() []float64 {
+	return []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30, 60, 120, 300, 600, 1800, 3600}
 }
 
 // NopMetrics returns a Metrics instance that discards all data.
 // Useful for tests and when metrics collection is not desired.
 func NopMetrics() *Metrics {
 	return NewMetrics(prometheus.NewRegistry())
+}
+
+// RecordStageDuration observes one chat lifecycle stage duration.
+// chatKind is empty when the stage was recorded without a known chat,
+// and model is empty when the stage is not tied to a model call.
+// Negative durations are dropped and counted as an anomaly at every
+// level. At the basic level, stages outside basicStages are dropped
+// silently. No-op when m is nil.
+func (m *Metrics) RecordStageDuration(stage, scope, chatKind, model string, elapsed time.Duration) {
+	if m == nil {
+		return
+	}
+	if elapsed < 0 {
+		m.RecordStageAnomaly(StageAnomalyNegativeElapsed)
+		return
+	}
+	if m.stageMetrics == codersdk.ChatStageMetricsLevelBasic {
+		if _, ok := basicStages[stage]; !ok {
+			return
+		}
+	}
+	m.StageDurationSeconds.WithLabelValues(stage, scope, chatKind, model).Observe(elapsed.Seconds())
+}
+
+// RecordStageAnomaly counts a stage observation that was dropped, by
+// reason. No-op when m is nil.
+func (m *Metrics) RecordStageAnomaly(reason string) {
+	if m == nil {
+		return
+	}
+	m.StageAnomaliesTotal.WithLabelValues(reason).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.

@@ -3061,6 +3061,9 @@ type Config struct {
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
 	PrometheusRegistry             prometheus.Registerer
+	// StageMetrics selects which chat lifecycle stage metric families
+	// are registered. The zero value means codersdk.ChatStageMetricsLevelOff.
+	StageMetrics codersdk.ChatStageMetricsLevel
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -3179,7 +3182,9 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
-		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+		p.metrics = chatloop.NewMetricsWithOptions(cfg.PrometheusRegistry, chatloop.MetricsOptions{
+			StageMetrics: cfg.StageMetrics,
+		})
 		chatAutoArchiveRecords = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "chat_auto_archive",
