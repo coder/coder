@@ -3328,12 +3328,8 @@ CREATE TABLE template_usage_stats (
     user_id uuid NOT NULL,
     median_latency_ms real,
     usage_mins smallint NOT NULL,
-    ssh_mins smallint NOT NULL,
-    sftp_mins smallint NOT NULL,
-    reconnecting_pty_mins smallint NOT NULL,
-    vscode_mins smallint NOT NULL,
-    jetbrains_mins smallint NOT NULL,
-    app_usage_mins jsonb
+    app_usage_mins jsonb,
+    session_usage_digest bigint
 );
 
 COMMENT ON TABLE template_usage_stats IS 'Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.';
@@ -3350,17 +3346,37 @@ COMMENT ON COLUMN template_usage_stats.median_latency_ms IS 'Median latency the 
 
 COMMENT ON COLUMN template_usage_stats.usage_mins IS 'Total minutes the user has been using the template.';
 
-COMMENT ON COLUMN template_usage_stats.ssh_mins IS 'Total minutes the user has been using SSH.';
-
-COMMENT ON COLUMN template_usage_stats.sftp_mins IS 'Total minutes the user has been using SFTP.';
-
-COMMENT ON COLUMN template_usage_stats.reconnecting_pty_mins IS 'Total minutes the user has been using the reconnecting PTY.';
-
-COMMENT ON COLUMN template_usage_stats.vscode_mins IS 'Total minutes the user has been using VSCode.';
-
-COMMENT ON COLUMN template_usage_stats.jetbrains_mins IS 'Total minutes the user has been using JetBrains.';
-
 COMMENT ON COLUMN template_usage_stats.app_usage_mins IS 'Object with app names as keys and total minutes used as values. Null means no app usage was recorded.';
+
+COMMENT ON COLUMN template_usage_stats.session_usage_digest IS 'Hash of the bucket''s session usage rows in both child tables, so a rollup that recomputes an unchanged bucket rewrites no child rows. Null for buckets rolled up before the column existed, which reads as changed.';
+
+CREATE TABLE template_usage_stats_session_apps (
+    start_time timestamp with time zone NOT NULL,
+    template_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    app_name text NOT NULL,
+    usage_mins smallint NOT NULL
+);
+
+COMMENT ON TABLE template_usage_stats_session_apps IS 'Session usage of each template_usage_stats bucket, split by app name. A bucket with family rows but no rows here predates per-app recording, so its per-app usage is unknown rather than zero.';
+
+COMMENT ON COLUMN template_usage_stats_session_apps.app_name IS 'App name as the agent reported it, so it is a source label rather than a curated identity. An agent that reports only the fixed session counts reports family names here, as does history converted by migration 000590.';
+
+COMMENT ON COLUMN template_usage_stats_session_apps.usage_mins IS 'Total minutes the user has been using the app.';
+
+CREATE TABLE template_usage_stats_session_families (
+    start_time timestamp with time zone NOT NULL,
+    template_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    family text NOT NULL,
+    usage_mins smallint NOT NULL
+);
+
+COMMENT ON TABLE template_usage_stats_session_families IS 'Session usage of each template_usage_stats bucket, split by app family. A bucket with no row here recorded no session usage.';
+
+COMMENT ON COLUMN template_usage_stats_session_families.family IS 'Family name the registry attributed the session to when the bucket was last rolled up, including ''unknown'' for an app name the registry did not know. Buckets the rollup no longer revisits keep their recorded attribution.';
+
+COMMENT ON COLUMN template_usage_stats_session_families.usage_mins IS 'Total minutes the user has been using the family. Minutes shared by two apps of the family count once.';
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
@@ -4630,6 +4646,12 @@ ALTER TABLE ONLY telemetry_locks
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
+ALTER TABLE ONLY template_usage_stats_session_apps
+    ADD CONSTRAINT template_usage_stats_session_apps_pkey PRIMARY KEY (start_time, user_id, template_id, app_name);
+
+ALTER TABLE ONLY template_usage_stats_session_families
+    ADD CONSTRAINT template_usage_stats_session_families_pkey PRIMARY KEY (start_time, user_id, template_id, family);
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -5539,6 +5561,12 @@ ALTER TABLE ONLY tasks
 
 ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_usage_stats_session_families
+    ADD CONSTRAINT template_usage_stats_session__start_time_template_id_user__fkey FOREIGN KEY (start_time, template_id, user_id) REFERENCES template_usage_stats(start_time, template_id, user_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_usage_stats_session_apps
+    ADD CONSTRAINT template_usage_stats_session_start_time_template_id_user__fkey1 FOREIGN KEY (start_time, template_id, user_id) REFERENCES template_usage_stats(start_time, template_id, user_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

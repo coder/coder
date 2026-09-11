@@ -861,6 +861,10 @@ type sqlcQuerier interface {
 	// workspaces in a given timeframe. The template IDs, active users, and
 	// usage_seconds all reflect any usage in the template, including apps.
 	//
+	// Session usage comes from the family child table exactly as the rollup
+	// recorded it, so a family the rollup learns about later is reported without a
+	// change here.
+	//
 	// When combining data from multiple templates, we must make a guess at
 	// how the user behaved for the 30 minute interval. In this case we make
 	// the assumption that if the user used two workspaces for 15 minutes,
@@ -1743,6 +1747,13 @@ type sqlcQuerier interface {
 	// into a single table for efficient storage and querying. Half-hour buckets are
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
+	//
+	// Session usage is stored per app name and per app family in the child tables,
+	// so the main row carries no session columns at all. Every recomputed bucket
+	// rewrites its own child rows: names that disappeared are deleted, the rest
+	// are upserted. The keys come from the computed set rather than from the main
+	// upsert, because the no-op guard below suppresses main rows whose columns did
+	// not change while their session usage still has to be corrected.
 	UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
