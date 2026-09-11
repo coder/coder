@@ -19263,6 +19263,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "oauth2_provider": {
+                    "description": "OAuth2Provider reports whether the OAuth 2.1 authorization server is\nenabled. The dashboard uses it to show or hide OAuth2 navigation.",
+                    "type": "boolean"
+                },
                 "provisioner_api_version": {
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
@@ -25157,6 +25161,9 @@ const docTemplate = `{
             "properties": {
                 "github": {
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.OAuth2ProviderConfig"
                 }
             }
         },
@@ -25330,6 +25337,14 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
                 }
             }
         },

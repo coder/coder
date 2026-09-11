@@ -1861,6 +1861,9 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
+	// The OAuth2 provider is off by default in production. Tests turn it on
+	// so OAuth2 routes are reachable without extra setup.
+	cfg.OAuth2.Provider.Enable = true
 	for _, fn := range mut {
 		fn(cfg)
 	}

@@ -321,6 +321,12 @@ oauth2:
     # Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
     # (default: <unset>, type: string)
     enterpriseBaseURL: ""
+  provider:
+    # Enable the OAuth 2.1 authorization server, which lets external applications
+    # (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by
+    # default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+    # (default: false, type: bool)
+    enable: false
 oidc:
   # Whether new users can sign up with OIDC.
   # (default: true, type: bool)

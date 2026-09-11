@@ -2060,6 +2060,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "oauth2_provider": true,
   "provisioner_api_version": "string",
   "telemetry": true,
   "upgrade_message": "string",
@@ -2077,6 +2078,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dashboard_url`           | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
 | `deployment_id`           | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
 | `external_url`            | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `oauth2_provider`         | boolean | false    |              | Oauth2 provider reports whether the OAuth 2.1 authorization server is enabled. The dashboard uses it to show or hide OAuth2 navigation.                             |
 | `provisioner_api_version` | string  | false    |              | Provisioner api version is the current version of the Provisioner API                                                                                               |
 | `telemetry`               | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
 | `upgrade_message`         | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
@@ -7486,6 +7488,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "default_provider_enable": true,
         "device_flow": true,
         "enterprise_base_url": "string"
+      },
+      "provider": {
+        "enable": true
       }
     },
     "oidc": {
@@ -8092,6 +8097,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_provider_enable": true,
       "device_flow": true,
       "enterprise_base_url": "string"
+    },
+    "provider": {
+      "enable": true
     }
   },
   "oidc": {
@@ -10769,15 +10777,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "default_provider_enable": true,
     "device_flow": true,
     "enterprise_base_url": "string"
+  },
+  "provider": {
+    "enable": true
   }
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                       | Required | Restrictions | Description |
-|----------|------------------------------------------------------------|----------|--------------|-------------|
-| `github` | [codersdk.OAuth2GithubConfig](#codersdkoauth2githubconfig) | false    |              |             |
+| Name       | Type                                                           | Required | Restrictions | Description |
+|------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `github`   | [codersdk.OAuth2GithubConfig](#codersdkoauth2githubconfig)     | false    |              |             |
+| `provider` | [codersdk.OAuth2ProviderConfig](#codersdkoauth2providerconfig) | false    |              |             |
 
 ## codersdk.OAuth2Error
 
@@ -10945,6 +10957,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------------|--------|----------|--------------|-------------|
 | `client_secret_full` | string | false    |              |             |
 | `id`                 | string | false    |              |             |
+
+## codersdk.OAuth2ProviderConfig
+
+```json
+{
+  "enable": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `enable` | boolean | false    |              |             |
 
 ## codersdk.OAuth2ProviderGrantType
 

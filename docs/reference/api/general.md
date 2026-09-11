@@ -62,6 +62,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "oauth2_provider": true,
   "provisioner_api_version": "string",
   "telemetry": true,
   "upgrade_message": "string",
@@ -430,6 +431,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "default_provider_enable": true,
         "device_flow": true,
         "enterprise_base_url": "string"
+      },
+      "provider": {
+        "enable": true
       }
     },
     "oidc": {

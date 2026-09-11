@@ -56,6 +56,21 @@ func TestBuildInfo(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, buildinfo.ExternalURL(), buildInfo.ExternalURL, "external URL")
 	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
+	require.True(t, buildInfo.OAuth2Provider, "coderdtest enables the OAuth2 provider by default")
+}
+
+func TestBuildInfoOAuth2ProviderDisabled(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.OAuth2.Provider.Enable = false
+		}),
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	buildInfo, err := client.BuildInfo(ctx)
+	require.NoError(t, err)
+	require.False(t, buildInfo.OAuth2Provider)
 }
 
 func TestDERP(t *testing.T) {
