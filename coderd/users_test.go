@@ -2,6 +2,8 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -1209,6 +1211,217 @@ func TestNotifyCreatedUser(t *testing.T) {
 				n.Labels["created_account_name"] == member.Username
 		})
 		require.Len(t, userAdminNotifiedAboutMember, 1)
+	})
+}
+
+func TestUpdateUserEmailExperimental(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		auditor := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+			oldUser := old.(database.User)
+			newUser := newVal.(database.User)
+			return audit.Map{
+				"email": audit.OldNew{Old: oldUser.Email, New: newUser.Email},
+			}
+		})
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Auditor: auditor})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		oldEmail := member.Email
+		newEmail := fmt.Sprintf("Updated-%s@example.com", uuid.NewString())
+		oldToken := memberClient.SessionToken()
+		extraToken, err := client.CreateToken(ctx, member.ID.String(), codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+		err = db.UpdateUserHashedOneTimePasscode(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedOneTimePasscodeParams{
+			ID:                       member.ID,
+			HashedOneTimePasscode:    []byte("hashed-passcode"),
+			OneTimePasscodeExpiresAt: sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+		auditor.ResetLogs()
+
+		err = client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+			OldEmail: oldEmail,
+			NewEmail: newEmail,
+		})
+		require.NoError(t, err)
+
+		updated, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.ID)
+		require.NoError(t, err)
+		require.Equal(t, newEmail, updated.Email)
+		require.Nil(t, updated.HashedOneTimePasscode)
+		require.False(t, updated.OneTimePasscodeExpiresAt.Valid)
+
+		for _, token := range []string{oldToken, extraToken.Key} {
+			revokedClient := codersdk.New(client.URL, codersdk.WithSessionToken(token))
+			_, err := revokedClient.User(ctx, codersdk.Me)
+			require.Error(t, err)
+		}
+		_, err = client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		logs := auditor.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, owner.UserID, logs[0].UserID)
+		require.Equal(t, member.ID, logs[0].ResourceID)
+		require.Equal(t, database.AuditActionWrite, logs[0].Action)
+		require.Equal(t, int32(http.StatusNoContent), logs[0].StatusCode)
+		var fields map[string]string
+		require.NoError(t, json.Unmarshal(logs[0].AdditionalFields, &fields))
+		require.Equal(t, oldEmail, fields["old_email"])
+		require.Equal(t, newEmail, fields["new_email"])
+	})
+
+	t.Run("TargetVariants", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tests := []struct {
+			name      string
+			loginType database.LoginType
+			role      rbac.RoleIdentifier
+			status    database.UserStatus
+		}{
+			{name: "OIDC", loginType: database.LoginTypeOIDC},
+			{name: "GitHub", loginType: database.LoginTypeGithub},
+			{name: "Dormant", status: database.UserStatusDormant},
+			{name: "Suspended", status: database.UserStatusSuspended},
+			{name: "Owner", role: rbac.RoleOwner()},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				roles := []rbac.RoleIdentifier{}
+				if test.role.Name != "" {
+					roles = append(roles, test.role)
+				}
+				_, target := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, roles...)
+				if test.loginType != "" {
+					updated, err := db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+						UserID:       target.ID,
+						NewLoginType: test.loginType,
+					})
+					require.NoError(t, err)
+					target.LoginType = codersdk.LoginType(updated.LoginType)
+				}
+				if test.status != "" {
+					_, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+						ID:         target.ID,
+						Status:     test.status,
+						UpdatedAt:  dbtime.Now(),
+						UserIsSeen: false,
+					})
+					require.NoError(t, err)
+				}
+
+				newEmail := fmt.Sprintf("variant-%s@example.com", uuid.NewString())
+				err := client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+					OldEmail: target.Email,
+					NewEmail: newEmail,
+				})
+				require.NoError(t, err)
+				updated, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), target.ID)
+				require.NoError(t, err)
+				require.Equal(t, newEmail, updated.Email)
+			})
+		}
+	})
+
+	t.Run("OwnerOnly", func(t *testing.T) {
+		t.Parallel()
+
+		auditor := audit.NewMock()
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Auditor: auditor})
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		_, target := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		auditor.ResetLogs()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := userAdminClient.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+			OldEmail: target.Email,
+			NewEmail: fmt.Sprintf("new-%s@example.com", uuid.NewString()),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		unchanged, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), target.ID)
+		require.NoError(t, err)
+		require.Equal(t, target.Email, unchanged.Email)
+
+		logs := auditor.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, int32(http.StatusNotFound), logs[0].StatusCode)
+		require.JSONEq(t, `{}`, string(logs[0].AdditionalFields))
+	})
+
+	t.Run("RejectsSelf", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		ownerResp := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		owner, err := client.User(ctx, ownerResp.UserID.String())
+		require.NoError(t, err)
+		err = client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+			OldEmail: owner.Email,
+			NewEmail: fmt.Sprintf("new-%s@example.com", uuid.NewString()),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, target := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		for _, req := range []codersdk.UpdateUserEmailRequest{
+			{OldEmail: " " + target.Email, NewEmail: "new@example.com"},
+			{OldEmail: target.Email, NewEmail: target.Email},
+			{OldEmail: strings.ToUpper(target.Email), NewEmail: target.Email},
+		} {
+			err := client.UpdateUserEmail(ctx, req)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		}
+	})
+
+	t.Run("NotFoundAndConflict", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, target := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, existing := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+			OldEmail: fmt.Sprintf("missing-%s@example.com", uuid.NewString()),
+			NewEmail: fmt.Sprintf("new-%s@example.com", uuid.NewString()),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+		err = client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+			OldEmail: target.Email,
+			NewEmail: strings.ToUpper(existing.Email),
+		})
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 }
 

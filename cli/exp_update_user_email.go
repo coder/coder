@@ -37,10 +37,15 @@ func (r *RootCmd) updateUserEmail() *serpent.Command {
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			if oldEmail == "" {
-				return xerrors.Errorf("--old-email is required")
+				return xerrors.Errorf("--old-email must not be blank")
 			}
 			if newEmail == "" {
-				return xerrors.Errorf("--new-email is required")
+				return xerrors.Errorf("--new-email must not be blank")
+			}
+
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout,
@@ -50,16 +55,11 @@ func (r *RootCmd) updateUserEmail() *serpent.Command {
 				oldEmail, newEmail,
 			)
 
-			_, err := cliui.Prompt(inv, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm email update?",
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
-			if err != nil {
-				return err
-			}
-
-			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
