@@ -602,7 +602,7 @@ export const FindToolsSearchResult: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const summary = canvas.getByRole("button", {
-			name: "Searched tools: github issues, pull requests, name:github__list_issues -> 2 matched",
+			name: "Matched 2 tools: github__list_issues, github__list_pull_requests",
 		});
 		await userEvent.click(summary);
 	},
