@@ -54,8 +54,8 @@ type guardedWriteCall struct {
 
 // guardedWriteCalls has one entry per chatWriteGuard writer override; the
 // completeness test enforces that equality so no override ships without a
-// rejection case. Only the chat id is set because the guard rejects before
-// the query runs.
+// rejection case. Each call sets only the id the guard reads to find the
+// chat, so the guarded query itself never runs.
 var guardedWriteCalls = []guardedWriteCall{
 	{method: "InsertChatMessages", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
 		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{ChatID: chatID})
@@ -108,8 +108,7 @@ var guardedWriteCalls = []guardedWriteCall{
 
 // The guard installed by NewDB must reject every guarded writer on the root
 // handle and inside a transaction that has not allocated a snapshot for the
-// chat, record each rejection, and let a write through once the same
-// transaction has allocated, including from a nested InTx.
+// chat, and record each rejection.
 func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -172,23 +171,47 @@ func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
 	require.Len(t, messages, 1, "rejected writes must not reach the database")
+}
 
-	// A nested InTx runs on the outer transaction handle, so it must see the
-	// outer allocation instead of starting an empty set.
-	err = db.InTx(func(tx database.Store) error {
+// A nested InTx runs on the outer transaction handle, so a write inside it
+// must see the outer transaction's allocation: the write lands and nothing
+// is recorded.
+func TestChatWriteGuardSharesAllocationAcrossNestedInTx(t *testing.T) {
+	t.Parallel()
+
+	db, _ := NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	guard, ok := db.(*chatWriteGuard)
+	require.True(t, ok, "NewDB must return the chat write guard")
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	err := db.InTx(func(tx database.Store) error {
 		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
 			return err
 		}
 		return tx.InTx(func(inner database.Store) error {
-			_, err := inner.InsertChatMessages(ctx, messageParams)
+			_, err := inner.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+				ChatID:    chat.ID,
+				Content:   []byte(`[]`),
+				CreatedBy: user.ID,
+			})
 			return err
 		}, nil)
 	}, nil)
 	require.NoError(t, err)
 	require.Empty(t, guard.rec.list())
-	messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+
+	queued, err := db.CountChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, messages, 2, "the nested allocated write must reach the database")
+	require.EqualValues(t, 1, queued, "the nested allocated write must reach the database")
 }
 
 // Every generated query that inserts, updates or deletes rows of
