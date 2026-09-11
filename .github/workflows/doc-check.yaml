@@ -132,6 +132,46 @@ jobs:
             exit 1
           fi
 
+      - name: Check the review workspace is usable
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: check-workspace
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+        run: |
+          # A review reuses one chat per PR, and that chat owns one workspace.
+          # The workspace stops after about a day and then goes dormant. A chat
+          # cannot repair a dormant workspace: start_workspace and
+          # create_workspace both fail with
+          # "unauthorized: rbac: forbidden". The review then reads
+          # nothing and posts nothing, and this job used to still pass. Fail
+          # here instead, so the check reports what happened.
+          # https://linear.app/codercom/issue/CODAGT-1025
+          WS_NAME="doc-check-pr-${PR_NUMBER}"
+          RESPONSE=$(curl -sS --fail-with-body -G \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            --data-urlencode "q=owner:me name:${WS_NAME}" \
+            "${CODER_URL%/}/api/v2/workspaces") || {
+              echo "::warning::Could not read the workspace state from Coder. Continuing."
+              exit 0
+            }
+          DORMANT_AT=$(echo "${RESPONSE}" | jq -r '.workspaces[0].dormant_at // empty')
+          if [[ -n "${DORMANT_AT}" ]]; then
+            echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
+            {
+              echo "### Documentation check did not run"
+              echo ""
+              echo "The workspace \`${WS_NAME}\` is dormant since ${DORMANT_AT}."
+              echo ""
+              echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See [CODAGT-1025](https://linear.app/codercom/issue/CODAGT-1025)."
+              echo ""
+              echo "To run the review now, start \`${WS_NAME}\` in Coder, then push again or re-run this job."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+          echo "Workspace state is usable."
+
       - name: Build chat prompt
         if: steps.check-secrets.outputs.skip != 'true'
         id: extract-context
@@ -163,50 +203,35 @@ jobs:
               ;;
           esac
 
-          # Build chat prompt with sticky comment logic
+          # Build the chat prompt. Durable rules live in the skill
+          # (.claude/skills/doc-check/SKILL.md), so this prompt stays short
+          # and carries only what changes per run.
           CHAT_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
 
           ${CONTEXT}
 
-          When creating a new workspace, use the \"coder-workflow-bot\" template.
+          Use \`gh\` to read the PR details, the diff, and every comment.
 
-          Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
+          Follow the skill in full: its evidence discipline, its comment
+          rules, and its comment format. **Do not comment if no
+          documentation changes are needed.**
 
-          Follow the skill's evidence discipline. State the evidence for each
-          user-facing change before you decide, and post nothing when the
-          evidence does not show a real unresolved gap.
+          ## When the workspace is broken
 
-          **Do not comment if no documentation changes are needed.**
+          A tool call that fails with \`unauthorized: rbac: forbidden\` is an
+          infrastructure state, not a bad command, so retrying the same
+          command changes nothing.
 
-          If a sticky comment already exists, compare your current findings against it:
-          - Check off \`[x]\` items that are now addressed
-          - Strikethrough items no longer needed (e.g., code was reverted)
-          - Add new unchecked \`[ ]\` items for newly discovered needs
-          - If an item is checked but you can't verify the docs were added, add a warning note below it
-          - If nothing meaningful changed, don't update the comment at all
+          Call \`start_workspace\` with no arguments. If it answers
+          \`workspace was deleted\` or \`chat has no workspace\`, call
+          \`list_templates\` for the \`coder-workflow-bot\` template ID, then
+          \`create_workspace\` with it, and run the failed call again. If it
+          answers \`load workspace: unauthorized: rbac: forbidden\`, the
+          workspace is dormant and you cannot repair it: stop, say you could
+          not review the PR, and name the error. Post no comment, and do not
+          imply the docs are fine, because you did not read them.
 
-          ## Comment format
-
-          Use this structure (only include relevant sections):
-
-          \`\`\`
-          ## Documentation Check
-
-          ### Updates Needed
-          - [ ] \`docs/path/file.md\` - What needs to change
-          - [x] \`docs/other/file.md\` - This was addressed
-          - ~~\`docs/removed.md\` - No longer needed~~ *(reverted in abc123)*
-
-          ### New Documentation Needed
-          - [ ] \`docs/suggested/path.md\` - What should be documented
-            > ⚠️ *Checked but no corresponding documentation changes found in this PR*
-
-          ---
-          *Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
-          <!-- doc-check-sticky -->
-          \`\`\`
-
-          The \`<!-- doc-check-sticky -->\` marker must be at the end so future runs can find and update this comment."
+          Create any new workspace from the \"coder-workflow-bot\" template."
 
           # Output the prompt
           {

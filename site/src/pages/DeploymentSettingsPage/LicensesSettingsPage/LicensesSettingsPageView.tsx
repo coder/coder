@@ -24,7 +24,6 @@ import { useTheme } from "#/theme/context";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
-import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 import { SeatUsageBarCard } from "./SeatUsageBarCard";
 import { TotalAgentHoursCard } from "./TotalAgentHoursCard";
 
@@ -40,7 +39,6 @@ type Props = {
 	removeLicense: (licenseId: number) => void;
 	refreshEntitlements: () => void;
 	activeUsers: UserStatusChangeCount[] | undefined;
-	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
 	agentRuntimeHoursFeature?: Feature;
 };
@@ -57,7 +55,6 @@ const LicensesSettingsPageView: FC<Props> = ({
 	removeLicense,
 	refreshEntitlements,
 	activeUsers,
-	managedAgentFeature,
 	aiGovernanceUserFeature,
 	agentRuntimeHoursFeature,
 }) => {
@@ -194,10 +191,6 @@ const LicensesSettingsPageView: FC<Props> = ({
 						</div>
 
 						<TotalAgentHoursCard feature={agentRuntimeHoursFeature} />
-
-						<ManagedAgentsConsumption
-							managedAgentFeature={managedAgentFeature}
-						/>
 					</>
 				)}
 			</div>

@@ -31,6 +31,62 @@ end
     )
   end
 
+# gpt-daybreak-blue-latest is an alias for gpt-5.6-sol. Copy its pricing
+# until models.dev includes the alias. Recheck the target when OpenAI updates it.
+# Ref: https://developers.openai.com/api/docs/pricing#cyber-models
+| if (.openai.models | has("gpt-daybreak-blue-latest")) then
+    error("overrides.jq: gpt-daybreak-blue-latest now present upstream; drop the injection")
+  elif (.openai.models."gpt-5.6-sol".cost | (.input | type) != "number" or (.output | type) != "number") then
+    error("overrides.jq: gpt-5.6-sol pricing missing upstream; update the gpt-daybreak-blue-latest source")
+  else
+    .openai.models."gpt-daybreak-blue-latest" = (
+      .openai.models."gpt-5.6-sol"
+      | .id = "gpt-daybreak-blue-latest"
+      | .name = "GPT Daybreak Blue Latest"
+    )
+  end
+
+# gpt-daybreak-red-latest is an alias for gpt-5.6-cyber. Neither is listed
+# on models.dev, so use OpenAI's USD-per-million-token prices directly.
+# Recheck the target and rates when OpenAI updates the alias.
+# Ref: https://developers.openai.com/api/docs/pricing#cyber-models
+| if (.openai.models | has("gpt-daybreak-red-latest")) then
+    error("overrides.jq: gpt-daybreak-red-latest now present upstream; drop the injection")
+  elif (.openai.models | has("gpt-5.6-cyber")) then
+    error("overrides.jq: gpt-5.6-cyber now present upstream; copy its pricing for gpt-daybreak-red-latest")
+  else
+    .openai.models."gpt-daybreak-red-latest" = {
+      id: "gpt-daybreak-red-latest",
+      name: "GPT Daybreak Red Latest",
+      cost: {input: 12.5, output: 75, cache_read: 1.25, cache_write: 15.625}
+    }
+  end
+
+# Copilot does not charge for background utility calls using GPT-4o mini,
+# GPT-4o, or GPT-4.1, so record zero prices for these models.
+# Ref: https://docs.github.com/en/copilot/concepts/models/utility-models#list-of-utility-models
+#
+# Keep GPT-5.4 nano's upstream rates: utility calls are unbilled, but other
+# usage has published prices. The model ID alone cannot distinguish them.
+# Ref: https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing#openai
+| if (has("github-copilot") | not) then
+    error("overrides.jq: github-copilot missing upstream; update the utility model overrides")
+  else
+    reduce [
+      {id: "gpt-4o-mini", name: "GPT-4o mini"},
+      {id: "gpt-4o", name: "GPT-4o"},
+      {id: "gpt-4.1", name: "GPT-4.1"}
+    ][] as $model (.;
+      if (."github-copilot".models | has($model.id)) then
+        error("overrides.jq: github-copilot/\($model.id) now present upstream; review and drop the injection")
+      else
+        ."github-copilot".models[$model.id] = (
+          $model | .cost = {input: 0, output: 0, cache_read: 0, cache_write: 0}
+        )
+      end
+    )
+  end
+
 # Mapping of provider names on models.dev to our own names
 # Ref. table definition for ai_provider_type
 # amazon-bedrock -> bedrock
