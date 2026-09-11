@@ -1336,6 +1336,7 @@ type sqlcQuerier interface {
 	// first and then by user or dimension forces sorted passes over every usage
 	// row, which is several times slower on large deployments.
 	ListAIBridgeSpendByUser(ctx context.Context, arg ListAIBridgeSpendByUserParams) ([]ListAIBridgeSpendByUserRow, error)
+	ListAIBridgeSpendRollups(ctx context.Context, arg ListAIBridgeSpendRollupsParams) ([]ListAIBridgeSpendRollupsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
