@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -74,8 +75,9 @@ type Store interface {
 	) ([]database.Chat, error)
 }
 
-// EventPublisher notifies the frontend of diff status changes.
-type PublishDiffStatusChangeFunc func(ctx context.Context, chatID uuid.UUID) error
+// PublishDiffStatusChangeFunc notifies the frontend that one ref's
+// diff status changed.
+type PublishDiffStatusChangeFunc func(ctx context.Context, chatID uuid.UUID, ref codersdk.DiffStatusRef) error
 
 // Worker is a background loop that periodically refreshes stale
 // chat diff statuses by delegating to a Refresher.
@@ -280,7 +282,7 @@ func (w *Worker) tick(ctx context.Context) {
 			continue
 		}
 		if w.publishDiffStatusChangeFn != nil {
-			if err := w.publishDiffStatusChangeFn(ctx, res.Request.Row.ChatID); err != nil {
+			if err := w.publishDiffStatusChangeFn(ctx, res.Request.Row.ChatID, codersdk.DiffStatusRef{RemoteOrigin: res.Request.Row.GitRemoteOrigin, GitBranch: res.Request.Row.GitBranch}); err != nil {
 				w.logger.Debug(ctx, "publish diff status change",
 					slog.F("chat_id", res.Request.Row.ChatID),
 					slog.Error(err))
@@ -363,7 +365,7 @@ func (w *Worker) markStaleSingle(
 	// Notify the frontend immediately so the UI shows the
 	// branch info even before the worker refreshes PR data.
 	if w.publishDiffStatusChangeFn != nil {
-		if pubErr := w.publishDiffStatusChangeFn(ctx, chatID); pubErr != nil {
+		if pubErr := w.publishDiffStatusChangeFn(ctx, chatID, codersdk.DiffStatusRef{RemoteOrigin: origin, GitBranch: branch}); pubErr != nil {
 			w.logger.Debug(ctx, "publish diff status after mark stale",
 				slog.F("chat_id", chatID), slog.Error(pubErr))
 		}
@@ -382,7 +384,7 @@ func (w *Worker) clearStalePR(ctx context.Context, row database.ChatDiffStatus) 
 		return xerrors.Errorf("clear stale chat diff status PR: %w", err)
 	}
 	if w.publishDiffStatusChangeFn != nil {
-		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID); err != nil {
+		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID, codersdk.DiffStatusRef{RemoteOrigin: row.GitRemoteOrigin, GitBranch: row.GitBranch}); err != nil {
 			w.logger.Debug(ctx, "publish diff status change",
 				slog.F("chat_id", row.ChatID), slog.Error(err))
 		}
@@ -432,7 +434,7 @@ func (w *Worker) RefreshChat(
 	}
 
 	if w.publishDiffStatusChangeFn != nil {
-		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID); err != nil {
+		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID, codersdk.DiffStatusRef{RemoteOrigin: row.GitRemoteOrigin, GitBranch: row.GitBranch}); err != nil {
 			w.logger.Debug(ctx, "publish diff status change",
 				slog.F("chat_id", row.ChatID),
 				slog.Error(err))

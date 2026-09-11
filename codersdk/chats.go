@@ -122,11 +122,15 @@ type Chat struct {
 	LastTurnSummary     *string      `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
-	Summary    *string         `json:"summary"`
-	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
-	Archived   bool            `json:"archived"`
+	Summary *string `json:"summary"`
+	// DiffStatus is the primary pull request, picked by the server.
+	// Deprecated: use DiffStatuses, which lists every pull request
+	// the chat tracks.
+	DiffStatus   *ChatDiffStatus  `json:"diff_status,omitempty"`
+	DiffStatuses []ChatDiffStatus `json:"diff_statuses,omitempty"`
+	CreatedAt    time.Time        `json:"created_at" format:"date-time"`
+	UpdatedAt    time.Time        `json:"updated_at" format:"date-time"`
+	Archived     bool             `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -1592,6 +1596,8 @@ type ChatGitChange struct {
 // a PR has been opened.
 type ChatDiffStatus struct {
 	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
+	RemoteOrigin     *string    `json:"remote_origin,omitempty"`
+	GitBranch        *string    `json:"git_branch,omitempty"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
 	PullRequestTitle string     `json:"pull_request_title"`
@@ -1610,6 +1616,16 @@ type ChatDiffStatus struct {
 	ReviewerCount    *int32     `json:"reviewer_count,omitempty"`
 	RefreshedAt      *time.Time `json:"refreshed_at,omitempty" format:"date-time"`
 	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
+}
+
+type DiffStatusRef struct {
+	RemoteOrigin string `json:"remote_origin"`
+	GitBranch    string `json:"git_branch"`
+}
+
+type ChangedDiffStatus struct {
+	Ref    DiffStatusRef   `json:"ref"`
+	Status *ChatDiffStatus `json:"status"`
 }
 
 // ChatDiffContents represents the resolved diff text for a chat.
@@ -1888,9 +1904,10 @@ const (
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
-	Kind      ChatWatchEventKind   `json:"kind"`
-	Chat      Chat                 `json:"chat"`
-	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	Kind              ChatWatchEventKind   `json:"kind"`
+	Chat              Chat                 `json:"chat"`
+	ToolCalls         []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	ChangedDiffStatus *ChangedDiffStatus   `json:"changed_diff_status,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.

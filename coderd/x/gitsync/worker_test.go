@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -200,7 +201,7 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(numRows)
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		if upsertCount.Load() == numRows {
 			close(tickDone)
 		}
@@ -451,7 +452,7 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		})
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		// Only the successful row publishes.
 		publishCount.Add(1)
 		signalIfDone()
@@ -540,7 +541,7 @@ func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(2)
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCount.Add(1)
 		// Terminal event for the successful row.
 		signalIfDone()
@@ -627,7 +628,7 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(2)
 
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		mu.Lock()
 		publishedIDs = append(publishedIDs, chatID)
 		mu.Unlock()
@@ -713,7 +714,7 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(2)
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCount.Add(1)
 		return nil
 	}
@@ -834,7 +835,7 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(1)
 
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		mu.Lock()
 		publishedIDs = append(publishedIDs, chatID)
 		mu.Unlock()
@@ -899,7 +900,7 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(1)
 
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		mu.Lock()
 		publishedIDs = append(publishedIDs, chatID)
 		mu.Unlock()
@@ -975,7 +976,7 @@ func TestWorker(t *testing.T) {
 	// 6. Track publish calls.
 	var publishCount atomic.Int32
 	tickDone := make(chan struct{})
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		assert.Equal(t, chat.ID, chatID)
 		if publishCount.Add(1) == 1 {
 			close(tickDone)
@@ -1043,7 +1044,7 @@ func TestRefreshChat_Success(t *testing.T) {
 		})
 
 	var publishCalled atomic.Bool
-	pub := func(_ context.Context, id uuid.UUID) error {
+	pub := func(_ context.Context, id uuid.UUID, _ codersdk.DiffStatusRef) error {
 		assert.Equal(t, chatID, id)
 		publishCalled.Store(true)
 		return nil
@@ -1080,7 +1081,7 @@ func TestRefreshChat_NoPR(t *testing.T) {
 	// UpsertChatDiffStatus should NOT be called.
 
 	var publishCalled atomic.Bool
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCalled.Store(true)
 		return nil
 	}
@@ -1157,7 +1158,7 @@ func TestRefreshChat_UpsertError(t *testing.T) {
 		Return(database.ChatDiffStatus{}, fmt.Errorf("db write error"))
 
 	var publishCalled atomic.Bool
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCalled.Store(true)
 		return nil
 	}
