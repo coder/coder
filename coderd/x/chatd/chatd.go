@@ -1108,6 +1108,7 @@ var (
 type CreateOptions struct {
 	OrganizationID          uuid.UUID
 	OwnerID                 uuid.UUID
+	ProjectID               uuid.NullUUID
 	WorkspaceID             uuid.NullUUID
 	BuildID                 uuid.NullUUID
 	AgentID                 uuid.NullUUID
@@ -1404,6 +1405,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
+		ProjectID:         opts.ProjectID,
 		WorkspaceID:       opts.WorkspaceID,
 		BuildID:           opts.BuildID,
 		AgentID:           opts.AgentID,

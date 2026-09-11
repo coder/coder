@@ -667,6 +667,11 @@ export type APIKeyScope =
 	| "chat_model_config:read"
 	| "chat_model_config:share"
 	| "chat_model_config:update"
+	| "chat_project:*"
+	| "chat_project:create"
+	| "chat_project:delete"
+	| "chat_project:read"
+	| "chat_project:update"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
@@ -914,6 +919,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_model_config:read",
 	"chat_model_config:share",
 	"chat_model_config:update",
+	"chat_project:*",
+	"chat_project:create",
+	"chat_project:delete",
+	"chat_project:read",
+	"chat_project:update",
 	"chat:read",
 	"chat:share",
 	"chat:update",
@@ -1900,6 +1910,7 @@ export interface Chat {
 	readonly owner_username?: string;
 	readonly owner_name?: string;
 	readonly workspace_id?: string;
+	readonly project_id?: string;
 	readonly build_id?: string;
 	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
@@ -3178,6 +3189,21 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 
 // From codersdk/chats.go
 /**
+ * ChatProject groups related chats in an organization.
+ */
+export interface ChatProject {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly created_by: string;
+	readonly name: string;
+	readonly description: string;
+	readonly chat_count: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
  * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
@@ -3847,6 +3873,16 @@ export interface CreateChatModelRequest {
 
 // From codersdk/chats.go
 /**
+ * CreateChatProjectRequest creates an organization-scoped chat project.
+ */
+export interface CreateChatProjectRequest {
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description: string;
+}
+
+// From codersdk/chats.go
+/**
  * CreateChatProviderConfigRequest creates a chat provider config.
  */
 export interface CreateChatProviderConfigRequest {
@@ -3870,6 +3906,7 @@ export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
+	readonly project_id?: string;
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly mcp_server_ids?: readonly string[];
@@ -5005,6 +5042,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-projects"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5020,6 +5058,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-projects",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
@@ -5876,6 +5915,7 @@ export interface ListChatsOptions extends Pagination {
 	 */
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
+	readonly ProjectID: string | null;
 }
 
 // From codersdk/inboxnotification.go
@@ -7876,6 +7916,7 @@ export type RBACResource =
 	| "boundary_usage"
 	| "chat"
 	| "chat_model_config"
+	| "chat_project"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -7930,6 +7971,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_usage",
 	"chat",
 	"chat_model_config",
+	"chat_project",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -8085,6 +8127,7 @@ export type ResourceType =
 	| "chat_instruction_settings"
 	| "chat_model_config"
 	| "chat_operational_settings"
+	| "chat_project"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -8127,6 +8170,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_instruction_settings",
 	"chat_model_config",
 	"chat_operational_settings",
+	"chat_project",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -9682,6 +9726,15 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatProjectRequest updates a chat project.
+ */
+export interface UpdateChatProjectRequest {
+	readonly name?: string;
+	readonly description?: string;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatProviderConfigRequest updates a chat provider config.
  */
 export interface UpdateChatProviderConfigRequest {
@@ -9703,6 +9756,10 @@ export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
 	readonly workspace_id?: string;
+	/**
+	 * ProjectID changes the chat project. A UUID value of nil clears the project.
+	 */
+	readonly project_id?: string;
 	/**
 	 * PinOrder controls the chat's pinned state and position.
 	 * - nil: no change to pin state.

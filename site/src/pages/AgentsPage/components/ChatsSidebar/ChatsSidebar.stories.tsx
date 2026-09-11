@@ -11,11 +11,17 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatProjectsKey } from "#/api/queries/chatProjectsKeys";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockChatProject2,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -2244,6 +2250,28 @@ export const SettingsManageAgentsOrgModelAdmin: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "Secrets (API keys)" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const Projects: Story = {
+	args: {
+		chats: [buildChat({ id: "project-chat", title: "Project chat" })],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey(MockChatProject.organization_id),
+				data: [MockChatProject, MockChatProject2],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: `/agents/projects/${MockChatProject.id}` },
+			routing: [
+				{ path: "/agents/projects/:projectId", useStoryElement: true },
+				...agentsRouting,
+			],
+		}),
 	},
 };
 

@@ -17,6 +17,7 @@ import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
+import { chatProjectsFamilyKey } from "./chatProjectsKeys";
 import { organizationsPermissions } from "./organizations";
 
 const chatCollectionsKey = ["chats", "collections"] as const;
@@ -47,6 +48,7 @@ export type ChatListStatusFilter = "read" | "unread";
 type ChatListParams = Readonly<{
 	archived: boolean;
 	prStatuses: readonly ChatListPRStatusFilter[];
+	projectId?: string;
 	status: ChatListStatusFilter | "all";
 	sources: readonly TypesGen.ChatListSource[];
 }>;
@@ -54,6 +56,7 @@ type ChatListParams = Readonly<{
 export type ChatListInput = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
+	projectId?: string;
 	chatStatus?: ChatListStatusFilter;
 	sources?: readonly TypesGen.ChatListSource[];
 }>;
@@ -1049,6 +1052,11 @@ type UpdateChatWorkspaceVariables = {
 	workspaceId: string | null;
 };
 
+type UpdateChatProjectVariables = {
+	chatId: string;
+	projectId: string | null;
+};
+
 type UpdateChatPlanModeVariables = {
 	chatId: string;
 	planMode?: TypesGen.ChatPlanMode;
@@ -1092,6 +1100,7 @@ const canonicalizeChatSources = (
 export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	archived: input?.archived ?? false,
 	prStatuses: canonicalizeChatListPRStatuses(input?.prStatuses ?? []),
+	projectId: input?.projectId,
 	status: input?.chatStatus ?? "all",
 	sources: canonicalizeChatSources(input?.sources ?? []),
 });
@@ -1139,6 +1148,7 @@ export const infiniteChats = (input?: ChatListInput) => {
 			return API.experimental.getChats({
 				limit,
 				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+				project_id: params.projectId,
 				q,
 			});
 		},
@@ -1391,6 +1401,71 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
+	},
+});
+
+export const updateChatProject = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, projectId }: UpdateChatProjectVariables) =>
+		API.experimental.updateChat(chatId, {
+			project_id:
+				projectId ??
+				// The API uses the nil UUID to clear the project association.
+				"00000000-0000-0000-0000-000000000000",
+		}),
+	onMutate: async ({ chatId, projectId }: UpdateChatProjectVariables) => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? { ...chat, project_id: projectId ?? undefined }
+					: chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
+				...previousChat,
+				project_id: projectId ?? undefined,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatProjectVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId
+						? { ...chat, project_id: previousChat.project_id }
+						: chat,
+				),
+			);
+			patchChatEntity(queryClient, chatId, () => previousChat);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatProjectVariables,
+	) => {
+		await Promise.all([
+			invalidateChatListQueries(queryClient),
+			invalidateChatEntity(queryClient, chatId),
+			invalidateChatsByWorkspace(queryClient),
+			queryClient.invalidateQueries({ queryKey: chatProjectsFamilyKey }),
+		]);
 	},
 });
 
