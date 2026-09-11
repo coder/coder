@@ -77,9 +77,10 @@ var AllExecutionTransitions = []Transition{
 // exist there: the classifier hides the first held row and everything
 // behind it, so W/E0/R0/I0/A0 can physically hold queued rows. Removing
 // or releasing a held head can expose a promotable head, which is why
-// those transitions may land in the matching "1" state, and from W they
-// promote the exposed head in the same transaction (W with a promotable
-// head is invalid).
+// those transitions may land in the matching "1" state. From W that
+// exposure is refused (waiting with a promotable head is invalid); the
+// caller promotes the exposed row instead, so Edit and Delete from W
+// stay in W and Promote is the only queue transition that leaves it.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
@@ -93,9 +94,9 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEditMessage:          {StateR0},
 		TransitionRequestCompaction:    {StateR0},
 		TransitionClearContext:         {StateW},
-		TransitionDeleteQueuedMessage:  {StateW, StateR0, StateR1},
+		TransitionDeleteQueuedMessage:  {StateW},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
-		TransitionEditQueuedMessage:    {StateW, StateR0, StateR1},
+		TransitionEditQueuedMessage:    {StateW},
 		TransitionFinishError:          {StateE0},
 	},
 	StateE0: {

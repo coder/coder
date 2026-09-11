@@ -202,10 +202,9 @@ func editQueuedContentCase(from chatstate.ExecutionState) transitionCaseSpec {
 }
 
 // editQueuedReleaseCase clears the hold on the head of a "0" state
-// seeded with extraUnheld rows behind it. From W the machine's settle
-// step promotes the exposed head into history in the same transaction;
-// elsewhere it becomes the promotable head and the chat lands in the
-// "1" sibling.
+// seeded with extraUnheld rows behind it. The head becomes promotable
+// and the chat lands in the "1" sibling. Not valid from W; see
+// editQueuedReleaseIdleHeadRefusedCase.
 func editQueuedReleaseCase(from, want chatstate.ExecutionState, extraUnheld int) transitionCaseSpec {
 	sc := scenarioRelease
 	if extraUnheld > 0 {
@@ -219,33 +218,14 @@ func editQueuedReleaseCase(from, want chatstate.ExecutionState, extraUnheld int)
 		seed: func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
 			return seedHeldHead(t, f, from, extraUnheld)
 		},
-		apply: func(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
-			t.Helper()
-			held := false
-			var err error
-			result.editQueuedMessage, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
-				QueuedMessageID: seeded.queuedMessageIDs[0],
-				Held:            &held,
-			})
-			return err
-		},
+		apply: applyReleaseHead,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
 			require.NoError(t, err)
 			headID := seeded.queuedMessageIDs[0]
 			require.False(t, result.editQueuedMessage.QueuedMessage.HeldAt.Valid, "release clears held_at")
-			if from == chatstate.StateW {
-				require.Equal(t, database.ChatStatusRunning, after.Status, "release from W settles into running")
-				require.False(t, after.LastError.Valid, "promotion clears last_error")
-				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, headID)
-				require.Equal(t, base.queueIDs[1:], queuedIDsByPosition(ctx, t, f, seeded.chatID), "rows behind the head stay queued")
-				promoted := requireLatestHistoryMessage(ctx, t, f, seeded.chatID)
-				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
-				require.Contains(t, newActiveMessageIDs(base, activeHistoryIDs(ctx, t, f, seeded.chatID)), promoted.ID)
-				return
-			}
-			require.Equal(t, base.chat.Status, after.Status, "release outside W keeps the status")
-			require.Equal(t, base.chat.LastError, after.LastError, "release outside W keeps last_error")
+			require.Equal(t, base.chat.Status, after.Status, "release keeps the status")
+			require.Equal(t, base.chat.LastError, after.LastError, "release keeps last_error")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID), "release keeps the queue")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID), "release does not touch history")
 			row := requireQueuedMessageByID(ctx, t, f, seeded.chatID, headID)
@@ -254,9 +234,76 @@ func editQueuedReleaseCase(from, want chatstate.ExecutionState, extraUnheld int)
 	}
 }
 
-// heldDeleteQueuedCase deletes the held head of a "0" state. From W
-// with unheld rows behind it the machine's settle step promotes the
-// next row.
+func applyReleaseHead(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	held := false
+	var err error
+	result.editQueuedMessage, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
+		QueuedMessageID: seeded.queuedMessageIDs[0],
+		Held:            &held,
+	})
+	return err
+}
+
+// editQueuedReleaseIdleHeadRefusedCase clears the hold on the head of
+// an idle chat. That would leave W with a promotable head, so the
+// transition refuses and nothing is written; releasing that row is
+// PromoteQueuedMessage's job.
+func editQueuedReleaseIdleHeadRefusedCase() transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionEditQueuedMessage,
+		from:       chatstate.StateW,
+		want:       chatstate.StateW,
+		scenario:   scenario(string(scenarioRelease) + "_refused"),
+		seed: func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+			return seedHeldHead(t, f, from, 0)
+		},
+		apply: applyReleaseHead,
+		assertFailure: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error) {
+			require.ErrorIs(t, err, chatstate.ErrIdleHeadWouldBecomePromotable)
+			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
+		},
+	}
+}
+
+// editQueuedReleaseIdleNonHeadCase clears the hold on a held row behind
+// the held head of an idle chat. The head is still held, so the chat
+// stays W.
+func editQueuedReleaseIdleNonHeadCase() transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionEditQueuedMessage,
+		from:       chatstate.StateW,
+		want:       chatstate.StateW,
+		scenario:   scenario(string(scenarioRelease) + "_non_head"),
+		seed: func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+			seeded := seedHeldHead(t, f, from, 1)
+			holdQueuedMessage(testutil.Context(t, testutil.WaitShort), t, f, seeded.chatID, seeded.queuedMessageIDs[1])
+			return seeded
+		},
+		apply: func(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+			t.Helper()
+			held := false
+			var err error
+			result.editQueuedMessage, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
+				QueuedMessageID: seeded.queuedMessageIDs[1],
+				Held:            &held,
+			})
+			return err
+		},
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			require.False(t, result.editQueuedMessage.QueuedMessage.HeldAt.Valid)
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID))
+			head := requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0])
+			require.True(t, head.HeldAt.Valid, "the head stays held")
+		},
+	}
+}
+
+// heldDeleteQueuedCase deletes the held head of a "0" state. With
+// unheld rows behind it the next row becomes the promotable head and
+// the chat lands in the "1" sibling. Not valid from W with a tail; see
+// heldDeleteIdleHeadRefusedCase.
 func heldDeleteQueuedCase(from, want chatstate.ExecutionState, extraUnheld int) transitionCaseSpec {
 	sc := scenarioHeldHead
 	if extraUnheld > 0 {
@@ -277,16 +324,30 @@ func heldDeleteQueuedCase(from, want chatstate.ExecutionState, extraUnheld int) 
 			headID := seeded.queuedMessageIDs[0]
 			require.Equal(t, headID, result.deleteQueuedMessage.DeletedQueuedMessage.ID)
 			requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, headID)
-			remaining := queuedIDsByPosition(ctx, t, f, seeded.chatID)
-			if from == chatstate.StateW && extraUnheld > 0 {
-				require.Equal(t, database.ChatStatusRunning, after.Status, "deleting a held head from W settles into running")
-				require.Equal(t, base.queueIDs[2:], remaining, "the exposed head left the queue")
-				assertChatMessageText(t, requireLatestHistoryMessage(ctx, t, f, seeded.chatID), seeded.queuedMessageBodies[1])
-				return
-			}
 			require.Equal(t, base.chat.Status, after.Status, "delete keeps the status")
-			require.Equal(t, base.queueIDs[1:], remaining, "delete removes exactly the head")
+			require.Equal(t, base.queueIDs[1:], queuedIDsByPosition(ctx, t, f, seeded.chatID), "delete removes exactly the head")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID), "delete does not touch history")
+		},
+	}
+}
+
+// heldDeleteIdleHeadRefusedCase deletes the held head of an idle chat
+// that has an unheld row behind it. That would leave W with a
+// promotable head, so the transition refuses; the caller promotes the
+// successor first.
+func heldDeleteIdleHeadRefusedCase() transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionDeleteQueuedMessage,
+		from:       chatstate.StateW,
+		want:       chatstate.StateW,
+		scenario:   scenario(string(scenarioHeldHeadWithTail) + "_refused"),
+		seed: func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+			return seedHeldHead(t, f, from, 1)
+		},
+		apply: applyDeleteQueuedMessage,
+		assertFailure: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error) {
+			require.ErrorIs(t, err, chatstate.ErrIdleHeadWouldBecomePromotable)
+			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
 		},
 	}
 }
@@ -368,7 +429,8 @@ func isZeroQueueState(s chatstate.ExecutionState) bool {
 }
 
 // heldQueueMatrixCases enumerates every matrix cell that exists because
-// of holds, plus the EditQueuedMessage cells on the "1" states.
+// of holds, plus the EditQueuedMessage cells on the "1" states, and the
+// two W rewrites the transitions refuse.
 func heldQueueMatrixCases() []transitionCaseSpec {
 	return []transitionCaseSpec{
 		// EditQueuedMessage: hold the head of a "1" state.
@@ -388,18 +450,19 @@ func heldQueueMatrixCases() []transitionCaseSpec {
 		editQueuedContentCase(chatstate.StateA0),
 		editQueuedContentCase(chatstate.StateA1),
 
-		// EditQueuedMessage: release the held head.
-		editQueuedReleaseCase(chatstate.StateW, chatstate.StateR0, 0),
-		editQueuedReleaseCase(chatstate.StateW, chatstate.StateR1, 1),
+		// EditQueuedMessage: release the held head. From W only a row
+		// behind the head may be released; releasing the head is refused.
+		editQueuedReleaseIdleNonHeadCase(),
+		editQueuedReleaseIdleHeadRefusedCase(),
 		editQueuedReleaseCase(chatstate.StateE0, chatstate.StateE1, 0),
 		editQueuedReleaseCase(chatstate.StateR0, chatstate.StateR1, 0),
 		editQueuedReleaseCase(chatstate.StateI0, chatstate.StateI1, 0),
 		editQueuedReleaseCase(chatstate.StateA0, chatstate.StateA1, 0),
 
-		// DeleteQueuedMessage on a held head.
+		// DeleteQueuedMessage on a held head. From W the successor must
+		// not be promotable; otherwise the delete is refused.
 		heldDeleteQueuedCase(chatstate.StateW, chatstate.StateW, 0),
-		heldDeleteQueuedCase(chatstate.StateW, chatstate.StateR0, 1),
-		heldDeleteQueuedCase(chatstate.StateW, chatstate.StateR1, 2),
+		heldDeleteIdleHeadRefusedCase(),
 		heldDeleteQueuedCase(chatstate.StateE0, chatstate.StateE0, 0),
 		heldDeleteQueuedCase(chatstate.StateE0, chatstate.StateE1, 1),
 		heldDeleteQueuedCase(chatstate.StateR0, chatstate.StateR0, 0),

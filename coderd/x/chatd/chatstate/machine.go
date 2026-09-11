@@ -180,16 +180,6 @@ func (m *ChatMachine) Update(
 		if err != nil {
 			return err
 		}
-		settled, err := tx.settleQueue(chat, state)
-		if err != nil {
-			return err
-		}
-		if settled {
-			chat, state, err = tx.loadState()
-			if err != nil {
-				return err
-			}
-		}
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(chat.ID),
 			buildChatUpdateMessage(chat),

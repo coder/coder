@@ -101,12 +101,29 @@ func TestHold_FinishTurnStopsAtHeldRow(t *testing.T) {
 	})
 	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 
-	// Releasing from W exposes row three as the head; the machine's
-	// settle step promotes it and leaves four and five promotable
-	// behind it.
-	released := holdViaTransition(t, f, m, ids[2], false)
-	require.False(t, released.QueuedMessage.HeldAt.Valid)
-	assertChatMessageText(t, requireLatestHistoryMessage(ctx, t, f, chatID), bodies[2])
+	// Releasing the held head of an idle chat is refused: it would leave
+	// W with a promotable head. Starting it is PromoteQueuedMessage's
+	// job, which clears the hold, pops row three, and leaves four and
+	// five promotable behind it.
+	releaseHeld := false
+	err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
+			QueuedMessageID: ids[2],
+			Held:            &releaseHeld,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, chatstate.ErrIdleHeadWouldBecomePromotable)
+	require.Equal(t, chatstate.StateW, f.classify(ctx, t, chatID))
+
+	var promoted chatstate.PromoteQueuedMessageResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		promoted, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{QueuedMessageID: ids[2]})
+		return err
+	}))
+	require.NotNil(t, promoted.InsertedMessage)
+	assertChatMessageText(t, *promoted.InsertedMessage, bodies[2])
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
 }

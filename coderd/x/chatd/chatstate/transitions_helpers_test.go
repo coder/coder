@@ -693,16 +693,6 @@ func requireChatMessageByID(ctx context.Context, t *testing.T, f *testFixture, i
 	return msg
 }
 
-// requireLatestHistoryMessage returns the newest non-deleted history
-// message. Used to observe a promotion performed by the machine's
-// settle step, which no transition result reports.
-func requireLatestHistoryMessage(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) database.ChatMessage {
-	t.Helper()
-	ids := activeHistoryIDs(ctx, t, f, chatID)
-	require.NotEmpty(t, ids, "history is empty")
-	return requireChatMessageByID(ctx, t, f, ids[len(ids)-1])
-}
-
 func requireQueuedMessageByID(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, id int64) database.ChatQueuedMessage {
 	t.Helper()
 	msg, err := f.DB.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
