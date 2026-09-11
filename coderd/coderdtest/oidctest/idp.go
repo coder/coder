@@ -1309,7 +1309,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				{
 					Key:       f.locked.PrivateKey().Public(),
 					KeyID:     "test-key",
-					Algorithm: "RSA",
+					Algorithm: "RS256",
 				},
 			},
 		}
