@@ -225,6 +225,15 @@ type AIBridgeSessionThreadsTokenUsage struct {
 	Metadata              map[string]any `json:"metadata"`
 }
 
+// AIBridgeInterceptionReference is a compact reference to a single
+// interception within a thread, with optional workspace attribution.
+type AIBridgeInterceptionReference struct {
+	ID uuid.UUID `json:"id" format:"uuid"`
+	// Attribution carries workspace_id when the interception can be attributed
+	// to a specific workspace. Nil when the workspace context is unknown.
+	Attribution map[string]string `json:"attribution,omitempty"`
+}
+
 // AIBridgeThread represents a single thread within a session.
 // A thread groups interceptions by their thread_root_id.
 type AIBridgeThread struct {
@@ -237,7 +246,12 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// Interceptions lists every interception in this thread in chronological
+	// query order, including tool-less rows. Use this for per-interception
+	// attribution and audit rather than AgenticActions, which only covers
+	// interceptions that produced tool calls.
+	Interceptions  []AIBridgeInterceptionReference `json:"interceptions"`
+	AgenticActions []AIBridgeAgenticAction         `json:"agentic_actions"`
 	// ErrorType is the categorized terminal upstream error from the root
 	// interception, or nil when the interception succeeded. See the
 	// aibridge_interception_error_type enum for possible values.

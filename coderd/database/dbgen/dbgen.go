@@ -2079,6 +2079,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		CredentialHint:              takeFirst(seed.CredentialHint, ""),
 		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
+		WorkspaceID:                 seed.WorkspaceID,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

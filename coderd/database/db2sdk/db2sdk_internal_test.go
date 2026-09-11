@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestAggregateTokenMetadata(t *testing.T) {
@@ -331,4 +332,93 @@ func TestSanitizeCredentialHint(t *testing.T) {
 			require.Equal(t, tc.expected, sanitizeCredentialHint(tc.input))
 		})
 	}
+}
+
+// TestAIBridgeInterceptionAttribution covers unknown and workspace attribution.
+func TestAIBridgeInterceptionAttribution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil_when_no_workspace", func(t *testing.T) {
+		t.Parallel()
+		intc := database.AIBridgeInterception{
+			ID: uuid.New(),
+			// WorkspaceID is zero-value (not valid).
+		}
+		require.Nil(t, aiBridgeInterceptionAttribution(intc))
+	})
+
+	t.Run("workspace_id_only", func(t *testing.T) {
+		t.Parallel()
+		wsID := uuid.New()
+		intc := database.AIBridgeInterception{
+			ID:          uuid.New(),
+			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
+		}
+		got := aiBridgeInterceptionAttribution(intc)
+		require.Equal(t, map[string]string{
+			"workspace_id": wsID.String(),
+		}, got)
+	})
+}
+
+// TestBuildAIBridgeThreadInterceptions verifies that every interception,
+// including tool-less rows, appears in query order with per-row attribution.
+func TestBuildAIBridgeThreadInterceptions(t *testing.T) {
+	t.Parallel()
+
+	threadID := uuid.New()
+	i1 := uuid.New()
+	i2 := uuid.New()
+	wsID := uuid.New()
+
+	interceptions := []database.AIBridgeInterception{
+		{
+			// Root interception, tool-less, no attribution.
+			ID:       i1,
+			Model:    "gpt-4",
+			Provider: "openai",
+		},
+		{
+			// Agentic child with workspace attribution.
+			ID:          i2,
+			Model:       "gpt-4",
+			Provider:    "openai",
+			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
+		},
+	}
+
+	thread := buildAIBridgeThread(
+		threadID,
+		interceptions,
+		make(map[uuid.UUID][]database.AIBridgeTokenUsage),
+		make(map[uuid.UUID][]database.AIBridgeToolUsage),
+		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
+		make(map[uuid.UUID][]database.AIBridgeModelThought),
+	)
+
+	// Both interceptions must appear, including the tool-less root.
+	require.Len(t, thread.Interceptions, 2)
+
+	// First: no attribution (workspace unknown).
+	require.Equal(t, i1, thread.Interceptions[0].ID)
+	require.Nil(t, thread.Interceptions[0].Attribution)
+
+	// Second: workspace attribution.
+	require.Equal(t, i2, thread.Interceptions[1].ID)
+	require.Equal(t, map[string]string{
+		"workspace_id": wsID.String(),
+	}, thread.Interceptions[1].Attribution)
+
+	// Interceptions is always a non-nil slice (never serializes as JSON null).
+	emptyThread := buildAIBridgeThread(
+		uuid.New(),
+		nil,
+		make(map[uuid.UUID][]database.AIBridgeTokenUsage),
+		make(map[uuid.UUID][]database.AIBridgeToolUsage),
+		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
+		make(map[uuid.UUID][]database.AIBridgeModelThought),
+	)
+	require.NotNil(t, emptyThread.Interceptions, "Interceptions must not be nil")
+	require.IsType(t, []codersdk.AIBridgeInterceptionReference{}, emptyThread.Interceptions)
+	require.Empty(t, emptyThread.Interceptions)
 }
