@@ -8,7 +8,7 @@ Coder provides the workspace where the agent's tool calls run.
 
 <img src="../../images/guides/ai-agents/agent-relay-stack.png" alt="Agent Relay architecture diagram" style="border: none;">
 
-## What Agent Relay does
+## How Agent Relay works
 
 Agent Relay watches for pending agent sessions from a supported provider.
 When a session starts, Agent Relay provisions a Coder workspace from a mapped template and connects the session to a worker process inside that workspace.
