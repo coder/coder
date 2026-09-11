@@ -71,7 +71,10 @@ func (server *Server) prepareGeneration(
 	input generationPrepareInput,
 ) (generationPrepared, error) {
 	chat := input.Chat
-	actorID := generationActorID(chat, input.Messages)
+	actorID, err := generationActorID(chat, input.Messages)
+	if err != nil {
+		return generationPrepared{}, xerrors.Errorf("resolve generation actor: %w", err)
+	}
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
 		slog.F("owner_id", chat.OwnerID),
@@ -901,7 +904,11 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
-	actorID := turnActorID(chat, promptRows)
+	actorID, err := turnActorID(chat, promptRows)
+	if err != nil {
+		logger.Warn(ctx, "derive final turn status label: resolve turn actor", slog.Error(err))
+		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
+	}
 	logger = logger.With(slog.F("actor_id", actorID))
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, actorID)
 	if err != nil {

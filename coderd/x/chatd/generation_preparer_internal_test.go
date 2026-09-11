@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -439,6 +440,81 @@ func TestPrepareGenerationBindsCredentialsToTurnActor(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for the actor's turn")
 }
 
+// TestPrepareGenerationRefusesSharedChatWithoutPoster verifies that a shared
+// chat whose last prompt has no poster fails to prepare instead of running
+// with the owner's credentials.
+func TestPrepareGenerationRefusesSharedChatWithoutPoster(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	owner := dbgen.User(t, db, database.User{})
+	sharer := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	for _, user := range []database.User{owner, sharer} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+	}
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "shared chat without poster",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "inspect the workspace"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, created.InitialMessages[0].CreatedBy.Valid)
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID: created.Chat.ID,
+		UserACL: database.ChatACL{
+			sharer.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionUse}},
+		},
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+	chat, err := db.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	_, err = server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     chat,
+		Messages: created.InitialMessages,
+	})
+	require.ErrorContains(t, err, "shared chat "+chat.ID.String()+" turn has no poster")
+	_, err = db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    owner.ID,
+		TokenName: GatewayTokenName(owner.ID),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for a turn without a poster")
+}
+
 // TestPrepareGenerationBindsCredentialsToCompactionRequester verifies that
 // a pending manual compaction request runs with the synthetic gateway key of
 // the user who requested it, not the owner who posted the last prompt.
@@ -602,7 +678,8 @@ func TestTurnActorID(t *testing.T) {
 
 	owner := uuid.New()
 	actor := uuid.New()
-	chat := database.Chat{OwnerID: owner}
+	sharer := uuid.New()
+	chatID := uuid.New()
 	prompt := func(createdBy uuid.NullUUID) database.ChatMessage {
 		return database.ChatMessage{
 			Role:       database.ChatMessageRoleUser,
@@ -610,19 +687,88 @@ func TestTurnActorID(t *testing.T) {
 			CreatedBy:  createdBy,
 		}
 	}
+	unshared := database.Chat{ID: chatID, OwnerID: owner}
+	userShared := database.Chat{ID: chatID, OwnerID: owner, UserACL: database.ChatACL{
+		sharer.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+	}}
+	groupShared := database.Chat{ID: chatID, OwnerID: owner, GroupACL: database.ChatACL{
+		uuid.NewString(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+	}}
 
-	require.Equal(t, actor, turnActorID(chat, []database.ChatMessage{
-		prompt(uuid.NullUUID{UUID: owner, Valid: true}),
-		prompt(uuid.NullUUID{UUID: actor, Valid: true}),
-	}), "the last user prompt selects the actor")
-	require.Equal(t, owner, turnActorID(chat, []database.ChatMessage{
-		prompt(uuid.NullUUID{UUID: actor, Valid: true}),
-		prompt(uuid.NullUUID{}),
-	}), "a null poster falls back to the owner")
-	require.Equal(t, owner, turnActorID(chat, []database.ChatMessage{
-		prompt(uuid.NullUUID{UUID: uuid.Nil, Valid: true}),
-	}), "a nil poster falls back to the owner")
-	require.Equal(t, owner, turnActorID(chat, nil), "no user prompt falls back to the owner")
+	cases := []struct {
+		name     string
+		chat     database.Chat
+		messages []database.ChatMessage
+		want     uuid.UUID
+		wantErr  bool
+	}{
+		{
+			name: "LastPromptPosterWins",
+			chat: userShared,
+			messages: []database.ChatMessage{
+				prompt(uuid.NullUUID{UUID: owner, Valid: true}),
+				prompt(uuid.NullUUID{UUID: actor, Valid: true}),
+			},
+			want: actor,
+		},
+		{
+			name: "NullPosterUnsharedFallsBackToOwner",
+			chat: unshared,
+			messages: []database.ChatMessage{
+				prompt(uuid.NullUUID{UUID: actor, Valid: true}),
+				prompt(uuid.NullUUID{}),
+			},
+			want: owner,
+		},
+		{
+			name: "NilPosterUnsharedFallsBackToOwner",
+			chat: unshared,
+			messages: []database.ChatMessage{
+				prompt(uuid.NullUUID{UUID: uuid.Nil, Valid: true}),
+			},
+			want: owner,
+		},
+		{
+			name: "NoPromptUnsharedFallsBackToOwner",
+			chat: unshared,
+			want: owner,
+		},
+		{
+			name: "NullPosterUserSharedFails",
+			chat: userShared,
+			messages: []database.ChatMessage{
+				prompt(uuid.NullUUID{}),
+			},
+			wantErr: true,
+		},
+		{
+			name: "NullPosterGroupSharedFails",
+			chat: groupShared,
+			messages: []database.ChatMessage{
+				prompt(uuid.NullUUID{}),
+			},
+			wantErr: true,
+		},
+		{
+			name:    "NoPromptSharedFails",
+			chat:    userShared,
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := turnActorID(tc.chat, tc.messages)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "shared chat "+chatID.String()+" turn has no poster")
+				require.Equal(t, uuid.Nil, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces

@@ -1648,14 +1648,13 @@ func (p *Server) SendMessage(
 			return err
 		}
 
-		messageCreatedBy := opts.CreatedBy
-		if messageCreatedBy == uuid.Nil {
-			messageCreatedBy = lockedChat.OwnerID
+		if opts.CreatedBy == uuid.Nil {
+			return xerrors.Errorf("send message to chat %s: created by is required", opts.ChatID)
 		}
 
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
-		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+		message := userMessage(content, modelConfigID, opts.CreatedBy, opts.ReasoningEffort)
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
@@ -4848,7 +4847,12 @@ func (p *Server) generateAndStoreChatSummary(
 	// AI Gateway routing attributes summary generation to the correct
 	// account. This goroutine may outlive the launching turn, so it cannot
 	// rely on that turn's context and re-derives the actor from history.
-	actorID := turnActorID(chat, messages)
+	actorID, err := turnActorID(chat, messages)
+	if err != nil {
+		logger.Debug(ctx, "failed to resolve turn actor for chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
 	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, actorID)
 	if err != nil {
 		logger.Debug(ctx, "failed to ensure synthetic API key for chat summary",

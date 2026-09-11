@@ -217,7 +217,13 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	if _, ok := titleInput(chat, messages, pasteText); !ok {
 		return
 	}
-	actorID := turnActorID(chat, messages)
+	actorID, err := turnActorID(chat, messages)
+	if err != nil {
+		logger.Debug(ctx, "failed to resolve turn actor for automatic title generation",
+			slog.Error(err),
+		)
+		return
+	}
 	logger = logger.With(slog.F("actor_id", actorID))
 	// Detach from request; bind to server so Close cancels it.
 	titleCtx, stopTitleCtx := p.inflightContext(ctx)

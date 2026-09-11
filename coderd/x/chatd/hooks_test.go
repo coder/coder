@@ -194,8 +194,9 @@ func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
 	t.Cleanup(consumer.Close)
 	server := newHookTestServer(t, db, ps, consumer)
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("passthrough")},
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("passthrough")},
 	})
 	require.NoError(t, err)
 	require.Equal(t, "passthrough", hookMessageText(t, result.Message))
@@ -231,6 +232,7 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
+		CreatedBy:    user.ID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued original")},
 		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 	})
@@ -314,6 +316,7 @@ func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
 			server := newHookTestServer(t, db, ps, consumer)
 			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 				ChatID:       chat.ID,
+				CreatedBy:    user.ID,
 				Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
 				BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 			})
@@ -413,8 +416,9 @@ func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	server := newHookTestServer(t, db, ps, consumer)
 
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("fails")},
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("fails")},
 	})
 	var dispatchErr *dispatch.Error
 	require.ErrorAs(t, err, &dispatchErr)
@@ -582,8 +586,9 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 	_, err = db.ArchiveChatByID(ctx, archived.ID)
 	require.NoError(t, err)
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  archived.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("send to archived")},
+		ChatID:    archived.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("send to archived")},
 	})
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
 	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
@@ -620,6 +625,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	})
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model")},
 		ModelConfigID: uuid.New(),
 	})
@@ -659,8 +665,9 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 		require.NoError(t, err)
 	}
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  busy.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("queue full")},
+		ChatID:    busy.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("queue full")},
 	})
 	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
 
@@ -683,8 +690,9 @@ func TestSendMessageHooksDisabled(t *testing.T) {
 	})
 	server := newTestServer(t, db, ps, uuid.New())
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("unchanged")},
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("unchanged")},
 	})
 	require.NoError(t, err)
 	require.Equal(t, "unchanged", hookMessageText(t, result.Message))

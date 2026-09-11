@@ -570,23 +570,28 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 }
 
 // turnActorID returns the user whose credentials a turn runs with: the poster
-// of the user message that started the turn, or the chat owner when that
-// message carries no valid poster.
-func turnActorID(chat database.Chat, messages []database.ChatMessage) uuid.UUID {
+// of the user message that started the turn. When that message carries no
+// valid poster, an unshared chat falls back to its owner so legacy
+// single-user history keeps working. A shared chat refuses the fallback,
+// because running with the owner's credentials would let a sharer escalate.
+func turnActorID(chat database.Chat, messages []database.ChatMessage) (uuid.UUID, error) {
 	if index := lastUserPromptIndex(messages); index >= 0 {
 		if createdBy := messages[index].CreatedBy; createdBy.Valid && createdBy.UUID != uuid.Nil {
-			return createdBy.UUID
+			return createdBy.UUID, nil
 		}
 	}
-	return chat.OwnerID
+	if len(chat.UserACL) > 0 || len(chat.GroupACL) > 0 {
+		return uuid.Nil, xerrors.Errorf("shared chat %s turn has no poster", chat.ID)
+	}
+	return chat.OwnerID, nil
 }
 
 // generationActorID returns the user whose credentials a generation turn
 // runs with. A pending manual compaction request started the turn, so its
 // requester is the actor; otherwise the turn follows turnActorID.
-func generationActorID(chat database.Chat, messages []database.ChatMessage) uuid.UUID {
+func generationActorID(chat database.Chat, messages []database.ChatMessage) (uuid.UUID, error) {
 	if chat.CompactionRequestedAt.Valid && chat.CompactionRequestedBy.Valid && chat.CompactionRequestedBy.UUID != uuid.Nil {
-		return chat.CompactionRequestedBy.UUID
+		return chat.CompactionRequestedBy.UUID, nil
 	}
 	return turnActorID(chat, messages)
 }

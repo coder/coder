@@ -1579,6 +1579,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 
 	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
+		CreatedBy:    user.ID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
 		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 	})
@@ -1657,7 +1658,8 @@ func TestMessageFileLinking(t *testing.T) {
 	})
 	require.NoError(t, err)
 	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
 		Content: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("another attachment"),
 			codersdk.ChatMessageFile(fileSend, "image/png", "send.png"),
@@ -1709,7 +1711,8 @@ func TestMessageFileLinking(t *testing.T) {
 	})
 	require.NoError(t, err)
 	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
 		Content: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("queued attachment"),
 			codersdk.ChatMessageFile(fileQueued, "image/png", "queued.png"),
@@ -1765,8 +1768,9 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: tooMany,
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   tooMany,
 	})
 	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
 
@@ -1781,8 +1785,9 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.Empty(t, files, "rejected send must not link files")
 
 	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: tooMany[:2],
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   tooMany[:2],
 	})
 	require.NoError(t, err)
 	require.False(t, sendResult.Queued)
@@ -1884,6 +1889,7 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	invalidModelConfigID := uuid.New()
 	_, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
 		ModelConfigID: invalidModelConfigID,
 	})
@@ -2075,6 +2081,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 
 	queuedB, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued b")},
 		ModelConfigID: modelConfigB.ID,
 		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
@@ -2084,6 +2091,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 
 	queuedC, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued c")},
 		ModelConfigID: modelConfigC.ID,
 		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
@@ -13148,8 +13156,9 @@ func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 	// Now send a follow-up message, which should also be
 	// processed immediately without waiting for the acquire ticker.
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("second")},
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("second")},
 	})
 	require.NoError(t, err)
 
