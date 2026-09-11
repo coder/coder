@@ -188,17 +188,9 @@ func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, 
 		Scope:        p.String(vals, "", "scope"),
 	}
 
-	// RFC 6749 §2.3.1: confidential clients may authenticate via HTTP Basic.
-	if user, pass, ok := r.BasicAuth(); ok && user != "" {
-		if req.ClientID != "" && req.ClientID != user {
-			return codersdk.OAuth2TokenRequest{}, nil, errConflictingClientAuth
-		}
-		if req.ClientSecret != "" && req.ClientSecret != pass {
-			return codersdk.OAuth2TokenRequest{}, nil, errConflictingClientAuth
-		}
-
-		req.ClientID = user
-		req.ClientSecret = pass
+	req.ClientID, req.ClientSecret, err = mergeBasicClientAuth(r, req.ClientID, req.ClientSecret)
+	if err != nil {
+		return codersdk.OAuth2TokenRequest{}, nil, err
 	}
 
 	// Grant-specific required checks that can be satisfied via HTTP Basic.
@@ -253,6 +245,57 @@ func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, 
 		return codersdk.OAuth2TokenRequest{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
 	}
 	return req, nil, nil
+}
+
+// mergeBasicClientAuth combines a confidential client's HTTP Basic
+// credentials (RFC 6749 §2.3.1) with the form client_id and client_secret.
+// Without a Basic header, or with an empty Basic username, the form values
+// pass through unchanged. Otherwise each form field must be empty or equal
+// to its header counterpart, or the result is errConflictingClientAuth. An
+// empty Basic password still counts as a presented password, so a form
+// secret beside it is a conflict.
+func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (mergedID, mergedSecret string, err error) {
+	user, pass, ok := r.BasicAuth()
+	if !ok || user == "" {
+		return clientID, clientSecret, nil
+	}
+	if clientID != "" && clientID != user {
+		return "", "", errConflictingClientAuth
+	}
+	if clientSecret != "" && clientSecret != pass {
+		return "", "", errConflictingClientAuth
+	}
+	return user, pass, nil
+}
+
+// authenticateClient checks a client secret and confirms it belongs to the
+// app named by client_id. That id arrives unverified, so without the app
+// check a valid secret for one app could issue a token for another. It
+// returns the matched secret row. Every authentication failure returns
+// errBadSecret so the response does not reveal which step failed; a
+// datastore failure returns the underlying error. Callers skip it for public
+// clients, which have no secret and are bound by PKCE and the token's app id
+// instead.
+func authenticateClient(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, clientSecret string) (database.OAuth2ProviderAppSecret, error) {
+	secret, err := ParseFormattedSecret(clientSecret)
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	//nolint:gocritic // OAuth2 system context, users cannot read secrets
+	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
+	}
+	if !apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret) {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	if dbSecret.AppID != app.ID {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	return dbSecret, nil
 }
 
 // writeTokenError renders an RFC 6749 §5.2 error body. Descriptions can quote
@@ -427,31 +470,10 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 	// client instead.
 	var appSecretID uuid.NullUUID
 	if !app.IsPublic() {
-		secret, err := ParseFormattedSecret(req.ClientSecret)
-		if err != nil {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
-		//nolint:gocritic // OAuth2 system context, users cannot read secrets
-		dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
-		if errors.Is(err, sql.ErrNoRows) {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
+		dbSecret, err := authenticateClient(ctx, db, app, req.ClientSecret)
 		if err != nil {
 			return codersdk.OAuth2TokenResponse{}, err
 		}
-
-		equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
-		if !equalSecret {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
-
-		// The secret must belong to the app named by client_id, which arrives
-		// unverified in the request. Otherwise a valid secret for one app
-		// could issue a token for another.
-		if dbSecret.AppID != app.ID {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
-
 		appSecretID = uuid.NullUUID{UUID: dbSecret.ID, Valid: true}
 	}
 
