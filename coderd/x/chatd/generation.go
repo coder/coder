@@ -437,7 +437,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	for {
-		chat, messages, err := loadGenerationState(ctx, machine, input)
+		chat, messages, err := s.loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
@@ -566,7 +566,22 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-func loadGenerationState(
+// goalHistoryEnabled reports whether hidden goal rows can exist for
+// the chat and should join decision history. Goal rows persist across
+// every status transition, so the existence check is a stable gate
+// that spares goalless chats the hidden-history read on each pass.
+func (s *taskStarter) goalHistoryEnabled(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
+	if s.server == nil || !s.server.experiments.Enabled(codersdk.ExperimentChatGoals) || !isRootChat(chat) {
+		return false, nil
+	}
+	exists, err := store.ChatGoalExistsByRootChatID(ctx, chat.ID)
+	if err != nil {
+		return false, xerrors.Errorf("check chat goal existence: %w", err)
+	}
+	return exists, nil
+}
+
+func (s *taskStarter) loadGenerationState(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
@@ -578,12 +593,13 @@ func loadGenerationState(
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		loadedMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  input.ChatID,
-			AfterID: 0,
-		})
+		includeGoalRows, err := s.goalHistoryEnabled(ctx, store, loadedChat)
 		if err != nil {
-			return xerrors.Errorf("load chat messages: %w", err)
+			return err
+		}
+		loadedMessages, err := loadDecisionMessages(ctx, store, input.ChatID, includeGoalRows)
+		if err != nil {
+			return err
 		}
 		chat = loadedChat
 		messages = loadedMessages
@@ -593,6 +609,34 @@ func loadGenerationState(
 		return database.Chat{}, nil, normalizeTaskInfrastructureError(err, "lock chat for generation")
 	}
 	return chat, messages, nil
+}
+
+// loadDecisionMessages loads the message history that generation
+// decisions operate on: all user-visible messages plus, when goal rows
+// can exist for the chat, model-only goal messages (resume kicks). Goal
+// rows are loaded independently of the compaction prompt window so turn
+// boundaries stay visible when a compaction summary hides earlier rows
+// from the prompt. Skipping the
+// hidden-row scan for goalless chats keeps every generation step from
+// re-reading full history under the chat machine lock.
+//
+//nolint:revive // includeGoalRows states whether goal rows can exist for the chat, not caller control coupling.
+func loadDecisionMessages(ctx context.Context, store database.Store, chatID uuid.UUID, includeGoalRows bool) ([]database.ChatMessage, error) {
+	loaded, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("load chat messages: %w", err)
+	}
+	if !includeGoalRows {
+		return loaded, nil
+	}
+	hidden, err := store.GetChatHiddenUserMessagesByChatID(ctx, chatID)
+	if err != nil {
+		return nil, xerrors.Errorf("load hidden chat messages: %w", err)
+	}
+	return appendHiddenGoalMessages(loaded, hidden)
 }
 
 func (*taskStarter) recordGenerationRetry(
