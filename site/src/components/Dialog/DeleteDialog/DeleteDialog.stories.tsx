@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { mockApiError } from "#/testHelpers/entities";
 import { DeleteDialog } from "./DeleteDialog";
 
 const meta: Meta<typeof DeleteDialog> = {
@@ -53,6 +54,23 @@ export const FilledWrong: Story = {
 		await expect(
 			body.getByText("InvalidFooName does not match the name of this foo"),
 		).toBeVisible();
+	},
+};
+
+export const FailedDelete: Story = {
+	args: {
+		error: mockApiError({
+			message: "Failed to delete foo.",
+			detail: "This foo is still in use.",
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		await user.type(
+			await body.findByLabelText("Name of the foo to delete"),
+			"MyFoo",
+		);
 	},
 };
 

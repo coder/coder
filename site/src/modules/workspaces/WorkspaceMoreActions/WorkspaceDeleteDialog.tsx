@@ -18,6 +18,8 @@ interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;
 	canDeleteFailedWorkspace: boolean;
 	isOpen: boolean;
+	confirmLoading?: boolean;
+	error?: unknown;
 	onCancel: () => void;
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
 }
@@ -26,6 +28,8 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	workspace,
 	canDeleteFailedWorkspace,
 	isOpen,
+	confirmLoading = false,
+	error,
 	onCancel,
 	onConfirm,
 }) => {
@@ -44,7 +48,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 
 	const onSubmit = (event: FormEvent) => {
 		event.preventDefault();
-		if (deletionConfirmed) {
+		if (deletionConfirmed && !confirmLoading) {
 			onConfirm(orphanWorkspace);
 		}
 	};
@@ -71,6 +75,8 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			onConfirm={() => onConfirm(orphanWorkspace)}
 			onClose={onCancel}
 			disabled={!deletionConfirmed}
+			confirmLoading={confirmLoading}
+			error={error}
 			description={
 				<>
 					<div className="flex items-center justify-between rounded-md border border-solid border-border p-4 mb-5 leading-snug">

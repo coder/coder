@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MockFailedWorkspace, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockFailedWorkspace,
+	MockWorkspace,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { daysAgo } from "#/utils/time";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
@@ -90,5 +94,21 @@ export const FilledWrong: Story = {
 			{ timeout: 5_000 },
 		);
 		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
+	},
+};
+
+export const FailedDelete: Story = {
+	args: {
+		error: mockApiError({
+			message: "Failed to delete workspace.",
+			detail: "The provisioner could not destroy resources.",
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			body.getByTestId("delete-dialog-name-confirmation"),
+			MockWorkspace.name,
+		);
 	},
 };

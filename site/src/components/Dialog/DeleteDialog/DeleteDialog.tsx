@@ -1,5 +1,6 @@
 import { type FC, type FormEvent, useId, useState } from "react";
 import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -21,6 +22,7 @@ interface DeleteDialogProps {
 	name: string;
 	info?: string;
 	confirmLoading?: boolean;
+	error?: unknown;
 	verb?: string;
 	title?: string;
 	label?: string;
@@ -35,6 +37,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	info,
 	name,
 	confirmLoading = false,
+	error,
 	// Optional overrides for verbiage, e.g. "unlinking" vs "deleting".
 	verb,
 	title,
@@ -117,6 +120,10 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 							</span>
 						)}
 					</div>
+
+					{error != null && !confirmLoading && (
+						<ErrorAlert error={error} showDebugDetail={false} />
+					)}
 
 					<DialogFooter>
 						<Button

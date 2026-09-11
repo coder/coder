@@ -10,14 +10,7 @@ import {
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { toast } from "sonner";
 import { ParameterValidationError } from "#/api/api";
-import {
-	type ApiError,
-	getErrorDetail,
-	getErrorMessage,
-	isApiError,
-} from "#/api/errors";
 import {
 	changeVersion,
 	deleteWorkspace,
@@ -32,7 +25,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { UpdateBuildParametersDialog } from "../WorkspaceUpdateDialogs";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
@@ -56,11 +48,6 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 
-	const [workspaceErrorDialog, setWorkspaceErrorDialog] = useState<{
-		open: boolean;
-		error?: ApiError;
-	}>({ open: false });
-
 	// Permissions
 	const { data: permissions } = useQuery(workspacePermissions(workspace));
 
@@ -73,25 +60,6 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 		changeVersion(workspace, queryClient),
 	);
 
-	const handleError = (error: unknown) => {
-		if (isApiError(error) && error.code === "ERR_BAD_REQUEST") {
-			setWorkspaceErrorDialog({
-				open: true,
-				error: error,
-			});
-		} else {
-			toast.error(
-				getErrorMessage(
-					error,
-					`Failed to delete workspace "${workspace.name}".`,
-				),
-				{
-					description: getErrorDetail(error),
-				},
-			);
-		}
-	};
-
 	// Delete
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
@@ -100,9 +68,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 		onSuccess: async (build) => {
 			await deleteWorkspaceOptions.onSuccess?.(build);
 			await onActionSuccess?.();
-		},
-		onError: (error: unknown) => {
-			handleError(error);
+			setIsConfirmingDelete(false);
 		},
 	});
 
@@ -222,23 +188,15 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				workspace={workspace}
 				canDeleteFailedWorkspace={Boolean(permissions?.deleteFailedWorkspace)}
 				isOpen={isConfirmingDelete}
+				confirmLoading={deleteWorkspaceMutation.isPending}
+				error={deleteWorkspaceMutation.error}
 				onCancel={() => {
 					setIsConfirmingDelete(false);
+					deleteWorkspaceMutation.reset();
 				}}
 				onConfirm={(orphan) => {
 					deleteWorkspaceMutation.mutate({ orphan });
-					setIsConfirmingDelete(false);
 				}}
-			/>
-
-			<WorkspaceErrorDialog
-				open={workspaceErrorDialog.open}
-				error={workspaceErrorDialog.error}
-				onClose={() => setWorkspaceErrorDialog({ open: false })}
-				workspaceOwner={workspace.owner_name}
-				workspaceName={workspace.name}
-				templateVersionId={workspace.latest_build.template_version_id}
-				isDeleting
 			/>
 		</>
 	);

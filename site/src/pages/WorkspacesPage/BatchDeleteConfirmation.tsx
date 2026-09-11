@@ -13,6 +13,7 @@ type BatchDeleteConfirmationProps = {
 	checkedWorkspaces: readonly Workspace[];
 	open: boolean;
 	isLoading: boolean;
+	error?: unknown;
 	onClose: () => void;
 	onConfirm: () => void;
 };
@@ -23,6 +24,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 	onClose,
 	onConfirm,
 	isLoading,
+	error,
 }) => {
 	const [stage, setStage] = useState<
 		"consequences" | "workspaces" | "resources"
@@ -90,6 +92,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 			confirmLoading={isLoading}
 			confirmText={confirmText}
 			onConfirm={onProceed}
+			error={error}
 			description={
 				<>
 					{stage === "consequences" && <Consequences />}

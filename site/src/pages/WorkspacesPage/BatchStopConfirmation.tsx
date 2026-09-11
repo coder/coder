@@ -6,6 +6,7 @@ type BatchStopConfirmationProps = {
 	workspacesToStop: readonly Workspace[];
 	open: boolean;
 	isLoading: boolean;
+	error?: unknown;
 	onClose: () => void;
 	onConfirm: () => void;
 };
@@ -16,6 +17,7 @@ export const BatchStopConfirmation: FC<BatchStopConfirmationProps> = ({
 	onClose,
 	onConfirm,
 	isLoading,
+	error,
 }) => {
 	const workspaceCount = `${workspacesToStop.length} ${
 		workspacesToStop.length === 1 ? "workspace" : "workspaces"
@@ -30,6 +32,7 @@ export const BatchStopConfirmation: FC<BatchStopConfirmationProps> = ({
 			confirmLoading={isLoading}
 			confirmText="Stop"
 			onConfirm={onConfirm}
+			error={error}
 			description={`Are you sure you want to stop ${workspaceCount}? This will terminate all running processes and disconnect any active sessions.`}
 		/>
 	);

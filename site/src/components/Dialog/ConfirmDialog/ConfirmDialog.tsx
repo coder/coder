@@ -1,4 +1,5 @@
 import type { FC, ReactNode } from "react";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	Dialog,
 	DialogActions,
@@ -48,6 +49,7 @@ export interface ConfirmDialogProps {
 	 * dialog without `onConfirm` closes without deleting anything.
 	 */
 	readonly onConfirm?: () => void;
+	readonly error?: unknown;
 	readonly type?: ConfirmDialogType;
 	/**
 	 * Defaults to shown for "delete", hidden for "info"/"success".
@@ -71,6 +73,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 	confirmText,
 	description,
 	disabled = false,
+	error,
 	hideCancel,
 	onClose,
 	onCloseAutoFocus,
@@ -106,6 +109,10 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 						</div>
 					</DialogDescription>
 				</DialogHeader>
+
+				{error != null && !confirmLoading && (
+					<ErrorAlert error={error} showDebugDetail={false} />
+				)}
 
 				<DialogFooter>
 					<DialogActions

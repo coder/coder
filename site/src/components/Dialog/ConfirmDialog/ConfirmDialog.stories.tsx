@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent } from "storybook/test";
+import { mockApiError } from "#/testHelpers/entities";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 const meta: Meta<typeof ConfirmDialog> = {
@@ -81,6 +82,20 @@ export const SuccessDialogLoading: Story = {
 	play: async () => {
 		// Spinner prefixes the accessible name with "Loading spinner".
 		await expect(screen.getByRole("button", { name: /ok/i })).toBeDisabled();
+	},
+};
+
+export const FailedConfirm: Story = {
+	args: {
+		description: "Are you sure you want to stop 3 workspaces?",
+		hideCancel: false,
+		type: "delete",
+		confirmText: "Stop",
+		title: "Stop 3 workspaces",
+		error: mockApiError({
+			message: "Failed to stop workspaces.",
+			detail: "workspace-2 is already busy with a build.",
+		}),
 	},
 };
 
