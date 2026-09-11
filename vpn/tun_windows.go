@@ -138,3 +138,23 @@ func windowsUptime() time.Duration {
 	r, _, _ := getTickCount64Proc.Call()
 	return time.Duration(int64(r)) * time.Millisecond
 }
+
+// TODO(@dean): implement a way to install/uninstall the wintun driver, most
+// likely as a CLI command
+//
+// This is taken from Tailscale:
+// https://github.com/tailscale/tailscale/blob/3abfbf50aebbe3ba57dc749165edb56be6715c0a/cmd/tailscaled/tailscaled_windows.go#L543
+func uninstallWinTun(logf logger.Logf) {
+	dll := windows.NewLazyDLL("wintun.dll")
+	if err := dll.Load(); err != nil {
+		logf("Cannot load wintun.dll for uninstall: %v", err)
+		return
+	}
+
+	logf("Removing wintun driver...")
+	err := wintun.Uninstall()
+	logf("Uninstall: %v", err)
+}
+
+// TODO(@dean): remove
+var _ = uninstallWinTun

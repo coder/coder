@@ -227,5 +227,13 @@ func TestOrganizationParam(t *testing.T) {
 		res = rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode, "by default keyword")
+
+		// Try by nil uuid, which resolves to the default org.
+		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.Nil.String())
+		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
+		rtr.ServeHTTP(rw, r)
+		res = rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode, "by nil uuid (legacy)")
 	})
 }
