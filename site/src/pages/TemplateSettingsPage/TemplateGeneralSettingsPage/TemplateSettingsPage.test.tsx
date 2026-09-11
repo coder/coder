@@ -47,6 +47,7 @@ const validFormValues: FormValues = {
 	cors_behavior: "simple",
 	disable_module_cache: false,
 	allow_workspace_renames: false,
+	browser_only: false,
 };
 
 describe("TemplateSettingsPage", () => {

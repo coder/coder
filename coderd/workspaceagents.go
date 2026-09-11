@@ -1292,6 +1292,32 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// browserOnlyTemplateMessage is returned to a client whose non-browser
+// connection is refused by its workspace's template. The deployment-wide
+// equivalent lives in enterprise/coderd/workspaceagents.go.
+const browserOnlyTemplateMessage = "Non-browser connections are disabled for this template."
+
+// templateQuerier reads the template behind a workspace so its connection
+// policy can be enforced.
+type templateQuerier interface {
+	GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error)
+}
+
+// templateRefusesNonBrowserConnections reports whether workspaces built from
+// the template must refuse SSH, port forwarding and desktop IDE connections.
+// It is enforced regardless of entitlement so a lapsed license does not
+// silently reopen those connections; only turning the setting on is licensed.
+func templateRefusesNonBrowserConnections(ctx context.Context, db templateQuerier, templateID uuid.UUID) (bool, error) {
+	// The setting is deployment policy, not user-visible data: SSH access to a
+	// workspace does not imply read access to its template.
+	//nolint:gocritic // Enforcement must not depend on the actor's template permissions.
+	template, err := db.GetTemplateByID(dbauthz.AsSystemRestricted(ctx), templateID)
+	if err != nil {
+		return false, xerrors.Errorf("get template %q: %w", templateID, err)
+	}
+	return template.BrowserOnly, nil
+}
+
 // workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
 // After accept a PubSub starts listening for new connection node updates
 // which are written to the WebSocket.
@@ -1332,6 +1358,21 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		if overrideFunc != nil && overrideFunc(rw) {
 			return
 		}
+	}
+
+	browserOnly, err := templateRefusesNonBrowserConnections(ctx, api.Database, waws.WorkspaceTable.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if browserOnly {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: browserOnlyTemplateMessage,
+		})
+		return
 	}
 
 	version := "1.0"
