@@ -243,7 +243,14 @@ export const BlockList: FC<BlockListProps> = ({
 		prefQuery.data?.code_diff_display_mode || "auto";
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
-	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
+	// Attachments render after everything else, as in user messages: a tool
+	// emits its file part before the model writes about it, so in part order
+	// the chip would sit above its own explanation.
+	const fileBlocks = blocks.filter((block) => block.type === "file");
+	const displayBlocks = groupSequentialReadFileBlocks(
+		blocks.filter((block) => block.type !== "file"),
+		tools,
+	);
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
@@ -390,16 +397,7 @@ export const BlockList: FC<BlockListProps> = ({
 						);
 					}
 					case "file":
-						return (
-							<AttachmentBlock
-								key={`${keyPrefix}-file-${block.file_id ?? index}`}
-								block={block}
-								onImageClick={onImageClick}
-								onTextFileClick={onTextFileClick}
-								framePreview
-								showTextStatus
-							/>
-						);
+						return null;
 					case "sources":
 						return (
 							<WebSearchSources
@@ -450,6 +448,20 @@ export const BlockList: FC<BlockListProps> = ({
 					hookRewritten={tool.hookRewritten}
 				/>
 			))}
+			{fileBlocks.length > 0 && (
+				<div className="flex flex-wrap gap-2">
+					{fileBlocks.map((block, index) => (
+						<AttachmentBlock
+							key={`${keyPrefix}-file-${block.file_id ?? index}`}
+							block={block}
+							onImageClick={onImageClick}
+							onTextFileClick={onTextFileClick}
+							framePreview
+							showTextStatus
+						/>
+					))}
+				</div>
+			)}
 		</>
 	);
 };
