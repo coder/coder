@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/x/agentdesktop/embedded"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -81,6 +82,10 @@ type portableDesktop struct {
 	execer       agentexec.Execer
 	scriptBinDir string // coder script bin directory
 	clock        quartz.Clock
+
+	// cacheDir is where the embedded portabledesktop release is installed.
+	// Empty means embedded.DefaultCacheDir.
+	cacheDir string
 
 	mu                  sync.Mutex
 	session             *desktopSession // nil until started
@@ -761,8 +766,10 @@ func (p *portableDesktop) runCmd(ctx context.Context, args ...string) (string, e
 	return string(out), nil
 }
 
-// ensureBinary resolves the portabledesktop binary from PATH or the
-// coder script bin directory. It must be called while p.mu is held.
+// ensureBinary resolves the portabledesktop binary from PATH, the coder
+// script bin directory, or the release embedded in the agent binary, which
+// is installed into the cache directory. It must be called while p.mu is
+// held.
 func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 	if p.binPath != "" {
 		return nil
@@ -795,7 +802,28 @@ func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 		)
 	}
 
-	return xerrors.New("portabledesktop binary not found in PATH or script bin directory")
+	// 3. Install the release embedded in this binary.
+	if !embedded.Available() {
+		return xerrors.New("portabledesktop binary not found in PATH or script bin directory, and none is embedded in this build")
+	}
+	cacheDir := p.cacheDir
+	if cacheDir == "" {
+		var err error
+		cacheDir, err = embedded.DefaultCacheDir()
+		if err != nil {
+			return xerrors.Errorf("resolve cache dir: %w", err)
+		}
+	}
+	path, err := embedded.Install(cacheDir)
+	if err != nil {
+		return xerrors.Errorf("install embedded portabledesktop: %w", err)
+	}
+	p.logger.Info(ctx, "using embedded portabledesktop release",
+		slog.F("path", path),
+		slog.F("version", embedded.Version),
+	)
+	p.binPath = path
+	return nil
 }
 
 // monitorRecordingIdle watches for desktop inactivity and stops the

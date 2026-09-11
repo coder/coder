@@ -1807,6 +1807,10 @@ func New(options *Options) *API {
 				r.Delete("/containers/devcontainers/{devcontainer}", api.workspaceAgentDeleteDevcontainer)
 				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentWorkspaceDesktop))
+					r.Get("/desktop", api.workspaceAgentDesktop)
+				})
 
 				// PTY is part of workspaceAppServer.
 			})

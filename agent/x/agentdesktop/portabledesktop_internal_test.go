@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/x/agentdesktop/embedded"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -516,6 +517,10 @@ func TestEnsureBinary_ScriptBinDirNotExecutable(t *testing.T) {
 	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o600))
 	_ = binPath
 
+	if embedded.Available() {
+		t.Skip("a portabledesktop release is embedded in this build")
+	}
+
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
 		logger:       logger,
@@ -534,6 +539,10 @@ func TestEnsureBinary_ScriptBinDirNotExecutable(t *testing.T) {
 func TestEnsureBinary_NotFound(t *testing.T) {
 	// Cannot use t.Parallel because t.Setenv modifies the process
 	// environment.
+
+	if embedded.Available() {
+		t.Skip("a portabledesktop release is embedded in this build")
+	}
 
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
@@ -1033,4 +1042,30 @@ func TestPortableDesktop_Start_ReturnsErrDesktopClosed(t *testing.T) {
 
 	_, err = pd.Start(ctx)
 	require.ErrorIs(t, err, ErrDesktopClosed)
+}
+
+func TestEnsureBinary_UsesEmbeddedRelease(t *testing.T) {
+	// Cannot use t.Parallel because t.Setenv modifies the process
+	// environment.
+	if !embedded.Available() {
+		t.Skip("build with -tags portabledesktop_embed to exercise the embedded release")
+	}
+
+	cacheDir := t.TempDir()
+	pd := &portableDesktop{
+		logger:       slogtest.Make(t, nil),
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: t.TempDir(),
+		cacheDir:     cacheDir,
+	}
+	t.Setenv("PATH", "")
+
+	require.NoError(t, pd.ensureBinary(t.Context()))
+	assert.Equal(t, embedded.InstallPath(cacheDir), pd.binPath)
+
+	// The installed binary must be the real release and runnable.
+	//nolint:gosec // binPath is the release this test just installed.
+	out, err := exec.CommandContext(t.Context(), pd.binPath, "--help").CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Contains(t, string(out), "portabledesktop")
 }

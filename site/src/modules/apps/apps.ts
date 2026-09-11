@@ -85,6 +85,21 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
+type GetDesktopHrefParams = {
+	username: string;
+	workspace: string;
+	agent?: string;
+};
+
+export const getDesktopHref = ({
+	username,
+	workspace,
+	agent,
+}: GetDesktopHrefParams) => {
+	// Always use the primary for the desktop link. This is a relative link.
+	return `/@${username}/${workspace}${agent ? `.${agent}` : ""}/desktop`;
+};
+
 // Open `about:blank` first to detect a popup blocker. If it opens, we
 // null out `opener` (durable on the opened window); and navigate `popup`
 // to the target URL. The Coder UI keeps access to `popup`s handle
