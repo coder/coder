@@ -84,6 +84,7 @@ export function FilterCombobox({
 		getSearchResults,
 		onSearchResultSelect,
 	});
+	const { setInputRef } = actions;
 
 	const errorId = useId();
 	const invalid = errorMessage !== undefined;
@@ -143,7 +144,7 @@ export function FilterCombobox({
 							</Badge>
 						)}
 						<FilterComboboxChipsInput
-							ref={actions.setInputRef}
+							ref={setInputRef}
 							aria-label={placeholder}
 							aria-invalid={invalid || undefined}
 							aria-errormessage={invalid ? errorId : undefined}

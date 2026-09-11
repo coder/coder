@@ -149,7 +149,6 @@ To pick what you want to search for, use the following query formats:
 	- "organization:<organization>" - Filter by organization ID or name. Example: "organization:coder"
 	- "deprecated:<true|false>" - Filter by deprecated status. Example: "deprecated:true"
 	- "deleted:<true|false>" - Filter by deleted status. Example: "deleted:true"
-	- "has-ai-task:<true|false>" - Filter by whether the template has an AI task. Example: "has-ai-task:true"
 - ` + "`" + `workspaces/<workspace-query>` + "`" + `: List workspaces. The query accepts the following, optional parameters delineated by whitespace:
 	- "owner:<username>" - Filter by workspace owner (username or "me"). Example: "owner:alice" or "owner:me"
 	- "template:<template-name>" - Filter by template name. Example: "template:web-development"
@@ -161,7 +160,6 @@ To pick what you want to search for, use the following query formats:
 	- "outdated:<true|false>" - Filter workspaces using outdated template versions. Example: "outdated:true"
 	- "last_used_after:<timestamp>" - Filter workspaces last used after a specific date. Example: "last_used_after:2023-12-01T00:00:00Z"
 	- "last_used_before:<timestamp>" - Filter workspaces last used before a specific date. Example: "last_used_before:2023-12-31T23:59:59Z"
-	- "has-ai-task:<true|false>" - Filter workspaces with AI tasks. Example: "has-ai-task:true"
 	- "param:<name>" or "param:<name>=<value>" - Match workspaces by build parameters. Example: "param:environment=production" or "param:gpu"
 
 # Examples
@@ -197,14 +195,6 @@ List deprecated templates.
 ` + "```" + `json
 {
 	"query": "templates/deprecated:true"
-}
-` + "```" + `
-
-List templates that have AI tasks.
-
-` + "```" + `json
-{
-	"query": "templates/has-ai-task:true"
 }
 ` + "```" + `
 

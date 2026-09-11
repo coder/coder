@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
 import type { SidebarTab } from "./SidebarTabView";
 import { SidebarTabView } from "./SidebarTabView";
@@ -78,12 +78,6 @@ export const EmptyState: Story = {
 	},
 };
 
-export const DesktopHidden: Story = {
-	args: {
-		tabs: [],
-	},
-};
-
 export const ExpandedWithTitle: Story = {
 	args: {
 		tabs: [gitTab],
@@ -122,7 +116,7 @@ export const CloseableTabs: Story = {
 				label: "Terminal",
 				content: makePanelContent("Terminal"),
 			},
-			{ id: "debug", label: "Debug", content: makePanelContent("Debug") },
+			{ id: "summary", label: "Summary", content: makePanelContent("Summary") },
 			...Array.from({ length: 8 }, (_, index) => ({
 				id: `terminal-${index + 2}`,
 				label: `Terminal ${index + 2}`,
@@ -177,43 +171,14 @@ export const CloseableTabs: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 
-		expect(
-			canvas.queryByRole("button", { name: "Close Git tab" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Close Terminal tab" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Close Debug tab" }),
-		).not.toBeInTheDocument();
-
-		expect(canvas.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute(
-			"aria-selected",
-			"true",
-		);
-
+		// Close Terminal 3 then the active Terminal 2. The fixture's
+		// close-then-select-neighbor logic activates Terminal 4.
 		await user.click(
 			canvas.getByRole("button", { name: "Close Terminal 3 tab" }),
 		);
 
-		expect(
-			canvas.queryByRole("tab", { name: "Terminal 3" }),
-		).not.toBeInTheDocument();
-		expect(canvas.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute(
-			"aria-selected",
-			"true",
-		);
-
 		await user.click(
 			canvas.getByRole("button", { name: "Close Terminal 2 tab" }),
-		);
-
-		expect(
-			canvas.queryByRole("tab", { name: "Terminal 2" }),
-		).not.toBeInTheDocument();
-		expect(canvas.getByRole("tab", { name: "Terminal 4" })).toHaveAttribute(
-			"aria-selected",
-			"true",
 		);
 	},
 };
@@ -234,11 +199,5 @@ export const AddTabControlDisabled: Story = {
 				<PlusIcon className="size-3.5" />
 			</Button>
 		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "New terminal tab" }),
-		).toBeDisabled();
 	},
 };

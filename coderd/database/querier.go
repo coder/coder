@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -173,7 +174,14 @@ type sqlcQuerier interface {
 	DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
-	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
+	// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+	// this the arbiter of single use. A prior read cannot arbitrate: its result is
+	// stale the moment it returns.
+	//
+	// Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+	// level: the second transaction waits for the first, then removes nothing.
+	// SERIALIZABLE would abort and retry it instead.
+	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
 	// Filters directly on app_id rather than joining through app_secret_id,
@@ -576,6 +584,10 @@ type sqlcQuerier interface {
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
 	GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error)
 	GetDeploymentID(ctx context.Context) (string, error)
+	// The session count sum runs in its own subquery: decomposing session_counts
+	// in the FROM clause would emit one row per app name and multiply the byte and
+	// latency aggregates below. Summing per app name and folding the names into
+	// families in Go keeps a session reported under a new name counted.
 	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
@@ -715,8 +727,8 @@ type sqlcQuerier interface {
 	// belong to @organization_id, on or after period_start until NOW.
 	// spend_limit_micros is the per-member limit, null when the group has no budget.
 	// total_spend_limit_micros is the combined budget of the members attributed to
-	// the group, with each member's override replacing their share. It is null when
-	// the group has no budget.
+	// the group, with each member's override replacing their share. System users
+	// are excluded. It is null when the group has no budget.
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
@@ -728,8 +740,8 @@ type sqlcQuerier interface {
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
 	// Returns, per effective group, the number of users at or over their spend
-	// limit since period_start. Only users with an enforceable limit (override or
-	// budgeted group) count, and the unlimited Everyone fallback does not.
+	// limit since period_start. Only non-system users with an enforceable limit
+	// (override or budgeted group) count, and the unlimited Everyone fallback does not.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
@@ -1253,8 +1265,11 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
-	// LinkChatFilesAfterLock requires the chat row lock.
-	// The lock serializes cap checks. The result counts rejected new links.
+	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
+	// exceed the cap, the oldest files on the chat are deleted to make room; the
+	// cascade removes their links. A file links to at most one chat, so no other
+	// chat can lose a file here. The batch is rejected only when the batch itself
+	// exceeds the cap.
 	LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error)
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations
@@ -1730,7 +1745,7 @@ type sqlcQuerier interface {
 	// into a single table for efficient storage and querying. Half-hour buckets are
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
-	UpsertTemplateUsageStats(ctx context.Context) error
+	UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and

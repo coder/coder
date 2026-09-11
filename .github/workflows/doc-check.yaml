@@ -132,6 +132,46 @@ jobs:
             exit 1
           fi
 
+      - name: Check the review workspace is usable
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: check-workspace
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+        run: |
+          # A review reuses one chat per PR, and that chat owns one workspace.
+          # The workspace stops after about a day and then goes dormant. A chat
+          # cannot repair a dormant workspace: start_workspace and
+          # create_workspace both fail with
+          # "unauthorized: rbac: forbidden". The review then reads
+          # nothing and posts nothing, and this job used to still pass. Fail
+          # here instead, so the check reports what happened.
+          # https://linear.app/codercom/issue/CODAGT-1025
+          WS_NAME="doc-check-pr-${PR_NUMBER}"
+          RESPONSE=$(curl -sS --fail-with-body -G \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            --data-urlencode "q=owner:me name:${WS_NAME}" \
+            "${CODER_URL%/}/api/v2/workspaces") || {
+              echo "::warning::Could not read the workspace state from Coder. Continuing."
+              exit 0
+            }
+          DORMANT_AT=$(echo "${RESPONSE}" | jq -r '.workspaces[0].dormant_at // empty')
+          if [[ -n "${DORMANT_AT}" ]]; then
+            echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
+            {
+              echo "### Documentation check did not run"
+              echo ""
+              echo "The workspace \`${WS_NAME}\` is dormant since ${DORMANT_AT}."
+              echo ""
+              echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See [CODAGT-1025](https://linear.app/codercom/issue/CODAGT-1025)."
+              echo ""
+              echo "To run the review now, start \`${WS_NAME}\` in Coder, then push again or re-run this job."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+          echo "Workspace state is usable."
+
       - name: Build chat prompt
         if: steps.check-secrets.outputs.skip != 'true'
         id: extract-context
@@ -170,7 +210,22 @@ jobs:
 
           When creating a new workspace, use the \"coder-workflow-bot\" template.
 
+          If a tool call fails with \`get workspace agents in latest build: unauthorized: rbac: forbidden\`, this chat has no working workspace. That is an infrastructure state, not a mistake in your command, so the same command fails again if you retry it.
+
+          Call \`start_workspace\` with no arguments to start the workspace this chat owns. If it answers \`workspace was deleted\` or \`chat has no workspace\`, the old one is gone: call \`list_templates\` to get the ID of the \`coder-workflow-bot\` template, then call \`create_workspace\` with that ID. Wait for the workspace to be ready, then run the failed tool call again.
+
+          If \`start_workspace\` answers \`load workspace: unauthorized: rbac: forbidden\`, the workspace is dormant and you cannot repair it. Stop there.
+
+          When you cannot repair the workspace, say that you could not review the PR, and name the error you got. Post no doc-check comment. Do not say or imply the docs are fine, because you did not read them.
+
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
+
+          Follow the skill's evidence discipline, including its mandatory
+          search: list every literal this diff changes, then search the whole
+          docs tree for each OLD literal before you decide. Do not review only
+          the files in the diff. Report each search you ran and what it
+          returned, and post nothing only after every search came back empty
+          outside \`docs/reference/\`.
 
           **Do not comment if no documentation changes are needed.**
 
@@ -217,6 +272,16 @@ jobs:
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          # The bot account belongs to many organizations on this deployment,
+          # where the action's fallback organization choice is not
+          # deterministic. Pin it, because a model configuration ID only
+          # resolves inside its own organization.
+          coder-organization: coder
+          # Pins the model that reviews the PR. Set this repository variable to
+          # a model configuration ID in the organization above. Unset means the
+          # deployment's default model, so clearing the variable is the
+          # rollback path and needs no code change.
+          model-config-id: ${{ vars.DOC_CHECK_MODEL_CONFIG_ID }}
           chat-prompt: ${{ steps.extract-context.outputs.chat_prompt }}
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}

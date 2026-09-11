@@ -10,7 +10,6 @@ import (
 	"math"
 	"net"
 	"net/url"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -4546,101 +4545,6 @@ func TestGetAIProviders(t *testing.T) {
 	assert.False(t, gotDisabled.GetEnabled())
 	assert.Empty(t, gotDisabled.GetKeys(), "keys must be withheld for disabled providers")
 	assert.Nil(t, gotDisabled.GetBedrock())
-}
-
-// TestGetAIProvidersBlocksOnSeedLock asserts that GetAIProviders serializes on
-// LockIDAIProvidersEnvSeed: while an in-flight seed transaction holds the lock,
-// the fetch blocks, and once the seed commits the fetch returns the seeded
-// set. Postgres advisory locks are required, so this cannot run against the
-// mock store.
-func TestGetAIProvidersBlocksOnSeedLock(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil)
-
-	dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-		Type:    database.AIProviderTypeOpenai,
-		Name:    "openai",
-		Enabled: true,
-		BaseUrl: "https://api.openai.com/",
-	}, "sk-openai")
-
-	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
-		Store:         db,
-		AISeatTracker: agplaiseats.Noop{},
-		AccessURL:     "/",
-		GatewayCfg:    codersdk.AIBridgeConfig{},
-		Logger:        logger,
-		Clock:         quartz.NewReal(),
-	})
-	require.NoError(t, err)
-
-	// Simulate an in-flight env seed holding the advisory lock until released.
-	holderReady := make(chan struct{})
-	releaseHolder := make(chan struct{})
-	holderDone := make(chan struct{})
-	go func() {
-		defer close(holderDone)
-		txErr := db.InTx(func(tx database.Store) error {
-			if err := tx.AcquireLock(ctx, database.LockIDAIProvidersEnvSeed); err != nil {
-				return err
-			}
-			close(holderReady)
-			<-releaseHolder
-			return nil
-		}, nil)
-		assert.NoError(t, txErr)
-	}()
-
-	testutil.TryReceive(ctx, t, holderReady)
-
-	fetchDone := make(chan *proto.GetAIProvidersResponse, 1)
-	fetchErr := make(chan error, 1)
-	go func() {
-		resp, err := srv.GetAIProviders(ctx, &proto.GetAIProvidersRequest{})
-		fetchErr <- err
-		fetchDone <- resp
-	}()
-
-	// Wait until the fetch goroutine is observably blocked waiting on the seed
-	// advisory lock, rather than inferring it from a fixed delay. AcquireLock
-	// uses the single-bigint advisory lock form, so the waiter appears in
-	// pg_locks as an ungranted "advisory" row whose objid is the low 32 bits of
-	// the lock ID. Asserting the wait directly stops this from passing vacuously
-	// if the goroutine has not yet reached the lock.
-	require.Eventually(t, func() bool {
-		locks, err := db.PGLocks(ctx)
-		if err != nil {
-			return false
-		}
-		for _, l := range locks {
-			if l.LockType != nil && *l.LockType == "advisory" && !l.Granted &&
-				l.ObjID != nil && *l.ObjID == strconv.Itoa(database.LockIDAIProvidersEnvSeed) {
-				return true
-			}
-		}
-		return false
-	}, testutil.WaitShort, testutil.IntervalFast, "fetch must block waiting on the seed advisory lock")
-
-	// With the fetch proven to be blocked on the lock, it must not have
-	// completed while the lock is still held.
-	select {
-	case <-fetchDone:
-		t.Fatal("GetAIProviders returned before the seed lock was released")
-	default:
-	}
-
-	// Release the lock; the fetch should now complete and return the seeded set.
-	close(releaseHolder)
-	testutil.TryReceive(ctx, t, holderDone)
-
-	require.NoError(t, testutil.TryReceive(ctx, t, fetchErr))
-	resp := testutil.TryReceive(ctx, t, fetchDone)
-	require.Len(t, resp.GetProviders(), 1)
-	assert.Equal(t, "openai", resp.GetProviders()[0].GetName())
-	assert.Equal(t, []string{"sk-openai"}, resp.GetProviders()[0].GetKeys())
 }
 
 // TestWatchAIProviders asserts that the WatchAIProviders handler emits an

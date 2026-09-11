@@ -2401,15 +2401,8 @@ func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 	return q.db.DeleteOAuth2ProviderAppByID(ctx, id)
 }
 
-func (q *querier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
-	code, err := q.db.GetOAuth2ProviderAppCodeByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, code); err != nil {
-		return err
-	}
-	return q.db.DeleteOAuth2ProviderAppCodeByID(ctx, id)
+func (q *querier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
+	return fetchAndQuery(q.log, q.auth, policy.ActionDelete, q.db.GetOAuth2ProviderAppCodeByID, q.db.DeleteOAuth2ProviderAppCodeByID)(ctx, id)
 }
 
 func (q *querier) DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {
@@ -3885,8 +3878,8 @@ func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	return q.db.GetDeploymentID(ctx)
 }
 
-func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
-	return q.db.GetDeploymentWorkspaceAgentStats(ctx, createdAfter)
+func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
+	return q.db.GetDeploymentWorkspaceAgentStats(ctx, createdAt)
 }
 
 func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
@@ -4884,14 +4877,6 @@ func (q *querier) GetTemplateInsightsByInterval(ctx context.Context, arg databas
 	return q.db.GetTemplateInsightsByInterval(ctx, arg)
 }
 
-func (q *querier) GetTemplateInsightsByTemplate(ctx context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
-	// Only used by prometheus metrics collector. No need to check update template perms.
-	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateInsightsByTemplate(ctx, arg)
-}
-
 func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
@@ -5634,12 +5619,12 @@ func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []
 	return q.db.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
 }
 
-func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
-	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
+func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
+	return q.db.GetWorkspaceAgentStats(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
-	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAt)
 }
 
 func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
@@ -9384,13 +9369,6 @@ func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTe
 		return err
 	}
 	return q.db.UpsertTelemetryItem(ctx, arg)
-}
-
-func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpsertTemplateUsageStats(ctx)
 }
 
 func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {

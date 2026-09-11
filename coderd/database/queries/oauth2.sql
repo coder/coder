@@ -155,8 +155,15 @@ INSERT INTO oauth2_provider_app_codes (
     $13
 ) RETURNING *;
 
--- name: DeleteOAuth2ProviderAppCodeByID :exec
-DELETE FROM oauth2_provider_app_codes WHERE id = $1;
+-- name: DeleteOAuth2ProviderAppCodeByID :one
+-- Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+-- this the arbiter of single use. A prior read cannot arbitrate: its result is
+-- stale the moment it returns.
+--
+-- Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+-- level: the second transaction waits for the first, then removes nothing.
+-- SERIALIZABLE would abort and retry it instead.
+DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec
 DELETE FROM oauth2_provider_app_codes WHERE app_id = $1 AND user_id = $2;

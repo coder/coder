@@ -8,7 +8,9 @@ import {
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
+import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -58,6 +60,7 @@ import { buildStreamTools } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -95,6 +98,7 @@ export const workspaceSkillsFromChat = (
 interface ChatPageTimelineProps {
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
@@ -118,6 +122,7 @@ interface ChatPageTimelineProps {
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	organizationId,
 	store,
+	chatFiles,
 	persistedError,
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
@@ -205,6 +210,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
+					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={streamState}
 					streamTools={streamTools}
@@ -255,6 +261,7 @@ interface ChatPageInputProps {
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
+	isReadOnly?: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -293,9 +300,8 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	workspaceOptions: readonly TypesGen.Workspace[];
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading: boolean;
+	isWorkspaceLoading?: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	sshCommand?: string;
@@ -312,6 +318,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
+	isReadOnly = false,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -341,21 +348,27 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	workspaceOptions,
 	onWorkspaceChange,
-	isWorkspaceLoading,
+	isWorkspaceLoading = false,
 	workspace,
 	workspaceAgent,
 	sshCommand,
 	attachedWorkspace,
 	folder,
 }) => {
+	const { user: currentUser } = useAuthenticated();
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
 	const planModeEnabled = chat.plan_mode === "plan";
 	const selectedWorkspaceId = chat.workspace_id ?? null;
 	const workspaceSkills = workspaceSkillsFromChat(chat);
+	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
+		workspacesQuery.data?.workspaces ?? [],
+		workspace,
+		currentUser.id,
+	);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const compressionThreshold = resolveCompactionThreshold(
 		chat.last_model_config_id,
@@ -569,6 +582,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
+			isReadOnly={isReadOnly}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
@@ -590,7 +604,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			chatOrganizationId={organizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
-			isWorkspaceLoading={isWorkspaceLoading}
+			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}

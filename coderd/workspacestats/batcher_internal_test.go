@@ -2,6 +2,7 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -86,12 +87,12 @@ func TestBatchStats(t *testing.T) {
 	for _, stat := range stats {
 		byAgent[stat.AgentID] = stat
 	}
-	require.EqualValues(t, 3, byAgent[deps1.Agent.ID].SessionCountVSCode)
-	require.EqualValues(t, 1, byAgent[deps1.Agent.ID].SessionCountSSH)
-	require.EqualValues(t, 0, byAgent[deps1.Agent.ID].SessionCountJetBrains)
-	require.EqualValues(t, 4, byAgent[deps2.Agent.ID].SessionCountJetBrains)
-	require.EqualValues(t, 2, byAgent[deps2.Agent.ID].SessionCountReconnectingPTY)
-	require.EqualValues(t, 0, byAgent[deps2.Agent.ID].SessionCountVSCode)
+	require.EqualValues(t, 3, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["vscode"])
+	require.EqualValues(t, 1, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["ssh"])
+	require.EqualValues(t, 0, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["jetbrains"])
+	require.EqualValues(t, 4, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["jetbrains"])
+	require.EqualValues(t, 2, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["reconnecting_pty"])
+	require.EqualValues(t, 0, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["vscode"])
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
@@ -241,4 +242,11 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 	i, err := cryptorand.Intn(int(n))
 	require.NoError(t, err)
 	return int64(i)
+}
+
+func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
+	t.Helper()
+	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	require.NoError(t, err)
+	return counts
 }

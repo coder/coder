@@ -45,6 +45,7 @@ const mockDataForTags = {
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
+	"user-secret-file-path-enabled": true,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
 } as const satisfies Record<MetadataKey, MetadataValue>;
@@ -79,6 +80,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	"ai-gateway-enabled": {
+		available: false,
+		value: undefined,
+	},
+	"user-secret-file-path-enabled": {
 		available: false,
 		value: undefined,
 	},
@@ -124,6 +129,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	"ai-gateway-enabled": {
 		available: true,
 		value: MockAIGatewayEnabled,
+	},
+	"user-secret-file-path-enabled": {
+		available: true,
+		value: true,
 	},
 	permissions: {
 		available: true,

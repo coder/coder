@@ -27,7 +27,6 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Group":                         {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"APIKey":                        {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"License":                       {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"Task":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AISeatState":                   {codersdk.AuditActionCreate},
 	"AIProvider":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIProviderKey":                 {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
@@ -442,19 +441,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"hashed_secret":     ActionSecret, // Bearer token hash, never expose.
 		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
 		"last_heartbeat_at": ActionIgnore, // Bumped on every heartbeat.
-	},
-	&database.TaskTable{}: {
-		"id":                  ActionTrack,
-		"organization_id":     ActionIgnore, // Never changes.
-		"owner_id":            ActionTrack,
-		"name":                ActionTrack,
-		"display_name":        ActionTrack,
-		"workspace_id":        ActionTrack,
-		"template_version_id": ActionTrack,
-		"template_parameters": ActionTrack,
-		"prompt":              ActionTrack,
-		"created_at":          ActionIgnore, // Never changes.
-		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
 	},
 	&database.Chat{}: {
 		"id":                          ActionTrack,

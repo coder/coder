@@ -46,6 +46,56 @@ writing them.
 6. **Report findings.** Use the method provided in the prompt, or if none
    specified, summarize findings directly.
 
+## Evidence discipline
+
+Follow this order on every review.
+
+1. **List what the user experiences, not what files changed.**
+   "User-facing" means what a user sees, types, clicks, or receives.
+   Dashboard code and wiring code count when they change what the user
+   experiences. A new label, a new tab, a new required field, a new
+   setting, and a removed control all count.
+2. **Check two kinds of page per item.** For each item on that list, check
+   the conceptual guide for that area, and any page that enumerates the
+   things this change adds to or removes from (a table of settings, a list
+   of tabs, a list of fields). An auto-generated CLI or API reference
+   never closes a gap in a conceptual guide. Treat the reference and the
+   guide as two separate checks.
+3. **Search for the old fact, do not read only the diff.** List every
+   literal the diff changes: default values, flag names, env var names,
+   thresholds, UI labels. Search the whole docs tree for each **old**
+   literal before you decide:
+
+   ```sh
+   grep -rn '<the old literal>' docs/ | grep -v '^docs/reference/'
+   ```
+
+   Search the value as a number and as prose, because a guide can spell it
+   out ("thirty days" as well as `30d`). A hit outside `docs/reference/` is
+   a gap: this PR regenerating a reference page never fixes a conceptual
+   guide. Report each search you ran and what it returned. A review that
+   inspects only the files in the diff cannot find this class of gap, which
+   is the most common real one, so it is not a review.
+
+   If no page states the fact and the content guidelines require it, that
+   is also a gap. If no page states it and the guidelines do not require
+   it, that is not a gap: absence alone is not drift.
+4. **A PR that documents itself needs nothing more.** Judge the state
+   after the whole diff lands. If the diff already adds or fixes the
+   documentation that its own code change requires, the requirement is
+   satisfied inside the PR. Post no comment.
+5. **Write the evidence before the verdict.** For each user-facing change,
+   state the change, the searches you ran, the page you checked, and what
+   you found on it. Then state whether that evidence shows a real
+   unresolved gap, and comment only when it does. A verdict that
+   contradicts your own evidence is the most common failure mode on this
+   job, so read both once more before you post.
+
+   Staying silent is a finding too, and it earns the same evidence. Post
+   nothing only after every search in step 3 came back empty outside
+   `docs/reference/`. "The diff already updates its own reference page" is
+   not a reason to skip the search.
+
 ## What to Check
 
 - **Accuracy**: Does documentation match current code behavior?
@@ -54,6 +104,8 @@ writing them.
 - **CLI/API changes**: Are new flags, endpoints, or options documented?
 - **Configuration**: Are new environment variables or settings documented?
 - **Breaking changes**: Are migration steps documented if needed?
+- **Evidence versus claim**: See
+  [Evidence versus claim](#evidence-versus-claim) below.
 - **Premium features**: See [Premium feature signaling](#premium-feature-signaling)
   below.
 - **Renames or moves**: See [Renames and moves require redirects](#renames-and-moves-require-redirects)
@@ -107,6 +159,21 @@ Missing either one is a defect:
 1. The H1 title takes a `(Premium)` suffix. Example:
    `# Template Insights (Premium)`.
 2. The page's `docs/manifest.json` entry includes `"state": ["premium"]`.
+
+### Evidence versus claim
+
+This is the canonical rule
+[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines; the content guidelines govern, so read the rule
+there. On a page **this change adds or edits**, flag an implementation
+identifier the reader neither types nor receives in that page's task, whether
+the diff adds the identifier or leaves it on a line this change touches; the
+canonical rule's ladder decides the replacement. Work from the page content
+in the diff. doc-check does not see commit messages or PR comments, so it
+does not police whether a stripped identifier was disclosed; that pointer is
+the author's to provide for the human reviewer. A pre-existing violation on a
+page the diff does not touch is not this change's finding; mention it as
+informational context at most, without demanding a fix from this author.
 
 ### No emdash, endash, or ` -- ` as punctuation
 

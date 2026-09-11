@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -1122,11 +1123,12 @@ func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppByID(ctx, id any) *gomoc
 }
 
 // DeleteOAuth2ProviderAppCodeByID mocks base method.
-func (m *MockStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOAuth2ProviderAppCodeByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.OAuth2ProviderAppCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteOAuth2ProviderAppCodeByID indicates an expected call of DeleteOAuth2ProviderAppCodeByID.
@@ -12494,17 +12496,17 @@ func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call 
 }
 
 // UpsertTemplateUsageStats mocks base method.
-func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
+func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx)
+	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx, appFamilies)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertTemplateUsageStats indicates an expected call of UpsertTemplateUsageStats.
-func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx, appFamilies any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx, appFamilies)
 }
 
 // UpsertUserAIBudgetOverride mocks base method.

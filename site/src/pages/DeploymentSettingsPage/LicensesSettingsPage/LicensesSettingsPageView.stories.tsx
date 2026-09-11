@@ -22,10 +22,6 @@ const meta: Meta<typeof LicensesSettingsPageView> = {
 		removeLicense: fn(),
 		refreshEntitlements: fn(),
 		activeUsers: [{ date: "2024-01-01", count: 1 }],
-		managedAgentFeature: {
-			enabled: false,
-			entitlement: "not_entitled",
-		} satisfies Feature,
 		aiGovernanceUserFeature: {
 			enabled: false,
 			entitlement: "not_entitled",
@@ -98,12 +94,5 @@ export const TotalAgentHoursUsage: Story = {
 		const agentHoursCard = within(agentHoursHeading.closest("section")!);
 		await expect(agentHoursCard.getByText("435.8")).toBeInTheDocument();
 		await expect(agentHoursCard.getByText("2,000")).toBeInTheDocument();
-		const managedAgentsSection = canvas.getByText(
-			"Agent Workspace Builds Disabled",
-		);
-		await expect(
-			agentHoursHeading.compareDocumentPosition(managedAgentsSection) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
 	},
 };

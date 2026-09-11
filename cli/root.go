@@ -75,6 +75,7 @@ const (
 	varNoOpen                  = "no-open"
 	varNoVersionCheck          = "no-version-warning"
 	varNoFeatureWarning        = "no-feature-warning"
+	varAllowRedirects          = "allow-redirects"
 	varForceTty                = "force-tty"
 	varVerbose                 = "verbose"
 	varDisableDirect           = "disable-direct-connections"
@@ -88,6 +89,7 @@ const (
 
 	envNoVersionCheck    = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning  = "CODER_NO_FEATURE_WARNING"
+	envAllowRedirects    = "CODER_ALLOW_REDIRECTS"
 	envSessionToken      = "CODER_SESSION_TOKEN"
 	envUseKeyring        = "CODER_USE_KEYRING"
 	envClientTLSCAFile   = "CODER_CLIENT_TLS_CA_FILE"
@@ -121,7 +123,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.secrets(),
 		r.sharing(),
 		r.state(),
-		r.tasksCommand(),
 		r.templates(),
 		r.tokens(),
 		r.users(),
@@ -455,6 +456,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varAllowRedirects,
+			Env:         envAllowRedirects,
+			Description: "Follow HTTP redirects from the server instead of returning an error. Following redirects may alter the request method and/or drop its body.",
+			Value:       serpent.BoolOf(&r.allowRedirects),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varHeader,
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
@@ -587,6 +595,7 @@ type RootCmd struct {
 	disableNetworkTelemetry    bool
 	noVersionCheck             bool
 	noFeatureWarning           bool
+	allowRedirects             bool
 	useKeyring                 bool
 	keyringServiceName         string
 	useKeyringWithGlobalConfig bool
@@ -885,9 +894,49 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	// codersdk checks for the header transport to get headers
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
-	return &http.Client{
+	httpClient := &http.Client{
 		Transport: headerTransport,
-	}, nil
+	}
+	if !r.allowRedirects {
+		httpClient.CheckRedirect = rejectRedirect
+	}
+	return httpClient, nil
+}
+
+// rejectRedirect is an http.Client CheckRedirect hook. Following a redirect
+// may alter the request method or drop its body, which silently changes the
+// API call being made.
+func rejectRedirect(req *http.Request, via []*http.Request) error {
+	err := &redirectError{to: req.URL}
+	if len(via) > 0 {
+		err.from = via[0].URL
+	}
+	return err
+}
+
+// redirectError is returned when the server redirects an API request.
+type redirectError struct {
+	from *url.URL
+	to   *url.URL
+}
+
+func (e *redirectError) Error() string {
+	if e.from == nil {
+		return fmt.Sprintf("server redirected request to %s", e.to)
+	}
+	return fmt.Sprintf("server redirected request from %s to %s", e.from, e.to)
+}
+
+// Helper returns a suggestion for resolving the redirect.
+func (e *redirectError) Helper() string {
+	if e.to == nil {
+		return ""
+	}
+	newBase := &url.URL{Scheme: e.to.Scheme, Host: e.to.Host}
+	if e.from != nil && e.from.Scheme == newBase.Scheme && e.from.Host == newBase.Host {
+		return fmt.Sprintf("The request was redirected within the same deployment. Check for a proxy or path rewrite in front of Coder, or pass --%s to follow redirects.", varAllowRedirects)
+	}
+	return fmt.Sprintf("The deployment URL may have changed. Run %q to log in against the new URL, or pass --%s to follow redirects.", "coder login "+newBase.String(), varAllowRedirects)
 }
 
 func newHTTPTransport(tlsConfig *tls.Config) (http.RoundTripper, error) {
@@ -1416,6 +1465,10 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 		return formatCoderSDKError(from, sdkError, opts), true
 	}
 
+	if redirectErr, ok := err.(*redirectError); ok {
+		return formatRedirectError(from, redirectErr), true
+	}
+
 	if cmdErr, ok := err.(*serpent.RunCommandError); ok {
 		// no need to pass the "from" context to this since it is always
 		// top level. We care about what is below this.
@@ -1547,6 +1600,21 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
 		_, _ = str.WriteString("\n")
 		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
+	}
+	return str.String()
+}
+
+// formatRedirectError formats a redirectError for CLI output.
+func formatRedirectError(from string, err *redirectError) string {
+	var str strings.Builder
+	if from != "" {
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
+		_, _ = str.WriteString("\n")
+	}
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Error()))
+	if helper := err.Helper(); helper != "" {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprintf(tailLineStyle(), "Suggestion: %s", helper))
 	}
 	return str.String()
 }
