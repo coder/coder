@@ -121,25 +121,46 @@ func RestoreToolCallOrder(content []fantasy.Content, calls []fantasy.ToolCallCon
 	}
 }
 
-func UserPromptOverride(result *Result) (string, bool, error) {
+type userPromptOverride struct {
+	Prompt        *string `json:"prompt"`
+	GoalObjective *string `json:"goal_objective"`
+}
+
+func decodeUserPromptOverride(result *Result) (userPromptOverride, error) {
+	var override userPromptOverride
 	if result == nil || len(result.InputOverride) == 0 {
-		return "", false, nil
-	}
-	var override struct {
-		Prompt *string `json:"prompt"`
+		return override, nil
 	}
 	decoder := json.NewDecoder(bytes.NewReader(result.InputOverride))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&override); err != nil {
-		return "", false, xerrors.Errorf("decode user prompt input override: %w", err)
+		return userPromptOverride{}, xerrors.Errorf("decode user prompt input override: %w", err)
 	}
-	if override.Prompt == nil {
-		return "", false, xerrors.New("decode user prompt input override: prompt is required")
+	if override.Prompt == nil && override.GoalObjective == nil {
+		return userPromptOverride{}, xerrors.New("decode user prompt input override: prompt or goal_objective is required")
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return "", false, xerrors.New("decode user prompt input override: trailing JSON value")
+		return userPromptOverride{}, xerrors.New("decode user prompt input override: trailing JSON value")
+	}
+	return override, nil
+}
+
+func UserPromptOverride(result *Result) (string, bool, error) {
+	override, err := decodeUserPromptOverride(result)
+	if err != nil || override.Prompt == nil {
+		return "", false, err
 	}
 	return *override.Prompt, true, nil
+}
+
+// GoalObjectiveOverride returns the goal objective replacement carried
+// by a user_prompt_submit input override, when present.
+func GoalObjectiveOverride(result *Result) (string, bool, error) {
+	override, err := decodeUserPromptOverride(result)
+	if err != nil || override.GoalObjective == nil {
+		return "", false, err
+	}
+	return *override.GoalObjective, true, nil
 }
 
 func UserPromptParts(result *Result) []codersdk.ChatMessagePart {
