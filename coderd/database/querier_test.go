@@ -12687,24 +12687,30 @@ func TestInsertChatMessages(t *testing.T) {
 
 	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
 		t.Helper()
-		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chatID,
-			CreatedBy:           []uuid.UUID{userID},
-			ModelConfigID:       []uuid.UUID{modelConfigID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			Content:             []string{fmt.Sprintf("%q", content)},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
-		})
+		err := store.InTx(func(tx database.Store) error {
+			if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chatID); err != nil {
+				return err
+			}
+			_, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:              chatID,
+				CreatedBy:           []uuid.UUID{userID},
+				ModelConfigID:       []uuid.UUID{modelConfigID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+				Content:             []string{fmt.Sprintf("%q", content)},
+				InputTokens:         []int64{0},
+				OutputTokens:        []int64{0},
+				TotalTokens:         []int64{0},
+				ReasoningTokens:     []int64{0},
+				CacheCreationTokens: []int64{0},
+				CacheReadTokens:     []int64{0},
+				ContextLimit:        []int64{0},
+				Compressed:          []bool{false},
+				RuntimeMs:           []int64{0},
+			})
+			return err
+		}, nil)
 		require.NoError(t, err)
 	}
 
@@ -12747,24 +12753,32 @@ func TestInsertChatMessages(t *testing.T) {
 		t.Parallel()
 
 		store, ctx, user, chat, _, modelConfigA := setupChat(t)
-		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
-			ModelConfigID:       []uuid.UUID{modelConfigA.ID, modelConfigA.ID, modelConfigA.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-			Content:             []string{`"hello"`, `"response"`, `"tool result"`},
-			InputTokens:         []int64{10, 0, 0},
-			OutputTokens:        []int64{0, 20, 0},
-			TotalTokens:         []int64{10, 20, 0},
-			ReasoningTokens:     []int64{0, 5, 0},
-			CacheCreationTokens: []int64{0, 0, 0},
-			CacheReadTokens:     []int64{0, 0, 0},
-			ContextLimit:        []int64{0, 0, 0},
-			Compressed:          []bool{false, false, false},
-			RuntimeMs:           []int64{0, 500, 0},
-		})
+		var msgs []database.InsertChatMessagesRow
+		err := store.InTx(func(tx database.Store) error {
+			if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+				return err
+			}
+			var err error
+			msgs, err = tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:              chat.ID,
+				CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
+				ModelConfigID:       []uuid.UUID{modelConfigA.ID, modelConfigA.ID, modelConfigA.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
+				ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+				Content:             []string{`"hello"`, `"response"`, `"tool result"`},
+				InputTokens:         []int64{10, 0, 0},
+				OutputTokens:        []int64{0, 20, 0},
+				TotalTokens:         []int64{10, 20, 0},
+				ReasoningTokens:     []int64{0, 5, 0},
+				CacheCreationTokens: []int64{0, 0, 0},
+				CacheReadTokens:     []int64{0, 0, 0},
+				ContextLimit:        []int64{0, 0, 0},
+				Compressed:          []bool{false, false, false},
+				RuntimeMs:           []int64{0, 500, 0},
+			})
+			return err
+		}, nil)
 		require.NoError(t, err)
 		require.Len(t, msgs, 3)
 
@@ -12819,24 +12833,32 @@ func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB
 	})
 
 	count := len(roles)
-	inserted, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           slices.Repeat([]uuid.UUID{owner.ID}, count),
-		ModelConfigID:       slices.Repeat([]uuid.UUID{modelCfg.ID}, count),
-		Role:                roles,
-		ContentVersion:      slices.Repeat([]int16{chatprompt.CurrentContentVersion}, count),
-		Visibility:          slices.Repeat([]database.ChatMessageVisibility{database.ChatMessageVisibilityBoth}, count),
-		Content:             slices.Repeat([]string{`"message"`}, count),
-		InputTokens:         make([]int64, count),
-		OutputTokens:        make([]int64, count),
-		TotalTokens:         make([]int64, count),
-		ReasoningTokens:     make([]int64, count),
-		CacheCreationTokens: make([]int64, count),
-		CacheReadTokens:     make([]int64, count),
-		ContextLimit:        make([]int64, count),
-		Compressed:          make([]bool, count),
-		RuntimeMs:           make([]int64, count),
-	})
+	var inserted []database.InsertChatMessagesRow
+	err := db.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+			return err
+		}
+		var err error
+		inserted, err = tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           slices.Repeat([]uuid.UUID{owner.ID}, count),
+			ModelConfigID:       slices.Repeat([]uuid.UUID{modelCfg.ID}, count),
+			Role:                roles,
+			ContentVersion:      slices.Repeat([]int16{chatprompt.CurrentContentVersion}, count),
+			Visibility:          slices.Repeat([]database.ChatMessageVisibility{database.ChatMessageVisibilityBoth}, count),
+			Content:             slices.Repeat([]string{`"message"`}, count),
+			InputTokens:         make([]int64, count),
+			OutputTokens:        make([]int64, count),
+			TotalTokens:         make([]int64, count),
+			ReasoningTokens:     make([]int64, count),
+			CacheCreationTokens: make([]int64, count),
+			CacheReadTokens:     make([]int64, count),
+			ContextLimit:        make([]int64, count),
+			Compressed:          make([]bool, count),
+			RuntimeMs:           make([]int64, count),
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, inserted, count)
 
@@ -12990,26 +13012,13 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		content string,
 	) database.ChatMessage {
 		t.Helper()
-		results, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chatID,
-			CreatedBy:           []uuid.UUID{uuid.Nil},
-			ModelConfigID:       []uuid.UUID{uuid.Nil},
-			Role:                []database.ChatMessageRole{role},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{vis},
-			Compressed:          []bool{compressed},
-			Content:             []string{`"` + content + `"`},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			RuntimeMs:           []int64{0},
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:     chatID,
+			Role:       role,
+			Visibility: vis,
+			Compressed: compressed,
+			Content:    pqtype.NullRawMessage{RawMessage: json.RawMessage(`"` + content + `"`), Valid: true},
 		})
-		require.NoError(t, err)
-		return database.ChatMessage(results[0])
 	}
 
 	invertCreatedAt := func(t *testing.T, chatID uuid.UUID) {
@@ -17498,25 +17507,13 @@ func TestGetChatsFilter(t *testing.T) {
 
 	makeUnread := func(chatID uuid.UUID) {
 		t.Helper()
-		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chatID,
-			CreatedBy:           []uuid.UUID{user.ID},
-			ModelConfigID:       []uuid.UUID{modelCfg.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			Content:             []string{`[{"type":"text","text":"hello"}]`},
-			ContentVersion:      []int16{0},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
+		dbgen.ChatMessage(t, store, database.ChatMessage{
+			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hello"}]`), Valid: true},
 		})
-		require.NoError(t, err)
 	}
 
 	markRead := func(chatID uuid.UUID) {
@@ -17793,27 +17790,15 @@ func TestGetChatsSearch(t *testing.T) {
 
 	insertMsg := func(chatID uuid.UUID, role database.ChatMessageRole, visibility database.ChatMessageVisibility, text string) database.ChatMessage {
 		t.Helper()
-		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chatID,
-			CreatedBy:           []uuid.UUID{user.ID},
-			ModelConfigID:       []uuid.UUID{modelCfg.ID},
-			Role:                []database.ChatMessageRole{role},
-			Content:             []string{`[{"type":"text","text":` + strconv.Quote(text) + `}]`},
-			ContentVersion:      []int16{1},
-			Visibility:          []database.ChatMessageVisibility{visibility},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
+		return dbgen.ChatMessage(t, store, database.ChatMessage{
+			ChatID:         chatID,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			Role:           role,
+			Content:        pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":` + strconv.Quote(text) + `}]`), Valid: true},
+			ContentVersion: 1,
+			Visibility:     visibility,
 		})
-		require.NoError(t, err)
-		require.Len(t, msgs, 1)
-		return database.ChatMessage(msgs[0])
 	}
 
 	linkPR := func(chatID uuid.UUID, url, state, prTitle string, prNumber int32, gitRemoteOrigin string) {
@@ -17881,7 +17866,12 @@ func TestGetChatsSearch(t *testing.T) {
 
 	// Soft-deleted rows stay excluded even though search_tsv remains
 	// populated.
-	err = store.SoftDeleteChatMessageByID(ctx, deletedMsg.ID)
+	err = store.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, deletedMsgChat.ID); err != nil {
+			return err
+		}
+		return tx.SoftDeleteChatMessageByID(ctx, deletedMsg.ID)
+	}, nil)
 	require.NoError(t, err)
 
 	// Inserted after backfill: search_tsv IS NULL, must match nothing.
@@ -18051,25 +18041,13 @@ func TestChatHasUnread(t *testing.T) {
 	// Helper to insert a single chat message.
 	insertMsg := func(role database.ChatMessageRole, text string) {
 		t.Helper()
-		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{user.ID},
-			ModelConfigID:       []uuid.UUID{modelCfg.ID},
-			Role:                []database.ChatMessageRole{role},
-			Content:             []string{fmt.Sprintf(`[{"type":"text","text":%q}]`, text)},
-			ContentVersion:      []int16{0},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
+		dbgen.ChatMessage(t, store, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			Role:          role,
+			Content:       pqtype.NullRawMessage{RawMessage: json.RawMessage(fmt.Sprintf(`[{"type":"text","text":%q}]`, text)), Valid: true},
 		})
-		require.NoError(t, err)
 	}
 
 	// Insert an assistant message: becomes unread.
