@@ -1560,6 +1560,64 @@ func TestTurnWorkspaceContextGetWorkspaceConnDeletedWorkspace(t *testing.T) {
 	require.Nil(t, workspaceCtx.conn)
 }
 
+func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	deletedWorkspaceID := uuid.New()
+	replacementWorkspaceID := uuid.New()
+	buildID := uuid.New()
+	replacementAgent := database.WorkspaceAgent{ID: uuid.New()}
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: deletedWorkspaceID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}
+	rebound := chat
+	rebound.WorkspaceID = uuid.NullUUID{UUID: replacementWorkspaceID, Valid: true}
+	rebound.AgentID = uuid.NullUUID{}
+	updatedChat := rebound
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
+	updatedChat.AgentID = uuid.NullUUID{UUID: replacementAgent.ID, Valid: true}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           &Server{db: db},
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	// A concurrent create_workspace publishes the replacement binding while
+	// the deleted row is being read.
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), deletedWorkspaceID).
+		DoAndReturn(func(context.Context, uuid.UUID) (database.Workspace, error) {
+			workspaceCtx.setCurrentChat(rebound)
+			return database.Workspace{ID: deletedWorkspaceID, Deleted: true}, nil
+		}).
+		Times(1)
+	expectLiveWorkspace(db, replacementWorkspaceID)
+	gomock.InOrder(
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), replacementWorkspaceID).Return([]database.WorkspaceAgent{replacementAgent}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), replacementWorkspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
+			ID:      chat.ID,
+			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID: uuid.NullUUID{UUID: replacementAgent.ID, Valid: true},
+		}).Return(updatedChat, nil),
+	)
+
+	chatSnapshot, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
+	require.NoError(t, err)
+	require.Equal(t, updatedChat, chatSnapshot)
+	require.Equal(t, replacementAgent, agent)
+}
+
 func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
 	t.Parallel()
 

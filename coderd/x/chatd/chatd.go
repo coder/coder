@@ -636,6 +636,13 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			)
 		}
 		if ws.Deleted {
+			// A concurrent create_workspace may have rebound the chat
+			// while the row was read; resolve the replacement instead.
+			latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+			if !workspaceMatches {
+				chatSnapshot = latestChat
+				continue
+			}
 			return chatSnapshot, database.WorkspaceAgent{}, errChatWorkspaceDeleted
 		}
 
