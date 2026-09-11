@@ -180,14 +180,13 @@ const AgentsPageLayout: FC = () => {
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
-	// layout shift on pages that toggle scrollbars. The agents page
-	// uses its own internal scroll containers so the reserved gutter
-	// space is unnecessary and wastes horizontal room.
+	// layout shift on pages that show and hide a scrollbar. The agents
+	// page scrolls in internal containers only. The reserved gutter is
+	// not necessary and uses horizontal space.
 	//
-	// Removing the gutter requires overflow:hidden on both <html> and
-	// <body> so neither element can produce a scrollbar, plus
-	// scrollbar-gutter:auto on <html> so the browser stops reserving
-	// space for a scrollbar that will never appear.
+	// Set overflow: hidden on <html> and <body>. Neither element can
+	// then show a scrollbar. Set scrollbar-gutter: auto on <html> so that
+	// the browser does not reserve space for a scrollbar.
 	useEffect(() => {
 		const html = document.documentElement;
 		const body = document.body;
