@@ -104,8 +104,18 @@ describe("util > workspace", () => {
 	});
 
 	describe("getDisplayWorkspaceBuildInitiatedBy", () => {
+		// Legacy task build reasons are no longer in the BuildReason union but
+		// still arrive on retained builds of former task workspaces.
+		const legacyReasonBuild = (reason: string): TypesGen.WorkspaceBuild => ({
+			...Mocks.MockWorkspaceBuild,
+			reason: reason as TypesGen.BuildReason,
+		});
+
 		it.each<[TypesGen.WorkspaceBuild, string]>([
 			[Mocks.MockWorkspaceBuild, "TestUser"],
+			[legacyReasonBuild("task_auto_pause"), "Coder"],
+			[legacyReasonBuild("task_manual_pause"), "TestUser"],
+			[legacyReasonBuild("task_resume"), "TestUser"],
 			[
 				{
 					...Mocks.MockWorkspaceBuild,
@@ -117,13 +127,6 @@ describe("util > workspace", () => {
 				{
 					...Mocks.MockWorkspaceBuild,
 					reason: "autostop",
-				},
-				"Coder",
-			],
-			[
-				{
-					...Mocks.MockWorkspaceBuild,
-					reason: "task_auto_pause",
 				},
 				"Coder",
 			],

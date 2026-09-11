@@ -21,8 +21,10 @@
 		"img-redundant-alt": "error",
 		"no-redundant-roles": "error",
 		"role-has-required-aria-props": "error",
+		"role-supports-aria-props": "error",
 		"alt-text": "error",
 		"anchor-has-content": "error",
+		"anchor-ambiguous-text": "error",
 		"heading-has-content": "error",
 		"aria-activedescendant-has-tabindex": "error",
 		"mouse-events-have-key-events": "error",
@@ -205,9 +207,7 @@
 		"no-inferrable-types": "off", // style/noInferrableTypes (medium, coder error rule)
 		"consistent-type-imports": "off", // style/useImportType (medium)
 		"jsx-curly-brace-presence": "off", // style/useConsistentCurlyBraces (medium, coder error rule)
-		"anchor-ambiguous-text": "off", // a11y/noAmbiguousAnchorText (medium)
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
-		"role-supports-aria-props": "off", // a11y/useAriaPropsSupportedByRole (small)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
 		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)

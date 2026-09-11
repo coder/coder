@@ -918,16 +918,15 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 }
 
 // Every failure is errBadSecret so the caller cannot tell a malformed secret
-// from a valid one for the wrong app (RFC 6749 §5.2). The fourth row is the
-// step a retyped copy of the check would be most likely to lose.
+// from a valid one for the wrong app (RFC 6749 §5.2). The OtherAppsSecret row
+// covers the belongs-to-app check, the step a retyped copy of the check would
+// be most likely to lose.
 func TestAuthenticateClient(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
 
-	seed := func(t *testing.T) (database.OAuth2ProviderApp, database.OAuth2ProviderAppSecret, string) {
-		t.Helper()
-
+	seed := func() (database.OAuth2ProviderApp, database.OAuth2ProviderAppSecret, string) {
 		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
 		secret, err := GenerateSecret()
 		require.NoError(t, err)
@@ -938,8 +937,8 @@ func TestAuthenticateClient(t *testing.T) {
 		})
 		return app, dbSecret, secret.Formatted
 	}
-	app, dbSecret, formatted := seed(t)
-	_, _, otherFormatted := seed(t)
+	app, dbSecret, formatted := seed()
+	_, _, otherFormatted := seed()
 
 	unknown, err := GenerateSecret()
 	require.NoError(t, err)
@@ -990,6 +989,8 @@ func TestMergeBasicClientAuth(t *testing.T) {
 		{name: "NoHeader", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
 		{name: "HeaderOnly", basicUser: "id", basicPass: "s", wantID: "id", wantSecret: "s"},
 		{name: "HeaderAndMatchingBody", basicUser: "id", basicPass: "s", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		// A header with an empty username is treated as no header at all.
+		{name: "HeaderEmptyUser", basicPass: "pass", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
 		// An empty Basic password is still a presented password, so a body
 		// secret beside it is a conflict rather than a fallback.
 		{name: "HeaderEmptyPasswordBodySecret", basicUser: "id", bodySecret: "s", wantErr: errConflictingClientAuth},
@@ -1001,7 +1002,7 @@ func TestMergeBasicClientAuth(t *testing.T) {
 			t.Parallel()
 
 			r := &http.Request{Header: http.Header{}}
-			if test.basicUser != "" {
+			if test.basicUser != "" || test.basicPass != "" {
 				r.SetBasicAuth(test.basicUser, test.basicPass)
 			}
 			id, secret, err := mergeBasicClientAuth(r, test.bodyID, test.bodySecret)
