@@ -5,6 +5,7 @@ import type {
 	CreateUserSecretRequest,
 	CreateWorkspaceBuildRequest,
 	ListInboxNotificationsResponse,
+	Preset,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
@@ -137,6 +138,9 @@ export const handlers = [
 	}),
 	http.get("/api/v2/templateversions/:templateVersionId", () => {
 		return HttpResponse.json(M.MockTemplateVersion);
+	}),
+	http.get("/api/v2/templateversions/:templateVersionId/presets", () => {
+		return HttpResponse.json<Preset[]>([]);
 	}),
 	http.get("/api/v2/templateversions/:templateVersionId/resources", () => {
 		return HttpResponse.json([
