@@ -876,6 +876,66 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/ai-gateway/spend/summary": {
+            "get": {
+                "description": "Returns deployment-wide AI Gateway spend over the window with per-provider, per-model, and per-client breakdowns. Each breakdown lists at most 100 entries, most expensive first; the totals always cover every request. Requires permission to read any AI Gateway interception.\nstart_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get AI Gateway spend summary for the deployment",
+                "operationId": "get-ai-gateway-spend-summary-for-the-deployment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary.",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339). Defaults to now.",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only count requests through this provider configuration name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only count requests from this client. Unknown matches requests without a recorded client.",
+                        "name": "client",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only count requests for this model",
+                        "name": "model",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewaySpendUserSummary"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai-gateway/spend/users": {
             "get": {
                 "description": "Returns AI Gateway spend for every user with finished requests in the window. Defaults to most expensive first. Requires permission to read any AI Gateway interception.\nstart_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.",
@@ -972,6 +1032,73 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.AIGatewaySpendUsersResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/spend/users/{user}/summary": {
+            "get": {
+                "description": "Returns the user's AI Gateway spend over the window with per-provider, per-model, and per-client breakdowns. Each breakdown lists at most 100 entries, most expensive first; the totals always cover every request. Requires permission to read any AI Gateway interception.\nstart_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get AI Gateway spend summary for a user",
+                "operationId": "get-ai-gateway-spend-summary-for-a-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary.",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339). Defaults to now.",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only count requests through this provider configuration name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only count requests from this client. Unknown matches requests without a recorded client.",
+                        "name": "client",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only count requests for this model",
+                        "name": "model",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewaySpendUserSummary"
                         }
                     }
                 },
@@ -17998,6 +18125,105 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIGatewaySpendClientBreakdown": {
+            "type": "object",
+            "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "client": {
+                    "type": "string"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "session_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIGatewaySpendModelBreakdown": {
+            "type": "object",
+            "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIGatewaySpendProviderBreakdown": {
+            "type": "object",
+            "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIGatewaySpendUser": {
             "type": "object",
             "required": [
@@ -18042,6 +18268,71 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIGatewaySpendUserSummary": {
+            "type": "object",
+            "properties": {
+                "by_client": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewaySpendClientBreakdown"
+                    }
+                },
+                "by_model": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewaySpendModelBreakdown"
+                    }
+                },
+                "by_provider": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewaySpendProviderBreakdown"
+                    }
+                },
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "client_count": {
+                    "type": "integer"
+                },
+                "end_date": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "model_count": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "provider_count": {
+                    "description": "Counts include all distinct values, including truncated entries.",
+                    "type": "integer"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "session_count": {
+                    "type": "integer"
+                },
+                "start_date": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
                 }
             }
         },
