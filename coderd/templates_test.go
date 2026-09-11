@@ -2435,14 +2435,14 @@ func TestTemplateFilterUseClassicParameterFlow(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "use-classic-parameter-flow:true",
+		SearchQuery: "compatibility-mode:true",
 	})
 	require.NoError(t, err)
 	require.Len(t, templates, 1)
 	require.Equal(t, classic.ID, templates[0].ID)
 
 	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "use-classic-parameter-flow:false",
+		SearchQuery: "compatibility-mode:false",
 	})
 	require.NoError(t, err)
 	require.Len(t, templates, 1)

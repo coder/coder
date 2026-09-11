@@ -375,7 +375,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		FuzzyDisplayName:        parser.String(values, "", "display_name"),
 		IDs:                     parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:              parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		UseClassicParameterFlow: parser.NullableBoolean(values, sql.NullBool{}, "use-classic-parameter-flow"),
+		UseClassicParameterFlow: parser.NullableBoolean(values, sql.NullBool{}, "compatibility-mode"),
 		HasAITask:               parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
 		AgentsAllowed:           parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
 		AuthorID:                parser.UUID(values, uuid.Nil, "author_id"),

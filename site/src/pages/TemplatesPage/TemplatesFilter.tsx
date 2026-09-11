@@ -22,7 +22,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 
-export const CLASSIC_PARAMETER_FLOW_FILTER = "use-classic-parameter-flow:true";
+export const CLASSIC_PARAMETER_FLOW_FILTER = "compatibility-mode:true";
 
 export type TemplateFilterState = {
 	filter: UseFilterResult;

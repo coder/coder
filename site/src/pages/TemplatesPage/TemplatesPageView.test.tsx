@@ -51,6 +51,6 @@ test("filters the templates list from the classic parameter warning", async () =
 
 	expect(router.state.location.pathname).toBe("/templates");
 	expect(router.state.location.search).toBe(
-		"?filter=use-classic-parameter-flow%3Atrue",
+		"?filter=compatibility-mode%3Atrue",
 	);
 });
