@@ -56,9 +56,11 @@ runs:
       run: |
         # GOTMPDIR holds test binaries and t.TempDir() output. Keep them off
         # the EBS-backed root disk like the Windows and macOS RAM disks do.
+        # Default the path here so the mount does not depend on the caller
+        # also running ./.github/actions/setup-go-paths.
         if [[ -z "${GOTMPDIR:-}" ]]; then
-          echo "GOTMPDIR is not set, skipping"
-          exit 0
+          GOTMPDIR="${RUNNER_TEMP}/go-tmp"
+          echo "GOTMPDIR=${GOTMPDIR}" >> "${GITHUB_ENV}"
         fi
         mkdir -p "${GOTMPDIR}"
         sudo mount -t tmpfs -o size=8g tmpfs "${GOTMPDIR}"
