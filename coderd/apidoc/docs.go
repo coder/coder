@@ -21246,7 +21246,18 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.Chat"
                 },
                 "kind": {
-                    "$ref": "#/definitions/codersdk.ChatWatchEventKind"
+                    "type": "string",
+                    "enum": [
+                        "created",
+                        "deleted",
+                        "title_change",
+                        "summary_change",
+                        "chat_summary_change",
+                        "status_change",
+                        "diff_status_change",
+                        "context_dirty",
+                        "action_required"
+                    ]
                 },
                 "tool_calls": {
                     "type": "array",
@@ -21255,31 +21266,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "codersdk.ChatWatchEventKind": {
-            "type": "string",
-            "enum": [
-                "status_change",
-                "summary_change",
-                "chat_summary_change",
-                "title_change",
-                "created",
-                "deleted",
-                "diff_status_change",
-                "action_required",
-                "context_dirty"
-            ],
-            "x-enum-varnames": [
-                "ChatWatchEventKindStatusChange",
-                "ChatWatchEventKindSummaryChange",
-                "ChatWatchEventKindChatSummaryChange",
-                "ChatWatchEventKindTitleChange",
-                "ChatWatchEventKindCreated",
-                "ChatWatchEventKindDeleted",
-                "ChatWatchEventKindDiffStatusChange",
-                "ChatWatchEventKindActionRequired",
-                "ChatWatchEventKindContextDirty"
-            ]
         },
         "codersdk.ChatWorkspaceTTLResponse": {
             "type": "object",
@@ -23336,13 +23322,15 @@ const docTemplate = `{
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "chat-goals"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatGoals": "Enables durable goals for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23368,7 +23356,8 @@ const docTemplate = `{
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables durable goals for root agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23384,7 +23373,8 @@ const docTemplate = `{
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentChatGoals"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
