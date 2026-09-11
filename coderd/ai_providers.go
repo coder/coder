@@ -359,36 +359,36 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		keyChanges aiProviderKeyChanges
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
-		old, existing, err := lookupAndMergeSettings(ctx, tx, idOrName, req.Settings)
+		old, merged, err := lookupAndMergeSettings(ctx, tx, idOrName, req.Settings)
 		if err != nil {
 			return err
 		}
 		aReq.Old = old
 
 		if req.Settings != nil {
-			if err := validateBedrockExternalIDUnchanged(existing, *req.Settings); err != nil {
+			if err := validateBedrockExternalIDUnchanged(merged, *req.Settings); err != nil {
 				return err
 			}
-			applyBedrockResolution(&existing, resolved)
+			applyBedrockResolution(&merged, resolved)
 		}
 		// Bedrock settings are only meaningful for anthropic- or
 		// bedrock-typed providers; rejecting the mismatch keeps a
 		// misconfiguration from sitting silently in the encrypted
 		// blob.
-		if existing.Bedrock != nil &&
+		if merged.Bedrock != nil &&
 			old.Type != database.AIProviderTypeAnthropic &&
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
-		ensureBedrockExternalID(&existing)
-		settings, err := encodeAIProviderSettings(existing)
+		ensureBedrockExternalID(&merged)
+		settings, err := encodeAIProviderSettings(merged)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
 		}
 
 		// Reject keys against Bedrock providers (whether the existing
 		// row is Bedrock or the patch would make it so).
-		if req.APIKeys != nil && existing.Bedrock != nil && len(*req.APIKeys) > 0 {
+		if req.APIKeys != nil && merged.Bedrock != nil && len(*req.APIKeys) > 0 {
 			return errBedrockRejectsAPIKeys
 		}
 
