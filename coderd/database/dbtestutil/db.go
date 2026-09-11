@@ -142,10 +142,10 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	}
 	// Unit tests should not retry serial transaction failures.
 	db = database.New(sqlDB, database.WithSerialRetryCount(1))
-	rejections := &chatWriteRecorder{}
-	db = newChatWriteGuard(db, rejections)
+	recorder := &chatWriteRecorder{}
+	db = newChatWriteGuard(db, recorder)
 	t.Cleanup(func() {
-		for _, r := range rejections.list() {
+		for _, r := range recorder.list() {
 			t.Errorf("chat write guard rejected %s for chat %s outside a chat state transition; "+
 				"the call site is the assertion that received this error, otherwise search for callers of %s",
 				r.method, r.chatID, r.method)

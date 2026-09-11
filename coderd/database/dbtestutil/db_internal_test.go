@@ -1,6 +1,7 @@
 package dbtestutil
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -43,15 +44,80 @@ CREATE TABLE foo;
 	require.Contains(t, out, "CREATE TABLE foo;", "normalizeDump must preserve real SQL between the meta-commands")
 }
 
-// The guard installed by NewDB must reject chat history and queue writes on
-// the root handle and inside a transaction that has not allocated a snapshot
-// for the chat, and record each rejection.
+// guardedWriteCall invokes one guarded writer against chatID. messageID is
+// a live message of that chat, for the writer that resolves the chat from a
+// message id.
+type guardedWriteCall struct {
+	method string
+	call   func(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) error
+}
+
+// guardedWriteCalls has one entry per chatWriteGuard writer override; the
+// completeness test enforces that equality so no override ships without a
+// rejection case. Only the chat id is set because the guard rejects before
+// the query runs.
+var guardedWriteCalls = []guardedWriteCall{
+	{method: "InsertChatMessages", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{ChatID: chatID})
+		return err
+	}},
+	{method: "SoftDeleteChatMessageByID", call: func(ctx context.Context, store database.Store, _ uuid.UUID, messageID int64) error {
+		return store.SoftDeleteChatMessageByID(ctx, messageID)
+	}},
+	{method: "SoftDeleteChatMessagesAfterID", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		return store.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{ChatID: chatID})
+	}},
+	{method: "SoftDeleteContextFileMessages", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		return store.SoftDeleteContextFileMessages(ctx, chatID)
+	}},
+	{method: "InsertChatQueuedMessage", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{ChatID: chatID})
+		return err
+	}},
+	{method: "InsertChatQueuedMessageWithCreator", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{ChatID: chatID})
+		return err
+	}},
+	{method: "DeleteChatQueuedMessage", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		return store.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{ChatID: chatID})
+	}},
+	{method: "DeleteChatQueuedMessageReturningCount", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.DeleteChatQueuedMessageReturningCount(ctx, database.DeleteChatQueuedMessageReturningCountParams{ChatID: chatID})
+		return err
+	}},
+	{method: "DeleteAllChatQueuedMessages", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		return store.DeleteAllChatQueuedMessages(ctx, chatID)
+	}},
+	{method: "DeleteAllChatQueuedMessagesReturningCount", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.DeleteAllChatQueuedMessagesReturningCount(ctx, chatID)
+		return err
+	}},
+	{method: "PopNextQueuedMessage", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.PopNextQueuedMessage(ctx, chatID)
+		return err
+	}},
+	{method: "ReorderChatQueuedMessageToFront", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.ReorderChatQueuedMessageToFront(ctx, database.ReorderChatQueuedMessageToFrontParams{ChatID: chatID})
+		return err
+	}},
+	{method: "ReorderChatQueuedMessageToHead", call: func(ctx context.Context, store database.Store, chatID uuid.UUID, _ int64) error {
+		_, err := store.ReorderChatQueuedMessageToHead(ctx, database.ReorderChatQueuedMessageToHeadParams{ChatID: chatID})
+		return err
+	}},
+}
+
+// The guard installed by NewDB must reject every guarded writer on the root
+// handle and inside a transaction that has not allocated a snapshot for the
+// chat, record each rejection, and let a write through once the same
+// transaction has allocated, including from a nested InTx.
 func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 	t.Parallel()
 
 	db, _ := NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	require.Contains(t, db.Wrappers(), "dbtestutil.chatWriteGuard")
+	guard, ok := db.(*chatWriteGuard)
+	require.True(t, ok, "NewDB must return the chat write guard")
 
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -60,6 +126,11 @@ func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
+	})
+	seeded := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	messageParams := database.InsertChatMessagesParams{
 		ChatID:              chat.ID,
@@ -81,27 +152,16 @@ func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 		RuntimeMs:           []int64{0},
 	}
 
-	_, err := db.InsertChatMessages(ctx, messageParams)
-	require.ErrorContains(t, err, "InsertChatMessages for chat "+chat.ID.String()+" outside a chat state transition")
+	for _, tc := range guardedWriteCalls {
+		err := tc.call(ctx, db, chat.ID, seeded.ID)
+		require.ErrorContains(t, err, tc.method+" for chat "+chat.ID.String()+" outside a chat state transition")
+		require.Equal(t, []chatWriteRejection{{method: tc.method, chatID: chat.ID}}, guard.rec.list())
+		// The rejection is the expected outcome of this test, not a failure
+		// to report at cleanup.
+		guard.rec.reset()
+	}
 
-	_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    chat.ID,
-		Content:   []byte(`[]`),
-		CreatedBy: user.ID,
-	})
-	require.ErrorContains(t, err, "InsertChatQueuedMessageWithCreator for chat "+chat.ID.String()+" outside a chat state transition")
-
-	guard, ok := db.(*chatWriteGuard)
-	require.True(t, ok, "NewDB must return the chat write guard")
-	require.Equal(t, []chatWriteRejection{
-		{method: "InsertChatMessages", chatID: chat.ID},
-		{method: "InsertChatQueuedMessageWithCreator", chatID: chat.ID},
-	}, guard.rec.list())
-	// The rejections above are the expected outcome of this test, not
-	// failures to report at cleanup.
-	guard.rec.reset()
-
-	err = db.InTx(func(tx database.Store) error {
+	err := db.InTx(func(tx database.Store) error {
 		_, err := tx.InsertChatMessages(ctx, messageParams)
 		return err
 	}, nil)
@@ -111,21 +171,39 @@ func TestChatWriteGuardRejectsWritesWithoutSnapshot(t *testing.T) {
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
-	require.Empty(t, messages, "rejected writes must not reach the database")
+	require.Len(t, messages, 1, "rejected writes must not reach the database")
+
+	// A nested InTx runs on the outer transaction handle, so it must see the
+	// outer allocation instead of starting an empty set.
+	err = db.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+			return err
+		}
+		return tx.InTx(func(inner database.Store) error {
+			_, err := inner.InsertChatMessages(ctx, messageParams)
+			return err
+		}, nil)
+	}, nil)
+	require.NoError(t, err)
+	require.Empty(t, guard.rec.list())
+	messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.Len(t, messages, 2, "the nested allocated write must reach the database")
 }
 
 // Every generated query that inserts, updates or deletes rows of
 // chat_messages or chat_queued_messages must be overridden by the guard,
 // except the two search_tsv maintenance queries, which change only the
-// search columns. A new writer query fails this test until the guard learns
-// about it.
+// search columns, and every override must have a rejection case in
+// guardedWriteCalls. A new writer query fails this test until the guard
+// learns about it and the rejection test covers it.
 func TestChatWriteGuardCoversEveryChatHistoryWriter(t *testing.T) {
 	t.Parallel()
 
 	queries, err := os.ReadFile("../queries.sql.go")
 	require.NoError(t, err)
 	queryConst := regexp.MustCompile("(?s)\nconst \\w+ = `-- name: (\\w+) :\\w+\n([^`]*)`")
-	writesChatTables := regexp.MustCompile(`(?i)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:chat_messages|chat_queued_messages)\b`)
+	writesChatTables := regexp.MustCompile(`(?i)\b(?:INSERT\s+INTO|MERGE\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?(?:chat_messages|chat_queued_messages)\b`)
 	var writers []string
 	for _, match := range queryConst.FindAllSubmatch(queries, -1) {
 		if writesChatTables.Match(match[2]) {
@@ -142,7 +220,7 @@ func TestChatWriteGuardCoversEveryChatHistoryWriter(t *testing.T) {
 		"InsertChat":                     true,
 		"LockChatAndBumpSnapshotVersion": true,
 	}
-	covered := []string{"BackfillChatMessagesSearchTsv", "ReindexStaleChatMessagesSearchTsv"}
+	var overrides []string
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Recv == nil || len(fn.Recv.List) != 1 || !fn.Name.IsExported() {
@@ -155,15 +233,25 @@ func TestChatWriteGuardCoversEveryChatHistoryWriter(t *testing.T) {
 		if recv, ok := star.X.(*ast.Ident); !ok || recv.Name != "chatWriteGuard" || notWriters[fn.Name.Name] {
 			continue
 		}
-		covered = append(covered, fn.Name.Name)
+		overrides = append(overrides, fn.Name.Name)
 	}
 
+	guardedOrExempt := append([]string{"BackfillChatMessagesSearchTsv", "ReindexStaleChatMessagesSearchTsv"}, overrides...)
 	slices.Sort(writers)
-	slices.Sort(covered)
-	require.Equal(t, writers, covered,
+	slices.Sort(guardedOrExempt)
+	require.Equal(t, writers, guardedOrExempt,
 		"every query writing chat_messages or chat_queued_messages must have a chatWriteGuard override "+
 			"or be listed here as search_tsv maintenance, and every chatWriteGuard override must be one of "+
 			"those writers or be listed in notWriters")
+
+	tested := make([]string, 0, len(guardedWriteCalls))
+	for _, tc := range guardedWriteCalls {
+		tested = append(tested, tc.method)
+	}
+	slices.Sort(overrides)
+	slices.Sort(tested)
+	require.Equal(t, overrides, tested,
+		"every chatWriteGuard override must have a rejection case in guardedWriteCalls, and every case must name an override")
 }
 
 // rejectionReportingTB records the Cleanup functions and Errorf calls that
@@ -209,8 +297,8 @@ func TestChatWriteGuardReportsRejectionsAtCleanup(t *testing.T) {
 
 	// NewDB registers its cleanups on tb, so they run here instead of at the
 	// end of the test, in the order testing would use.
-	for i := len(tb.cleanups) - 1; i >= 0; i-- {
-		tb.cleanups[i]()
+	for _, cleanup := range slices.Backward(tb.cleanups) {
+		cleanup()
 	}
 
 	require.Len(t, tb.errors, 1)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"sync"
 
 	"github.com/google/uuid"
@@ -42,9 +43,7 @@ func (r *chatWriteRecorder) add(method string, chatID uuid.UUID) error {
 func (r *chatWriteRecorder) list() []chatWriteRejection {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]chatWriteRejection, len(r.rejections))
-	copy(out, r.rejections)
-	return out
+	return slices.Clone(r.rejections)
 }
 
 // reset discards the recorded rejections.
@@ -94,7 +93,10 @@ func (g *chatWriteGuard) InTx(fn func(database.Store) error, opts *database.TxOp
 	}, opts)
 }
 
-func (g *chatWriteGuard) mark(chatID uuid.UUID) {
+// markAllocated records that this transaction allocated a snapshot for
+// chatID. The root handle has no allocation set, so the call is a no-op
+// there and its guarded writes stay rejected.
+func (g *chatWriteGuard) markAllocated(chatID uuid.UUID) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.allocated != nil {
@@ -102,9 +104,9 @@ func (g *chatWriteGuard) mark(chatID uuid.UUID) {
 	}
 }
 
-// require returns the rejection error unless this transaction allocated a
-// snapshot for chatID.
-func (g *chatWriteGuard) require(method string, chatID uuid.UUID) error {
+// requireSnapshot returns the rejection error unless this transaction
+// allocated a snapshot for chatID.
+func (g *chatWriteGuard) requireSnapshot(method string, chatID uuid.UUID) error {
 	g.mu.Lock()
 	_, ok := g.allocated[chatID]
 	g.mu.Unlock()
@@ -117,7 +119,7 @@ func (g *chatWriteGuard) require(method string, chatID uuid.UUID) error {
 func (g *chatWriteGuard) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	chat, err := g.Store.InsertChat(ctx, arg)
 	if err == nil {
-		g.mark(chat.ID)
+		g.markAllocated(chat.ID)
 	}
 	return chat, err
 }
@@ -125,13 +127,13 @@ func (g *chatWriteGuard) InsertChat(ctx context.Context, arg database.InsertChat
 func (g *chatWriteGuard) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	chat, err := g.Store.LockChatAndBumpSnapshotVersion(ctx, id)
 	if err == nil {
-		g.mark(id)
+		g.markAllocated(id)
 	}
 	return chat, err
 }
 
 func (g *chatWriteGuard) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
-	if err := g.require("InsertChatMessages", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("InsertChatMessages", arg.ChatID); err != nil {
 		return nil, err
 	}
 	return g.Store.InsertChatMessages(ctx, arg)
@@ -149,7 +151,7 @@ func (g *chatWriteGuard) SoftDeleteChatMessageByID(ctx context.Context, id int64
 		return xerrors.Errorf("resolve chat for message %d: %w", id, err)
 	}
 	if err == nil {
-		if err := g.require("SoftDeleteChatMessageByID", msg.ChatID); err != nil {
+		if err := g.requireSnapshot("SoftDeleteChatMessageByID", msg.ChatID); err != nil {
 			return err
 		}
 	}
@@ -157,77 +159,77 @@ func (g *chatWriteGuard) SoftDeleteChatMessageByID(ctx context.Context, id int64
 }
 
 func (g *chatWriteGuard) SoftDeleteChatMessagesAfterID(ctx context.Context, arg database.SoftDeleteChatMessagesAfterIDParams) error {
-	if err := g.require("SoftDeleteChatMessagesAfterID", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("SoftDeleteChatMessagesAfterID", arg.ChatID); err != nil {
 		return err
 	}
 	return g.Store.SoftDeleteChatMessagesAfterID(ctx, arg)
 }
 
 func (g *chatWriteGuard) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
-	if err := g.require("SoftDeleteContextFileMessages", chatID); err != nil {
+	if err := g.requireSnapshot("SoftDeleteContextFileMessages", chatID); err != nil {
 		return err
 	}
 	return g.Store.SoftDeleteContextFileMessages(ctx, chatID)
 }
 
 func (g *chatWriteGuard) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	if err := g.require("InsertChatQueuedMessage", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("InsertChatQueuedMessage", arg.ChatID); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
 	return g.Store.InsertChatQueuedMessage(ctx, arg)
 }
 
 func (g *chatWriteGuard) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
-	if err := g.require("InsertChatQueuedMessageWithCreator", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("InsertChatQueuedMessageWithCreator", arg.ChatID); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
 	return g.Store.InsertChatQueuedMessageWithCreator(ctx, arg)
 }
 
 func (g *chatWriteGuard) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
-	if err := g.require("DeleteChatQueuedMessage", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("DeleteChatQueuedMessage", arg.ChatID); err != nil {
 		return err
 	}
 	return g.Store.DeleteChatQueuedMessage(ctx, arg)
 }
 
 func (g *chatWriteGuard) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg database.DeleteChatQueuedMessageReturningCountParams) (int64, error) {
-	if err := g.require("DeleteChatQueuedMessageReturningCount", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("DeleteChatQueuedMessageReturningCount", arg.ChatID); err != nil {
 		return 0, err
 	}
 	return g.Store.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
 func (g *chatWriteGuard) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
-	if err := g.require("DeleteAllChatQueuedMessages", chatID); err != nil {
+	if err := g.requireSnapshot("DeleteAllChatQueuedMessages", chatID); err != nil {
 		return err
 	}
 	return g.Store.DeleteAllChatQueuedMessages(ctx, chatID)
 }
 
 func (g *chatWriteGuard) DeleteAllChatQueuedMessagesReturningCount(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	if err := g.require("DeleteAllChatQueuedMessagesReturningCount", chatID); err != nil {
+	if err := g.requireSnapshot("DeleteAllChatQueuedMessagesReturningCount", chatID); err != nil {
 		return 0, err
 	}
 	return g.Store.DeleteAllChatQueuedMessagesReturningCount(ctx, chatID)
 }
 
 func (g *chatWriteGuard) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
-	if err := g.require("PopNextQueuedMessage", chatID); err != nil {
+	if err := g.requireSnapshot("PopNextQueuedMessage", chatID); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
 	return g.Store.PopNextQueuedMessage(ctx, chatID)
 }
 
 func (g *chatWriteGuard) ReorderChatQueuedMessageToFront(ctx context.Context, arg database.ReorderChatQueuedMessageToFrontParams) (int64, error) {
-	if err := g.require("ReorderChatQueuedMessageToFront", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("ReorderChatQueuedMessageToFront", arg.ChatID); err != nil {
 		return 0, err
 	}
 	return g.Store.ReorderChatQueuedMessageToFront(ctx, arg)
 }
 
 func (g *chatWriteGuard) ReorderChatQueuedMessageToHead(ctx context.Context, arg database.ReorderChatQueuedMessageToHeadParams) (int64, error) {
-	if err := g.require("ReorderChatQueuedMessageToHead", arg.ChatID); err != nil {
+	if err := g.requireSnapshot("ReorderChatQueuedMessageToHead", arg.ChatID); err != nil {
 		return 0, err
 	}
 	return g.Store.ReorderChatQueuedMessageToHead(ctx, arg)
