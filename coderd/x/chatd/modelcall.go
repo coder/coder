@@ -167,6 +167,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	}
 	out.model = model
 
+	out.callConfig = coerceBedrockReasoningSummary(out.route.Provider.Type, modelName, out.callConfig)
 	out.providerOptions = chatprovider.ProviderOptionsForCall(out.model, out.callConfig, spec.requestedEffort)
 
 	p.logger.Debug(ctx, "resolved model call",
