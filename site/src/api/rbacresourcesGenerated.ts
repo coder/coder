@@ -80,6 +80,12 @@ export const RBACResourceActions: Partial<
 		share: "share a chat model config with other users or groups",
 		update: "update a chat model config",
 	},
+	chat_project: {
+		create: "create a new chat project",
+		delete: "delete a chat project",
+		read: "read chat projects",
+		update: "update a chat project",
+	},
 	connection_log: {
 		read: "read connection logs",
 		update: "upsert connection log entries",

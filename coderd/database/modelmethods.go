@@ -212,6 +212,14 @@ func (t Task) RBACObject() rbac.Object {
 	return obj
 }
 
+func (p ChatProject) RBACObject() rbac.Object {
+	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.CreatedBy.String())
+}
+
+func (r GetChatProjectsByOrganizationIDRow) RBACObject() rbac.Object {
+	return r.ChatProject.RBACObject()
+}
+
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).

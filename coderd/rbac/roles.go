@@ -1153,6 +1153,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		ResourceChatProject.Type:   {policy.ActionRead, policy.ActionCreate},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1211,6 +1212,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
+		ResourceChatProject.Type: {policy.ActionUpdate, policy.ActionDelete},
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
@@ -1258,7 +1260,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat permissions are intentionally omitted for service accounts.
+	// Chat and chat project permissions are intentionally omitted for service accounts.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},

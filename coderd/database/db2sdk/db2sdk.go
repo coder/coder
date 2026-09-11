@@ -1817,6 +1817,24 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
+func ChatProject(project database.ChatProject) codersdk.ChatProject {
+	return codersdk.ChatProject{
+		ID:             project.ID,
+		OrganizationID: project.OrganizationID,
+		CreatedBy:      project.CreatedBy,
+		Name:           project.Name,
+		Description:    project.Description,
+		CreatedAt:      project.CreatedAt,
+		UpdatedAt:      project.UpdatedAt,
+	}
+}
+
+func ChatProjectRow(row database.GetChatProjectsByOrganizationIDRow) codersdk.ChatProject {
+	project := ChatProject(row.ChatProject)
+	project.ChatCount = row.ChatCount
+	return project
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1887,6 +1905,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	}
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
+	}
+	if c.ProjectID.Valid {
+		chat.ProjectID = &c.ProjectID.UUID
 	}
 	if c.BuildID.Valid {
 		chat.BuildID = &c.BuildID.UUID

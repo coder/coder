@@ -1,5 +1,6 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
@@ -14,11 +15,13 @@ import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
+	MockChatProject,
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
@@ -66,18 +69,19 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const dashboardValue = {
-	entitlements: MockEntitlements,
-	experiments: [] as TypesGen.Experiment[],
-	appearance: MockAppearanceConfig,
-	buildInfo: MockBuildInfo,
-	organizations: [MockDefaultOrganization],
-	showOrganizations: false,
-	canViewOrganizationSettings: false,
-};
-
-const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+const Wrapper: FC<
+	PropsWithChildren<{ experiments?: TypesGen.Experiment[] }>
+> = ({ children, experiments = [] }) => {
 	const queryClient = createTestQueryClient();
+	const dashboardValue = {
+		entitlements: MockEntitlements,
+		experiments,
+		appearance: MockAppearanceConfig,
+		buildInfo: MockBuildInfo,
+		organizations: [MockDefaultOrganization],
+		showOrganizations: false,
+		canViewOrganizationSettings: false,
+	};
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
@@ -120,7 +124,45 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	currentUserId: MockUserOwner.id,
 };
 
-// ---- Tests ----
+afterEach(() => server.resetHandlers());
+
+describe("ChatsSidebar projects", () => {
+	it("deletes the selected project after confirmation", async () => {
+		const user = userEvent.setup();
+		let deletedProjectID: string | undefined;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.delete("*", ({ request }) => {
+				deletedProjectID = request.url.split("/").at(-1);
+				return new HttpResponse(null, { status: 204 });
+			}),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.type(
+			screen.getByLabelText("Name of the project to delete"),
+			MockChatProject.name,
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(deletedProjectID).toBe(MockChatProject.id);
+		});
+	});
+});
 
 describe("ChatsSidebar sections", () => {
 	it("renders unpinned shared chats in Shared with you before date sections", () => {

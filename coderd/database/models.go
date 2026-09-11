@@ -535,6 +535,11 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeChatProject                         APIKeyScope = "chat_project:*"
+	ApiKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
+	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
+	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -821,7 +826,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete:
 		return true
 	}
 	return false
@@ -1077,6 +1087,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
 	}
 }
 
@@ -3682,6 +3697,7 @@ const (
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeChatProject                 ResourceType = "chat_project"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3760,7 +3776,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
-		ResourceTypeChatOperationalSettings:
+		ResourceTypeChatOperationalSettings,
+		ResourceTypeChatProject:
 		return true
 	}
 	return false
@@ -3808,6 +3825,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeChatProject,
 	}
 }
 
@@ -5133,6 +5151,7 @@ type Chat struct {
 	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
 	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
@@ -5326,6 +5345,17 @@ type ChatOrganizationModelOverride struct {
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+// Organization-scoped projects that group agent chats.
+type ChatProject struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
@@ -5393,6 +5423,8 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// Optional project that groups a root chat with related chats.
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
 }
 
 type ChatUsageLimitConfig struct {

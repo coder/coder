@@ -43,6 +43,7 @@ There is other data that is held in the database and is associated with a chat, 
 - workspace binding;
 - model configuration;
 - plan mode;
+- project binding; <!-- TODO(chat-projects): document project membership as metadata -->
 - file links.
 
 We call it **metadata**. The core state machine concerns itself with **execution state**. As a general guideline, a piece of data is execution state if the core state machine needs it to decide what the next state transition may be, or if it's directly modified by a state transition. For example, a queued message is part of the execution state because it impacts what the next action of the agent loop can be. If the agent loop finishes processing a user message and would otherwise stop, but there's a queued message, the agent loop will start processing the queued message instead. On the other hand, a chat's title does not impact the agent loop at all - it's just a label that helps the user identify the chat.

@@ -59,6 +59,17 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 					})
 				})
 			}
+			r.Route("/projects", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
+				r.Get("/", api.listChatProjects)
+				r.Post("/", api.postChatProject)
+				r.Route("/{project}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatProjectParam(api.Database))
+					r.Get("/", api.getChatProject)
+					r.Patch("/", api.patchChatProject)
+					r.Delete("/", api.deleteChatProject)
+				})
+			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
@@ -79,7 +90,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			// Reserve unmounted segments so they return 404 instead of
 			// falling into the {chat} wildcard and failing UUID parsing
 			// with a 400.
-			segments := []string{"/model-configs"}
+			segments := []string{"/model-configs", "/projects"}
 			// TODO(CODAGT-922): drop the provider reservations with the
 			// experimental mounts.
 			segments = append(segments, "/providers", "/user-provider-configs")
