@@ -3,6 +3,7 @@ import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { ChatSendShortcutSettings } from "./components/ChatSendShortcutSettings";
+import { ChatVimNavigationSettings } from "./components/ChatVimNavigationSettings";
 import {
 	CodeDiffDisplaySettings,
 	ShellToolDisplaySettings,
@@ -31,6 +32,7 @@ export interface AgentSettingsGeneralPageViewProps {
 	>;
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
+	showVimNavigationSettings: boolean;
 }
 
 export const AgentSettingsGeneralPageView: FC<
@@ -44,6 +46,7 @@ export const AgentSettingsGeneralPageView: FC<
 	onSaveUserDebugLogging,
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
+	showVimNavigationSettings,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -59,7 +62,13 @@ export const AgentSettingsGeneralPageView: FC<
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
-			<ChatSendShortcutSettings />
+			<div className="flex flex-col gap-4">
+				<h3 className="m-0 text-sm font-semibold text-content-primary">
+					Keyboard shortcuts
+				</h3>
+				<ChatSendShortcutSettings />
+				{showVimNavigationSettings && <ChatVimNavigationSettings />}
+			</div>
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />
 			<CodeDiffDisplaySettings />
