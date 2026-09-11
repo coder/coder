@@ -85,18 +85,6 @@ func anthropicRequestBody(t *testing.T, req chattest.AnthropicRequest) string {
 	return string(data)
 }
 
-func singleChatMessageInsertParams(
-	chatID uuid.UUID,
-	role database.ChatMessageRole,
-	content pqtype.NullRawMessage,
-	modelConfigID uuid.UUID,
-	createdBy uuid.UUID,
-) database.InsertChatMessagesParams {
-	params := database.InsertChatMessagesParams{ChatID: chatID}
-	appendChatMessageInsertParams(&params, role, content, modelConfigID, createdBy)
-	return params
-}
-
 // appendChatMessageInsertParams adds one visible message with no usage
 // data to params, so many messages can be written in a single
 // InsertChatMessages call.
@@ -126,7 +114,7 @@ func appendChatMessageInsertParams(
 }
 
 func insertSystemTextMessage(
-	ctx context.Context,
+	_ context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -136,18 +124,15 @@ func insertSystemTextMessage(
 	t.Helper()
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
-	params := singleChatMessageInsertParams(
-		chatID,
-		database.ChatMessageRoleSystem,
-		content,
-		modelID,
-		uuid.Nil,
-	)
-	_, err = db.InsertChatMessages(ctx, params)
-	require.NoError(t, err)
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chatID,
+		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
+		Role:          database.ChatMessageRoleSystem,
+		Content:       content,
+	})
 }
 
-func insertOrphanProviderToolCall(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, modelID uuid.UUID) {
+func insertOrphanProviderToolCall(_ context.Context, t *testing.T, db database.Store, chatID uuid.UUID, modelID uuid.UUID) {
 	t.Helper()
 	reasoningMetadata, err := json.Marshal(fantasy.ProviderMetadata{
 		fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{RedactedData: "redacted-payload"},
@@ -169,15 +154,12 @@ func insertOrphanProviderToolCall(ctx context.Context, t *testing.T, db database
 	}
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	params := singleChatMessageInsertParams(
-		chatID,
-		database.ChatMessageRoleAssistant,
-		content,
-		modelID,
-		uuid.Nil,
-	)
-	_, err = db.InsertChatMessages(ctx, params)
-	require.NoError(t, err)
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chatID,
+		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Content:       content,
+	})
 }
 
 func createChatThroughServer(

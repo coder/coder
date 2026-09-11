@@ -177,9 +177,15 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 			RootChatID:   uuid.NullUUID{UUID: root.ID, Valid: true},
 		})
 		queued := insertTestChatQueuedMessage(ctx, t, db, child.ID, queuedTextContent(t, "under edit"), modelConfig.ID)
-		_, err := db.UpdateChatQueuedMessageEditing(sysCtx, database.UpdateChatQueuedMessageEditingParams{
-			ID: queued.ID, ChatID: child.ID, Editing: true,
-		})
+		err := db.InTx(func(tx database.Store) error {
+			if _, err := tx.LockChatAndBumpSnapshotVersion(sysCtx, child.ID); err != nil {
+				return err
+			}
+			_, err := tx.UpdateChatQueuedMessageEditing(sysCtx, database.UpdateChatQueuedMessageEditingParams{
+				ID: queued.ID, ChatID: child.ID, Editing: true,
+			})
+			return err
+		}, nil)
 		require.NoError(t, err)
 
 		err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: new(true)})

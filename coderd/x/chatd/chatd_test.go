@@ -2248,7 +2248,15 @@ func TestChatTurnStopsAtStepLimit(t *testing.T) {
 					appendChatMessageInsertParams(&preseeded, database.ChatMessageRoleAssistant, toolCall, model.ID, uuid.Nil)
 					appendChatMessageInsertParams(&preseeded, database.ChatMessageRoleTool, toolResult, model.ID, uuid.Nil)
 				}
-				inserted, err := db.InsertChatMessages(ctx, preseeded)
+				var inserted []database.InsertChatMessagesRow
+				err = db.InTx(func(tx database.Store) error {
+					if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+						return err
+					}
+					var err error
+					inserted, err = tx.InsertChatMessages(ctx, preseeded)
+					return err
+				}, nil)
 				require.NoError(t, err)
 				require.Len(t, inserted, 2*tt.preseededSteps)
 			}
@@ -3768,10 +3776,15 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
 
-	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
-		ChatID:  chat.ID,
-		AfterID: msg2.ID - 1,
-	})
+	err = db.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+			return err
+		}
+		return tx.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+			ChatID:  chat.ID,
+			AfterID: msg2.ID - 1,
+		})
+	}, nil)
 	require.NoError(t, err)
 
 	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
@@ -4734,14 +4747,13 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		ContextFileDirectory: "/home/coder/project",
 	}})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, singleChatMessageInsertParams(
-		chat.ID,
-		database.ChatMessageRoleUser,
-		contextContent,
-		model.ID,
-		user.ID,
-	))
-	require.NoError(t, err)
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content:       contextContent,
+	})
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
@@ -8654,7 +8666,7 @@ func insertProviderToolPairMessageWithLocalTool(
 }
 
 func insertChatMessageParts(
-	ctx context.Context,
+	_ context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -8666,17 +8678,13 @@ func insertChatMessageParts(
 	t.Helper()
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	params := singleChatMessageInsertParams(
-		chatID,
-		role,
-		content,
-		modelID,
-		createdBy,
-	)
-	messages, err := db.InsertChatMessages(ctx, params)
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	return database.ChatMessage(messages[0])
+	return dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chatID,
+		CreatedBy:     uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
+		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
+		Role:          role,
+		Content:       content,
+	})
 }
 
 func anthropicRequestToolNames(req chattest.AnthropicRequest) []string {
@@ -13665,7 +13673,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 }
 
 func insertQueuedMessage(
-	ctx context.Context,
+	_ context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -13676,14 +13684,12 @@ func insertQueuedMessage(
 	t.Helper()
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
-	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	return dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 		ChatID:        chatID,
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		CreatedBy:     createdBy,
 	})
-	require.NoError(t, err)
-	return queued
 }
 
 func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
@@ -13704,14 +13710,13 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
 	require.NoError(t, err)
-	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued := dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 		ChatID:          chat.ID,
 		Content:         content.RawMessage,
 		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
 		ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 		CreatedBy:       user.ID,
 	})
-	require.NoError(t, err)
 	require.True(t, queued.ReasoningEffort.Valid)
 	require.Equal(t, database.ChatReasoningEffortHigh, queued.ReasoningEffort.ChatReasoningEffort)
 
