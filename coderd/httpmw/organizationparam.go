@@ -68,8 +68,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 
 			// If the name is exactly "default" or the nil UUID, then we fetch
 			// the default organization. This is a special case to make it
-			// easier for single org deployments, and external callers depend
-			// on the nil UUID resolving to the default org.
+			// easier for single org deployments.
 			if arg == codersdk.DefaultOrganization || arg == uuid.Nil.String() {
 				organization, dbErr = db.GetDefaultOrganization(ctx)
 			} else {
