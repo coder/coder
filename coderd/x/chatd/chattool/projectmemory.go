@@ -21,6 +21,10 @@ const (
 	MaxProjectMemoryIndexBytes       = 25 * 1024
 	MaxProjectMemoryBodyBytes        = 8192
 	MaxProjectMemoryDescriptionChars = 150
+
+	ReadProjectMemoryToolName   = "read_project_memory"
+	SaveProjectMemoryToolName   = "save_project_memory"
+	DeleteProjectMemoryToolName = "delete_project_memory"
 )
 
 var projectMemoryNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
@@ -101,8 +105,9 @@ const ProjectMemoryGuidance = "Project memory is durable context shared by every
 	"Save a memory as soon as durable information surfaces, without waiting to be asked. " +
 	"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), " +
 	"anything already stated in instructions, or temporary in-progress state. " +
-	"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds. " +
-	"Call read_project_memory before acting on a memory."
+	"Never save that something is unknown or undecided. " +
+	"When a question might be answered by a memory in the index, call read_project_memory before answering or asking the user. " +
+	"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
 
 // FormatProjectMemoryIndex renders the compact project-memory index for the
 // system prompt. The guidance renders even when no memories exist so the
@@ -156,7 +161,7 @@ type deleteProjectMemoryArgs struct {
 
 // ReadProjectMemory returns a tool that reads a project's full memory body.
 func ReadProjectMemory(options ProjectMemoryOptions) fantasy.AgentTool {
-	return fantasy.NewAgentTool("read_project_memory", "Read a full project memory by name.", func(ctx context.Context, args readProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	return fantasy.NewAgentTool(ReadProjectMemoryToolName, "Read a full project memory by name.", func(ctx context.Context, args readProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if options.Store == nil {
 			return fantasy.NewTextErrorResponse("project memory store is not configured"), nil
 		}
@@ -174,7 +179,7 @@ func ReadProjectMemory(options ProjectMemoryOptions) fantasy.AgentTool {
 
 // SaveProjectMemory returns a tool that upserts a durable project memory.
 func SaveProjectMemory(options ProjectMemoryOptions) fantasy.AgentTool {
-	return fantasy.NewAgentTool("save_project_memory", "Save or update a durable project memory by name.", func(ctx context.Context, args saveProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	return fantasy.NewAgentTool(SaveProjectMemoryToolName, "Save or update a durable project memory by name.", func(ctx context.Context, args saveProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if options.Store == nil {
 			return fantasy.NewTextErrorResponse("project memory store is not configured"), nil
 		}
@@ -206,7 +211,7 @@ func SaveProjectMemory(options ProjectMemoryOptions) fantasy.AgentTool {
 
 // DeleteProjectMemory returns a tool that deletes a project memory by name.
 func DeleteProjectMemory(options ProjectMemoryOptions) fantasy.AgentTool {
-	return fantasy.NewAgentTool("delete_project_memory", "Delete a project memory by name.", func(ctx context.Context, args deleteProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	return fantasy.NewAgentTool(DeleteProjectMemoryToolName, "Delete a project memory by name.", func(ctx context.Context, args deleteProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if options.Store == nil {
 			return fantasy.NewTextErrorResponse("project memory store is not configured"), nil
 		}

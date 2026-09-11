@@ -26,15 +26,18 @@ const (
 	projectMemoryExtractionMaxOutputTokens    = 2048
 )
 
-const projectMemoryExtractionPrompt = "You review a completed coding-chat turn and extract project memory the main agent did not save itself. " +
+// The extractor is deliberately upsert-only. Dogfooding showed a model
+// treating an assistant's "I don't know" as a contradiction and deleting a
+// correct memory; deletion stays with the main agent's tool and the UI.
+const projectMemoryExtractionPrompt = "You review a completed coding-chat turn and record project memory the main agent did not save itself. " +
 	chattool.ProjectMemoryGuidance + " " +
-	"Prefer updating an existing memory (reuse its name) over adding a near duplicate. " +
-	"Delete a memory only when the transcript clearly contradicts it. " +
-	"Most turns contain nothing durable: return empty lists in that case."
+	"Record only facts the user stated or explicitly confirmed in this turn. " +
+	"Never record that something is unknown, unspecified, undecided, or pending, and never record questions or the assistant's own guesses. " +
+	"Skip facts that already appear in the memory index unless the user changed them, and reuse the existing name when updating. " +
+	"Most turns contain nothing new: return an empty list in that case."
 
 type projectMemoryExtraction struct {
 	Upserts []projectMemoryExtractionUpsert `json:"upserts"`
-	Deletes []string                        `json:"deletes"`
 }
 
 type projectMemoryExtractionUpsert struct {
@@ -90,6 +93,15 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 	if transcript == "" {
 		return
 	}
+	if turnUsedProjectMemoryTools(messages, cursor.HistoryVersion) {
+		// The main agent curated memory itself this turn. Running the
+		// extractor on top of that mostly produced split duplicates of
+		// what it had just saved, so advance the cursor and stop.
+		if _, err := p.db.UpsertChatProjectMemoryCursor(ctx, database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
+			logger.Debug(ctx, "failed to advance project memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
+		}
+		return
+	}
 	memories, err := p.db.GetChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
 	if err != nil {
 		logger.Debug(ctx, "failed to load project memories for extraction", slog.F("chat_id", chat.ID), slog.Error(err))
@@ -110,8 +122,8 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 		logger.Debug(ctx, "failed to resolve model for project memory extraction", slog.Error(err))
 		return
 	}
-	call := resolved.newObjectCall("project_memory_extraction", "Extract project memory upserts and deletes.", projectMemoryExtractionMaxOutputTokens)
-	call.Prompt = quickgenPrompt(projectMemoryExtractionPrompt, fmt.Sprintf("Current memory index:\n%s\n\nNew visible user and assistant text:\n%s", chattool.FormatProjectMemoryIndex(entries), transcript))
+	call := resolved.newObjectCall("project_memory_extraction", "Record new project memories stated by the user in this turn.", projectMemoryExtractionMaxOutputTokens)
+	call.Prompt = quickgenPrompt(projectMemoryExtractionPrompt, fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatProjectMemoryIndex(entries), transcript))
 	modelCtx, cancelModel := context.WithTimeout(ctx, projectMemoryExtractionModelTimeout)
 	defer cancelModel()
 	result, err := generateQuickgenObject[projectMemoryExtraction](modelCtx, resolved.model.LanguageModel(), call)
@@ -122,16 +134,6 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 	for _, upsert := range result.Object.Upserts {
 		if err := applyProjectMemoryUpsert(ctx, p.db, chat, upsert); err != nil {
 			logger.Debug(ctx, "ignored invalid project memory upsert", slog.F("chat_id", chat.ID), slog.F("name", upsert.Name), slog.Error(err))
-		}
-	}
-	for _, name := range result.Object.Deletes {
-		name = strings.ToLower(strings.TrimSpace(name))
-		if err := chattool.ValidateProjectMemoryName(name); err != nil {
-			logger.Debug(ctx, "ignored invalid project memory delete", slog.F("chat_id", chat.ID), slog.F("name", name), slog.Error(err))
-			continue
-		}
-		if err := p.db.DeleteChatProjectMemoryByName(ctx, database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: name}); err != nil {
-			logger.Debug(ctx, "failed to delete extracted project memory", slog.F("chat_id", chat.ID), slog.F("name", name), slog.Error(err))
 		}
 	}
 	if _, err := p.db.UpsertChatProjectMemoryCursor(ctx, database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
@@ -189,17 +191,43 @@ func normalizeProjectMemoryExtraction(upsert projectMemoryExtractionUpsert) (nor
 	return normalizedProjectMemoryExtraction{Name: name, Type: upsert.Type, Description: description, Body: body}, nil
 }
 
-// renderProjectMemoryTranscript renders the visible user and assistant text
-// written after the given history version. Message revisions hold the
-// snapshot version that wrote them, so this window matches the cursor fence
-// exactly instead of relying on wall-clock timestamps.
+// turnUsedProjectMemoryTools reports whether the messages written after the
+// given history version contain a save or delete project memory tool call.
+func turnUsedProjectMemoryTools(messages []database.ChatMessage, afterHistoryVersion int64) bool {
+	for _, message := range messages {
+		if message.Revision <= afterHistoryVersion || message.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(message)
+		if err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolCall {
+				continue
+			}
+			switch part.ToolName {
+			case chattool.SaveProjectMemoryToolName, chattool.DeleteProjectMemoryToolName:
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// renderProjectMemoryTranscript renders the visible user text written after
+// the given history version. Message revisions hold the snapshot version
+// that wrote them, so this window matches the cursor fence exactly instead
+// of relying on wall-clock timestamps. Assistant text is excluded on
+// purpose: the extractor records what the user said, and dogfooding showed
+// it re-recording the assistant's restatement of existing memories.
 func renderProjectMemoryTranscript(messages []database.ChatMessage, afterHistoryVersion int64) string {
 	var lines []string
 	for _, message := range messages {
 		if message.Revision <= afterHistoryVersion {
 			continue
 		}
-		if message.Role != database.ChatMessageRoleUser && message.Role != database.ChatMessageRoleAssistant {
+		if message.Role != database.ChatMessageRoleUser {
 			continue
 		}
 		if message.Visibility != database.ChatMessageVisibilityBoth && message.Visibility != database.ChatMessageVisibilityUser {
