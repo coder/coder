@@ -66,6 +66,7 @@ var (
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/workspaces/{workspace} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
@@ -97,7 +98,22 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
+	// Omitting include_related is backward compatible: everything is returned.
+	// When present, only the requested related data is loaded.
+	related := wsrelated.All()
+	if r.URL.Query().Has("include_related") {
+		var err error
+		related, err = wsrelated.Parse(r.URL.Query().Get("include_related"))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid include_related query param.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, related)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -106,7 +122,10 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(data.templates) == 0 {
+	// workspaceData omits templates the requester cannot read. If the template
+	// was requested but is absent, the requester is not authorized to read it.
+	// When the template was not requested there is nothing to authorize here.
+	if related.Template && len(data.templates) == 0 {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -116,13 +135,23 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		appStatus = data.appStatuses[0]
 	}
 
+	// Related data may be omitted, in which case these carry zero values.
+	var build codersdk.WorkspaceBuild
+	if len(data.builds) > 0 {
+		build = data.builds[0]
+	}
+	var template database.Template
+	if len(data.templates) > 0 {
+		template = data.templates[0]
+	}
+
 	w, err := convertWorkspace(
 		ctx,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
-		data.builds[0],
-		data.templates[0],
+		build,
+		template,
 		api.AllowWorkspaceRenames,
 		appStatus,
 	)
