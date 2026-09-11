@@ -832,6 +832,32 @@ Reconstructed stages are recorded after the fact from timestamps captured elsewh
 - `thinking`: one per reasoning part, from the part's start to its completion timestamp in the persisted step.
 - `tool_call`: one per local tool call, from the tool billing recorder's start and completion stamps.
 
+#### Turn accounting
+
+When a turn finishes normally, its stages are rolled up and emitted once, labelled with the turn's `chat_kind` and `model`. The model is the first one resolved in the turn. Turns that end with an error or an interruption are invalidated and emit nothing.
+
+Per stage, `coderd_chatd_turn_stage_seconds`, `coderd_chatd_turn_stage_count`, and `coderd_chatd_stage_share_of_turn` record the total seconds, the number of occurrences, and the fraction of the turn's duration spent in that stage. Stages overlap in wall time (a `provider_attempt` runs inside `time_to_first_token`, which runs inside `stream`, which runs inside `generation_step`), so these totals do not partition the turn and a share can exceed 1. These three families and `coderd_chatd_turn_time_share` are registered only at `--chat-stage-metrics=full`; the accumulator still runs at every level, so `coderd_chatd_turn_time_seconds` and the anomaly counter below are unaffected by the level.
+
+`coderd_chatd_turn_time_seconds` and `coderd_chatd_turn_time_share` partition the turn's wall time into disjoint categories that sum to the turn duration. Every category is emitted for every accounted turn, including the ones with no time, so shares are comparable across turns. The categories and the stages that feed them:
+
+| Category | Source |
+|----------|--------|
+| `scheduling` | `acquisition` and `queue_wait` |
+| `time_to_first_token` | `time_to_first_token`, when a part arrived |
+| `streaming` | `stream` minus its `time_to_first_token`, when the stream succeeded |
+| `provider_error` | `stream` and `time_to_first_token` when the attempt failed |
+| `retry_backoff` | `retry_backoff` |
+| `tool_execution` | `generation_step` own time when the step ran local tools |
+| `compaction` | `compaction` |
+| `preparation` | `prepare` own time and `mcp_connect` |
+| `persistence` | `commit` |
+| `chatd_overhead` | `generation_step` own time for every other action: decision logic, transitions other than `CommitStep`, hook dispatch, and buffer bookkeeping |
+| `unattributed` | the remainder of the turn not covered by any stage above |
+
+The partition is computed from the stage tree. A `TurnAccumulator` rides on the turn context. Each attributing stage reports its full duration to its parent when it ends, and the parent's category receives only the parent's own time, which keeps the categories disjoint. `provider_attempt`, `thinking`, and `tool_call` contribute to the per-stage totals but not to any category, because they overlap stages that are already categorized. `capacity_wait` is excluded for the same reason: its window lies inside `acquisition`. Only turn-scoped stages report to the accumulator, so background work never lands in a turn.
+
+A turn whose categories sum to more than its duration is emitted as measured and counted in `coderd_chatd_stage_anomalies_total{reason="overattributed"}`. A finished turn with a non-positive duration is not emitted and is counted as `nonpositive_turn`.
+
 ### Event shape
 
 Every event that the runner loop processes has the following shape:
