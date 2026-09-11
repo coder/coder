@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
@@ -1759,7 +1760,12 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AgentID == uuid.Nil && req.AppName == "" {
+	// Normalize at the edge so storage and lookup agree on the key, and so an
+	// app name that carries no information is indistinguishable from an
+	// absent one.
+	appName := normalizeUsageAppName(req.AppName)
+
+	if req.AgentID == uuid.Nil && appName == "" {
 		// Continue previous behavior if body is empty.
 		rw.WriteHeader(http.StatusNoContent)
 		return
@@ -1774,7 +1780,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.AppName == "" {
+	if appName == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request",
 			Validations: []codersdk.ValidationError{{
@@ -1784,34 +1790,11 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !slices.Contains(codersdk.AllowedAppNames, req.AppName) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Validations: []codersdk.ValidationError{{
-				Field:  "app_name",
-				Detail: fmt.Sprintf("must be one of %v", codersdk.AllowedAppNames),
-			}},
-		})
-		return
-	}
 
+	// Any app name is accepted, normalized above.
 	stat := &proto.Stats{
 		ConnectionCount: 1,
-	}
-	switch req.AppName {
-	case codersdk.UsageAppNameVscode:
-		stat.SessionCountVscode = 1
-	case codersdk.UsageAppNameJetbrains:
-		stat.SessionCountJetbrains = 1
-	case codersdk.UsageAppNameReconnectingPty:
-		stat.SessionCountReconnectingPty = 1
-	case codersdk.UsageAppNameSSH:
-		stat.SessionCountSsh = 1
-	default:
-		// This means the app_name is in the codersdk.AllowedAppNames but not being
-		// handled by this switch statement.
-		httpapi.InternalServerError(rw, xerrors.Errorf("unknown app_name %q", req.AppName))
-		return
+		SessionCounts:   map[string]int64{appName: 1},
 	}
 
 	agent, err := api.Database.GetWorkspaceAgentByID(ctx, req.AgentID)
@@ -1837,6 +1820,21 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// normalizeUsageAppName prepares a client-supplied app name for storage.
+// Input made only of whitespace or control characters returns the empty
+// string, so callers can treat it as an absent app name rather than a
+// session under the unknown family, which is what codersdk.NormalizeAppName
+// reports for input it strips to nothing.
+func normalizeUsageAppName(appName string) string {
+	named := strings.IndexFunc(appName, func(r rune) bool {
+		return !unicode.IsControl(r) && !unicode.IsSpace(r)
+	})
+	if named == -1 {
+		return ""
+	}
+	return codersdk.NormalizeAppName(appName)
 }
 
 // @Summary Favorite workspace by ID.
