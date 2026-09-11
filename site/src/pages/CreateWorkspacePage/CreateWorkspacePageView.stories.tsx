@@ -30,6 +30,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 			canUpdateTemplate: false,
 		},
 		presets: [],
+		parametersUpdating: false,
 		sendMessage: () => {},
 		template: MockTemplate,
 	},
