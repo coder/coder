@@ -930,3 +930,94 @@ ORDER BY
 	username ASC, user_id ASC
 LIMIT COALESCE(NULLIF(@page_limit::integer, 0), 10)
 OFFSET @page_offset::integer;
+
+-- name: ListAIBridgeSpendRollups :many
+WITH requests AS (
+	SELECT i.provider, i.provider_name, i.model, COALESCE(i.client, 'Unknown')::text AS client, COUNT(*)::bigint AS request_count
+	FROM aibridge_interceptions i
+	WHERE (@user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.initiator_id = @user_id::uuid)
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND (@provider_name::text = '' OR i.provider_name = @provider_name::text)
+		AND (@model::text = '' OR i.model = @model::text)
+		AND (@client::text = '' OR COALESCE(i.client, 'Unknown') = @client::text)
+	GROUP BY i.provider, i.provider_name, i.model, COALESCE(i.client, 'Unknown')
+), usage AS (
+	SELECT i.provider, i.provider_name, i.model, COALESCE(i.client, 'Unknown')::text AS client,
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS total_cost_micros,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	FROM aibridge_interceptions i
+	JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE (@user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.initiator_id = @user_id::uuid)
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND (@provider_name::text = '' OR i.provider_name = @provider_name::text)
+		AND (@model::text = '' OR i.model = @model::text)
+		AND (@client::text = '' OR COALESCE(i.client, 'Unknown') = @client::text)
+	GROUP BY i.provider, i.provider_name, i.model, COALESCE(i.client, 'Unknown')
+), unpriced AS (
+	SELECT i.provider, i.provider_name, i.model, COALESCE(i.client, 'Unknown')::text AS client, COUNT(DISTINCT tu.interception_id)::bigint AS unpriced_request_count
+	FROM aibridge_interceptions i
+	JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE tu.cost_micros IS NULL
+		AND (@user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.initiator_id = @user_id::uuid)
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND (@provider_name::text = '' OR i.provider_name = @provider_name::text)
+		AND (@model::text = '' OR i.model = @model::text)
+		AND (@client::text = '' OR COALESCE(i.client, 'Unknown') = @client::text)
+	GROUP BY i.provider, i.provider_name, i.model, COALESCE(i.client, 'Unknown')
+), facts AS (
+	-- Every request has exactly one (provider, provider_name, model, client), so
+	-- these sums roll up additively into each coarser grain below.
+	SELECT
+		r.provider, r.provider_name, r.model, r.client,
+		r.request_count,
+		COALESCE(usage.total_cost_micros, 0)::bigint AS total_cost_micros,
+		COALESCE(unpriced.unpriced_request_count, 0)::bigint AS unpriced_request_count,
+		COALESCE(usage.input_tokens, 0)::bigint AS input_tokens,
+		COALESCE(usage.output_tokens, 0)::bigint AS output_tokens,
+		COALESCE(usage.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
+		COALESCE(usage.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens
+	FROM requests r
+	LEFT JOIN usage ON (usage.provider, usage.provider_name, usage.model, usage.client) = (r.provider, r.provider_name, r.model, r.client)
+	LEFT JOIN unpriced ON (unpriced.provider, unpriced.provider_name, unpriced.model, unpriced.client) = (r.provider, r.provider_name, r.model, r.client)
+), rollups AS (
+	SELECT
+		CASE GROUPING(provider, provider_name, model, client)
+			WHEN 15 THEN 'total'
+			WHEN 3 THEN 'provider'
+			WHEN 1 THEN 'model'
+			ELSE 'client'
+		END::text AS grain,
+		COALESCE(provider, '')::text AS provider,
+		COALESCE(provider_name, '')::text AS provider_name,
+		COALESCE(model, '')::text AS model,
+		COALESCE(client, '')::text AS client,
+		-- The empty grouping set yields a total row even without input rows;
+		-- COALESCE keeps that row's sums at zero instead of NULL.
+		COALESCE(SUM(total_cost_micros), 0)::bigint AS total_cost_micros,
+		COALESCE(SUM(request_count), 0)::bigint AS request_count,
+		COALESCE(SUM(unpriced_request_count), 0)::bigint AS unpriced_request_count,
+		COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	FROM facts
+	GROUP BY GROUPING SETS ((), (provider, provider_name), (provider, provider_name, model), (client))
+), ranked AS (
+	SELECT *,
+		ROW_NUMBER() OVER (PARTITION BY grain ORDER BY total_cost_micros DESC, provider ASC, provider_name ASC, model ASC, client ASC) AS rank,
+		COUNT(*) OVER (PARTITION BY grain)::bigint AS total_count
+	FROM rollups
+)
+SELECT grain, provider, provider_name, model, client, total_cost_micros, request_count, unpriced_request_count, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, total_count
+FROM ranked
+WHERE rank <= @limit_count::int
+ORDER BY grain, rank;
