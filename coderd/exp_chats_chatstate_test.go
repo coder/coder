@@ -245,11 +245,9 @@ func TestDeleteChatQueuedMessageMissingReturns404(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
-// TestDeleteChatQueuedMessageEmptyQueueReturns404 covers a chat with
-// no queued rows. The "0" states admit DeleteQueuedMessage because a
-// held head can hide queued rows from the classifier, so an empty
-// queue is not a state conflict; the missing row is a 404.
-func TestDeleteChatQueuedMessageEmptyQueueReturns404(t *testing.T) {
+// TestDeleteChatQueuedMessageEmptyQueueReturnsConflict covers the
+// state-conflict 409 path when the chat has no queued messages.
+func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -271,7 +269,7 @@ func TestDeleteChatQueuedMessageEmptyQueueReturns404(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer res.Body.Close()
-	require.Equal(t, http.StatusNotFound, res.StatusCode)
+	require.Equal(t, http.StatusConflict, res.StatusCode)
 }
 
 // TestPromoteChatQueuedMessageMissingReturns404 mirrors the delete
@@ -309,10 +307,9 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
-// TestPromoteChatQueuedMessageEmptyQueueReturns404 mirrors the delete
-// test: an empty queue is not a state conflict, the missing row is a
-// 404.
-func TestPromoteChatQueuedMessageEmptyQueueReturns404(t *testing.T) {
+// TestPromoteChatQueuedMessageEmptyQueueReturnsConflict verifies
+// the state-conflict 409 path when the chat has no queued messages.
+func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -334,7 +331,7 @@ func TestPromoteChatQueuedMessageEmptyQueueReturns404(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer res.Body.Close()
-	require.Equal(t, http.StatusNotFound, res.StatusCode)
+	require.Equal(t, http.StatusConflict, res.StatusCode)
 }
 
 // TestInterruptChatIdleReturnsConflict verifies that interrupting an
