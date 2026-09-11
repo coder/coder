@@ -135,6 +135,51 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		require.Equal(t, "Queued message not found.", sdkErr.Message)
 	})
 
+	t.Run("DeleteHeldHeadOnIdleChatStartsNext", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "delete held head",
+			Status:            database.ChatStatusWaiting,
+		})
+		held := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "held"), modelConfig.ID)
+		insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "next"), modelConfig.ID)
+		_, err := db.UpdateChatQueuedMessageHeld(dbauthz.AsSystemRestricted(ctx), database.UpdateChatQueuedMessageHeldParams{
+			ChatID: chat.ID,
+			ID:     held.ID,
+			Held:   true,
+		})
+		require.NoError(t, err)
+
+		// Removing the held head unpauses the row behind it. On an idle
+		// chat that row is started, as "send now" would.
+		res, err := client.Request(ctx, http.MethodDelete,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, held.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+
+		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Empty(t, listed.QueuedMessages)
+		require.NotEmpty(t, listed.Messages)
+		promoted := listed.Messages[len(listed.Messages)-1]
+		require.Equal(t, codersdk.ChatMessageRoleUser, promoted.Role)
+		require.Equal(t, "next", promoted.Content[0].Text)
+
+		refreshed, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, refreshed.Status)
+	})
+
 	t.Run("Guards", func(t *testing.T) {
 		t.Parallel()
 
