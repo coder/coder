@@ -1041,6 +1041,77 @@ title: Schemas
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
 
+## codersdk.AIGatewaySpendUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_tokens": 0,
+  "name": "string",
+  "output_tokens": 0,
+  "request_count": 0,
+  "session_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_request_count": 0,
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `avatar_url`               | string  | false    |              |             |
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `id`                       | string  | true     |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `name`                     | string  | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `request_count`            | integer | false    |              |             |
+| `session_count`            | integer | false    |              |             |
+| `total_cost_micros`        | integer | false    |              |             |
+| `unpriced_request_count`   | integer | false    |              |             |
+| `username`                 | string  | true     |              |             |
+
+## codersdk.AIGatewaySpendUsersResponse
+
+```json
+{
+  "count": 0,
+  "end_date": "2019-08-24T14:15:22Z",
+  "start_date": "2019-08-24T14:15:22Z",
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "name": "string",
+      "output_tokens": 0,
+      "request_count": 0,
+      "session_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0,
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `count`      | integer                                                             | false    |              |             |
+| `end_date`   | string                                                              | false    |              |             |
+| `start_date` | string                                                              | false    |              |             |
+| `users`      | array of [codersdk.AIGatewaySpendUser](#codersdkaigatewayspenduser) | false    |              |             |
+
 ## codersdk.AIModelPrice
 
 ```json
