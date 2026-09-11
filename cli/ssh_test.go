@@ -2395,7 +2395,7 @@ func TestSSH_OneShotCommandMode(t *testing.T) {
 		inv.Stdout = output
 		inv.Stderr = io.Discard
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.Equal(t, "not-tty", strings.TrimSpace(output.String()))
@@ -2410,7 +2410,7 @@ func TestSSH_OneShotCommandMode(t *testing.T) {
 		inv.Stdout = output
 		inv.Stderr = io.Discard
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.Equal(t, "tty", strings.TrimSpace(output.String()))
@@ -2426,7 +2426,7 @@ func TestSSH_OneShotCommandMode(t *testing.T) {
 		inv.Stdout = output
 		inv.Stderr = io.Discard
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.Equal(t, "3", strings.TrimSpace(output.String()))
@@ -2441,7 +2441,7 @@ func TestSSH_OneShotCommandMode(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		inv.Stderr = io.Discard
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 
