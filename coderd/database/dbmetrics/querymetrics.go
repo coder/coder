@@ -2585,6 +2585,22 @@ func (m queryMetricsStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrganizationAIFOCUSUsage(ctx context.Context, arg database.GetOrganizationAIFOCUSUsageParams) ([]database.GetOrganizationAIFOCUSUsageRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationAIFOCUSUsage(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationAIFOCUSUsage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAIFOCUSUsage").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationAIFOCUSUsageRollup(ctx context.Context, arg database.GetOrganizationAIFOCUSUsageRollupParams) ([]database.GetOrganizationAIFOCUSUsageRollupRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationAIFOCUSUsageRollup(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationAIFOCUSUsageRollup").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAIFOCUSUsageRollup").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationByID(ctx, id)

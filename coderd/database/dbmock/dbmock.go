@@ -4845,6 +4845,36 @@ func (mr *MockStoreMockRecorder) GetOldUnlinkedChatFileIDs(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOldUnlinkedChatFileIDs", reflect.TypeOf((*MockStore)(nil).GetOldUnlinkedChatFileIDs), ctx, arg)
 }
 
+// GetOrganizationAIFOCUSUsage mocks base method.
+func (m *MockStore) GetOrganizationAIFOCUSUsage(ctx context.Context, arg database.GetOrganizationAIFOCUSUsageParams) ([]database.GetOrganizationAIFOCUSUsageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationAIFOCUSUsage", ctx, arg)
+	ret0, _ := ret[0].([]database.GetOrganizationAIFOCUSUsageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationAIFOCUSUsage indicates an expected call of GetOrganizationAIFOCUSUsage.
+func (mr *MockStoreMockRecorder) GetOrganizationAIFOCUSUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationAIFOCUSUsage", reflect.TypeOf((*MockStore)(nil).GetOrganizationAIFOCUSUsage), ctx, arg)
+}
+
+// GetOrganizationAIFOCUSUsageRollup mocks base method.
+func (m *MockStore) GetOrganizationAIFOCUSUsageRollup(ctx context.Context, arg database.GetOrganizationAIFOCUSUsageRollupParams) ([]database.GetOrganizationAIFOCUSUsageRollupRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationAIFOCUSUsageRollup", ctx, arg)
+	ret0, _ := ret[0].([]database.GetOrganizationAIFOCUSUsageRollupRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationAIFOCUSUsageRollup indicates an expected call of GetOrganizationAIFOCUSUsageRollup.
+func (mr *MockStoreMockRecorder) GetOrganizationAIFOCUSUsageRollup(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationAIFOCUSUsageRollup", reflect.TypeOf((*MockStore)(nil).GetOrganizationAIFOCUSUsageRollup), ctx, arg)
+}
+
 // GetOrganizationByID mocks base method.
 func (m *MockStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	m.ctrl.T.Helper()

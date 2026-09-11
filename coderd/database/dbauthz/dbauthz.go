@@ -4380,6 +4380,14 @@ func (q *querier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.Ge
 	return q.db.GetOldUnlinkedChatFileIDs(ctx, arg)
 }
 
+func (q *querier) GetOrganizationAIFOCUSUsage(ctx context.Context, arg database.GetOrganizationAIFOCUSUsageParams) ([]database.GetOrganizationAIFOCUSUsageRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationAIFOCUSUsage)(ctx, arg)
+}
+
+func (q *querier) GetOrganizationAIFOCUSUsageRollup(ctx context.Context, arg database.GetOrganizationAIFOCUSUsageRollupParams) ([]database.GetOrganizationAIFOCUSUsageRollupRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationAIFOCUSUsageRollup)(ctx, arg)
+}
+
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }
