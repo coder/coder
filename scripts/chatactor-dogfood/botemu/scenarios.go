@@ -334,6 +334,7 @@ func s3JoinOrdering(ctx context.Context, st *state, r *reporter) error {
 const whoamiPrompt = "Call the whoami tool and reply with its exact output."
 
 func s4MCPIdentity(ctx context.Context, st *state, r *reporter) error {
+	// The org path parameter needs organization:read (404 without it), and
 	// listMCPServerConfigs filters by mcp_server_config read for non-admins,
 	// so a token without mcp_server_config:read sees an empty list here.
 	bob := st.tokenClient("bob")

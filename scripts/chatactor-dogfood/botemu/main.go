@@ -47,9 +47,9 @@ const (
 	// model is available" (S2). Posting, interrupting, and submitting tool
 	// results need chat:use. A bot does not need chat:update; it stays
 	// here so the S7 archive denial exercises the chat ACL, not the scope.
-	// Without mcp_server_config:read, GET /organizations/{org}/mcp-servers
-	// returns an empty list for a scoped token (S4).
-	botScopes = "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read mcp_server_config:read"
+	// GET /organizations/{org}/mcp-servers needs organization:read for the
+	// org path parameter and mcp_server_config:read for a non-empty list (S4).
+	botScopes = "chat:create chat:read chat:use chat:update chat:share workspace:read workspace:share user:read_personal user:read workspace:ssh chat_model_config:read organization:read mcp_server_config:read"
 	// noShareScopes is a bot scope set without chat:share, used only to
 	// prove that PATCH /chats/{id}/acl is denied without that scope.
 	noShareScopes = "chat:create chat:read chat:use chat:update workspace:read workspace:share user:read_personal"
