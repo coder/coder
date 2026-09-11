@@ -2918,6 +2918,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
@@ -2927,6 +2928,16 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Deleting the held head of an idle chat starts the message behind
+	// it, which is LLM inference under the owner's credentials. Only the
+	// chat owner may do that; see postChatMessages for the rationale.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may delete queued messages.",
+		})
 		return
 	}
 
@@ -2947,11 +2958,13 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
+		case xerrors.Is(err, chatd.ErrNoDefaultChatModelConfig):
+			writeNoLocalChatModelResponse(ctx, rw)
 		case errors.Is(err, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
-		case errors.Is(err, chatstate.ErrTransitionNotAllowed), errors.Is(err, chatstate.ErrIdleHeadWouldBecomePromotable):
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat is not in a state that accepts queued message deletion.",
 				Detail:  err.Error(),
@@ -3183,7 +3196,11 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, editErr):
 			// response already written
-		case errors.Is(editErr, chatstate.ErrTransitionNotAllowed), errors.Is(editErr, chatstate.ErrIdleHeadWouldBecomePromotable):
+		case errors.Is(editErr, chatstate.ErrInvalidResultState):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Moving the hold would leave the held message ready to send on an idle chat. Send or remove it first.",
+			})
+		case errors.Is(editErr, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat is not in a state that accepts queued message edits.",
 				Detail:  editErr.Error(),

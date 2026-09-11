@@ -815,13 +815,12 @@ type DeleteQueuedMessageResult struct {
 
 // DeleteQueuedMessage removes a single queued user message.
 //
-// From W the target is a held head or a row behind one. Deleting a held
-// head whose successor is promotable would leave an idle chat with a
-// promotable head, which has no execution state, so that case is
-// refused; the caller promotes the successor first (see
-// [Tx.PromoteQueuedMessage]) and then deletes.
+// Deleting the held head of an idle chat exposes the row behind it as a
+// promotable head, which waiting has no state for; [ChatMachine.Update]
+// rolls that back. Callers promote the successor first (see
+// [Tx.PromoteQueuedMessage]) and then delete.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
-	_, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -834,11 +833,6 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	}
 	if err != nil {
 		return DeleteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
-	}
-	if from == StateW {
-		if err := tx.requireIdleDeleteKeepsHeadUnpromotable(target); err != nil {
-			return DeleteQueuedMessageResult{}, err
-		}
 	}
 	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     input.QueuedMessageID,
@@ -878,15 +872,17 @@ type EditQueuedMessageResult struct {
 
 // EditQueuedMessage rewrites a queued row's content and/or its hold.
 //
-// A hold splits the queue: the first held row and everything behind it
-// are invisible to the classifier, so FinishTurn, FinishInterruption,
-// and SendMessage from E1 stop promoting at that row while rows ahead
-// of it drain normally. Explicit actions (a direct send on an idle chat,
-// PromoteQueuedMessage) go around the hold.
+// A chat has at most one held row. The hold splits the queue: the held
+// row and everything behind it are invisible to the classifier, so
+// FinishTurn, FinishInterruption, and SendMessage from E1 stop
+// promoting at that row while rows ahead of it drain normally. Holding
+// a row while another is held moves the hold in the same transaction,
+// so there is never a moment with no hold. Explicit actions (a send on
+// an idle chat, PromoteQueuedMessage) are not blocked by the hold.
 //
-// Clearing the hold on the head of an idle chat is refused: it would
-// leave waiting with a promotable head, which has no execution state.
-// Releasing that row means starting it, which is
+// Clearing the hold on the head of an idle chat exposes a promotable
+// head, which waiting has no state for; [ChatMachine.Update] rolls that
+// back. Releasing that row means starting it, which is
 // [Tx.PromoteQueuedMessage].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	_, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
@@ -909,11 +905,6 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 	if err != nil {
 		return EditQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	if from == StateW && input.Held != nil && !*input.Held {
-		if err := tx.requireIdleReleaseKeepsHeadUnpromotable(row); err != nil {
-			return EditQueuedMessageResult{}, err
-		}
-	}
 	if input.Content != nil {
 		modelConfig := row.ModelConfigID
 		if input.ModelConfigIDOverride.Valid {
@@ -935,6 +926,13 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 		}
 	}
 	if input.Held != nil {
+		if *input.Held && !row.HeldAt.Valid {
+			// Move the hold: clear the previous holder before setting
+			// this one so the one-held-row index is never violated.
+			if err := tx.releaseOtherHold(row.ID); err != nil {
+				return EditQueuedMessageResult{}, err
+			}
+		}
 		row, err = tx.store.UpdateChatQueuedMessageHeld(tx.ctx, database.UpdateChatQueuedMessageHeldParams{
 			ID:     row.ID,
 			ChatID: tx.chatID,
@@ -947,33 +945,23 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 	return EditQueuedMessageResult{QueuedMessage: row}, nil
 }
 
-// ErrIdleHeadWouldBecomePromotable is returned by EditQueuedMessage and
-// DeleteQueuedMessage from W when the change would leave the idle chat
-// with a promotable head. The caller must promote that head instead.
-var ErrIdleHeadWouldBecomePromotable = xerrors.New("chatstate: change would leave an idle chat with a promotable head; promote it instead")
-
-// requireIdleReleaseKeepsHeadUnpromotable guards the W invariant when
-// clearing row's hold: the row must not be the head.
-func (tx *Tx) requireIdleReleaseKeepsHeadUnpromotable(row database.ChatQueuedMessage) error {
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
-	if err != nil {
-		return xerrors.Errorf("get queue head: %w", err)
-	}
-	if head.ID == row.ID {
-		return ErrIdleHeadWouldBecomePromotable
-	}
-	return nil
-}
-
-// requireIdleDeleteKeepsHeadUnpromotable guards the W invariant when
-// deleting row: if it is the head, the row behind it must be held too.
-func (tx *Tx) requireIdleDeleteKeepsHeadUnpromotable(row database.ChatQueuedMessage) error {
+// releaseOtherHold clears the chat's held row if it is not exceptID.
+func (tx *Tx) releaseOtherHold(exceptID int64) error {
 	queue, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
 	if err != nil {
 		return xerrors.Errorf("get queued messages: %w", err)
 	}
-	if len(queue) > 1 && queue[0].ID == row.ID && !queue[1].HeldAt.Valid {
-		return ErrIdleHeadWouldBecomePromotable
+	for _, other := range queue {
+		if !other.HeldAt.Valid || other.ID == exceptID {
+			continue
+		}
+		if _, err := tx.store.UpdateChatQueuedMessageHeld(tx.ctx, database.UpdateChatQueuedMessageHeldParams{
+			ID:     other.ID,
+			ChatID: tx.chatID,
+			Held:   false,
+		}); err != nil {
+			return xerrors.Errorf("release previous hold: %w", err)
+		}
 	}
 	return nil
 }
