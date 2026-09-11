@@ -1,10 +1,8 @@
-import { cn } from "cn";
-import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
+import { ChevronDownIcon, LockIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { mcpServerOAuth2ConnectPath } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
@@ -18,6 +16,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { MCPServerIcon, MCPServerIconStack } from "./MCPServerIconStack";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -48,29 +47,6 @@ const availabilityLabel = (a: string) => {
 		default:
 			return a;
 	}
-};
-
-const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
-	iconUrl,
-	name,
-	className,
-}) => {
-	const icon = iconUrl ? (
-		<ExternalImage src={iconUrl} alt={`${name} icon`} className="size-3/5" />
-	) : (
-		<ServerIcon className="size-3/5 text-content-secondary" />
-	);
-
-	return (
-		<div
-			className={cn(
-				"flex shrink-0 items-center justify-center rounded-full bg-surface-secondary",
-				className,
-			)}
-		>
-			{icon}
-		</div>
-	);
 };
 
 /**
@@ -172,40 +148,6 @@ export const saveMCPSelection = (
 	);
 };
 
-// ── Overlapping icon stack for the trigger ─────────────────────
-
-const ICON_STACK_MAX = 3;
-
-const TriggerIconStack: FC<{
-	servers: readonly TypesGen.MCPServerConfig[];
-}> = ({ servers }) => {
-	const visible = servers.slice(0, ICON_STACK_MAX);
-	return (
-		<span className="inline-flex items-center">
-			{visible.map((s, i) => (
-				<span
-					key={s.id}
-					className={cn(
-						"inline-flex rounded-full ring-1 ring-surface-primary",
-						i > 0 && "-ml-1.5",
-					)}
-				>
-					<MCPIcon
-						iconUrl={s.icon_url}
-						name={s.display_name}
-						className="size-4"
-					/>
-				</span>
-			))}
-			{servers.length > ICON_STACK_MAX && (
-				<span className="-ml-1 inline-flex size-4 items-center justify-center rounded-full bg-surface-secondary text-[9px] font-medium text-content-secondary ring-1 ring-surface-primary">
-					+{servers.length - ICON_STACK_MAX}
-				</span>
-			)}
-		</span>
-	);
-};
-
 // ── Component ──────────────────────────────────────────────────
 
 export const MCPServerPicker: FC<MCPServerPickerProps> = ({
@@ -303,7 +245,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 				>
 					<span>MCP</span>
 					{activeServers.length > 0 && (
-						<TriggerIconStack servers={activeServers} />
+						<MCPServerIconStack servers={activeServers} />
 					)}
 					<ChevronDownIcon className="ml-auto size-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
@@ -323,7 +265,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 								<Tooltip key={server.id}>
 									<TooltipTrigger asChild>
 										<div className="flex items-center gap-2 px-2.5 py-1.5">
-											<MCPIcon
+											<MCPServerIcon
 												iconUrl={server.icon_url}
 												name={server.display_name}
 												className="size-5"

@@ -4,6 +4,7 @@ import {
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
+	LockIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -90,6 +91,7 @@ import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
+import { MCPServerIcon, MCPServerIconStack } from "./MCPServerIconStack";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -222,6 +224,7 @@ type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
+	| { kind: "mcp-group"; servers: readonly TypesGen.MCPServerConfig[] }
 	| { kind: "planning" };
 
 // Small `X` button rendered inside pill-style badges (attached
@@ -334,6 +337,53 @@ const ToolBadge: FC<{
 					/>
 				)}
 			</span>
+		);
+	}
+
+	if (badge.kind === "mcp-group") {
+		const label = `${badge.servers.length} MCP servers`;
+		return (
+			<Popover>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						aria-label={label}
+						className={cn(
+							badgeCls,
+							"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						)}
+					>
+						<MCPServerIconStack servers={badge.servers} />
+						{label}
+					</button>
+				</PopoverTrigger>
+				<PopoverContent side="top" align="start" className="w-56 p-1">
+					{badge.servers.map((server) => (
+						<div
+							key={server.id}
+							className="flex items-center gap-1.5 px-1 py-1.5 text-xs"
+						>
+							<MCPServerIcon
+								iconUrl={server.icon_url}
+								name={server.display_name}
+								className="size-4"
+							/>
+							<span className="flex-1 truncate">{server.display_name}</span>
+							{server.availability === "force_on" ? (
+								<LockIcon className="size-3 text-content-secondary" />
+							) : (
+								onRemoveMcp && (
+									<BadgeDismissButton
+										ariaLabel={`Remove ${server.display_name}`}
+										onClick={() => onRemoveMcp(server.id)}
+										isDisabled={isDisabled}
+									/>
+								)
+							)}
+						</div>
+					))}
+				</PopoverContent>
+			</Popover>
 		);
 	}
 
@@ -631,8 +681,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
-	for (const s of activeMcpServers) {
-		allBadges.push({ kind: "mcp", server: s });
+	if (activeMcpServers.length > 1) {
+		allBadges.push({ kind: "mcp-group", servers: activeMcpServers });
+	} else {
+		for (const server of activeMcpServers) {
+			allBadges.push({ kind: "mcp", server });
+		}
 	}
 
 	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
@@ -1597,7 +1651,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												key={
 													badge.kind === "mcp"
 														? badge.server.id
-														: `${badge.kind}-overflow-${visibleCount + i}`
+														: badge.kind === "mcp-group"
+															? badge.kind
+															: `${badge.kind}-overflow-${visibleCount + i}`
 												}
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}

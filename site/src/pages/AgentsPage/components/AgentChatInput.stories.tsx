@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { type ComponentProps, useEffect, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -687,13 +687,31 @@ const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
+/** Multiple selected servers share one grouped pill with an icon stack. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
 		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
 	},
+};
+
+export const MCPGroupPopoverOpen: Story = {
+	args: WithMCPServers.args,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "3 MCP servers" }),
+		);
+		await within(document.body).findByRole("dialog");
+	},
+};
+
+export const MCPGroupDisabled: Story = {
+	args: {
+		...WithMCPServers.args,
+		isDisabled: true,
+	},
+	play: MCPGroupPopoverOpen.play,
 };
 
 /** MCP server needing OAuth — shows Auth button instead of toggle. */
@@ -1277,26 +1295,57 @@ const pagerdutyMCP = buildMCPServer({
 	enabled: true,
 });
 
-// Wide badges that cannot fit force into +N overflow.
-const confluenceWideMCP = buildMCPServer({
-	id: "mcp-confluence-wide",
-	display_name: "Confluence Cloud Enterprise Wiki",
-	slug: "confluence-wide",
-	availability: "default_on",
-	auth_type: "none",
-	enabled: true,
-});
+const mockOverflowAttachedWorkspace = {
+	id: MockWorkspace.id,
+	name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline",
+	route: "/@admin/attached",
+	statusIcon: <MonitorDotIcon className="size-3" />,
+	statusLabel: "Workspace running",
+} satisfies ComponentProps<typeof AgentChatInput>["attachedWorkspace"];
 
-const datadogWideMCP = buildMCPServer({
-	id: "mcp-datadog-wide",
-	display_name: "Datadog Infrastructure Monitoring",
-	slug: "datadog-wide",
-	availability: "default_on",
-	auth_type: "none",
-	enabled: true,
-});
+export const MCPGroupMoreThanThree: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			notionMCPConnected,
+			confluenceMCP,
+		],
+		selectedMCPServerIds: [
+			sentryMCP.id,
+			linearMCP.id,
+			githubMCPConnected.id,
+			notionMCPConnected.id,
+			confluenceMCP.id,
+		],
+	},
+};
 
-/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
+export const MCPGroupInOverflow: Story = {
+	args: {
+		...WithMCPServers.args,
+		attachedWorkspace: mockOverflowAttachedWorkspace,
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", { name: /more item/ }),
+		);
+		const overflow = await within(document.body).findByRole("dialog");
+		await userEvent.click(
+			within(overflow).getByRole("button", { name: "3 MCP servers" }),
+		);
+		await within(document.body).findByRole("button", { name: "Remove Linear" });
+	},
+};
+
+/** A long attached workspace keeps the grouped tools in the "+N" overflow. */
 export const OverflowBadges: Story = {
 	args: {
 		...mcpDefaults,
@@ -1316,31 +1365,8 @@ export const OverflowBadges: Story = {
 			datadogMCP.id,
 			pagerdutyMCP.id,
 		],
-		workspaceOptions: [
-			{
-				id: "ws-1",
-				name: "my-long-workspace-name",
-				owner_name: "admin",
-				organization_id: "org-1",
-			},
-		],
-		selectedWorkspaceId: "ws-1",
+		attachedWorkspace: mockOverflowAttachedWorkspace,
 		onWorkspaceChange: fn(),
-		attachedWorkspace: {
-			id: "ws-1",
-			name: "my-long-workspace-name",
-			route: "/@admin/my-long-workspace-name",
-			statusIcon: <MonitorDotIcon className="size-3" />,
-			statusLabel: "Workspace running",
-		},
-		workspace: {
-			...MockWorkspace,
-			id: "ws-1",
-			name: "my-long-workspace-name",
-			owner_name: "admin",
-		},
-		workspaceAgent: MockWorkspaceAgent,
-		chatId: "overflow-chat-id",
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1552,8 +1578,9 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 				displayName: "Claude Sonnet 4.5",
 			},
 		],
-		mcpServers: [confluenceWideMCP, datadogWideMCP],
-		selectedMCPServerIds: [confluenceWideMCP.id, datadogWideMCP.id],
+		mcpServers: [confluenceMCP, datadogMCP],
+		selectedMCPServerIds: [confluenceMCP.id, datadogMCP.id],
+		attachedWorkspace: mockOverflowAttachedWorkspace,
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
