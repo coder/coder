@@ -956,6 +956,7 @@ func New(options *Options) *API {
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
 				StageMetrics:                   codersdk.NewChatStageMetricsLevelFromString(options.DeploymentValues.AI.Chat.StageMetrics),
+				TracerProvider:                 options.TracerProvider,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
