@@ -63,13 +63,9 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 						the project can read them.
 					</p>
 				</div>
-				<Button
-					variant="outline"
-					size="icon"
-					aria-label="Add memory"
-					onClick={() => setEditingMemory(null)}
-				>
+				<Button onClick={() => setEditingMemory(null)}>
 					<PlusIcon />
+					Add memory
 				</Button>
 			</div>
 			{memories.length === 0 ? (
