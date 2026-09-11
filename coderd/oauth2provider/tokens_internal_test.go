@@ -917,7 +917,6 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 	}
 }
 
-// TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh
 // Every failure is errBadSecret so the caller cannot tell a malformed secret
 // from a valid one for the wrong app (RFC 6749 §5.2). The fourth row is the
 // step a retyped copy of the check would be most likely to lose.
@@ -925,7 +924,6 @@ func TestAuthenticateClient(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	seed := func(t *testing.T) (database.OAuth2ProviderApp, database.OAuth2ProviderAppSecret, string) {
 		t.Helper()
@@ -963,6 +961,7 @@ func TestAuthenticateClient(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
 
 			got, err := authenticateClient(ctx, db, app, test.secret)
 			if test.want != nil {
@@ -1017,6 +1016,7 @@ func TestMergeBasicClientAuth(t *testing.T) {
 	}
 }
 
+// TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh
 func TestRefreshTokenGrant_Scopes(t *testing.T) {
 	t.Parallel()
 
