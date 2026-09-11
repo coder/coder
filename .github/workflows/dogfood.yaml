@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image-version: ["22.04", "26.04"]
+        image-version: ["26.04"]
 
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
@@ -206,26 +206,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
 
-      - name: Push final Ubuntu 22.04 image
-        if: matrix.image-version == '22.04' && github.ref == 'refs/heads/main'
-        env:
-          FINAL_SHA: ${{ steps.shas.outputs.final_sha }}
-          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
-        # --image-dir points at the OCI layout written by the previous
-        # `mise oci build` step. Without it, `mise oci push` rebuilds
-        # from mise.toml and forgets the --from base. --tool crane
-        # forces the registry client mise oci shells out to, so we
-        # don't drift between the apt-shipped skopeo on whatever runner
-        # image we land on.
-        # TODO: move the `latest` tag to 26.04 soon. we don't want to
-        # transition it immediately because that would make workspaces
-        # switch to it automatically without any grace period.
-        run: |
-          set -euo pipefail
-          for tag in "${FINAL_SHA}-22.04" "$DOCKER_TAG" 22.04 latest; do
-            mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
-          done
-
       - name: Push final Ubuntu 26.04 image
         if: matrix.image-version == '26.04' && github.ref == 'refs/heads/main'
         env:
@@ -233,7 +213,7 @@ jobs:
           DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
         run: |
           set -euo pipefail
-          for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04; do
+          for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04 latest; do
             mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
           done
 
@@ -248,7 +228,7 @@ jobs:
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
-        if: matrix.image-version == '22.04'
+        if: matrix.image-version == '26.04'
 
   deploy_template:
     needs: build_image
