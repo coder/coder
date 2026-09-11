@@ -101,11 +101,12 @@ func TestHold_FinishTurnStopsAtHeldRow(t *testing.T) {
 	})
 	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 
-	// Releasing from W promotes row three and leaves four and five
-	// promotable behind it.
+	// Releasing from W exposes row three as the head; the machine's
+	// settle step promotes it and leaves four and five promotable
+	// behind it.
 	released := holdViaTransition(t, f, m, ids[2], false)
-	require.NotNil(t, released.PromotedMessage)
-	assertChatMessageText(t, *released.PromotedMessage, bodies[2])
+	require.False(t, released.QueuedMessage.HeldAt.Valid)
+	assertChatMessageText(t, requireLatestHistoryMessage(ctx, t, f, chatID), bodies[2])
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
 }
