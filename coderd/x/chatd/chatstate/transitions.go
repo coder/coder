@@ -811,18 +811,11 @@ type DeleteQueuedMessageInput struct {
 // DeleteQueuedMessageResult is returned by [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
-	// PromotedMessage is set when deleting a held head while the chat
-	// was waiting exposed a promotable head, which was popped into
-	// history and the chat set running in this transaction.
-	PromotedMessage      *database.ChatMessage
-	CancellationMessages []database.ChatMessage
 }
 
-// DeleteQueuedMessage removes a single queued user message. Deleting a
-// held head while the chat is waiting can expose a promotable head; that
-// head is promoted in the same transaction (see promoteHeadIfWaiting).
+// DeleteQueuedMessage removes a single queued user message.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
-	chat, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -846,14 +839,8 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if rows == 0 {
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
-	promoted, cancels, err := tx.promoteHeadIfWaiting(chat)
-	if err != nil {
-		return DeleteQueuedMessageResult{}, err
-	}
 	return DeleteQueuedMessageResult{
 		DeletedQueuedMessage: target,
-		PromotedMessage:      promoted,
-		CancellationMessages: cancels,
 	}, nil
 }
 
@@ -875,14 +862,10 @@ type EditQueuedMessageInput struct {
 
 // EditQueuedMessageResult is returned by [Tx.EditQueuedMessage].
 type EditQueuedMessageResult struct {
-	// QueuedMessage is the row after the edit. When PromotedMessage is
-	// set the row no longer exists in the queue.
+	// QueuedMessage is the row after the edit. If clearing the hold
+	// exposed it as the head of an idle chat, settleQueue promotes it
+	// before the transaction commits and the row no longer exists.
 	QueuedMessage database.ChatQueuedMessage
-	// PromotedMessage is set when clearing the hold while the chat was
-	// waiting exposed the row as the promotable head; it was popped into
-	// history and the chat set running in this transaction.
-	PromotedMessage      *database.ChatMessage
-	CancellationMessages []database.ChatMessage
 }
 
 // EditQueuedMessage rewrites a queued row's content and/or its hold.
@@ -893,7 +876,7 @@ type EditQueuedMessageResult struct {
 // of it drain normally. Explicit actions (a direct send on an idle chat,
 // PromoteQueuedMessage) go around the hold.
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
+	_, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
 	if err != nil {
 		return EditQueuedMessageResult{}, err
 	}
@@ -943,44 +926,29 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 			return EditQueuedMessageResult{}, xerrors.Errorf("update queued held: %w", err)
 		}
 	}
-	result := EditQueuedMessageResult{QueuedMessage: row}
-	if input.Held != nil && !*input.Held {
-		result.PromotedMessage, result.CancellationMessages, err = tx.promoteHeadIfWaiting(chat)
-		if err != nil {
-			return EditQueuedMessageResult{}, err
-		}
-	}
-	return result, nil
+	return EditQueuedMessageResult{QueuedMessage: row}, nil
 }
 
-// promoteHeadIfWaiting keeps the waiting status free of a promotable
-// head, which the classifier treats as invalid. Transitions that can
-// expose the head while the chat is waiting (clearing a hold, deleting
-// a held head) call it last. When the head is promotable it is popped
-// into history and the chat set running, as a direct send would do.
-// Any other status leaves the head for FinishTurn or FinishInterruption
-// to promote in order. The error status is deliberately excluded: the
-// chat lands in E1 and stays parked until a send or edit clears it.
-func (tx *Tx) promoteHeadIfWaiting(chat database.Chat) (*database.ChatMessage, []database.ChatMessage, error) {
-	if chat.Status != database.ChatStatusWaiting || chat.Archived {
-		return nil, nil, nil
-	}
-	queue, err := LoadQueueState(tx.ctx, tx.store, tx.chatID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !queue.HasPromotableHead {
-		return nil, nil, nil
+// settleQueue runs after every transition in [ChatMachine.Update]. It
+// handles the one shape a queue rewrite can leave behind that has no
+// execution state: waiting with a promotable head. Releasing a hold or
+// deleting a held head on an idle chat exposes the next row; that row is
+// popped into history and the chat set running, as a direct send would
+// do. Every other status keeps its head for the turn boundary
+// (FinishTurn, FinishInterruption) or for an explicit promote, and the
+// error status stays parked as E1. Returns true when it promoted.
+func (tx *Tx) settleQueue(chat database.Chat, state ExecutionState) (bool, error) {
+	if state != StateInvalid || chat.Status != database.ChatStatusWaiting || chat.Archived {
+		return false, nil
 	}
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get queue head: %w", err)
+		return false, xerrors.Errorf("get queue head: %w", err)
 	}
-	promoted, cancels, err := tx.promoteQueuedRowIntoHistory(chat, head)
-	if err != nil {
-		return nil, nil, err
+	if _, _, err := tx.promoteQueuedRowIntoHistory(chat, head); err != nil {
+		return false, err
 	}
-	return &promoted, cancels, nil
+	return true, nil
 }
 
 // promoteQueuedRowIntoHistory pops target out of the queue into active
