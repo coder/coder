@@ -277,15 +277,16 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "error_message": "string",
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "interceptions": [
-        {
-          "attribution": {
-            "property1": "string",
-            "property2": "string"
-          },
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      "interception_attributions": {
+        "property1": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "property2": {
+          "property1": "string",
+          "property2": "string"
         }
-      ],
+      },
       "model": "string",
       "prompt": "string",
       "provider": "string",

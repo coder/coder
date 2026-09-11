@@ -17414,6 +17414,12 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeAttribution": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
@@ -17468,22 +17474,6 @@ const docTemplate = `{
                 },
                 "structured_logging": {
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.AIBridgeInterceptionReference": {
-            "type": "object",
-            "properties": {
-                "attribution": {
-                    "description": "Attribution carries workspace_id when the interception can be attributed\nto a specific workspace. Nil when the workspace context is unknown.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },
@@ -17795,11 +17785,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "interceptions": {
-                    "description": "Interceptions lists every interception in this thread in chronological\nquery order, including tool-less rows. Use this for per-interception\nattribution and audit rather than AgenticActions, which only covers\ninterceptions that produced tool calls.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeInterceptionReference"
+                "interception_attributions": {
+                    "description": "InterceptionAttributions maps every interception ID (UUID string) in this\nthread to its attribution, including tool-less rows. The inner map carries\nworkspace_id when the interception can be attributed to a specific\nworkspace, and is null when the workspace context is unknown. The outer\nmap is always present (serializes as {}, never null) so callers can\ndistinguish an empty thread from a missing field. Use this for\nper-interception attribution and audit rather than AgenticActions, which\nonly covers interceptions that produced tool calls.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.AIBridgeAttribution"
                     }
                 },
                 "model": {

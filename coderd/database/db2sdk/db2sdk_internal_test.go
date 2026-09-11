@@ -362,7 +362,8 @@ func TestAIBridgeInterceptionAttribution(t *testing.T) {
 }
 
 // TestBuildAIBridgeThreadInterceptions verifies that every interception,
-// including tool-less rows, appears in query order with per-row attribution.
+// including tool-less rows, appears in the map keyed by interception ID string,
+// with nil attribution for unknown-workspace rows.
 func TestBuildAIBridgeThreadInterceptions(t *testing.T) {
 	t.Parallel()
 
@@ -396,20 +397,22 @@ func TestBuildAIBridgeThreadInterceptions(t *testing.T) {
 		make(map[uuid.UUID][]database.AIBridgeModelThought),
 	)
 
-	// Both interceptions must appear, including the tool-less root.
-	require.Len(t, thread.Interceptions, 2)
+	// Both interceptions must appear in the map.
+	require.Len(t, thread.InterceptionAttributions, 2)
 
-	// First: no attribution (workspace unknown).
-	require.Equal(t, i1, thread.Interceptions[0].ID)
-	require.Nil(t, thread.Interceptions[0].Attribution)
+	// First: no attribution (workspace unknown) -> nil inner map.
+	attrib1, ok1 := thread.InterceptionAttributions[i1.String()]
+	require.True(t, ok1, "interception i1 must be in map")
+	require.Nil(t, attrib1)
 
-	// Second: workspace attribution.
-	require.Equal(t, i2, thread.Interceptions[1].ID)
-	require.Equal(t, map[string]string{
+	// Second: workspace attribution -> populated inner map.
+	attrib2, ok2 := thread.InterceptionAttributions[i2.String()]
+	require.True(t, ok2, "interception i2 must be in map")
+	require.Equal(t, &codersdk.AIBridgeAttribution{
 		"workspace_id": wsID.String(),
-	}, thread.Interceptions[1].Attribution)
+	}, attrib2)
 
-	// Interceptions is always a non-nil slice (never serializes as JSON null).
+	// Empty thread: outer map is non-nil and serializes as {}.
 	emptyThread := buildAIBridgeThread(
 		uuid.New(),
 		nil,
@@ -418,7 +421,16 @@ func TestBuildAIBridgeThreadInterceptions(t *testing.T) {
 		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
 		make(map[uuid.UUID][]database.AIBridgeModelThought),
 	)
-	require.NotNil(t, emptyThread.Interceptions, "Interceptions must not be nil")
-	require.IsType(t, []codersdk.AIBridgeInterceptionReference{}, emptyThread.Interceptions)
-	require.Empty(t, emptyThread.Interceptions)
+	require.NotNil(t, emptyThread.InterceptionAttributions, "InterceptionAttributions must not be nil")
+	require.IsType(t, map[string]*codersdk.AIBridgeAttribution{}, emptyThread.InterceptionAttributions)
+	require.Empty(t, emptyThread.InterceptionAttributions)
+
+	// Verify serialization: empty thread -> {} and nil attribution -> null.
+	jsonBytes, err := json.Marshal(emptyThread.InterceptionAttributions)
+	require.NoError(t, err)
+	require.Equal(t, `{}`, string(jsonBytes))
+
+	jsonBytes, err = json.Marshal(thread.InterceptionAttributions[i1.String()])
+	require.NoError(t, err)
+	require.Equal(t, `null`, string(jsonBytes))
 }

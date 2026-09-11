@@ -22,18 +22,23 @@ func (s *recorderClientStub) RecordInterception(_ context.Context, in *proto.Rec
 	s.requests = append(s.requests, in)
 	return &proto.RecordInterceptionResponse{}, nil
 }
+
 func (*recorderClientStub) RecordInterceptionEnded(context.Context, *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
 	panic("unexpected call")
 }
+
 func (*recorderClientStub) RecordTokenUsage(context.Context, *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
 	panic("unexpected call")
 }
+
 func (*recorderClientStub) RecordPromptUsage(context.Context, *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
 	panic("unexpected call")
 }
+
 func (*recorderClientStub) RecordToolUsage(context.Context, *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
 	panic("unexpected call")
 }
+
 func (*recorderClientStub) RecordModelThought(context.Context, *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
 	panic("unexpected call")
 }

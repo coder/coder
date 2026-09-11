@@ -1439,17 +1439,22 @@ func buildAIBridgeThread(
 
 	thread.AgenticActions = actions
 
-	// Build interception references in chronological query order,
-	// including tool-less rows. The slice arrives pre-sorted by the SQL
-	// query so we preserve that order verbatim.
-	refs := make([]codersdk.AIBridgeInterceptionReference, 0, len(interceptions))
+	// Build the interceptions map keyed by interception ID string.
+	// Every interception is present, including tool-less rows. The inner
+	// map is nil (serializes as JSON null) when workspace attribution is
+	// unknown. The outer map is always non-nil so it serializes as {}
+	// rather than null for an empty thread.
+	refs := make(map[string]*codersdk.AIBridgeAttribution, len(interceptions))
 	for _, intc := range interceptions {
-		refs = append(refs, codersdk.AIBridgeInterceptionReference{
-			ID:          intc.ID,
-			Attribution: aiBridgeInterceptionAttribution(intc),
-		})
+		attribution := aiBridgeInterceptionAttribution(intc)
+		if attribution != nil {
+			value := codersdk.AIBridgeAttribution(attribution)
+			refs[intc.ID.String()] = &value
+			continue
+		}
+		refs[intc.ID.String()] = nil
 	}
-	thread.Interceptions = refs
+	thread.InterceptionAttributions = refs
 
 	// Aggregate thread-level token usage.
 	var threadTokens []database.AIBridgeTokenUsage
