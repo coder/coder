@@ -247,9 +247,13 @@ func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, 
 	return req, nil, nil
 }
 
-// mergeBasicClientAuth accepts a confidential client's credentials from the
-// HTTP Basic header as well as from form parameters (RFC 6749 §2.3.1). The
-// header fills in whatever the form omitted.
+// mergeBasicClientAuth combines a confidential client's HTTP Basic
+// credentials (RFC 6749 §2.3.1) with the form client_id and client_secret.
+// Without a Basic header, or with an empty Basic username, the form values
+// pass through unchanged. Otherwise each form field must be empty or equal
+// to its header counterpart, or the result is errConflictingClientAuth. An
+// empty Basic password still counts as a presented password, so a form
+// secret beside it is a conflict.
 func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (mergedID, mergedSecret string, err error) {
 	user, pass, ok := r.BasicAuth()
 	if !ok || user == "" {
@@ -267,9 +271,11 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 // authenticateClient checks a client secret and confirms it belongs to the
 // app named by client_id. That id arrives unverified, so without the app
 // check a valid secret for one app could issue a token for another. It
-// returns the matched row for the code grant to store on the token. Callers
-// skip it for public clients, which have no secret and are bound by PKCE
-// and the token's app id instead.
+// returns the matched secret row. Every authentication failure returns
+// errBadSecret so the response does not reveal which step failed; a
+// datastore failure returns the underlying error. Callers skip it for public
+// clients, which have no secret and are bound by PKCE and the token's app id
+// instead.
 func authenticateClient(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, clientSecret string) (database.OAuth2ProviderAppSecret, error) {
 	secret, err := ParseFormattedSecret(clientSecret)
 	if err != nil {
