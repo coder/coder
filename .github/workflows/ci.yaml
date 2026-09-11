@@ -452,6 +452,9 @@ jobs:
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
+
       - name: Start PostgreSQL container
         run: make test-postgres-docker
 
@@ -509,6 +512,9 @@ jobs:
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
 
       - name: make fmt
         timeout-minutes: 7
@@ -923,6 +929,9 @@ jobs:
       - name: Install Nginx
         run: sudo apt-get update && sudo apt-get install -y nginx
 
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
+
       - name: Run Tests
         run: make test-tailnet-integration
 
@@ -1149,6 +1158,9 @@ jobs:
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
 
       - name: Format
         run: |
@@ -1666,6 +1678,9 @@ jobs:
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
 
       - name: Setup and run sqlc vet
         run: |

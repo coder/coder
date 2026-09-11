@@ -2094,9 +2094,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `task_auto_pause`, `task_manual_pause`, `task_resume`, `vscode_connection` |
+| Value(s)                                                                                                                            |
+|-------------------------------------------------------------------------------------------------------------------------------------|
+| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CORSBehavior
 
@@ -6743,9 +6743,9 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Value(s)                                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------------|
-| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `task_manual_pause`, `task_resume`, `vscode_connection` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -6798,11 +6798,11 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property     | Value(s)                                                                                               |
-|--------------|--------------------------------------------------------------------------------------------------------|
-| `log_level`  | `debug`                                                                                                |
-| `reason`     | `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `task_manual_pause`, `vscode_connection` |
-| `transition` | `delete`, `start`, `stop`                                                                              |
+| Property     | Value(s)                                                                          |
+|--------------|-----------------------------------------------------------------------------------|
+| `log_level`  | `debug`                                                                           |
+| `reason`     | `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| `transition` | `delete`, `start`, `stop`                                                         |
 
 ## codersdk.CreateWorkspaceProxyRequest
 
@@ -7359,7 +7359,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
-    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -7966,7 +7965,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
-  "enable_ai_tasks": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -8354,7 +8352,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
-| `enable_ai_tasks`                              | boolean                                                                                              | false    |              |                                                                           |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                           |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                           |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                           |
@@ -15920,20 +15917,18 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "shell_tool_display_mode": "auto",
-  "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type                                                             | Required | Restrictions | Description |
-|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
-| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
+| Name                       | Type                                                             | Required | Restrictions | Description |
+|----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -16784,20 +16779,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "shell_tool_display_mode": "auto",
-  "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type                                                             | Required | Restrictions | Description |
-|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
-| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
+| Name                       | Type                                                             | Required | Restrictions | Description |
+|----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 
@@ -17088,7 +17081,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -17325,7 +17317,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ]
     }
   ],
-  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -17365,7 +17356,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `owner_id`                                  | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `owner_name`                                | string                                                                  | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                                                                                                                   |
 | `shared_with`                               | array of [codersdk.SharedWorkspaceActor](#codersdksharedworkspaceactor) | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `task_id`                                   | string                                                                  | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
 | `template_active_version_id`                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_allow_user_cancel_workspace_jobs` | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_display_name`                     | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
@@ -18422,7 +18412,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
-  "has_ai_task": true,
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -18644,33 +18633,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description                                                              |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------|
-| `build_number`               | integer                                                           | false    |              |                                                                          |
-| `created_at`                 | string                                                            | false    |              |                                                                          |
-| `daily_cost`                 | integer                                                           | false    |              |                                                                          |
-| `deadline`                   | string                                                            | false    |              |                                                                          |
-| `has_ai_task`                | boolean                                                           | false    |              | Deprecated: This field has been deprecated in favor of Task WorkspaceID. |
-| `has_external_agent`         | boolean                                                           | false    |              |                                                                          |
-| `id`                         | string                                                            | false    |              |                                                                          |
-| `initiator_id`               | string                                                            | false    |              |                                                                          |
-| `initiator_name`             | string                                                            | false    |              |                                                                          |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                          |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                          |
-| `max_deadline`               | string                                                            | false    |              |                                                                          |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                          |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                          |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                          |
-| `template_version_id`        | string                                                            | false    |              |                                                                          |
-| `template_version_name`      | string                                                            | false    |              |                                                                          |
-| `template_version_preset_id` | string                                                            | false    |              |                                                                          |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                          |
-| `updated_at`                 | string                                                            | false    |              |                                                                          |
-| `workspace_id`               | string                                                            | false    |              |                                                                          |
-| `workspace_name`             | string                                                            | false    |              |                                                                          |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                          |
-| `workspace_owner_id`         | string                                                            | false    |              |                                                                          |
-| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace.      |
+| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
+|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `build_number`               | integer                                                           | false    |              |                                                                     |
+| `created_at`                 | string                                                            | false    |              |                                                                     |
+| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
+| `deadline`                   | string                                                            | false    |              |                                                                     |
+| `has_external_agent`         | boolean                                                           | false    |              |                                                                     |
+| `id`                         | string                                                            | false    |              |                                                                     |
+| `initiator_id`               | string                                                            | false    |              |                                                                     |
+| `initiator_name`             | string                                                            | false    |              |                                                                     |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
+| `max_deadline`               | string                                                            | false    |              |                                                                     |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
+| `template_version_id`        | string                                                            | false    |              |                                                                     |
+| `template_version_name`      | string                                                            | false    |              |                                                                     |
+| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
+| `updated_at`                 | string                                                            | false    |              |                                                                     |
+| `workspace_id`               | string                                                            | false    |              |                                                                     |
+| `workspace_name`             | string                                                            | false    |              |                                                                     |
+| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
+| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
+| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
 
 #### Enumerated Values
 
@@ -19287,7 +19275,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
-        "has_ai_task": true,
         "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -19496,7 +19483,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ]
         }
       ],
-      "task_id": "string",
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",

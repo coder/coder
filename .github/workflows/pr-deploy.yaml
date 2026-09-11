@@ -259,7 +259,7 @@ jobs:
       - name: Build and push Linux amd64 Docker image
         run: |
           set -euo pipefail
-          go mod download
+          ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
           export DOCKER_IMAGE_NO_PREREQUISITES=true
           version="$(./scripts/version.sh)"

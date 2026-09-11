@@ -1819,9 +1819,6 @@ export type BuildReason =
 	| "initiator"
 	| "jetbrains_connection"
 	| "ssh_connection"
-	| "task_auto_pause"
-	| "task_manual_pause"
-	| "task_resume"
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
@@ -1833,9 +1830,6 @@ export const BuildReasons: BuildReason[] = [
 	"initiator",
 	"jetbrains_connection",
 	"ssh_connection",
-	"task_auto_pause",
-	"task_manual_pause",
-	"task_resume",
 	"vscode_connection",
 ];
 
@@ -3996,18 +3990,6 @@ export interface CreateProvisionerKeyResponse {
 	readonly key: string;
 }
 
-// From codersdk/aitasks.go
-/**
- * CreateTaskRequest represents the request to create a new task.
- */
-export interface CreateTaskRequest {
-	readonly template_version_id: string;
-	readonly template_version_preset_id?: string;
-	readonly input: string;
-	readonly name?: string;
-	readonly display_name?: string;
-}
-
 // From codersdk/organizations.go
 /**
  * CreateTemplateRequest provides options when creating a template.
@@ -4344,8 +4326,6 @@ export type CreateWorkspaceBuildReason =
 	| "dashboard"
 	| "jetbrains_connection"
 	| "ssh_connection"
-	| "task_manual_pause"
-	| "task_resume"
 	| "vscode_connection";
 
 export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
@@ -4353,8 +4333,6 @@ export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
 	"dashboard",
 	"jetbrains_connection",
 	"ssh_connection",
-	"task_manual_pause",
-	"task_resume",
 	"vscode_connection",
 ];
 
@@ -4798,7 +4776,6 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
-	readonly enable_ai_tasks?: boolean;
 	readonly mcp_allowed_private_cidrs?: string;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
@@ -5308,7 +5285,6 @@ export type FeatureName =
 	| "multiple_organizations"
 	| "scim"
 	| "service_accounts"
-	| "task_batch_actions"
 	| "template_rbac"
 	| "user_limit"
 	| "user_role_management"
@@ -5338,7 +5314,6 @@ export const FeatureNames: FeatureName[] = [
 	"multiple_organizations",
 	"scim",
 	"service_accounts",
-	"task_batch_actions",
 	"template_rbac",
 	"user_limit",
 	"user_role_management",
@@ -7303,14 +7278,6 @@ export interface PatchWorkspaceProxy {
  */
 export const PathAppSessionTokenCookie = "coder_path_app_session_token";
 
-// From codersdk/aitasks.go
-/**
- * PauseTaskResponse represents the response from pausing a task.
- */
-export interface PauseTaskResponse {
-	readonly workspace_build: WorkspaceBuild | null;
-}
-
 // From codersdk/roles.go
 /**
  * Permission is the format passed into the rego.
@@ -8211,14 +8178,6 @@ export interface Response {
 	readonly validations?: readonly ValidationError[];
 }
 
-// From codersdk/aitasks.go
-/**
- * ResumeTaskResponse represents the response from resuming a task.
- */
-export interface ResumeTaskResponse {
-	readonly workspace_build: WorkspaceBuild | null;
-}
-
 // From codersdk/deployment.go
 /**
  * RetentionConfig contains configuration for data retention policies.
@@ -8896,145 +8855,6 @@ export interface TailDERPRegion {
 	 * to zero.
 	 */
 	readonly Nodes: readonly TailDERPNode[];
-}
-
-// From codersdk/aitasks.go
-/**
- * Task represents a task.
- */
-export interface Task {
-	readonly id: string;
-	readonly organization_id: string;
-	readonly owner_id: string;
-	readonly owner_name: string;
-	readonly owner_avatar_url?: string;
-	readonly name: string;
-	readonly display_name: string;
-	readonly template_id: string;
-	readonly template_version_id: string;
-	readonly template_name: string;
-	readonly template_display_name: string;
-	readonly template_icon: string;
-	readonly workspace_id: string | null;
-	readonly workspace_name: string;
-	readonly workspace_status?: WorkspaceStatus;
-	readonly workspace_build_number?: number;
-	readonly workspace_agent_id: string | null;
-	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
-	readonly workspace_agent_health: WorkspaceAgentHealth | null;
-	readonly workspace_app_id: string | null;
-	readonly initial_prompt: string;
-	readonly status: TaskStatus;
-	readonly current_state: TaskStateEntry | null;
-	readonly created_at: string;
-	readonly updated_at: string;
-}
-
-// From codersdk/aitasks.go
-/**
- * TaskLogEntry represents a single log entry for a task.
- */
-export interface TaskLogEntry {
-	readonly id: number;
-	readonly content: string;
-	readonly type: TaskLogType;
-	readonly time: string;
-}
-
-// From codersdk/aitasks.go
-export type TaskLogType = "input" | "output";
-
-export const TaskLogTypes: TaskLogType[] = ["input", "output"];
-
-// From codersdk/aitasks.go
-/**
- * TaskLogsResponse contains task logs and metadata. When snapshot is false,
- * logs are fetched live from the task app. When snapshot is true, logs are
- * fetched from a stored snapshot captured during pause.
- */
-export interface TaskLogsResponse {
-	readonly logs: readonly TaskLogEntry[];
-	readonly snapshot?: boolean;
-	readonly snapshot_at?: string;
-}
-
-// From codersdk/aitasks.go
-/**
- * TaskSendRequest is used to send task input to the tasks sidebar app.
- */
-export interface TaskSendRequest {
-	readonly input: string;
-}
-
-// From codersdk/aitasks.go
-export type TaskState = "complete" | "failed" | "idle" | "working";
-
-// From codersdk/aitasks.go
-/**
- * TaskStateEntry represents a single entry in the task's state history.
- */
-export interface TaskStateEntry {
-	readonly timestamp: string;
-	readonly state: TaskState;
-	readonly message: string;
-	readonly uri: string;
-}
-
-export const TaskStates: TaskState[] = [
-	"complete",
-	"failed",
-	"idle",
-	"working",
-];
-
-// From codersdk/aitasks.go
-export type TaskStatus =
-	| "active"
-	| "error"
-	| "initializing"
-	| "paused"
-	| "pending"
-	| "unknown";
-
-export const TaskStatuses: TaskStatus[] = [
-	"active",
-	"error",
-	"initializing",
-	"paused",
-	"pending",
-	"unknown",
-];
-
-// From codersdk/aitasks.go
-/**
- * TasksFilter filters the list of tasks.
- */
-export interface TasksFilter {
-	/**
-	 * Owner can be a username, UUID, or "me".
-	 */
-	readonly owner?: string;
-	/**
-	 * Organization can be an organization name or UUID.
-	 */
-	readonly organization?: string;
-	/**
-	 * Status filters the tasks by their task status.
-	 */
-	readonly status?: TaskStatus;
-	/**
-	 * FilterQuery allows specifying a raw filter query.
-	 */
-	readonly filter_query?: string;
-}
-
-// From codersdk/aitasks.go
-/**
- * TaskListResponse is the response shape for tasks list.
- */
-export interface TasksListResponse {
-	readonly tasks: readonly Task[];
-	readonly count: number;
 }
 
 // From codersdk/deployment.go
@@ -10031,14 +9851,6 @@ export interface UpdateRoles {
 	readonly roles: readonly string[];
 }
 
-// From codersdk/aitasks.go
-/**
- * UpdateTaskInputRequest is used to update a task's input.
- */
-export interface UpdateTaskInputRequest {
-	readonly input: string;
-}
-
 // From codersdk/templates.go
 export interface UpdateTemplateACL {
 	/**
@@ -10232,7 +10044,6 @@ export interface UpdateUserPasswordRequest {
 
 // From codersdk/users.go
 export interface UpdateUserPreferenceSettingsRequest {
-	readonly task_notification_alert_dismissed?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
@@ -10726,7 +10537,6 @@ export interface UserParameter {
 
 // From codersdk/users.go
 export interface UserPreferenceSettings {
-	readonly task_notification_alert_dismissed: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
@@ -11022,10 +10832,6 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
-	/**
-	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
-	 */
-	readonly task_id?: string;
 	readonly shared_with?: readonly SharedWorkspaceActor[];
 }
 
@@ -11619,10 +11425,6 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
-	/**
-	 * @deprecated This field has been deprecated in favor of Task WorkspaceID.
-	 */
-	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
 }
 

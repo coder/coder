@@ -506,7 +506,6 @@ export const MockSiteRoles = [
 ];
 
 export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
-	task_notification_alert_dismissed: false,
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
@@ -2737,10 +2736,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	has_license: false,
 	features: withDefaultFeatures({
 		workspace_batch_actions: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-		task_batch_actions: {
 			enabled: true,
 			entitlement: "entitled",
 		},

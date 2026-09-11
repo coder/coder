@@ -92,10 +92,10 @@ func TestSeatTrackerDB(t *testing.T) {
 		tracker := enterpriseaiseats.New(authzDB, testutil.Logger(t), quartz.NewMock(t), nil)
 
 		dormantUser := dbgen.User(t, rawDB, database.User{Status: database.UserStatusDormant})
-		tracker.RecordUsage(dbauthz.AsAIBridged(ctx), dormantUser.ID, agplaiseats.ReasonTask("dormant user event"))
+		tracker.RecordUsage(dbauthz.AsAIBridged(ctx), dormantUser.ID, agplaiseats.ReasonAIBridge("dormant user event"))
 
 		suspendedUser := dbgen.User(t, rawDB, database.User{Status: database.UserStatusSuspended})
-		tracker.RecordUsage(dbauthz.AsAIBridged(ctx), suspendedUser.ID, agplaiseats.ReasonTask("suspended user event"))
+		tracker.RecordUsage(dbauthz.AsAIBridged(ctx), suspendedUser.ID, agplaiseats.ReasonAIBridge("suspended user event"))
 
 		count, err := rawDB.GetActiveAISeatCount(ctx)
 		require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestSeatTrackerDB(t *testing.T) {
 		tracker := enterpriseaiseats.New(authzDB, testutil.Logger(t), quartz.NewMock(t), nil)
 
 		user := dbgen.User(t, rawDB, database.User{Status: database.UserStatusActive})
-		tracker.RecordUsage(dbauthz.AsProvisionerd(ctx), user.ID, agplaiseats.ReasonTask("task build"))
+		tracker.RecordUsage(dbauthz.AsProvisionerd(ctx), user.ID, agplaiseats.ReasonAIBridge("provisionerd event"))
 
 		count, err := rawDB.GetActiveAISeatCount(ctx)
 		require.NoError(t, err)
