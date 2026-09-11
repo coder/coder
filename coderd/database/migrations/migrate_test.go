@@ -1538,40 +1538,44 @@ func TestMigration000595RemoveTaskPermissions(t *testing.T) {
 		id            string
 		scopes        string
 		allowList     string
-		loginType     string
 		wantDeleted   bool
 		wantScopes    string
 		wantAllowList string
 	}{
-		{id: "mixed-key", scopes: "{task:read,template:read}", allowList: "{*:*}", loginType: "token", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
-		{id: "task-key", scopes: "{task:read}", allowList: "{*:*}", loginType: "token", wantDeleted: true},
-		{id: "mixed-allow-key", scopes: "{template:read}", allowList: "{task:*,user:*}", loginType: "token", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
-		{id: "task-allow-key", scopes: "{template:read}", allowList: "{task:*}", loginType: "token", wantDeleted: true},
-		// OAuth keys hold no task scopes themselves; deleting a task-only token revokes its key through the token trigger.
-		{id: "oauth-mixed-key", scopes: "{template:read}", allowList: "{*:*}", loginType: "oauth2_provider_app", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
-		{id: "oauth-task-key", scopes: "{template:read}", allowList: "{*:*}", loginType: "oauth2_provider_app", wantDeleted: true},
+		{id: "mixed-key", scopes: "{task:read,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "multi-task-scopes-key", scopes: "{task:read,task:create,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "task-key", scopes: "{task:read}", allowList: "{*:*}", wantDeleted: true},
+		{id: "mixed-allow-key", scopes: "{template:read}", allowList: "{task:*,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "multi-task-allows-key", scopes: "{template:read}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "task-allow-key", scopes: "{template:read}", allowList: "{task:*}", wantDeleted: true},
+		{id: "task-only-key", scopes: "{task:read,task:create}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e}", wantDeleted: true},
 	}
 	for _, key := range keys {
 		_, err := sqlDB.ExecContext(ctx,
-			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, $5, $6, $7, $1)",
-			key.id, []byte(key.id), userID, now, key.loginType, key.scopes, key.allowList)
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', $5, $6, $1)",
+			key.id, []byte(key.id), userID, now, key.scopes, key.allowList)
 		require.NoError(t, err)
 	}
 
-	// Each grant is stored as both an authorization code and a token, keyed by its API key name.
+	// Each grant is stored as both an authorization code and a token, keyed by the grant name.
 	grants := []struct {
 		key         string
 		scope       string
 		wantDeleted bool
 		wantScope   string
 	}{
-		{key: "oauth-mixed-key", scope: "task:read template:read", wantScope: "template:read"},
-		{key: "oauth-task-key", scope: "task:read", wantDeleted: true},
+		{key: "mixed-grant", scope: "task:read template:read", wantScope: "template:read"},
+		{key: "task-grant", scope: "task:read", wantDeleted: true},
 	}
 	for _, grant := range grants {
 		_, err := sqlDB.ExecContext(ctx,
 			"INSERT INTO oauth2_provider_app_codes (id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6)",
 			uuid.New(), now, []byte(grant.key), userID, appID, grant.scope)
+		require.NoError(t, err)
+		// oauth2_provider_app_tokens.api_key_id is a NOT NULL foreign key, so this key only satisfies it and is not asserted.
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'oauth2_provider_app', '{template:read}', '{*:*}', $1)",
+			grant.key, []byte(grant.key), userID, now)
 		require.NoError(t, err)
 		_, err = sqlDB.ExecContext(ctx,
 			"INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)",
