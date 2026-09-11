@@ -89,6 +89,13 @@ func NowInDefaultTimezone() time.Time {
 	return time.Now().In(loc).Round(time.Microsecond)
 }
 
+// NewDB opens a PostgreSQL database for the test and returns its store and
+// pubsub. The store rejects writes to chat_messages and chat_queued_messages
+// that run without a snapshot allocation in the same transaction and fails
+// the test at cleanup for every rejection, whether or not the caller
+// propagated the error. Seed chat history and queue rows through
+// dbgen.ChatMessage and dbgen.ChatQueuedMessage, which allocate a snapshot
+// inside their own transaction.
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
@@ -135,6 +142,15 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	}
 	// Unit tests should not retry serial transaction failures.
 	db = database.New(sqlDB, database.WithSerialRetryCount(1))
+	rejections := &chatWriteRecorder{}
+	db = newChatWriteGuard(db, rejections)
+	t.Cleanup(func() {
+		for _, r := range rejections.list() {
+			t.Errorf("chat write guard rejected %s for chat %s outside a chat state transition; "+
+				"the call site is the assertion that received this error, otherwise search for callers of %s",
+				r.method, r.chatID, r.method)
+		}
+	})
 
 	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
 	require.NoError(t, err)

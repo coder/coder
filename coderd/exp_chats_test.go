@@ -167,7 +167,7 @@ func insertTestChatQueuedMessage(
 }
 
 func insertTestChatQueuedMessageWithReasoningEffort(
-	ctx context.Context,
+	_ context.Context,
 	t testing.TB,
 	db database.Store,
 	chatID uuid.UUID,
@@ -177,17 +177,12 @@ func insertTestChatQueuedMessageWithReasoningEffort(
 ) database.ChatQueuedMessage {
 	t.Helper()
 
-	queued, err := db.InsertChatQueuedMessage(
-		dbauthz.AsSystemRestricted(ctx),
-		database.InsertChatQueuedMessageParams{
-			ChatID:          chatID,
-			Content:         content,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
-			ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
-		},
-	)
-	require.NoError(t, err)
-	return queued
+	return dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
+		ChatID:          chatID,
+		Content:         content,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
+		ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
+	})
 }
 
 // findUserMessage returns the first user-role message from a slice of chat
@@ -6636,30 +6631,24 @@ func TestGetChatUserPrompts(t *testing.T) {
 		t.Helper()
 		content, err := chatprompt.MarshalParts(parts)
 		require.NoError(t, err)
-		msgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-			ChatID:              chatID,
-			CreatedBy:           []uuid.UUID{userID},
-			ModelConfigID:       []uuid.UUID{modelConfigID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Content:             []string{string(content.RawMessage)},
-			Visibility:          []database.ChatMessageVisibility{visibility},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Content:       content,
+			Visibility:    visibility,
 		})
-		require.NoError(t, err)
-		require.Len(t, msgs, 1)
 		if deleted {
-			require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msgs[0].ID))
+			err := db.InTx(func(tx database.Store) error {
+				if _, err := tx.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chatID); err != nil {
+					return err
+				}
+				return tx.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msg.ID)
+			}, nil)
+			require.NoError(t, err)
 		}
-		return database.ChatMessage(msgs[0])
+		return msg
 	}
 
 	t.Run("NewestFirstFiltering", func(t *testing.T) {
@@ -6717,50 +6706,46 @@ func TestGetChatUserPrompts(t *testing.T) {
 			{Type: codersdk.ChatMessagePartTypeText, Text: "assistant reply"},
 		})
 		require.NoError(t, err)
-		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{user.UserID},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Content:             []string{string(assistantContent.RawMessage)},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
+		dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       assistantContent,
 		})
-		require.NoError(t, err)
 
 		// Legacy V0 user message stored as a scalar JSON string
 		// (predates migration 000434). The jsonb_typeof guard in
 		// GetChatUserPromptsByChatID must silently exclude this row;
 		// without the guard, jsonb_array_elements would raise
 		// "cannot extract elements from a scalar" and the request
-		// would 500.
-		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{user.UserID},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-			ContentVersion:      []int16{chatprompt.ContentVersionV0},
-			Content:             []string{`"plain text from V0"`},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
-		})
+		// would 500. dbgen.ChatMessage defaults content_version to the
+		// current version, so the V0 row is inserted directly inside
+		// an allocating transaction.
+		err = db.InTx(func(tx database.Store) error {
+			if _, err := tx.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID); err != nil {
+				return err
+			}
+			_, err := tx.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+				ChatID:              chat.ID,
+				CreatedBy:           []uuid.UUID{user.UserID},
+				ModelConfigID:       []uuid.UUID{modelConfig.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+				ContentVersion:      []int16{chatprompt.ContentVersionV0},
+				Content:             []string{`"plain text from V0"`},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+				InputTokens:         []int64{0},
+				OutputTokens:        []int64{0},
+				TotalTokens:         []int64{0},
+				ReasoningTokens:     []int64{0},
+				CacheCreationTokens: []int64{0},
+				CacheReadTokens:     []int64{0},
+				ContextLimit:        []int64{0},
+				Compressed:          []bool{false},
+				RuntimeMs:           []int64{0},
+			})
+			return err
+		}, nil)
 		require.NoError(t, err)
 
 		// Soft-deleted prompt; must not appear.
@@ -6937,25 +6922,13 @@ func TestGetChatUserPrompts(t *testing.T) {
 			{Type: codersdk.ChatMessagePartTypeText, Text: "assistant reply"},
 		})
 		require.NoError(t, err)
-		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-			ChatID:              assistantOnlyChat.ID,
-			CreatedBy:           []uuid.UUID{user.UserID},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Content:             []string{string(assistantContent.RawMessage)},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
+		dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        assistantOnlyChat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       assistantContent,
 		})
-		require.NoError(t, err)
 
 		resp, err = client.GetChatPrompts(ctx, assistantOnlyChat.ID, nil)
 		require.NoError(t, err)
@@ -11297,12 +11270,11 @@ func TestClearChat(t *testing.T) {
 			codersdk.ChatMessageText("queued follow-up"),
 		})
 		require.NoError(t, err)
-		_, err = db.InsertChatQueuedMessageWithCreator(dbauthz.AsSystemRestricted(ctx), database.InsertChatQueuedMessageWithCreatorParams{
+		dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 			ChatID:    chat.ID,
 			Content:   queuedContent.RawMessage,
 			CreatedBy: user.UserID,
 		})
-		require.NoError(t, err)
 
 		// No waiting-with-queue state exists, so a synchronous clear
 		// from E1 is rejected; the user deletes or promotes the queue
@@ -12371,25 +12343,12 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}})
 		require.NoError(t, err)
 
-		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{uuid.Nil},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Content:             []string{string(assistantContent.RawMessage)},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
+		dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       assistantContent,
 		})
-		require.NoError(t, err)
 
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:     chat.ID,

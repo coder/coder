@@ -350,15 +350,21 @@ func TestQueueInsertUpdatesQueueVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(0), before.QueueVersion)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
 	content := userMessageContent(t, "queued")
-	_, err = f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   content,
-		CreatedBy: f.User.ID,
-	})
+	var bumped database.Chat
+	err = f.DB.InTx(func(tx database.Store) error {
+		var err error
+		bumped, err = tx.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:    created.Chat.ID,
+			Content:   content,
+			CreatedBy: f.User.ID,
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
@@ -392,10 +398,18 @@ func TestLegacyQueuedMessageInsertUsesChatOwnerAsCreator(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  created.Chat.ID,
-		Content: userMessageContent(t, "legacy-queued"),
-	})
+	var queued database.ChatQueuedMessage
+	err := f.DB.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID); err != nil {
+			return err
+		}
+		var err error
+		queued, err = tx.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+			ChatID:  created.Chat.ID,
+			Content: userMessageContent(t, "legacy-queued"),
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, created.Chat.OwnerID, queued.CreatedBy)
 }
@@ -410,12 +424,11 @@ func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "initial"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
 
 	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -445,18 +458,16 @@ func TestQueueUpdatePositionUpdatesQueueVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	q1, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	q1 := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "first"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
-	q2, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	q2 := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "second"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
 	require.NotEqual(t, q1.ID, q2.ID)
 
 	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
@@ -483,20 +494,28 @@ func TestQueueDeleteUpdatesQueueVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "to delete"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
-	rows, err := f.DB.DeleteChatQueuedMessageReturningCount(ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     queued.ID,
-		ChatID: created.Chat.ID,
-	})
+	var (
+		bumped database.Chat
+		rows   int64
+	)
+	err := f.DB.InTx(func(tx database.Store) error {
+		var err error
+		bumped, err = tx.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+		if err != nil {
+			return err
+		}
+		rows, err = tx.DeleteChatQueuedMessageReturningCount(ctx, database.DeleteChatQueuedMessageReturningCountParams{
+			ID:     queued.ID,
+			ChatID: created.Chat.ID,
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
 
