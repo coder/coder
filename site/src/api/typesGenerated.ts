@@ -1893,16 +1893,8 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 }
 
 // From codersdk/chats.go
-/**
- * ChangedDiffStatus carries the single ref that changed in a
- * diff_status_change event. The embedded chat's diff_status carries
- * the primary.
- */
 export interface ChangedDiffStatus {
 	readonly ref: DiffStatusRef;
-	/**
-	 * Status is the ref's state after the change.
-	 */
 	readonly status: ChatDiffStatus | null;
 }
 
@@ -2377,10 +2369,6 @@ export interface ChatDiffContents {
  */
 export interface ChatDiffStatus {
 	readonly chat_id: string;
-	/**
-	 * RemoteOrigin and GitBranch identify the ref this status belongs
-	 * to. Both are empty when the agent never reported the ref.
-	 */
 	readonly remote_origin?: string;
 	readonly git_branch?: string;
 	readonly url?: string;
@@ -3584,11 +3572,6 @@ export interface ChatWatchEvent {
 	readonly kind: ChatWatchEventKind;
 	readonly chat: Chat;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
-	/**
-	 * ChangedDiffStatus is set only on diff_status_change events. It
-	 * identifies the single ref whose status changed. The embedded
-	 * chat's diff_status carries the primary.
-	 */
 	readonly changed_diff_status?: ChangedDiffStatus;
 }
 
@@ -4850,9 +4833,6 @@ export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 ];
 
 // From codersdk/chats.go
-/**
- * DiffStatusRef identifies one tracked ref within a chat.
- */
 export interface DiffStatusRef {
 	readonly remote_origin: string;
 	readonly git_branch: string;

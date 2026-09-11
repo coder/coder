@@ -2166,10 +2166,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name     | Type                                               | Required | Restrictions | Description                                 |
-|----------|----------------------------------------------------|----------|--------------|---------------------------------------------|
-| `ref`    | [codersdk.DiffStatusRef](#codersdkdiffstatusref)   | false    |              |                                             |
-| `status` | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              | Status is the ref's state after the change. |
+| Name     | Type                                               | Required | Restrictions | Description |
+|----------|----------------------------------------------------|----------|--------------|-------------|
+| `ref`    | [codersdk.DiffStatusRef](#codersdkdiffstatusref)   | false    |              |             |
+| `status` | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              |             |
 
 ## codersdk.Chat
 
@@ -2822,29 +2822,29 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description                                                                                                                |
-|----------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `additions`          | integer | false    |              |                                                                                                                            |
-| `approved`           | boolean | false    |              |                                                                                                                            |
-| `author_avatar_url`  | string  | false    |              |                                                                                                                            |
-| `author_login`       | string  | false    |              |                                                                                                                            |
-| `base_branch`        | string  | false    |              |                                                                                                                            |
-| `changed_files`      | integer | false    |              |                                                                                                                            |
-| `changes_requested`  | boolean | false    |              |                                                                                                                            |
-| `chat_id`            | string  | false    |              |                                                                                                                            |
-| `commits`            | integer | false    |              |                                                                                                                            |
-| `deletions`          | integer | false    |              |                                                                                                                            |
-| `git_branch`         | string  | false    |              |                                                                                                                            |
-| `head_branch`        | string  | false    |              |                                                                                                                            |
-| `pr_number`          | integer | false    |              |                                                                                                                            |
-| `pull_request_draft` | boolean | false    |              |                                                                                                                            |
-| `pull_request_state` | string  | false    |              |                                                                                                                            |
-| `pull_request_title` | string  | false    |              |                                                                                                                            |
-| `refreshed_at`       | string  | false    |              |                                                                                                                            |
-| `remote_origin`      | string  | false    |              | Remote origin and GitBranch identify the ref this status belongs to. Both are empty when the agent never reported the ref. |
-| `reviewer_count`     | integer | false    |              |                                                                                                                            |
-| `stale_at`           | string  | false    |              |                                                                                                                            |
-| `url`                | string  | false    |              |                                                                                                                            |
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `additions`          | integer | false    |              |             |
+| `approved`           | boolean | false    |              |             |
+| `author_avatar_url`  | string  | false    |              |             |
+| `author_login`       | string  | false    |              |             |
+| `base_branch`        | string  | false    |              |             |
+| `changed_files`      | integer | false    |              |             |
+| `changes_requested`  | boolean | false    |              |             |
+| `chat_id`            | string  | false    |              |             |
+| `commits`            | integer | false    |              |             |
+| `deletions`          | integer | false    |              |             |
+| `git_branch`         | string  | false    |              |             |
+| `head_branch`        | string  | false    |              |             |
+| `pr_number`          | integer | false    |              |             |
+| `pull_request_draft` | boolean | false    |              |             |
+| `pull_request_state` | string  | false    |              |             |
+| `pull_request_title` | string  | false    |              |             |
+| `refreshed_at`       | string  | false    |              |             |
+| `remote_origin`      | string  | false    |              |             |
+| `reviewer_count`     | integer | false    |              |             |
+| `stale_at`           | string  | false    |              |             |
+| `url`                | string  | false    |              |             |
 
 ## codersdk.ChatError
 
@@ -5427,12 +5427,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                  | Type                                                                | Required | Restrictions | Description                                                                                                                                                           |
-|-----------------------|---------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `changed_diff_status` | [codersdk.ChangedDiffStatus](#codersdkchangeddiffstatus)            | false    |              | Changed diff status is set only on diff_status_change events. It identifies the single ref whose status changed. The embedded chat's diff_status carries the primary. |
-| `chat`                | [codersdk.Chat](#codersdkchat)                                      | false    |              |                                                                                                                                                                       |
-| `kind`                | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |                                                                                                                                                                       |
-| `tool_calls`          | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |                                                                                                                                                                       |
+| Name                  | Type                                                                | Required | Restrictions | Description |
+|-----------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `changed_diff_status` | [codersdk.ChangedDiffStatus](#codersdkchangeddiffstatus)            | false    |              |             |
+| `chat`                | [codersdk.Chat](#codersdkchat)                                      | false    |              |             |
+| `kind`                | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |             |
+| `tool_calls`          | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
 
 ## codersdk.ChatWatchEventKind
 

@@ -1595,9 +1595,7 @@ type ChatGitChange struct {
 // may point to a pull request or a branch page depending on whether
 // a PR has been opened.
 type ChatDiffStatus struct {
-	ChatID uuid.UUID `json:"chat_id" format:"uuid"`
-	// RemoteOrigin and GitBranch identify the ref this status belongs
-	// to. Both are empty when the agent never reported the ref.
+	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
 	RemoteOrigin     *string    `json:"remote_origin,omitempty"`
 	GitBranch        *string    `json:"git_branch,omitempty"`
 	URL              *string    `json:"url,omitempty"`
@@ -1620,18 +1618,13 @@ type ChatDiffStatus struct {
 	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
 }
 
-// DiffStatusRef identifies one tracked ref within a chat.
 type DiffStatusRef struct {
 	RemoteOrigin string `json:"remote_origin"`
 	GitBranch    string `json:"git_branch"`
 }
 
-// ChangedDiffStatus carries the single ref that changed in a
-// diff_status_change event. The embedded chat's diff_status carries
-// the primary.
 type ChangedDiffStatus struct {
-	Ref DiffStatusRef `json:"ref"`
-	// Status is the ref's state after the change.
+	Ref    DiffStatusRef   `json:"ref"`
 	Status *ChatDiffStatus `json:"status"`
 }
 
@@ -1911,13 +1904,10 @@ const (
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
-	Kind      ChatWatchEventKind   `json:"kind"`
-	Chat      Chat                 `json:"chat"`
-	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
-	// ChangedDiffStatus is set only on diff_status_change events. It
-	// identifies the single ref whose status changed. The embedded
-	// chat's diff_status carries the primary.
-	ChangedDiffStatus *ChangedDiffStatus `json:"changed_diff_status,omitempty"`
+	Kind              ChatWatchEventKind   `json:"kind"`
+	Chat              Chat                 `json:"chat"`
+	ToolCalls         []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	ChangedDiffStatus *ChangedDiffStatus   `json:"changed_diff_status,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.
