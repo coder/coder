@@ -2847,8 +2847,10 @@ DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: UpdateChatQueuedMessageHeld :one
--- Sets or clears held_at. Setting is idempotent: an already-held row
--- keeps its original held_at.
+-- Sets or clears held_at on one row. Setting is idempotent: an
+-- already-held row keeps its original held_at. A chat has at most one
+-- held row (chat_queued_messages_one_held_per_chat); callers that move
+-- the hold clear the previous row first.
 UPDATE chat_queued_messages
 SET held_at = CASE WHEN @held::boolean THEN COALESCE(held_at, NOW()) ELSE NULL END
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid

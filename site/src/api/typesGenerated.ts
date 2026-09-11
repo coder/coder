@@ -4999,9 +4999,10 @@ export interface EditChatQueuedMessageRequest {
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
 	/**
-	 * Held sets or clears the hold. While held, the message and every
-	 * message queued behind it wait; messages ahead of it still run.
-	 * Releasing the hold on a waiting chat processes the message at once.
+	 * Held sets or clears the hold. A chat has at most one held
+	 * message; holding another moves the hold. While held, the message
+	 * and every message queued behind it wait; messages ahead of it
+	 * still run. Releasing the hold on an idle chat sends the message.
 	 */
 	readonly held?: boolean;
 }

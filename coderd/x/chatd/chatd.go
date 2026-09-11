@@ -1487,13 +1487,23 @@ func (p *Server) SendMessage(
 			return SendMessageResult{}, err
 		}
 		// Check queue capacity before dispatch; the transaction
-		// rechecks it under lock.
-		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
+		// rechecks it under lock. From W and E0 the send inserts into
+		// history directly and never touches the queue, even when held
+		// rows fill it (E0 with rows means the head is held).
+		queue, err := chatstate.LoadQueueState(ctx, p.db, opts.ChatID)
 		if err != nil {
-			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
+			return SendMessageResult{}, err
 		}
-		if queuedCount >= chatstate.MaxQueueSize {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
+		switch chatstate.ClassifyExecutionState(chat, queue, true) {
+		case chatstate.StateW, chatstate.StateE0:
+		default:
+			queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
+			if err != nil {
+				return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
+			}
+			if queuedCount >= chatstate.MaxQueueSize {
+				return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
+			}
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
@@ -2152,8 +2162,9 @@ func (p *Server) DeleteQueued(
 
 // idleSuccessorExposedBy returns the row that would become the
 // promotable head of an idle chat if queuedMessageID were deleted: the
-// chat is waiting, the target is its (held) head, and the row behind it
-// is not held. The boolean is false when no such row exists.
+// chat is waiting and the target is its held head. Only one row per
+// chat is held, so any successor is promotable. The boolean is false
+// when no such row exists.
 func idleSuccessorExposedBy(ctx context.Context, store database.Store, chatID uuid.UUID, queuedMessageID int64) (database.ChatQueuedMessage, bool, error) {
 	chat, err := store.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -2166,7 +2177,7 @@ func idleSuccessorExposedBy(ctx context.Context, store database.Store, chatID uu
 	if err != nil {
 		return database.ChatQueuedMessage{}, false, xerrors.Errorf("load queue: %w", err)
 	}
-	if len(queue) < 2 || queue[0].ID != queuedMessageID || queue[1].HeldAt.Valid {
+	if len(queue) < 2 || queue[0].ID != queuedMessageID {
 		return database.ChatQueuedMessage{}, false, nil
 	}
 	return queue[1], true, nil
@@ -2224,6 +2235,15 @@ func (p *Server) EditQueuedMessage(
 		// Repeat these admission checks under the transaction lock.
 		if chat.Archived {
 			return ErrChatArchived
+		}
+		if _, err := p.db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
+			ID:     opts.QueuedMessageID,
+			ChatID: opts.ChatID,
+		}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return chatstate.ErrQueuedMessageNotFound
+			}
+			return xerrors.Errorf("load queued message for user_prompt_submit: %w", err)
 		}
 		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
 			return err

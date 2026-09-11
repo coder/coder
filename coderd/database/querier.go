@@ -1546,8 +1546,10 @@ type sqlcQuerier interface {
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	// Replaces the content and per-message overrides of a queued message.
 	UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error)
-	// Sets or clears held_at. Setting is idempotent: an already-held row
-	// keeps its original held_at.
+	// Sets or clears held_at on one row. Setting is idempotent: an
+	// already-held row keeps its original held_at. A chat has at most one
+	// held row (chat_queued_messages_one_held_per_chat); callers that move
+	// the hold clear the previous row first.
 	UpdateChatQueuedMessageHeld(ctx context.Context, arg UpdateChatQueuedMessageHeldParams) (ChatQueuedMessage, error)
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.

@@ -1,6 +1,11 @@
 ALTER TABLE chat_queued_messages ADD COLUMN held_at timestamptz;
 
-COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. The state machine treats the first held row and everything behind it as absent from the queue.';
+COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held; the state machine treats the held row and everything behind it as absent from the queue.';
+
+-- A chat has at most one held row. Holding another row moves the hold.
+CREATE UNIQUE INDEX chat_queued_messages_one_held_per_chat
+ON chat_queued_messages (chat_id)
+WHERE held_at IS NOT NULL;
 
 -- Recreate the update trigger so hold changes advance queue_version and
 -- reach open streams as a queue_update event.

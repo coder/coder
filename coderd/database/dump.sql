@@ -2134,7 +2134,7 @@ CREATE TABLE chat_queued_messages (
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
 
-COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. The state machine treats the first held row and everything behind it as absent from the queue.';
+COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held; the state machine treats the held row and everything behind it as absent from the queue.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -4817,6 +4817,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX chat_queued_messages_one_held_per_chat ON chat_queued_messages USING btree (chat_id) WHERE (held_at IS NOT NULL);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 

@@ -13135,8 +13135,10 @@ type UpdateChatQueuedMessageHeldParams struct {
 	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
-// Sets or clears held_at. Setting is idempotent: an already-held row
-// keeps its original held_at.
+// Sets or clears held_at on one row. Setting is idempotent: an
+// already-held row keeps its original held_at. A chat has at most one
+// held row (chat_queued_messages_one_held_per_chat); callers that move
+// the hold clear the previous row first.
 func (q *sqlQuerier) UpdateChatQueuedMessageHeld(ctx context.Context, arg UpdateChatQueuedMessageHeldParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageHeld, arg.Held, arg.ID, arg.ChatID)
 	var i ChatQueuedMessage

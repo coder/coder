@@ -92,7 +92,7 @@ func (s ExecutionState) IsRunnable() bool {
 type QueueState struct {
 	// HasPromotableHead is true when the queue is non-empty and its head
 	// row is not held. This, not the raw row count, is the "1" queue
-	// sub-state: the first held row and everything behind it are absent
+	// sub-state: the held row and everything behind it are absent
 	// from the queue as far as the state machine is concerned, so a chat
 	// whose head is held classifies exactly like a chat with an empty
 	// queue.

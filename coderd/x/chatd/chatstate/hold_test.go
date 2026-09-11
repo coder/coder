@@ -101,10 +101,10 @@ func TestHold_FinishTurnStopsAtHeldRow(t *testing.T) {
 	})
 	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 
-	// Releasing the held head of an idle chat is refused: it would leave
-	// W with a promotable head. Starting it is PromoteQueuedMessage's
-	// job, which clears the hold, pops row three, and leaves four and
-	// five promotable behind it.
+	// Releasing the held head of an idle chat would leave W with a
+	// promotable head; Update rolls it back. Starting it is
+	// PromoteQueuedMessage's job, which clears the hold, pops row
+	// three, and leaves four and five promotable behind it.
 	releaseHeld := false
 	err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
@@ -113,7 +113,7 @@ func TestHold_FinishTurnStopsAtHeldRow(t *testing.T) {
 		})
 		return err
 	})
-	require.ErrorIs(t, err, chatstate.ErrIdleHeadWouldBecomePromotable)
+	require.ErrorIs(t, err, chatstate.ErrInvalidResultState)
 	require.Equal(t, chatstate.StateW, f.classify(ctx, t, chatID))
 
 	var promoted chatstate.PromoteQueuedMessageResult
@@ -126,6 +126,62 @@ func TestHold_FinishTurnStopsAtHeldRow(t *testing.T) {
 	assertChatMessageText(t, *promoted.InsertedMessage, bodies[2])
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
+}
+
+// TestHold_HoldingAnotherRowMovesTheHold holds row one while row two
+// is held on a running chat. A chat has one held row, so the hold
+// moves in a single transition: row two is released and row one, the
+// head, is held. There is no moment with no hold, which is what makes
+// "hold(1)" safe against a turn boundary promoting row one meanwhile.
+func TestHold_HoldingAnotherRowMovesTheHold(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	chatID := created.Chat.ID
+	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
+
+	first := sendQueuedMessage(t, f, m, "one")
+	second := sendQueuedMessage(t, f, m, "two")
+	third := sendQueuedMessage(t, f, m, "three")
+
+	holdViaTransition(t, f, m, second.QueuedMessage.ID, true)
+	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID), "row one is still promotable")
+
+	moved := holdViaTransition(t, f, m, first.QueuedMessage.ID, true)
+	require.True(t, moved.QueuedMessage.HeldAt.Valid)
+	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, chatID), "the head is held now")
+	require.False(t, requireQueuedMessageByID(ctx, t, f, chatID, second.QueuedMessage.ID).HeldAt.Valid, "row two is released")
+	require.False(t, requireQueuedMessageByID(ctx, t, f, chatID, third.QueuedMessage.ID).HeldAt.Valid)
+
+	// Holding the already-held row is a no-op that keeps its held_at.
+	again := holdViaTransition(t, f, m, first.QueuedMessage.ID, true)
+	require.Equal(t, moved.QueuedMessage.HeldAt.Time, again.QueuedMessage.HeldAt.Time)
+}
+
+// TestHold_MoveHoldOffIdleHeadRefused holds a row behind the held head
+// of an idle chat. Moving the hold would release the head and leave W
+// with a promotable head, so Update rolls the whole change back and
+// the original hold stands.
+func TestHold_MoveHoldOffIdleHeadRefused(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedHeldHead(t, f, chatstate.StateW, 1)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+
+	held := true
+	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
+			QueuedMessageID: seeded.queuedMessageIDs[1],
+			Held:            &held,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, chatstate.ErrInvalidResultState)
+	require.Equal(t, chatstate.StateW, f.classify(ctx, t, seeded.chatID))
+	require.True(t, requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0]).HeldAt.Valid, "the head keeps its hold")
+	require.False(t, requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[1]).HeldAt.Valid)
 }
 
 // TestHold_FinishInterruptionStopsAtHeldRow interrupts a running chat
