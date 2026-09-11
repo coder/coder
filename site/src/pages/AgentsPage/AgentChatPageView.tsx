@@ -7,9 +7,12 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { useQueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import { invalidateChatDiffContents } from "#/api/queries/chats";
+import {
+	invalidateChatDiffContents,
+	userChatDebugLogging,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -152,7 +155,6 @@ interface AgentChatPageViewProps {
 	onSetShowSidebarPanel: (next: boolean) => void;
 
 	// Sidebar content data.
-	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
@@ -187,9 +189,6 @@ interface AgentChatPageViewProps {
 	selectedMCPServerIds: readonly string[];
 	onMCPSelectionChange: (ids: string[]) => void;
 	onMCPAuthComplete: (serverId: string) => void;
-
-	// Desktop chat ID (optional).
-	desktopChatId?: string;
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -310,7 +309,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isWorkspaceLoading = false,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
-	debugLoggingEnabled,
 	gitWatcher,
 	sshCommand,
 	handleCommit,
@@ -329,11 +327,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	desktopChatId,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
+	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
+	const debugLoggingEnabled = Boolean(
+		userDebugLoggingQuery.data?.debug_logging_enabled,
+	);
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -450,6 +451,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
+	const desktopChatId = experiments.includes("chat-virtual-desktop")
+		? agentId
+		: undefined;
+
 	// Desktop is only available when the workspace and agent are ready;
 	// offer it as a singleton panel on that same condition to avoid
 	// selecting "desktop" when no desktop panel is rendered.
@@ -463,7 +468,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
-		debug: debugLoggingEnabled === true,
+		debug: debugLoggingEnabled,
 	};
 	const supportedSingletonTabs = singletonRightPanelTabIds.filter(
 		(tabId) => singletonTabSupport[tabId],
