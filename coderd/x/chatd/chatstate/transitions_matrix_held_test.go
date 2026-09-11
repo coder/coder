@@ -26,7 +26,7 @@ const (
 	// the queue head, collapsing a "1" state into its "0" sibling.
 	scenarioHold scenario = "hold"
 	// scenarioRelease marks EditQueuedMessage cases that clear the
-	// hold on the head. From W the exposed head is promoted.
+	// hold on the head, exposing it as promotable.
 	scenarioRelease scenario = "release"
 	// scenarioContent marks EditQueuedMessage cases that only replace
 	// the row's content and leave the classified state unchanged.
@@ -246,9 +246,9 @@ func applyReleaseHead(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded see
 }
 
 // editQueuedReleaseIdleHeadRefusedCase clears the hold on the head of
-// an idle chat. That would leave W with a promotable head, so the
-// transition refuses and nothing is written; releasing that row is
-// PromoteQueuedMessage's job.
+// an idle chat. That would leave W with a promotable head, so Update
+// rolls the transaction back and nothing is written; releasing that
+// row is PromoteQueuedMessage's job.
 func editQueuedReleaseIdleHeadRefusedCase() transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionEditQueuedMessage,
@@ -260,29 +260,27 @@ func editQueuedReleaseIdleHeadRefusedCase() transitionCaseSpec {
 		},
 		apply: applyReleaseHead,
 		assertFailure: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error) {
-			require.ErrorIs(t, err, chatstate.ErrIdleHeadWouldBecomePromotable)
+			require.ErrorIs(t, err, chatstate.ErrInvalidResultState)
 			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
 		},
 	}
 }
 
-// editQueuedReleaseIdleNonHeadCase clears the hold on a held row behind
-// the held head of an idle chat. The head is still held, so the chat
-// stays W.
-func editQueuedReleaseIdleNonHeadCase() transitionCaseSpec {
+// editQueuedMoveHoldCase holds a row behind the held head. A chat has
+// one held row, so the hold moves: the old head is released and, being
+// promotable again, puts the chat back in the "1" variant.
+func editQueuedMoveHoldCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionEditQueuedMessage,
-		from:       chatstate.StateW,
-		want:       chatstate.StateW,
-		scenario:   scenario(string(scenarioRelease) + "_non_head"),
+		from:       from,
+		want:       want,
+		scenario:   scenario(string(scenarioHold) + "_moved"),
 		seed: func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
-			seeded := seedHeldHead(t, f, from, 1)
-			holdQueuedMessage(testutil.Context(t, testutil.WaitShort), t, f, seeded.chatID, seeded.queuedMessageIDs[1])
-			return seeded
+			return seedHeldHead(t, f, from, 1)
 		},
 		apply: func(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 			t.Helper()
-			held := false
+			held := true
 			var err error
 			result.editQueuedMessage, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
 				QueuedMessageID: seeded.queuedMessageIDs[1],
@@ -291,11 +289,11 @@ func editQueuedReleaseIdleNonHeadCase() transitionCaseSpec {
 			return err
 		},
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
-			require.False(t, result.editQueuedMessage.QueuedMessage.HeldAt.Valid)
-			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+			require.True(t, result.editQueuedMessage.QueuedMessage.HeldAt.Valid)
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID), "moving the hold keeps the order")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID))
 			head := requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0])
-			require.True(t, head.HeldAt.Valid, "the head stays held")
+			require.False(t, head.HeldAt.Valid, "the previous hold is released")
 		},
 	}
 }
@@ -332,8 +330,8 @@ func heldDeleteQueuedCase(from, want chatstate.ExecutionState, extraUnheld int) 
 }
 
 // heldDeleteIdleHeadRefusedCase deletes the held head of an idle chat
-// that has an unheld row behind it. That would leave W with a
-// promotable head, so the transition refuses; the caller promotes the
+// that has a row behind it. That would leave W with a promotable head,
+// so Update rolls the transaction back; the caller promotes the
 // successor first.
 func heldDeleteIdleHeadRefusedCase() transitionCaseSpec {
 	return transitionCaseSpec{
@@ -346,7 +344,7 @@ func heldDeleteIdleHeadRefusedCase() transitionCaseSpec {
 		},
 		apply: applyDeleteQueuedMessage,
 		assertFailure: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error) {
-			require.ErrorIs(t, err, chatstate.ErrIdleHeadWouldBecomePromotable)
+			require.ErrorIs(t, err, chatstate.ErrInvalidResultState)
 			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
 		},
 	}
@@ -428,6 +426,82 @@ func isZeroQueueState(s chatstate.ExecutionState) bool {
 	return false
 }
 
+// heldSendMessageCase covers the SendMessage outputs that exist only
+// because a held head hides the queue: a queued send from a "0" state
+// appends behind the held head and stays in that "0" variant (or moves
+// to the busy status's "0" variant on interrupt), instead of landing
+// in the "1" sibling the unheld shape produces.
+func heldSendMessageCase(from, want chatstate.ExecutionState, busy chatstate.BusyBehavior) transitionCaseSpec {
+	sc := scenario(string(scenarioQueue) + "_behind_held_head")
+	apply := applySendMessageQueue
+	if busy == chatstate.BusyBehaviorInterrupt {
+		sc = scenario(string(scenarioInterrupt) + "_behind_held_head")
+		apply = applySendMessageInterrupt
+	}
+	return transitionCaseSpec{
+		transition: chatstate.TransitionSendMessage,
+		from:       from,
+		want:       want,
+		scenario:   sc,
+		seed: func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+			return seedHeldHead(t, f, from, 0)
+		},
+		apply: apply,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			require.NotNil(t, result.sendMessage.QueuedMessage, "the send is queued")
+			for _, inserted := range result.sendMessage.InsertedMessages {
+				// An interrupt from requires_action inserts synthetic
+				// tool cancellations; no user message may be promoted.
+				require.NotEqual(t, database.ChatMessageRoleUser, inserted.Role, "nothing is promoted past the held head")
+			}
+			wantQueue := append(append([]int64{}, base.queueIDs...), result.sendMessage.QueuedMessage.ID)
+			require.Equal(t, wantQueue, queuedIDsByPosition(ctx, t, f, seeded.chatID), "the send lands behind the held head")
+			afterHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
+			require.Equal(t, base.historyIDs, afterHistory[:len(base.historyIDs)], "existing history is untouched")
+			head := requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0])
+			require.True(t, head.HeldAt.Valid, "the head stays held")
+		},
+	}
+}
+
+// heldSendMessageE1Case covers SendMessage from E1 whose queue is an
+// unheld head followed by a held row. The send appends and promotes
+// the head as usual; the held row is then the head, so the chat lands
+// in R0 rather than R1.
+func heldSendMessageE1Case() transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionSendMessage,
+		from:       chatstate.StateE1,
+		want:       chatstate.StateR0,
+		scenario:   scenario(string(scenarioQueue) + "_held_behind_head"),
+		seed: func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+			// E0 with a held head and one row behind it, then move the
+			// hold to the second row: the head is promotable, so E1.
+			seeded := seedHeldHead(t, f, chatstate.StateE0, 1)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			_, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
+				ChatID: seeded.chatID, ID: seeded.queuedMessageIDs[0], Held: false,
+			})
+			require.NoError(t, err)
+			holdQueuedMessage(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[1])
+			return seeded
+		},
+		apply: applySendMessageQueue,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusRunning, after.Status)
+			require.NotNil(t, result.sendMessage.QueuedMessage)
+			require.Len(t, result.sendMessage.InsertedMessages, 1, "the previous head is promoted")
+			assertChatMessageText(t, requireChatMessageByID(ctx, t, f, result.sendMessage.InsertedMessages[0].ID), seeded.queuedMessageBodies[0])
+			wantQueue := []int64{seeded.queuedMessageIDs[1], result.sendMessage.QueuedMessage.ID}
+			require.Equal(t, wantQueue, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+			head := requireQueuedMessageByID(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[1])
+			require.True(t, head.HeldAt.Valid, "the held row is now the head")
+		},
+	}
+}
+
 // heldQueueMatrixCases enumerates every matrix cell that exists because
 // of holds, plus the EditQueuedMessage cells on the "1" states, and the
 // two W rewrites the transitions refuse.
@@ -450,17 +524,24 @@ func heldQueueMatrixCases() []transitionCaseSpec {
 		editQueuedContentCase(chatstate.StateA0),
 		editQueuedContentCase(chatstate.StateA1),
 
-		// EditQueuedMessage: release the held head. From W only a row
-		// behind the head may be released; releasing the head is refused.
-		editQueuedReleaseIdleNonHeadCase(),
+		// EditQueuedMessage: release the held head. From W releasing the
+		// head is refused; moving the hold off it is refused for the same
+		// reason and covered by TestHold_MoveHoldOffIdleHeadRefused.
 		editQueuedReleaseIdleHeadRefusedCase(),
 		editQueuedReleaseCase(chatstate.StateE0, chatstate.StateE1, 0),
 		editQueuedReleaseCase(chatstate.StateR0, chatstate.StateR1, 0),
 		editQueuedReleaseCase(chatstate.StateI0, chatstate.StateI1, 0),
 		editQueuedReleaseCase(chatstate.StateA0, chatstate.StateA1, 0),
 
-		// DeleteQueuedMessage on a held head. From W the successor must
-		// not be promotable; otherwise the delete is refused.
+		// EditQueuedMessage: move the hold from the head to the row
+		// behind it.
+		editQueuedMoveHoldCase(chatstate.StateE0, chatstate.StateE1),
+		editQueuedMoveHoldCase(chatstate.StateR0, chatstate.StateR1),
+		editQueuedMoveHoldCase(chatstate.StateI0, chatstate.StateI1),
+		editQueuedMoveHoldCase(chatstate.StateA0, chatstate.StateA1),
+
+		// DeleteQueuedMessage on a held head. From W a row behind the
+		// head would become promotable, so only the last row may go.
 		heldDeleteQueuedCase(chatstate.StateW, chatstate.StateW, 0),
 		heldDeleteIdleHeadRefusedCase(),
 		heldDeleteQueuedCase(chatstate.StateE0, chatstate.StateE0, 0),
@@ -482,5 +563,14 @@ func heldQueueMatrixCases() []transitionCaseSpec {
 		heldPromoteQueuedCase(chatstate.StateR0, chatstate.StateI1, 0, 0),
 		heldPromoteQueuedCase(chatstate.StateR0, chatstate.StateI1, 1, 1),
 		heldPromoteQueuedCase(chatstate.StateI0, chatstate.StateI1, 0, 0),
+
+		// SendMessage with a held head: the send queues behind it and
+		// the queue stays hidden, so the busy "0" variants are outputs.
+		heldSendMessageCase(chatstate.StateR0, chatstate.StateR0, chatstate.BusyBehaviorQueue),
+		heldSendMessageCase(chatstate.StateR0, chatstate.StateI0, chatstate.BusyBehaviorInterrupt),
+		heldSendMessageCase(chatstate.StateI0, chatstate.StateI0, chatstate.BusyBehaviorQueue),
+		heldSendMessageCase(chatstate.StateA0, chatstate.StateA0, chatstate.BusyBehaviorQueue),
+		heldSendMessageCase(chatstate.StateA0, chatstate.StateR0, chatstate.BusyBehaviorInterrupt),
+		heldSendMessageE1Case(),
 	}
 }
