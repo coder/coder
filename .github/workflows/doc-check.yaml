@@ -170,6 +170,12 @@ jobs:
 
           When creating a new workspace, use the \"coder-workflow-bot\" template.
 
+          If any tool call fails with \`get workspace agents in latest build: unauthorized: rbac: forbidden\`, this chat's workspace is stopped or dormant. That is an infrastructure state, not a mistake in your command. Do not retry the same command, because it fails the same way.
+
+          Call \`start_workspace\` with no arguments. It starts the workspace this chat already owns, and it clears dormancy. Wait for it to finish, then run the failed tool call again.
+
+          If \`start_workspace\` fails, or the same error comes back after it, stop. Say that you could not review the PR, and name this error. Post no doc-check comment. Do not say or imply the docs are fine, because you did not read them.
+
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
           Follow the skill's evidence discipline, including its mandatory
