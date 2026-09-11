@@ -2793,6 +2793,22 @@
   },
   {
     "provider": "openai",
+    "model": "gpt-daybreak-blue-latest",
+    "input_price": 4000000,
+    "output_price": 20000000,
+    "cache_read_price": 400000,
+    "cache_write_price": 5000000
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-daybreak-red-latest",
+    "input_price": 12500000,
+    "output_price": 75000000,
+    "cache_read_price": 1250000,
+    "cache_write_price": 15625000
+  },
+  {
+    "provider": "openai",
     "model": "gpt-image-2",
     "input_price": 5000000,
     "output_price": 30000000,
