@@ -138,10 +138,14 @@ module "jetbrains" {
   folder     = local.repo_dir
 }
 
-module "filebrowser" {
-  source   = "dev.registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.5"
+module "copyparty" {
+  source   = "dev.registry.coder.com/djarbz/copyparty/coder"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
+  arguments = [
+    # Serve the home directory at the web root with all permissions.
+    "-v", "/home/coder:/:A",
+  ]
 }
 
 module "coder-login" {
