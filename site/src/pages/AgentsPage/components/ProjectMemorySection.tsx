@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -53,11 +53,26 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 
 	return (
 		<section className="mt-10 border-t border-border-default pt-8">
-			<h2 className="m-0 text-lg font-semibold text-content-primary">Memory</h2>
-			<p className="mb-0 mt-1 text-sm text-content-secondary">
-				Facts the agent saved while working in this project. Every chat in the
-				project can read them.
-			</p>
+			<div className="flex items-start justify-between gap-4">
+				<div>
+					<h2 className="m-0 text-lg font-semibold text-content-primary">
+						Memory
+					</h2>
+					<p className="mb-0 mt-1 text-sm text-content-secondary">
+						Facts the agent saved while working in this project. Every chat in
+						the project can read them.
+					</p>
+				</div>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Add memory"
+					className="text-content-secondary"
+					onClick={() => setEditingMemory(null)}
+				>
+					<PlusIcon />
+				</Button>
+			</div>
 			{memories.length === 0 ? (
 				<p className="mt-6 text-sm text-content-secondary">
 					No memories yet. The agent saves them as it learns durable facts about
@@ -129,14 +144,6 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 					})}
 				</ul>
 			)}
-			<Button
-				variant="subtle"
-				size="sm"
-				className="mt-3 text-content-secondary"
-				onClick={() => setEditingMemory(null)}
-			>
-				Add memory manually
-			</Button>
 			<ChatProjectMemoryDialog
 				open={editingMemory !== undefined}
 				memory={editingMemory}

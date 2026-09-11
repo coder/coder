@@ -44,9 +44,7 @@ describe("ProjectMemorySection", () => {
 			</Wrapper>,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: "Add memory manually" }),
-		);
+		await user.click(await screen.findByRole("button", { name: "Add memory" }));
 		await user.type(screen.getByLabelText("Name"), "durable-fact");
 		await user.type(screen.getByLabelText("Description"), "A durable fact");
 		await user.type(screen.getByLabelText("Body"), "Project memory body");
