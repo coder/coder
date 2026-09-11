@@ -35,6 +35,7 @@
 		"autocomplete-valid": "error",
 		"html-has-lang": "error",
 		"lang": "error",
+		"media-has-caption": "error",
 
 		// --- complexity ---
 		"no-regex-spaces": "error",
@@ -213,7 +214,6 @@
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
-		"media-has-caption": "off", // a11y/useMediaCaption (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 		"prefer-template": "off", // style/useTemplate (small)
