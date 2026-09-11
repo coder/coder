@@ -587,11 +587,12 @@ func turnActorID(chat database.Chat, messages []database.ChatMessage) (uuid.UUID
 }
 
 // generationActorID returns the user whose credentials a generation turn
-// runs with. A pending manual compaction request started the turn, so its
-// requester is the actor; otherwise the turn follows turnActorID.
+// runs with. Only the chat owner may request a manual compaction, so a
+// pending request runs as the owner; otherwise the turn follows
+// turnActorID.
 func generationActorID(chat database.Chat, messages []database.ChatMessage) (uuid.UUID, error) {
-	if chat.CompactionRequestedAt.Valid && chat.CompactionRequestedBy.Valid && chat.CompactionRequestedBy.UUID != uuid.Nil {
-		return chat.CompactionRequestedBy.UUID, nil
+	if chat.CompactionRequestedAt.Valid {
+		return chat.OwnerID, nil
 	}
 	return turnActorID(chat, messages)
 }

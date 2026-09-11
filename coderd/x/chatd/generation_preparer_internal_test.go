@@ -515,18 +515,19 @@ func TestPrepareGenerationRefusesSharedChatWithoutPoster(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for a turn without a poster")
 }
 
-// TestPrepareGenerationBindsCredentialsToCompactionRequester verifies that
-// a pending manual compaction request runs with the synthetic gateway key of
-// the user who requested it, not the owner who posted the last prompt.
-func TestPrepareGenerationBindsCredentialsToCompactionRequester(t *testing.T) {
+// TestPrepareGenerationBindsCompactionToOwner verifies that a pending
+// manual compaction runs with the synthetic gateway key of the chat owner,
+// who is the only user allowed to request it, not the sharer who posted the
+// last prompt.
+func TestPrepareGenerationBindsCompactionToOwner(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
 	owner := dbgen.User(t, db, database.User{})
-	requester := dbgen.User(t, db, database.User{})
+	sharer := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
-	for _, user := range []database.User{owner, requester} {
+	for _, user := range []database.User{owner, sharer} {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
@@ -546,7 +547,7 @@ func TestPrepareGenerationBindsCredentialsToCompactionRequester(t *testing.T) {
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "compaction requester attribution",
+		Title:             "compaction owner attribution",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{
 			{
@@ -554,15 +555,15 @@ func TestPrepareGenerationBindsCredentialsToCompactionRequester(t *testing.T) {
 				Content:        mustMarshalText(t, "inspect the workspace"),
 				Visibility:     database.ChatMessageVisibilityBoth,
 				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: sharer.ID, Valid: true},
 				ContentVersion: chatprompt.CurrentContentVersion,
 			},
 		},
 	})
 	require.NoError(t, err)
 	chat := created.Chat
+	chat.UserACL = database.ChatACL{sharer.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead, policy.ActionUse}}}
 	chat.CompactionRequestedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
-	chat.CompactionRequestedBy = uuid.NullUUID{UUID: requester.ID, Valid: true}
 
 	server := newInternalTestServer(
 		t,
@@ -578,18 +579,18 @@ func TestPrepareGenerationBindsCredentialsToCompactionRequester(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
 
-	require.Equal(t, requester.ID, prepared.ActorID)
-	requesterKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    requester.ID,
-		TokenName: GatewayTokenName(requester.ID),
-	})
-	require.NoError(t, err)
-	require.Equal(t, requesterKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
-	_, err = db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+	require.Equal(t, owner.ID, prepared.ActorID)
+	ownerKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
 		UserID:    owner.ID,
 		TokenName: GatewayTokenName(owner.ID),
 	})
-	require.ErrorIs(t, err, sql.ErrNoRows, "owner must not receive a synthetic key for the requester's compaction")
+	require.NoError(t, err)
+	require.Equal(t, ownerKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+	_, err = db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    sharer.ID,
+		TokenName: GatewayTokenName(sharer.ID),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "sharer must not receive a synthetic key for the owner's compaction")
 }
 
 // TestGenerateChatSummaryBindsCredentialsToTurnActor verifies that the

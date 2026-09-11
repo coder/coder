@@ -18545,8 +18545,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 
 // TestChatAdminsHoldUpdateNotUse verifies that an org admin holds update on
 // every chat in the org but not use: the admin manages the chat (queue,
-// title, compaction) but cannot post into it, submit tool results, or edit
-// messages.
+// title) but cannot post into it, submit tool results, or edit messages.
 func TestChatAdminsHoldUpdateNotUse(t *testing.T) {
 	t.Parallel()
 
@@ -18607,39 +18606,11 @@ func TestChatAdminsHoldUpdateNotUse(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ownerClient, db, api := newChatClientWithAPIAndDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
-		_ = createChatModel(t, ownerClient)
-		chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "owner chat for admin compaction",
-			}},
-		})
-		require.NoError(t, err)
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
-		orgAdminRaw, orgAdmin := coderdtest.CreateAnotherUser(
-			t,
-			ownerClient.Client,
-			firstUser.OrganizationID,
-			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
-		)
-		adminClient := codersdk.NewExperimentalClient(orgAdminRaw)
-
-		// Compaction is an update action, so the org admin may request
-		// it. The compaction turn then runs with the admin's credentials.
-		compacted, err := adminClient.CompactChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusRunning, compacted.Status)
-
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-		_, err = db.GetChatGatewayAPIKey(dbauthz.AsSystemRestricted(ctx), database.GetChatGatewayAPIKeyParams{
-			UserID:    orgAdmin.ID,
-			TokenName: chatd.GatewayTokenName(orgAdmin.ID),
-		})
-		require.NoError(t, err, "compaction turn must run with the requesting admin's credentials")
+		_, err := adminClient.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
 	})
 
 	t.Run("PatchChatMessage", func(t *testing.T) {

@@ -3300,7 +3300,17 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := api.chatDaemon.CompactChat(ctx, chat, apiKey.UserID)
+	// Only the chat owner may trigger compaction. Org admins pass the
+	// RBAC check above (org-level ActionUpdate), but compaction runs
+	// inference with the owner's delegated credentials.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may compact the chat.",
+		})
+		return
+	}
+
+	updated, err := api.chatDaemon.CompactChat(ctx, chat)
 	if err != nil {
 		if writeCommonChatMutationError(ctx, rw, err, "Cannot compact an archived chat.") {
 			return

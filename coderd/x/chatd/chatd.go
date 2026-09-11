@@ -2480,8 +2480,7 @@ func (p *Server) InterruptChat(
 // through the normal generation loop, bypassing the usage threshold,
 // and the chat returns to waiting with no assistant follow-up unless
 // queued messages remain or a post_compact hook commits a
-// user-visible message. The compaction turn runs inference with the
-// credentials of requesterID, the user who asked for the compaction.
+// user-visible message.
 //
 // Returns the post-transition chat and an error so callers can map
 // state conflicts deliberately: archived chats return ErrChatArchived,
@@ -2491,7 +2490,6 @@ func (p *Server) InterruptChat(
 func (p *Server) CompactChat(
 	ctx context.Context,
 	chat database.Chat,
-	requesterID uuid.UUID,
 ) (database.Chat, error) {
 	if chat.ID == uuid.Nil {
 		return chat, xerrors.New("chat_id is required")
@@ -2509,7 +2507,7 @@ func (p *Server) CompactChat(
 		}
 		// Run the transition before content and usage validation so busy
 		// chats surface the state conflict first.
-		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{RequesterID: requesterID})
+		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 		if err != nil {
 			return err
 		}

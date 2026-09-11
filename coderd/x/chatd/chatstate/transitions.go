@@ -176,12 +176,11 @@ func insertChat(
 // identifiers, the requires-action deadline, and the manual
 // compaction request marker as one atomic update.
 //
-// CompactionRequestedAt and CompactionRequestedBy are one-shot by
-// construction: leaving them at their zero values clears any pending
-// manual compaction request, so a stale request can never replay on a
-// later turn. Transitions that must keep a pending request alive
-// (archive toggles, ownership changes, queue appends) explicitly carry
-// the current values forward.
+// CompactionRequestedAt is one-shot by construction: leaving it at
+// its zero value clears any pending manual compaction request, so a
+// stale request can never replay on a later turn. Transitions that
+// must keep a pending request alive (archive toggles, ownership
+// changes, queue appends) explicitly carry the current value forward.
 type executionStateUpdate struct {
 	Status                   database.ChatStatus
 	Archived                 bool
@@ -190,7 +189,6 @@ type executionStateUpdate struct {
 	LastError                pqtype.NullRawMessage
 	RequiresActionDeadlineAt sql.NullTime
 	CompactionRequestedAt    sql.NullTime
-	CompactionRequestedBy    uuid.NullUUID
 	GrantHistoryEpoch        bool
 }
 
@@ -204,7 +202,6 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 		LastError:                u.LastError,
 		RequiresActionDeadlineAt: u.RequiresActionDeadlineAt,
 		CompactionRequestedAt:    u.CompactionRequestedAt,
-		CompactionRequestedBy:    u.CompactionRequestedBy,
 		GrantHistoryEpoch:        u.GrantHistoryEpoch,
 	})
 }
@@ -366,7 +363,6 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 		LastError:                chat.LastError,
 		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
 		CompactionRequestedAt:    chat.CompactionRequestedAt,
-		CompactionRequestedBy:    chat.CompactionRequestedBy,
 	}); err != nil {
 		return SetArchivedResult{}, xerrors.Errorf("update archive: %w", err)
 	}
@@ -552,7 +548,6 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 		LastError:                lastError,
 		RequiresActionDeadlineAt: deadline,
 		CompactionRequestedAt:    chat.CompactionRequestedAt,
-		CompactionRequestedBy:    chat.CompactionRequestedBy,
 	}); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("update status: %w", err)
 	}
@@ -716,14 +711,10 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	}, nil
 }
 
-// RequestCompactionInput configures [Tx.RequestCompaction].
-type RequestCompactionInput struct {
-	// RequesterID is the user who requested the compaction. The
-	// compaction turn runs inference with this user's credentials.
-	// A zero value stores NULL and the turn falls back to the last
-	// prompt's poster.
-	RequesterID uuid.UUID
-}
+// RequestCompactionInput is intentionally empty. The compaction turn
+// derives AI Gateway attribution from the owner's synthetic API key,
+// so the request carries no caller input.
+type RequestCompactionInput struct{}
 
 // RequestCompactionResult is returned by [Tx.RequestCompaction].
 type RequestCompactionResult struct {
@@ -740,7 +731,7 @@ type RequestCompactionResult struct {
 // change would grant: a full retry budget regardless of how the
 // previous turn spent its own, and message part episode keys that
 // cannot collide with episodes the failed turn's replica retains.
-func (tx *Tx) RequestCompaction(input RequestCompactionInput) (RequestCompactionResult, error) {
+func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
 	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
 	if err != nil {
 		return RequestCompactionResult{}, err
@@ -757,7 +748,6 @@ func (tx *Tx) RequestCompaction(input RequestCompactionInput) (RequestCompaction
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 		CompactionRequestedAt:    sql.NullTime{Time: now, Valid: true},
-		CompactionRequestedBy:    uuid.NullUUID{UUID: input.RequesterID, Valid: input.RequesterID != uuid.Nil},
 		GrantHistoryEpoch:        true,
 	})
 	if err != nil {
@@ -1148,7 +1138,6 @@ func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
 		LastError:                chat.LastError,
 		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
 		CompactionRequestedAt:    chat.CompactionRequestedAt,
-		CompactionRequestedBy:    chat.CompactionRequestedBy,
 	}); err != nil {
 		return AcquireResult{}, xerrors.Errorf("set ownership: %w", err)
 	}
@@ -1193,7 +1182,6 @@ func (tx *Tx) Abandon(_ AbandonInput) (AbandonResult, error) {
 		LastError:                chat.LastError,
 		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
 		CompactionRequestedAt:    chat.CompactionRequestedAt,
-		CompactionRequestedBy:    chat.CompactionRequestedBy,
 	}); err != nil {
 		return AbandonResult{}, xerrors.Errorf("clear ownership: %w", err)
 	}

@@ -6121,7 +6121,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		require.Equal(t, int32(0), compactionRequests.Load())
 		preCompactionMessageCount := len(chatMessages(ctx, t, db, chat.ID))
 
-		compacted, err := server.CompactChat(ctx, chat, user.ID)
+		compacted, err := server.CompactChat(ctx, chat)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusRunning, compacted.Status)
 		require.True(t, compacted.CompactionRequestedAt.Valid)
@@ -6156,7 +6156,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 
 		// A second /compact with nothing new to summarize is
 		// rejected before any LLM call.
-		_, err = server.CompactChat(ctx, chat, user.ID)
+		_, err = server.CompactChat(ctx, chat)
 		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
 		require.Equal(t, int32(1), compactionRequests.Load())
 
@@ -6216,7 +6216,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
 
-		compacted, err := server.CompactChat(ctx, chat, user.ID)
+		compacted, err := server.CompactChat(ctx, chat)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusRunning, compacted.Status)
 		require.False(t, compacted.LastError.Valid,
@@ -6269,7 +6269,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		// chat is then running with an owning worker.
 		testutil.TryReceive(ctx, t, streamStarted)
 
-		_, err := server.CompactChat(ctx, chat, user.ID)
+		_, err := server.CompactChat(ctx, chat)
 		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 
 		releaseOnce()
@@ -6333,7 +6333,7 @@ func TestActiveServer_ManualClear(t *testing.T) {
 
 		_, err = server.ClearChat(ctx, chat)
 		require.ErrorIs(t, err, chatd.ErrNothingToClear)
-		_, err = server.CompactChat(ctx, chat, user.ID)
+		_, err = server.CompactChat(ctx, chat)
 		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
 
 		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -6487,7 +6487,7 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
-		_, err := server.CompactChat(ctx, chat, user.ID)
+		_, err := server.CompactChat(ctx, chat)
 		require.NoError(t, err)
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
