@@ -16420,27 +16420,13 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.Equal(t, sql.NullString{String: "still fresh summary", Valid: true}, fetched.LastTurnSummary)
 	require.Equal(t, advanced.UpdatedAt, fetched.UpdatedAt)
 
-	_, err = db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
-	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{owner.ID},
-		ModelConfigID:       []uuid.UUID{modelCfg.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-		Content:             []string{`[{"type":"text","text":"new request"}]`},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		RuntimeMs:           []int64{0},
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: owner.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content:       pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"new request"}]`), Valid: true},
 	})
-	require.NoError(t, err)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
 		ID:                     chat.ID,
@@ -16541,27 +16527,13 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
 
-	_, err = db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
-	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{owner.ID},
-		ModelConfigID:       []uuid.UUID{modelCfg.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-		Content:             []string{`[{"type":"text","text":"new request"}]`},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		RuntimeMs:           []int64{0},
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: owner.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content:       pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"new request"}]`), Valid: true},
 	})
-	require.NoError(t, err)
 
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
