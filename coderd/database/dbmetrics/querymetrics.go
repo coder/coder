@@ -3513,14 +3513,6 @@ func (m queryMetricsStore) GetUserStatusCounts(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserTaskNotificationAlertDismissed(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserTaskNotificationAlertDismissed").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserThinkingDisplayMode(ctx, userID)
@@ -6006,14 +5998,6 @@ func (m queryMetricsStore) UpdateUserStatus(ctx context.Context, arg database.Up
 	r0, r1 := m.s.UpdateUserStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserStatus").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateUserTaskNotificationAlertDismissed(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserTaskNotificationAlertDismissed").Inc()
 	return r0, r1
 }
 

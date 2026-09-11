@@ -6615,21 +6615,6 @@ func (mr *MockStoreMockRecorder) GetUserStatusCounts(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserStatusCounts", reflect.TypeOf((*MockStore)(nil).GetUserStatusCounts), ctx, arg)
 }
 
-// GetUserTaskNotificationAlertDismissed mocks base method.
-func (m *MockStore) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserTaskNotificationAlertDismissed", ctx, userID)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserTaskNotificationAlertDismissed indicates an expected call of GetUserTaskNotificationAlertDismissed.
-func (mr *MockStoreMockRecorder) GetUserTaskNotificationAlertDismissed(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTaskNotificationAlertDismissed", reflect.TypeOf((*MockStore)(nil).GetUserTaskNotificationAlertDismissed), ctx, userID)
-}
-
 // GetUserThinkingDisplayMode mocks base method.
 func (m *MockStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
@@ -11347,21 +11332,6 @@ func (m *MockStore) UpdateUserStatus(ctx context.Context, arg database.UpdateUse
 func (mr *MockStoreMockRecorder) UpdateUserStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserStatus", reflect.TypeOf((*MockStore)(nil).UpdateUserStatus), ctx, arg)
-}
-
-// UpdateUserTaskNotificationAlertDismissed mocks base method.
-func (m *MockStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserTaskNotificationAlertDismissed", ctx, arg)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateUserTaskNotificationAlertDismissed indicates an expected call of UpdateUserTaskNotificationAlertDismissed.
-func (mr *MockStoreMockRecorder) UpdateUserTaskNotificationAlertDismissed(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTaskNotificationAlertDismissed", reflect.TypeOf((*MockStore)(nil).UpdateUserTaskNotificationAlertDismissed), ctx, arg)
 }
 
 // UpdateUserTerminalFont mocks base method.
