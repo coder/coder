@@ -91,24 +91,11 @@ interface ChatSummaryBodyProps {
 	summary: string;
 }
 
-/**
- * Renders the generated headline paragraph plus its optional bullet list.
- * Markdown is constrained to lists and inline code: summaries carry verbatim
- * identifiers in backticks and nothing else.
- */
 const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
-	<div
-		// Verbatim identifiers can exceed the panel width with no natural
-		// break opportunity, so break anywhere.
-		className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary [overflow-wrap:anywhere]"
-	>
+	<div className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary wrap-anywhere">
 		<InlineMarkdown
-			// `ol` keeps a legacy prose summary starting with "1. " in a list
-			// parent instead of emitting orphan `li` elements.
 			allowedElements={["ul", "ol", "li"]}
 			components={{
-				// InlineMarkdown renders `p` as a bare fragment, which would
-				// run the headline straight into the bullet list.
 				p: ({ children }) => <p className="m-0 text-pretty">{children}</p>,
 				ul: ({ children }) => (
 					<ul className="my-2 flex list-disc flex-col gap-1 pl-5">
