@@ -34,6 +34,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -446,6 +447,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"owner_username":              ActionIgnore,
 		"owner_name":                  ActionIgnore,
 		"organization_id":             ActionIgnore, // Never changes after creation.
+		"project_id":                  ActionTrack,
 		"workspace_id":                ActionTrack,
 		"build_id":                    ActionIgnore, // Internal lifecycle.
 		"agent_id":                    ActionIgnore, // Internal lifecycle.
@@ -488,6 +490,15 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+	},
+	&database.ChatProject{}: {
+		"id":              ActionTrack,
+		"organization_id": ActionTrack,
+		"created_by":      ActionTrack,
+		"name":            ActionTrack,
+		"description":     ActionTrack,
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.

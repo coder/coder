@@ -22,6 +22,7 @@ import (
 type CreateChatInput struct {
 	OrganizationID    uuid.UUID
 	OwnerID           uuid.UUID
+	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
 	AgentID           uuid.NullUUID
@@ -109,6 +110,7 @@ func insertChat(
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
+			ProjectID:         input.ProjectID,
 			WorkspaceID:       input.WorkspaceID,
 			BuildID:           input.BuildID,
 			AgentID:           input.AgentID,

@@ -7245,6 +7245,159 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
+DELETE FROM chat_projects
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProjectByID, id)
+	return err
+}
+
+const getChatProjectByID = `-- name: GetChatProjectByID :one
+SELECT id, organization_id, created_by, name, description, created_at, updated_at
+FROM chat_projects
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByID, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CreatedBy,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
+SELECT
+    chat_projects.id, chat_projects.organization_id, chat_projects.created_by, chat_projects.name, chat_projects.description, chat_projects.created_at, chat_projects.updated_at,
+    COUNT(chats.id)::bigint AS chat_count
+FROM chat_projects
+LEFT JOIN chats ON chats.project_id = chat_projects.id
+    AND chats.parent_chat_id IS NULL
+    AND chats.archived = false
+WHERE chat_projects.organization_id = $1::uuid
+GROUP BY chat_projects.id
+ORDER BY lower(chat_projects.name)
+`
+
+type GetChatProjectsByOrganizationIDRow struct {
+	ChatProject ChatProject `db:"chat_project" json:"chat_project"`
+	ChatCount   int64       `db:"chat_count" json:"chat_count"`
+}
+
+func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]GetChatProjectsByOrganizationIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatProjectsByOrganizationIDRow
+	for rows.Next() {
+		var i GetChatProjectsByOrganizationIDRow
+		if err := rows.Scan(
+			&i.ChatProject.ID,
+			&i.ChatProject.OrganizationID,
+			&i.ChatProject.CreatedBy,
+			&i.ChatProject.Name,
+			&i.ChatProject.Description,
+			&i.ChatProject.CreatedAt,
+			&i.ChatProject.UpdatedAt,
+			&i.ChatCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatProject = `-- name: InsertChatProject :one
+INSERT INTO chat_projects (id, organization_id, created_by, name, description)
+VALUES (
+    COALESCE($1::uuid, gen_random_uuid()),
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::text
+)
+RETURNING id, organization_id, created_by, name, description, created_at, updated_at
+`
+
+type InsertChatProjectParams struct {
+	ID             uuid.NullUUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+}
+
+func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, insertChatProject,
+		arg.ID,
+		arg.OrganizationID,
+		arg.CreatedBy,
+		arg.Name,
+		arg.Description,
+	)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CreatedBy,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatProjectByID = `-- name: UpdateChatProjectByID :one
+UPDATE chat_projects
+SET
+    name = $1::text,
+    description = $2::text,
+    updated_at = now()
+WHERE id = $3::uuid
+RETURNING id, organization_id, created_by, name, description, created_at, updated_at
+`
+
+type UpdateChatProjectByIDParams struct {
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	ID          uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, updateChatProjectByID, arg.Name, arg.Description, arg.ID)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CreatedBy,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
 WITH acquired AS (
     UPDATE
@@ -7369,7 +7522,7 @@ WITH updated_chats AS (
     UPDATE chats
     SET archived = true, pin_order = 0, updated_at = NOW()
     WHERE id = $1::uuid OR root_chat_id = $1::uuid
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -7398,6 +7551,7 @@ chats_expanded AS (
         updated_chats.last_read_message_id,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
+        updated_chats.project_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
@@ -7425,7 +7579,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 ORDER BY (chats_expanded.id = $1::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC
 `
@@ -7465,6 +7619,7 @@ func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat,
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -7537,10 +7692,10 @@ archived AS (
     FROM to_archive t
     WHERE (c.id = t.id OR c.root_chat_id = t.id) -- cascade to children
       AND c.archived = false
-    RETURNING c.id, c.owner_id, c.workspace_id, c.title, c.status, c.worker_id, c.started_at, c.heartbeat_at, c.created_at, c.updated_at, c.parent_chat_id, c.root_chat_id, c.last_model_config_id, c.archived, c.last_error, c.mode, c.mcp_server_ids, c.labels, c.build_id, c.agent_id, c.pin_order, c.last_read_message_id, c.dynamic_tools, c.organization_id, c.plan_mode, c.client_type, c.last_turn_summary, c.user_acl, c.group_acl, c.snapshot_version, c.history_version, c.queue_version, c.generation_attempt, c.retry_state, c.retry_state_version, c.runner_id, c.requires_action_deadline_at, c.context_aggregate_hash, c.context_dirty_since, c.context_dirty_resources, c.context_error, c.last_reasoning_effort, c.compaction_requested_at, c.summary, c.summary_generated_at
+    RETURNING c.id, c.owner_id, c.workspace_id, c.title, c.status, c.worker_id, c.started_at, c.heartbeat_at, c.created_at, c.updated_at, c.parent_chat_id, c.root_chat_id, c.last_model_config_id, c.archived, c.last_error, c.mode, c.mcp_server_ids, c.labels, c.build_id, c.agent_id, c.pin_order, c.last_read_message_id, c.dynamic_tools, c.organization_id, c.plan_mode, c.client_type, c.last_turn_summary, c.user_acl, c.group_acl, c.snapshot_version, c.history_version, c.queue_version, c.generation_attempt, c.retry_state, c.retry_state_version, c.runner_id, c.requires_action_deadline_at, c.context_aggregate_hash, c.context_dirty_since, c.context_dirty_resources, c.context_error, c.last_reasoning_effort, c.compaction_requested_at, c.summary, c.summary_generated_at, c.project_id
 )
 SELECT
-    a.id, a.owner_id, a.workspace_id, a.title, a.status, a.worker_id, a.started_at, a.heartbeat_at, a.created_at, a.updated_at, a.parent_chat_id, a.root_chat_id, a.last_model_config_id, a.archived, a.last_error, a.mode, a.mcp_server_ids, a.labels, a.build_id, a.agent_id, a.pin_order, a.last_read_message_id, a.dynamic_tools, a.organization_id, a.plan_mode, a.client_type, a.last_turn_summary, a.user_acl, a.group_acl, a.snapshot_version, a.history_version, a.queue_version, a.generation_attempt, a.retry_state, a.retry_state_version, a.runner_id, a.requires_action_deadline_at, a.context_aggregate_hash, a.context_dirty_since, a.context_dirty_resources, a.context_error, a.last_reasoning_effort, a.compaction_requested_at, a.summary, a.summary_generated_at,
+    a.id, a.owner_id, a.workspace_id, a.title, a.status, a.worker_id, a.started_at, a.heartbeat_at, a.created_at, a.updated_at, a.parent_chat_id, a.root_chat_id, a.last_model_config_id, a.archived, a.last_error, a.mode, a.mcp_server_ids, a.labels, a.build_id, a.agent_id, a.pin_order, a.last_read_message_id, a.dynamic_tools, a.organization_id, a.plan_mode, a.client_type, a.last_turn_summary, a.user_acl, a.group_acl, a.snapshot_version, a.history_version, a.queue_version, a.generation_attempt, a.retry_state, a.retry_state_version, a.runner_id, a.requires_action_deadline_at, a.context_aggregate_hash, a.context_dirty_since, a.context_dirty_resources, a.context_error, a.last_reasoning_effort, a.compaction_requested_at, a.summary, a.summary_generated_at, a.project_id,
     -- Children inherit their root's activity so last_activity_at is never null.
     COALESCE(
         t.last_activity_at,
@@ -7603,6 +7758,7 @@ type AutoArchiveInactiveChatsRow struct {
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary                  sql.NullString          `db:"summary" json:"summary"`
 	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
 	LastActivityAt           time.Time               `db:"last_activity_at" json:"last_activity_at"`
 }
 
@@ -7668,6 +7824,7 @@ func (q *sqlQuerier) AutoArchiveInactiveChats(ctx context.Context, arg AutoArchi
 			&i.CompactionRequestedAt,
 			&i.Summary,
 			&i.SummaryGeneratedAt,
+			&i.ProjectID,
 			&i.LastActivityAt,
 		); err != nil {
 			return nil, err
@@ -8018,7 +8175,7 @@ func (q *sqlQuerier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds
 }
 
 const getActiveChatsByAgentID = `-- name: GetActiveChatsByAgentID :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 WHERE agent_id = $1::uuid
     AND archived = false
@@ -8063,6 +8220,7 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -8101,7 +8259,7 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 
 const getAutoArchiveInactiveChatCandidates = `-- name: GetAutoArchiveInactiveChatCandidates :many
 SELECT
-    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
     COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
 FROM chats_expanded
 LEFT JOIN LATERAL (
@@ -8157,6 +8315,7 @@ type GetAutoArchiveInactiveChatCandidatesRow struct {
 	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
 	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
@@ -8220,6 +8379,7 @@ func (q *sqlQuerier) GetAutoArchiveInactiveChatCandidates(ctx context.Context, a
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -8280,7 +8440,7 @@ func (q *sqlQuerier) GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatA
 }
 
 const getChatByID = `-- name: GetChatByID :one
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 WHERE id = $1::uuid
 `
@@ -8314,6 +8474,7 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -8342,7 +8503,7 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 
 const getChatByIDForShare = `-- name: GetChatByIDForShare :one
 WITH shared_chat AS (
-    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
     FROM chats
     WHERE id = $1::uuid
     FOR SHARE
@@ -8374,6 +8535,7 @@ chats_expanded AS (
         shared_chat.last_read_message_id,
         shared_chat.dynamic_tools,
         shared_chat.organization_id,
+        shared_chat.project_id,
         shared_chat.plan_mode,
         shared_chat.client_type,
         shared_chat.last_turn_summary,
@@ -8401,7 +8563,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = shared_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -8434,6 +8596,7 @@ func (q *sqlQuerier) GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Cha
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -8462,7 +8625,7 @@ func (q *sqlQuerier) GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Cha
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
 WITH locked_chat AS (
-    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
     FROM chats
     WHERE id = $1::uuid
     FOR UPDATE
@@ -8494,6 +8657,7 @@ chats_expanded AS (
         locked_chat.last_read_message_id,
         locked_chat.dynamic_tools,
         locked_chat.organization_id,
+        locked_chat.project_id,
         locked_chat.plan_mode,
         locked_chat.client_type,
         locked_chat.last_turn_summary,
@@ -8521,7 +8685,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = locked_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -8554,6 +8718,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -9752,10 +9917,10 @@ WITH cursor_chat AS (
         updated_at,
         id
     FROM chats
-    WHERE id = $7
+    WHERE id = $8
 )
 SELECT
-    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
     EXISTS (
         SELECT 1 FROM chat_messages cm
         WHERE cm.chat_id = chats_expanded.id
@@ -9783,11 +9948,15 @@ WHERE
         ELSE chats_expanded.archived = $6 :: boolean
     END
     AND CASE
+        WHEN $7::uuid IS NOT NULL THEN chats_expanded.project_id = $7::uuid
+        ELSE true
+    END
+    AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -9801,7 +9970,7 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $8::jsonb IS NOT NULL THEN chats_expanded.labels @> $8::jsonb
+        WHEN $9::jsonb IS NOT NULL THEN chats_expanded.labels @> $9::jsonb
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
@@ -9809,13 +9978,13 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN $9::text IS NOT NULL THEN EXISTS (
+        WHEN $10::text IS NOT NULL THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
-              AND LOWER(cds.url) = LOWER($9::text)
+              AND LOWER(cds.url) = LOWER($10::text)
               AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
         )
         ELSE true
@@ -9823,11 +9992,11 @@ WHERE
     -- Filter by title substring (case-insensitive). Applied when the
     -- caller provides a non-empty title_query.
     AND CASE
-        WHEN $10 :: text != '' THEN chats_expanded.title ILIKE '%' || $10 || '%'
+        WHEN $11 :: text != '' THEN chats_expanded.title ILIKE '%' || $11 || '%'
         ELSE true
     END
     AND CASE
-        WHEN $11::boolean IS NOT NULL THEN (
+        WHEN $12::boolean IS NOT NULL THEN (
             EXISTS (
                 SELECT 1 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
@@ -9835,7 +10004,7 @@ WHERE
                     AND cm.deleted = false
                     AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
             )
-        ) = $11::boolean
+        ) = $12::boolean
         ELSE true
     END
     -- Filter by pull request status. Unlike the diff_url filter above,
@@ -9844,7 +10013,7 @@ WHERE
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
     AND CASE
-        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN EXISTS (
+        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
@@ -9854,55 +10023,55 @@ WHERE
                         WHEN cds.pull_request_state = 'open' THEN 'open'
                         ELSE cds.pull_request_state
                     END
-                ) = ANY($12::text[])
+                ) = ANY($13::text[])
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $13::int != 0 THEN EXISTS (
+        WHEN $14::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $13
+                AND cds.pr_number = $14
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $14::text != '' THEN EXISTS (
+        WHEN $15::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $14 || '%'
-                    OR cds.url ILIKE '%' || $14 || '%'
+                    cds.git_remote_origin ILIKE '%' || $15 || '%'
+                    OR cds.url ILIKE '%' || $15 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $15::text != '' THEN EXISTS (
+        WHEN $16::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $15 || '%'
+                AND cds.pull_request_title ILIKE '%' || $16 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $16::text != '' THEN (
+        WHEN $17::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $16)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $17)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $16)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $17)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -9916,18 +10085,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $17))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $17))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
-                WHEN $16 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $17 ~ '^[0-9]{1,18}$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $16::bigint
+                        AND cds.pr_number = $17::bigint
                 )
                 ELSE false
             END
@@ -9950,11 +10119,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $17
+OFFSET $18
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($18 :: int, 0), 50)
+    COALESCE(NULLIF($19 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -9964,6 +10133,7 @@ type GetChatsParams struct {
 	SharedWithUserID    uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
 	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
+	ProjectID           uuid.NullUUID         `db:"project_id" json:"project_id"`
 	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
@@ -9991,6 +10161,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.SharedWithUserID,
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
+		arg.ProjectID,
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
@@ -10037,6 +10208,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 			&i.Chat.LastReadMessageID,
 			&i.Chat.DynamicTools,
 			&i.Chat.OrganizationID,
+			&i.Chat.ProjectID,
 			&i.Chat.PlanMode,
 			&i.Chat.ClientType,
 			&i.Chat.LastTurnSummary,
@@ -10076,7 +10248,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 
 const getChatsByChatFileID = `-- name: GetChatsByChatFileID :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM
     chats_expanded
 WHERE
@@ -10124,6 +10296,7 @@ func (q *sqlQuerier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID)
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -10161,7 +10334,7 @@ func (q *sqlQuerier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID)
 }
 
 const getChatsByIDsForRunnerSync = `-- name: GetChatsByIDsForRunnerSync :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 WHERE id = ANY($1::uuid[])
 ORDER BY id ASC
@@ -10202,6 +10375,7 @@ func (q *sqlQuerier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -10239,7 +10413,7 @@ func (q *sqlQuerier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.
 }
 
 const getChatsByWorkspaceIDs = `-- name: GetChatsByWorkspaceIDs :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 WHERE archived = false
   AND workspace_id = ANY($1::uuid[])
@@ -10281,6 +10455,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -10389,7 +10564,7 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 
 const getChildChatsByParentIDs = `-- name: GetChildChatsByParentIDs :many
 SELECT
-    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
     EXISTS (
         SELECT 1 FROM chat_messages cm
         WHERE cm.chat_id = chats_expanded.id
@@ -10459,6 +10634,7 @@ func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, arg GetChildC
 			&i.Chat.LastReadMessageID,
 			&i.Chat.DynamicTools,
 			&i.Chat.OrganizationID,
+			&i.Chat.ProjectID,
 			&i.Chat.PlanMode,
 			&i.Chat.ClientType,
 			&i.Chat.LastTurnSummary,
@@ -10567,7 +10743,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM
     chats_expanded
 WHERE
@@ -10625,6 +10801,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -10804,6 +10981,7 @@ INSERT INTO chats (
     id,
     organization_id,
     owner_id,
+    project_id,
     workspace_id,
     build_id,
     agent_id,
@@ -10828,16 +11006,17 @@ INSERT INTO chats (
     $7::uuid,
     $8::uuid,
     $9::uuid,
-    $10::text,
-    $11::chat_mode,
-    $12::chat_plan_mode,
-    $13::chat_status,
-    COALESCE($14::uuid[], '{}'::uuid[]),
-    COALESCE($15::jsonb, '{}'::jsonb),
-    $16::jsonb,
-    $17::chat_client_type
+    $10::uuid,
+    $11::text,
+    $12::chat_mode,
+    $13::chat_plan_mode,
+    $14::chat_status,
+    COALESCE($15::uuid[], '{}'::uuid[]),
+    COALESCE($16::jsonb, '{}'::jsonb),
+    $17::jsonb,
+    $18::chat_client_type
 )
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -10866,6 +11045,7 @@ chats_expanded AS (
         inserted_chat.last_read_message_id,
         inserted_chat.dynamic_tools,
         inserted_chat.organization_id,
+        inserted_chat.project_id,
         inserted_chat.plan_mode,
         inserted_chat.client_type,
         inserted_chat.last_turn_summary,
@@ -10893,7 +11073,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = inserted_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -10901,6 +11081,7 @@ type InsertChatParams struct {
 	ID                uuid.NullUUID         `db:"id" json:"id"`
 	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
+	ProjectID         uuid.NullUUID         `db:"project_id" json:"project_id"`
 	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
 	BuildID           uuid.NullUUID         `db:"build_id" json:"build_id"`
 	AgentID           uuid.NullUUID         `db:"agent_id" json:"agent_id"`
@@ -10922,6 +11103,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.ID,
 		arg.OrganizationID,
 		arg.OwnerID,
+		arg.ProjectID,
 		arg.WorkspaceID,
 		arg.BuildID,
 		arg.AgentID,
@@ -10964,6 +11146,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -11433,7 +11616,7 @@ WITH bumped_chat AS (
         WHERE id = $1::uuid
         FOR UPDATE
     )
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -11462,6 +11645,7 @@ chats_expanded AS (
         bumped_chat.last_read_message_id,
         bumped_chat.dynamic_tools,
         bumped_chat.organization_id,
+        bumped_chat.project_id,
         bumped_chat.plan_mode,
         bumped_chat.client_type,
         bumped_chat.last_turn_summary,
@@ -11488,7 +11672,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -11525,6 +11709,7 @@ func (q *sqlQuerier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -11963,7 +12148,7 @@ WITH updated_chats AS (
         archived = false,
         updated_at = NOW()
     WHERE id = $1::uuid OR root_chat_id = $1::uuid
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -11992,6 +12177,7 @@ chats_expanded AS (
         updated_chats.last_read_message_id,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
+        updated_chats.project_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
@@ -12019,7 +12205,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 ORDER BY (chats_expanded.id = $1::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC
 `
@@ -12059,6 +12245,7 @@ func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Cha
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -12183,7 +12370,7 @@ UPDATE chats SET
     updated_at = NOW()
 WHERE
     id = $3::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -12212,6 +12399,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -12239,7 +12427,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -12278,6 +12466,7 @@ func (q *sqlQuerier) UpdateChatBuildAgentBinding(ctx context.Context, arg Update
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -12313,7 +12502,7 @@ SET
     updated_at = NOW()
 WHERE
     id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -12342,6 +12531,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -12369,7 +12559,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -12407,6 +12597,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -12450,7 +12641,7 @@ WITH updated_chat AS (
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = $9::uuid
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -12479,6 +12670,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -12505,7 +12697,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -12569,6 +12761,7 @@ func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateCha
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -12649,7 +12842,7 @@ SET
     updated_at = NOW()
 WHERE
     id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -12678,6 +12871,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -12705,7 +12899,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -12743,6 +12937,7 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -12778,7 +12973,7 @@ SET
     last_model_config_id = $1::uuid
 WHERE
     id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -12807,6 +13002,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -12834,7 +13030,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -12872,6 +13068,7 @@ func (q *sqlQuerier) UpdateChatLastModelConfigByID(ctx context.Context, arg Upda
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -12957,7 +13154,7 @@ SET
     updated_at = NOW()
 WHERE
     id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -12986,6 +13183,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -13013,7 +13211,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -13051,6 +13249,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -13157,7 +13356,7 @@ SET
     plan_mode = $1::chat_plan_mode
 WHERE
     id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -13186,6 +13385,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -13213,7 +13413,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -13251,6 +13451,7 @@ func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatP
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -13277,6 +13478,74 @@ func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatP
 	return i, err
 }
 
+const updateChatProjectBinding = `-- name: UpdateChatProjectBinding :one
+UPDATE chats
+SET
+    project_id = $1::uuid,
+    updated_at = now()
+WHERE id = $2::uuid
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
+`
+
+type UpdateChatProjectBindingParams struct {
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	ID        uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatProjectBinding(ctx context.Context, arg UpdateChatProjectBindingParams) (ChatTable, error) {
+	row := q.db.QueryRowContext(ctx, updateChatProjectBinding, arg.ProjectID, arg.ID)
+	var i ChatTable
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
+		&i.LastTurnSummary,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.SnapshotVersion,
+		&i.HistoryVersion,
+		&i.QueueVersion,
+		&i.GenerationAttempt,
+		&i.RetryState,
+		&i.RetryStateVersion,
+		&i.RunnerID,
+		&i.RequiresActionDeadlineAt,
+		&i.ContextAggregateHash,
+		&i.ContextDirtySince,
+		&i.ContextDirtyResources,
+		&i.ContextError,
+		&i.LastReasoningEffort,
+		&i.CompactionRequestedAt,
+		&i.Summary,
+		&i.SummaryGeneratedAt,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
 const updateChatRetryState = `-- name: UpdateChatRetryState :one
 WITH updated_chat AS (
     UPDATE chats
@@ -13284,7 +13553,7 @@ WITH updated_chat AS (
         retry_state = $1::jsonb,
         updated_at = NOW()
     WHERE id = $2::uuid
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -13313,6 +13582,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -13339,7 +13609,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -13379,6 +13649,7 @@ func (q *sqlQuerier) UpdateChatRetryState(ctx context.Context, arg UpdateChatRet
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -13418,7 +13689,7 @@ SET
     updated_at = NOW()
 WHERE
     id = $6::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -13447,6 +13718,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -13474,7 +13746,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -13523,6 +13795,7 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -13586,7 +13859,7 @@ SET
     title = $1::text
 WHERE
     id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 chats_expanded AS (
     SELECT
@@ -13615,6 +13888,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -13642,7 +13916,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -13680,6 +13954,7 @@ func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitl
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
@@ -13708,7 +13983,7 @@ func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitl
 
 const updateChatWorkspaceBinding = `-- name: UpdateChatWorkspaceBinding :one
 WITH current_chat AS (
-    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
     FROM chats
     WHERE id = $1::uuid
 ),
@@ -13727,13 +14002,13 @@ changed_chat AS (
         updated_at = NOW()
     WHERE id = $1::uuid
         AND (SELECT changed FROM binding_changed)
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
 ),
 result_chat AS (
-    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
     FROM changed_chat
     UNION ALL
-    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
     FROM current_chat
     WHERE NOT (SELECT changed FROM binding_changed)
 ),
@@ -13764,6 +14039,7 @@ chats_expanded AS (
         result_chat.last_read_message_id,
         result_chat.dynamic_tools,
         result_chat.organization_id,
+        result_chat.project_id,
         result_chat.plan_mode,
         result_chat.client_type,
         result_chat.last_turn_summary,
@@ -13791,7 +14067,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = result_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded
 `
 
@@ -13836,6 +14112,7 @@ func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateC
 		&i.LastReadMessageID,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.ProjectID,
 		&i.PlanMode,
 		&i.ClientType,
 		&i.LastTurnSummary,
