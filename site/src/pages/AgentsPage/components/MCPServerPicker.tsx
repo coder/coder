@@ -267,7 +267,6 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 										<div className="flex items-center gap-2 px-2.5 py-1.5">
 											<MCPServerIcon
 												iconUrl={server.icon_url}
-												name={server.display_name}
 												className="size-5"
 											/>
 											<span className="min-w-0 flex-1 truncate text-xs text-content-primary">

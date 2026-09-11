@@ -4,13 +4,14 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
+// Decorative: every consumer renders the server name as text or labels
+// the containing control, so the icon itself carries no alt text.
 export const MCPServerIcon: FC<{
 	iconUrl: string;
-	name: string;
 	className?: string;
-}> = ({ iconUrl, name, className }) => {
+}> = ({ iconUrl, className }) => {
 	const icon = iconUrl ? (
-		<ExternalImage src={iconUrl} alt={`${name} icon`} className="size-3/5" />
+		<ExternalImage src={iconUrl} alt="" className="size-3/5" />
 	) : (
 		<ServerIcon className="size-3/5 text-content-secondary" />
 	);
@@ -43,11 +44,7 @@ export const MCPServerIconStack: FC<{
 						i > 0 && "-ml-1.5",
 					)}
 				>
-					<MCPServerIcon
-						iconUrl={s.icon_url}
-						name={s.display_name}
-						className="size-4"
-					/>
+					<MCPServerIcon iconUrl={s.icon_url} className="size-4" />
 				</span>
 			))}
 			{servers.length > ICON_STACK_MAX && (
