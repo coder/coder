@@ -379,12 +379,19 @@ module "jetbrains" {
   tooltip       = "You need to [install JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) to use this app."
 }
 
-module "filebrowser" {
-  count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.5"
-  agent_id   = coder_agent.dev.id
-  agent_name = "dev"
+module "copyparty" {
+  count          = data.coder_workspace.me.start_count
+  source         = "dev.registry.coder.com/djarbz/copyparty/coder"
+  version        = "1.0.2"
+  agent_id       = coder_agent.dev.id
+  subdomain      = true
+  pinned_version = "v1.20.23"
+  arguments = [
+    # copyparty listens on all interfaces by default; the agent proxies localhost.
+    "-i", "127.0.0.1",
+    # Serve the home directory at the web root with all permissions.
+    "-v", "/home/coder:/:A",
+  ]
 }
 
 module "coder-login" {
