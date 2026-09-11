@@ -3137,7 +3137,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
 // @Param request body codersdk.EditChatQueuedMessageRequest true "Edit chat queued message request"
-// @Success 200 {object} codersdk.EditChatQueuedMessageResponse
+// @Success 204
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [patch]
 func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3224,7 +3224,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		opts.ReasoningEffort = req.ReasoningEffort
 	}
 
-	result, editErr := api.chatDaemon.EditQueuedMessage(ctx, opts)
+	editErr := api.chatDaemon.EditQueuedMessage(ctx, opts)
 	if editErr != nil {
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
 			return
@@ -3265,17 +3265,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	response := codersdk.EditChatQueuedMessageResponse{}
-	if !result.Promoted {
-		response.QueuedMessage = convertChatQueuedMessagePtr(result.QueuedMessage)
-	}
-	for _, inserted := range result.InsertedMessages {
-		if inserted.Visibility == database.ChatMessageVisibilityModel {
-			continue
-		}
-		response.Messages = append(response.Messages, convertChatMessage(inserted))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // markChatAsRead updates the last read message ID for a chat to the
