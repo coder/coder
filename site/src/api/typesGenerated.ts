@@ -5004,6 +5004,7 @@ export type Experiment =
 	| "chat-advisor"
 	| "chat-virtual-desktop"
 	| "example"
+	| "mcp-gateway"
 	| "mcp-server-http"
 	| "mcp-tool-search"
 	| "nats_pubsub"
@@ -5020,6 +5021,7 @@ export const Experiments: Experiment[] = [
 	"chat-advisor",
 	"chat-virtual-desktop",
 	"example",
+	"mcp-gateway",
 	"mcp-server-http",
 	"mcp-tool-search",
 	"nats_pubsub",

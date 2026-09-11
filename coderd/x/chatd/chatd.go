@@ -186,6 +186,7 @@ type Server struct {
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	mcpGateway                     http.Handler
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -2974,6 +2975,11 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// MCPGateway, when non-nil, makes chatd reach every external MCP
+	// server through the MCP Gateway handler in-process instead of
+	// connecting to the upstreams itself. Nil unless the mcp-gateway
+	// experiment is enabled.
+	MCPGateway http.Handler
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -3057,6 +3063,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		mcpGateway:                     cfg.MCPGateway,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
