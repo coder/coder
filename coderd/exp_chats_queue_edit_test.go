@@ -49,13 +49,10 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		})
 		queued := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
 
-		held, err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+		err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
 			Held: boolPtr(true),
 		})
 		require.NoError(t, err)
-		require.NotNil(t, held.QueuedMessage)
-		require.NotNil(t, held.QueuedMessage.HeldAt, "hold sets held_at")
-		require.Empty(t, held.Messages)
 
 		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -64,16 +61,19 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 
 		// Save: new content and release. The chat is in error, so the
 		// row stays queued (E1) instead of being promoted.
-		saved, err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+		err = client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
 			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "edited"}},
 			Held:    boolPtr(false),
 		})
 		require.NoError(t, err)
-		require.NotNil(t, saved.QueuedMessage)
-		require.Nil(t, saved.QueuedMessage.HeldAt, "release clears held_at")
-		require.Len(t, saved.QueuedMessage.Content, 1)
-		require.Equal(t, "edited", saved.QueuedMessage.Content[0].Text)
-		require.Empty(t, saved.Messages, "release from error does not promote")
+
+		listed, err = client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, listed.QueuedMessages, 1, "release from error does not promote")
+		saved := listed.QueuedMessages[0]
+		require.Nil(t, saved.HeldAt, "release clears held_at")
+		require.Len(t, saved.Content, 1)
+		require.Equal(t, "edited", saved.Content[0].Text)
 
 		refreshed, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -105,27 +105,30 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		saved, err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+		err = client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
 			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "edited"}},
 			Held:    boolPtr(false),
 		})
 		require.NoError(t, err)
-		require.Nil(t, saved.QueuedMessage, "promoted row is no longer queued")
-		require.Len(t, saved.Messages, 1)
-		require.Equal(t, codersdk.ChatMessageRoleUser, saved.Messages[0].Role)
-		require.Len(t, saved.Messages[0].Content, 1)
-		require.Equal(t, "edited", saved.Messages[0].Content[0].Text)
+
+		// The settle step promoted the edited row into history and
+		// started the chat.
+		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Empty(t, listed.QueuedMessages, "promoted row is no longer queued")
+		require.NotEmpty(t, listed.Messages)
+		promoted := listed.Messages[len(listed.Messages)-1]
+		require.Equal(t, codersdk.ChatMessageRoleUser, promoted.Role)
+		require.Len(t, promoted.Content, 1)
+		require.Equal(t, "edited", promoted.Content[0].Text)
 
 		refreshed, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusRunning, refreshed.Status)
-		remaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.Empty(t, remaining)
 
 		// The promoted row is gone; a second hold attempt is a 404, which
 		// is what tells a client not to enter edit mode.
-		_, err = client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+		err = client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
 			Held: boolPtr(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusNotFound)
@@ -150,7 +153,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		queued := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
 
 		// Empty request.
-		_, err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{})
+		err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Nothing to edit.", sdkErr.Message)
 
@@ -178,7 +181,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		// Non-owner with update permission on the org's chats.
 		adminClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
 		adminClient := codersdk.NewExperimentalClient(adminClientRaw)
-		_, err = adminClient.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+		err = adminClient.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
 			Held: boolPtr(true),
 		})
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
@@ -195,7 +198,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		archivedQueued := insertTestChatQueuedMessage(ctx, t, db, archived.ID, queuedTextContent(t, "original"), modelConfig.ID)
 		_, err = db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), archived.ID)
 		require.NoError(t, err)
-		_, err = client.EditChatQueuedMessage(ctx, archived.ID, archivedQueued.ID, codersdk.EditChatQueuedMessageRequest{
+		err = client.EditChatQueuedMessage(ctx, archived.ID, archivedQueued.ID, codersdk.EditChatQueuedMessageRequest{
 			Held: boolPtr(true),
 		})
 		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
