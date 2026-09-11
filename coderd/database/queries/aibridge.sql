@@ -808,3 +808,125 @@ SELECT
 	COUNT(*)::bigint AS request_count,
 	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
 FROM per_request;
+
+-- AI spend overview queries. They share one aggregation contract:
+--   * A request is a finished interception (ended_at IS NOT NULL) whose
+--     started_at falls in the closed-open [start_date, end_date) window.
+--   * A finished request without token usage (for example one that failed
+--     upstream) still counts as a request: request and session counts come
+--     from aibridge_interceptions alone and usage sums are joined afterwards.
+--   * total_cost_micros sums every priced usage regardless of
+--     effective_group_id, matching the CSV export. unpriced_request_count
+--     is the number of requests with at least one usage whose cost_micros
+--     is NULL.
+--   * A session is a distinct (initiator_id, session_id) pair.
+--     Client is COALESCE(client, 'Unknown').
+--   * A zero user_id includes every user in rollup and session queries.
+--   * Empty provider_name, model, and client match every request; a
+--     non-empty value keeps only requests with that exact dimension, with
+--     client compared after the same 'Unknown' coalesce.
+--
+-- Requests, usage sums, and unpriced requests are aggregated in separate
+-- CTEs that go straight from the base tables to the output grain, so the
+-- shared filters are repeated per CTE on purpose. Grouping by interception
+-- first and then by user or dimension forces sorted passes over every usage
+-- row, which is several times slower on large deployments.
+
+-- name: ListAIBridgeSpendByUser :many
+WITH sessions AS (
+	SELECT i.initiator_id, i.session_id, COUNT(*)::bigint AS request_count
+	FROM aibridge_interceptions i
+	WHERE i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND (@provider_name::text = '' OR i.provider_name = @provider_name::text)
+		AND (@model::text = '' OR i.model = @model::text)
+		AND (@client::text = '' OR COALESCE(i.client, 'Unknown') = @client::text)
+	GROUP BY i.initiator_id, i.session_id
+), requests AS (
+	SELECT initiator_id, SUM(request_count)::bigint AS request_count, COUNT(*)::bigint AS session_count
+	FROM sessions
+	GROUP BY initiator_id
+), usage AS (
+	SELECT
+		i.initiator_id,
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS total_cost_micros,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	FROM aibridge_interceptions i
+	JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND (@provider_name::text = '' OR i.provider_name = @provider_name::text)
+		AND (@model::text = '' OR i.model = @model::text)
+		AND (@client::text = '' OR COALESCE(i.client, 'Unknown') = @client::text)
+	GROUP BY i.initiator_id
+), unpriced AS (
+	SELECT i.initiator_id, COUNT(DISTINCT tu.interception_id)::bigint AS unpriced_request_count
+	FROM aibridge_interceptions i
+	JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE tu.cost_micros IS NULL
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND (@provider_name::text = '' OR i.provider_name = @provider_name::text)
+		AND (@model::text = '' OR i.model = @model::text)
+		AND (@client::text = '' OR COALESCE(i.client, 'Unknown') = @client::text)
+	GROUP BY i.initiator_id
+), per_user AS (
+SELECT
+	u.id AS user_id,
+	u.username,
+	u.name,
+	u.avatar_url,
+	COALESCE(usage.total_cost_micros, 0)::bigint AS total_cost_micros,
+	r.request_count,
+	COALESCE(unpriced.unpriced_request_count, 0)::bigint AS unpriced_request_count,
+	r.session_count,
+	COALESCE(usage.input_tokens, 0)::bigint AS input_tokens,
+	COALESCE(usage.output_tokens, 0)::bigint AS output_tokens,
+	COALESCE(usage.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
+	COALESCE(usage.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
+	COUNT(*) OVER()::bigint AS total_count
+FROM requests r
+JOIN users u ON u.id = r.initiator_id
+LEFT JOIN usage ON usage.initiator_id = r.initiator_id
+LEFT JOIN unpriced ON unpriced.initiator_id = r.initiator_id
+WHERE
+	CASE
+		WHEN @search::text != '' THEN u.username ILIKE '%' || @search::text || '%' OR u.name ILIKE '%' || @search::text || '%'
+		ELSE true
+	END
+)
+SELECT * FROM per_user
+ORDER BY
+	CASE WHEN @sort_by::text = 'username' AND @sort_order::text = 'asc' THEN username END ASC,
+	CASE WHEN @sort_by::text = 'username' AND @sort_order::text != 'asc' THEN username END DESC,
+	CASE WHEN @sort_by::text != 'username' AND @sort_order::text = 'asc' THEN
+		CASE @sort_by::text
+			WHEN 'request_count' THEN request_count
+			WHEN 'session_count' THEN session_count
+			WHEN 'input_tokens' THEN input_tokens
+			WHEN 'output_tokens' THEN output_tokens
+			WHEN 'cache_read_input_tokens' THEN cache_read_input_tokens
+			WHEN 'cache_write_input_tokens' THEN cache_write_input_tokens
+			ELSE total_cost_micros
+		END
+	END ASC,
+	CASE WHEN @sort_by::text != 'username' AND @sort_order::text != 'asc' THEN
+		CASE @sort_by::text
+			WHEN 'request_count' THEN request_count
+			WHEN 'session_count' THEN session_count
+			WHEN 'input_tokens' THEN input_tokens
+			WHEN 'output_tokens' THEN output_tokens
+			WHEN 'cache_read_input_tokens' THEN cache_read_input_tokens
+			WHEN 'cache_write_input_tokens' THEN cache_write_input_tokens
+			ELSE total_cost_micros
+		END
+	END DESC,
+	username ASC, user_id ASC
+LIMIT COALESCE(NULLIF(@page_limit::integer, 0), 10)
+OFFSET @page_offset::integer;

@@ -19106,3 +19106,279 @@ func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFam
 	require.NoError(t, err)
 	return counts
 }
+
+func TestAIBridgeSpendSortTies(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	start := dbtime.Now()
+	end := start.Add(time.Hour)
+	for _, username := range []string{"zulu", "alpha"} {
+		user := dbgen.User(t, db, database.User{Username: username})
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{InitiatorID: user.ID, StartedAt: start}, &end)
+	}
+	for _, order := range []string{"asc", "desc"} {
+		for _, offset := range []int32{0, 1} {
+			username := []string{"alpha", "zulu"}[offset]
+			rows, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+				StartDate: start, EndDate: end, SortBy: "request_count", SortOrder: order, PageLimit: 1, PageOffset: offset,
+			})
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			require.Equal(t, username, rows[0].Username)
+		}
+	}
+}
+
+func TestAIBridgeSpend(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	start := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	alice := dbgen.User(t, db, database.User{Username: "alice", Name: "Alice Liddell"})
+	bob := dbgen.User(t, db, database.User{Username: "bob", Name: "Bob Builder"})
+	dbgen.User(t, db, database.User{Username: "carol", Name: "Carol Idle"})
+
+	finished := func(startedAt time.Time) *time.Time {
+		endedAt := startedAt.Add(time.Minute)
+		return &endedAt
+	}
+	priced := func(interceptionID uuid.UUID, cost, in, out, cacheRead, cacheWrite int64) {
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:        interceptionID,
+			InputTokens:           in,
+			OutputTokens:          out,
+			CacheReadInputTokens:  cacheRead,
+			CacheWriteInputTokens: cacheWrite,
+			CostMicros:            sql.NullInt64{Int64: cost, Valid: true},
+		})
+	}
+
+	// Alice: two requests in one session, one in a second session, plus
+	// requests that must be excluded (in flight, at the exclusive end, and
+	// before the start).
+	a1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:     alice.ID,
+		Provider:        "anthropic",
+		ProviderName:    "anthropic-main",
+		Model:           "claude",
+		StartedAt:       start,
+		Client:          sql.NullString{String: "claude-code", Valid: true},
+		ClientSessionID: sql.NullString{String: "sess-a1", Valid: true},
+	}, finished(start))
+	priced(a1.ID, 1000, 100, 50, 10, 5)
+	priced(a1.ID, 500, 20, 10, 0, 0)
+
+	a2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:     alice.ID,
+		Provider:        "openai",
+		ProviderName:    "openai-main",
+		Model:           "gpt-4",
+		StartedAt:       start.Add(time.Hour),
+		Client:          sql.NullString{String: "cursor", Valid: true},
+		ClientSessionID: sql.NullString{String: "sess-a1", Valid: true},
+	}, finished(start.Add(time.Hour)))
+	// Unpriced usage alongside a priced sibling: the priced sibling still
+	// counts toward cost and the request is flagged as unpriced.
+	dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+		InterceptionID: a2.ID,
+		InputTokens:    30,
+		OutputTokens:   15,
+	})
+	priced(a2.ID, 200, 5, 5, 0, 0)
+
+	// Finished request without any usage still counts as a request.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:     alice.ID,
+		Provider:        "anthropic",
+		ProviderName:    "anthropic-main",
+		Model:           "claude",
+		StartedAt:       start.Add(2 * time.Hour),
+		ClientSessionID: sql.NullString{String: "sess-a2", Valid: true},
+	}, finished(start.Add(2*time.Hour)))
+
+	// In flight: excluded.
+	inFlight := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: alice.ID,
+		StartedAt:   start.Add(3 * time.Hour),
+	}, nil)
+	priced(inFlight.ID, 99_999, 1, 1, 0, 0)
+
+	// Started exactly at the exclusive end: excluded.
+	atEnd := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: alice.ID,
+		StartedAt:   end,
+	}, finished(end))
+	priced(atEnd.ID, 77_777, 1, 1, 0, 0)
+
+	// Started before the window: excluded.
+	before := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: alice.ID,
+		StartedAt:   start.Add(-time.Second),
+	}, finished(start.Add(-time.Second)))
+	priced(before.ID, 55_555, 1, 1, 0, 0)
+
+	// Bob: one request started exactly at the inclusive start.
+	b1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:     bob.ID,
+		Provider:        "openai",
+		ProviderName:    "openai-main",
+		Model:           "gpt-4",
+		StartedAt:       start,
+		Client:          sql.NullString{String: "cursor", Valid: true},
+		ClientSessionID: sql.NullString{String: "sess-a1", Valid: true},
+	}, finished(start))
+	priced(b1.ID, 3000, 300, 100, 0, 0)
+
+	aliceTotals := database.ListAIBridgeSpendByUserRow{
+		TotalCostMicros:       1700,
+		RequestCount:          3,
+		UnpricedRequestCount:  1,
+		InputTokens:           155,
+		OutputTokens:          80,
+		CacheReadInputTokens:  10,
+		CacheWriteInputTokens: 5,
+		TotalCount:            1,
+	}
+
+	t.Run("ListByUser", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rows, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+			StartDate: start,
+			EndDate:   end,
+			PageLimit: 10,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+
+		require.Equal(t, database.ListAIBridgeSpendByUserRow{
+			UserID:                bob.ID,
+			Username:              "bob",
+			Name:                  "Bob Builder",
+			AvatarURL:             bob.AvatarURL,
+			TotalCostMicros:       3000,
+			RequestCount:          1,
+			UnpricedRequestCount:  0,
+			SessionCount:          1,
+			InputTokens:           300,
+			OutputTokens:          100,
+			CacheReadInputTokens:  0,
+			CacheWriteInputTokens: 0,
+			TotalCount:            2,
+		}, rows[0])
+		require.Equal(t, database.ListAIBridgeSpendByUserRow{
+			UserID:                alice.ID,
+			Username:              "alice",
+			Name:                  "Alice Liddell",
+			AvatarURL:             alice.AvatarURL,
+			TotalCostMicros:       aliceTotals.TotalCostMicros,
+			RequestCount:          aliceTotals.RequestCount,
+			UnpricedRequestCount:  aliceTotals.UnpricedRequestCount,
+			SessionCount:          2,
+			InputTokens:           aliceTotals.InputTokens,
+			OutputTokens:          aliceTotals.OutputTokens,
+			CacheReadInputTokens:  aliceTotals.CacheReadInputTokens,
+			CacheWriteInputTokens: aliceTotals.CacheWriteInputTokens,
+			TotalCount:            2,
+		}, rows[1])
+	})
+
+	t.Run("ListByUserSearch", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		byName, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+			StartDate: start,
+			EndDate:   end,
+			Search:    "LIDD",
+			PageLimit: 10,
+		})
+		require.NoError(t, err)
+		require.Len(t, byName, 1)
+		require.Equal(t, alice.ID, byName[0].UserID)
+		require.EqualValues(t, 1, byName[0].TotalCount)
+
+		byUsername, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+			StartDate: start,
+			EndDate:   end,
+			Search:    "bob",
+			PageLimit: 10,
+		})
+		require.NoError(t, err)
+		require.Len(t, byUsername, 1)
+		require.Equal(t, bob.ID, byUsername[0].UserID)
+
+		none, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+			StartDate: start,
+			EndDate:   end,
+			Search:    "carol",
+			PageLimit: 10,
+		})
+		require.NoError(t, err)
+		require.Empty(t, none)
+	})
+
+	t.Run("ListByUserPagination", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		first, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+			StartDate: start,
+			EndDate:   end,
+			PageLimit: 1,
+		})
+		require.NoError(t, err)
+		require.Len(t, first, 1)
+		require.Equal(t, bob.ID, first[0].UserID)
+		require.EqualValues(t, 2, first[0].TotalCount)
+
+		second, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+			StartDate:  start,
+			EndDate:    end,
+			PageLimit:  1,
+			PageOffset: 1,
+		})
+		require.NoError(t, err)
+		require.Len(t, second, 1)
+		require.Equal(t, alice.ID, second[0].UserID)
+		require.EqualValues(t, 2, second[0].TotalCount)
+	})
+
+	for _, tc := range []struct {
+		sortBy string
+		low    uuid.UUID
+		high   uuid.UUID
+	}{
+		{"username", alice.ID, bob.ID},
+		{"total_cost_micros", alice.ID, bob.ID},
+		{"request_count", bob.ID, alice.ID},
+		{"session_count", bob.ID, alice.ID},
+		{"input_tokens", alice.ID, bob.ID},
+		{"output_tokens", alice.ID, bob.ID},
+		{"cache_read_input_tokens", bob.ID, alice.ID},
+		{"cache_write_input_tokens", bob.ID, alice.ID},
+	} {
+		for _, order := range []string{"asc", "desc"} {
+			t.Run("Sort/"+tc.sortBy+"/"+order, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				want := []uuid.UUID{tc.low, tc.high}
+				if order == "desc" {
+					want[0], want[1] = want[1], want[0]
+				}
+				for _, offset := range []int32{0, 1} {
+					id := want[offset]
+					rows, err := db.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+						StartDate: start, EndDate: end, SortBy: tc.sortBy, SortOrder: order,
+						PageLimit: 1, PageOffset: offset,
+					})
+					require.NoError(t, err)
+					require.Len(t, rows, 1)
+					require.EqualValues(t, 2, rows[0].TotalCount)
+					require.Equal(t, id, rows[0].UserID)
+				}
+			})
+		}
+	}
+}
