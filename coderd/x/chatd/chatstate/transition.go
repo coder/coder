@@ -45,13 +45,15 @@ func (t Transition) String() string { return string(t) }
 // several entries list more than one output.
 //
 // The "0" states admit the queue transitions because a held row may
-// exist there: the classifier hides the first held row and everything
-// behind it, so W/E0/R0/I0/A0 can physically hold queued rows. Removing
-// or releasing a held head can expose a promotable head, which is why
-// those transitions may land in the matching "1" state. From W that
-// exposure is refused (waiting with a promotable head is invalid); the
-// caller promotes the exposed row instead, so Edit and Delete from W
-// stay in W and Promote is the only queue transition that leaves it.
+// exist there: the classifier hides the held row and everything behind
+// it, so W/E0/R0/I0/A0 can physically hold queued rows. Removing or
+// releasing a held head can expose a promotable head, which is why
+// those transitions may land in the matching "1" state, and a send
+// that queues behind a held head stays in the "0" variant. From W the
+// exposure has no state (waiting with a promotable head is invalid) and
+// Update rolls it back; the caller promotes the exposed row instead,
+// so Edit and Delete from W stay in W and Promote is the only queue
+// transition that leaves it.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
@@ -85,7 +87,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
 		TransitionSetProject:           {StateE1},
-		TransitionSendMessage:          {StateR1},
+		TransitionSendMessage:          {StateR1, StateR0},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
@@ -93,7 +95,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionRequestCompaction:    {StateR1},
 	},
 	StateR0: {
-		TransitionSendMessage:             {StateR1, StateI1},
+		TransitionSendMessage:             {StateR1, StateI1, StateR0, StateI0},
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1},
 		TransitionPromoteQueuedMessage:    {StateI1},
@@ -121,7 +123,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:             {StateE1},
 	},
 	StateI0: {
-		TransitionSendMessage:          {StateI1},
+		TransitionSendMessage:          {StateI1, StateI0},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateI0, StateI1},
 		TransitionPromoteQueuedMessage: {StateI1},
@@ -137,7 +139,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishInterruption:   {StateR0, StateR1},
 	},
 	StateA0: {
-		TransitionSendMessage:            {StateA1, StateR0},
+		TransitionSendMessage:            {StateA1, StateA0, StateR0},
 		TransitionEditMessage:            {StateR0},
 		TransitionDeleteQueuedMessage:    {StateA0, StateA1},
 		TransitionPromoteQueuedMessage:   {StateR0, StateR1},
