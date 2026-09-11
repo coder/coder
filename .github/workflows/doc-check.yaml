@@ -144,9 +144,10 @@ jobs:
           # The workspace stops after about a day and then goes dormant. A chat
           # cannot repair a dormant workspace: start_workspace and
           # create_workspace both fail with
-          # "unauthorized: rbac: forbidden" (CODAGT-1025). The review then reads
+          # "unauthorized: rbac: forbidden". The review then reads
           # nothing and posts nothing, and this job used to still pass. Fail
           # here instead, so the check reports what happened.
+          # https://linear.app/codercom/issue/CODAGT-1025
           WS_NAME="doc-check-pr-${PR_NUMBER}"
           RESPONSE=$(curl -sS --fail-with-body -G \
             -H "Coder-Session-Token: ${CODER_TOKEN}" \
@@ -157,13 +158,13 @@ jobs:
             }
           DORMANT_AT=$(echo "${RESPONSE}" | jq -r '.workspaces[0].dormant_at // empty')
           if [[ -n "${DORMANT_AT}" ]]; then
-            echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace (CODAGT-1025)."
+            echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
             {
               echo "### Documentation check did not run"
               echo ""
               echo "The workspace \`${WS_NAME}\` is dormant since ${DORMANT_AT}."
               echo ""
-              echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See CODAGT-1025."
+              echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See [CODAGT-1025](https://linear.app/codercom/issue/CODAGT-1025)."
               echo ""
               echo "To run the review now, start \`${WS_NAME}\` in Coder, then push again or re-run this job."
             } >> "${GITHUB_STEP_SUMMARY}"
