@@ -26,12 +26,31 @@ const (
 // Per-setting advisory lock IDs for the chat instruction settings. These
 // derive from the exact site_configs key with GenLockID (FNV-1a 64) instead
 // of the sequential LockID* block above, so writers of different settings
-// never contend and the IDs cannot collide with any sequentially allocated
-// lock ID (different derivation space) or with another subsystem's
-// GenLockID output (the key strings are unique to these settings).
+// never contend. All advisory lock IDs share one flat bigint keyspace, so
+// collision with the block above or any other derived ID is possible in
+// principle but vanishingly unlikely (about 2^-64 per pair); the derivations
+// are registered here for discoverability.
 var (
 	LockIDChatInstructionSystemPrompt = GenLockID("agents_chat_system_prompt")
 	LockIDChatInstructionPlanMode     = GenLockID("agents_chat_plan_mode_instructions")
+)
+
+// Trigger-side advisory lock key prefixes, registered here for
+// discoverability only. The per-user cap triggers on user_secrets and
+// user_skills (migration 000591) serialize on transaction-scoped advisory
+// locks derived in SQL, never from Go code:
+//
+//	pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || NEW.user_id::text, 0))
+//	pg_advisory_xact_lock(hashtextextended('user_skills_cap:' || NEW.user_id::text, 0))
+//
+// TestUserCapAdvisoryLocks pins these key prefixes against the live trigger
+// function definitions so a rename in a future migration fails a test
+// instead of leaving this registry silently stale. hashtextextended shares
+// the same flat bigint keyspace as the IDs above; collision is vanishingly
+// unlikely, not impossible.
+const (
+	UserSecretsCapLockKeyPrefix = "user_secrets_cap:"
+	UserSkillsCapLockKeyPrefix  = "user_skills_cap:"
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.
