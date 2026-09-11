@@ -2886,6 +2886,73 @@ func (q *sqlQuerier) ListAIBridgeSpendRollups(ctx context.Context, arg ListAIBri
 	return items, nil
 }
 
+const listAIBridgeSpendSessionCounts = `-- name: ListAIBridgeSpendSessionCounts :many
+WITH sessions AS (
+	SELECT COALESCE(i.client, 'Unknown')::text AS client, i.initiator_id, i.session_id
+	FROM aibridge_interceptions i
+	WHERE ($1::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.initiator_id = $1::uuid)
+		AND i.started_at >= $2::timestamptz
+		AND i.started_at < $3::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND ($4::text = '' OR i.provider_name = $4::text)
+		AND ($5::text = '' OR i.model = $5::text)
+		AND ($6::text = '' OR COALESCE(i.client, 'Unknown') = $6::text)
+	GROUP BY COALESCE(i.client, 'Unknown'), i.initiator_id, i.session_id
+)
+SELECT 'client'::text AS grain, client, COUNT(*)::bigint AS session_count
+FROM sessions
+GROUP BY client
+UNION ALL
+SELECT 'total'::text, ''::text, COUNT(*)::bigint
+FROM (SELECT DISTINCT initiator_id, session_id FROM sessions) s
+`
+
+type ListAIBridgeSpendSessionCountsParams struct {
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	StartDate    time.Time `db:"start_date" json:"start_date"`
+	EndDate      time.Time `db:"end_date" json:"end_date"`
+	ProviderName string    `db:"provider_name" json:"provider_name"`
+	Model        string    `db:"model" json:"model"`
+	Client       string    `db:"client" json:"client"`
+}
+
+type ListAIBridgeSpendSessionCountsRow struct {
+	Grain        string `db:"grain" json:"grain"`
+	Client       string `db:"client" json:"client"`
+	SessionCount int64  `db:"session_count" json:"session_count"`
+}
+
+// A session can span clients, so the total dedupes the pairs again.
+func (q *sqlQuerier) ListAIBridgeSpendSessionCounts(ctx context.Context, arg ListAIBridgeSpendSessionCountsParams) ([]ListAIBridgeSpendSessionCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSpendSessionCounts,
+		arg.UserID,
+		arg.StartDate,
+		arg.EndDate,
+		arg.ProviderName,
+		arg.Model,
+		arg.Client,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeSpendSessionCountsRow
+	for rows.Next() {
+		var i ListAIBridgeSpendSessionCountsRow
+		if err := rows.Scan(&i.Grain, &i.Client, &i.SessionCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
 	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros

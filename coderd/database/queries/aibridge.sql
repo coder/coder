@@ -1021,3 +1021,24 @@ SELECT grain, provider, provider_name, model, client, total_cost_micros, request
 FROM ranked
 WHERE rank <= @limit_count::int
 ORDER BY grain, rank;
+
+-- name: ListAIBridgeSpendSessionCounts :many
+WITH sessions AS (
+	SELECT COALESCE(i.client, 'Unknown')::text AS client, i.initiator_id, i.session_id
+	FROM aibridge_interceptions i
+	WHERE (@user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.initiator_id = @user_id::uuid)
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+		AND (@provider_name::text = '' OR i.provider_name = @provider_name::text)
+		AND (@model::text = '' OR i.model = @model::text)
+		AND (@client::text = '' OR COALESCE(i.client, 'Unknown') = @client::text)
+	GROUP BY COALESCE(i.client, 'Unknown'), i.initiator_id, i.session_id
+)
+SELECT 'client'::text AS grain, client, COUNT(*)::bigint AS session_count
+FROM sessions
+GROUP BY client
+UNION ALL
+-- A session can span clients, so the total dedupes the pairs again.
+SELECT 'total'::text, ''::text, COUNT(*)::bigint
+FROM (SELECT DISTINCT initiator_id, session_id FROM sessions) s;
