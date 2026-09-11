@@ -1117,6 +1117,9 @@ var (
 	// ErrChatGoalResumePlanMode indicates a resume was rejected because
 	// plan mode is on.
 	ErrChatGoalResumePlanMode = xerrors.New("cannot resume goal while plan mode is on")
+	// ErrChatGoalSourceMessageEdit indicates an edit would rewrite or
+	// truncate away the source message of the current goal.
+	ErrChatGoalSourceMessageEdit = xerrors.New("cannot edit a message that would discard the current goal's source message")
 	// ErrChatGoalPlanMode indicates a goal set was rejected because plan
 	// mode is on. Plan-mode turns exclude goal completion behavior, so an
 	// active goal set alongside plan mode could never complete or resume.
@@ -2298,21 +2301,42 @@ func validateModelConfigOverride(
 	return uuid.NullUUID{UUID: requested, Valid: true}, nil
 }
 
-func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) error {
+func (p *Server) validateEditTarget(ctx context.Context, store database.Store, chat database.Chat, messageID int64) (database.ChatMessage, error) {
 	target, err := store.GetChatMessageByID(ctx, messageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrEditedMessageNotFound
+			return database.ChatMessage{}, ErrEditedMessageNotFound
 		}
-		return xerrors.Errorf("get edited message: %w", err)
+		return database.ChatMessage{}, xerrors.Errorf("get edited message: %w", err)
 	}
-	if target.ChatID != chatID || target.Deleted {
-		return ErrEditedMessageNotFound
+	if target.ChatID != chat.ID || target.Deleted {
+		return database.ChatMessage{}, ErrEditedMessageNotFound
 	}
 	if target.Role != database.ChatMessageRoleUser {
-		return ErrEditedMessageNotUser
+		return database.ChatMessage{}, ErrEditedMessageNotUser
 	}
-	return nil
+	// Only root-chat edits can touch the goal's source message: the
+	// source row lives in the root history, and message IDs are
+	// allocated globally, so comparing against a child chat's IDs
+	// would misfire even though editing child history cannot delete
+	// the source row.
+	if p.experiments.Enabled(codersdk.ExperimentChatGoals) && isRootChat(chat) {
+		goal, err := currentChatGoal(ctx, store, chat.ID)
+		if err != nil {
+			return database.ChatMessage{}, err
+		}
+		// The source message anchors the current goal's objective, and
+		// an edit soft-deletes every message after the edited target.
+		// Editing the source rewrites it and editing an older message
+		// erases it, in both cases leaving the goal pursuing an
+		// objective the conversation no longer shows, so refuse while
+		// the goal can still run.
+		if goal != nil && goal.CreatedFromMessageID.Valid && goal.CreatedFromMessageID.Int64 >= messageID &&
+			(goal.Status == database.ChatGoalStatusActive || goal.Status == database.ChatGoalStatusPaused) {
+			return database.ChatMessage{}, ErrChatGoalSourceMessageEdit
+		}
+	}
+	return target, nil
 }
 
 func loadEffectiveChatModelConfigs(
@@ -2385,7 +2409,7 @@ func (p *Server) EditMessage(
 		if chat.Archived {
 			return EditMessageResult{}, ErrChatArchived
 		}
-		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
+		if _, err := p.validateEditTarget(ctx, p.db, chat, opts.EditedMessageID); err != nil {
 			return EditMessageResult{}, err
 		}
 		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
@@ -2434,21 +2458,9 @@ func (p *Server) EditMessage(
 		// Capture the target message for the post-commit debug
 		// cleanup hook below. The transition itself revalidates
 		// chat ownership and user-message constraints.
-		target, err := store.GetChatMessageByID(ctx, opts.EditedMessageID)
+		target, err := p.validateEditTarget(ctx, store, lockedChat, opts.EditedMessageID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrEditedMessageNotFound
-			}
-			return xerrors.Errorf("get edited message: %w", err)
-		}
-		if target.ChatID != opts.ChatID {
-			return ErrEditedMessageNotFound
-		}
-		if target.Deleted {
-			return ErrEditedMessageNotFound
-		}
-		if target.Role != database.ChatMessageRoleUser {
-			return ErrEditedMessageNotUser
+			return err
 		}
 		editedMsg = target
 
@@ -2895,6 +2907,10 @@ func translateToolResultValidationError(err error) error {
 // transition. Active runs land in `interrupting`; requires-action
 // chats synthesize cancellation messages and return to running.
 //
+// Interrupting a root chat also pauses its active goal in the same
+// transaction: Stop is a halt gesture, and a halted chat must not
+// report an active goal.
+//
 // Returns the post-transition chat and an error so callers can map
 // state conflicts deliberately. Idle chats return a
 // chatstate.ErrTransitionNotAllowed wrapper.
@@ -2907,8 +2923,10 @@ func (p *Server) InterruptChat(
 	}
 
 	var refreshed database.Chat
+	var pausedGoal *database.ChatGoal
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		pausedGoal = nil
 		if _, err := tx.Interrupt(chatstate.InterruptInput{
 			Reason: "Tool execution interrupted by user",
 		}); err != nil {
@@ -2922,6 +2940,12 @@ func (p *Server) InterruptChat(
 			return xerrors.Errorf("reload chat after interrupt: %w", err)
 		}
 		refreshed = latest
+
+		goal, err := p.pauseActiveGoalOnInterrupt(ctx, store, latest)
+		if err != nil {
+			return err
+		}
+		pausedGoal = goal
 		return nil
 	})
 	if err != nil {
@@ -2929,6 +2953,9 @@ func (p *Server) InterruptChat(
 	}
 
 	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	if pausedGoal != nil {
+		p.publishChatGoalChange(refreshed)
+	}
 	return refreshed, nil
 }
 
@@ -3057,6 +3084,38 @@ func (p *Server) ClearChat(
 
 	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
 	return refreshed, nil
+}
+
+// pauseActiveGoalOnInterrupt pauses the chat's active goal as part of a
+// user-initiated interrupt. Returns the paused goal, or nil when there
+// is nothing to pause (goals disabled, child chat, no current goal, or
+// the goal is not active). A concurrent goal transition is tolerated:
+// the interrupt must not fail because the goal changed underneath it.
+func (p *Server) pauseActiveGoalOnInterrupt(ctx context.Context, store database.Store, chat database.Chat) (*database.ChatGoal, error) {
+	if !p.experiments.Enabled(codersdk.ExperimentChatGoals) || !isRootChat(chat) {
+		//nolint:nilnil // Nothing to pause is represented as nil.
+		return nil, nil
+	}
+	current, err := currentChatGoal(ctx, store, chat.ID)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil || current.Status != database.ChatGoalStatusActive {
+		//nolint:nilnil // Nothing to pause is represented as nil.
+		return nil, nil
+	}
+	paused, err := store.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
+		RootChatID: chat.ID,
+		ID:         current.ID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			//nolint:nilnil // The goal left `active` concurrently; nothing to pause.
+			return nil, nil
+		}
+		return nil, xerrors.Errorf("pause chat goal on interrupt: %w", err)
+	}
+	return &paused, nil
 }
 
 // ReconcileInvalidStateChat recovers a chat stuck in an invalid
