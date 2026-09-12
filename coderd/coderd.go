@@ -2578,15 +2578,38 @@ func (api *API) DERPMap() *tailcfg.DERPMap {
 	return api.BaseDERPMap
 }
 
+// oauth2ExperimentDeprecatedMessage is logged when a retired oauth2
+// experiment value is still configured.
+const oauth2ExperimentDeprecatedMessage = `CODER_EXPERIMENTS contains "oauth2", which is deprecated and has no effect. The OAuth2 provider is now generally available and disabled by default. Set CODER_OAUTH2_PROVIDER_ENABLE=true to enable it. The "oauth2" experiment value will be removed in a future release.`
+
+// warnOAuth2ExperimentDeprecated limits the deprecation warning to once per
+// process. coder server reads the experiment list several times during
+// startup, and every read would otherwise repeat the line.
+var warnOAuth2ExperimentDeprecated sync.Once
+
 // nolint:revive
 func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
+	return parseExperiments(log, raw, &warnOAuth2ExperimentDeprecated)
+}
+
+// parseExperiments takes the warning guard as a parameter so tests can check
+// the once-only behavior with their own sync.Once instead of resetting the
+// package-level one.
+func parseExperiments(log slog.Logger, raw []string, warnOAuth2Once *sync.Once) codersdk.Experiments {
 	exps := make([]codersdk.Experiment, 0, len(raw))
 	for _, v := range raw {
-		switch v {
+		ex := codersdk.Experiment(strings.ToLower(v))
+		switch ex {
 		case "*":
 			exps = append(exps, codersdk.ExperimentsSafe...)
+		case codersdk.ExperimentOAuth2:
+			// Recognized but inert so the warning can be specific. PLAT-635
+			// removes the constant and this branch. Deliberately not
+			// appended: nothing may observe the experiment as enabled.
+			warnOAuth2Once.Do(func() {
+				log.Warn(context.Background(), oauth2ExperimentDeprecatedMessage)
+			})
 		default:
-			ex := codersdk.Experiment(strings.ToLower(v))
 			if !slice.Contains(codersdk.ExperimentsKnown, ex) {
 				log.Warn(context.Background(), "ignoring unknown experiment", slog.F("experiment", ex))
 			} else if !slice.Contains(codersdk.ExperimentsSafe, ex) {

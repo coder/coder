@@ -99,6 +99,26 @@ func Test_Experiments(t *testing.T) {
 		require.False(t, experiments.Enabled("herebedragons"))
 	})
 
+	t.Run("deprecated oauth2 experiment is dropped", func(t *testing.T) {
+		t.Parallel()
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{string(codersdk.ExperimentOAuth2), string(codersdk.ExperimentMCPServerHTTP)}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: cfg,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		experiments, err := client.Experiments(ctx)
+		require.NoError(t, err)
+		// The provider is controlled by CODER_OAUTH2_PROVIDER_ENABLE, so the
+		// experiment must never be reported as enabled.
+		require.ElementsMatch(t, []codersdk.Experiment{codersdk.ExperimentMCPServerHTTP}, experiments)
+		require.False(t, experiments.Enabled(codersdk.ExperimentOAuth2))
+	})
+
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentValues(t)
