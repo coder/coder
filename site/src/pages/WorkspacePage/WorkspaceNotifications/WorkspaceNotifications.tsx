@@ -19,8 +19,8 @@ import { useQuery } from "react-query";
 import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
-	NotificationActionButton,
 	type Notification,
+	NotificationActionButton,
 	Notifications,
 } from "./Notifications";
 
