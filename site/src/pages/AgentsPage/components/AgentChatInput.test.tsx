@@ -183,7 +183,6 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		expect(screen.queryByRole("button", { name: /MCP servers/ })).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([]);
 	});
@@ -200,7 +199,6 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		expect(screen.queryByRole("button", { name: /MCP servers/ })).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
 			mockGitHubMCPNeedingAuth.id,

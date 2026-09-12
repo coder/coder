@@ -371,7 +371,10 @@ const ToolBadge: FC<{
 							/>
 							<span className="flex-1 truncate">{server.display_name}</span>
 							{server.availability === "force_on" ? (
-								<LockIcon className="size-3 text-content-secondary" />
+								<>
+									<LockIcon className="size-3 text-content-secondary" />
+									<span className="sr-only">Always on</span>
+								</>
 							) : (
 								onRemoveMcp && (
 									<BadgeDismissButton
