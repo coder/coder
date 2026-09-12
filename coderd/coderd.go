@@ -1084,11 +1084,10 @@ func New(options *Options) *API {
 	})
 	api.workspaceBuildOrchestrator.Start(api.ctx)
 
-	// The OAuth2 provider is opt-in. Read the flag on every request so the
-	// check can become a runtime setting later without changing call sites.
-	oauth2ProviderEnabled := func() bool {
-		return api.DeploymentValues.OAuth2.Provider.Enable.Value()
-	}
+	// The OAuth2 provider is opt-in. The flag is read once at startup, here
+	// and in the build info response and the AI bridge config, so a runtime
+	// toggle would have to update all three.
+	oauth2ProviderEnabled := api.DeploymentValues.OAuth2.Provider.Enable.Value()
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
@@ -2009,8 +2008,6 @@ func New(options *Options) *API {
 				// header; that is harmless.
 				httpmw.NoStore,
 			)
-			// Settings stay reachable while the provider is disabled so an
-			// admin can configure it before turning it on.
 			r.Route("/apps", func(r chi.Router) {
 				r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
 				r.Get("/", api.oAuth2ProviderApps())
@@ -2033,6 +2030,9 @@ func New(options *Options) *API {
 					})
 				})
 			})
+			// Deliberately not gated: settings stay reachable while the
+			// provider is disabled so an admin can configure it before
+			// turning it on.
 			r.Route("/settings", func(r chi.Router) {
 				r.Get("/", api.oauth2ProviderSettings)
 				r.Put("/", api.putOAuth2ProviderSettings)

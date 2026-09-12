@@ -11,7 +11,10 @@ const meta: Meta<typeof Sidebar> = {
 export default meta;
 type Story = StoryObj<typeof Sidebar>;
 
-export const OAuth2ProviderEnabled: Story = {};
+// Explicit so the story does not depend on the fixture default.
+export const OAuth2ProviderEnabled: Story = {
+	parameters: { buildInfo: { oauth2_provider: true } },
+};
 
 // The OAuth2 item follows the deployment flag, not the build type, so a
 // development build with the flag off still hides it.

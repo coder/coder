@@ -142,8 +142,8 @@ type Options struct {
 	GatewayCfg          codersdk.AIBridgeConfig
 	ExternalAuthConfigs []*externalauth.Config
 	Experiments         codersdk.Experiments
-	// OAuth2ProviderEnabled reports whether Coder's OAuth2 provider is on.
-	// The internal MCP server cannot be used without it.
+	// OAuth2ProviderEnabled gates the internal MCP server, which is
+	// unavailable when it is off.
 	OAuth2ProviderEnabled bool
 
 	Logger  slog.Logger
@@ -1064,6 +1064,8 @@ func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto
 }
 
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+//
+//nolint:revive // The flag is fixed for the life of the process.
 func getCoderMCPServerConfig(experiments codersdk.Experiments, oauth2ProviderEnabled bool, accessURL string) (*proto.MCPServerConfig, error) {
 	// The internal MCP server needs the MCP experiment and the OAuth2 provider.
 	if !experiments.Enabled(codersdk.ExperimentMCPServerHTTP) {

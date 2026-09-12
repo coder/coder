@@ -26,7 +26,7 @@ func TestRequireOAuth2Provider(t *testing.T) {
 			t.Parallel()
 
 			nextCalled := false
-			handler := httpmw.RequireOAuth2Provider(func() bool { return tc.enabled })(
+			handler := httpmw.RequireOAuth2Provider(tc.enabled)(
 				http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 					nextCalled = true
 					rw.WriteHeader(http.StatusOK)

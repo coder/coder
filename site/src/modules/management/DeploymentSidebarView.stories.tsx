@@ -94,7 +94,12 @@ export const PremiumTabHidden: Story = {
 	},
 };
 
-export const OAuth2ProviderEnabled: Story = {};
+// Explicit so the story does not depend on the fixture default.
+export const OAuth2ProviderEnabled: Story = {
+	args: {
+		buildInfo: { ...MockBuildInfo, oauth2_provider: true },
+	},
+};
 
 // The OAuth2 item follows the deployment flag, not the build type, so a
 // development build with the flag off still hides it.

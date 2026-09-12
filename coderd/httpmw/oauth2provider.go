@@ -11,12 +11,11 @@ import (
 // that never had one, which is what RFC 8414 and RFC 9728 discovery clients
 // expect. There is no bypass for development builds.
 //
-// enabled is a func so the check can become a runtime setting later without
-// changing call sites.
-func RequireOAuth2Provider(enabled func() bool) func(http.Handler) http.Handler {
+//nolint:revive // The flag is fixed for the life of the process.
+func RequireOAuth2Provider(enabled bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if !enabled() {
+			if !enabled {
 				httpapi.RouteNotFound(rw)
 				return
 			}
