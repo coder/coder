@@ -10,7 +10,7 @@ import {
 } from "#/components/Popover/Popover";
 import type { ThemeRole } from "#/theme/roles";
 
-type Notification = {
+export type Notification = {
 	title: string;
 	severity: AlertProps["severity"];
 	detail?: ReactNode;
