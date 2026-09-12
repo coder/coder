@@ -662,6 +662,7 @@ The current implementation has these limitations:
 
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
 - No client credentials grant support
+- No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
