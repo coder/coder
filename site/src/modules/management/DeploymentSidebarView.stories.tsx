@@ -16,7 +16,6 @@ const meta: Meta<typeof DeploymentSidebarView> = {
 	args: {
 		permissions: MockPermissions,
 		hidePremiumTab: false,
-		experiments: [],
 		buildInfo: MockBuildInfo,
 	},
 };
@@ -92,5 +91,24 @@ export const PremiumTabHidden: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Licenses" }),
 		).toBeInTheDocument();
+	},
+};
+
+// Explicit so the story does not depend on the fixture default.
+export const OAuth2ProviderEnabled: Story = {
+	args: {
+		buildInfo: { ...MockBuildInfo, oauth2_provider: true },
+	},
+};
+
+// The OAuth2 item follows the deployment flag, not the build type, so a
+// development build with the flag off still hides it.
+export const OAuth2ProviderDisabled: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.99.99-devel+abcdef",
+			oauth2_provider: false,
+		},
 	},
 };

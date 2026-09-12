@@ -3,14 +3,12 @@ import {
 	SettingsSidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 export const Sidebar: React.FC = () => {
-	const { entitlements, experiments, buildInfo } = useDashboard();
+	const { entitlements, buildInfo } = useDashboard();
 	const showSchedulePage =
 		entitlements.features.advanced_template_scheduling.enabled;
-	const showOAuth2Page =
-		experiments.includes("oauth2") || getPrereleaseFlag(buildInfo) === "devel";
+	const showOAuth2Page = buildInfo.oauth2_provider;
 
 	return (
 		<BaseSidebar>

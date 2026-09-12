@@ -1084,6 +1084,10 @@ func New(options *Options) *API {
 	})
 	api.workspaceBuildOrchestrator.Start(api.ctx)
 
+	// The OAuth2 provider is opt-in. The flag is read once at startup, here
+	// and in the build info response and the AI bridge config, so a runtime
+	// toggle would have to update all three.
+	oauth2ProviderEnabled := api.DeploymentValues.OAuth2.Provider.Enable.Value()
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
@@ -1245,12 +1249,12 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
-		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
+		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
-		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
+		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1259,7 +1263,7 @@ func New(options *Options) *API {
 	// logging into Coder with an external OAuth2 provider.
 	r.Route("/oauth2", func(r chi.Router) {
 		r.Use(
-			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
 			// Every response from this tree may carry a credential, so none of
 			// them may be retained by an intermediary cache. Mounted after
 			// the gate, so a request the gate rejects gets no headers. That
@@ -1370,7 +1374,10 @@ func New(options *Options) *API {
 			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixExperimental)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
+				r.Use(
+					httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPServerHTTP),
+				)
 				r.Mount("/", api.mcpHTTPHandler())
 			})
 		})
@@ -1995,13 +2002,14 @@ func New(options *Options) *API {
 		r.Route("/oauth2-provider", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 				// POST /apps/{app}/secrets returns a plaintext client secret,
 				// so this tree falls under the same RFC 6749 §5.1 requirement
-				// as /oauth2.
+				// as /oauth2. Settings carry no credential but share the
+				// header; that is harmless.
 				httpmw.NoStore,
 			)
 			r.Route("/apps", func(r chi.Router) {
+				r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
 				r.Get("/", api.oAuth2ProviderApps())
 				r.Post("/", api.postOAuth2ProviderApp())
 
@@ -2022,6 +2030,9 @@ func New(options *Options) *API {
 					})
 				})
 			})
+			// Deliberately not gated: settings stay reachable while the
+			// provider is disabled so an admin can configure it before
+			// turning it on.
 			r.Route("/settings", func(r chi.Router) {
 				r.Get("/", api.oauth2ProviderSettings)
 				r.Put("/", api.putOAuth2ProviderSettings)
