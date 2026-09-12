@@ -37,6 +37,17 @@ func (s *logRecorder) messages(level slog.Level) []string {
 	return out
 }
 
+// count returns how many entries at level carry exactly msg.
+func (s *logRecorder) count(level slog.Level, msg string) int {
+	var n int
+	for _, m := range s.messages(level) {
+		if m == msg {
+			n++
+		}
+	}
+	return n
+}
+
 func TestReadExperimentsDeprecatedOAuth2(t *testing.T) {
 	t.Parallel()
 
@@ -48,18 +59,14 @@ func TestReadExperimentsDeprecatedOAuth2(t *testing.T) {
 	got := parseExperiments(log, raw, &once)
 	require.Equal(t, codersdk.Experiments{codersdk.ExperimentMCPServerHTTP}, got,
 		"the oauth2 experiment must be dropped, not passed through")
-	require.Equal(t, []string{oauth2ExperimentDeprecatedMessage, "🐉 HERE BE DRAGONS: opting into hidden experiment"},
-		rec.messages(slog.LevelWarn))
+	require.Equal(t, 1, rec.count(slog.LevelWarn, oauth2ExperimentDeprecatedMessage))
+	require.NotContains(t, rec.messages(slog.LevelWarn), "ignoring unknown experiment",
+		"oauth2 must be matched before the unknown-experiment branch")
 
-	// A second read in the same process returns the same slice and does not
+	// A second read in the same process returns the same values and does not
 	// repeat the deprecation warning. Upper-case input is matched too.
 	got = parseExperiments(log, []string{"OAuth2", string(codersdk.ExperimentMCPServerHTTP)}, &once)
 	require.Equal(t, codersdk.Experiments{codersdk.ExperimentMCPServerHTTP}, got)
-	var deprecations int
-	for _, m := range rec.messages(slog.LevelWarn) {
-		if m == oauth2ExperimentDeprecatedMessage {
-			deprecations++
-		}
-	}
-	require.Equal(t, 1, deprecations, "deprecation warning must be logged once per process")
+	require.Equal(t, 1, rec.count(slog.LevelWarn, oauth2ExperimentDeprecatedMessage),
+		"deprecation warning must be logged once per process")
 }

@@ -2578,9 +2578,8 @@ func (api *API) DERPMap() *tailcfg.DERPMap {
 	return api.BaseDERPMap
 }
 
-// oauth2ExperimentDeprecatedMessage is logged when the retired oauth2
-// experiment is still configured. The OAuth2 provider is controlled by
-// CODER_OAUTH2_PROVIDER_ENABLE, so the experiment value does nothing.
+// oauth2ExperimentDeprecatedMessage is logged when a retired oauth2
+// experiment value is still configured.
 const oauth2ExperimentDeprecatedMessage = `CODER_EXPERIMENTS contains "oauth2", which is deprecated and has no effect. The OAuth2 provider is now generally available and disabled by default. Set CODER_OAUTH2_PROVIDER_ENABLE=true to enable it. The "oauth2" experiment value will be removed in a future release.`
 
 // warnOAuth2ExperimentDeprecated limits the deprecation warning to once per
