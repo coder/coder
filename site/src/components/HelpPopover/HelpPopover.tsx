@@ -109,7 +109,10 @@ interface HelpPopoverLinkProps {
 	href: string;
 }
 
-export const HelpPopoverLink: FC<HelpPopoverLinkProps> = ({ children, href }) => {
+export const HelpPopoverLink: FC<HelpPopoverLinkProps> = ({
+	children,
+	href,
+}) => {
 	return (
 		<a
 			href={href}
