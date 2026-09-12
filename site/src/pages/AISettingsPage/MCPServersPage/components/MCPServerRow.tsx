@@ -5,7 +5,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { MCPServerIcon } from "./MCPServerIcon";
+import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 import { AUTH_TYPE_LABELS, AVAILABILITY_LABELS } from "./mcpServerFormLogic";
 
 interface MCPServerRowProps {
@@ -25,7 +25,6 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 				<div className="flex min-w-0 items-center gap-3">
 					<MCPServerIcon
 						iconUrl={server.icon_url}
-						name={server.display_name}
 						className={cn("size-10", !enabled && "opacity-50")}
 					/>
 					<span
