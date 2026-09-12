@@ -2581,7 +2581,7 @@ func (api *API) DERPMap() *tailcfg.DERPMap {
 // oauth2ExperimentDeprecatedMessage is logged when the retired oauth2
 // experiment is still configured. The OAuth2 provider is controlled by
 // CODER_OAUTH2_PROVIDER_ENABLE, so the experiment value does nothing.
-const oauth2ExperimentDeprecatedMessage = `CODER_EXPERIMENTS contains "oauth2", which is deprecated and has no effect. The OAuth2 provider is now generally available and disabled by default. Set CODER_OAUTH2_PROVIDER_ENABLE=true to enable it. The "oauth2" experiment value will be removed in the next release.`
+const oauth2ExperimentDeprecatedMessage = `CODER_EXPERIMENTS contains "oauth2", which is deprecated and has no effect. The OAuth2 provider is now generally available and disabled by default. Set CODER_OAUTH2_PROVIDER_ENABLE=true to enable it. The "oauth2" experiment value will be removed in a future release.`
 
 // warnOAuth2ExperimentDeprecated limits the deprecation warning to once per
 // process. coder server reads the experiment list several times during
@@ -2604,9 +2604,9 @@ func parseExperiments(log slog.Logger, raw []string, warnOAuth2Once *sync.Once) 
 		case "*":
 			exps = append(exps, codersdk.ExperimentsSafe...)
 		case codersdk.ExperimentOAuth2:
-			// Recognized but inert for one release so the warning can be
-			// specific. Deliberately not appended: nothing may observe the
-			// experiment as enabled.
+			// Recognized but inert so the warning can be specific. PLAT-635
+			// removes the constant and this branch. Deliberately not
+			// appended: nothing may observe the experiment as enabled.
 			warnOAuth2Once.Do(func() {
 				log.Warn(context.Background(), oauth2ExperimentDeprecatedMessage)
 			})
