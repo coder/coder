@@ -1026,6 +1026,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
+			coderd.LogOAuth2ProviderState(ctx, logger, options.Database, vals.OAuth2.Provider)
+
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
 			// This should be output before the logs start streaming.
