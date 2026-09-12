@@ -101,18 +101,20 @@ implemented.
 
 ### Prerequisites
 
-The remote MCP HTTP endpoint requires both the `oauth2` and `mcp-server-http`
-experiments enabled on your Coder deployment:
+The remote MCP HTTP endpoint requires the OAuth2 provider and the `mcp-server-http` experiment on your Coder deployment:
 
 ```sh
-coder server --experiments=oauth2,mcp-server-http
+coder server --oauth2-provider-enable --experiments=mcp-server-http
 ```
 
-Or set the environment variable:
+Or set the environment variables:
 
 ```sh
-CODER_EXPERIMENTS=oauth2,mcp-server-http
+CODER_OAUTH2_PROVIDER_ENABLE=true
+CODER_EXPERIMENTS=mcp-server-http
 ```
+
+For the YAML and Helm forms, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider.md#enable-oauth2-provider).
 
 ### MCP Registry
 
@@ -183,7 +185,7 @@ server advertises its OAuth2 capabilities via the `WWW-Authenticate` header and
 This enables a seamless connect-and-authenticate experience where users sign in through their browser without manually managing tokens.
 
 > [!NOTE]
-> OAuth2 requires the `oauth2` experiment to be enabled on your Coder deployment.
+> OAuth2 requires `CODER_OAUTH2_PROVIDER_ENABLE=true` on your Coder deployment.
 
 ### Session Token (For Programmatic Access)
 
@@ -235,6 +237,6 @@ them for you to invoke, for example as slash commands:
 
 ### OAuth2 authentication not working
 
-- Ensure your Coder deployment has the `oauth2` experiment enabled
+- Ensure your Coder deployment has `CODER_OAUTH2_PROVIDER_ENABLE=true` set
 - Verify your MCP client supports RFC 9728 Protected Resource Metadata
 - Check that your browser can reach the Coder authorization endpoint
