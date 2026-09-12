@@ -55,11 +55,12 @@ export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	);
 };
 
-interface SidebarIconButton extends ComponentProps<typeof TopbarIconButton> {
+interface SidebarIconButtonProps
+	extends ComponentProps<typeof TopbarIconButton> {
 	isActive: boolean;
 }
 
-export const SidebarIconButton: FC<SidebarIconButton> = ({
+export const SidebarIconButton: FC<SidebarIconButtonProps> = ({
 	isActive,
 	className,
 	...buttonProps
