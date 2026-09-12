@@ -355,7 +355,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			return;
 		}
 
-		listRef.current.scrollIntoView({ behavior: "smooth" });
+		listRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
 	}, [open]);
 
 	const CreatableItem = () => {
@@ -598,13 +598,14 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 					</div>
 				</div>
 			</div>
-			<div className="relative" ref={listRef}>
+			<div className="relative">
 				{open && (
 					<CommandList
+						ref={listRef}
 						className={`absolute top-1 z-10 w-full rounded-md
 								border border-solid border-border
 								bg-surface-primary text-content-primary shadow-md outline-hidden
-								animate-in`}
+								animate-in scroll-mt-44 scroll-mb-10`}
 						onPointerLeave={() => {
 							setOnScrollbar(false);
 						}}
