@@ -3,11 +3,11 @@ import { TableCell, TableRow } from "#/components/Table/Table";
 import { formatDate } from "#/utils/time";
 import { createDisplayDate } from "./utils";
 
-export interface TimelineDateRow {
+interface TimelineDateRowProps {
 	date: Date;
 }
 
-export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
+export const TimelineDateRow: FC<TimelineDateRowProps> = ({ date }) => {
 	return (
 		<TableRow>
 			<TableCell

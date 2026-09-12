@@ -10,7 +10,7 @@ import {
 } from "#/components/Popover/Popover";
 import type { ThemeRole } from "#/theme/roles";
 
-export type NotificationItem = {
+type Notification = {
 	title: string;
 	severity: AlertProps["severity"];
 	detail?: ReactNode;
@@ -20,7 +20,7 @@ export type NotificationItem = {
 type NotificationSeverity = "warning" | "info";
 
 type NotificationsProps = {
-	items: NotificationItem[];
+	items: Notification[];
 	severity: NotificationSeverity;
 	icon: ReactNode;
 };
@@ -131,7 +131,7 @@ const NotificationPill: FC<NotificationPillProps> = ({
 };
 
 interface NotificationItemProps {
-	notification: NotificationItem;
+	notification: Notification;
 }
 
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {

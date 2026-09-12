@@ -104,12 +104,12 @@ export const HelpPopoverText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	);
 };
 
-interface HelpPopoverLink {
+interface HelpPopoverLinkProps {
 	children?: ReactNode;
 	href: string;
 }
 
-export const HelpPopoverLink: FC<HelpPopoverLink> = ({ children, href }) => {
+export const HelpPopoverLink: FC<HelpPopoverLinkProps> = ({ children, href }) => {
 	return (
 		<a
 			href={href}
