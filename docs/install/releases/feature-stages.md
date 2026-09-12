@@ -97,9 +97,9 @@ available in the documentation.
 - **Production-ready**: Yes
 - **Support**: Yes, [based on license](https://coder.com/pricing).
 
-All features that are not explicitly tagged as `Early access` or `Beta` are
-considered generally available (GA). They have been tested, are stable, and are
-enabled by default.
+All features that are not explicitly tagged as `Early access` or `Beta` are considered generally available (GA).
+They have been tested, are stable, and are enabled by default.
+A few GA features are off by default and have a server setting to turn them on, such as the [OAuth2 provider](../../admin/integrations/oauth2-provider.md) with `CODER_OAUTH2_PROVIDER_ENABLE`.
 
 If your Coder license includes an SLA, please consult it for an outline of
 specific expectations.

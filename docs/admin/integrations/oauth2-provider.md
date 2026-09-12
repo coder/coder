@@ -1,38 +1,54 @@
 ---
-title: OAuth2 provider (Experimental)
+title: OAuth2 provider
 ---
 
-> [!WARNING]
-> The OAuth2 provider functionality is currently **experimental and unstable**. This feature:
->
-> - Is subject to breaking changes without notice
-> - May have incomplete functionality
-> - Is not recommended for production use
-> - Requires the `oauth2` experiment flag to be enabled
->
-> Use this feature for development and testing purposes only.
+> [!NOTE]
+> The OAuth2 provider is generally available and off by default.
+> Set `CODER_OAUTH2_PROVIDER_ENABLE=true` to turn it on.
+> The `oauth2` experiment no longer has any effect and will be removed in a future release.
 
 Coder can act as an OAuth2 authorization server, allowing third-party applications to authenticate users through Coder and access the Coder API on their behalf. This enables integrations where external applications can leverage Coder's authentication and user management.
 
 ## Requirements
 
 - Admin privileges in Coder
-- OAuth2 experiment flag enabled
+- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the Coder server
 - HTTPS recommended for production deployments
 
 ## Enable OAuth2 Provider
 
-Add the `oauth2` experiment flag to your Coder server:
+The provider is off by default.
+While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 Applications** page is hidden.
+Turn it on with the CLI flag:
 
 ```sh
-coder server --experiments oauth2
+coder server --oauth2-provider-enable
 ```
 
 Or set the environment variable:
 
 ```dotenv
-CODER_EXPERIMENTS=oauth2
+CODER_OAUTH2_PROVIDER_ENABLE=true
 ```
+
+Or set it in the YAML configuration file:
+
+```yaml
+oauth2:
+  provider:
+    enable: true
+```
+
+For Kubernetes deployments that use the Helm chart, add the environment variable to `coder.env` in your values file:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OAUTH2_PROVIDER_ENABLE
+      value: "true"
+```
+
+Existing applications, secrets, and user authorizations are kept while the provider is off and work again when you turn it on.
 
 ## Creating OAuth2 Applications
 
@@ -396,9 +412,11 @@ For more details on testing, see the [OAuth2 test scripts README](../../../scrip
 
 ## Common Issues
 
-### "OAuth2 experiment not enabled"
+### OAuth2 endpoints return 404
 
-Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
+The provider is off.
+Set `CODER_OAUTH2_PROVIDER_ENABLE=true` and restart the server.
+Refer to [Enable OAuth2 Provider](#enable-oauth2-provider).
 
 ### "Invalid redirect_uri"
 
@@ -640,7 +658,7 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 
 ## Limitations
 
-As an experimental feature, the current implementation has limitations:
+The current implementation has these limitations:
 
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
 - No client credentials grant support
@@ -694,4 +712,4 @@ pages.
 
 ## Feedback
 
-This is an experimental feature under active development. Please report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
+Report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
