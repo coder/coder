@@ -14,7 +14,9 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
 
@@ -56,10 +58,10 @@ func TestUpdateUserEmail(t *testing.T) {
 	t.Run("DeclinePrompt", func(t *testing.T) {
 		t.Parallel()
 
-		// Track whether any API call is made.
-		apiCalled := false
+		// Use a channel closed by the handler to detect whether the API is called.
+		apiCalled := make(chan struct{})
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			apiCalled = true
+			close(apiCalled)
 			w.WriteHeader(http.StatusNoContent)
 		}))
 		t.Cleanup(srv.Close)
@@ -72,29 +74,44 @@ func TestUpdateUserEmail(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		inv.Stdin = strings.NewReader("no\n")
 
-		err := inv.Run()
-		require.ErrorIs(t, err, cliui.ErrCanceled)
-		require.False(t, apiCalled, "API should not be called when prompt is declined")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		done := make(chan struct{})
+		var runErr error
+		go func() {
+			defer close(done)
+			runErr = inv.Run()
+		}()
+
+		testutil.TryReceive(ctx, t, done)
+		require.ErrorIs(t, runErr, cliui.ErrCanceled)
+
+		// Verify the API was not called after the command returned.
+		select {
+		case <-apiCalled:
+			t.Fatal("API should not be called when prompt is declined")
+		default:
+		}
 	})
 
+	// AcceptPrompt runs a full end-to-end test against a real Coder server: it
+	// creates a second user, invokes the CLI as an admin, confirms the prompt,
+	// and asserts both the command output and the actual stored email.
 	t.Run("AcceptPrompt", func(t *testing.T) {
 		t.Parallel()
 
-		var gotBody codersdk.UpdateUserEmailRequest
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, http.MethodPut, r.Method)
-			assert.Equal(t, "/api/experimental/users/email", r.URL.Path)
-			err := json.NewDecoder(r.Body).Decode(&gotBody)
-			assert.NoError(t, err)
-			w.WriteHeader(http.StatusNoContent)
-		}))
-		t.Cleanup(srv.Close)
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-		client := codersdk.New(must(url.Parse(srv.URL)))
+		oldEmail := member.Email
+		newEmail := "updated-" + oldEmail
+
 		inv, root := clitest.New(t, "exp", "update-user-email",
-			"--old-email", "old@example.com",
-			"--new-email", "new@example.com",
+			"--old-email", oldEmail,
+			"--new-email", newEmail,
 		)
+		//nolint:gocritic // This break-glass command is restricted to deployment owners.
 		clitest.SetupConfig(t, client, root)
 		inv.Stdin = strings.NewReader("yes\n")
 
@@ -104,14 +121,16 @@ func TestUpdateUserEmail(t *testing.T) {
 		require.NoError(t, inv.Run())
 
 		out := outBuf.String()
-		require.Contains(t, out, "old@example.com")
-		require.Contains(t, out, "new@example.com")
+		require.Contains(t, out, oldEmail)
+		require.Contains(t, out, newEmail)
 		require.Contains(t, out, "sessions and API tokens")
 		require.Contains(t, out, "external identity provider")
-		require.Contains(t, out, "Updated user email from old@example.com to new@example.com.")
+		require.Contains(t, out, "Updated user email from "+oldEmail+" to "+newEmail+".")
 
-		require.Equal(t, "old@example.com", gotBody.OldEmail)
-		require.Equal(t, "new@example.com", gotBody.NewEmail)
+		// Verify the email was actually persisted.
+		updated, err := client.User(ctx, member.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, newEmail, updated.Email)
 	})
 
 	t.Run("YesSkipsPrompt", func(t *testing.T) {
@@ -147,8 +166,8 @@ func TestUpdateUserEmail(t *testing.T) {
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"message":"user not found"}`))
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"message":"internal server error"}`))
 		}))
 		t.Cleanup(srv.Close)
 
@@ -163,5 +182,10 @@ func TestUpdateUserEmail(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "update user email")
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "internal server error")
 	})
 }
