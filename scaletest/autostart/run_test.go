@@ -1,6 +1,7 @@
 package autostart_test
 
 import (
+	"context"
 	"io"
 	"strconv"
 	"sync"
@@ -43,38 +44,7 @@ func TestRun(t *testing.T) {
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.PlanComplete,
-		ProvisionGraph: []*proto.Response{
-			{
-				Type: &proto.Response_Graph{
-					Graph: &proto.GraphComplete{
-						Resources: []*proto.Resource{
-							{
-								Name: "example",
-								Type: "aws_instance",
-								Agents: []*proto.Agent{
-									{
-										Id:   uuid.NewString(),
-										Name: "agent",
-										Auth: &proto.Agent_Token{
-											Token: authToken,
-										},
-										Apps: []*proto.App{},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
-
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := createAutostartTestTemplate(t, client, user.OrganizationID)
 
 	barrier := new(sync.WaitGroup)
 	barrier.Add(numUsers)
@@ -176,4 +146,158 @@ func TestRun(t *testing.T) {
 	users, err = client.Users(ctx, codersdk.UsersRequest{})
 	require.NoError(t, err)
 	require.Len(t, users.Users, 1) // owner
+}
+
+// TestRunReuseUser drives the reuse branch of RunReturningResult: the runner is
+// given a pre-created user + token instead of creating one. Driving the whole
+// autostart cycle to completion needs the scheduled autostart build to fire (see
+// the skipped TestRun above), so this test disables the autobuild ticker and
+// runs the runner up to the autostart wait, which is enough to assert the reuse
+// guarantees:
+//   - the workspace is built as the reused user and no new user is created, and
+//   - Cleanup deletes the workspace but not the reused user.
+func TestRunReuseUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		// Set the autostart ticker far in the future so the scheduled autostart
+		// build never fires during the test; the runner blocks waiting for it and
+		// we cancel instead.
+		AutobuildTicker: time.NewTicker(time.Hour).C,
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentWorkspaceBuildUpdates)}
+		}),
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	template := createAutostartTestTemplate(t, client, owner.OrganizationID)
+
+	// Pre-create the user the runner will reuse.
+	reuseClient, reuseUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	workspaceName := loadtestutil.GenerateDeterministicWorkspaceName("0")
+	updates := make(chan codersdk.WorkspaceBuildUpdate, 16)
+
+	decoder, err := client.WatchAllWorkspaceBuilds(ctx)
+	require.NoError(t, err)
+	defer decoder.Close()
+	go func() {
+		for update := range decoder.Chan() {
+			if update.WorkspaceName != workspaceName {
+				continue
+			}
+			select {
+			case updates <- update:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	barrier := new(sync.WaitGroup)
+	barrier.Add(1)
+
+	cfg := autostart.Config{
+		// Reuse mode still resolves the workspace organization from User.
+		User:           createusers.Config{OrganizationID: owner.OrganizationID},
+		SessionToken:   reuseClient.SessionToken(),
+		PreCreatedUser: reuseUser,
+		Workspace: workspacebuild.Config{
+			OrganizationID: owner.OrganizationID,
+			Request: codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+				Name:       workspaceName,
+			},
+			NoWaitForAgents: true,
+		},
+		WorkspaceJobTimeout:   testutil.WaitMedium,
+		AutostartDelay:        2 * time.Minute,
+		AutostartBuildTimeout: testutil.WaitLong,
+		SetupBarrier:          barrier,
+		BuildUpdates:          updates,
+	}
+	require.NoError(t, cfg.Validate())
+
+	runner := autostart.NewRunner(client, cfg)
+
+	runCtx, cancelRun := context.WithCancel(ctx)
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- runner.Run(runCtx, "0", io.Discard)
+	}()
+
+	// Wait until the runner has built the workspace as the reused user and
+	// configured autostart; it then blocks waiting for the scheduled build.
+	var ws codersdk.Workspace
+	require.Eventually(t, func() bool {
+		wss, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Name: workspaceName})
+		if err != nil || len(wss.Workspaces) != 1 {
+			return false
+		}
+		ws = wss.Workspaces[0]
+		return ws.AutostartSchedule != nil && *ws.AutostartSchedule != "" &&
+			ws.LatestBuild.Transition == codersdk.WorkspaceTransitionStop &&
+			ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded
+	}, testutil.WaitLong, testutil.IntervalMedium)
+
+	// The workspace was built as the reused user, and no extra user was created.
+	require.Equal(t, reuseUser.ID, ws.OwnerID)
+	require.Equal(t, reuseUser.Username, ws.OwnerName)
+	users, err := client.Users(ctx, codersdk.UsersRequest{})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 2) // owner + reused user only
+
+	// Unblock the runner, which is waiting for the scheduled autostart build.
+	cancelRun()
+	require.ErrorIs(t, <-runErr, context.Canceled)
+
+	// Cleanup removes the workspace but must not delete the reused user.
+	require.NoError(t, runner.Cleanup(ctx, "0", io.Discard))
+
+	wss, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, wss.Workspaces, 0)
+
+	_, err = client.User(ctx, reuseUser.ID.String())
+	require.NoError(t, err) // reused user still exists
+}
+
+func createAutostartTestTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID) codersdk.Template {
+	t.Helper()
+
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionGraph: []*proto.Response{
+			{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						Resources: []*proto.Resource{
+							{
+								Name: "example",
+								Type: "aws_instance",
+								Agents: []*proto.Agent{
+									{
+										Id:   uuid.NewString(),
+										Name: "agent",
+										Auth: &proto.Agent_Token{
+											Token: authToken,
+										},
+										Apps: []*proto.App{},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	return template
 }
