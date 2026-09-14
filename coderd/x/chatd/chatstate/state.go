@@ -103,7 +103,7 @@ type QueueState struct {
 // head, so it must not be promoted. Each pause mechanism adds its
 // condition here.
 func queuePaused(head database.ChatQueuedMessage) bool {
-	return head.HeldAt.Valid
+	return head.EditingSince.Valid
 }
 
 // LoadQueueState reads the queue head in the caller's transaction. An

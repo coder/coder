@@ -21038,8 +21038,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "held_at": {
-                    "description": "HeldAt is set while the owner edits the message. A held message\nand every message behind it wait until the hold is released; a\nturn that ends at a held message pauses the chat.",
+                "editing_since": {
+                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends; a\nturn that ends at a message under edit pauses the chat.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -23351,8 +23351,8 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
-                "held": {
-                    "description": "Held sets or clears the hold. A chat has at most one held message;\nholding another moves the hold. Releasing the head of a paused\nchat sends it.",
+                "editing": {
+                    "description": "Editing begins (true) or ends (false) an edit of the message. A\nchat has at most one message under edit; beginning another ends the\nfirst. Ending the edit of a paused chat's head sends it.",
                     "type": "boolean"
                 },
                 "model_config_id": {
