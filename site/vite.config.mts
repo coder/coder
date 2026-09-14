@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
-import type { PluginOption } from "vite";
+import { build, type PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
@@ -28,6 +28,51 @@ compilerPreset.rolldown.filter = {
 	},
 };
 
+// Serves the annotator bundle from the dev server so app previews can load
+// it without a production build. Production gets it from `pnpm build`.
+const annotatorDevServer = (): PluginOption => ({
+	name: "coder-annotator-dev-server",
+	apply: "serve",
+	configureServer(server) {
+		let bundle: Promise<string> | undefined;
+		server.watcher.on("change", (file) => {
+			if (file.includes(`${path.sep}src${path.sep}annotator${path.sep}`)) {
+				bundle = undefined;
+			}
+		});
+		server.middlewares.use("/annotator.js", async (_req, res, next) => {
+			bundle ??= build({
+				configFile: path.resolve(
+					import.meta.dirname,
+					"./vite.annotator.config.mts",
+				),
+				logLevel: "warn",
+				build: { write: false },
+			}).then((result) => {
+				const outputs = Array.isArray(result) ? result : [result];
+				for (const output of outputs) {
+					if ("output" in output) {
+						for (const chunk of output.output) {
+							if (chunk.type === "chunk") {
+								return chunk.code;
+							}
+						}
+					}
+				}
+				throw new Error("annotator build produced no chunk");
+			});
+			try {
+				const code = await bundle;
+				res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+				res.end(code);
+			} catch (error) {
+				bundle = undefined;
+				next(error);
+			}
+		});
+	},
+});
+
 const plugins: PluginOption[] = [
 	tailwindcss(),
 	react(),
@@ -35,6 +80,7 @@ const plugins: PluginOption[] = [
 	checker({
 		typescript: true,
 	}),
+	annotatorDevServer(),
 ];
 
 if (process.env.STATS !== undefined) {
