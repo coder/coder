@@ -72,7 +72,7 @@ Five kinds of heading carry no footer, and none of them are counted:
 - Headings that only group sub-rules, like [Commas](./capitalization-and-punctuation.md#commas).
 - Sub-headings that scope or qualify the parent rule instead of adding one, like [Exceptions](./capitalization-and-punctuation.md#exceptions) under No gerund-leading headings.
   The parent rule's footer covers them.
-- Reference sections that give writers vocabulary rather than a rule, like [Personas the Coder docs serve](./audience-and-scope.md#personas-the-coder-docs-serve).
+- Reference sections that give writers vocabulary rather than a rule, like [Personas the Coder docs serve](./audience-and-scope.md#personas-the-coder-docs-serve), along with every heading inside them.
 - Example headings inside a sample document.
 - Navigation headings, like Learn more.
 

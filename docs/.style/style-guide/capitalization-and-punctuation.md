@@ -101,10 +101,8 @@ Reword as a noun phrase ("What a workspace is") or drop the question mark.
 The second and third are decorative.
 The fourth treats the heading as a sentence.
 
-*Periods and exclamation points enforced by `Google.HeadingPunctuation` at `error` severity.
-Question marks enforced by `Google.HeadingPunctuation` at `suggestion` severity.
-Both ignore characters inside backticks.
-Planned; third-party rules aren't loaded by default.*
+*Enforced by `Google.HeadingPunctuation` (planned; third-party rules aren't loaded by default).
+When it lands, it flags periods and exclamation points at `error` severity and question marks at `suggestion` severity, ignoring characters inside backticks.*
 
 ## No em-dashes or en-dashes
 
