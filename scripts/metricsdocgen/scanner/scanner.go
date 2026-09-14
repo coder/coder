@@ -28,23 +28,41 @@ import (
 // Add or remove directories here to control the scanner's scope.
 var scanDirs = []string{
 	"agent",
+	"aibridge",
 	"coderd",
 	"enterprise",
 	"provisionerd",
 	"tailnet",
 }
 
-// skipPaths lists files that should be excluded from scanning. Their metrics
-// must be maintained in the static metrics file instead.
-// TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
+// skipPaths previously listed files whose metrics could not be named without
+// resolving the prefix their registerer applies. That resolution now happens
+// in prefix.go, so every file under scanDirs is scanned except the trees
+// listed below.
 //
-//	eliminate the need for this skip list.
-var skipPaths = []string{
-	"coderd/aibridged/metrics.go",
-	"coderd/aibridgedserver/metrics.go",
-	"enterprise/aibridgeproxyd/metrics.go",
-	"enterprise/scaletest/agentfake/metrics.go",
+// excludeDirs are subtrees whose metrics are not part of a deployment's
+// published surface. The scaletest harness registers metrics from a fake agent
+// it runs during load tests, so documenting them would tell operators to look
+// for series their deployment never exposes.
+var excludeDirs = []string{
+	"enterprise/scaletest",
 }
+
+// excluded reports whether a path lies under an excluded subtree.
+func excluded(path string) bool {
+	for _, dir := range excludeDirs {
+		if path == dir || strings.HasPrefix(path, dir+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// prefixScanDirs are the directories searched for registerer wrapping. A
+// metric's name prefix is applied where the registerer is built, which is
+// usually a command package rather than the package declaring the metric, so
+// this list is broader than scanDirs.
+var prefixScanDirs = append([]string{"cli"}, scanDirs...)
 
 // MetricType represents the type of Prometheus metric.
 type MetricType string
@@ -105,7 +123,13 @@ func warnf(format string, args ...any) {
 }
 
 func main() {
-	metrics, err := scanAllDirs()
+	prefixes, err := buildPrefixIndex(prefixScanDirs)
+	if err != nil {
+		log.Fatalf("Failed to resolve metric name prefixes: %v", err)
+	}
+	logf("resolved metric name prefixes for %d packages", len(prefixes))
+
+	metrics, err := scanAllDirs(prefixes)
 	if err != nil {
 		log.Fatalf("Failed to scan directories: %v", err)
 	}
@@ -131,11 +155,11 @@ func main() {
 }
 
 // scanAllDirs scans all configured directories for metric definitions.
-func scanAllDirs() ([]Metric, error) {
+func scanAllDirs(prefixes prefixIndex) ([]Metric, error) {
 	var allMetrics []Metric
 
 	for _, dir := range scanDirs {
-		metrics, err := scanDirectory(dir)
+		metrics, err := scanDirectory(dir, prefixes)
 		if err != nil {
 			return nil, xerrors.Errorf("scanning %s: %w", dir, err)
 		}
@@ -148,7 +172,7 @@ func scanAllDirs() ([]Metric, error) {
 }
 
 // scanDirectory recursively walks a directory and extracts metrics from all Go files.
-func scanDirectory(root string) ([]Metric, error) {
+func scanDirectory(root string, prefixes prefixIndex) ([]Metric, error) {
 	var metrics []Metric
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -166,14 +190,11 @@ func scanDirectory(root string) ([]Metric, error) {
 			return nil
 		}
 
-		// Skip files listed in skipPaths.
-		for _, sp := range skipPaths {
-			if path == sp {
-				return nil
-			}
+		if excluded(path) {
+			return nil
 		}
 
-		fileMetrics, err := scanFile(path)
+		fileMetrics, err := scanFile(path, prefixes[filepath.Dir(path)])
 		if err != nil {
 			return xerrors.Errorf("scanning %s: %w", path, err)
 		}
@@ -189,8 +210,11 @@ func scanDirectory(root string) ([]Metric, error) {
 	return metrics, err
 }
 
-// scanFile parses a single Go file and extracts all Prometheus metric definitions.
-func scanFile(path string) ([]Metric, error) {
+// scanFile parses a single Go file and extracts all Prometheus metric
+// definitions. When the declaring package's registerer is wrapped with one or
+// more name prefixes, each metric is emitted once per prefix, because that is
+// how many series the deployment publishes.
+func scanFile(path string, prefixes []string) ([]Metric, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 	if err != nil {
@@ -220,13 +244,29 @@ func scanFile(path string) ([]Metric, error) {
 				// or added to the static metrics file with a manual description.
 				return true
 			}
-			metrics = append(metrics, metric)
+			metrics = append(metrics, applyPrefixes(metric, prefixes)...)
 		}
 
 		return true
 	})
 
 	return metrics, nil
+}
+
+// applyPrefixes returns the metric once per name prefix its registerer
+// applies, or unchanged when no prefix reaches the declaring package.
+func applyPrefixes(metric Metric, prefixes []string) []Metric {
+	if len(prefixes) == 0 {
+		return []Metric{metric}
+	}
+
+	prefixed := make([]Metric, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		copied := metric
+		copied.Name = prefix + metric.Name
+		prefixed = append(prefixed, copied)
+	}
+	return prefixed
 }
 
 // collectPackageConsts collects exported string constants from a file into
@@ -369,11 +409,12 @@ func collectDecls(file *ast.File) declarations {
 }
 
 // extractLabels extracts label names from an expression passed as an argument
-// to a metric constructor. Handles both inline []string literals and
-// variable references from decls.
+// to a metric constructor. Handles inline []string literals, variable
+// references from decls, and append calls that extend a shared base.
 // Examples:
 //   - []string{"label1", "label2"}: ["label1", "label2"] (inline literal)
 //   - myLabels: resolved value of myLabels variable (variable reference)
+//   - append(baseLabels, "route"): base labels plus "route"
 func extractLabels(expr ast.Expr, decls declarations) []string {
 	switch e := expr.(type) {
 	case *ast.CompositeLit:
@@ -385,8 +426,41 @@ func extractLabels(expr ast.Expr, decls declarations) []string {
 			return labels
 		}
 		return nil
+	case *ast.CallExpr:
+		return extractAppendedLabels(e, decls)
 	}
 	return nil
+}
+
+// extractAppendedLabels resolves append(base, "extra", ...) label arguments.
+// Packages that share a label set across several metrics extend it this way,
+// and reading only the literal arguments would publish an incomplete label
+// list for those metrics.
+func extractAppendedLabels(call *ast.CallExpr, decls declarations) []string {
+	ident, ok := call.Fun.(*ast.Ident)
+	if !ok || ident.Name != "append" || len(call.Args) == 0 {
+		return nil
+	}
+
+	base := extractLabels(call.Args[0], decls)
+	if base == nil {
+		return nil
+	}
+
+	// Copy the base so a shared declaration is never extended in place.
+	labels := make([]string, 0, len(base)+len(call.Args)-1)
+	labels = append(labels, base...)
+
+	for _, arg := range call.Args[1:] {
+		value := resolveStringExpr(arg, decls)
+		if value == "" {
+			// An unresolvable element would silently shorten the list, so
+			// report no labels rather than a partial set.
+			return nil
+		}
+		labels = append(labels, value)
+	}
+	return labels
 }
 
 // extractNewDescMetric extracts a metric from a prometheus.NewDesc() call.
