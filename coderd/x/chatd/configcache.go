@@ -68,6 +68,11 @@ type chatConfigCache struct {
 	userPrompts       *tlru.Cache[uuid.UUID, string]
 	userPromptFetches singleflight.Group[string, string]
 
+	// User personal-memory settings (keyed by user ID).
+	userPersonalMemoryEpoch   uint64
+	userPersonalMemoryEnabled *tlru.Cache[uuid.UUID, bool]
+	userPersonalMemoryFetches singleflight.Group[string, bool]
+
 	// Advisor configuration (singleton).
 	advisorConfig           *cachedAdvisorConfig
 	advisorConfigGeneration uint64
@@ -81,6 +86,10 @@ func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clo
 		ctx:   ctx,
 		userPrompts: tlru.New[uuid.UUID](
 			tlru.ConstantCost[string],
+			chatConfigUserPromptEntryLimit,
+		),
+		userPersonalMemoryEnabled: tlru.New[uuid.UUID](
+			tlru.ConstantCost[bool],
 			chatConfigUserPromptEntryLimit,
 		),
 	}
@@ -244,6 +253,63 @@ func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 	c.mu.Lock()
 	c.userPrompts.Delete(userID)
 	c.userPromptEpoch++
+	c.mu.Unlock()
+}
+
+func (c *chatConfigCache) GetUserChatPersonalMemoryEnabled(ctx context.Context, userID uuid.UUID) (bool, error) {
+	if enabled, ok := c.cachedUserPersonalMemoryEnabled(userID); ok {
+		return enabled, nil
+	}
+
+	epoch := c.currentUserPersonalMemoryEpoch()
+	enabled, err := singleflightDoChan(ctx, &c.userPersonalMemoryFetches, fmt.Sprintf("%d:%s", epoch, userID), func() (bool, error) {
+		if cached, ok := c.cachedUserPersonalMemoryEnabled(userID); ok {
+			return cached, nil
+		}
+
+		fetched, err := c.db.GetUserChatPersonalMemoryEnabled(c.ctx, userID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				c.storeUserPersonalMemoryEnabled(epoch, userID, true)
+				return true, nil
+			}
+			return false, err
+		}
+		enabled := fetched == "true"
+		c.storeUserPersonalMemoryEnabled(epoch, userID, enabled)
+		return enabled, nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return enabled, nil
+}
+
+func (c *chatConfigCache) cachedUserPersonalMemoryEnabled(userID uuid.UUID) (enabled bool, ok bool) {
+	enabled, _, ok = c.userPersonalMemoryEnabled.Get(userID)
+	return enabled, ok
+}
+
+func (c *chatConfigCache) currentUserPersonalMemoryEpoch() uint64 {
+	c.mu.RLock()
+	epoch := c.userPersonalMemoryEpoch
+	c.mu.RUnlock()
+	return epoch
+}
+
+func (c *chatConfigCache) storeUserPersonalMemoryEnabled(epoch uint64, userID uuid.UUID, enabled bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.userPersonalMemoryEpoch != epoch {
+		return
+	}
+	c.userPersonalMemoryEnabled.Set(userID, enabled, chatConfigUserPromptTTL)
+}
+
+func (c *chatConfigCache) InvalidateUserPersonalMemoryEnabled(userID uuid.UUID) {
+	c.mu.Lock()
+	c.userPersonalMemoryEnabled.Delete(userID)
+	c.userPersonalMemoryEpoch++
 	c.mu.Unlock()
 }
 

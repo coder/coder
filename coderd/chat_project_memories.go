@@ -78,7 +78,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to count chat project memories.", Detail: err.Error()})
 		return
 	}
-	if count >= chattool.MaxProjectMemories {
+	if count >= chattool.MaxMemories {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat project memory limit reached."})
 		return
 	}
@@ -222,15 +222,15 @@ type normalizedChatProjectMemory struct {
 
 func validateChatProjectMemory(name, description, body string) (normalizedChatProjectMemory, *codersdk.Response) {
 	name = strings.ToLower(strings.TrimSpace(name))
-	description = chattool.NormalizeProjectMemoryText(description)
-	body = chattool.NormalizeProjectMemoryText(body)
-	if err := chattool.ValidateProjectMemoryName(name); err != nil {
+	description = chattool.NormalizeMemoryText(description)
+	body = chattool.NormalizeMemoryText(body)
+	if err := chattool.ValidateMemoryName(name); err != nil {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: err.Error()}
 	}
-	if description == "" || utf8.RuneCountInString(description) > chattool.MaxProjectMemoryDescriptionChars {
+	if description == "" || utf8.RuneCountInString(description) > chattool.MaxMemoryDescriptionChars {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "description must be at most 150 characters."}
 	}
-	if body == "" || len(body) > chattool.MaxProjectMemoryBodyBytes {
+	if body == "" || len(body) > chattool.MaxMemoryBodyBytes {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "body must be at most 8192 bytes."}
 	}
 	return normalizedChatProjectMemory{Name: name, Description: description, Body: body}, nil

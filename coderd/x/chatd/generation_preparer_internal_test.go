@@ -2,6 +2,7 @@ package chatd //nolint:testpackage // Exercises unexported re-derivation helpers
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -290,39 +292,22 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 	require.True(t, sawInlinedText, "attachment was not inlined as text")
 }
 
-func TestPrepareGenerationProjectMemory(t *testing.T) {
+func TestPrepareGenerationMemory(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name            string
 		project         bool
 		subagent        bool
-		experiments     codersdk.Experiments
+		personalEnabled *bool
 		wantMemoryBlock bool
 		wantMemoryTools bool
+		intro           string
 	}{
-		{
-			name:            "RootProjectExperimentEnabled",
-			project:         true,
-			experiments:     codersdk.Experiments{codersdk.ExperimentChatProjects},
-			wantMemoryBlock: true,
-			wantMemoryTools: true,
-		},
-		{
-			name:        "SubagentProject",
-			project:     true,
-			subagent:    true,
-			experiments: codersdk.Experiments{codersdk.ExperimentChatProjects},
-		},
-		{
-			name:        "RootWithoutProject",
-			experiments: codersdk.Experiments{codersdk.ExperimentChatProjects},
-		},
-		{
-			name:        "ExperimentDisabled",
-			project:     true,
-			experiments: codersdk.Experiments{},
-		},
+		{name: "Project", project: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "Personal", wantMemoryBlock: true, wantMemoryTools: true, intro: "Memory is personal to you"},
+		{name: "PersonalDisabled", personalEnabled: new(false)},
+		{name: "Subagent", subagent: true},
 	}
 
 	for _, tt := range tests {
@@ -333,88 +318,35 @@ func TestPrepareGenerationProjectMemory(t *testing.T) {
 			ctx := chatdTestContext(t)
 			user := dbgen.User(t, db, database.User{})
 			org := dbgen.Organization(t, db, database.Organization{})
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{
-				UserID:         user.ID,
-				OrganizationID: org.ID,
-			})
-			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-				Type: database.AIProviderTypeOpenai,
-			}, "test-key")
-			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				Model:          "gpt-4o-mini",
-				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-				OrganizationID: org.ID,
-			}, func(p *database.InsertChatModelConfigParams) {
-				p.Enabled = true
-			})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "gpt-4o-mini", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: org.ID}, func(p *database.InsertChatModelConfigParams) { p.Enabled = true })
 
 			projectID := uuid.NullUUID{}
 			if tt.project {
-				project := dbgen.ChatProject(t, db, database.ChatProject{
-					OrganizationID: org.ID,
-					CreatedBy:      user.ID,
-				})
+				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, CreatedBy: user.ID, Name: "platform"})
 				projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
-				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{
-					ProjectID:      project.ID,
-					OrganizationID: org.ID,
-					CreatedBy:      user.ID,
-					Name:           "release_notes",
-					Description:    "Durable release process",
-					Body:           "Run the release checklist.",
-				})
+				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "release_notes", Description: "Durable release process", Body: "Run the release checklist."})
+			} else if tt.personalEnabled != nil {
+				_, err := db.UpsertUserChatPersonalMemoryEnabled(ctx, database.UpsertUserChatPersonalMemoryEnabledParams{UserID: user.ID, Value: strconv.FormatBool(*tt.personalEnabled)})
+				require.NoError(t, err)
 			}
 
-			parentChatID := uuid.NullUUID{}
-			rootChatID := uuid.NullUUID{}
+			parentChatID, rootChatID := uuid.NullUUID{}, uuid.NullUUID{}
 			if tt.subagent {
-				parent := dbgen.Chat(t, db, database.Chat{
-					OrganizationID:    org.ID,
-					OwnerID:           user.ID,
-					LastModelConfigID: modelConfig.ID,
-				})
+				parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 				parentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 				rootChatID = parentChatID
 			}
 			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				ProjectID:         projectID,
-				ParentChatID:      parentChatID,
-				RootChatID:        rootChatID,
-				LastModelConfigID: modelConfig.ID,
-				Title:             "project memory preparation",
-				ClientType:        database.ChatClientTypeApi,
-				InitialMessages: []chatstate.Message{
-					{
-						Role:           database.ChatMessageRoleUser,
-						Content:        mustMarshalText(t, "inspect the release process"),
-						Visibility:     database.ChatMessageVisibilityBoth,
-						ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-						CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-						ContentVersion: chatprompt.CurrentContentVersion,
-					},
-				},
-			})
-			require.NoError(t, err)
-			_, err = db.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
-				UserID:           user.ID,
-				ChatCustomPrompt: "Keep responses concise.",
+				OrganizationID: org.ID, OwnerID: user.ID, ProjectID: projectID, ParentChatID: parentChatID, RootChatID: rootChatID,
+				LastModelConfigID: modelConfig.ID, Title: "memory preparation", ClientType: database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{Role: database.ChatMessageRoleUser, Content: mustMarshalText(t, "inspect the release process"), Visibility: database.ChatMessageVisibilityBoth, ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion}},
 			})
 			require.NoError(t, err)
 
-			server := newInternalTestServer(
-				t,
-				db,
-				ps,
-				chatprovider.ProviderAPIKeys{},
-				withInternalTestServerExperiments(tt.experiments),
-				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-			)
-			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-				Chat:     created.Chat,
-				Messages: created.InitialMessages,
-			})
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Cleanup)
 
@@ -431,17 +363,16 @@ func TestPrepareGenerationProjectMemory(t *testing.T) {
 				}
 			}
 			gotSystemPrompt := systemPrompt.String()
-			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<project-memory>"))
+			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<memory>"))
 			if tt.wantMemoryBlock {
-				require.Contains(t, gotSystemPrompt, "- release_notes: Durable release process")
-				require.Less(t, strings.Index(gotSystemPrompt, "<project-memory>"), strings.Index(gotSystemPrompt, "<user-instructions>"))
+				require.Contains(t, gotSystemPrompt, tt.intro)
 			}
 
 			toolNames := make(map[string]bool, len(prepared.Tools))
 			for _, tool := range prepared.Tools {
 				toolNames[tool.Info().Name] = true
 			}
-			for _, name := range []string{"read_project_memory", "save_project_memory", "delete_project_memory"} {
+			for _, name := range []string{chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName} {
 				require.Equal(t, tt.wantMemoryTools, toolNames[name], name)
 			}
 		})

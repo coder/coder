@@ -24,13 +24,15 @@ import (
 type stubChatConfigStore struct {
 	database.Store
 
-	getAIProviders          func(context.Context) ([]database.AIProvider, error)
-	getUserChatCustomPrompt func(context.Context, uuid.UUID) (string, error)
-	getChatAdvisorConfig    func(context.Context) (string, error)
+	getAIProviders                   func(context.Context) ([]database.AIProvider, error)
+	getUserChatCustomPrompt          func(context.Context, uuid.UUID) (string, error)
+	getUserChatPersonalMemoryEnabled func(context.Context, uuid.UUID) (string, error)
+	getChatAdvisorConfig             func(context.Context) (string, error)
 
-	enabledProvidersCalls atomic.Int32
-	userPromptCalls       atomic.Int32
-	advisorConfigCalls    atomic.Int32
+	enabledProvidersCalls      atomic.Int32
+	userPromptCalls            atomic.Int32
+	personalMemoryEnabledCalls atomic.Int32
+	advisorConfigCalls         atomic.Int32
 }
 
 func (s *stubChatConfigStore) GetAIProviders(ctx context.Context, _ database.GetAIProvidersParams) ([]database.AIProvider, error) {
@@ -47,6 +49,14 @@ func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userI
 		panic("unexpected GetUserChatCustomPrompt call")
 	}
 	return s.getUserChatCustomPrompt(ctx, userID)
+}
+
+func (s *stubChatConfigStore) GetUserChatPersonalMemoryEnabled(ctx context.Context, userID uuid.UUID) (string, error) {
+	s.personalMemoryEnabledCalls.Add(1)
+	if s.getUserChatPersonalMemoryEnabled == nil {
+		panic("unexpected GetUserChatPersonalMemoryEnabled call")
+	}
+	return s.getUserChatPersonalMemoryEnabled(ctx, userID)
 }
 
 func (s *stubChatConfigStore) GetChatAdvisorConfig(ctx context.Context) (string, error) {
@@ -122,6 +132,37 @@ func TestConfigCache_EnabledProviders_Invalidation(t *testing.T) {
 
 	require.NotEqual(t, first, second)
 	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
+}
+
+func TestConfigCache_GetUserChatPersonalMemoryEnabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	userID := uuid.New()
+	store := &stubChatConfigStore{
+		getUserChatPersonalMemoryEnabled: func(context.Context, uuid.UUID) (string, error) {
+			return "", sql.ErrNoRows
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.GetUserChatPersonalMemoryEnabled(ctx, userID)
+	require.NoError(t, err)
+	second, err := cache.GetUserChatPersonalMemoryEnabled(ctx, userID)
+	require.NoError(t, err)
+	require.True(t, first)
+	require.True(t, second)
+	require.Equal(t, int32(1), store.personalMemoryEnabledCalls.Load())
+
+	cache.InvalidateUserPersonalMemoryEnabled(userID)
+	store.getUserChatPersonalMemoryEnabled = func(context.Context, uuid.UUID) (string, error) {
+		return "false", nil
+	}
+	enabled, err := cache.GetUserChatPersonalMemoryEnabled(ctx, userID)
+	require.NoError(t, err)
+	require.False(t, enabled)
+	require.Equal(t, int32(2), store.personalMemoryEnabledCalls.Load())
 }
 
 func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
