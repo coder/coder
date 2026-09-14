@@ -17,21 +17,17 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 	streaming = false,
 	children,
 }) => (
-	<ScrollArea
+	<div
 		className={cn(
-			"rounded-md border border-solid border-border bg-surface-secondary/60 text-2xs",
+			"overflow-hidden rounded-md border border-solid border-border bg-surface-primary",
 			className,
 		)}
-		viewportClassName="max-h-64"
-		viewportTabIndex={0}
-		viewportAriaLabel={ariaLabel}
-		scrollBarClassName="w-1.5"
 	>
 		{command?.trim() && (
-			<div className="sticky top-0 z-10 flex items-start gap-1.5 border-0 border-b border-solid border-border bg-surface-secondary px-3 py-1.5">
+			<div className="flex items-start gap-1.5 border-0 border-b border-solid border-border bg-surface-secondary px-3 py-1.5">
 				<span
 					aria-hidden
-					className="select-none shrink-0 font-mono text-xs font-normal leading-5 text-content-secondary"
+					className="select-none shrink-0 font-mono text-xs leading-5 text-content-secondary"
 				>
 					$
 				</span>
@@ -40,14 +36,21 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 				</pre>
 			</div>
 		)}
-		<div className="space-y-2 px-3 py-2.5 font-mono text-xs leading-5">
-			{children}
-			{streaming && (
-				<span
-					aria-hidden
-					className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-content-secondary align-middle motion-reduce:animate-none"
-				/>
-			)}
-		</div>
-	</ScrollArea>
+		<ScrollArea
+			viewportClassName="max-h-64"
+			viewportTabIndex={0}
+			viewportAriaLabel={ariaLabel}
+			scrollBarClassName="w-1.5"
+		>
+			<div className="space-y-2 px-3 py-2.5 font-mono text-xs leading-5">
+				{children}
+				{streaming && (
+					<span
+						aria-hidden
+						className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-content-secondary align-middle motion-reduce:animate-none"
+					/>
+				)}
+			</div>
+		</ScrollArea>
+	</div>
 );
