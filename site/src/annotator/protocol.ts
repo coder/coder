@@ -65,21 +65,136 @@ function hasMessageType(value: unknown): value is { type: string } {
 	);
 }
 
-export function isAnnotatorToHostMessage(
+const maxAnnotations = 50;
+const maxFieldLength = 2000;
+const maxClasses = 50;
+
+function optionalString(value: unknown): string | undefined {
+	return typeof value === "string" ? value.slice(0, maxFieldLength) : undefined;
+}
+
+function requiredString(value: unknown): string {
+	return optionalString(value) ?? "";
+}
+
+function finiteNumber(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function parseRect(value: unknown): AnnotatedElement["rect"] {
+	const rect = isRecord(value) ? value : {};
+	return {
+		x: finiteNumber(rect.x),
+		y: finiteNumber(rect.y),
+		width: finiteNumber(rect.width),
+		height: finiteNumber(rect.height),
+	};
+}
+
+function parseElement(value: unknown): AnnotatedElement | undefined {
+	if (!isRecord(value)) {
+		return undefined;
+	}
+	const classes = Array.isArray(value.classes)
+		? value.classes.slice(0, maxClasses).map(requiredString)
+		: [];
+	const reactComponents = Array.isArray(value.reactComponents)
+		? value.reactComponents.slice(0, 10).map(requiredString)
+		: undefined;
+	return {
+		tag: requiredString(value.tag),
+		selector: requiredString(value.selector),
+		id: optionalString(value.id),
+		testId: optionalString(value.testId),
+		classes,
+		role: optionalString(value.role),
+		ariaLabel: optionalString(value.ariaLabel),
+		text: optionalString(value.text),
+		html: requiredString(value.html),
+		rect: parseRect(value.rect),
+		reactComponents,
+		sourceLocation: optionalString(value.sourceLocation),
+	};
+}
+
+/**
+ * Validates and bounds a submission received over postMessage. The frame
+ * is a third-party app, so every field is treated as untrusted input:
+ * unknown shapes are rejected and strings and arrays are truncated.
+ */
+function parseAnnotationSubmission(
 	value: unknown,
-): value is AnnotatorToHostMessage {
+): AnnotationSubmission | undefined {
+	if (
+		!isRecord(value) ||
+		!isRecord(value.page) ||
+		!Array.isArray(value.annotations)
+	) {
+		return undefined;
+	}
+	const annotations: Annotation[] = [];
+	for (const item of value.annotations.slice(0, maxAnnotations)) {
+		if (!isRecord(item)) {
+			continue;
+		}
+		const element = parseElement(item.element);
+		if (!element) {
+			continue;
+		}
+		annotations.push({
+			id: requiredString(item.id),
+			comment: requiredString(item.comment),
+			element,
+			selectedText: optionalString(item.selectedText),
+		});
+	}
+	if (annotations.length === 0) {
+		return undefined;
+	}
+	const viewport = isRecord(value.page.viewport) ? value.page.viewport : {};
+	return {
+		page: {
+			url: requiredString(value.page.url),
+			title: requiredString(value.page.title),
+			viewport: {
+				width: finiteNumber(viewport.width),
+				height: finiteNumber(viewport.height),
+			},
+		},
+		annotations,
+	};
+}
+
+export function parseAnnotatorToHostMessage(
+	value: unknown,
+): AnnotatorToHostMessage | undefined {
 	if (!hasMessageType(value)) {
-		return false;
+		return undefined;
 	}
 	switch (value.type) {
 		case "coder-annotator:ready":
-			return true;
-		case "coder-annotator:state":
-			return "picking" in value && "count" in value;
-		case "coder-annotator:submit":
-			return "annotations" in value && "page" in value;
+			return { type: value.type };
+		case "coder-annotator:state": {
+			const state: Record<string, unknown> = value;
+			return {
+				type: value.type,
+				picking: state.picking === true,
+				count: Math.max(
+					0,
+					Math.min(maxAnnotations, Math.trunc(finiteNumber(state.count))),
+				),
+			};
+		}
+		case "coder-annotator:submit": {
+			const submission = parseAnnotationSubmission(value);
+			return submission ? { type: value.type, ...submission } : undefined;
+		}
 		default:
-			return false;
+			return undefined;
 	}
 }
 

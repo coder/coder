@@ -442,7 +442,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 	} = modeAttachments;
-	useRegisterComposer({ send: (message) => onSend(message) });
+	// Mirror the composer's own gating so tools cannot submit while the
+	// user-visible input is disabled or read-only.
+	useRegisterComposer(
+		isInputDisabled || isReadOnly
+			? null
+			: { send: (message) => onSend(message) },
+	);
 
 	// Edit attachments are scoped to the chat being edited, not the compose
 	// draft. Clear them when navigation changes the chat scope.

@@ -70,6 +70,7 @@ export const PortPreviewPanel: FC<{
 		frameRef,
 		frameKey: overlayRequests,
 		frameOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
+		enabled: overlayRequests > 0,
 		onSubmit: handleSubmit,
 	});
 

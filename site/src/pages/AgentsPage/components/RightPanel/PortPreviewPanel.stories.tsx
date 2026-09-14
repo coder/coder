@@ -117,12 +117,6 @@ const withComposer: Decorator = (Story) => (
 export const CanAnnotate: Story = {
 	args: { canAnnotate: true },
 	decorators: [withComposer],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("button", { name: "Annotate elements" }),
-		).toBeInTheDocument();
-	},
 };
 
 export const AnnotatePicking: Story = {

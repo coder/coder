@@ -1,8 +1,10 @@
 import { EventEmitter } from "node:events";
 import * as http from "node:http";
+import * as https from "node:https";
 import * as net from "node:net";
 import * as path from "node:path";
 import * as stream from "node:stream";
+import * as tls from "node:tls";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import tailwindcss from "@tailwindcss/vite";
@@ -94,13 +96,14 @@ const workspaceAppProxy = (): PluginOption => ({
 	apply: "serve",
 	configureServer(server) {
 		const target = new URL(coderHost);
-		const port = Number(target.port || 80);
+		const secure = target.protocol === "https:";
+		const port = Number(target.port || (secure ? 443 : 80));
 		server.middlewares.use((req, res, next) => {
 			if (!isWorkspaceAppHost(req.headers.host)) {
 				next();
 				return;
 			}
-			const upstream = http.request(
+			const upstream = (secure ? https : http).request(
 				{
 					host: target.hostname,
 					port,
@@ -127,7 +130,7 @@ const workspaceAppProxy = (): PluginOption => ({
 			socket: stream.Duplex,
 			head: Buffer,
 		) => {
-			const upstream = net.connect({ host: target.hostname, port }, () => {
+			const connect = () => {
 				const headerLines = [];
 				for (let i = 0; i < req.rawHeaders.length; i += 2) {
 					headerLines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
@@ -137,7 +140,13 @@ const workspaceAppProxy = (): PluginOption => ({
 				);
 				upstream.write(head);
 				socket.pipe(upstream).pipe(socket);
-			});
+			};
+			const upstream = secure
+				? tls.connect(
+						{ host: target.hostname, port, servername: target.hostname },
+						connect,
+					)
+				: net.connect({ host: target.hostname, port }, connect);
 			const close = () => {
 				socket.destroy();
 				upstream.destroy();

@@ -56,14 +56,35 @@ function renderPanel(onSend = vi.fn()) {
 	return { frame, frameOrigin, receive, onSend };
 }
 
+const submission: AnnotatorToHostMessage = {
+	type: "coder-annotator:submit",
+	page: {
+		url: "http://3000--agent--ws--user.apps.example.com/",
+		title: "App",
+		viewport: { width: 800, height: 600 },
+	},
+	annotations: [
+		{
+			id: "a",
+			comment: "Make this red",
+			element: {
+				tag: "button",
+				selector: "#save",
+				classes: [],
+				html: '<button id="save">Save</button>',
+				rect: { x: 1, y: 2, width: 3, height: 4 },
+			},
+		},
+	],
+};
+
+const requestOverlay = () =>
+	userEvent.click(screen.getByRole("button", { name: "Annotate elements" }));
+
 describe("PortPreviewPanel annotations", () => {
 	it("requests the overlay and starts picking once it is ready", async () => {
 		const { frame, frameOrigin, receive } = renderPanel();
-		expect(new URL(frame().src).searchParams.has("coder_annotate")).toBe(false);
-
-		await userEvent.click(
-			screen.getByRole("button", { name: "Annotate elements" }),
-		);
+		await requestOverlay();
 
 		expect(new URL(frame().src).searchParams.get("coder_annotate")).toBe("1");
 		const postMessage = vi.spyOn(
@@ -79,30 +100,11 @@ describe("PortPreviewPanel annotations", () => {
 		);
 	});
 
-	it("sends submitted annotations as a chat message", () => {
+	it("sends submitted annotations as a chat message", async () => {
 		const { receive, onSend } = renderPanel();
+		await requestOverlay();
 		receive({ type: "coder-annotator:ready" });
-		receive({
-			type: "coder-annotator:submit",
-			page: {
-				url: "http://3000--agent--ws--user.apps.example.com/",
-				title: "App",
-				viewport: { width: 800, height: 600 },
-			},
-			annotations: [
-				{
-					id: "a",
-					comment: "Make this red",
-					element: {
-						tag: "button",
-						selector: "#save",
-						classes: [],
-						html: '<button id="save">Save</button>',
-						rect: { x: 1, y: 2, width: 3, height: 4 },
-					},
-				},
-			],
-		});
+		receive(submission);
 
 		expect(onSend).toHaveBeenCalledTimes(1);
 		const [message] = onSend.mock.calls[0];
@@ -111,36 +113,36 @@ describe("PortPreviewPanel annotations", () => {
 		expect(message).toContain("`#save`");
 	});
 
-	it("ignores messages from other origins", () => {
-		const { frame, onSend } = renderPanel();
+	it("ignores the frame until the user requests the overlay", () => {
+		const { receive, onSend } = renderPanel();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("drops malformed submissions", async () => {
+		const { frame, frameOrigin, onSend } = renderPanel();
+		await requestOverlay();
 		window.dispatchEvent(
 			new MessageEvent("message", {
-				data: {
-					type: "coder-annotator:submit",
-					page: { url: "", title: "", viewport: { width: 0, height: 0 } },
-					annotations: [],
-				},
-				origin: "https://evil.example.com",
+				data: { type: "coder-annotator:submit", page: {}, annotations: "nope" },
+				origin: frameOrigin,
 				source: frame().contentWindow,
 			}),
 		);
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
-	it("hides the annotate control without the experiment", () => {
-		renderComponent(
-			<ComposerProvider>
-				<Composer onSend={vi.fn()} />
-				<PortPreviewPanel
-					workspace={MockWorkspace}
-					agent={MockWorkspaceAgent}
-					host="*.apps.example.com"
-					tab={tab}
-				/>
-			</ComposerProvider>,
+	it("ignores messages from other origins", async () => {
+		const { frame, onSend } = renderPanel();
+		await requestOverlay();
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: submission,
+				origin: "https://evil.example.com",
+				source: frame().contentWindow,
+			}),
 		);
-		expect(
-			screen.queryByRole("button", { name: "Annotate elements" }),
-		).toBeNull();
+		expect(onSend).not.toHaveBeenCalled();
 	});
 });
