@@ -4975,6 +4975,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		name: "foo",
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		scope: "",
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",

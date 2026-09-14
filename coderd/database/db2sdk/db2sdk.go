@@ -489,6 +489,7 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Name:        dbApp.Name,
 		CallbackURL: dbApp.CallbackURL,
 		Icon:        dbApp.Icon,
+		Scope:       dbApp.Scope.String,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",

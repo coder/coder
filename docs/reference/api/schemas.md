@@ -10912,7 +10912,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
@@ -10925,6 +10926,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `scope`        | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted.                                                                                                 |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -12001,17 +12003,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                                                                           |
+|----------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `callback_url` | string | true     |              |                                                                                                                       |
+| `icon`         | string | false    |              |                                                                                                                       |
+| `name`         | string | true     |              |                                                                                                                       |
+| `scope`        | string | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted. |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -12888,17 +12892,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                                         |
+|----------------|--------|----------|--------------|-------------------------------------------------------------------------------------|
+| `callback_url` | string | true     |              |                                                                                     |
+| `icon`         | string | false    |              |                                                                                     |
+| `name`         | string | true     |              |                                                                                     |
+| `scope`        | string | false    |              | Scope replaces the app's current allowlist. Leave empty, or omit, for unrestricted. |
 
 ## codersdk.RBACAction
 

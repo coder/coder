@@ -25336,6 +25336,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Empty means unrestricted.",
+                    "type": "string"
                 }
             }
         },
@@ -26224,6 +26228,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Leave empty, or omit, for unrestricted.",
+                    "type": "string"
                 }
             }
         },
@@ -27064,6 +27072,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "description": "Scope replaces the app's current allowlist. Leave empty, or omit, for\nunrestricted.",
                     "type": "string"
                 }
             }

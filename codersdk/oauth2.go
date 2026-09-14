@@ -19,6 +19,9 @@ type OAuth2ProviderApp struct {
 	Name        string    `json:"name"`
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Empty means unrestricted.
+	Scope string `json:"scope"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
@@ -79,6 +82,9 @@ type PostOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
 	CallbackURL string `json:"callback_url" validate:"required,http_url"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Leave empty, or omit, for unrestricted.
+	Scope string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -100,6 +106,9 @@ type PutOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
 	CallbackURL string `json:"callback_url" validate:"required,http_url"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope replaces the app's current allowlist. Leave empty, or omit, for
+	// unrestricted.
+	Scope string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder

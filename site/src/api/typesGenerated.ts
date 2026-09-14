@@ -6682,6 +6682,11 @@ export interface OAuth2ProviderApp {
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
+	 * Scope is the space-separated list of scopes this app's tokens may be
+	 * granted. Empty means unrestricted.
+	 */
+	readonly scope: string;
+	/**
 	 * Endpoints are included in the app response for easier discovery. The OAuth2
 	 * spec does not have a defined place to find these (for comparison, OIDC has
 	 * a '/.well-known/openid-configuration' endpoint).
@@ -7305,6 +7310,11 @@ export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
 	readonly callback_url: string;
 	readonly icon: string;
+	/**
+	 * Scope is the space-separated list of scopes this app's tokens may be
+	 * granted. Leave empty, or omit, for unrestricted.
+	 */
+	readonly scope?: string;
 }
 
 // From codersdk/workspaces.go
@@ -7819,6 +7829,11 @@ export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
 	readonly callback_url: string;
 	readonly icon: string;
+	/**
+	 * Scope replaces the app's current allowlist. Leave empty, or omit, for
+	 * unrestricted.
+	 */
+	readonly scope?: string;
 }
 
 // From codersdk/rbacresources_gen.go

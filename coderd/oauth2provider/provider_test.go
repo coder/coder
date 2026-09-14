@@ -420,6 +420,58 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, apps, 0)
 	})
+
+	t.Run("Scope", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// No scope means unrestricted, same as before this field existed.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "scope-test-unrestricted",
+			CallbackURL: "http://coder.com",
+		})
+		require.NoError(t, err)
+		require.Empty(t, app.Scope)
+
+		// A scope is stored and echoed back, and aliases and duplicates are
+		// rewritten to their canonical, deduplicated form.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "scope-test-scoped",
+			CallbackURL: "http://coder.com",
+			Scope:       "all workspace:read all",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "coder:all workspace:read", app.Scope)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		got, err := client.OAuth2ProviderApp(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, app.Scope, got.Scope)
+
+		// Updating replaces the allowlist rather than merging with it.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+			Scope:       "coder:templates.author",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "coder:templates.author", app.Scope)
+
+		// An empty scope on update clears the allowlist back to unrestricted.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+		})
+		require.NoError(t, err)
+		require.Empty(t, app.Scope)
+	})
 }
 
 // Helper functions

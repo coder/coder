@@ -547,6 +547,49 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	})
 }
 
+// An app created through the admin API (not seeded directly at the database
+// layer, and not DCR-registered) narrows a request the same way any other app
+// does, once its allowlist is set through PostOAuth2ProviderApp.
+func TestOAuth2AuthorizeAdminCreatedAppAllowlist(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "admin-created-app-allowlist",
+		CallbackURL: appCallbackURL,
+		Scope:       scopeInCatalog,
+	})
+	require.NoError(t, err)
+
+	t.Run("OutOfAllowlistRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeOutOfAllowlist)
+		defer resp.Body.Close()
+
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+	})
+
+	t.Run("OmittedScopeDefaultsToAllowlist", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+		defer resp.Body.Close()
+
+		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
+	})
+}
+
 // Registration performs no catalog validation, so an app can register an
 // allowlist this server cannot grant from. Authorization then rejects it rather
 // than granting a scope dbauthz cannot evaluate.
