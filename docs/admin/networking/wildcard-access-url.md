@@ -114,7 +114,7 @@ Configure `*.example.com` instead, and ensure routing that wildcard to Coder doe
 If you're using [workspace proxies](workspace-proxies.md) for geo-distributed teams, each proxy requires its own wildcard access URL configuration:
 
 ```sh
-# Main Coder server
+# Main control plane
 export CODER_WILDCARD_ACCESS_URL="*.coder.example.com"
 
 # Sydney workspace proxy

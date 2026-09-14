@@ -114,13 +114,13 @@
 		},
 		{
 			"title": "Install",
-			"description": "Install the Coder server and CLI, then choose a deployment method for your infrastructure.",
+			"description": "Install the Coder control plane and CLI, then choose a deployment method for your infrastructure.",
 			"path": "./install/index.md",
 			"icon_path": "./images/icons/download.svg",
 			"children": [
 				{
 					"title": "Coder CLI",
-					"description": "Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the server and client.",
+					"description": "Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.",
 					"path": "./install/cli.md",
 					"icon_path": "./images/icons/terminal.svg"
 				},
@@ -173,7 +173,7 @@
 						},
 						{
 							"title": "Azure VM",
-							"description": "Set up the Coder server on a Microsoft Azure virtual machine, step by step.",
+							"description": "Set up the Coder control plane on a Microsoft Azure virtual machine, step by step.",
 							"path": "./install/cloud/azure-vm.md"
 						}
 					]
@@ -192,7 +192,7 @@
 				},
 				{
 					"title": "Upgrading",
-					"description": "Learn how to upgrade your Coder server to a newer version, with steps for each install method.",
+					"description": "Learn how to upgrade your Coder deployment to a newer version, with steps for each install method.",
 					"path": "./install/upgrade.md",
 					"icon_path": "./images/icons/upgrade.svg",
 					"children": [
@@ -205,7 +205,7 @@
 				},
 				{
 					"title": "Uninstall",
-					"description": "Learn how to uninstall your Coder server and remove its associated resources.",
+					"description": "Learn how to uninstall your Coder deployment and remove its associated resources.",
 					"path": "./install/uninstall.md",
 					"icon_path": "./images/icons/trash.svg"
 				},
@@ -713,7 +713,7 @@
 								},
 								{
 									"title": "Provider Authentication",
-									"description": "Authenticate the Coder server to cloud provider APIs so it can provision workspaces.",
+									"description": "Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.",
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
 								},
 								{
@@ -2458,7 +2458,7 @@
 				},
 				{
 					"title": "Agent API",
-					"description": "Reference for the Coder Agent API used by workspace agents to communicate with the server.",
+					"description": "Reference for the Coder Agent API used by workspace agents to communicate with the control plane.",
 					"path": "./reference/agent-api/index.md",
 					"icon_path": "./images/icons/api.svg",
 					"children": [
