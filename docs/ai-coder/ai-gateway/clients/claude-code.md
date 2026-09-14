@@ -19,7 +19,7 @@ export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
 
 <details>
-<summary>Make it persistent</summary>
+<summary>Persistent config (<code>.claude/settings.json</code>)</summary>
 
 Merge the following into `~/.claude/settings.json`, preserving your existing settings:
 
