@@ -265,11 +265,8 @@ export function mountAnnotator(
 		textarea.value = session.existing?.comment ?? "";
 		const actions = el(doc, "div", "popup-actions");
 		const hint = el(doc, "span", "hint");
-		hint.textContent = "Enter to save, Esc to cancel";
+		hint.textContent = "Enter to save, Esc or click away to dismiss";
 		const spacer = el(doc, "span", "spacer");
-		const cancel = el(doc, "button", "button", { type: "button" });
-		cancel.textContent = "Cancel";
-		cancel.addEventListener("click", closePopup);
 		const save = el(doc, "button", "button primary", { type: "button" });
 		save.textContent = session.existing ? "Update" : "Add";
 		const submit = () => {
@@ -294,7 +291,7 @@ export function mountAnnotator(
 			});
 			actions.append(remove);
 		}
-		actions.append(cancel, save);
+		actions.append(save);
 		textarea.addEventListener("keydown", (event) => {
 			if (event.key === "Escape") {
 				event.preventDefault();
