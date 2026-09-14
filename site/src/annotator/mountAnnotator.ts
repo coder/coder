@@ -42,8 +42,10 @@ export const annotatorHostId = "coder-annotator-host";
 
 const pointerIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.1 12 6"/><path d="m5.1 8-2.9-.8"/><path d="m6 12-1.9 2"/><path d="M7.2 2.2 8 5.1"/><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/></svg>';
-const sendIcon =
-	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>';
+const paperclipIcon =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.234 20.252 21 12.3"/><path d="m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486"/></svg>';
+const xIcon =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 function el<K extends keyof HTMLElementTagNameMap>(
 	doc: Document,
@@ -103,27 +105,29 @@ export function mountAnnotator(
 		role: "toolbar",
 		"aria-label": "UI annotations",
 	});
-	const pickButton = el(doc, "button", "toolbar-button", {
+	// Icon buttons with CSS tooltips, matching the dashboard's subtle icon
+	// Button and Tooltip primitives.
+	const pickButton = el(doc, "button", "icon-button", {
 		type: "button",
 		"aria-pressed": "false",
 		"aria-label": "Annotate elements",
-		title: "Click an element to annotate it",
+		"data-tip": "Click an element to annotate it",
 	});
-	pickButton.innerHTML = `${pointerIcon}<span>Annotate</span>`;
-	const countBadge = el(doc, "span", "count");
-	pickButton.append(countBadge);
-	const sendButton = el(doc, "button", "toolbar-button", {
+	pickButton.innerHTML = pointerIcon;
+	const countBadge = el(doc, "span", "badge");
+	const sendButton = el(doc, "button", "icon-button", {
 		type: "button",
 		"aria-label": "Attach annotations to your chat message",
-		title: "Attach annotations to your chat message",
+		"data-tip": "Attach to chat message",
 	});
-	sendButton.innerHTML = `${sendIcon}<span>Attach</span>`;
-	const clearButton = el(doc, "button", "toolbar-button", {
+	sendButton.innerHTML = paperclipIcon;
+	const clearButton = el(doc, "button", "icon-button", {
 		type: "button",
 		"aria-label": "Clear annotations",
+		"data-tip": "Clear annotations",
 	});
-	clearButton.textContent = "Clear";
-	toolbar.append(pickButton, sendButton, clearButton);
+	clearButton.innerHTML = xIcon;
+	toolbar.append(pickButton, countBadge, sendButton, clearButton);
 
 	const highlight = el(doc, "div", "highlight", { "aria-hidden": "true" });
 	const highlightLabel = el(doc, "span", "highlight-label");
@@ -278,7 +282,7 @@ export function mountAnnotator(
 		const hint = el(doc, "span", "hint");
 		hint.textContent = "Enter to save, Esc or click away to dismiss";
 		const spacer = el(doc, "span", "spacer");
-		const save = el(doc, "button", "button primary", { type: "button" });
+		const save = el(doc, "button", "button", { type: "button" });
 		save.textContent = session.existing ? "Update" : "Add";
 		const submit = () => {
 			const comment = textarea.value.trim();
@@ -292,7 +296,9 @@ export function mountAnnotator(
 		save.addEventListener("click", submit);
 		actions.append(hint, spacer);
 		if (session.existing) {
-			const remove = el(doc, "button", "button danger", { type: "button" });
+			const remove = el(doc, "button", "button destructive", {
+				type: "button",
+			});
 			remove.textContent = "Delete";
 			remove.addEventListener("click", () => {
 				if (session.existing) {
