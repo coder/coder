@@ -1512,12 +1512,6 @@ export const AgentsUnsupportedProviderTypes: AgentsUnsupportedProviderType[] = [
  */
 export const AnthropicInlineImageCapBytes = 5242880;
 
-// From codersdk/client.go
-/**
- * AppAnnotationCookie is the name of the cookie that enables annotations in a workspace app.
- */
-export const AppAnnotationCookie = "coder_app_annotation";
-
 // From codersdk/deployment.go
 export interface AppHostResponse {
 	/**
