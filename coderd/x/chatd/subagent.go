@@ -1053,7 +1053,8 @@ func (p *Server) subagentTools(
 				"agent has chat_id, title, type, status, created_at, "+
 				"updated_at. Status: running = working, "+
 				"interrupting = transient, waiting = idle, "+
-				"error = stopped on error.",
+				"paused = waiting for its owner to finish editing a "+
+				"queued message, error = stopped on error.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -1639,9 +1640,12 @@ func (p *Server) checkSubagentCompletion(
 	// interrupting is transient: the worker transitions it to
 	// waiting (no queued messages) or running (queued messages).
 	// Treat it as not-done so the agent settles before
-	// classification, avoiding stale partial output.
+	// classification, avoiding stale partial output. paused holds
+	// a queued message the owner is editing; the child continues
+	// when the edit ends, so it is not done either.
 	if chat.Status == database.ChatStatusRunning ||
-		chat.Status == database.ChatStatusInterrupting {
+		chat.Status == database.ChatStatusInterrupting ||
+		chat.Status == database.ChatStatusPaused {
 		return chat, "", false, nil
 	}
 

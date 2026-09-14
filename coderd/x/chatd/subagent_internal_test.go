@@ -4034,6 +4034,21 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		assert.Empty(t, report)
 	})
 
+	t.Run("PausedIsNotDone", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		_, child := createParentChildChats(ctx, t, server, user, org, model)
+
+		WaitUntilIdleForTest(server)
+		insertAssistantMessage(t, db, child.ID, model.ID, "partial result")
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusPaused, "")
+
+		_, _, done, err := server.checkSubagentCompletion(ctx, child.ID)
+		require.NoError(t, err)
+		assert.False(t, done)
+	})
+
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 
