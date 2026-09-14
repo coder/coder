@@ -23372,13 +23372,15 @@ const docTemplate = `{
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "chat-vim-navigation"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatVimNavigation": "Enables the opt-in vim-style keyboard navigation setting for agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23404,7 +23406,8 @@ const docTemplate = `{
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables the opt-in vim-style keyboard navigation setting for agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23420,7 +23423,8 @@ const docTemplate = `{
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentChatVimNavigation"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

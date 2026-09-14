@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -20,6 +20,11 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
+import {
+	VIM_NAVIGATION_EXPERIMENT,
+	VIM_NAVIGATION_MODIFIER_STORAGE_KEY,
+	VIM_NAVIGATION_STORAGE_KEY,
+} from "../../hooks/useVimNavigation";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -76,14 +81,18 @@ const dashboardValue = {
 	canViewOrganizationSettings: false,
 };
 
-const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+const Wrapper: FC<
+	PropsWithChildren<{ experiments?: TypesGen.Experiment[] }>
+> = ({ children, experiments = [] }) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
 					<MemoryRouter initialEntries={["/agents"]}>
-						<DashboardContext.Provider value={dashboardValue}>
+						<DashboardContext.Provider
+							value={{ ...dashboardValue, experiments }}
+						>
 							{children}
 						</DashboardContext.Provider>
 					</MemoryRouter>
@@ -664,5 +673,53 @@ describe("ChatsSidebar subtitles", () => {
 		);
 
 		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar vim navigation experiment", () => {
+	const chats = [
+		buildChat({ id: "chat-1", title: "Chat One" }),
+		buildChat({ id: "chat-2", title: "Chat Two" }),
+	];
+
+	const LocationProbe: FC = () => {
+		const location = useLocation();
+		return <div data-testid="location">{location.pathname}</div>;
+	};
+
+	const renderSidebar = (experiments: TypesGen.Experiment[]) =>
+		render(
+			<Wrapper experiments={experiments}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+				<Routes>
+					<Route path="*" element={<LocationProbe />} />
+				</Routes>
+			</Wrapper>,
+		);
+
+	beforeEach(() => {
+		localStorage.setItem(VIM_NAVIGATION_STORAGE_KEY, "true");
+		localStorage.setItem(VIM_NAVIGATION_MODIFIER_STORAGE_KEY, "ctrl");
+	});
+
+	afterEach(() => {
+		localStorage.removeItem(VIM_NAVIGATION_STORAGE_KEY);
+		localStorage.removeItem(VIM_NAVIGATION_MODIFIER_STORAGE_KEY);
+	});
+
+	it("ignores the stored setting while the experiment is off", async () => {
+		renderSidebar([]);
+
+		await userEvent.keyboard("{Control>}j{/Control}");
+
+		expect(screen.getByTestId("location")).toHaveTextContent("/agents");
+	});
+
+	it("navigates to the next chat while the experiment is on", async () => {
+		renderSidebar([VIM_NAVIGATION_EXPERIMENT]);
+
+		await userEvent.keyboard("{Control>}j{/Control}");
+
+		expect(screen.getByTestId("location")).toHaveTextContent("/agents/chat-1");
 	});
 });

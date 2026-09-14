@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { withVimNavigationPreference } from "#/testHelpers/vimNavigation";
 import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
@@ -29,6 +30,7 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	onSaveUserDebugLogging: fn(),
 	isSavingUserDebugLogging: false,
 	isSaveUserDebugLoggingError: false,
+	showVimNavigationSettings: false,
 };
 
 const meta = {
@@ -149,6 +151,21 @@ export const TogglesSendShortcut: Story = {
 			expect(toggle).toBeChecked();
 		});
 	},
+};
+
+export const VimNavigationCtrlModifier: Story = {
+	args: { showVimNavigationSettings: true },
+	beforeEach: withVimNavigationPreference("ctrl"),
+};
+
+export const VimNavigationAltModifier: Story = {
+	args: { showVimNavigationSettings: true },
+	beforeEach: withVimNavigationPreference("alt"),
+};
+
+export const VimNavigationMetaModifier: Story = {
+	args: { showVimNavigationSettings: true },
+	beforeEach: withVimNavigationPreference("meta"),
 };
 
 export const ShowsChatDebugLoggingToggle: Story = {
