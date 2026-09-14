@@ -68,3 +68,61 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 		assert.False(t, p.GetInitial(), "only the first push must be Initial")
 	}
 }
+
+// TestAgent_PluginMCPServersLoaded verifies that a plugin discovered in
+// the working directory has its mcp.json loaded through the MCP engine
+// and that the resulting server resource is pushed with plugin
+// attribution. The declared command does not exist, so the server is
+// reported as unreadable; the attribution and the plugin-prefixed
+// source are what this test checks.
+func TestAgent_PluginMCPServersLoaded(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, ".agents", "plugins", "acme")
+	require.NoError(t, os.MkdirAll(pluginDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+		"name": "acme"
+	}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "mcp.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+		"mcpServers": {
+			"srv": {"type": "stdio", "command": "coder-test-missing-mcp-binary"}
+		}
+	}`), 0o600))
+
+	//nolint:dogsled // setupAgent returns a wide tuple; we only care about the client.
+	_, client, _, _, _ := setupAgent(t,
+		agentsdk.Manifest{Directory: dir, AgentPluginsEnabled: true},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ContextConfig = agentcontextconfig.Config{}
+		},
+	)
+
+	var (
+		plugin *agentproto.ContextResource
+		server *agentproto.ContextResource
+	)
+	require.Eventually(t, func() bool {
+		plugin, server = nil, nil
+		for _, push := range client.ContextStatePushes() {
+			for _, r := range push.GetResources() {
+				if r.GetPlugin() != nil {
+					plugin = r
+				}
+				if r.GetMcpServer() != nil && r.GetMcpServer().GetPluginName() == "acme" {
+					server = r
+				}
+			}
+		}
+		return plugin != nil && server != nil
+	}, testutil.WaitLong, testutil.IntervalFast, "expected plugin and plugin MCP server resources to be pushed")
+
+	assert.Equal(t, "acme", plugin.GetPlugin().GetName())
+	assert.Equal(t, agentproto.ContextResource_OK, plugin.GetStatus())
+	assert.Equal(t, "acme/srv", server.GetSource())
+	assert.Equal(t, "srv", server.GetMcpServer().GetServerName())
+	assert.Equal(t, agentproto.ContextResource_UNREADABLE, server.GetStatus())
+}
