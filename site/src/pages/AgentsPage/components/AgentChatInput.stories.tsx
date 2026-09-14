@@ -687,7 +687,7 @@ const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Multiple selected servers share one grouped pill with an icon stack. */
+/** Three selected servers collapse into a single "3 MCPs" pill. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
@@ -696,11 +696,19 @@ export const WithMCPServers: Story = {
 	},
 };
 
+export const WithTwoMCPServers: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+	},
+};
+
 export const MCPGroupPopoverOpen: Story = {
 	args: WithMCPServers.args,
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "3 MCP servers" }),
+			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
 		);
 		await within(document.body).findByRole("dialog");
 	},
@@ -1339,9 +1347,11 @@ export const MCPGroupInOverflow: Story = {
 		);
 		const overflow = await within(document.body).findByRole("dialog");
 		await userEvent.click(
-			within(overflow).getByRole("button", { name: "3 MCP servers" }),
+			within(overflow).getByRole("button", { name: "3 MCPs" }),
 		);
-		await within(document.body).findByRole("button", { name: "Remove Linear" });
+		await within(document.body).findByRole("switch", {
+			name: "Disable Linear",
+		});
 	},
 };
 

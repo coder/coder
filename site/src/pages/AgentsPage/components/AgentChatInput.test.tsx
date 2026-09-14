@@ -71,6 +71,14 @@ const mockGitHubMCPNeedingAuth: TypesGen.MCPServerConfig = {
 	auth_connected: false,
 };
 
+const mockNotionMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-notion",
+	display_name: "Notion",
+	availability: "default_on",
+	auth_type: "api_key",
+};
+
 const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
 const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
@@ -159,16 +167,58 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "3 MCP servers" }));
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
 			mockSentryMCP.id,
 			mockGitHubMCP.id,
 		]);
+	});
+
+	it("enables an unselected MCP server from the group popover", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[...mockMCPServers, mockNotionMCP]}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Enable Notion",
+			}),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
+			mockLinearMCP.id,
+			mockGitHubMCP.id,
+			mockNotionMCP.id,
+		]);
+	});
+
+	it("keeps two active MCP servers as individual pills", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockLinearMCP, mockGitHubMCP]}
+				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCP.id]}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockGitHubMCP.id]);
 	});
 
 	it("removes a single MCP server directly from the toolbar", async () => {
@@ -193,14 +243,19 @@ describe("AgentChatInput", () => {
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
-				mcpServers={[mockLinearMCP, mockGitHubMCPNeedingAuth]}
-				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCPNeedingAuth.id]}
+				mcpServers={[mockSentryMCP, mockLinearMCP, mockGitHubMCPNeedingAuth]}
+				selectedMCPServerIds={[
+					mockSentryMCP.id,
+					mockLinearMCP.id,
+					mockGitHubMCPNeedingAuth.id,
+				]}
 				onMCPSelectionChange={onMCPSelectionChange}
 			/>,
 		);
 
 		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
 			mockGitHubMCPNeedingAuth.id,
 		]);
 	});
@@ -218,10 +273,10 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "3 MCP servers" }));
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).not.toHaveBeenCalled();
