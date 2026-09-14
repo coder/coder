@@ -238,6 +238,17 @@ export const Starting: Story = {
 	},
 };
 
+export const StartingNotFollowingLogs: Story = {
+	args: Starting.args,
+	// unchecks the follow box for the screenshot
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("checkbox", { name: "Follow" }),
+		);
+	},
+};
+
 export const Started: Story = {
 	args: {
 		agent: {
