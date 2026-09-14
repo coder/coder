@@ -1,4 +1,4 @@
--- The 000591 backfill produces family rows only, because the fixed columns it
+-- The backfill produces family rows only, because the fixed columns it
 -- converts never recorded an app name. App rows exist only for buckets the
 -- rollup wrote after this migration, so the fixture seeds one directly.
 INSERT INTO template_usage_stats (
