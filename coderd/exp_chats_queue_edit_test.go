@@ -60,7 +60,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		}))
 		listed, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		require.Len(t, listed.QueuedMessages, 2, "release on an errored chat does not promote")
+		require.Len(t, listed.QueuedMessages, 2, "ending the edit on an errored chat does not promote")
 		require.Nil(t, listed.QueuedMessages[0].EditingSince)
 		require.Equal(t, "edited", listed.QueuedMessages[0].Content[0].Text)
 
@@ -71,6 +71,9 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		fetched, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPaused, fetched.Status, "paused is visible on the chat itself")
+		// Beginning an edit on another row while paused is refused.
+		err = client.EditChatQueuedMessage(ctx, chat.ID, next.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)})
+		requireSDKError(t, err, http.StatusConflict)
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(false)}))
 		listed, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
