@@ -63,9 +63,16 @@ The markdownlint and emdash checks do fail the build.
 | **Total**                                                             | 71    | 8            | 25      | 38                 |
 
 Every column counts rule sections, not linter rule names.
-A section counts as tool-checked when an active check enforces the section's own rule, planned when the rule that would enforce it isn't running, and documentation-only when the section declares itself documentation-only.
-One section can cite several linter rules and still count once, and a section that only cross-references a rule another section owns counts under that other section.
-So the 9 checks in the table above cover 8 sections, and a documentation-only section can still name a check that partly overlaps it.
+Classify a section from its footer, in this order:
+
+1. The footer states **Documentation-only** about the section: the section is documentation-only, whatever else the footer names.
+   A footer in this column can still cross-reference a rule that another section owns, or name a rule that doesn't exist yet.
+   A lowercase "documentation-only" that qualifies one part of a longer footer doesn't count.
+2. The footer names a check that runs today: the section is tool-checked.
+   A section that names several checks still counts once.
+3. Anything else: the section is planned.
+
+So the 9 checks in the table above cover 8 sections, and each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.
