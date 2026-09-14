@@ -1,3 +1,5 @@
+import * as http from "node:http";
+import * as net from "node:net";
 import * as path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
@@ -73,6 +75,75 @@ const annotatorDevServer = (): PluginOption => ({
 	},
 });
 
+const coderHost = process.env.CODER_HOST || "http://localhost:3000";
+
+// Coder routes subdomain workspace apps by Host header, and every app
+// subdomain contains a "--" separator (port--agent--workspace--owner).
+const isWorkspaceAppHost = (host: string | undefined): boolean =>
+	(host ?? "").split(":")[0].includes("--");
+
+// Forwards requests for workspace app subdomains to coderd untouched,
+// Host header included, so port previews work when the wildcard access
+// URL points at the dev server. Vite's built-in proxy matches on path
+// only, so it cannot make this decision.
+const workspaceAppProxy = (): PluginOption => ({
+	name: "coder-workspace-app-proxy",
+	apply: "serve",
+	configureServer(server) {
+		const target = new URL(coderHost);
+		const port = Number(target.port || 80);
+		server.middlewares.use((req, res, next) => {
+			if (!isWorkspaceAppHost(req.headers.host)) {
+				next();
+				return;
+			}
+			const upstream = http.request(
+				{
+					host: target.hostname,
+					port,
+					method: req.method,
+					path: req.url,
+					headers: req.headers,
+				},
+				(upstreamRes) => {
+					res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
+					upstreamRes.pipe(res);
+				},
+			);
+			upstream.on("error", (error) => {
+				console.error(`workspace app proxy error: ${error.message}`);
+				if (!res.headersSent) {
+					res.writeHead(502, { "Content-Type": "text/plain" });
+				}
+				res.end();
+			});
+			req.pipe(upstream);
+		});
+		server.httpServer?.prependListener("upgrade", (req, socket, head) => {
+			if (!isWorkspaceAppHost(req.headers.host)) {
+				return;
+			}
+			const upstream = net.connect({ host: target.hostname, port }, () => {
+				const headerLines = [];
+				for (let i = 0; i < req.rawHeaders.length; i += 2) {
+					headerLines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+				}
+				upstream.write(
+					`${req.method} ${req.url} HTTP/${req.httpVersion}\r\n${headerLines.join("\r\n")}\r\n\r\n`,
+				);
+				upstream.write(head);
+				socket.pipe(upstream).pipe(socket);
+			});
+			const close = () => {
+				socket.destroy();
+				upstream.destroy();
+			};
+			upstream.on("error", close);
+			socket.on("error", close);
+		});
+	},
+});
+
 const plugins: PluginOption[] = [
 	tailwindcss(),
 	react(),
@@ -81,6 +152,7 @@ const plugins: PluginOption[] = [
 		typescript: true,
 	}),
 	annotatorDevServer(),
+	workspaceAppProxy(),
 ];
 
 if (process.env.STATS !== undefined) {
@@ -155,14 +227,14 @@ export default defineConfig({
 			: {
 					"//": {
 						changeOrigin: true,
-						target: process.env.CODER_HOST || "http://localhost:3000",
+						target: coderHost,
 						secure: process.env.NODE_ENV === "production",
 						rewrite: (path) => path.replace(/\/+/g, "/"),
 					},
 					"/api": {
 						ws: true,
 						changeOrigin: true,
-						target: process.env.CODER_HOST || "http://localhost:3000",
+						target: coderHost,
 						secure: process.env.NODE_ENV === "production",
 						configure: (proxy) => {
 							if (process.env.CODER_SESSION_TOKEN) {
@@ -197,15 +269,15 @@ export default defineConfig({
 						},
 					},
 					"/swagger": {
-						target: process.env.CODER_HOST || "http://localhost:3000",
+						target: coderHost,
 						secure: process.env.NODE_ENV === "production",
 					},
 					"/healthz": {
-						target: process.env.CODER_HOST || "http://localhost:3000",
+						target: coderHost,
 						secure: process.env.NODE_ENV === "production",
 					},
 					"/serviceWorker.js": {
-						target: process.env.CODER_HOST || "http://localhost:3000",
+						target: coderHost,
 						secure: process.env.NODE_ENV === "production",
 					},
 				},
