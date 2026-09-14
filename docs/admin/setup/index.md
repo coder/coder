@@ -39,7 +39,7 @@ export CODER_TLS_ADDRESS=0.0.0.0:443
 ## Redirect from HTTP to HTTPS
 export CODER_REDIRECT_TO_ACCESS_URL=true
 
-# Start the Coder server
+# Start the control plane
 coder server
 ```
 
