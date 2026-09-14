@@ -6,9 +6,9 @@ ON chat_queued_messages
 FOR EACH ROW
 EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
-DROP INDEX chat_queued_messages_one_held_per_chat;
+DROP INDEX chat_queued_messages_one_editing_per_chat;
 
-ALTER TABLE chat_queued_messages DROP COLUMN held_at;
+ALTER TABLE chat_queued_messages DROP COLUMN editing_since;
 
 -- The enum value stays, as 000519 leaves `interrupting`.
 UPDATE chats SET status = 'waiting' WHERE status = 'paused';
