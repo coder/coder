@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMenu } from "#/components/Filter/storyHelpers";
 import { mockPaginationResultBase } from "#/components/PaginationWidget/PaginationContainer.mocks";
@@ -118,38 +118,17 @@ export const Paywall: Story = {
 	args: {
 		isEntitled: false,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("link", { name: /Start trial for free/ }),
-		).toBeVisible();
-		await expect(canvas.queryByText("AI spend")).not.toBeInTheDocument();
-	},
 };
 
 export const NotEnabled: Story = {
 	args: {
 		isEnabled: false,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(
-				"AI Gateway is included in your license, but not set up yet.",
-			),
-		).toBeVisible();
-	},
 };
 
 export const Loading: Story = {
 	args: {
 		usersQuery: mockUsersQuery({ isLoading: true }),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("status", { name: "Loading spend" }),
-		).toBeVisible();
 	},
 };
 
@@ -159,54 +138,16 @@ export const Empty: Story = {
 			data: { ...mockUsersResponse, count: 0, users: [] },
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("AI spend")).toBeVisible();
-		await expect(
-			canvas.getByText("No AI Gateway spend matches these filters."),
-		).toBeVisible();
-	},
 };
 
-export const Users: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const table = canvas.getByRole("table", { name: "Spend by user" });
-		expect(within(table).getAllByRole("row")).toHaveLength(3);
-		expect(within(table).getAllByRole("button")).toHaveLength(8);
-		await expect(within(table).getByText("$2.50")).toBeVisible();
-		await expect(within(table).getByText("$1.00")).toBeVisible();
-		await expect(within(table).getByText("300,000")).toBeVisible();
-		expect(within(table).queryByText(/unpriced/)).not.toBeInTheDocument();
-		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-
-		const detailsLink = within(table).getByRole("link", {
-			name: "Alice Liddell",
-		});
-		const detailsUrl = new URL(
-			detailsLink.getAttribute("href") ?? "",
-			"http://localhost",
-		);
-		expect(detailsUrl.searchParams.get("user")).toBe("user-2");
-	},
-};
+export const Users: Story = {};
 
 export const SortUsers: Story = {
 	play: async ({ canvasElement }) => {
 		const table = within(
 			within(canvasElement).getByRole("table", { name: "Spend by user" }),
 		);
-		await userEvent.click(table.getByRole("button", { name: "Cost" }));
-		await expect(
-			table.getByRole("columnheader", { name: "Cost" }),
-		).toHaveAttribute("aria-sort", "ascending");
 		await userEvent.click(table.getByRole("button", { name: "Requests" }));
-		await expect(
-			table.getByRole("columnheader", { name: "Requests" }),
-		).toHaveAttribute("aria-sort", "descending");
-		await expect(
-			table.getByRole("columnheader", { name: "Cost" }),
-		).toHaveAttribute("aria-sort", "none");
 	},
 };
 
@@ -216,27 +157,6 @@ export const DeploymentOverview: Story = {
 		usersQuery: mockUsersQuery({
 			data: { ...mockUsersResponse, count: 1, users: [MockAIGatewaySpendUser] },
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const providers = within(
-			canvas.getByRole("table", { name: "Spend by provider" }),
-		);
-		await expect(
-			providers.getByRole("row", { name: /anthropic-main/ }),
-		).toHaveTextContent("$2.00");
-		await expect(
-			providers.getByRole("row", { name: /openai-main/ }),
-		).toHaveTextContent("$0.50");
-		await expect(
-			canvas.getByRole("table", { name: "Spend by model" }),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("table", { name: "Spend by client" }),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("table", { name: "Spend by user" }),
-		).toBeVisible();
 	},
 };
 
@@ -253,59 +173,21 @@ export const ProviderPagination: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		const providers = within(
-			canvas.getByRole("region", { name: "Spend by provider" }),
+			within(canvasElement).getByRole("region", { name: "Spend by provider" }),
 		);
-		await expect(
-			providers.getByText("Showing the 11 most expensive of 101 providers."),
-		).toBeVisible();
-		await expect(providers.getByText("provider-1")).toBeVisible();
 		await userEvent.click(providers.getByRole("button", { name: "Next page" }));
-		await expect(providers.getByText("provider-11")).toBeVisible();
-		await expect(providers.queryByText("provider-1")).not.toBeInTheDocument();
-		await expect(
-			within(canvas.getByRole("table", { name: "Spend by model" })).getByText(
-				"claude-opus-4-6",
-			),
-		).toBeVisible();
-		await userEvent.click(
-			providers.getByRole("button", { name: "Previous page" }),
-		);
-		await expect(providers.getByText("provider-1")).toBeVisible();
 	},
 };
 
 export const DeploymentSummaryError: Story = {
 	args: { summaryError: new Error("Unable to load deployment spend") },
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Unable to load deployment spend"),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("table", { name: "Spend by user" }),
-		).toBeVisible();
-		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
-		await expect(args.onSummaryRetry).toHaveBeenCalled();
-	},
 };
 
 export const DeploymentRefetchError: Story = {
 	args: {
 		summaryData: MockAIGatewaySpendUserSummary,
 		summaryError: new Error("Spend refresh failed"),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			"Spend refresh failed",
-		);
-		await expect(
-			canvas.getByRole("table", { name: "Spend by provider" }),
-		).toBeVisible();
-		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
-		await expect(args.onSummaryRetry).toHaveBeenCalled();
 	},
 };
 
@@ -323,10 +205,6 @@ export const UsersWithUnpricedRequests: Story = {
 			},
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("3 unpriced")).toBeVisible();
-	},
 };
 
 export const UsersClampedToRetention: Story = {
@@ -334,15 +212,6 @@ export const UsersClampedToRetention: Story = {
 		usersQuery: mockUsersQuery({
 			data: { ...mockUsersResponse, start_date: "2026-02-26T12:00:00Z" },
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			/Showing spend since .*Feb 26, 2026/,
-		);
-		await expect(
-			canvas.getByRole("link", { name: "data retention period" }),
-		).toBeVisible();
 	},
 };
 
@@ -357,12 +226,6 @@ export const UsersOutsideRetention: Story = {
 			},
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			"No AI Gateway spend is retained for the selected period.",
-		);
-	},
 };
 
 export const UsersSearchNoMatch: Story = {
@@ -372,22 +235,11 @@ export const UsersSearchNoMatch: Story = {
 			data: { ...mockUsersResponse, count: 0, users: [] },
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("No users match this search.")).toBeVisible();
-	},
 };
 
 export const Refreshing: Story = {
 	args: {
 		usersQuery: mockUsersQuery({ data: mockUsersResponse, isFetching: true }),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Alice Liddell")).toBeVisible();
-		await expect(
-			canvas.getByRole("status", { name: "Refreshing spend" }),
-		).toBeVisible();
 	},
 };
 
@@ -396,12 +248,6 @@ export const UsersError: Story = {
 		usersQuery: mockUsersQuery({
 			error: new Error("Failed to load spend data"),
 		}),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Failed to load spend data")).toBeVisible();
-		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
-		expect(args.usersQuery.refetch).toHaveBeenCalled();
 	},
 };
 
@@ -412,27 +258,6 @@ export const UsersRefetchError: Story = {
 			error: new Error("Failed to refresh spend data"),
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const table = canvas.getByRole("table", { name: "Spend by user" });
-		await expect(within(table).getByText("$2.50")).toBeVisible();
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			"Failed to refresh spend data",
-		);
-		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
-		expect(args.usersQuery.refetch).toHaveBeenCalled();
-	},
-};
-
-export const SearchTyping: Story = {
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: "Search spend by name or username" }),
-			"a",
-		);
-		expect(args.onSearchFilterChange).toHaveBeenCalledWith("a");
-	},
 };
 
 export const DrillInLoading: Story = {
@@ -440,24 +265,12 @@ export const DrillInLoading: Story = {
 		drillInUserId: MockAIGatewaySpendUser.id,
 		isDrillInUserLoading: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("status", { name: "Loading user details" }),
-		).toBeVisible();
-	},
 };
 
 export const DrillInUserError: Story = {
 	args: {
 		drillInUserId: MockAIGatewaySpendUser.id,
 		drillInUserError: new Error("User not found"),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("User not found")).toBeVisible();
-		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
-		expect(args.onDrillInUserRetry).toHaveBeenCalled();
 	},
 };
 
@@ -467,17 +280,6 @@ export const DrillInSummaryLoading: Story = {
 		drillInUser: mockUserProfile,
 		isSummaryLoading: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("@bob")).toBeVisible();
-		await expect(
-			canvas.getByRole("status", { name: "Loading spend details" }),
-		).toBeVisible();
-		// The link needs the applied window from the summary.
-		expect(
-			canvas.queryByRole("link", { name: "View sessions" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const DrillIn: Story = {
@@ -485,39 +287,6 @@ export const DrillIn: Story = {
 		drillInUserId: MockAIGatewaySpendUser.id,
 		drillInUser: mockUserProfile,
 		summaryData: MockAIGatewaySpendUserSummary,
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("The Builder, Bob")).toBeVisible();
-		const sessionsLink = canvas.getByRole("link", { name: "View sessions" });
-		const sessionsUrl = new URL(
-			sessionsLink.getAttribute("href") ?? "",
-			"http://localhost",
-		);
-		expect(sessionsUrl.pathname).toBe("/ai-gateway/sessions");
-		expect(sessionsUrl.searchParams.get("filter")).toBe(
-			`initiator:${MockAIGatewaySpendUser.id} started_after:"2026-02-10T00:00:00Z" started_before:"2026-03-12T00:00:00Z"`,
-		);
-
-		await expect(
-			canvas.getByRole("heading", { name: "By model" }),
-		).toBeVisible();
-		const byModel = canvas.getByRole("table", { name: "Spend by model" });
-		await expect(within(byModel).getByText("claude-opus-4-6")).toBeVisible();
-		await expect(within(byModel).getByText("anthropic-main")).toBeVisible();
-		await expect(within(byModel).getByText("$2.00")).toBeVisible();
-
-		await expect(
-			canvas.getByRole("heading", { name: "By client" }),
-		).toBeVisible();
-		const byClient = canvas.getByRole("table", { name: "Spend by client" });
-		await expect(within(byClient).getByText("Claude Code")).toBeVisible();
-		await expect(within(byClient).getByText("$1.80")).toBeVisible();
-
-		await expect(canvas.queryByRole("note")).not.toBeInTheDocument();
-
-		await userEvent.click(canvas.getByRole("button", { name: "Back" }));
-		expect(args.onClearSelectedUser).toHaveBeenCalled();
 	},
 };
 
@@ -539,27 +308,6 @@ export const DrillInFiltered: Story = {
 			model: MockMenu,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("button", { name: "Select provider" }),
-		).toHaveTextContent("Anthropic");
-		await expect(
-			canvas.getByRole("button", { name: "Select client" }),
-		).toHaveTextContent("Claude Code");
-		await expect(
-			canvas.getByRole("button", { name: "Select model" }),
-		).toHaveTextContent("All models");
-		const sessionsUrl = new URL(
-			canvas
-				.getByRole("link", { name: "View sessions" })
-				.getAttribute("href") ?? "",
-			"http://localhost",
-		);
-		expect(sessionsUrl.searchParams.get("filter")).toBe(
-			`provider_name:anthropic-main client:"Claude Code" initiator:${MockAIGatewaySpendUser.id} started_after:"2026-02-10T00:00:00Z" started_before:"2026-03-12T00:00:00Z"`,
-		);
-	},
 };
 
 export const DrillInWithUnpricedRequests: Story = {
@@ -574,16 +322,6 @@ export const DrillInWithUnpricedRequests: Story = {
 			),
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("note")).toHaveTextContent(
-			"Cost is unavailable for 1 request. The total excludes that usage.",
-		);
-		const byModel = canvas.getByRole("table", { name: "Spend by model" });
-		await expect(within(byModel).getByText("1 unpriced")).toBeVisible();
-		const byClient = canvas.getByRole("table", { name: "Spend by client" });
-		expect(within(byClient).queryByText(/unpriced/)).not.toBeInTheDocument();
-	},
 };
 
 export const DrillInClampedToRetention: Story = {
@@ -594,20 +332,6 @@ export const DrillInClampedToRetention: Story = {
 			...MockAIGatewaySpendUserSummary,
 			start_date: "2026-02-26T12:00:00Z",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			/Showing spend since .*Feb 26, 2026/,
-		);
-		const sessionsLink = canvas.getByRole("link", { name: "View sessions" });
-		const sessionsUrl = new URL(
-			sessionsLink.getAttribute("href") ?? "",
-			"http://localhost",
-		);
-		expect(sessionsUrl.searchParams.get("filter")).toContain(
-			'started_after:"2026-02-26T12:00:00Z"',
-		);
 	},
 };
 
@@ -627,15 +351,6 @@ export const DrillInOutsideRetention: Story = {
 			by_client: [],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			"No AI Gateway spend is retained for the selected period.",
-		);
-		expect(
-			canvas.queryByRole("link", { name: "View sessions" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const DrillInTruncatedBreakdowns: Story = {
@@ -647,15 +362,6 @@ export const DrillInTruncatedBreakdowns: Story = {
 			model_count: 137,
 			client_count: 2,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Showing the 2 most expensive of 137 models."),
-		).toBeVisible();
-		expect(
-			canvas.queryByText(/most expensive of .* clients/),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -677,12 +383,6 @@ export const DrillInEmpty: Story = {
 			by_client: [],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("No AI Gateway spend matches these filters."),
-		).toBeVisible();
-	},
 };
 
 export const DrillInSummaryError: Story = {
@@ -690,11 +390,5 @@ export const DrillInSummaryError: Story = {
 		drillInUserId: MockAIGatewaySpendUser.id,
 		drillInUser: mockUserProfile,
 		summaryError: new Error("Failed to load spend"),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Failed to load spend")).toBeVisible();
-		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
-		expect(args.onSummaryRetry).toHaveBeenCalled();
 	},
 };

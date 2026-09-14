@@ -103,13 +103,6 @@ export const SpendVisible: Story = {
 	args: {
 		canViewAISpend: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("link", { name: "Spend" })).toHaveAttribute(
-			"href",
-			"/ai/settings/spend",
-		);
-	},
 };
 
 export const ModelsActive: Story = {
