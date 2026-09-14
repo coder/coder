@@ -22,9 +22,9 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 71 rules.
+The guide documents 76 rules.
 Automated tooling checks 8 of them, and 1 of those 8 doesn't run on published pages.
-The other 63 are yours to apply by reading.
+The other 68 are yours to apply by reading.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -52,7 +52,7 @@ The markdownlint and emdash checks do fail the build.
 
 | Section                                                               | Rules | Tool-checked | Planned | Documentation-only |
 |-----------------------------------------------------------------------|-------|--------------|---------|--------------------|
-| [Audience and scope](./audience-and-scope.md)                         | 1     | 0            | 0       | 1                  |
+| [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
 | [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
 | [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
 | [Word choice](./word-choice.md)                                       | 14    | 2            | 9       | 3                  |
@@ -60,10 +60,14 @@ The markdownlint and emdash checks do fail the build.
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
 | [Formatting](./formatting.md)                                         | 12    | 2            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
-| **Total**                                                             | 71    | 8            | 25      | 38                 |
+| **Total**                                                             | 76    | 8            | 25      | 43                 |
 
 Every column counts rule sections, not linter rule names.
-Classify a section from its footer, in this order:
+A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
+Every heading that states a rule carries one.
+Example, navigation, and reference headings don't, and neither does [Color contrast](./accessibility-and-inclusion.md#color-contrast), which the guide marks out of scope, so none of them are counted.
+
+Classify a counted section from its footer, in this order:
 
 1. The footer states **Documentation-only** about the section: the section is documentation-only, whatever else the footer names.
    A footer in this column can still cross-reference a rule that another section owns, or name a rule that doesn't exist yet.
@@ -80,6 +84,7 @@ The same is true of every third-party `Google.*`, `alex.*`, and `write-good.*` r
 
 Keep this table honest when a rule lands.
 The per-rule PR pattern in the [Vale doctrine README](../README.md) already requires touching this guide, so update the row in the same change.
+This section is the only place that states the counts; the agent-facing guides link here instead of repeating them, so one edit keeps every caller current.
 
 ## Sections
 

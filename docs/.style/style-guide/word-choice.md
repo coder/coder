@@ -66,7 +66,8 @@ The CLI tool (`terraform`) lives in backticks.
 
 Lowercase forms remain correct in code blocks, URLs, package names, and Terraform provider sources, where the canonical form is lowercase by convention.
 
-*Enforced by `Coder.BrandNames`.*
+*Enforced by `Coder.BrandNames` for `HashiCorp` casing only.
+The other brands in this section aren't checked yet; a separate change widens the rule's swap table.*
 
 ## Dev container terminology
 

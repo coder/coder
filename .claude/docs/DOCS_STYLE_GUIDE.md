@@ -9,7 +9,7 @@ This guide documents structure, research, and content patterns for documentation
 > guidelines, the content guidelines govern.
 >
 > **For prose rules**, refer to the canonical Coder documentation style guide at [`docs/.style/style-guide/`](../../docs/.style/style-guide/README.md).
-> Vale rules under `docs/.style/styles/Coder/` enforce part of that subset, and automated tooling covers 8 of the guide's 71 rules today, all of it advisory in Vale's case.
+> Vale rules under `docs/.style/styles/Coder/` enforce a small subset of that guide and run advisory; markdownlint and the em-dash check enforce a few more and do fail the build.
 > Read the guide and apply it; a clean lint run is not conformance.
 > Refer to [What the tooling checks, and what it doesn't](../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > This file remains authoritative for structure, research, and content patterns.
