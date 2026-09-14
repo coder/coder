@@ -259,6 +259,24 @@ func TestValueType(t *testing.T) {
 			"enum",
 			[]string{"password", "awsiamrds"},
 		},
+		{
+			"enum array lists its choices",
+			serpent.EnumArrayOf(new([]string), "read", "write"),
+			"enum-array",
+			[]string{"read", "write"},
+		},
+		{
+			"structured mapping uses a YAML type",
+			&serpent.Struct[map[string]string]{},
+			"YAML mapping",
+			nil,
+		},
+		{
+			"structured sequence uses a YAML type",
+			&serpent.Struct[[]string]{},
+			"YAML sequence",
+			nil,
+		},
 		{"nil value has no type", nil, "", nil},
 	}
 	for _, tc := range cases {
@@ -298,12 +316,32 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		Value:       serpent.URLOf(&url.URL{}),
 	}
 
-	got := render(buildTree(serpent.OptionSet{secret, plain}))
+	enum := serpent.Option{
+		Name:        "Database Authentication",
+		Description: "The database authentication method.",
+		Flag:        "database-auth",
+		Env:         "CODER_DATABASE_AUTH",
+		Value:       serpent.EnumOf(new(string), "password", "awsiamrds"),
+	}
+	singleChoiceEnum := serpent.Option{
+		Name:        "Budget Period",
+		Description: "The budget period.",
+		Flag:        "budget-period",
+		Env:         "CODER_BUDGET_PERIOD",
+		Value:       serpent.EnumOf(new(string), "month"),
+	}
+	secretWithYAML := secret
+	secretWithYAML.Name = "Invalid Secret"
+	secretWithYAML.YAML = "invalidSecret"
+
+	got := render(buildTree(serpent.OptionSet{secret, plain, enum, singleChoiceEnum, secretWithYAML}))
 
 	wantContains := []string{
 		"- Type: `string`",
 		"- Type: `url`",
-		"- Holds a secret: Coder never writes this option to a YAML configuration file.",
+		"- Type: `enum`, one of `password`, `awsiamrds`",
+		"- Type: `enum`, must be `month`",
+		"- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.",
 	}
 	for _, w := range wantContains {
 		if !strings.Contains(got, w) {
@@ -311,7 +349,7 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		}
 	}
 
-	// Only the annotated option carries the secret marker.
+	// Only an annotated secret without a YAML key carries the marker.
 	if n := strings.Count(got, "Holds a secret"); n != 1 {
 		t.Errorf("secret marker rendered %d times, want 1", n)
 	}

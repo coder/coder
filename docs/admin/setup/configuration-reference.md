@@ -144,7 +144,7 @@ Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The
 - Type: `string-array`
 - Environment variable: `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`
 - CLI flag: [`--external-token-encryption-keys`](../../reference/cli/server.md#--external-token-encryption-keys)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 ### Postgres auth
 
@@ -183,7 +183,7 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 - Type: `string`
 - Environment variable: `CODER_PG_CONNECTION_URL`
 - CLI flag: [`--postgres-url`](../../reference/cli/server.md#--postgres-url)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 ### SCIM API key
 
@@ -192,7 +192,7 @@ Enables SCIM and sets the authentication header for the built-in SCIM server. Ne
 - Type: `string`
 - Environment variable: `CODER_SCIM_AUTH_HEADER`
 - CLI flag: [`--scim-auth-header`](../../reference/cli/server.md#--scim-auth-header)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 ### SCIM use legacy
 
@@ -218,7 +218,7 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 Support links to display in the top right drop down menu.
 
-- Type: `struct[[]codersdk.LinkConfig]`
+- Type: `YAML sequence`
 - Environment variable: `CODER_SUPPORT_LINKS`
 - CLI flag: [`--support-links`](../../reference/cli/server.md#--support-links)
 - YAML key: `supportLinks`
@@ -248,7 +248,7 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 
 Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only "month" is currently supported.
 
-- Type: `enum`, one of `month`
+- Type: `enum`, must be `month`
 - Environment variable: `CODER_AI_BUDGET_PERIOD`
 - CLI flag: [`--ai-budget-period`](../../reference/cli/server.md#--ai-budget-period)
 - YAML key: `ai_gateway.budget_period`
@@ -258,7 +258,7 @@ Determines when accumulated AI spend resets to zero, aligned to UTC calendar bou
 
 Determines the effective group when a user belongs to multiple groups with AI budgets. "highest" selects the group with the largest spend limit, and is currently the only supported value.
 
-- Type: `enum`, one of `highest`
+- Type: `enum`, must be `highest`
 - Environment variable: `CODER_AI_BUDGET_POLICY`
 - CLI flag: [`--ai-budget-policy`](../../reference/cli/server.md#--ai-budget-policy)
 - YAML key: `ai_gateway.budget_policy`
@@ -593,7 +593,7 @@ Password to use with PLAIN/LOGIN authentication.
 - Type: `string`
 - Environment variable: `CODER_EMAIL_AUTH_PASSWORD`
 - CLI flag: [`--email-auth-password`](../../reference/cli/server.md#--email-auth-password)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 #### Password file
 
@@ -837,7 +837,7 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 - Type: `string`
 - Environment variable: `CODER_TRACE_HONEYCOMB_API_KEY`
 - CLI flag: [`--trace-honeycomb-api-key`](../../reference/cli/server.md#--trace-honeycomb-api-key)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 ### pprof
 
@@ -1358,7 +1358,7 @@ Configure SMTP authentication options.
 - Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD`
 - CLI flag: [`--notifications-email-auth-password`](../../reference/cli/server.md#--notifications-email-auth-password)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 ##### Password file
 
@@ -1517,7 +1517,7 @@ Client secret for Login with GitHub.
 - Type: `string`
 - Environment variable: `CODER_OAUTH2_GITHUB_CLIENT_SECRET`
 - CLI flag: [`--oauth2-github-client-secret`](../../reference/cli/server.md#--oauth2-github-client-secret)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 #### Default provider enable
 
@@ -1595,7 +1595,7 @@ If provided any group name not in the list will not be allowed to authenticate. 
 
 OIDC auth URL parameters to pass to the upstream provider.
 
-- Type: `struct[map[string]string]`
+- Type: `YAML mapping`
 - Environment variable: `CODER_OIDC_AUTH_URL_PARAMS`
 - CLI flag: [`--oidc-auth-url-params`](../../reference/cli/server.md#--oidc-auth-url-params)
 - YAML key: `oidc.authURLParams`
@@ -1635,7 +1635,7 @@ Client secret to use for Login with OIDC.
 - Type: `string`
 - Environment variable: `CODER_OIDC_CLIENT_SECRET`
 - CLI flag: [`--oidc-client-secret`](../../reference/cli/server.md#--oidc-client-secret)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 ### Email domain
 
@@ -1669,7 +1669,7 @@ This field must be set if using the group sync feature and the scope name is not
 
 A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.
 
-- Type: `struct[map[string]string]`
+- Type: `YAML mapping`
 - Environment variable: `CODER_OIDC_GROUP_MAPPING`
 - CLI flag: [`--oidc-group-mapping`](../../reference/cli/server.md#--oidc-group-mapping)
 - YAML key: `oidc.groupMapping`
@@ -1764,7 +1764,7 @@ This field must be set if using the user roles sync feature. Set this to the nam
 
 A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.
 
-- Type: `struct[map[string][]string]`
+- Type: `YAML mapping`
 - Environment variable: `CODER_OIDC_USER_ROLE_MAPPING`
 - CLI flag: [`--oidc-user-role-mapping`](../../reference/cli/server.md#--oidc-user-role-mapping)
 - YAML key: `oidc.userRoleMapping`
@@ -1848,7 +1848,7 @@ Pre-shared key to authenticate external provisioner daemons to Coder server.
 - Type: `string`
 - Environment variable: `CODER_PROVISIONER_DAEMON_PSK`
 - CLI flag: [`--provisioner-daemon-psk`](../../reference/cli/server.md#--provisioner-daemon-psk)
-- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.
+- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.
 
 ### Provisioner daemons
 

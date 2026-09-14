@@ -54,9 +54,9 @@ const generalSection = "General"
 
 // option is the normalized data needed to render one deployment option.
 type option struct {
-	title       string // short, sentence-case heading text
-	typeName    string // serpent value type, e.g. bool, duration, string-array
-	typeChoices []string
+	title       string   // short, sentence-case heading text
+	typeName    string   // reader-facing value type, e.g. bool, duration, string-array
+	typeChoices []string // allowed values when typeName is enum or enum-array
 	env         string
 	flagName    string
 	flagAnchor  string
@@ -218,26 +218,30 @@ func toOption(opt serpent.Option) option {
 	}
 }
 
-// valueType reports the option's value type and, for an enum, the values it
-// accepts. serpent spells an enum as "enum[a\|b]", escaping the separator for
-// its own table output, so the choices are unescaped and listed separately
-// rather than printed raw.
+// valueType reports the option's reader-facing value type and, for enums, the
+// values it accepts. Structured values accept YAML input, so their Go generic
+// type names are not useful in the configuration reference.
 func valueType(opt serpent.Option) (name string, choices []string) {
 	if opt.Value == nil {
 		return "", nil
 	}
-	raw := opt.Value.Type()
-	if !strings.HasPrefix(raw, "enum[") || !strings.HasSuffix(raw, "]") {
-		return raw, nil
+	switch value := opt.Value.(type) {
+	case *serpent.Enum:
+		return "enum", value.Choices
+	case *serpent.EnumArray:
+		return "enum-array", value.Choices
 	}
-	inner := strings.TrimSuffix(strings.TrimPrefix(raw, "enum["), "]")
-	inner = strings.ReplaceAll(inner, `\|`, "|")
-	for _, choice := range strings.Split(inner, "|") {
-		if choice = strings.TrimSpace(choice); choice != "" {
-			choices = append(choices, choice)
+	if raw := opt.Value.Type(); strings.HasPrefix(raw, "struct[") {
+		switch {
+		case strings.HasPrefix(raw, "struct[[]"):
+			return "YAML sequence", nil
+		case strings.HasPrefix(raw, "struct[map["):
+			return "YAML mapping", nil
+		default:
+			return "YAML object", nil
 		}
 	}
-	return "enum", choices
+	return opt.Value.Type(), nil
 }
 
 // isDeprecated reports whether an option is deprecated. serpent tracks
@@ -324,8 +328,13 @@ func renderOption(b *strings.Builder, opt option, level int) {
 
 	if opt.typeName != "" {
 		_, _ = fmt.Fprintf(b, "- Type: `%s`", opt.typeName)
-		if len(opt.typeChoices) > 0 {
-			_, _ = fmt.Fprintf(b, ", one of %s", codeList(opt.typeChoices))
+		switch len(opt.typeChoices) {
+		case 1:
+			_, _ = fmt.Fprintf(b, ", must be %s", codeList(opt.typeChoices))
+		default:
+			if len(opt.typeChoices) > 1 {
+				_, _ = fmt.Fprintf(b, ", one of %s", codeList(opt.typeChoices))
+			}
 		}
 		_, _ = b.WriteString("\n")
 	}
@@ -341,8 +350,8 @@ func renderOption(b *strings.Builder, opt option, level int) {
 	if opt.defValue != "" {
 		_, _ = fmt.Fprintf(b, "- Default value: `%s`\n", opt.defValue)
 	}
-	if opt.secret {
-		_, _ = b.WriteString("- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through its environment variable or CLI flag.\n")
+	if opt.secret && opt.yaml == "" {
+		_, _ = b.WriteString("- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.\n")
 	}
 	_, _ = b.WriteString("\n")
 }
