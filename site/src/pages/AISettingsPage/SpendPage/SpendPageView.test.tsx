@@ -1,16 +1,19 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { expect, it, vi } from "vitest";
-import { MockMenu } from "#/components/Filter/storyHelpers";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import {
 	MockAIGatewaySpendUser,
 	MockAIGatewaySpendUserSummary,
 	MockUserMember,
 } from "#/testHelpers/entities";
-import { renderComponent } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
 import { SpendPageView } from "./SpendPageView";
 
 type Props = ComponentProps<typeof SpendPageView>;
@@ -24,7 +27,7 @@ function renderView(overrides: Partial<Props> = {}) {
 			endDate: new Date("2026-03-12T00:00:00Z"),
 		},
 		dimensions: {},
-		filterMenus: { provider: MockMenu, client: MockMenu, model: MockMenu },
+		filterQuery: "",
 		searchFilter: "",
 		usersQuery: {
 			...mockSuccessResult,
@@ -48,37 +51,31 @@ function renderView(overrides: Partial<Props> = {}) {
 		isSummaryLoading: false,
 		summaryError: undefined,
 		onDateRangeChange: vi.fn(),
-		onSearchFilterChange: vi.fn(),
+		onFilterQueryChange: vi.fn(),
 		onDrillInUserRetry: vi.fn(),
 		onClearSelectedUser: vi.fn(),
 		onSummaryRetry: vi.fn(),
 		...overrides,
 	};
-	const view = renderComponent(
-		<MemoryRouter>
-			<SpendPageView {...props} />
-		</MemoryRouter>,
+	// The filter combobox issues react-query lookups for its category options,
+	// so the view needs a QueryClient even though the mocked data is passed in.
+	const queryClient = createTestQueryClient();
+	const wrap = (node: ReactNode) => (
+		<QueryClientProvider client={queryClient}>
+			<MemoryRouter>{node}</MemoryRouter>
+		</QueryClientProvider>
 	);
-	return { ...view, props };
+	const view = renderComponent(wrap(<SpendPageView {...props} />));
+	return { ...view, props, wrap };
 }
-
-it("reports the search draft", async () => {
-	const user = userEvent.setup();
-	const { props } = renderView();
-	await user.type(
-		screen.getByRole("textbox", { name: "Search spend by name or username" }),
-		" bob ",
-	);
-	expect(props.onSearchFilterChange).toHaveBeenLastCalledWith(" bob ");
-});
 
 it.each([false, true])(
 	"retries the users query with retained data: %s",
 	async (hasData) => {
 		const user = userEvent.setup();
-		const { props, rerender } = renderView();
+		const { props, rerender, wrap } = renderView();
 		rerender(
-			<MemoryRouter>
+			wrap(
 				<SpendPageView
 					{...props}
 					usersQuery={{
@@ -86,8 +83,8 @@ it.each([false, true])(
 						data: hasData ? props.usersQuery.data : undefined,
 						error: new Error("Unable to load users"),
 					}}
-				/>
-			</MemoryRouter>,
+				/>,
+			),
 		);
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		expect(props.usersQuery.refetch).toHaveBeenCalledOnce();

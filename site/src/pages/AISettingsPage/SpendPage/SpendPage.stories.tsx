@@ -102,6 +102,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof SpendPage>;
 
+const FILTER_PLACEHOLDER = "Search and filter spend…";
+
 export const SortedUsers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -117,9 +119,7 @@ export const SearchResults: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(
-			await canvas.findByRole("textbox", {
-				name: "Search spend by name or username",
-			}),
+			await canvas.findByRole("combobox", { name: FILTER_PLACEHOLDER }),
 			"user01",
 		);
 		await canvas.findByRole("link", { name: "User 1" });
@@ -129,12 +129,14 @@ export const SearchResults: Story = {
 export const ProviderMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select provider" }),
+			await canvas.findByRole("button", { name: "Toggle filters" }),
 		);
-		await within(canvasElement.ownerDocument.body).findByRole("option", {
-			name: /OpenAI/,
-		});
+		await userEvent.click(
+			await body.findByRole("option", { name: "Provider" }),
+		);
+		await body.findByRole("option", { name: /OpenAI/ });
 	},
 };
 
@@ -143,7 +145,10 @@ export const FilteredDrillIn: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select provider" }),
+			await canvas.findByRole("button", { name: "Toggle filters" }),
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: "Provider" }),
 		);
 		await userEvent.click(await body.findByRole("option", { name: /OpenAI/ }));
 		await userEvent.click(await canvas.findByRole("link", { name: "User 12" }));

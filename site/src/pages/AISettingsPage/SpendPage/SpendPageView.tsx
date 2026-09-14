@@ -12,11 +12,7 @@ import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGo
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
 import { RetentionNotice } from "./components/RetentionNotice";
 import { SpendDrillInView } from "./components/SpendDrillInView";
-import {
-	type SpendDimensions,
-	type SpendFilterMenus,
-	SpendFilters,
-} from "./components/SpendFilters";
+import { type SpendDimensions, SpendFilters } from "./components/SpendFilters";
 import { SpendSectionHeader } from "./components/SpendSectionHeader";
 import { SpendSummaryView } from "./components/SpendSummaryView";
 import { SpendUsersTable } from "./components/SpendUsersTable";
@@ -47,9 +43,9 @@ interface SpendPageViewProps {
 	dateRange: DateRangeValue;
 	onDateRangeChange: (value: DateRangeValue) => void;
 	dimensions: SpendDimensions;
-	filterMenus: SpendFilterMenus;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
 	searchFilter: string;
-	onSearchFilterChange: (value: string) => void;
 	usersQuery: SpendUsersQuery;
 	drillInUserId: string | null;
 	drillInUser: TypesGen.User | null;
@@ -70,9 +66,9 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	dateRange,
 	onDateRangeChange,
 	dimensions,
-	filterMenus,
+	filterQuery,
+	onFilterQueryChange,
 	searchFilter,
-	onSearchFilterChange,
 	usersQuery,
 	drillInUserId,
 	drillInUser,
@@ -97,7 +93,8 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 
 	const displayDateRange = toInclusiveDateRange(dateRange);
 	const filterProps = {
-		menus: filterMenus,
+		filterQuery,
+		onFilterQueryChange,
 		now,
 		dateRange: displayDateRange,
 		onDateRangeChange,
@@ -132,10 +129,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 				<div className="flex flex-col gap-4">
-					<SpendFilters
-						{...filterProps}
-						search={{ value: searchFilter, onChange: onSearchFilterChange }}
-					/>
+					<SpendFilters {...filterProps} />
 					<SpendUsersTable
 						displayDateRange={displayDateRange}
 						searchFilter={searchFilter}
