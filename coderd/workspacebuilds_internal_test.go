@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/wsrelated"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -148,6 +149,7 @@ func newConvertAPI() *API {
 
 func (f buildFixture) convert(api *API) ([]codersdk.WorkspaceBuild, error) {
 	return api.convertWorkspaceBuilds(
+		wsrelated.AllLatestBuild(),
 		f.builds,
 		f.workspaces,
 		f.jobs,

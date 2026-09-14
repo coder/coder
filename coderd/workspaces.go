@@ -2770,14 +2770,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	var data workspaceBuildsData
+	var latestBuildCfg wsrelated.LatestBuild
 	if cfg.LatestBuild != nil {
-		data, err = api.workspaceBuildsData(ctx, builds, *cfg.LatestBuild)
+		latestBuildCfg = *cfg.LatestBuild
+		data, err = api.workspaceBuildsData(ctx, builds, latestBuildCfg)
 		if err != nil {
 			return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
 		}
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
+		latestBuildCfg,
 		builds,
 		workspaces,
 		data.jobs,
