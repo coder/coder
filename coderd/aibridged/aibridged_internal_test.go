@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -29,23 +31,24 @@ func blockingHandler() (h http.Handler, started <-chan struct{}, release func())
 	return h, startedCh, func() { close(releaseCh) }
 }
 
-// serveAsync serves one request through tracker and reports its status code.
-func serveAsync(tracker *inflightTracker, next http.Handler) <-chan int {
+// serveAsync serves one request through the server and reports its status code.
+func serveAsync(tracker *Server, next http.Handler) <-chan int {
 	done := make(chan int, 1)
 	go func() {
 		rec := httptest.NewRecorder()
-		tracker.Serve(rec, httptest.NewRequest(http.MethodPost, "/", nil), next)
+		handler := &requestHandler{handler: next, inflight: tracker.inflight}
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 		done <- rec.Code
 	}()
 	return done
 }
 
-// TestInflightTracker_DrainsAdmitted asserts a graceful shutdown waits for the
+// TestServerProxy_DrainsAdmitted asserts a graceful shutdown waits for the
 // requests already admitted and does not cancel them.
-func TestInflightTracker_DrainsAdmitted(t *testing.T) {
+func TestServerProxy_DrainsAdmitted(t *testing.T) {
 	t.Parallel()
 
-	tracker := newInflightTracker()
+	tracker := newProxyTestServer(t)
 	handler, started, release := blockingHandler()
 	done := serveAsync(tracker, handler)
 	<-started
@@ -64,12 +67,12 @@ func TestInflightTracker_DrainsAdmitted(t *testing.T) {
 	require.NoError(t, <-shutdownDone)
 }
 
-// TestInflightTracker_CancelsOnDeadline asserts an expired shutdown context
+// TestServerProxy_CancelsOnDeadline asserts an expired shutdown context
 // cancels admitted requests instead of waiting on them, and is reported.
-func TestInflightTracker_CancelsOnDeadline(t *testing.T) {
+func TestServerProxy_CancelsOnDeadline(t *testing.T) {
 	t.Parallel()
 
-	tracker := newInflightTracker()
+	tracker := newProxyTestServer(t)
 	handler, started, _ := blockingHandler()
 	done := serveAsync(tracker, handler)
 	<-started
@@ -80,13 +83,13 @@ func TestInflightTracker_CancelsOnDeadline(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, <-done, "the request must observe the forced cancellation")
 }
 
-// TestInflightTracker_DeadlineDoesNotWaitForHandler ensures shutdown returns
+// TestServerProxy_DeadlineDoesNotWaitForHandler ensures shutdown returns
 // even if an admitted handler cannot observe cancellation, such as a blocked
 // response write.
-func TestInflightTracker_DeadlineDoesNotWaitForHandler(t *testing.T) {
+func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 	t.Parallel()
 
-	tracker := newInflightTracker()
+	tracker := newProxyTestServer(t)
 	started := make(chan context.Context, 1)
 	release := make(chan struct{})
 	done := serveAsync(tracker, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -125,23 +128,43 @@ func TestInflightTracker_DeadlineDoesNotWaitForHandler(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	tracker.Serve(rec, httptest.NewRequest(http.MethodPost, "/", nil), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("request admitted after shutdown")
-	}))
+	handler := &requestHandler{
+		handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Error("request admitted after shutdown")
+		}),
+		inflight: tracker.inflight,
+	}
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
 
-// TestInflightTracker_RefusesAfterShutdown asserts no request is admitted once
+// TestServerProxy_RefusesAfterShutdown asserts no request is admitted once
 // shutdown has begun.
-func TestInflightTracker_RefusesAfterShutdown(t *testing.T) {
+func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 	t.Parallel()
 
-	tracker := newInflightTracker()
+	tracker := newProxyTestServer(t)
 	require.NoError(t, tracker.Shutdown(t.Context()))
 
 	handler, _, _ := blockingHandler()
 	rec := httptest.NewRecorder()
-	tracker.Serve(rec, httptest.NewRequest(http.MethodPost, "/", nil), handler)
+	backend := &requestHandler{handler: handler, inflight: tracker.inflight}
+	backend.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Contains(t, rec.Body.String(), "shutting down")
+}
+
+// newProxyTestServer isolates proxy request handling from the DRPC connection.
+func newProxyTestServer(t *testing.T) *Server {
+	t.Helper()
+	ctx, cancel := context.WithCancelCause(t.Context())
+	s := &Server{
+		lifecycleCtx: ctx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(),
+	}
+	s.backend.Store(&requestHandler{inflight: s.inflight})
+	t.Cleanup(func() { _ = s.Close() })
+	return s
 }

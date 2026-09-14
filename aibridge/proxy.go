@@ -31,8 +31,7 @@ var _ http.Handler = (*ProxyRouter)(nil)
 //
 // Each configured-but-disabled provider serves a 503 sentinel on every path
 // under its name. Enabled providers have no routes registered yet, so their
-// requests reach the catch-all 404 until the bridged and passthrough routes
-// are added in AIGOV-615.
+// requests reach the catch-all 404.
 func NewProxyRouter(providers []Provider, logger slog.Logger) (*ProxyRouter, error) {
 	if err := validateProviders(providers); err != nil {
 		return nil, err
@@ -49,11 +48,18 @@ func NewProxyRouter(providers []Provider, logger slog.Logger) (*ProxyRouter, err
 
 // ServeHTTP serves the routes registered for the router's providers.
 func (p *ProxyRouter) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	serveProviderRequest(rw, r, p.mux)
+	// Cap the body as it is read; routes that do not read it retain their status.
+	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
+	p.mux.ServeHTTP(rw, r)
 }
 
-// KeyPools returns the key pools of the router's providers, skipping
-// providers which have none. It feeds [keypool.NewStateCollector].
+// KeyPools returns the non-nil key pools from this router's provider snapshot.
 func (p *ProxyRouter) KeyPools() []*keypool.Pool {
-	return CollectKeyPools(p.providers)
+	pools := make([]*keypool.Pool, 0, len(p.providers))
+	for _, prov := range p.providers {
+		if pool := prov.KeyPool(); pool != nil {
+			pools = append(pools, pool)
+		}
+	}
+	return pools
 }

@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,10 +77,6 @@ type RequestBridge struct {
 
 	// inflight provides the shared admission and drain machinery.
 	inflight *InflightGate
-	// inflightReqs is the interception-mode gauge exposed by
-	// InflightRequests. The proxy path tracks in-flight requests
-	// server-wide instead.
-	inflightReqs atomic.Int32
 
 	clock quartz.Clock
 
@@ -126,11 +121,11 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	mux := newProviderMux(providers, logger)
 
 	for _, prov := range providers {
-		// Disabled providers already have their 503 sentinel registered by
-		// newProviderMux; skip route registration for them.
+		// Disabled providers have 503 sentinel registered by newProviderMux
 		if !prov.Enabled() {
 			continue
 		}
+
 		// Create per-provider circuit breaker if configured
 		cfg := prov.CircuitBreakerConfig()
 		providerName := prov.Name()
@@ -405,50 +400,36 @@ func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	release, ok := b.inflight.Admit(func() {
-		// Trap point for deterministic race tests.
-		_ = b.clock.Now("serve_admission")
-		b.inflightReqs.Add(1)
+		_ = b.clock.Now("serve_admission") // Trap point for deterministic race tests.
 	})
 	if !ok {
 		http.Error(rw, "server closed", http.StatusInternalServerError)
 		return
 	}
-	defer func() {
-		b.inflightReqs.Add(-1)
-		release()
-	}()
+	defer release()
 
 	// We want to abide by the context passed in without losing any of its
 	// functionality, but we still want to link our shutdown context to each
 	// request.
-	ctx, stop := b.inflight.Track(r.Context())
-	defer stop()
+	ctx, cleanup := b.inflight.RequestContext(r.Context())
+	defer cleanup()
 
-	// serveProviderRequest caps the request body as it is read.
-	serveProviderRequest(rw, r.WithContext(ctx), b.mux)
+	// Cap the request body as it is read.
+	r = r.WithContext(ctx)
+	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
+	b.mux.ServeHTTP(rw, r)
 }
 
-// Shutdown will attempt to gracefully shutdown. This entails waiting for all requests to
-// complete, and shutting down the MCP server proxier.
-// TODO: add tests.
+// Shutdown drains requests until ctx expires, then cancels remaining requests.
+// MCP cleanup is attempted even if requests have not returned.
 func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	var err error
 	b.shutdownOnce.Do(func() {
-		// Stop admitting and wait for inflight requests to complete or
-		// context cancellation. Interception waits for the drain even after
-		// forced cancellation, so recording and MCP cleanup never race
-		// requests that are still running.
-		done := b.inflight.BeginShutdown()
-
-		select {
-		case <-ctx.Done():
-			// Cancel all inflight requests, if any are still running.
-			b.logger.Debug(ctx, "shutdown context canceled; canceling inflight requests", slog.Error(ctx.Err()))
-			b.inflight.CancelInflight()
-			<-done
-			err = ctx.Err()
-		case <-done:
+		err = b.inflight.Shutdown(ctx)
+		if err != nil {
+			b.logger.Debug(ctx, "shutdown context canceled; canceling inflight requests", slog.Error(err))
 		}
+		b.inflight.Close()
 
 		if b.mcpProxy != nil {
 			// It's ok that we reuse the ctx here even if it's done, since the
@@ -459,10 +440,6 @@ func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	})
 
 	return err
-}
-
-func (b *RequestBridge) InflightRequests() int32 {
-	return b.inflightReqs.Load()
 }
 
 // extractAgentFirewallHeaders reads and parses the Agent Firewall

@@ -24,7 +24,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
-	"github.com/coder/coder/v2/aibridge/keypool"
 	aibridgemetrics "github.com/coder/coder/v2/aibridge/metrics"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -253,9 +252,6 @@ type standaloneGatewayParams struct {
 
 	// Runtime dependencies.
 	dialer aibridged.Dialer
-	// pool is a test seam: production leaves it nil, so the daemon creates
-	// its own pool when interception mode is selected.
-	pool aibridged.Pooler
 
 	// Observability.
 	// logger is the gateway-scoped logger; derived loggers (daemon,
@@ -314,13 +310,13 @@ func runStandaloneGateway(ctx context.Context, params standaloneGatewayParams) e
 func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, error) {
 	// The aibridged daemon must outlive the serving context so in-flight HTTP
 	// requests retain their DRPC connection during graceful HTTP shutdown.
-	daemon, err := aibridged.New(context.Background(), params.pool, params.dialer, params.logger.Named("aibridged"), params.tracer, aibridged.WithExperiments(params.experiments), aibridged.WithMetrics(params.metrics))
+	daemon, err := aibridged.New(context.Background(), params.dialer, params.logger.Named("aibridged"), params.tracer, params.experiments, params.metrics)
 	if err != nil {
 		return nil, xerrors.Errorf("start AI Gateway daemon: %w", err)
 	}
 
 	if params.registerer != nil {
-		params.registerer.MustRegister(keypool.NewStateCollector(daemon.KeyPools))
+		params.registerer.MustRegister(daemon.KeyPoolStateCollector())
 	}
 
 	providerLogger := params.logger.Named("providers")

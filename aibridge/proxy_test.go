@@ -3,8 +3,10 @@ package aibridge_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -93,7 +95,7 @@ func TestProxyRouterDisabledProvider(t *testing.T) {
 		{name: "DisabledUnknownRoute", path: "/disabled-openai/anything/else", wantStatus: http.StatusServiceUnavailable, wantBody: aibridge.ErrorCodeProviderDisabled},
 		{name: "EnabledBridgedRoute", path: "/openai/v1/chat/completions", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 		{name: "EnabledPassthroughRoute", path: "/openai/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
-		{name: "UnknownProvider", path: "/nope/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
+		{name: "UnknownProvider", path: "/unknown/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 		{name: "Root", path: "/", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,7 +111,7 @@ func TestProxyRouterDisabledProvider(t *testing.T) {
 }
 
 // TestProxyRouterSnapshotsProviders asserts the router routes and reports key
-// pools from its own snapshot, so mutating the caller's slice afterwards has
+// pools from its own snapshot. Mutating the caller's slice afterwards has
 // no effect.
 func TestProxyRouterSnapshotsProviders(t *testing.T) {
 	t.Parallel()
@@ -125,7 +127,13 @@ func TestProxyRouterSnapshotsProviders(t *testing.T) {
 	// Replace the caller's entry with a provider the router never saw.
 	providers[0] = &testutil.MockProvider{NameStr: "swapped"}
 
-	require.Equal(t, []*keypool.Pool{pool}, router.KeyPools())
+	require.NoError(t, promtestutil.CollectAndCompare(keypool.NewStateCollector(router.KeyPools), strings.NewReader(`
+# HELP key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).
+# TYPE key_pool_state gauge
+key_pool_state{provider="openai",state="valid"} 1
+key_pool_state{provider="openai",state="temporary"} 0
+key_pool_state{provider="openai",state="permanent"} 0
+`), "key_pool_state"))
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest(http.MethodPost, "/disabled-openai/v1/models", nil))

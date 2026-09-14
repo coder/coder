@@ -24,10 +24,3 @@ func newProviderMux(providers []Provider, logger slog.Logger) *http.ServeMux {
 	})
 	return mux
 }
-
-// serveProviderRequest caps the body as it is read. Routes retain control of
-// their response status, including sentinels that never read the body.
-func serveProviderRequest(rw http.ResponseWriter, r *http.Request, next http.Handler) {
-	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
-	next.ServeHTTP(rw, r)
-}

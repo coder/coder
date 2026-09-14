@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -24,8 +26,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// countingDRPCConn counts Close calls so tests can assert that a connection is
-// discarded when startup mode selection fails.
+// countingDRPCConn tracks connections discarded after failed mode selection.
 type countingDRPCConn struct {
 	*mockDRPCConn
 	closes atomic.Int32
@@ -45,9 +46,7 @@ var _ drpc.Conn = &countingDRPCConn{}
 // mcpConfigsFn answers a GetMCPServerConfigs call. call is 1-based.
 type mcpConfigsFn func(call int32) (*proto.GetMCPServerConfigsResponse, error)
 
-// expectMCPConfigs wires client.GetMCPServerConfigs to fn and returns the call
-// counter. Startup mode selection queries MCP configs at most once per
-// successful selection, so tests assert on this counter directly.
+// expectMCPConfigs counts discovery calls and supplies their responses.
 func expectMCPConfigs(client *mock.MockDRPCClient, fn mcpConfigsFn) *atomic.Int32 {
 	var calls atomic.Int32
 	client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
@@ -81,55 +80,32 @@ func externalMCPConfig() *proto.GetMCPServerConfigsResponse {
 	}
 }
 
-// sentinelHandler identifies the handler a test expects to be returned.
-type sentinelHandler struct {
-	body string
-}
-
-func (h *sentinelHandler) ServeHTTP(rw http.ResponseWriter, _ *http.Request) {
-	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write([]byte(h.body))
-}
-
 // backendFixture holds the collaborators of a server under test.
 type backendFixture struct {
 	srv      *aibridged.Server
-	client   *mock.MockDRPCClient
-	pool     *mock.MockPooler
 	conn     *countingDRPCConn
 	mcpCalls *atomic.Int32
-	// poolShutdowns counts Shutdown calls on the supplied pool, including the
-	// unused one handed to a proxy-mode server.
-	poolShutdowns *atomic.Int32
 }
 
 // newBackendServer starts a server whose single mock client answers MCP
-// discovery with fn. The pool is a strict mock: any unexpected use fails the
-// test, which is how the proxy tests assert that no pool is instantiated.
+// discovery with fn. Interception pools are created by the server under test.
 func newBackendServer(t *testing.T, experiments codersdk.Experiments, fn mcpConfigsFn, ignoreErrors bool) *backendFixture {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	client := mock.NewMockDRPCClient(ctrl)
-	pool := mock.NewMockPooler(ctrl)
 	conn := newCountingDRPCConn(nil)
 	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 	calls := expectMCPConfigs(client, fn)
 
-	var shutdowns atomic.Int32
-	pool.EXPECT().Shutdown(gomock.Any()).AnyTimes().DoAndReturn(func(context.Context) error {
-		shutdowns.Add(1)
-		return nil
-	})
-
-	srv, err := aibridged.New(t.Context(), pool,
+	srv, err := aibridged.New(t.Context(),
 		func(context.Context) (aibridged.DRPCClient, error) { return client, nil },
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreErrors}), testTracer,
-		aibridged.WithExperiments(experiments))
+		experiments, nil)
 	require.NoError(t, err, "create aibridged server")
 	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
 
-	return &backendFixture{srv: srv, client: client, pool: pool, conn: conn, mcpCalls: calls, poolShutdowns: &shutdowns}
+	return &backendFixture{srv: srv, conn: conn, mcpCalls: calls}
 }
 
 func proxyExperiments() codersdk.Experiments {
@@ -149,45 +125,68 @@ func serveHandler(t *testing.T, h http.Handler, path string) *httptest.ResponseR
 	return rec
 }
 
+func collectServerMetrics(t *testing.T, server *aibridged.Server) []*dto.MetricFamily {
+	t.Helper()
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(server.KeyPoolStateCollector()))
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	return metrics
+}
+
+func requireKeyPoolState(t *testing.T, server *aibridged.Server, value float64, provider, state string) {
+	t.Helper()
+	require.True(t, testutil.PromGaugeHasValue(t, collectServerMetrics(t, server), value, "key_pool_state", provider, state))
+}
+
+func requireNoKeyPoolState(t *testing.T, server *aibridged.Server, provider, state string) {
+	t.Helper()
+	require.False(t, testutil.PromGaugeGathered(t, collectServerMetrics(t, server), "key_pool_state", provider, state))
+}
+
 func openAIProvider(name string, pool *keypool.Pool) aibridge.Provider {
 	return aibridge.NewOpenAIProvider(config.OpenAI{Name: name, BaseURL: "http://upstream.test", KeyPool: pool})
 }
 
-// TestBackendMode_ExperimentDisabled asserts that without the experiment the
-// server selects interception before it ever talks to coderd: no MCP discovery
-// query is issued, and requests are served from the pool rather than a proxy
-// router.
-func TestBackendMode_ExperimentDisabled(t *testing.T) {
+func TestBackendMode_Interception(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		experiments codersdk.Experiments
+		response    *proto.GetMCPServerConfigsResponse
+		wantCalls   int32
+	}{
+		{name: "ExperimentDisabled", response: noMCPConfigs()},
+		{name: "CoderMCP", experiments: proxyExperiments(), response: coderMCPConfig(), wantCalls: 1},
+		{name: "ExternalAuthMCP", experiments: proxyExperiments(), response: externalMCPConfig(), wantCalls: 1},
+		{name: "Both", experiments: proxyExperiments(), wantCalls: 1, response: &proto.GetMCPServerConfigsResponse{
+			CoderMcpConfig:         coderMCPConfig().GetCoderMcpConfig(),
+			ExternalAuthMcpConfigs: externalMCPConfig().GetExternalAuthMcpConfigs(),
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newBackendServer(t, tc.experiments, func(int32) (*proto.GetMCPServerConfigsResponse, error) {
+				if tc.wantCalls == 0 {
+					t.Error("MCP discovery must not run when the experiment is disabled")
+				}
+				return tc.response, nil
+			}, false)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			waitReady(t, f.srv)
+			require.NotNil(t, f.srv.InterceptionPoolForTest())
+			require.Equal(t, tc.wantCalls, f.mcpCalls.Load())
 
-	f := newBackendServer(t, nil, func(int32) (*proto.GetMCPServerConfigsResponse, error) {
-		t.Error("MCP discovery must not run when the experiment is disabled")
-		return noMCPConfigs(), nil
-	}, false)
-
-	bridge := &sentinelHandler{body: "bridge"}
-	f.pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(bridge, nil)
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	waitReady(t, f.srv)
-
-	h, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
-	require.NoError(t, err)
-	require.Same(t, http.Handler(bridge), h, "requests must be served by the pool")
-	require.Equal(t, int32(0), f.mcpCalls.Load())
-
-	// Reloads reach the pool, and no proxy router is ever built.
-	providers := []aibridge.Provider{openAIProvider("openai", singleKeyPool(t, "openai", "key"))}
-	f.pool.EXPECT().ReplaceProviders(gomock.Any()).Times(1)
-	require.NoError(t, f.srv.ReplaceProviders(ctx, providers))
-	require.Nil(t, f.srv.KeyPools(), "a mock pool exposes no key pools; the proxy router must not be consulted")
+			require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{
+				openAIProvider("openai", singleKeyPool(t, "openai", "key")),
+			}))
+			requireKeyPoolState(t, f.srv, 1, "openai", "valid")
+		})
+	}
 }
 
-// TestBackendMode_ProxyWhenNoMCPConfigs pins the proxy selection path: with the
-// experiment on and no MCP configuration, requests are refused with 503 until
-// the first provider snapshot lands, after which the router serves and answers
-// unregistered routes with 404. The strict pool mock has no expectations, so
-// any pool use fails the test.
+// Proxy mode returns 503 until providers load, then 404 for unregistered routes.
 func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	t.Parallel()
 
@@ -196,12 +195,13 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	waitReady(t, f.srv)
 	require.Equal(t, int32(1), f.mcpCalls.Load())
+	require.Nil(t, f.srv.InterceptionPoolForTest())
 
 	h, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err, "the proxy backend must answer requests instead of erroring")
 	rec := serveHandler(t, h, "/openai/v1/chat/completions")
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code, "requests before the first snapshot must be refused")
-	require.Nil(t, f.srv.KeyPools())
+	requireNoKeyPoolState(t, f.srv, "openai", "valid")
 
 	pool := singleKeyPool(t, "openai", "key")
 	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{openAIProvider("openai", pool)}))
@@ -210,56 +210,10 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	require.NoError(t, err)
 	rec = serveHandler(t, h, "/openai/v1/chat/completions")
 	require.Equal(t, http.StatusNotFound, rec.Code, "the router has no provider routes registered yet")
-	require.Equal(t, []*keypool.Pool{pool}, f.srv.KeyPools())
+	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 }
 
-// TestBackendMode_InterceptionWhenMCPConfigured asserts that any MCP
-// configuration, from the Coder MCP server or from external auth, selects
-// interception even with the experiment enabled.
-func TestBackendMode_InterceptionWhenMCPConfigured(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name     string
-		response *proto.GetMCPServerConfigsResponse
-	}{
-		{name: "CoderMCP", response: coderMCPConfig()},
-		{name: "ExternalAuthMCP", response: externalMCPConfig()},
-		{name: "Both", response: &proto.GetMCPServerConfigsResponse{
-			CoderMcpConfig:         coderMCPConfig().GetCoderMcpConfig(),
-			ExternalAuthMcpConfigs: externalMCPConfig().GetExternalAuthMcpConfigs(),
-		}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			response := tc.response
-			f := newBackendServer(t, proxyExperiments(), staticConfigs(response), false)
-
-			bridge := &sentinelHandler{body: "bridge"}
-			f.pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(bridge, nil)
-			f.pool.EXPECT().ReplaceProviders(gomock.Any()).Times(1)
-
-			ctx := testutil.Context(t, testutil.WaitShort)
-			waitReady(t, f.srv)
-
-			h, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
-			require.NoError(t, err)
-			require.Same(t, http.Handler(bridge), h, "MCP configuration must select interception")
-
-			require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{
-				openAIProvider("openai", singleKeyPool(t, "openai", "key")),
-			}))
-			require.Nil(t, f.srv.KeyPools(), "interception must not publish a proxy router")
-		})
-	}
-}
-
-// TestBackendMode_SelectedOnceAcrossReconnects asserts that mode selection is a
-// startup decision: after a reconnect and further reloads the server keeps the
-// backend it chose, and it does not re-query MCP discovery.
+// Reconnects and reloads must not repeat mode selection.
 func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 	t.Parallel()
 
@@ -277,42 +231,30 @@ func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
-			pool := mock.NewMockPooler(ctrl)
 			closedCh := make(chan struct{})
-			// firstConn drives the initial connection and is closed to force a
-			// reconnect. secondConn is a fresh, never-closed connection returned
-			// on redial so the reconnect settles instead of looping on an
-			// already-closed connection.
+			// Redial switches to a fresh connection after the first is closed.
 			firstConn := newCountingDRPCConn(closedCh)
 			secondConn := newCountingDRPCConn(nil)
 			var activeConn atomic.Pointer[countingDRPCConn]
 			activeConn.Store(firstConn)
 			client.EXPECT().DRPCConn().AnyTimes().DoAndReturn(func() drpc.Conn { return activeConn.Load() })
 
-			first, second := tc.first, tc.second
 			calls := expectMCPConfigs(client, func(call int32) (*proto.GetMCPServerConfigsResponse, error) {
 				if call == 1 {
-					return first, nil
+					return tc.first, nil
 				}
-				return second, nil
+				return tc.second, nil
 			})
 
 			var dials atomic.Int32
-			srv, err := aibridged.New(t.Context(), pool, func(context.Context) (aibridged.DRPCClient, error) {
+			srv, err := aibridged.New(t.Context(), func(context.Context) (aibridged.DRPCClient, error) {
 				if dials.Add(1) >= 2 {
 					activeConn.Store(secondConn)
 				}
 				return client, nil
-			}, slogtest.Make(t, nil), testTracer, aibridged.WithExperiments(proxyExperiments()))
+			}, slogtest.Make(t, nil), testTracer, proxyExperiments(), nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
-
-			bridge := &sentinelHandler{body: "bridge"}
-			if tc.wantPool {
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).MinTimes(1).Return(bridge, nil)
-				pool.EXPECT().ReplaceProviders(gomock.Any()).MinTimes(1)
-			}
-			pool.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			waitReady(t, srv)
@@ -334,55 +276,40 @@ func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 
 			require.Equal(t, int32(1), calls.Load(), "MCP discovery must run once, at startup")
 
-			h, err := srv.GetRequestHandler(ctx, aibridged.Request{})
-			require.NoError(t, err)
 			if tc.wantPool {
-				require.Same(t, http.Handler(bridge), h)
-				require.Nil(t, srv.KeyPools())
+				require.NotNil(t, srv.InterceptionPoolForTest())
+				requireKeyPoolState(t, srv, 1, "openai", "valid")
 				return
 			}
-			require.NotSame(t, http.Handler(bridge), h)
-			require.Len(t, srv.KeyPools(), 1, "proxy mode must keep serving from its router")
+
+			h, err := srv.GetRequestHandler(ctx, aibridged.Request{})
+			require.NoError(t, err)
+			require.Nil(t, srv.InterceptionPoolForTest())
+			requireKeyPoolState(t, srv, 1, "openai", "valid")
 			require.Equal(t, http.StatusNotFound, serveHandler(t, h, "/openai/v1/chat/completions").Code)
 		})
 	}
 }
 
-// TestBackendMode_MCPDiscoveryFailureRetries asserts that a failed or malformed
-// discovery response is never read as "no MCP configured": no backend is
-// published, the connection is dropped, and selection is retried on the next
-// connection.
+// Failed discovery must discard the connection, not select proxy mode.
 func TestBackendMode_MCPDiscoveryFailureRetries(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name string
-		fail mcpConfigsFn
+		err  error
 	}{
-		{
-			name: "RPCError",
-			fail: func(call int32) (*proto.GetMCPServerConfigsResponse, error) {
-				if call <= 2 {
-					return nil, xerrors.New("boom")
-				}
-				return noMCPConfigs(), nil
-			},
-		},
-		{
-			name: "NilResponse",
-			fail: func(call int32) (*proto.GetMCPServerConfigsResponse, error) {
-				if call <= 2 {
-					//nolint:nilnil // exercises a malformed response
-					return nil, nil
-				}
-				return noMCPConfigs(), nil
-			},
-		},
+		{name: "RPCError", err: xerrors.New("boom")},
+		{name: "NilResponse"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			f := newBackendServer(t, proxyExperiments(), tc.fail, true)
+			f := newBackendServer(t, proxyExperiments(), func(call int32) (*proto.GetMCPServerConfigsResponse, error) {
+				if call <= 2 {
+					return nil, tc.err // A nil error exercises a malformed response.
+				}
+				return noMCPConfigs(), nil
+			}, true)
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			// While selection keeps failing the server is not ready and
@@ -392,7 +319,8 @@ func TestBackendMode_MCPDiscoveryFailureRetries(t *testing.T) {
 			h, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, h, "/openai/v1/chat/completions").Code)
-			require.Nil(t, f.srv.KeyPools())
+			requireNoKeyPoolState(t, f.srv, "openai", "valid")
+			require.Nil(t, f.srv.InterceptionPoolForTest())
 
 			waitReady(t, f.srv)
 			require.Equal(t, int32(3), f.mcpCalls.Load(), "selection must be retried on each new connection")
@@ -408,9 +336,7 @@ func TestBackendMode_MCPDiscoveryFailureRetries(t *testing.T) {
 	}
 }
 
-// TestReplaceProviders_SwapsRouter asserts the swap is atomic from a caller's
-// point of view: the published snapshot changes wholesale, and a handler
-// acquired before the swap keeps serving from the router it holds.
+// Reloads publish a new router while acquired handlers retain their snapshot.
 func TestReplaceProviders_SwapsRouter(t *testing.T) {
 	t.Parallel()
 
@@ -421,7 +347,7 @@ func TestReplaceProviders_SwapsRouter(t *testing.T) {
 
 	firstPool := singleKeyPool(t, "openai", "key")
 	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{openAIProvider("openai", firstPool)}))
-	require.Equal(t, []*keypool.Pool{firstPool}, f.srv.KeyPools())
+	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 
 	oldHandler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
@@ -431,8 +357,8 @@ func TestReplaceProviders_SwapsRouter(t *testing.T) {
 		openAIProvider("openai", firstPool),
 		openAIProvider("anthropic", secondPool),
 	}))
-	require.Equal(t, []*keypool.Pool{firstPool, secondPool}, f.srv.KeyPools(),
-		"KeyPools must report the new snapshot only")
+	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
+	requireKeyPoolState(t, f.srv, 1, "anthropic", "valid")
 
 	newHandler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
@@ -443,8 +369,7 @@ func TestReplaceProviders_SwapsRouter(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, serveHandler(t, newHandler, "/openai/v1/chat/completions").Code)
 }
 
-// TestReplaceProviders_FailureRetainsRouter asserts an invalid snapshot leaves
-// the previously published router serving.
+// Invalid snapshots leave the previous router serving.
 func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	t.Parallel()
 
@@ -464,16 +389,14 @@ func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "duplicate provider name")
 
-	require.Equal(t, []*keypool.Pool{good}, f.srv.KeyPools(), "a failed reload must retain the previous snapshot")
+	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 	retained, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
 	require.Same(t, handler, retained)
 	require.Equal(t, http.StatusNotFound, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
 }
 
-// TestReplaceProviders_ContextAndShutdown asserts a canceled context or a
-// shutdown server aborts the reload instead of publishing a snapshot, and that
-// shutdown stops serving the router even when it cannot finish gracefully.
+// Cancellation and shutdown prevent publication; shutdown also stops serving.
 func TestReplaceProviders_ContextAndShutdown(t *testing.T) {
 	t.Parallel()
 
@@ -488,7 +411,7 @@ func TestReplaceProviders_ContextAndShutdown(t *testing.T) {
 		require.ErrorIs(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{
 			openAIProvider("openai", singleKeyPool(t, "openai", "key")),
 		}), context.Canceled)
-		require.Nil(t, f.srv.KeyPools(), "a canceled reload must not publish a snapshot")
+		requireNoKeyPoolState(t, f.srv, "openai", "valid")
 	})
 
 	t.Run("AfterShutdown", func(t *testing.T) {
@@ -507,10 +430,6 @@ func TestReplaceProviders_ContextAndShutdown(t *testing.T) {
 		require.ErrorIs(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{
 			openAIProvider("openai", singleKeyPool(t, "openai", "key")),
 		}), aibridged.ErrShutdown)
-
-		// The pool handed to a proxy-mode server never serves requests, but
-		// it must still be released on shutdown.
-		require.GreaterOrEqual(t, f.poolShutdowns.Load(), int32(1))
 
 		// Shutdown refuses proxy requests, whether the handler was acquired
 		// before or after it.
@@ -542,8 +461,7 @@ func TestReplaceProviders_ContextAndShutdown(t *testing.T) {
 	})
 }
 
-// TestBackend_ConcurrentUse exercises request serving, reloads and shutdown
-// concurrently. It is meaningful under -race.
+// Exercise serving, reloads, metrics, and shutdown together under -race.
 func TestBackend_ConcurrentUse(t *testing.T) {
 	t.Parallel()
 
@@ -558,13 +476,7 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			response := tc.response
-			f := newBackendServer(t, proxyExperiments(), staticConfigs(response), true)
-			if !tc.proxy {
-				f.pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().
-					Return(&sentinelHandler{body: "bridge"}, nil)
-				f.pool.EXPECT().ReplaceProviders(gomock.Any()).AnyTimes()
-			}
+			f := newBackendServer(t, proxyExperiments(), staticConfigs(tc.response), true)
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			waitReady(t, f.srv)
@@ -592,7 +504,7 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 					for range 20 {
 						// Errors are expected once shutdown wins the race.
 						_ = f.srv.ReplaceProviders(ctx, providers)
-						_ = f.srv.KeyPools()
+						_ = collectServerMetrics(t, f.srv)
 					}
 				})
 			}

@@ -61,9 +61,9 @@ func StartTestAIBridgeDaemonWithPubsub(
 		metrics = aibridged.NewMetrics(prometheus.NewRegistry())
 	}
 
-	srv, err := aibridged.New(ctx, nil, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
+	srv, err := aibridged.New(ctx, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return api.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer, aibridged.WithExperiments(api.Experiments))
+	}, logger, tracer, api.Experiments, nil)
 	if err != nil {
 		t.Fatalf("create aibridged server: %v", err)
 	}

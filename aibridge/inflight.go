@@ -5,65 +5,59 @@ import (
 	"sync"
 )
 
-// InflightGate provides the shared request admission and drain machinery used
-// by the interception bridge and the reverse proxy tracker. It admits
-// requests until shutdown begins, counts the admitted ones, and lets callers
-// drain or forcibly cancel them. Mode-specific concerns, such as the refusal
-// status code, request counting, and whether a shutdown keeps waiting after
-// cancellation, stay with the caller.
-//
-// InflightGate is safe for concurrent use.
+// InflightGate counts admitted requests and links their contexts to Close.
+// It is safe for concurrent use. Must be created with NewInflightGate.
 type InflightGate struct {
-	// mu orders Admit's wg.Add (read-held) before BeginShutdown's
-	// close(closed) (write-held), so Add never races the drain waiter.
-	mu     sync.RWMutex
-	wg     sync.WaitGroup
-	closed chan struct{}
+	// mu guards active, closed, and closure of drained.
+	// Reads and writes of active and closed must hold mu.
+	mu      sync.Mutex
+	active  int
+	closed  bool
+	drained chan struct{}
 
-	// ctx is canceled by CancelInflight to abort admitted requests.
+	// ctx is canceled by Close to signal admitted requests.
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	// shutdownOnce guards BeginShutdown so the drain waiter starts once,
-	// after admission is closed. drained closes when the waiter finishes.
-	shutdownOnce sync.Once
-	drained      chan struct{}
 }
 
 // NewInflightGate returns a gate ready to admit requests.
 func NewInflightGate() *InflightGate {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &InflightGate{closed: make(chan struct{}), ctx: ctx, cancel: cancel}
+	return &InflightGate{drained: make(chan struct{}), ctx: ctx, cancel: cancel}
 }
 
-// Admit registers an in-flight request unless shutdown has begun. When ok is
-// true, onAdmit (if non-nil) runs while the admission lock is held, after the
-// shutdown check and before the request is counted, and the caller must call
-// release exactly once when the request finishes. When ok is false the request
-// must be refused and release is nil.
-//
-// Running onAdmit inside the admission lock lets callers observe a consistent
-// point between the shutdown check and the count, which the interception
-// bridge uses for a deterministic race trap.
+// Admit returns nil, false after shutdown begins. Otherwise, onAdmit runs
+// under the admission lock and release must be called exactly once when the
+// handler returns. onAdmit must not call other gate methods.
 func (g *InflightGate) Admit(onAdmit func()) (release func(), ok bool) {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-	select {
-	case <-g.closed:
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closed {
 		return nil, false
-	default:
 	}
 	if onAdmit != nil {
 		onAdmit()
 	}
-	g.wg.Add(1)
-	return g.wg.Done, true
+	g.active++
+	return g.release, true
 }
 
-// Track derives a request context from parent that is also canceled when a
-// forced shutdown aborts in-flight requests. The returned stop releases the
-// link and must be called when the request finishes.
-func (g *InflightGate) Track(parent context.Context) (context.Context, func()) {
+func (g *InflightGate) release() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.active--
+	if g.active < 0 {
+		panic("aibridge: released an unregistered request")
+	}
+	if g.closed && g.active == 0 {
+		close(g.drained)
+	}
+}
+
+// RequestContext derives a context canceled by either the parent or forced
+// shutdown. The caller must invoke cleanup when the handler returns to
+// unregister the shutdown callback and cancel the derived context.
+func (g *InflightGate) RequestContext(parent context.Context) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(parent)
 	stop := context.AfterFunc(g.ctx, cancel)
 	return ctx, func() {
@@ -72,33 +66,40 @@ func (g *InflightGate) Track(parent context.Context) (context.Context, func()) {
 	}
 }
 
-// BeginShutdown stops admitting new requests and returns a channel that closes
-// once every admitted request has finished. It is idempotent: repeated calls
-// return the same channel and only the first has any effect.
-//
-// The drain waiter is started here, after admission is closed under the write
-// lock, so no in-flight Admit can wg.Add concurrently with the waiter's
-// wg.Wait (see mu). Combining the close and the waiter into one call keeps that
-// ordering an invariant of the type rather than a caller obligation. The waiter
-// runs to completion even if the caller stops waiting, so callers may keep
-// waiting on the channel after a forced cancellation.
-func (g *InflightGate) BeginShutdown() <-chan struct{} {
-	g.shutdownOnce.Do(func() {
-		g.mu.Lock()
-		close(g.closed)
-		g.mu.Unlock()
+// Shutdown stops admission and waits for all admitted requests to finish.
+// If ctx expires, it returns ctx.Err() without canceling request contexts.
+func (g *InflightGate) Shutdown(ctx context.Context) error {
+	done := g.stopAdmission()
+	// Prefer completed drainage, including an idle gate with an expired ctx.
+	select {
+	case <-done:
+		return nil
+	default:
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
-		g.drained = make(chan struct{})
-		go func() {
-			g.wg.Wait()
+// stopAdmission returns the channel closed by the last admitted release.
+func (g *InflightGate) stopAdmission() <-chan struct{} {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.closed {
+		g.closed = true
+		if g.active == 0 {
 			close(g.drained)
-		}()
-	})
+		}
+	}
 	return g.drained
 }
 
-// CancelInflight cancels the context returned to admitted requests through
-// Track, aborting those that observe cancellation.
-func (g *InflightGate) CancelInflight() {
+// Close stops admission and cancels request contexts without waiting.
+// It does not close network connections or force handlers to return.
+func (g *InflightGate) Close() {
+	g.stopAdmission()
 	g.cancel()
 }

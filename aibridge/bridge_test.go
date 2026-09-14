@@ -89,26 +89,20 @@ func TestRequestBridgeShutdownAdmissionRace(t *testing.T) {
 	_ = codertestutil.TryReceive(ctx, t, shutdown)
 }
 
-// TestRequestBridgeShutdownDeadlineCancelsAndDrains asserts the
-// interception-specific deadline ordering: when Shutdown's context is already
-// expired and a request is still in flight, Shutdown cancels the request and
-// waits for the drain before returning, so the request is no longer counted
-// once Shutdown returns. This is the behavior the proxy tracker deliberately
-// does not share (it returns on deadline without waiting); AIGOV-649 revisits
-// the interception wait.
-func TestRequestBridgeShutdownDeadlineCancelsAndDrains(t *testing.T) {
+// TestRequestBridgeShutdownDeadlineCancels verifies that deadline cancellation
+// lets an in-flight proxy request finish without releasing the upstream manually.
+func TestRequestBridgeShutdownDeadlineCancels(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
+	// Set up an upstream that waits for cancellation or test cleanup.
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started <- struct{}{}
-		// Only client-side cancellation (driven by Shutdown) or the test's
-		// backstop should end this request; it never completes on its own.
 		select {
 		case <-release:
 		case <-r.Context().Done():
@@ -118,6 +112,7 @@ func TestRequestBridgeShutdownDeadlineCancelsAndDrains(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	t.Cleanup(func() { close(release) })
 
+	// Send a request through the bridge to exercise upstream cancellation.
 	rec := testutil.MockRecorder{}
 	prov := aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})
 	bridge, err := aibridge.NewRequestBridge(ctx, []provider.Provider{prov}, &rec, nil, logger, nil, bridgeTestTracer)
@@ -133,22 +128,15 @@ func TestRequestBridgeShutdownDeadlineCancelsAndDrains(t *testing.T) {
 	_ = codertestutil.TryReceive(ctx, t, started)
 	require.EqualValues(t, 1, bridge.InflightRequests())
 
-	// Shut down with an already-expired context. The request is still blocked,
-	// so Shutdown must cancel it and wait for the drain rather than returning
-	// immediately.
+	// Shut down with an already-expired context to cancel the blocked request.
 	deadlineCtx, cancelDeadline := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancelDeadline()
 	require.ErrorIs(t, bridge.Shutdown(deadlineCtx), context.DeadlineExceeded)
 
-	// Shutdown waited for the drain: the request finished (via cancellation,
-	// since release was never closed) and is no longer counted the moment
-	// Shutdown returns.
+	// The request finishes after cancellation while release remains open.
+	// Completion need not precede Shutdown returning.
+	_ = codertestutil.TryReceive(ctx, t, reqDone)
 	require.Zero(t, bridge.InflightRequests())
-	select {
-	case <-reqDone:
-	case <-ctx.Done():
-		t.Fatal("request did not finish after Shutdown returned")
-	}
 }
 
 func TestValidateProviders(t *testing.T) {

@@ -52,14 +52,14 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 
 	// Create daemon. Construct it before subscribing so the reloader can use
 	// srv.Client to fetch providers over the in-memory RPC.
-	srv, err := aibridged.New(ctx, nil, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
+	srv, err := aibridged.New(ctx, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer, aibridged.WithExperiments(coderAPI.Experiments), aibridged.WithMetrics(metrics))
+	}, logger, tracer, coderAPI.Experiments, metrics)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}
 
-	reg.MustRegister(keypool.NewStateCollector(srv.KeyPools))
+	reg.MustRegister(srv.KeyPoolStateCollector())
 
 	// Subscribe to ai_providers change events so the backend tracks the database
 	// without a restart, and perform the initial reload. The reload data path
