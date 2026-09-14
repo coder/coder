@@ -1883,8 +1883,7 @@ FROM chats_expanded;
 --      disappeared).
 --   3. Waiting chats with a non-empty queue and stale updated_at
 --      (deferred-promote stranding when the worker dies before its
---      post-cancel cleanup runs). Paused chats hold their queue on
---      purpose and are not stranded.
+--      post-cancel cleanup runs). Paused chats are excluded.
 SELECT
     *
 FROM
@@ -2047,10 +2046,7 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
--- Client-visible queue in processing order. position, not created_at,
--- is what promotion follows: "send now" moves a row to the head by
--- lowering its position, and clients derive the paused tail behind a
--- held row from this order.
+-- Processing order: position, not created_at.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
 ORDER BY position ASC, id ASC;
@@ -2815,16 +2811,13 @@ WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC;
 
 -- name: CountChatQueuedMessages :one
--- Queue-length check used for the queue capacity limit. Held rows
--- count: a hold does not free capacity.
+-- Counts every queued row, held or not.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id). The head
--- may be held; chatstate.LoadQueueState decides whether it is
--- promotable.
+-- Returns the queue head (lowest position, then lowest id).
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC
@@ -2846,10 +2839,8 @@ DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: UpdateChatQueuedMessageHeld :one
--- Sets or clears held_at on one row. Setting is idempotent: an
--- already-held row keeps its original held_at. A chat has at most one
--- held row (chat_queued_messages_one_held_per_chat); callers that move
--- the hold clear the previous row first, in a separate statement.
+-- Sets or clears held_at on one row. An already-held row keeps its
+-- held_at.
 UPDATE chat_queued_messages
 SET held_at = CASE WHEN @held::boolean THEN COALESCE(held_at, NOW()) ELSE NULL END
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid

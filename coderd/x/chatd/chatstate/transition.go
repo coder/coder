@@ -43,14 +43,9 @@ func (t Transition) String() string { return string(t) }
 // last queued message, or stays in E1 otherwise), which is why several
 // entries list more than one output.
 //
-// A queued row may be held (held_at) while its owner edits it. The
-// hold is consulted only at turn boundaries: FinishTurn from R1,
-// FinishInterruption from I1, and SendMessage from E1 do not promote a
-// held head. From R1 and I1 the chat then lands in P instead of
-// promoting; P is waiting with a held head and is left only by
-// releasing, sending, or deleting that head, or by editing history.
-// Everywhere else the queue classifies by row count exactly as before,
-// so a hold changes no other cell.
+// A held queue head (held_at) is not promoted by FinishTurn from R1,
+// FinishInterruption from I1, or SendMessage from E1; from R1 and I1
+// the chat lands in P instead.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.

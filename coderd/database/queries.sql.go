@@ -7829,8 +7829,7 @@ FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 `
 
-// Queue-length check used for the queue capacity limit. Held rows
-// count: a hold does not free capacity.
+// Counts every queued row, held or not.
 func (q *sqlQuerier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countChatQueuedMessages, chatID)
 	var count int64
@@ -9380,9 +9379,7 @@ ORDER BY position ASC, id ASC
 LIMIT 1
 `
 
-// Returns the queue head (lowest position, then lowest id). The head
-// may be held; chatstate.LoadQueueState decides whether it is
-// promotable.
+// Returns the queue head (lowest position, then lowest id).
 func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedMessageHead, chatID)
 	var i ChatQueuedMessage
@@ -9406,10 +9403,7 @@ WHERE chat_id = $1
 ORDER BY position ASC, id ASC
 `
 
-// Client-visible queue in processing order. position, not created_at,
-// is what promotion follows: "send now" moves a row to the head by
-// lowering its position, and clients derive the paused tail behind a
-// held row from this order.
+// Processing order: position, not created_at.
 func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatQueuedMessages, chatID)
 	if err != nil {
@@ -10547,8 +10541,7 @@ WHERE
 //     disappeared).
 //  3. Waiting chats with a non-empty queue and stale updated_at
 //     (deferred-promote stranding when the worker dies before its
-//     post-cancel cleanup runs). Paused chats hold their queue on
-//     purpose and are not stranded.
+//     post-cancel cleanup runs). Paused chats are excluded.
 func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getStaleChats, staleThreshold)
 	if err != nil {
@@ -13293,10 +13286,8 @@ type UpdateChatQueuedMessageHeldParams struct {
 	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
-// Sets or clears held_at on one row. Setting is idempotent: an
-// already-held row keeps its original held_at. A chat has at most one
-// held row (chat_queued_messages_one_held_per_chat); callers that move
-// the hold clear the previous row first, in a separate statement.
+// Sets or clears held_at on one row. An already-held row keeps its
+// held_at.
 func (q *sqlQuerier) UpdateChatQueuedMessageHeld(ctx context.Context, arg UpdateChatQueuedMessageHeldParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageHeld, arg.Held, arg.ID, arg.ChatID)
 	var i ChatQueuedMessage
