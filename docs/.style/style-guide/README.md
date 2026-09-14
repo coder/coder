@@ -23,8 +23,8 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
 The guide documents 71 rules.
-Automated tooling checks 10 of them, and 1 of those 10 doesn't run on published pages.
-The other 61 are yours to apply by reading.
+Automated tooling checks 9 of them, and 1 of those 9 doesn't run on published pages.
+The other 62 are yours to apply by reading.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -40,6 +40,9 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                | Heading increments, single H1, fence language, missing alt text |
 | `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                  | Em-dash, en-dash, and ` -- ` as punctuation                     |
 
+The markdownlint row lists only the rules that map to a rule in this guide.
+markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.
+
 Vale runs advisory.
 `make lint/prose` passes `--no-exit`, and the CI step is advisory by design, so no Vale finding fails a build at any severity.
 Findings accumulate instead of blocking: rules that shipped against a clean corpus have since collected a backlog of warnings in `docs/`.
@@ -53,11 +56,15 @@ The markdownlint and emdash checks do fail the build.
 | [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
 | [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
 | [Word choice](./word-choice.md)                                       | 14    | 2            | 10      | 2                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 3            | 4       | 6                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 4       | 7                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
 | [Formatting](./formatting.md)                                         | 12    | 3            | 0       | 9                  |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
-| **Total**                                                             | 71    | 10           | 27      | 34                 |
+| **Total**                                                             | 71    | 9            | 27      | 35                 |
+
+Every column counts rule sections, not linter rule names.
+A section counts as tool-checked when an active check enforces any part of it, planned when the only rule it names isn't running, and documentation-only when it names no rule at all.
+One section can cite several linter rules and still count once.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.
