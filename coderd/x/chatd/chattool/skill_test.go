@@ -127,6 +127,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		resolved := skillspkg.MergeSkills(
 			[]skillspkg.Skill{{Name: "review", Description: "Personal", Source: skillspkg.SourcePersonal}},
 			[]skillspkg.Skill{{Name: "review", Description: "Workspace", Source: skillspkg.SourceWorkspace}},
+			nil,
 		)
 		idx := chattool.FormatResolvedSkillIndex(resolved)
 		assert.Contains(t, idx, "- personal/review: Personal")
