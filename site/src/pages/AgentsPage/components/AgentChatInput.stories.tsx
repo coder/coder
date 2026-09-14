@@ -722,6 +722,20 @@ export const MCPGroupDisabled: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
+export const MCPGroupDisconnectDialog: Story = {
+	args: WithMCPServers.args,
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
+		);
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+	},
+};
+
 /** MCP server needing OAuth — shows Auth button instead of toggle. */
 export const WithMCPNeedingAuth: Story = {
 	args: {
