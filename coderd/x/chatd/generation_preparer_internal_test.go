@@ -1,9 +1,11 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
@@ -19,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -179,6 +182,178 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	// Non-streaming summaries must not inherit the default output cap the
 	// Anthropic SDK rejects.
 	require.Nil(t, summaryCall.MaxOutputTokens)
+}
+
+func hasToolNamed(tools []fantasy.AgentTool, name string) bool {
+	for _, tool := range tools {
+		if tool.Info().Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Without an active goal the built-in goal tools are not offered, so
+// their names must not become stop-after entries where they would stop
+// the turn after a colliding user-defined dynamic tool. While stop-after
+// recognition is armed the tools must also stay registered, so a pending
+// call left by a crash between the goal transition commit and its
+// tool-result commit dispatches to the replay handler instead of failing
+// as an unknown tool.
+func TestPrepareGenerationStopAfterGoalToolsRequireActiveGoal(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "goal stop-after gating",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "hello"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+	require.NotContains(t, prepared.StopAfterTools, chattool.CompleteGoalToolName)
+	require.False(t, hasToolNamed(prepared.Tools, chattool.CompleteGoalToolName))
+
+	goal, err := db.InsertActiveChatGoal(ctx, database.InsertActiveChatGoalParams{
+		RootChatID:      created.Chat.ID,
+		Objective:       "stay on task",
+		CreatedByUserID: user.ID,
+	})
+	require.NoError(t, err)
+
+	withGoal, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(withGoal.Cleanup)
+	require.Contains(t, withGoal.StopAfterTools, chattool.CompleteGoalToolName)
+	require.True(t, hasToolNamed(withGoal.Tools, chattool.CompleteGoalToolName))
+
+	// A dynamic tool may not impersonate the recognized marker name; the
+	// registered collision is dropped whenever recognition is armed.
+	dynamicTools, err := json.Marshal([]codersdk.DynamicTool{{Name: chattool.CompleteGoalToolName}})
+	require.NoError(t, err)
+	created.Chat.DynamicTools = pqtype.NullRawMessage{RawMessage: dynamicTools, Valid: true}
+
+	// complete_goal transitions the goal before its tool result commits,
+	// so preparations later in the same turn must keep recognizing it as
+	// a stop marker or the turn invokes the model again past the marker.
+	completed, err := db.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+		RootChatID:        created.Chat.ID,
+		ID:                goal.ID,
+		CompletionSummary: sql.NullString{String: "done", Valid: true},
+		CompletedByAgent:  true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatGoalStatusComplete, completed.Status)
+
+	afterComplete, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(afterComplete.Cleanup)
+	require.Contains(t, afterComplete.StopAfterTools, chattool.CompleteGoalToolName)
+	require.NotContains(t, afterComplete.DynamicToolNames, chattool.CompleteGoalToolName)
+	require.True(t, hasToolNamed(afterComplete.Tools, chattool.CompleteGoalToolName),
+		"a pending complete_goal call left by a crash after the transition committed must stay dispatchable for replay")
+
+	// A hook context row reuses the user role with model-only visibility
+	// and is persisted after the transition; it is not a turn boundary,
+	// so it must not disarm recognition mid-turn.
+	hookContext := created.InitialMessages[len(created.InitialMessages)-1]
+	hookContext.ID++
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	hookContext.CreatedAt = completed.UpdatedAt.Add(time.Second)
+	afterHookContext, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: append(append([]database.ChatMessage{}, created.InitialMessages...), hookContext),
+	})
+	require.NoError(t, err)
+	t.Cleanup(afterHookContext.Cleanup)
+	require.Contains(t, afterHookContext.StopAfterTools, chattool.CompleteGoalToolName)
+	require.NotContains(t, afterHookContext.DynamicToolNames, chattool.CompleteGoalToolName)
+
+	// A turn triggered after the transition no longer recognizes the
+	// marker, so the dynamic name cannot impersonate it and becomes
+	// usable again. The synthetic trigger message is timestamped from
+	// the goal row's database clock to keep the ordering deterministic.
+	laterTrigger := created.InitialMessages[len(created.InitialMessages)-1]
+	laterTrigger.ID++
+	laterTrigger.CreatedAt = completed.UpdatedAt.Add(time.Second)
+	laterTurn, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: append(append([]database.ChatMessage{}, created.InitialMessages...), laterTrigger),
+	})
+	require.NoError(t, err)
+	t.Cleanup(laterTurn.Cleanup)
+	require.NotContains(t, laterTurn.StopAfterTools, chattool.CompleteGoalToolName)
+	require.Contains(t, laterTurn.DynamicToolNames, chattool.CompleteGoalToolName)
+	// The colliding name survives as a dynamic tool only; the built-in
+	// goal tool is no longer registered.
+	require.False(t, laterTurn.BuiltinToolNames[chattool.CompleteGoalToolName])
+
+	// A cleared goal is no longer current, so recognition ends with it.
+	cleared, err := db.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+		RootChatID: created.Chat.ID,
+		ID:         goal.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatGoalStatusCleared, cleared.Status)
+
+	afterClear, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(afterClear.Cleanup)
+	require.NotContains(t, afterClear.StopAfterTools, chattool.CompleteGoalToolName)
+	require.Contains(t, afterClear.DynamicToolNames, chattool.CompleteGoalToolName)
+	require.False(t, afterClear.BuiltinToolNames[chattool.CompleteGoalToolName])
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
