@@ -197,9 +197,12 @@ type logEntry struct {
 	fields []slog.Field
 }
 
-// logResult logs the outcome of delegating a record to the wrapped recorder and
-// returns err unchanged. payload is the record itself, logged with the failure
-// message which [AsyncRecorder] used to emit.
+// logResult centralizes logging done throughout the [LogRecorder] for consistency.
+// [LogRecorder] takes over the logging responsibility from both [WrappedRecorder]
+// and [AsyncRecorder]. To preserve the inherited behavior, it logs two similar
+// lines for every call. This duplicate logging is suboptimal, but also load bearing.
+// It cannot be easily deduplicated, because customers have had the opportunity to
+// build observability and alerting based on it.
 func (r *LogRecorder) logResult(ctx context.Context, logs logEntry, payload any, err error) error {
 	if err == nil {
 		r.logger.Debug(ctx, logs.success, logs.fields...)
