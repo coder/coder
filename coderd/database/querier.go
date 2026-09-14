@@ -355,11 +355,6 @@ type sqlcQuerier interface {
 	// between validation and writing the model config reference.
 	GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
-	// Returns the display metadata AI Gateway session viewers need to filter
-	// interceptions by provider_name. Soft-deleted and disabled rows are
-	// included because interceptions keep referencing them. When a name has
-	// been reused, the live row wins so current metadata is shown.
-	GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
 	// Returns the provider IDs that have at least one provider-scoped key.
 	GetAIProviderKeyPresence(ctx context.Context, providerIds []uuid.UUID) ([]uuid.UUID, error)

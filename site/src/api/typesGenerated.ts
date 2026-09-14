@@ -72,19 +72,6 @@ export interface AIBridgeModelThought {
 	readonly text: string;
 }
 
-// From codersdk/aibridge.go
-/**
- * AIBridgeProvider is the display metadata for a configured AI provider,
- * used to filter AI Gateway sessions by provider_name. It carries no
- * configuration so it can be served to anyone who can read sessions.
- */
-export interface AIBridgeProvider {
-	readonly name: string;
-	readonly type: AIProviderType;
-	readonly display_name: string;
-	readonly icon: string;
-}
-
 // From codersdk/deployment.go
 export interface AIBridgeProxyConfig {
 	readonly enabled: boolean;

@@ -1,7 +1,4 @@
 import type { FC } from "react";
-import { API } from "#/api/api";
-import type { AIBridgeProvider } from "#/api/typesGenerated";
-import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -10,13 +7,25 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
-import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
+import { getProviderDisplayName } from "../utils";
 
-const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => ({
-	value: provider.name,
-	label: provider.display_name || provider.name,
-	startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
+// Runtime provider types recorded on interceptions. Configured provider
+// types collapse into these: azure, google, openai-compat, openrouter and
+// vercel route through openai; bedrock routes through anthropic. Matching
+// the session rows, which display the same values, means no provider
+// configuration lookup (owner-only) is needed to populate the filter.
+const PROVIDERS = ["anthropic", "openai", "copilot"] as const;
+
+const toFilterOption = (provider: string): SelectFilterOption => ({
+	value: provider,
+	label: getProviderDisplayName(provider),
+	startIcon: (
+		<AIBridgeProviderIcon provider={provider} className="size-icon-sm" />
+	),
 });
+
+const providerOptions = PROVIDERS.map(toFilterOption);
 
 export const useProviderFilterMenu = ({
 	value,
@@ -24,21 +33,14 @@ export const useProviderFilterMenu = ({
 	enabled,
 }: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
 	return useFilterMenu({
-		id: "provider_name",
+		id: "provider",
 		getSelectedOption: async () => {
 			if (!value) {
 				return null;
 			}
-			const providers = await API.getAIBridgeProviders();
-			const match = providers.find((p) => p.name === value);
-			return match ? toFilterOption(match) : null;
+			return providerOptions.find((option) => option.value === value) ?? null;
 		},
-		// The provider list is small and useFilterMenu filters options
-		// client-side by label and value, so the query is not sent upstream.
-		getOptions: async () => {
-			const providers = await API.getAIBridgeProviders();
-			return providers.map(toFilterOption);
-		},
+		getOptions: async () => providerOptions,
 		value,
 		onChange,
 		enabled,
@@ -62,13 +64,6 @@ export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
-			selectFilterSearch={
-				<ComboboxInput
-					placeholder="Search provider..."
-					value={menu.query}
-					onValueChange={menu.setQuery}
-				/>
-			}
 		/>
 	);
 };

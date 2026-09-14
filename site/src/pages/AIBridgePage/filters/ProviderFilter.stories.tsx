@@ -9,30 +9,8 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
-import type { AIBridgeProvider } from "#/api/typesGenerated";
 import { withDesktopViewport } from "#/testHelpers/storybook";
 import { ProviderFilter, useProviderFilterMenu } from "./ProviderFilter";
-
-const providers: AIBridgeProvider[] = [
-	{
-		name: "anthropic-prod",
-		type: "anthropic",
-		display_name: "Anthropic (prod)",
-		icon: "",
-	},
-	{
-		name: "openai-prod",
-		type: "openai",
-		display_name: "",
-		icon: "",
-	},
-	{
-		name: "acme-gateway",
-		type: "openai-compat",
-		display_name: "Acme Gateway",
-		icon: "/emojis/1f9ea.png",
-	},
-];
 
 function ProviderFilterWithMenu({ value: initialValue }: { value?: string }) {
 	const [value, setValue] = useState(initialValue);
@@ -48,7 +26,8 @@ const meta = {
 	component: ProviderFilterWithMenu,
 	decorators: [withDesktopViewport],
 	beforeEach: () => {
-		spyOn(API, "getAIBridgeProviders").mockResolvedValue(providers);
+		// Auditors cannot read provider configuration; the filter must not
+		// depend on it.
 		spyOn(API.experimental, "listAIProviders").mockRejectedValue(
 			new Error("listAIProviders should not be called"),
 		);
@@ -65,45 +44,28 @@ export const Open: Story = {
 			canvas.getByRole("button", { name: "Select provider" }),
 		);
 		await waitFor(() => {
-			// Display name wins, and falls back to the configured name.
 			expect(
-				screen.getByRole("option", { name: /Anthropic \(prod\)/ }),
+				screen.getByRole("option", { name: /Anthropic/ }),
 			).toBeInTheDocument();
 			expect(
-				screen.getByRole("option", { name: /openai-prod/ }),
+				screen.getByRole("option", { name: /OpenAI/ }),
 			).toBeInTheDocument();
 			expect(
-				screen.getByRole("option", { name: /Acme Gateway/ }),
+				screen.getByRole("option", { name: /GitHub Copilot/ }),
 			).toBeInTheDocument();
 		});
-		expect(API.getAIBridgeProviders).toHaveBeenCalled();
-	},
-};
-
-export const Empty: Story = {
-	beforeEach: () => {
-		spyOn(API, "getAIBridgeProviders").mockResolvedValue([]);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Select provider" }),
-		);
-		await waitFor(() => {
-			expect(screen.getByText("No providers found")).toBeVisible();
-		});
-		expect(screen.queryByRole("option")).toBeNull();
+		expect(API.experimental.listAIProviders).not.toHaveBeenCalled();
 	},
 };
 
 export const Preselected: Story = {
-	args: { value: "anthropic-prod" },
+	args: { value: "anthropic" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Select provider" }),
-			).toHaveTextContent("Anthropic (prod)");
+			).toHaveTextContent("Anthropic");
 		});
 	},
 };
@@ -115,36 +77,12 @@ export const SelectingOption: Story = {
 		await userEvent.click(button);
 		await waitFor(() => {
 			expect(
-				screen.getByRole("option", { name: /openai-prod/ }),
+				screen.getByRole("option", { name: /OpenAI/ }),
 			).toBeInTheDocument();
 		});
-		await userEvent.click(screen.getByRole("option", { name: /openai-prod/ }));
+		await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 		await waitFor(() => {
-			expect(button).toHaveTextContent("openai-prod");
-		});
-	},
-};
-
-export const Searching: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Select provider" }),
-		);
-		await waitFor(() => {
-			expect(
-				screen.getByRole("option", { name: /openai-prod/ }),
-			).toBeInTheDocument();
-		});
-		await userEvent.type(
-			screen.getByPlaceholderText("Search provider..."),
-			"acme",
-		);
-		await waitFor(() => {
-			expect(
-				screen.getByRole("option", { name: /Acme Gateway/ }),
-			).toBeInTheDocument();
-			expect(screen.queryByRole("option", { name: /openai-prod/ })).toBeNull();
+			expect(button).toHaveTextContent("OpenAI");
 		});
 	},
 };

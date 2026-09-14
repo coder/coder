@@ -788,34 +788,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/ai-gateway/providers": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Gateway"
-                ],
-                "summary": "List AI Gateway providers",
-                "operationId": "list-ai-gateway-providers",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.AIBridgeProvider"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/ai-gateway/serve": {
             "get": {
                 "tags": [
@@ -17554,23 +17526,6 @@ const docTemplate = `{
             "properties": {
                 "text": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeProvider": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "type": {
-                    "$ref": "#/definitions/codersdk.AIProviderType"
                 }
             }
         },
