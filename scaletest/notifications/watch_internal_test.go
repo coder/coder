@@ -26,9 +26,9 @@ func TestWatchNotifications_CountsPerTypeAndDedupes(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 
-	typeOnce := uuid.New()    // expected once
-	typeTwice := uuid.New()   // expected twice (e.g. two template deletions)
-	typeIgnored := uuid.New() // not under test
+	typeOnce := uuid.New()
+	typeTwice := uuid.New() // two receipts, e.g. two template deletions
+	typeIgnored := uuid.New()
 
 	onceID := uuid.New()
 	twiceFirstID := uuid.New()

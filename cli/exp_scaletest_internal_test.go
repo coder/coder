@@ -5,10 +5,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/scaletest/notifications"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestNotificationTriggersTriggerTimeFor covers the per-notification latency
@@ -103,6 +109,104 @@ func TestNotificationTriggersTriggerTimeFor(t *testing.T) {
 			require.True(t, tc.wantTime.Equal(gotTime), "want %s, got %s", tc.wantTime, gotTime)
 		})
 	}
+}
+
+// TestComputeNotificationLatencies verifies that every recorded receipt produces
+// its own latency sample: websocket receipts are correlated to the deleted
+// template named in their targets, SMTP receipts are measured against the batch
+// start, and failed runs are skipped entirely.
+func TestComputeNotificationLatencies(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+
+	notificationType := notificationsLib.TemplateTemplateDeleted
+	deletedTemplate1 := uuid.New()
+	deletedTemplate2 := uuid.New()
+
+	batchStart := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
+	delete1 := batchStart.Add(1 * time.Second)
+	delete2 := batchStart.Add(2 * time.Second)
+
+	triggerCh := make(chan notificationTriggers, 1)
+	triggerCh <- notificationTriggers{
+		deleteTimes: map[uuid.UUID]time.Time{
+			deletedTemplate1: delete1,
+			deletedTemplate2: delete2,
+		},
+		batchStart: batchStart,
+	}
+
+	results := harness.Results{
+		Runs: map[string]harness.RunResult{
+			// Failed runs are skipped, so their receipts must not be measured.
+			"failed": {
+				Error: xerrors.New("run failed"),
+				Metrics: map[string]any{
+					notifications.WebsocketNotificationReceiptTimeMetric: map[uuid.UUID][]notifications.ReceivedNotification{
+						notificationType: {
+							{ReceiptTime: delete1.Add(time.Second), Targets: []uuid.UUID{deletedTemplate1}},
+						},
+					},
+				},
+			},
+			// Two websocket receipts of the same type, each correlated to its own
+			// deleted template, must yield two samples.
+			"websocket": {
+				Metrics: map[string]any{
+					notifications.WebsocketNotificationReceiptTimeMetric: map[uuid.UUID][]notifications.ReceivedNotification{
+						notificationType: {
+							{ReceiptTime: delete1.Add(3 * time.Second), Targets: []uuid.UUID{deletedTemplate1}},
+							{ReceiptTime: delete2.Add(5 * time.Second), Targets: []uuid.UUID{deletedTemplate2}},
+						},
+					},
+				},
+			},
+			// SMTP summaries carry no targets and are measured against batchStart.
+			"smtp": {
+				Metrics: map[string]any{
+					notifications.SMTPNotificationReceiptTimeMetric: map[uuid.UUID][]time.Time{
+						notificationType: {batchStart.Add(4 * time.Second)},
+					},
+				},
+			},
+		},
+	}
+
+	reg := prometheus.NewRegistry()
+	metrics := notifications.NewMetrics(reg)
+
+	require.NoError(t, computeNotificationLatencies(ctx, logger, triggerCh, results, metrics))
+
+	require.Equal(t, uint64(2), latencySampleCount(t, reg, notifications.NotificationTypeWebsocket),
+		"each websocket receipt should produce its own latency sample")
+	require.Equal(t, uint64(1), latencySampleCount(t, reg, notifications.NotificationTypeSMTP),
+		"each SMTP receipt should produce a batch-relative latency sample")
+}
+
+// latencySampleCount returns how many latency observations were recorded for the
+// given notification type across all label sets.
+func latencySampleCount(t *testing.T, reg *prometheus.Registry, notificationType notifications.NotificationType) uint64 {
+	t.Helper()
+
+	mfs, err := reg.Gather()
+	require.NoError(t, err)
+
+	var total uint64
+	for _, mf := range mfs {
+		if mf.GetName() != "coderd_scaletest_notification_delivery_latency_seconds" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, label := range m.GetLabel() {
+				if label.GetName() == "notification_type" && label.GetValue() == string(notificationType) {
+					total += m.GetHistogram().GetSampleCount()
+				}
+			}
+		}
+	}
+	return total
 }
 
 // TestFilterScaletestUsersByPrefix covers the pure user-selection logic behind

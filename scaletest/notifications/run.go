@@ -160,8 +160,14 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	if r.cfg.SMTPApiURL != "" {
 		logger.Info(ctx, "running SMTP notification watcher")
+		// The SMTP watcher can only wait for one email per type, so it needs just
+		// the set of expected types, not their per-type counts.
+		expectedTypes := make(map[uuid.UUID]struct{}, len(r.cfg.ExpectedNotifications))
+		for id := range r.cfg.ExpectedNotifications {
+			expectedTypes[id] = struct{}{}
+		}
 		eg.Go(func() error {
-			return r.watchNotificationsSMTP(egCtx, newUser, logger, r.cfg.ExpectedNotifications)
+			return r.watchNotificationsSMTP(egCtx, newUser, logger, expectedTypes)
 		})
 	}
 
@@ -243,7 +249,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 
 	logger.Info(ctx, "waiting for notifications",
 		slog.F("username", user.Username),
-		slog.F("expected_count", totalExpected))
+		slog.F("expected_total_count", totalExpected))
 
 	// seen tracks notification instance IDs to guard against duplicate delivery.
 	seen := make(map[uuid.UUID]struct{})
@@ -321,11 +327,12 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 // watchNotificationsSMTP polls the SMTP HTTP API for notifications and returns error or nil
 // once all expected notifications are received. It waits for at least one email
 // per expected notification type; SMTP summaries carry no per-message ID, so it
-// cannot distinguish repeated deliveries of the same type.
-func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]int) error {
+// cannot distinguish repeated deliveries of the same type and therefore only
+// needs the set of expected types, not their per-type counts.
+func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User, logger slog.Logger, expectedTypes map[uuid.UUID]struct{}) error {
 	logger.Info(ctx, "polling SMTP API for notifications",
 		slog.F("email", user.Email),
-		slog.F("expected_count", len(expectedNotifications)),
+		slog.F("expected_type_count", len(expectedTypes)),
 	)
 	receivedNotifications := make(map[uuid.UUID]struct{})
 
@@ -378,7 +385,7 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 				continue
 			}
 
-			if _, exists := expectedNotifications[notificationID]; exists {
+			if _, exists := expectedTypes[notificationID]; exists {
 				if _, received := receivedNotifications[notificationID]; !received {
 					receiptTime := summary.Date
 					if receiptTime.IsZero() {
@@ -398,7 +405,7 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 			}
 		}
 
-		if len(receivedNotifications) == len(expectedNotifications) {
+		if len(receivedNotifications) == len(expectedTypes) {
 			logger.Info(ctx, "received all expected notifications via SMTP")
 			return done
 		}
