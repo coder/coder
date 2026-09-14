@@ -8,11 +8,11 @@ import { defineConfig } from "vite";
 export default defineConfig({
 	publicDir: false,
 	build: {
-		outDir: path.resolve(import.meta.dirname, "./out"),
+		outDir: path.resolve(import.meta.dirname, "../out"),
 		emptyOutDir: false,
 		sourcemap: "hidden",
 		lib: {
-			entry: path.resolve(import.meta.dirname, "./src/annotator/main.ts"),
+			entry: path.resolve(import.meta.dirname, "../src/annotator/main.ts"),
 			formats: ["iife"],
 			name: "CoderAnnotator",
 			fileName: () => "annotator.js",

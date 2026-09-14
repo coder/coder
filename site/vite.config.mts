@@ -50,7 +50,7 @@ const annotatorDevServer = (): PluginOption => ({
 			bundle ??= build({
 				configFile: path.resolve(
 					import.meta.dirname,
-					"./vite.annotator.config.mts",
+					"./annotator/vite.config.mts",
 				),
 				logLevel: "warn",
 				build: { write: false },
