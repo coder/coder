@@ -29,8 +29,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   doc-check:
@@ -242,7 +241,7 @@ jobs:
 
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true'
-        uses: coder/agents-chat-action@b3fc81d7dae5006dd124e98ef6fada1a36cdd86e # v0.3.0
+        uses: coder/agents-chat-action@3e20636f47ed88d1486b767ade8cb1e13a1effa7 # v0.5.0
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
@@ -251,6 +250,8 @@ jobs:
           # deterministic. Pin it, because a model configuration ID only
           # resolves inside its own organization.
           coder-organization: coder
+          # Grant the organization's Everyone group read access to new reviews.
+          share-with-organization: "true"
           # Pins the model that reviews the PR. Set this repository variable to
           # a model configuration ID in the organization above. Unset means the
           # deployment's default model, so clearing the variable is the
