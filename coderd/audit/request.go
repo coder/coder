@@ -155,6 +155,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.ID.String()[:8]
 	case database.ChatProject:
 		return typed.Name
+	case database.ChatProjectMemory:
+		return typed.Name
 	case database.ChatModelConfig:
 		return cmp.Or(typed.DisplayName, typed.ID.String())
 	case database.MCPServerConfig:
@@ -266,6 +268,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.ChatProject:
 		return typed.ID
+	case database.ChatProjectMemory:
+		return typed.ID
 	case database.ChatModelConfig:
 		return typed.ID
 	case database.MCPServerConfig:
@@ -350,6 +354,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChat
 	case database.ChatProject:
 		return database.ResourceTypeChatProject
+	case database.ChatProjectMemory:
+		return database.ResourceTypeChatProjectMemory
 	case database.ChatModelConfig:
 		return database.ResourceTypeChatModelConfig
 	case database.MCPServerConfig:
@@ -445,6 +451,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// migration 000467).
 		return true
 	case database.ChatProject:
+		return true
+	case database.ChatProjectMemory:
 		return true
 	case database.ChatModelConfig:
 		return true
