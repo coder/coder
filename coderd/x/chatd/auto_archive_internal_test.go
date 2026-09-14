@@ -342,17 +342,22 @@ func TestWorker_AutoArchiveSkipsPinnedRoot(t *testing.T) {
 
 func TestWorker_AutoArchiveSkipsActiveStatusRoot(t *testing.T) {
 	t.Parallel()
-	f := newWorkerTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
-	chat := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
-	forceExecutionState(t, f, chat.ID, database.ChatStatusRunning, false)
-	require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
+	for _, status := range []database.ChatStatus{database.ChatStatusRunning, database.ChatStatusPaused} {
+		t.Run(string(status), func(t *testing.T) {
+			t.Parallel()
+			f := newWorkerTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+			chat := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+			forceExecutionState(t, f, chat.ID, status, false)
+			require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
 
-	worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), nil, nil)
-	worker.archiveOnce(ctx, now)
+			worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), nil, nil)
+			worker.archiveOnce(ctx, now)
 
-	require.False(t, f.archived(t, chat.ID), "running root must not be auto-archived")
+			require.False(t, f.archived(t, chat.ID), "%s root must not be auto-archived", status)
+		})
+	}
 }
 
 func TestWorker_AutoArchiveIgnoresDeletedMessages(t *testing.T) {

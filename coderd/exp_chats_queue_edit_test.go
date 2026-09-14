@@ -67,8 +67,11 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 
 		// Pause the chat at the head and resume it: the head is sent.
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Held: boolPtr(true)}))
-		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusWaiting})
+		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusPaused})
 		require.NoError(t, err)
+		fetched, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusPaused, fetched.Status, "paused is visible on the chat itself")
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Held: boolPtr(false)}))
 		listed, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -84,7 +87,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 
 		// Pause at the remaining row and delete it: the chat idles.
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, next.ID, codersdk.EditChatQueuedMessageRequest{Held: boolPtr(true)}))
-		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusWaiting})
+		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusPaused})
 		require.NoError(t, err)
 		res, err := client.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, next.ID), nil)
 		require.NoError(t, err)
