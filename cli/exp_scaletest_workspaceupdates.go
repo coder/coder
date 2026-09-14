@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
@@ -169,65 +170,22 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 				}
 			}
 
-			configs := make([]workspaceupdates.Config, 0, powerUserCount+regularUserCount)
-
-			for i := range powerUserCount {
-				config := workspaceupdates.Config{
-					User: createusers.Config{
-						OrganizationID: me.OrganizationIDs[0],
-					},
-					Workspace: workspacebuild.Config{
-						OrganizationID: me.OrganizationIDs[0],
-						Request: codersdk.CreateWorkspaceRequest{
-							TemplateID:          tpl.ID,
-							RichParameterValues: richParameters,
-						},
-						NoWaitForAgents: true,
-					},
-					WorkspaceCount:          powerUserWorkspaces,
-					WorkspaceUpdatesTimeout: workspaceUpdatesTimeout,
-					DialTimeout:             dialTimeout,
-					Metrics:                 metrics,
-					DialBarrier:             dialBarrier,
-				}
-				if reuseUsers {
-					config.SessionToken = reuse[i].SessionToken
-					config.PreCreatedUser = reuse[i].User
-				}
-				if err := config.Validate(); err != nil {
-					return xerrors.Errorf("validate config: %w", err)
-				}
-				configs = append(configs, config)
-			}
-
-			for i := range regularUserCount {
-				config := workspaceupdates.Config{
-					User: createusers.Config{
-						OrganizationID: me.OrganizationIDs[0],
-					},
-					Workspace: workspacebuild.Config{
-						OrganizationID: me.OrganizationIDs[0],
-						Request: codersdk.CreateWorkspaceRequest{
-							TemplateID:          tpl.ID,
-							RichParameterValues: richParameters,
-						},
-						NoWaitForAgents: true,
-					},
-					WorkspaceCount:          int64(regularUserWorkspaceCount),
-					WorkspaceUpdatesTimeout: workspaceUpdatesTimeout,
-					DialTimeout:             dialTimeout,
-					Metrics:                 metrics,
-					DialBarrier:             dialBarrier,
-				}
-				if reuseUsers {
-					reuseIdx := powerUserCount + i
-					config.SessionToken = reuse[reuseIdx].SessionToken
-					config.PreCreatedUser = reuse[reuseIdx].User
-				}
-				if err := config.Validate(); err != nil {
-					return xerrors.Errorf("validate config: %w", err)
-				}
-				configs = append(configs, config)
+			configs, err := buildWorkspaceUpdatesConfigs(workspaceUpdatesConfigParams{
+				organizationID:            me.OrganizationIDs[0],
+				templateID:                tpl.ID,
+				richParameters:            richParameters,
+				powerUserCount:            powerUserCount,
+				powerUserWorkspaces:       powerUserWorkspaces,
+				regularUserCount:          regularUserCount,
+				regularUserWorkspaceCount: regularUserWorkspaceCount,
+				workspaceUpdatesTimeout:   workspaceUpdatesTimeout,
+				dialTimeout:               dialTimeout,
+				metrics:                   metrics,
+				dialBarrier:               dialBarrier,
+				reuseUsers:                reuseUsers,
+			}, reuse)
+			if err != nil {
+				return err
 			}
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
@@ -364,4 +322,81 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 	output.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
 	return cmd
+}
+
+// workspaceUpdatesConfigParams holds everything buildWorkspaceUpdatesConfigs
+// needs to construct one runner config per user.
+type workspaceUpdatesConfigParams struct {
+	organizationID            uuid.UUID
+	templateID                uuid.UUID
+	richParameters            []codersdk.WorkspaceBuildParameter
+	powerUserCount            int64
+	powerUserWorkspaces       int64
+	regularUserCount          int64
+	regularUserWorkspaceCount int
+	workspaceUpdatesTimeout   time.Duration
+	dialTimeout               time.Duration
+	metrics                   *workspaceupdates.Metrics
+	dialBarrier               *sync.WaitGroup
+	reuseUsers                bool
+}
+
+// buildWorkspaceUpdatesConfigs builds one runner config per user: powerUserCount
+// power users (each owning powerUserWorkspaces workspaces) followed by
+// regularUserCount regular users (each owning regularUserWorkspaceCount). When
+// reuseUsers is set, reuse must hold exactly powerUserCount+regularUserCount
+// entries; each config is assigned a distinct reuse user in order, power users
+// first, so the two groups never share a token.
+func buildWorkspaceUpdatesConfigs(p workspaceUpdatesConfigParams, reuse []loadtestutil.ReuseUser) ([]workspaceupdates.Config, error) {
+	total := p.powerUserCount + p.regularUserCount
+	if p.reuseUsers && int64(len(reuse)) != total {
+		return nil, xerrors.Errorf("expected %d reuse users, got %d", total, len(reuse))
+	}
+
+	newConfig := func(workspaceCount int64, reuseIdx int64) (workspaceupdates.Config, error) {
+		config := workspaceupdates.Config{
+			User: createusers.Config{
+				OrganizationID: p.organizationID,
+			},
+			Workspace: workspacebuild.Config{
+				OrganizationID: p.organizationID,
+				Request: codersdk.CreateWorkspaceRequest{
+					TemplateID:          p.templateID,
+					RichParameterValues: p.richParameters,
+				},
+				NoWaitForAgents: true,
+			},
+			WorkspaceCount:          workspaceCount,
+			WorkspaceUpdatesTimeout: p.workspaceUpdatesTimeout,
+			DialTimeout:             p.dialTimeout,
+			Metrics:                 p.metrics,
+			DialBarrier:             p.dialBarrier,
+		}
+		if p.reuseUsers {
+			config.SessionToken = reuse[reuseIdx].SessionToken
+			config.PreCreatedUser = reuse[reuseIdx].User
+		}
+		if err := config.Validate(); err != nil {
+			return workspaceupdates.Config{}, xerrors.Errorf("validate config: %w", err)
+		}
+		return config, nil
+	}
+
+	configs := make([]workspaceupdates.Config, 0, total)
+	for i := range p.powerUserCount {
+		config, err := newConfig(p.powerUserWorkspaces, i)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+	for i := range p.regularUserCount {
+		config, err := newConfig(int64(p.regularUserWorkspaceCount), p.powerUserCount+i)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+
+	return configs, nil
 }
