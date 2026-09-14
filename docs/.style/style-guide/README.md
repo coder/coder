@@ -16,7 +16,55 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 - **Reviewers**: cite the section in a review comment.
   Reviews are easier when the guidance lives in one place.
 - **AI agents**: read every section before editing anything under `docs/`.
+  A clean linter run doesn't substitute for that; refer to [What the tooling checks, and what it doesn't](#what-the-tooling-checks-and-what-it-doesnt).
   The Coder Agents and Claude Code guides ([`AGENTS.md`](../../../AGENTS.md), [`.claude/docs/DOCS_STYLE_GUIDE.md`](../../../.claude/docs/DOCS_STYLE_GUIDE.md)) link here.
+
+## What the tooling checks, and what it doesn't
+
+A clean `make lint/prose` run is not evidence that a page follows this guide.
+The guide documents 71 rules.
+Automated tooling checks 10 of them, and 1 of those 10 doesn't run on published pages.
+The other 61 are yours to apply by reading.
+
+Open the section that matches what you're writing and work through it.
+The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
+
+### Checks that run today
+
+| Check                              | Tool               | Severity  | Scope                                                       | What it catches                                                 |
+|------------------------------------|--------------------|-----------|-------------------------------------------------------------|-----------------------------------------------------------------|
+| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`               | `Hashicorp` casing only, not the other brands in the same table |
+| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | Headings that lead with a gerund                                |
+| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | `click` and its inflections                                     |
+| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only | Sentence boundaries mid-line, on contributor docs only          |
+| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                | Heading increments, single H1, fence language, missing alt text |
+| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                  | Em-dash, en-dash, and ` -- ` as punctuation                     |
+
+Vale runs advisory.
+`make lint/prose` passes `--no-exit`, and the CI step is advisory by design, so no Vale finding fails a build at any severity.
+Findings accumulate instead of blocking: rules that shipped against a clean corpus have since collected a backlog of warnings in `docs/`.
+The markdownlint and emdash checks do fail the build.
+
+### Coverage by section
+
+| Section                                                               | Rules | Tool-checked | Planned | Documentation-only |
+|-----------------------------------------------------------------------|-------|--------------|---------|--------------------|
+| [Audience and scope](./audience-and-scope.md)                         | 1     | 0            | 0       | 1                  |
+| [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
+| [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
+| [Word choice](./word-choice.md)                                       | 14    | 2            | 10      | 2                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 3            | 4       | 6                  |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
+| [Formatting](./formatting.md)                                         | 12    | 3            | 0       | 9                  |
+| [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
+| **Total**                                                             | 71    | 10           | 27      | 34                 |
+
+A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
+It isn't running today.
+The same is true of every third-party `Google.*`, `alex.*`, and `write-good.*` rule the guide names: the repo-root `.vale.ini` sets `BasedOnStyles = Coder`, and third-party rules return one per PR after their corpus is clean.
+
+Keep this table honest when a rule lands.
+The per-rule PR pattern in the [Vale doctrine README](../README.md) already requires touching this guide, so update the row in the same change.
 
 ## Sections
 
@@ -69,6 +117,8 @@ The style guide itself follows the rule: "refer to" for formal cross-references,
 Reserve "see" for the rare case where the prose describes what a reader observes in the product UI.
 
 ## Vale enforcement
+
+For what Vale checks today and what it leaves to the reader, refer to [What the tooling checks, and what it doesn't](#what-the-tooling-checks-and-what-it-doesnt).
 
 The repo-root `.vale.ini` loads only the Coder rule package by default.
 Third-party rules from Google, alex, and write-good aren't enabled until a per-rule PR brings each back in.

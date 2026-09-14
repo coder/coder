@@ -27,7 +27,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 ### Connect Through JetBrains Toolbox
 ```
 
-*Enforced by `Google.Headings` (scope adjusted to skip CLI flag fragments and acronyms).*
+*Enforced by `Google.Headings` (planned; third-party rules aren't loaded by default), with scope adjusted to skip CLI flag fragments and acronyms.*
 
 ## No gerund-leading headings
 
@@ -103,7 +103,8 @@ The fourth treats the heading as a sentence.
 
 *Periods and exclamation points enforced by `Google.HeadingPunctuation` at `error` severity.
 Question marks enforced by `Google.HeadingPunctuation` at `suggestion` severity.
-Both ignore characters inside backticks.*
+Both ignore characters inside backticks.
+Planned; third-party rules aren't loaded by default.*
 
 ## No em-dashes or en-dashes
 
@@ -190,7 +191,7 @@ Use a comma before the conjunction in a list of three or more items.
 
 > The provisioner builds, configures and starts the workspace.
 
-*Enforced by `Google.OxfordComma`.*
+*Enforced by `Google.OxfordComma` (planned; third-party rules aren't loaded by default).*
 
 ## US-style quotation
 
@@ -206,7 +207,7 @@ This placement is the United States convention and matches the dominant style of
 
 > The error message reads, "workspace not found".
 
-*Enforced by `Google.Quotes`.*
+*Enforced by `Google.Quotes` (planned; third-party rules aren't loaded by default).*
 
 ## Semicolons sparingly
 
@@ -238,7 +239,7 @@ Reserve them for code blocks, direct quotes from error messages, and rare moment
 
 > Coder is ready to use!
 
-*Enforced by `Google.Exclamation`.*
+*Enforced by `Google.Exclamation` (planned; third-party rules aren't loaded by default).*
 
 ## Numeric ranges
 
@@ -254,7 +255,7 @@ In code blocks, terse reference material, and tables where space matters, the hy
 
 > The agent retries 5-10 times before giving up.
 
-*Enforced by `Google.Ranges`.*
+*Enforced by `Google.Ranges` (planned; third-party rules aren't loaded by default).*
 
 ## Learn more
 

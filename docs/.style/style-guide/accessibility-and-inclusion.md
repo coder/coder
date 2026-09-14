@@ -83,7 +83,7 @@ Avoid `he or she`, `(s)he`, and similar constructions.
 
 > When a user opens a workspace, he or she connects to the agent over a Tailscale tunnel.
 
-*Enforced by `Google.Gender` and `Google.GenderBias`.*
+*Enforced by `Google.Gender` and `Google.GenderBias` (planned; third-party rules aren't loaded by default).*
 
 ## Inclusive-language substitutions
 

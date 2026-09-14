@@ -21,6 +21,9 @@ needs docs; this skill covers writing them well.
 >   [`docs/.style/style-guide/`](../../../docs/.style/style-guide/README.md).
 >   Open it and apply it as a checklist. Do not write from memory; most style
 >   churn in review comes from rules that already exist but were not applied.
+>   Vale checks 10 of the 71 rules in that guide and runs advisory, so a clean
+>   lint run is not evidence that you applied it. Refer to
+>   [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > - **Agent-facing structure and research notes:**
 >   [`.claude/docs/DOCS_STYLE_GUIDE.md`](../../docs/DOCS_STYLE_GUIDE.md).
 >
@@ -74,7 +77,9 @@ style.
    [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
 4. **Draft with deliberate pedagogy** (see patterns below).
 5. **Self-review and validate.** Apply the prose style guide with it open.
-   Run `make lint/emdash`, markdownlint, and Vale. Run the commands and code
+   Most of the guide is unenforced, so this reading pass is the only thing
+   that catches those rules. Then run `make lint/emdash`, markdownlint, and
+   Vale. Run the commands and code
    in the page. Fix every inbound link you moved and add redirects for any
    rename (see [Structural rules to apply](#structural-rules-to-apply)).
 6. **Open the PR.** Write the title and description per the
@@ -171,6 +176,8 @@ the whole series as a single review.
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
   and apply.
+- Reading a clean Vale run as conformance with the style guide. It checks a
+  small, mechanical subset and runs advisory.
 
 ## Pre-handoff checklist
 
@@ -184,8 +191,11 @@ the whole series as a single review.
 - [ ] New, renamed, or deprecated product or feature names have a matching
       `docs/reference/glossary.md` entry (a rename keeps the former name; a
       deprecation names the replacement).
-- [ ] Prose style guide applied with it open; `make lint/emdash`,
-      markdownlint, and Vale pass.
+- [ ] Prose style guide opened and applied section by section, including the
+      rules no linter checks.
+- [ ] `make lint/emdash`, markdownlint, and Vale pass. Treat this as a floor,
+      not as conformance: Vale covers 10 of the guide's 71 rules and never
+      fails a build.
 - [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
 - [ ] Premium pages carry the title suffix and manifest state.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
