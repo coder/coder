@@ -7,13 +7,21 @@ import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
 import { cn } from "#/utils/cn";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
-import { UpdateCheckNotice } from "./UpdateCheckNotice/UpdateCheckNotice";
 import { useUpdateCheck } from "./useUpdateCheck";
+import { useUpdateCheckNotice } from "./useUpdateCheckNotice";
 
 export const DashboardLayout: FC = () => {
 	const { permissions } = useAuthenticated();
 	const updateCheck = useUpdateCheck(permissions.viewDeploymentConfig);
 	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
+
+	useUpdateCheckNotice({
+		isVisible: updateCheck.isVisible,
+		version: updateCheck.data?.version,
+		releaseNotesUrl: updateCheck.data?.url,
+		aboveDeploymentBanner: Boolean(permissions.viewDeploymentStats),
+		onDismiss: updateCheck.dismiss,
+	});
 
 	return (
 		<>
@@ -49,15 +57,6 @@ export const DashboardLayout: FC = () => {
 				</main>
 
 				<DeploymentBanner />
-
-				{updateCheck.isVisible && updateCheck.data && (
-					<UpdateCheckNotice
-						version={updateCheck.data.version}
-						releaseNotesUrl={updateCheck.data.url}
-						onDismiss={updateCheck.dismiss}
-						aboveDeploymentBanner={Boolean(permissions.viewDeploymentStats)}
-					/>
-				)}
 			</div>
 		</>
 	);

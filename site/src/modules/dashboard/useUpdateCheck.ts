@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { updateCheck } from "#/api/queries/updateCheck";
 
@@ -21,13 +21,15 @@ export const useUpdateCheck = (enabled: boolean) => {
 		return Boolean(isNotDismissed && isOutdated);
 	}, [dismissedVersion, updateCheckQuery.data]);
 
-	const dismiss = () => {
+	// A stable identity keeps consumers (e.g. effect deps) from re-running just
+	// because the hook re-rendered.
+	const dismiss = useCallback(() => {
 		if (!updateCheckQuery.data) {
 			return;
 		}
 		setDismissedVersion(updateCheckQuery.data.version);
 		saveDismissedVersionOnLocal(updateCheckQuery.data.version);
-	};
+	}, [updateCheckQuery.data]);
 
 	return {
 		isVisible,
