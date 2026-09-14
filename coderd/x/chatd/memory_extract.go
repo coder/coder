@@ -120,25 +120,30 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 	// Turns can finish faster than extraction runs. Exactly one extractor
 	// owns a chat at a time; the owner drains any turns that completed
 	// while it was working, and a rival that fails to claim simply exits.
+	extracted := false
 	for range memoryExtractionMaxDrains {
 		claim, err := p.db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{
 			ChatID:       chat.ID,
 			ClaimedUntil: p.clock.Now().Add(memoryExtractionClaimTTL),
 		})
 		if errors.Is(err, sql.ErrNoRows) {
-			return
+			break
 		}
 		if err != nil {
 			logger.Debug(ctx, "failed to claim memory extraction", slog.F("chat_id", chat.ID), slog.Error(err))
-			return
+			break
 		}
 		processed, more := p.extractMemoriesOnce(ctx, logger, chat.ID, claim.HistoryVersion)
 		if err := p.db.ReleaseChatMemoryExtraction(ctx, database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}); err != nil {
 			logger.Debug(ctx, "failed to release memory extraction claim", slog.F("chat_id", chat.ID), slog.Error(err))
 		}
+		extracted = extracted || processed
 		if !processed || !more {
-			return
+			break
 		}
+	}
+	if extracted {
+		p.maybeConsolidateMemoriesAsync(ctx, logger, chat)
 	}
 }
 

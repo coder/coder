@@ -31,6 +31,7 @@ func (s *memoryStore) Get(_ context.Context, name string) (chattool.Memory, erro
 	return memory, nil
 }
 func (*memoryStore) List(context.Context) ([]chattool.MemoryIndexEntry, error) { return nil, nil }
+func (*memoryStore) ListFull(context.Context) ([]chattool.Memory, error)       { return nil, nil }
 func (s *memoryStore) Count(context.Context) (int64, error)                    { return int64(len(s.memories)), nil }
 func (s *memoryStore) Insert(_ context.Context, input chattool.MemoryInput) (chattool.Memory, error) {
 	if _, ok := s.memories[input.Name]; ok {
@@ -52,6 +53,7 @@ func (s *memoryStore) Delete(_ context.Context, name string) error {
 	delete(s.memories, name)
 	return nil
 }
+func (s *memoryStore) InTx(fn func(chattool.MemoryStore) error) error { return fn(s) }
 
 func TestMemoryValidationAndNormalization(t *testing.T) {
 	t.Parallel()

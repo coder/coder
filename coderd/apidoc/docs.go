@@ -235,6 +235,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/memories/consolidations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat user memory consolidations",
+                "operationId": "list-chat-user-memory-consolidations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatMemoryConsolidation"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/memories/{memory}": {
             "get": {
                 "produces": [
@@ -624,6 +665,47 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/projects/{project}/memories/consolidations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project memory consolidations",
+                "operationId": "list-chat-project-memory-consolidations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatMemoryConsolidation"
+                            }
                         }
                     }
                 },
@@ -20941,6 +21023,94 @@ const docTemplate = `{
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference"
             ]
+        },
+        "codersdk.ChatMemoryConsolidation": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "memories_after": {
+                    "type": "integer"
+                },
+                "memories_before": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "mutations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMemoryMutation"
+                    }
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatMemoryConsolidationStatus"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatMemoryConsolidationStatus": {
+            "type": "string",
+            "enum": [
+                "running",
+                "succeeded",
+                "failed",
+                "skipped"
+            ],
+            "x-enum-varnames": [
+                "ChatMemoryConsolidationStatusRunning",
+                "ChatMemoryConsolidationStatusSucceeded",
+                "ChatMemoryConsolidationStatusFailed",
+                "ChatMemoryConsolidationStatusSkipped"
+            ]
+        },
+        "codersdk.ChatMemoryMutation": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "into": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "op": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatMessage": {
             "type": "object",

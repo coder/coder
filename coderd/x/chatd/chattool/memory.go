@@ -189,10 +189,12 @@ type MemoryIndexEntry struct {
 type MemoryStore interface {
 	Get(ctx context.Context, name string) (Memory, error)
 	List(ctx context.Context) ([]MemoryIndexEntry, error)
+	ListFull(ctx context.Context) ([]Memory, error)
 	Count(ctx context.Context) (int64, error)
 	Insert(ctx context.Context, input MemoryInput) (Memory, error)
 	Upsert(ctx context.Context, input MemoryInput) (Memory, error)
 	Delete(ctx context.Context, name string) error
+	InTx(func(MemoryStore) error) error
 }
 
 type projectMemoryStore struct {
@@ -229,6 +231,18 @@ func (s projectMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error
 		entries[i] = MemoryIndexEntry{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description}
 	}
 	return entries, nil
+}
+
+func (s projectMemoryStore) ListFull(ctx context.Context) ([]Memory, error) {
+	rows, err := s.db.GetChatProjectMemoriesByProjectID(ctx, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	memories := make([]Memory, len(rows))
+	for i, row := range rows {
+		memories[i] = Memory{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description, Body: row.ChatProjectMemory.Body, UpdatedAt: row.ChatProjectMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}
+	}
+	return memories, nil
 }
 
 func (s projectMemoryStore) Count(ctx context.Context) (int64, error) {
@@ -269,6 +283,12 @@ func (s projectMemoryStore) Delete(ctx context.Context, name string) error {
 	return err
 }
 
+func (s projectMemoryStore) InTx(fn func(MemoryStore) error) error {
+	return s.db.InTx(func(tx database.Store) error {
+		return fn(projectMemoryStore{db: tx, projectID: s.projectID, organizationID: s.organizationID, chatID: s.chatID, ownerID: s.ownerID})
+	}, nil)
+}
+
 type personalMemoryStore struct {
 	db                             database.Store
 	userID, organizationID, chatID uuid.UUID
@@ -300,6 +320,18 @@ func (s personalMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, erro
 		entries[i] = MemoryIndexEntry{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description}
 	}
 	return entries, nil
+}
+
+func (s personalMemoryStore) ListFull(ctx context.Context) ([]Memory, error) {
+	rows, err := s.db.GetChatUserMemoriesByUserAndOrganization(ctx, database.GetChatUserMemoriesByUserAndOrganizationParams{UserID: s.userID, OrganizationID: s.organizationID})
+	if err != nil {
+		return nil, err
+	}
+	memories := make([]Memory, len(rows))
+	for i, row := range rows {
+		memories[i] = Memory{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description, Body: row.ChatUserMemory.Body, UpdatedAt: row.ChatUserMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}
+	}
+	return memories, nil
 }
 
 func (s personalMemoryStore) Count(ctx context.Context) (int64, error) {
@@ -335,6 +367,12 @@ func (s personalMemoryStore) Delete(ctx context.Context, name string) error {
 		return ErrMemoryNotFound
 	}
 	return err
+}
+
+func (s personalMemoryStore) InTx(fn func(MemoryStore) error) error {
+	return s.db.InTx(func(tx database.Store) error {
+		return fn(personalMemoryStore{db: tx, userID: s.userID, organizationID: s.organizationID, chatID: s.chatID})
+	}, nil)
 }
 
 // ValidateMemoryName validates a stable memory identifier.
