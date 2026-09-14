@@ -137,3 +137,21 @@ export const AnnotatePicking: Story = {
 		);
 	},
 };
+
+export const AnnotateUnavailable: Story = {
+	args: { canAnnotate: true, annotatorReadyTimeoutMs: 0 },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+		canvas
+			.getByTitle<HTMLIFrameElement>("Preview :3000")
+			.dispatchEvent(new Event("load"));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+	},
+};

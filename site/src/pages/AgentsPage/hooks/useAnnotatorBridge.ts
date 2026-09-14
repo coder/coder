@@ -15,11 +15,16 @@ interface UseAnnotatorBridgeOptions {
 	// Nothing is listened to until the user has asked for the overlay, so a
 	// preview that was never annotated cannot talk to the dashboard.
 	enabled: boolean;
+	// How long after the frame loads to wait for the overlay before
+	// declaring it unavailable (blocked by CSP, non-HTML page, and so on).
+	readyTimeoutMs?: number;
 	onSubmit: (submission: AnnotationSubmission) => void;
 }
 
 interface AnnotatorBridge {
 	ready: boolean;
+	// The frame finished loading without the overlay announcing itself.
+	unavailable: boolean;
 	picking: boolean;
 	count: number;
 	setPicking: (picking: boolean) => void;
@@ -37,9 +42,11 @@ export function useAnnotatorBridge({
 	frameKey,
 	frameOrigin,
 	enabled,
+	readyTimeoutMs = 5000,
 	onSubmit,
 }: UseAnnotatorBridgeOptions): AnnotatorBridge {
 	const [ready, setReady] = useState(false);
+	const [unavailable, setUnavailable] = useState(false);
 	const [picking, setPickingState] = useState(false);
 	const [count, setCount] = useState(0);
 	// Picking requested before the overlay finished loading; applied once
@@ -62,6 +69,7 @@ export function useAnnotatorBridge({
 			return;
 		}
 		const frame = frameRef.current;
+		let readyTimer: ReturnType<typeof setTimeout> | undefined;
 		const handler = (event: MessageEvent) => {
 			const frameWindow = frame?.contentWindow;
 			if (
@@ -77,7 +85,9 @@ export function useAnnotatorBridge({
 			}
 			switch (message.type) {
 				case "coder-annotator:ready":
+					clearTimeout(readyTimer);
 					setReady(true);
+					setUnavailable(false);
 					if (pendingPickingRef.current !== null) {
 						frameWindow.postMessage(
 							{
@@ -107,17 +117,21 @@ export function useAnnotatorBridge({
 			setReady(false);
 			setPickingState(false);
 			setCount(0);
+			clearTimeout(readyTimer);
+			readyTimer = setTimeout(() => setUnavailable(true), readyTimeoutMs);
 		};
 		window.addEventListener("message", handler);
 		frame?.addEventListener("load", onFrameLoad);
 		return () => {
+			clearTimeout(readyTimer);
 			window.removeEventListener("message", handler);
 			frame?.removeEventListener("load", onFrameLoad);
 		};
-	}, [frameRef, frameKey, frameOrigin, enabled]);
+	}, [frameRef, frameKey, frameOrigin, enabled, readyTimeoutMs]);
 
 	return {
 		ready,
+		unavailable,
 		picking,
 		count,
 		setPicking: (next) => {

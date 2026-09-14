@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -38,7 +38,7 @@ function readFileText(file: File): Promise<string> {
 	});
 }
 
-function renderPanel(onAttach = vi.fn()) {
+function renderPanel(onAttach = vi.fn(), readyTimeoutMs?: number) {
 	renderComponent(
 		<ComposerProvider>
 			<Composer onAttach={onAttach} />
@@ -48,6 +48,7 @@ function renderPanel(onAttach = vi.fn()) {
 				host="*.apps.example.com"
 				tab={tab}
 				canAnnotate
+				annotatorReadyTimeoutMs={readyTimeoutMs}
 			/>
 		</ComposerProvider>,
 	);
@@ -157,5 +158,30 @@ describe("PortPreviewPanel annotations", () => {
 			}),
 		);
 		expect(onAttach).not.toHaveBeenCalled();
+	});
+
+	it("stops requesting the overlay once it failed to load", async () => {
+		const { frame, receive } = renderPanel(vi.fn(), 0);
+		await requestOverlay();
+		const requestedSrc = frame().src;
+		frame().dispatchEvent(new Event("load"));
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Annotate elements" }),
+			).toBeDisabled(),
+		);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: "Annotate elements" }),
+		);
+		expect(frame().src).toBe(requestedSrc);
+
+		// A late ready message recovers.
+		receive({ type: "coder-annotator:ready" });
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Annotate elements" }),
+			).toBeEnabled(),
+		);
 	});
 });

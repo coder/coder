@@ -33,7 +33,15 @@ export const PortPreviewPanel: FC<{
 	// Shows the annotate control. Requires the chat-ui-annotations
 	// experiment so the app proxy injects the overlay.
 	canAnnotate?: boolean;
-}> = ({ workspace, agent, host, tab, canAnnotate = false }) => {
+	annotatorReadyTimeoutMs?: number;
+}> = ({
+	workspace,
+	agent,
+	host,
+	tab,
+	canAnnotate = false,
+	annotatorReadyTimeoutMs,
+}) => {
 	const url = portForwardURL(
 		host,
 		tab.port,
@@ -77,6 +85,7 @@ export const PortPreviewPanel: FC<{
 		frameKey: overlayRequests,
 		frameOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
 		enabled: overlayRequests > 0,
+		readyTimeoutMs: annotatorReadyTimeoutMs,
 		onSubmit: handleSubmit,
 	});
 
@@ -100,33 +109,40 @@ export const PortPreviewPanel: FC<{
 				<div className="flex-1" />
 				{showAnnotate && (
 					<Tooltip>
+						{/* Disabled buttons emit no pointer events, so the span
+						 * keeps the tooltip reachable when the overlay failed. */}
 						<TooltipTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								aria-pressed={bridge.picking}
-								aria-label={
-									bridge.picking ? "Stop annotating" : "Annotate elements"
-								}
-								onClick={handleAnnotateClick}
-								className={
-									bridge.picking
-										? "relative bg-surface-tertiary text-content-primary"
-										: "relative"
-								}
-							>
-								<MessageSquarePlusIcon />
-								{bridge.count > 0 && (
-									<span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-content-link text-2xs font-semibold text-surface-primary">
-										{bridge.count}
-									</span>
-								)}
-							</Button>
+							<span className="inline-flex">
+								<Button
+									size="icon"
+									variant="subtle"
+									aria-pressed={bridge.picking}
+									aria-label={
+										bridge.picking ? "Stop annotating" : "Annotate elements"
+									}
+									disabled={bridge.unavailable}
+									onClick={handleAnnotateClick}
+									className={
+										bridge.picking
+											? "relative bg-surface-tertiary text-content-primary"
+											: "relative"
+									}
+								>
+									<MessageSquarePlusIcon />
+									{bridge.count > 0 && (
+										<span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-content-link text-2xs font-semibold text-surface-primary">
+											{bridge.count}
+										</span>
+									)}
+								</Button>
+							</span>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
-							{bridge.picking
-								? "Click elements in the preview to annotate them"
-								: "Annotate elements in the preview and attach them to your message"}
+							{bridge.unavailable
+								? "The annotation overlay could not load in this app. It may block external scripts or not serve HTML."
+								: bridge.picking
+									? "Click elements in the preview to annotate them"
+									: "Annotate elements in the preview and attach them to your message"}
 						</TooltipContent>
 					</Tooltip>
 				)}
