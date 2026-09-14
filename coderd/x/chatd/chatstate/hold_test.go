@@ -12,8 +12,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Scenario tests for queue holds. The matrix cases prove each cell
-// once; these prove the end-to-end stories the cells add up to.
+// Scenario tests for queue holds. The matrix cases cover each cell;
+// these cover multi-step flows.
 
 func setHeld(t *testing.T, f *testFixture, m *chatstate.ChatMachine, id int64, held bool) chatstate.EditQueuedMessageResult {
 	t.Helper()
@@ -37,9 +37,9 @@ func finishTurn(t *testing.T, f *testFixture, m *chatstate.ChatMachine) chatstat
 	return res
 }
 
-// TestHold_EditWhileRunning is story 1 and 2: five rows, row 3 held.
-// Rows 1 and 2 drain at their turn boundaries; the third boundary
-// pauses the chat instead of promoting row 3; releasing row 3 resumes.
+// TestHold_EditWhileRunning: five rows, row 3 held. Rows 1 and 2
+// promote at their turn boundaries; the third boundary pauses the chat;
+// releasing row 3 resumes it.
 func TestHold_EditWhileRunning(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -61,21 +61,21 @@ func TestHold_EditWhileRunning(t *testing.T) {
 	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[2:], queuedIDsByPosition(ctx, t, f, chatID))
 
-	// P is idle to the worker: FinishTurn is not admitted, so nothing
-	// spins.
+	// FinishTurn is not admitted from P.
 	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})
 	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 
-	// Cancel: releasing the head resumes the chat with row 3.
+	// Releasing the head resumes with row 3.
 	setHeld(t, f, m, ids[2], false)
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
 }
 
-// TestHold_InterruptionPauses is story 1 during an interruption.
+// TestHold_InterruptionPauses: a held head pauses the chat at the end
+// of an interruption too.
 func TestHold_InterruptionPauses(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -93,9 +93,8 @@ func TestHold_InterruptionPauses(t *testing.T) {
 	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
 }
 
-// TestHold_MovesBetweenRows is story 7: row 2 held, hold row 1. The hold
-// moves in one transition, so there is never a moment with no hold; on
-// a paused chat moving it off the head is refused instead.
+// TestHold_MovesBetweenRows: row 2 held, hold row 1. The hold moves in
+// one transition; from P, moving it off the head is refused.
 func TestHold_MovesBetweenRows(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -163,7 +162,7 @@ func TestHold_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 }
 
 // TestHold_StaleChatsIgnoresPaused: GetStaleChats reports waiting with
-// rows (stranded), not P, which holds its rows on purpose.
+// rows, not P.
 func TestHold_StaleChatsIgnoresPaused(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -183,9 +182,9 @@ func TestHold_StaleChatsIgnoresPaused(t *testing.T) {
 	}
 	stale, err := f.DB.GetStaleChats(sysCtx, threshold)
 	require.NoError(t, err)
-	require.False(t, contains(stale), "paused is not stranded")
+	require.False(t, contains(stale), "paused is not reported")
 
-	// The same rows under `waiting` are the stranded shape.
+	// The same rows under waiting are reported: nothing will promote them.
 	chat, err := f.DB.GetChatByID(ctx, seeded.chatID)
 	require.NoError(t, err)
 	_, err = f.DB.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
@@ -199,12 +198,11 @@ func TestHold_StaleChatsIgnoresPaused(t *testing.T) {
 	require.NoError(t, err)
 	stale, err = f.DB.GetStaleChats(sysCtx, threshold)
 	require.NoError(t, err)
-	require.True(t, contains(stale), "waiting with rows is stranded")
+	require.True(t, contains(stale), "waiting with rows is reported")
 }
 
-// TestHold_QueueListingFollowsProcessingOrder: the client-visible queue
-// is ordered like the machine processes it, which "send now" on a later
-// row is the case that breaks created_at order.
+// TestHold_QueueListingFollowsProcessingOrder: the listing follows
+// position, which "send now" on a later row changes.
 func TestHold_QueueListingFollowsProcessingOrder(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
