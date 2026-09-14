@@ -27,8 +27,9 @@ honest about.
   pattern requires.
 - **Checks-table drift.** A severity that disagrees with the rule file's
   `level:`, a row for a rule that doesn't exist, a missing row for a rule that
-  does, or a scope cell that doesn't name the globs where `.vale.ini` enables
-  the rule.
+  does, or a scope cell that disagrees with `.vale.ini`, in either direction: a
+  cell that omits a configured path under-claims the rule, and a cell that names
+  a path the config never sets over-claims it.
 - **Coverage-table drift.** A per-section or total count that disagrees with the
   annotations.
 - **A rule heading with no footer.** A `##` or `###` heading that states a rule
@@ -70,8 +71,11 @@ no footer, so a rule can't drop out of the table by never being annotated. A
 footer belongs to the nearest heading above it, and a heading that has
 sub-headings is treated as covered by them, so a parent rule whose footer sits
 after a scoping sub-heading isn't flagged. A heading is also exempt when it is
-the `Learn more` navigation section or carries an out-of-scope note. Headings
-deeper than `###` are detail inside a section, not rules.
+the `Learn more` navigation section, or when it carries a note that opens with
+`Out of scope` or `Not a rule`, which is how a section that organizes a page
+without stating a rule declares itself. Headings deeper than `###` are detail
+inside a section, not rules. A Markdown file with no footers at all, such as
+`editor-setup.md`, isn't a rule section and isn't scanned.
 
 - **Documentation-only**: the annotation declares the section
   `Documentation-only`. This wins over everything else, so a section that only
@@ -89,4 +93,10 @@ go run ./scripts/styleclaims
 ```
 
 It takes no arguments and runs from the repository root. Findings print as
-`file:line: message` and exit 1.
+`file:line: message`, or as `file: message` when the problem is the file as a
+whole, such as a rule with no style guide section or a missing coverage row.
+Any finding exits 1.
+
+The set of style guide sections comes from the directory, not from a list in
+the source, so a new subpage is validated as soon as it carries its first
+enforcement footer.

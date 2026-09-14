@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -19,8 +22,11 @@ Coder.OneSentencePerLine = NO
 
 [docs/.style/*.md]
 Coder.OneSentencePerLine = YES
+
+[docs/.style/style-guide/**]
+BasedOnStyles =
 `
-	styles, toggles := parseValeConfig(src)
+	styles, sectionStyles, toggles := parseValeConfig(src)
 	if len(styles) != 1 || styles[0] != "Coder" {
 		t.Fatalf("styles = %v, want [Coder]", styles)
 	}
@@ -31,6 +37,9 @@ Coder.OneSentencePerLine = YES
 	if got["docs/.style/*.md"] != "YES" {
 		t.Errorf("scoped toggle = %q, want YES", got["docs/.style/*.md"])
 	}
+	if loaded, ok := sectionStyles["docs/.style/style-guide/**"]; !ok || len(loaded) != 0 {
+		t.Errorf("sectionStyles[style-guide] = %v, want an empty style list", loaded)
+	}
 }
 
 func TestNewRuleScope(t *testing.T) {
@@ -39,7 +48,8 @@ func TestNewRuleScope(t *testing.T) {
 	toggles := map[string]map[string]string{
 		"Coder.OneSentencePerLine": {"*.md": "NO", "docs/.style/*.md": "YES"},
 	}
-	scoped := newRule("OneSentencePerLine", "extends: existence\nlevel: warning\n", toggles)
+	sectionStyles := map[string][]string{"": {"Coder"}, "docs/.style/style-guide/**": nil}
+	scoped := newRule("OneSentencePerLine", "extends: existence\nlevel: warning\n", sectionStyles, toggles)
 	if !scoped.scoped {
 		t.Error("rule disabled in a section should be marked scoped")
 	}
@@ -50,9 +60,12 @@ func TestNewRuleScope(t *testing.T) {
 		t.Errorf("severity = %q, want warning", scoped.severity)
 	}
 
-	global := newRule("BrandNames", "level: error\n", toggles)
+	global := newRule("BrandNames", "level: error\n", sectionStyles, toggles)
 	if global.scoped {
 		t.Error("rule with no toggle should not be scoped")
+	}
+	if len(global.disabledIn) != 1 || global.disabledIn[0] != "docs/.style/style-guide/**" {
+		t.Errorf("disabledIn = %v, want [docs/.style/style-guide/**]", global.disabledIn)
 	}
 }
 
@@ -196,7 +209,7 @@ func TestCheckCatchesFalseClaims(t *testing.T) {
 		"voice-and-tone.md": {3, 1, 0, 2},
 	})
 
-	findings := check([]string{"Coder"}, rules, annotations, landing)
+	findings := checkClaims(testPages, []string{"Coder"}, rules, annotations, landing)
 	var msgs []string
 	for _, f := range findings {
 		msgs = append(msgs, f.msg)
@@ -228,7 +241,7 @@ func TestCheckCatchesTableDrift(t *testing.T) {
 		t.Parallel()
 		landing := checksTable("`Coder.BrandNames`", "`warning`", "`docs/**`") +
 			coverageTable(map[string][4]int{"voice-and-tone.md": {1, 1, 0, 0}})
-		if !containsMsg(check([]string{"Coder"}, rules, annotations, landing), "severity") {
+		if !containsMsg(checkClaims(testPages, []string{"Coder"}, rules, annotations, landing), "severity") {
 			t.Error("severity drift not reported")
 		}
 	})
@@ -237,7 +250,7 @@ func TestCheckCatchesTableDrift(t *testing.T) {
 		t.Parallel()
 		landing := checksTable("`Coder.BrandNames`", "`error`", "`docs/**`") +
 			coverageTable(map[string][4]int{"voice-and-tone.md": {9, 9, 9, 9}})
-		if !containsMsg(check([]string{"Coder"}, rules, annotations, landing), "annotations give") {
+		if !containsMsg(checkClaims(testPages, []string{"Coder"}, rules, annotations, landing), "annotations give") {
 			t.Error("coverage drift not reported")
 		}
 	})
@@ -245,7 +258,7 @@ func TestCheckCatchesTableDrift(t *testing.T) {
 	t.Run("rule missing from the checks table", func(t *testing.T) {
 		t.Parallel()
 		landing := coverageTable(map[string][4]int{"voice-and-tone.md": {1, 1, 0, 0}})
-		if !containsMsg(check([]string{"Coder"}, rules, annotations, landing), "missing from the checks table") {
+		if !containsMsg(checkClaims(testPages, []string{"Coder"}, rules, annotations, landing), "missing from the checks table") {
 			t.Error("unlisted rule not reported")
 		}
 	})
@@ -256,11 +269,15 @@ func TestCheckCatchesTableDrift(t *testing.T) {
 		landing := checksTable("`Coder.BrandNames`", "`error`", "`docs/**`") +
 			checksTable("`Coder.Orphan`", "`warning`", "`docs/**`") +
 			coverageTable(map[string][4]int{"voice-and-tone.md": {1, 1, 0, 0}})
-		if !containsMsg(check([]string{"Coder"}, extra, annotations, landing), "no style guide section cites it") {
+		if !containsMsg(checkClaims(testPages, []string{"Coder"}, extra, annotations, landing), "no style guide section cites it") {
 			t.Error("undocumented rule not reported")
 		}
 	})
 }
+
+// testPages is the section set the table helpers build rows for. Production
+// discovers this set from disk; the tests pin it so the fixtures stay small.
+var testPages = []string{"voice-and-tone.md"}
 
 func checksTable(name, severity, scope string) string {
 	return "| " + name + " | Vale | " + severity + " | " + scope + " | What it catches |\n"
@@ -269,7 +286,7 @@ func checksTable(name, severity, scope string) string {
 func coverageTable(counts map[string][4]int) string {
 	var rows []string
 	var total [4]int
-	for _, page := range subpages {
+	for _, page := range testPages {
 		c := counts[page]
 		for i := range total {
 			total[i] += c[i]
@@ -281,17 +298,7 @@ func coverageTable(counts map[string][4]int) string {
 	return strings.Join(rows, "\n") + "\n"
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
-}
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func containsMsg(findings []finding, substr string) bool {
 	for _, f := range findings {
@@ -359,5 +366,166 @@ Reference detail, not a rule.
 	}
 	if !strings.Contains(findings[0].msg, "Rule without a footer") {
 		t.Errorf("finding = %q, want the unfootered rule heading", findings[0].msg)
+	}
+}
+
+func TestCheckScopeCell(t *testing.T) {
+	t.Parallel()
+
+	global := valeRule{name: "BrandNames", severity: "error", disabledIn: []string{"docs/.style/style-guide/**"}}
+	scoped := valeRule{
+		name:      "OneSentencePerLine",
+		severity:  "warning",
+		scoped:    true,
+		enabledIn: []string{"docs/.style/*.md", "docs/.style/styles/Coder/*.md"},
+	}
+
+	cases := []struct {
+		name string
+		rule valeRule
+		cell string
+		want string
+	}{
+		{
+			name: "global rule names every configured path",
+			rule: global,
+			cell: "`docs/**` except `docs/.style/style-guide/**`",
+		},
+		{
+			name: "global rule omits the disabled path",
+			rule: global,
+			cell: "`docs/**`",
+			want: "omits `docs/.style/style-guide/**`",
+		},
+		{
+			name: "scoped rule names both enabling globs",
+			rule: scoped,
+			cell: "`docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only",
+		},
+		{
+			name: "scoped rule over-claims the whole docs tree",
+			rule: scoped,
+			cell: "`docs/**`, `docs/.style/*.md` and `docs/.style/styles/Coder/*.md`",
+			want: "claims `docs/**`",
+		},
+		{
+			name: "scoped rule omits an enabling glob",
+			rule: scoped,
+			cell: "`docs/.style/*.md` only",
+			want: "omits `docs/.style/styles/Coder/*.md`",
+		},
+	}
+
+	for _, tc := range cases {
+		findings := checkScopeCell("README.md", 1, tc.cell, tc.rule)
+		if tc.want == "" {
+			if len(findings) != 0 {
+				t.Errorf("%s: unexpected findings %v", tc.name, findings)
+			}
+			continue
+		}
+		if !containsMsg(findings, tc.want) {
+			t.Errorf("%s: findings = %v, want one containing %q", tc.name, findings, tc.want)
+		}
+	}
+}
+
+func TestLoadRulesSkipsDemoRules(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"BrandNames.yml":  "extends: substitution\nlevel: error\n",
+		"DemoError.yml":   "extends: existence\nlevel: error\n",
+		"DemoWarning.yml": "extends: existence\nlevel: warning\n",
+		"notes.txt":       "not a rule",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rules, err := loadRules(dir, map[string][]string{"": {"Coder"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 1 {
+		t.Fatalf("loadRules() = %v, want only the non-demo rule", rules)
+	}
+	if rules[0].name != "BrandNames" || rules[0].severity != "error" {
+		t.Errorf("rule = %+v, want BrandNames at error", rules[0])
+	}
+}
+
+func TestParseAnnotationsIgnoresFencedExamples(t *testing.T) {
+	t.Parallel()
+
+	src := "## A rule\n\n" +
+		"Write the footer like this:\n\n" +
+		"```md\n*Enforced by `Coder.RuleThatOnlyExistsInThisExample`.*\n```\n\n" +
+		"*Documentation-only.\nNo Vale rule.*\n"
+
+	got := parseAnnotations("page.md", src)
+	if len(got) != 1 {
+		t.Fatalf("parseAnnotations() = %v, want only the real footer", got)
+	}
+	if strings.Contains(got[0].text, "RuleThatOnlyExistsInThisExample") {
+		t.Errorf("annotation = %q, want the footer outside the fence", got[0].text)
+	}
+}
+
+func TestSubpagesDiscoversAnnotatedPages(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"README.md":       "## Coverage\n\n*Documentation-only.\nNo Vale rule.*\n",
+		"word-choice.md":  "## A rule\n\n*Enforced by `Coder.BrandNames`.*\n",
+		"editor-setup.md": "## How to configure your editor\n\nNo rules here.\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	pages, sources, err := subpages(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 || pages[0] != "word-choice.md" {
+		t.Fatalf("subpages() = %v, want only the annotated page", pages)
+	}
+	if !strings.Contains(sources["word-choice.md"], "Coder.BrandNames") {
+		t.Errorf("sources missing the page body: %q", sources["word-choice.md"])
+	}
+}
+
+func TestCheckCoverageTableReportsMalformedRow(t *testing.T) {
+	t.Parallel()
+
+	landing := "| [Section](voice-and-tone.md) | 1 | 1 | 0 | 0 |\n| **Total** | 1 | 1 | 0 | 0 |\n"
+	findings := checkCoverageTable(testPages, landing, map[string][4]int{"voice-and-tone.md": {1, 1, 0, 0}})
+	if !containsMsg(findings, "no link to a style guide section") {
+		t.Errorf("findings = %v, want a malformed-row finding", findings)
+	}
+}
+
+func TestCheckCoverageTableReportsUnknownSection(t *testing.T) {
+	t.Parallel()
+
+	landing := "| [Section](./not-a-section.md) | 1 | 1 | 0 | 0 |\n" +
+		coverageTable(map[string][4]int{"voice-and-tone.md": {1, 1, 0, 0}})
+	findings := checkCoverageTable(testPages, landing, map[string][4]int{"voice-and-tone.md": {1, 1, 0, 0}})
+	if !containsMsg(findings, "not a style guide section") {
+		t.Errorf("findings = %v, want an unknown-section finding", findings)
+	}
+}
+
+func TestCheckChecksTableReportsUnknownRule(t *testing.T) {
+	t.Parallel()
+
+	landing := checksTable("`Coder.NotARule`", "`error`", "`docs/**`")
+	if !containsMsg(checkChecksTable(landing, nil), "no rule file under") {
+		t.Error("a table row for a nonexistent rule was not reported")
 	}
 }

@@ -1,51 +1,12 @@
 // Command styleclaims fails when the Coder documentation style guide claims a
 // prose rule is enforced by tooling that is not actually enabled.
 //
-// The style guide at docs/.style/style-guide/ ends each rule section with an
-// annotation naming what enforces it, for example:
-//
-//	*Enforced by `Coder.BrandNames`.*
-//	*Enforced by `Coder.LearnMore` (planned).*
-//	*Documentation-only. No Vale rule.*
-//
-// Those annotations drifted from reality: eight cited third-party `Google.*`
-// rules that the repo-root .vale.ini never loads, and two cited `Coder.*` rules
-// that have no YAML in docs/.style/styles/Coder/. A reader who trusts an
-// annotation believes a rule is checked when it is not, which is worse than an
-// unenforced rule the guide is honest about.
-//
-// This checker reconciles three sources:
-//
-//   - The configuration: .vale.ini plus the rule files under
-//     docs/.style/styles/Coder/. This is the truth.
-//   - The per-rule annotations in the style guide subpages.
-//   - The coverage tables on the style guide landing page
-//     (docs/.style/style-guide/README.md).
-//
-// It reports:
-//
-//   - A citation presented as active for a `Coder.*` rule with no rule file.
-//   - A citation presented as active for a third-party rule whose style is not
-//     listed in BasedOnStyles.
-//   - A rule file that no annotation cites as active, so a rule landed without
-//     the style guide section the per-rule PR pattern requires.
-//   - A "Checks that run today" row whose severity disagrees with the rule
-//     file, a row for a rule that does not exist, or a missing row for a rule
-//     that does.
-//   - A "Checks that run today" scope cell that does not name the globs where
-//     .vale.ini enables the rule.
-//   - A "Coverage by section" count that disagrees with the annotations.
-//
-// A citation counts as a claim of enforcement only when its sentence says so:
-// the sentence contains "enforc" or names a "Vale rule". A sentence that merely
-// mentions a rule, such as the note explaining why `Google.Passive` stays out
-// of the package, is not a claim. A claim counts as planned, rather than
-// active, when "planned" sits in the clause next to the citation. That keeps a
-// mixed annotation such as "Enforced by `scripts/check_emdash.sh` (existing CI
-// script) and `Coder.EmDash` (planned)" classified correctly on both halves.
-//
-// The format the checker relies on is therefore: start an annotation with one
-// of the recognized keywords, and mark each planned citation individually.
+// The checker reconciles three sources: the configuration (.vale.ini plus the
+// rule files under docs/.style/styles/Coder/, which is the truth), the per-rule
+// annotations in the style guide subpages, and the coverage tables on the style
+// guide landing page. scripts/styleclaims/README.md documents what it reports,
+// the annotation format it relies on, and how sections are counted. Keep that
+// README the single description; this comment stays a summary.
 //
 // Usage:
 //
@@ -55,43 +16,70 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
 
 const (
-	valeConfig   = ".vale.ini"
-	rulesDir     = "docs/.style/styles/Coder"
-	styleGuide   = "docs/.style/style-guide"
-	landingPage  = "README.md"
+	valeConfig  = ".vale.ini"
+	rulesDir    = "docs/.style/styles/Coder"
+	styleGuide  = "docs/.style/style-guide"
+	landingPage = "README.md"
+	// demoPrefix marks the Demo*.yml files under rulesDir. Those are worked
+	// examples for rule authors, not enforced rules, so they carry no style
+	// guide section and must stay out of the rule set.
 	demoPrefix   = "Demo"
 	coderPackage = "Coder"
+	// globalScope is the scope cell every rule that .vale.ini does not confine
+	// to specific sections must name.
+	globalScope = "docs/**"
 )
 
-// subpages lists the style guide sections in the order the landing page
-// presents them. The coverage table is checked against this order.
-var subpages = []string{
-	"audience-and-scope.md",
-	"voice-and-tone.md",
-	"procedural-writing.md",
-	"word-choice.md",
-	"accessibility-and-inclusion.md",
-	"capitalization-and-punctuation.md",
-	"formatting.md",
-	"numbers-units-and-dates.md",
+// subpages returns the style guide rule sections, discovered from disk rather
+// than from a hand-maintained list: a new subpage is validated the day it
+// lands. A Markdown file counts as a rule section when it carries at least one
+// enforcement footer, which excludes the landing page and pages such as
+// editor-setup.md that document tooling rather than rules.
+func subpages(dir string) ([]string, map[string]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	var pages []string
+	sources := map[string]string{}
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || e.Name() == landingPage {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(parseAnnotations(e.Name(), string(b))) == 0 {
+			continue
+		}
+		pages = append(pages, e.Name())
+		sources[e.Name()] = string(b)
+	}
+	slices.Sort(pages)
+	return pages, sources, nil
 }
 
 // annotationStart matches the opening of a rule section's enforcement
 // annotation. The annotation runs to the next line ending in an asterisk.
 var annotationStart = regexp.MustCompile(`^\*(Enforced|Documentation-only|Adapted|Vale rule|Periods|Alt-text)`)
 
-// citation matches a backticked rule or tool name inside an annotation.
-var citation = regexp.MustCompile("`(Coder\\.[A-Za-z]+|Google\\.[A-Za-z]+|alex\\.[A-Za-z*]+|write-good\\.[A-Za-z]+|markdownlint|scripts/check_emdash\\.sh|MD[0-9]{3})`")
+// citation matches a backticked rule or tool name inside an annotation. A Vale
+// rule is `Style.Rule`; the style alternation is open so a citation to a style
+// the repo doesn't load is still read as a claim and reported.
+var citation = regexp.MustCompile("`([A-Z][A-Za-z0-9-]*\\.[A-Za-z0-9]+|alex\\.[A-Za-z0-9*]+|write-good\\.[A-Za-z0-9]+|markdownlint|scripts/check_emdash\\.sh|MD[0-9]{3})`")
 
 // severityCell matches the severity column of a "Checks that run today" row.
 var severityCell = regexp.MustCompile("`(error|warning|suggestion)`")
@@ -105,9 +93,13 @@ var documentationOnly = regexp.MustCompile(`(^|[^\p{L}])Documentation-only`)
 // headingLine matches a Markdown ATX heading outside a fenced block.
 var headingLine = regexp.MustCompile(`^(#{1,6}) +(.*)$`)
 
-// outOfScopeNote matches the footer form that hands a topic to an owner outside
-// this guide, so the topic is not one of the guide's rules.
-var outOfScopeNote = regexp.MustCompile(`^\*Out of scope`)
+// nonRuleNote matches the footer forms that say a heading is not a rule of this
+// guide: an out-of-scope note naming an owner elsewhere, or an explicit
+// disclaimer on a section that organizes a page without stating a rule.
+var nonRuleNote = regexp.MustCompile(`^\*(Out of scope|Not a rule)`)
+
+// scopeGlob matches a backticked path or glob in a scope cell.
+var scopeGlob = regexp.MustCompile("`([A-Za-z0-9_./*-]*[/*][A-Za-z0-9_./*-]*)`")
 
 // learnMoreHeading is the navigation section every subpage ends with.
 const learnMoreHeading = "Learn more"
@@ -119,6 +111,9 @@ type valeRule struct {
 	// enabledIn lists the .vale.ini section globs that set the rule to YES.
 	// Empty means the rule is active everywhere BasedOnStyles applies.
 	enabledIn []string
+	// disabledIn lists the section globs whose empty BasedOnStyles loads no
+	// style at all, so no Coder rule runs under those paths.
+	disabledIn []string
 	// scoped is true when any .vale.ini section sets the rule to NO, so the
 	// rule runs only in the sections that re-enable it.
 	scoped bool
@@ -171,22 +166,23 @@ func run() ([]finding, error) {
 	if err != nil {
 		return nil, err
 	}
-	styles, toggles := parseValeConfig(string(cfg))
+	styles, sectionStyles, toggles := parseValeConfig(string(cfg))
 
-	rules, err := loadRules(rulesDir, toggles)
+	rules, err := loadRules(rulesDir, sectionStyles, toggles)
+	if err != nil {
+		return nil, err
+	}
+
+	pages, sources, err := subpages(styleGuide)
 	if err != nil {
 		return nil, err
 	}
 
 	annotations := map[string][]annotation{}
 	var findings []finding
-	for _, page := range subpages {
-		b, err := os.ReadFile(filepath.Join(styleGuide, page))
-		if err != nil {
-			return nil, err
-		}
-		annotations[page] = parseAnnotations(page, string(b))
-		findings = append(findings, checkFooterCoverage(page, string(b))...)
+	for _, page := range pages {
+		annotations[page] = parseAnnotations(page, sources[page])
+		findings = append(findings, checkFooterCoverage(page, sources[page])...)
 	}
 
 	landing, err := os.ReadFile(filepath.Join(styleGuide, landingPage))
@@ -194,7 +190,7 @@ func run() ([]finding, error) {
 		return nil, err
 	}
 
-	return append(findings, check(styles, rules, annotations, string(landing))...), nil
+	return append(findings, checkClaims(pages, styles, rules, annotations, string(landing))...), nil
 }
 
 // checkFooterCoverage reports a rule heading that carries no enforcement
@@ -213,13 +209,8 @@ func checkFooterCoverage(page, src string) []finding {
 		note   bool
 	}
 	var headings []heading
-	fenced := false
-	for i, line := range strings.Split(src, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
-			fenced = !fenced
-			continue
-		}
-		if fenced {
+	for i, line := range unfenced(src) {
+		if line == "" {
 			continue
 		}
 		if m := headingLine.FindStringSubmatch(line); m != nil {
@@ -240,7 +231,7 @@ func checkFooterCoverage(page, src string) []finding {
 		switch {
 		case annotationStart.MatchString(line):
 			last.footer = true
-		case outOfScopeNote.MatchString(line):
+		case nonRuleNote.MatchString(line):
 			last.note = true
 		}
 	}
@@ -258,11 +249,35 @@ func checkFooterCoverage(page, src string) []finding {
 	return findings
 }
 
+// unfenced returns the file's lines with fenced code blocks blanked out, so
+// every scanner in this package agrees about what is example text. Line numbers
+// are preserved: the returned slice has one entry per source line.
+func unfenced(src string) []string {
+	lines := strings.Split(src, "\n")
+	out := make([]string, len(lines))
+	fenced := false
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			fenced = !fenced
+			continue
+		}
+		if fenced {
+			continue
+		}
+		out[i] = line
+	}
+	return out
+}
+
 // parseValeConfig returns the styles listed in BasedOnStyles and the per-rule
 // toggles. A toggle key is a rule name such as "Coder.OneSentencePerLine"; the
 // value maps a section glob ("" for the default section) to YES or NO.
-func parseValeConfig(src string) (styles []string, toggles map[string]map[string]string) {
+// styles is every style any section loads. sectionStyles maps a section glob to
+// the styles that section loads, so a section that sets an empty BasedOnStyles
+// is recognized as disabling every rule under its path.
+func parseValeConfig(src string) (styles []string, sectionStyles map[string][]string, toggles map[string]map[string]string) {
 	toggles = map[string]map[string]string{}
+	sectionStyles = map[string][]string{}
 	section := ""
 	for _, line := range strings.Split(src, "\n") {
 		line = strings.TrimSpace(line)
@@ -279,11 +294,14 @@ func parseValeConfig(src string) (styles []string, toggles map[string]map[string
 		}
 		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
 		if key == "BasedOnStyles" {
+			var loaded []string
 			for _, s := range strings.Split(value, ",") {
 				if s = strings.TrimSpace(s); s != "" {
-					styles = append(styles, s)
+					loaded = append(loaded, s)
 				}
 			}
+			sectionStyles[section] = loaded
+			styles = append(styles, loaded...)
 			continue
 		}
 		if strings.Contains(key, ".") {
@@ -293,10 +311,10 @@ func parseValeConfig(src string) (styles []string, toggles map[string]map[string
 			toggles[key][section] = strings.ToUpper(value)
 		}
 	}
-	return styles, toggles
+	return styles, sectionStyles, toggles
 }
 
-func loadRules(dir string, toggles map[string]map[string]string) ([]valeRule, error) {
+func loadRules(dir string, sectionStyles map[string][]string, toggles map[string]map[string]string) ([]valeRule, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -314,13 +332,13 @@ func loadRules(dir string, toggles map[string]map[string]string) ([]valeRule, er
 		if err != nil {
 			return nil, err
 		}
-		rules = append(rules, newRule(name, string(b), toggles))
+		rules = append(rules, newRule(name, string(b), sectionStyles, toggles))
 	}
-	sort.Slice(rules, func(i, j int) bool { return rules[i].name < rules[j].name })
+	slices.SortFunc(rules, func(a, b valeRule) int { return cmp.Compare(a.name, b.name) })
 	return rules, nil
 }
 
-func newRule(name, yaml string, toggles map[string]map[string]string) valeRule {
+func newRule(name, yaml string, sectionStyles map[string][]string, toggles map[string]map[string]string) valeRule {
 	r := valeRule{name: name}
 	for _, line := range strings.Split(yaml, "\n") {
 		if rest, ok := strings.CutPrefix(line, "level:"); ok {
@@ -336,14 +354,22 @@ func newRule(name, yaml string, toggles map[string]map[string]string) valeRule {
 			r.enabledIn = append(r.enabledIn, section)
 		}
 	}
-	sort.Strings(r.enabledIn)
+	for section, loaded := range sectionStyles {
+		if section == "" || len(loaded) > 0 {
+			continue
+		}
+		r.disabledIn = append(r.disabledIn, section)
+	}
+	slices.Sort(r.enabledIn)
+	slices.Sort(r.disabledIn)
 	return r
 }
 
-// parseAnnotations extracts every rule section footer from a subpage.
+// parseAnnotations extracts every rule section footer from a subpage. Footers
+// shown as examples inside a fenced code block are not annotations.
 func parseAnnotations(file, src string) []annotation {
 	var out []annotation
-	lines := strings.Split(src, "\n")
+	lines := unfenced(src)
 	for i := 0; i < len(lines); i++ {
 		if !annotationStart.MatchString(lines[i]) {
 			continue
@@ -368,6 +394,11 @@ func parseAnnotations(file, src string) []annotation {
 func activeCitations(text string) (active, planned []string) {
 	for _, sentence := range splitSentences(text) {
 		lower := strings.ToLower(sentence)
+		// The gate is substring-based, so punctuation matters: splitSentences
+		// breaks on "." and ";" but not ":", which means a disclaimer written
+		// as "No Vale rule for this: `Google.Passive` is too noisy." stays one
+		// sentence and its citation reads as a claim. End a disclaimer with a
+		// period before naming a rule.
 		if !strings.Contains(lower, "enforc") && !strings.Contains(lower, "vale rule") {
 			continue
 		}
@@ -456,7 +487,9 @@ func classify(text string, ruleNames map[string]bool) class {
 	return classDocumentationOnly
 }
 
-func check(styles []string, rules []valeRule, annotations map[string][]annotation, landing string) []finding {
+// checkClaims reconciles the annotations against the configuration, then runs
+// the two landing page table checks.
+func checkClaims(pages []string, styles []string, rules []valeRule, annotations map[string][]annotation, landing string) []finding {
 	var findings []finding
 
 	ruleNames := map[string]bool{}
@@ -471,11 +504,12 @@ func check(styles []string, rules []valeRule, annotations map[string][]annotatio
 	cited := map[string]bool{}
 	counts := map[string][4]int{}
 
-	for _, page := range subpages {
+	for _, page := range pages {
 		var total, tool, planned, docOnly int
 		for _, a := range annotations[page] {
 			total++
-			switch classify(a.text, ruleNames) {
+			class := classify(a.text, ruleNames)
+			switch class {
 			case classTool:
 				tool++
 			case classPlanned:
@@ -501,7 +535,13 @@ func check(styles []string, rules []valeRule, annotations map[string][]annotatio
 						})
 						continue
 					}
-					cited[rule] = true
+					// Only the section that owns a rule marks it cited. A
+					// documentation-only section may cross-reference a rule
+					// another section owns, and that reference must not stand
+					// in for the owning section if the owner is ever removed.
+					if class != classDocumentationOnly {
+						cited[rule] = true
+					}
 					continue
 				}
 				if !loadedStyle[style] {
@@ -525,7 +565,7 @@ func check(styles []string, rules []valeRule, annotations map[string][]annotatio
 	}
 
 	findings = append(findings, checkChecksTable(landing, rules)...)
-	findings = append(findings, checkCoverageTable(landing, counts)...)
+	findings = append(findings, checkCoverageTable(pages, landing, counts)...)
 	return findings
 }
 
@@ -536,7 +576,7 @@ func checkChecksTable(landing string, rules []valeRule) []finding {
 	path := filepath.Join(styleGuide, landingPage)
 	listed := map[string]bool{}
 
-	for i, line := range strings.Split(landing, "\n") {
+	for i, line := range unfenced(landing) {
 		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
 			continue
 		}
@@ -570,20 +610,7 @@ func checkChecksTable(landing string, rules []valeRule) []finding {
 				fmt.Sprintf("severity for `%s.%s` is %q in the table but %q in the rule file", coderPackage, name, strings.TrimSpace(cells[2]), rule.severity),
 			})
 		}
-		for _, glob := range rule.enabledIn {
-			if !strings.Contains(cells[3], glob) {
-				findings = append(findings, finding{
-					path, i + 1,
-					fmt.Sprintf("scope for `%s.%s` omits %q, where %s enables it", coderPackage, name, glob, valeConfig),
-				})
-			}
-		}
-		if !rule.scoped && !strings.Contains(cells[3], "docs/**") {
-			findings = append(findings, finding{
-				path, i + 1,
-				fmt.Sprintf("scope for `%s.%s` should name `docs/**`; %s does not scope it to specific sections", coderPackage, name, valeConfig),
-			})
-		}
+		findings = append(findings, checkScopeCell(path, i+1, cells[3], *rule)...)
 	}
 
 	for _, r := range rules {
@@ -597,8 +624,50 @@ func checkChecksTable(landing string, rules []valeRule) []finding {
 	return findings
 }
 
+// checkScopeCell compares the paths a scope cell names against the paths
+// .vale.ini actually configures, in both directions: a cell that omits a glob
+// under-claims the rule's reach, and a cell that names a path the config never
+// mentions over-claims it.
+func checkScopeCell(path string, line int, cell string, rule valeRule) []finding {
+	want := map[string]bool{}
+	if rule.scoped {
+		for _, g := range rule.enabledIn {
+			want[g] = true
+		}
+	} else {
+		want[globalScope] = true
+		for _, g := range rule.disabledIn {
+			want[g] = true
+		}
+	}
+
+	got := map[string]bool{}
+	for _, m := range scopeGlob.FindAllStringSubmatch(cell, -1) {
+		got[m[1]] = true
+	}
+
+	var findings []finding
+	for _, g := range slices.Sorted(maps.Keys(want)) {
+		if !got[g] {
+			findings = append(findings, finding{
+				path, line,
+				fmt.Sprintf("scope for `%s.%s` omits `%s`, which %s configures for it", coderPackage, rule.name, g, valeConfig),
+			})
+		}
+	}
+	for _, g := range slices.Sorted(maps.Keys(got)) {
+		if !want[g] {
+			findings = append(findings, finding{
+				path, line,
+				fmt.Sprintf("scope for `%s.%s` claims `%s`, which %s does not configure for it", coderPackage, rule.name, g, valeConfig),
+			})
+		}
+	}
+	return findings
+}
+
 // checkCoverageTable validates the per-section counts and the total row.
-func checkCoverageTable(landing string, counts map[string][4]int) []finding {
+func checkCoverageTable(pages []string, landing string, counts map[string][4]int) []finding {
 	var findings []finding
 	path := filepath.Join(styleGuide, landingPage)
 	seen := map[string]bool{}
@@ -609,7 +678,7 @@ func checkCoverageTable(landing string, counts map[string][4]int) []finding {
 		}
 	}
 
-	for i, line := range strings.Split(landing, "\n") {
+	for i, line := range unfenced(landing) {
 		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
 			continue
 		}
@@ -625,7 +694,7 @@ func checkCoverageTable(landing string, counts map[string][4]int) []finding {
 			if nums != wantTotal {
 				findings = append(findings, finding{
 					path, i + 1,
-					fmt.Sprintf("total row is %v but the annotations sum to %v", nums, wantTotal),
+					fmt.Sprintf("total row is %v but the annotations sum to %v (rules, tool-checked, planned, documentation-only)", nums, wantTotal),
 				})
 			}
 			seen["**Total**"] = true
@@ -633,6 +702,10 @@ func checkCoverageTable(landing string, counts map[string][4]int) []finding {
 		}
 		page, ok := linkedPage(cells[0])
 		if !ok {
+			findings = append(findings, finding{
+				path, i + 1,
+				"coverage row has counts but no link to a style guide section; write the first cell as [Section](./section.md)",
+			})
 			continue
 		}
 		want, known := counts[page]
@@ -649,7 +722,7 @@ func checkCoverageTable(landing string, counts map[string][4]int) []finding {
 		}
 	}
 
-	for _, page := range subpages {
+	for _, page := range pages {
 		if !seen[page] {
 			findings = append(findings, finding{path, 0, fmt.Sprintf("coverage table has no row for %s", page)})
 		}
