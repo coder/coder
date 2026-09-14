@@ -106,9 +106,10 @@ type PutOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
 	CallbackURL string `json:"callback_url" validate:"required,http_url"`
 	Icon        string `json:"icon" validate:"omitempty"`
-	// Scope replaces the app's current allowlist. Leave empty, or omit, for
+	// Scope replaces the app's current allowlist. Omit to leave the existing
+	// allowlist untouched. Set to an empty string to clear it, making the app
 	// unrestricted.
-	Scope string `json:"scope,omitempty" validate:"omitempty"`
+	Scope *string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder

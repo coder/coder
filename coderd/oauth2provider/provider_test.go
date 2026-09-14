@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -458,16 +459,27 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
 			Name:        app.Name,
 			CallbackURL: app.CallbackURL,
-			Scope:       "coder:templates.author",
+			Scope:       ptr.Ref("coder:templates.author"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "coder:templates.author", app.Scope)
 
-		// An empty scope on update clears the allowlist back to unrestricted.
+		// Omitting scope on update leaves the allowlist untouched.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
 			Name:        app.Name,
 			CallbackURL: app.CallbackURL,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "coder:templates.author", app.Scope)
+
+		// An explicit empty scope on update clears the allowlist back to
+		// unrestricted.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+			Scope:       ptr.Ref(""),
 		})
 		require.NoError(t, err)
 		require.Empty(t, app.Scope)

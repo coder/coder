@@ -7830,7 +7830,8 @@ export interface PutOAuth2ProviderAppRequest {
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
-	 * Scope replaces the app's current allowlist. Leave empty, or omit, for
+	 * Scope replaces the app's current allowlist. Omit to leave the existing
+	 * allowlist untouched. Set to an empty string to clear it, making the app
 	 * unrestricted.
 	 */
 	readonly scope?: string;

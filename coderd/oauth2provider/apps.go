@@ -155,6 +155,10 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		scope := app.Scope // Keep existing value
+		if req.Scope != nil {
+			scope = scopeAllowlist(*req.Scope)
+		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,
 			UpdatedAt:               dbtime.Now(),
@@ -168,7 +172,7 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			GrantTypes:              app.GrantTypes,              // Keep existing value
 			ResponseTypes:           app.ResponseTypes,           // Keep existing value
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod, // Keep existing value
-			Scope:                   scopeAllowlist(req.Scope),
+			Scope:                   scope,
 			Contacts:                app.Contacts,        // Keep existing value
 			ClientUri:               app.ClientUri,       // Keep existing value
 			LogoUri:                 app.LogoUri,         // Keep existing value

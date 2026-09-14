@@ -12899,12 +12899,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                         |
-|----------------|--------|----------|--------------|-------------------------------------------------------------------------------------|
-| `callback_url` | string | true     |              |                                                                                     |
-| `icon`         | string | false    |              |                                                                                     |
-| `name`         | string | true     |              |                                                                                     |
-| `scope`        | string | false    |              | Scope replaces the app's current allowlist. Leave empty, or omit, for unrestricted. |
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                  |
+|----------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url` | string | true     |              |                                                                                                                                                              |
+| `icon`         | string | false    |              |                                                                                                                                                              |
+| `name`         | string | true     |              |                                                                                                                                                              |
+| `scope`        | string | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted. |
 
 ## codersdk.RBACAction
 
