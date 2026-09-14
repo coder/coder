@@ -357,6 +357,21 @@ export const ChatWithTurnSummaryAndError: Story = {
 	},
 };
 
+// The turn finished while the queue head was under edit, so the chat is
+// paused rather than idle.
+export const PausedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-paused",
+				title: "Migrate the database",
+				status: "paused",
+				last_turn_summary: "Generated the migration files",
+			}),
+		],
+	},
+};
+
 export const RunningDelegatedChat: Story = {
 	args: {
 		chats: [
