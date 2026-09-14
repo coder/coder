@@ -26,10 +26,9 @@ func queuedTextContent(t *testing.T, text string) json.RawMessage {
 
 func boolPtr(b bool) *bool { return &b }
 
-// TestPatchChatQueuedMessage walks the queued-edit flow over HTTP: hold,
-// save on a busy chat, resume on a paused chat, delete the paused head,
-// and the request guards. State-machine outcomes are proven in
-// chatstate; this covers routing, authorization, and error mapping.
+// TestPatchChatQueuedMessage covers routing, authorization, and error
+// mapping for the queued-edit endpoint; state outcomes are covered in
+// chatstate.
 func TestPatchChatQueuedMessage(t *testing.T) {
 	t.Parallel()
 
@@ -42,7 +41,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 
 		// Errored chat with two queued rows: hold the head and save it.
-		// The chat stays errored; the row keeps its place with new text.
+		// The chat stays errored.
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
 			LastModelConfigID: modelConfig.ID, Title: "queued edit", Status: database.ChatStatusError,
@@ -125,8 +124,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, "Invalid queued message ID.", requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest).Message)
 
-		// Non-owner with update permission: PATCH and DELETE are
-		// owner-only because both can start inference.
+		// PATCH and DELETE are owner-only.
 		adminRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
 		err = codersdk.NewExperimentalClient(adminRaw).EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{Held: boolPtr(true)})
 		require.Equal(t, "Only the chat owner may edit queued messages.", requireSDKError(t, err, http.StatusForbidden).Message)
