@@ -1874,6 +1874,36 @@ func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUserna
 	return result
 }
 
+func ChatUserMemory(row database.GetChatUserMemoryByIDRow) codersdk.ChatUserMemory {
+	return convertChatUserMemory(row.ChatUserMemory, row.CreatedByUsername)
+}
+
+func ChatUserMemoryRows(rows []database.GetChatUserMemoriesByUserAndOrganizationRow) []codersdk.ChatUserMemory {
+	memories := make([]codersdk.ChatUserMemory, len(rows))
+	for i, row := range rows {
+		memories[i] = convertChatUserMemory(row.ChatUserMemory, row.CreatedByUsername)
+	}
+	return memories
+}
+
+func convertChatUserMemory(memory database.ChatUserMemory, createdByUsername string) codersdk.ChatUserMemory {
+	result := codersdk.ChatUserMemory{
+		ID:                memory.ID,
+		OrganizationID:    memory.OrganizationID,
+		UserID:            memory.UserID,
+		Name:              memory.Name,
+		Description:       memory.Description,
+		Body:              memory.Body,
+		CreatedByUsername: createdByUsername,
+		CreatedAt:         memory.CreatedAt,
+		UpdatedAt:         memory.UpdatedAt,
+	}
+	if memory.SourceChatID.Valid {
+		result.SourceChatID = &memory.SourceChatID.UUID
+	}
+	return result
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.

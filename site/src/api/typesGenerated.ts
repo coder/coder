@@ -3146,6 +3146,14 @@ export interface ChatModelVercelProviderOptions {
 
 // From codersdk/chats.go
 /**
+ * ChatPersonalMemorySettings describes a user's personal memory setting.
+ */
+export interface ChatPersonalMemorySettings {
+	readonly enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatPersonalModelOverride is a resolved user personal model override.
  */
 export interface ChatPersonalModelOverride {
@@ -3609,6 +3617,23 @@ export interface ChatUser extends MinimalUser {
 
 // From codersdk/chats.go
 /**
+ * ChatUserMemory is a durable memory scoped to a user and organization.
+ */
+export interface ChatUserMemory {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly user_id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly body: string;
+	readonly source_chat_id?: string;
+	readonly created_by_username: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatWatchEvent represents an event from the global chat watch stream.
  * It delivers lifecycle events (created, status change, summary change,
  * title change) for all of the authenticated user's chats. When Kind is
@@ -3964,6 +3989,17 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatUserMemoryRequest creates a user-scoped memory.
+ */
+export interface CreateChatUserMemoryRequest {
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly body: string;
 }
 
 // From codersdk/users.go
@@ -9761,6 +9797,14 @@ export interface UpdateChatModelRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatPersonalMemorySettingsRequest updates a user's personal memory setting.
+ */
+export interface UpdateChatPersonalMemorySettingsRequest {
+	readonly enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatPersonalModelOverridesAdminSettingsRequest is the request body for
  * updating personal model override admin settings.
  */
@@ -9857,6 +9901,16 @@ export interface UpdateChatRetentionDaysRequest {
 export interface UpdateChatSystemPromptRequest {
 	readonly system_prompt: string;
 	readonly include_default_system_prompt?: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatUserMemoryRequest updates a user-scoped memory.
+ */
+export interface UpdateChatUserMemoryRequest {
+	readonly name?: string;
+	readonly description?: string;
+	readonly body?: string;
 }
 
 // From codersdk/chats.go

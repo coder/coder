@@ -3146,6 +3146,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 			switch ev.Kind {
 			case coderdpubsub.ChatConfigEventUserPrompt:
 				p.configCache.InvalidateUserPrompt(ev.EntityID)
+			case coderdpubsub.ChatConfigEventUserPersonalMemory:
+				p.configCache.InvalidateUserPersonalMemoryEnabled(ev.EntityID)
 			case coderdpubsub.ChatConfigEventAdvisorConfig:
 				p.configCache.InvalidateAdvisorConfig()
 			}
