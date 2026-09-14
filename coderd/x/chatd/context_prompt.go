@@ -43,6 +43,53 @@ func decodeSkillMetaBody(body json.RawMessage) (*agentproto.SkillMetaBody, bool)
 	return &decoded, true
 }
 
+// decodePluginBody decodes a protojson plugin manifest resource body. ok is
+// false when the body cannot be decoded.
+func decodePluginBody(body json.RawMessage) (*agentproto.PluginBody, bool) {
+	var decoded agentproto.PluginBody
+	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
+		return nil, false
+	}
+	return &decoded, true
+}
+
+// decodeMCPServerBody decodes a protojson mcp_server resource body. ok is
+// false when the body cannot be decoded.
+func decodeMCPServerBody(body json.RawMessage) (*agentproto.MCPServerBody, bool) {
+	var decoded agentproto.MCPServerBody
+	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
+		return nil, false
+	}
+	return &decoded, true
+}
+
+// pinnedSkillMeta converts a decoded skill body into prompt skill metadata
+// for the row at source. ok is false when the name is not a valid
+// kebab-case skill name or a non-empty plugin name fails the Agent Plugins
+// name grammar, so the returned Name and PluginName always satisfy their
+// grammars.
+func pinnedSkillMeta(source string, body *agentproto.SkillMetaBody) (meta chattool.SkillMeta, ok bool) {
+	name := body.GetName()
+	if !workspacesdk.SkillNamePattern.MatchString(name) {
+		return chattool.SkillMeta{}, false
+	}
+	pluginName := body.GetPluginName()
+	if pluginName != "" {
+		if err := workspacesdk.ValidatePluginName(pluginName); err != nil {
+			return chattool.SkillMeta{}, false
+		}
+	}
+	// Source is the skill directory. Meta carries the verbatim SKILL.md so
+	// read_skill serves the pinned body without dialing the workspace.
+	return chattool.SkillMeta{
+		Name:        name,
+		Description: body.GetDescription(),
+		PluginName:  pluginName,
+		Dir:         source,
+		Meta:        body.GetMeta(),
+	}, true
+}
+
 // mcpToolNameSeparator joins a server name and a tool name into the
 // flattened "<server>__<tool>" form. The agent reports MCP tool names
 // unprefixed alongside the server name; the workspace agent's MCP proxy
@@ -50,15 +97,11 @@ func decodeSkillMetaBody(body json.RawMessage) (*agentproto.SkillMetaBody, bool)
 // (see agent/x/agentmcp ToolNameSep).
 const mcpToolNameSeparator = "__"
 
-// mcpToolsFromServerBody decodes a stored mcp_server resource body and returns
-// its tool list for the chat response. The agent prefixes each tool name with
+// mcpToolsFromServerBody returns the tool list of a decoded mcp_server body
+// for the chat response. The agent prefixes each tool name with
 // "<server>__"; that prefix is stripped so the name reads as the server
-// exposes it. Returns nil when the body has no tools or cannot be decoded.
-func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.ChatContextTool {
-	var decoded agentproto.MCPServerBody
-	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
-		return nil
-	}
+// exposes it. Returns nil when the body has no tools.
+func mcpToolsFromServerBody(server string, decoded *agentproto.MCPServerBody) []codersdk.ChatContextTool {
 	tools := decoded.GetTools()
 	if len(tools) == 0 {
 		return nil
@@ -83,21 +126,26 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 
 // workspaceMCPToolInfosFromResources decodes a chat's pinned mcp_server
 // resources into execution-ready tool infos. Only OK mcp_server rows
-// contribute. The agent reports tool names unprefixed alongside the server
-// name, so each tool is re-prefixed to "<server>__<tool>", the model-facing
-// and proxy-routable form the live discovery path also produces. The pushed
-// input schema is a full JSON Schema object; its "properties" and "required"
-// are split out to match the shape the workspace agent's live tool list
-// produces (see agent/x/agentmcp). Tools with an empty name are skipped.
-func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource) []workspacesdk.MCPToolInfo {
+// contribute, and rows attributed to an Agent Plugin (non-empty plugin_name)
+// contribute only when opts.pluginsEnabled is true. The agent reports tool names
+// unprefixed alongside the server name, so each tool is re-prefixed to
+// "<server>__<tool>", the model-facing and proxy-routable form the live
+// discovery path also produces. The pushed input schema is a full JSON
+// Schema object; its "properties" and "required" are split out to match the
+// shape the workspace agent's live tool list produces (see
+// agent/x/agentmcp). Tools with an empty name are skipped.
+func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource, opts pinnedContextOptions) []workspacesdk.MCPToolInfo {
 	var out []workspacesdk.MCPToolInfo
 	for _, r := range resources {
 		if r.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer ||
 			r.Status != database.WorkspaceAgentContextResourceStatusOk {
 			continue
 		}
-		var decoded agentproto.MCPServerBody
-		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decoded); err != nil {
+		decoded, ok := decodeMCPServerBody(r.Body)
+		if !ok {
+			continue
+		}
+		if decoded.GetPluginName() != "" && !opts.pluginsEnabled {
 			continue
 		}
 		server := decoded.GetServerName()
@@ -157,16 +205,20 @@ func decodeInstructionContent(body json.RawMessage) (content string, decoded boo
 	return codersdk.SanitizePromptText(string(decodedBody.GetContent())), true
 }
 
-// decodeSkillIdentity decodes a skill resource body and returns its name and
-// description. decoded is false when the body cannot be decoded, letting the
-// prompt path count it as malformed; callers skip a skill with an empty name.
-// Shared by the prompt builder and the API resource listing.
-func decodeSkillIdentity(body json.RawMessage) (name, description string, decoded bool) {
-	decodedBody, ok := decodeSkillMetaBody(body)
-	if !ok {
-		return "", "", false
+// pinnedContextOptions controls how pinned context rows are read.
+type pinnedContextOptions struct {
+	// pluginsEnabled mirrors the agent-plugins experiment. When false, plugin
+	// manifest rows and skill or mcp_server rows carrying a plugin_name are
+	// skipped by every reader.
+	pluginsEnabled bool
+}
+
+// pinnedContextOptions derives the read options from the server's enabled
+// experiments.
+func (server *Server) pinnedContextOptions() pinnedContextOptions {
+	return pinnedContextOptions{
+		pluginsEnabled: server.experiments.Enabled(codersdk.ExperimentAgentPlugins),
 	}
-	return decodedBody.GetName(), decodedBody.GetDescription(), true
 }
 
 // pinnedWorkspaceContext builds the system-prompt instruction block and
@@ -195,7 +247,7 @@ func (server *Server) pinnedWorkspaceContext(
 	if directory == "" {
 		directory = agent.Directory
 	}
-	instruction, skills, malformed := contextResourcesToPrompt(resources, agent.OperatingSystem, directory)
+	instruction, skills, malformed, invalid := contextResourcesToPrompt(resources, agent.OperatingSystem, directory, server.pinnedContextOptions())
 	if malformed > 0 {
 		// A status-OK resource whose body cannot be decoded means the pin
 		// hydrated content that is now unreadable; surface it so a proto
@@ -203,6 +255,16 @@ func (server *Server) pinnedWorkspaceContext(
 		server.logger.Warn(ctx, "skipped malformed pinned chat context resources",
 			slog.F("chat_id", chat.ID),
 			slog.F("malformed_count", malformed),
+			slog.F("resource_count", len(resources)),
+		)
+	}
+	if invalid > 0 {
+		// Pinned skill rows are expected to carry names that satisfy the
+		// skill and plugin name grammars; a row that does not is dropped
+		// and logged rather than rendered.
+		server.logger.Warn(ctx, "skipped pinned skills with invalid names",
+			slog.F("chat_id", chat.ID),
+			slog.F("invalid_count", invalid),
 			slog.F("resource_count", len(resources)),
 		)
 	}
@@ -237,15 +299,18 @@ func (server *Server) resolveTurnWorkspaceContext(
 //
 // operatingSystem and directory annotate the instruction header and are
 // omitted when empty. Only OK resources of a prompt body kind contribute;
-// other statuses, body kinds, and malformed bodies are skipped. malformed
-// counts OK resources whose body failed to decode, so the caller can surface
-// an otherwise silent drop. The header is emitted only when at least one
-// instruction file has content, so a skill-only pin produces no instruction
-// block, matching the per-turn path.
+// other statuses, body kinds, and malformed bodies are skipped. Skills
+// attributed to an Agent Plugin (non-empty plugin_name) contribute only when
+// opts.pluginsEnabled is true. malformed counts OK resources whose body failed to
+// decode and invalid counts OK skills dropped for an invalid skill or plugin
+// name, so the caller can surface otherwise silent drops. The header is
+// emitted only when at least one instruction file has content, so a
+// skill-only pin produces no instruction block, matching the per-turn path.
 func contextResourcesToPrompt(
 	resources []database.ChatContextResource,
 	operatingSystem, directory string,
-) (instruction string, skills []chattool.SkillMeta, malformed int) {
+	opts pinnedContextOptions,
+) (instruction string, skills []chattool.SkillMeta, malformed, invalid int) {
 	var contextFileParts []codersdk.ChatMessagePart
 	for _, r := range resources {
 		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
@@ -275,22 +340,22 @@ func contextResourcesToPrompt(
 			if decodedBody.GetName() == "" {
 				continue
 			}
-			// Source is the skill directory. Meta carries the verbatim
-			// SKILL.md so read_skill serves the pinned body without
-			// dialing the workspace.
-			skills = append(skills, chattool.SkillMeta{
-				Name:        decodedBody.GetName(),
-				Description: decodedBody.GetDescription(),
-				Dir:         r.Source,
-				Meta:        decodedBody.GetMeta(),
-			})
+			if decodedBody.GetPluginName() != "" && !opts.pluginsEnabled {
+				continue
+			}
+			meta, ok := pinnedSkillMeta(r.Source, decodedBody)
+			if !ok {
+				invalid++
+				continue
+			}
+			skills = append(skills, meta)
 		}
 	}
 
 	if len(contextFileParts) == 0 {
-		return "", skills, malformed
+		return "", skills, malformed, invalid
 	}
-	return formatSystemInstructions(operatingSystem, directory, contextFileParts), skills, malformed
+	return formatSystemInstructions(operatingSystem, directory, contextFileParts), skills, malformed, invalid
 }
 
 // ContextResources returns the chat's pinned context resource list (metadata
@@ -309,7 +374,7 @@ func (server *Server) ContextResources(
 	if err != nil {
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
-	resources := pinnedContextResources(pinned)
+	resources := pinnedContextResources(pinned, server.pinnedContextOptions())
 	server.logger.Debug(ctx, "computed chat context resources",
 		slog.F("chat_id", chat.ID),
 		slog.F("resource_count", len(resources)),
@@ -325,20 +390,26 @@ func (server *Server) ContextResources(
 // inventory the user can act on, each stamped with its Status:
 //
 //   - OK instruction files with non-empty (sanitized) content, OK skills with
-//     a name, and OK MCP configs/servers (mcp_server carries its tools).
+//     a valid name, OK MCP configs/servers (mcp_server carries its tools), and
+//     OK plugin manifests with a valid name.
 //   - Non-OK rows (invalid, unreadable, oversize, excluded) of a tracked kind,
 //     carrying Status and Error so the UI can explain why the resource was
 //     dropped from the prompt instead of silently omitting it. Their
 //     body-specific fields are empty.
 //
-// OK-but-empty instruction files, OK skills with no name, and untracked kinds
-// (reserved plugin/hook/subagent/command) are skipped. Input order (source ASC
-// from the query) is preserved.
-func pinnedContextResources(resources []database.ChatContextResource) []codersdk.ChatContextResource {
+// OK-but-empty instruction files, OK skills with an invalid skill or plugin
+// name, and untracked kinds (reserved hook/subagent/command) are skipped.
+// When opts.pluginsEnabled is false, plugin rows and skill or mcp_server rows
+// carrying a plugin_name are skipped whatever their status. Input order
+// (source ASC from the query) is preserved.
+func pinnedContextResources(resources []database.ChatContextResource, opts pinnedContextOptions) []codersdk.ChatContextResource {
 	var out []codersdk.ChatContextResource
 	for _, r := range resources {
 		kind, ok := contextResourceKind(r.BodyKind)
 		if !ok {
+			continue
+		}
+		if !opts.pluginsEnabled && pinnedRowBelongsToPlugin(r) {
 			continue
 		}
 		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
@@ -366,8 +437,12 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Status:    codersdk.ChatContextResourceStatusOK,
 			})
 		case database.WorkspaceAgentContextBodyKindSkill:
-			name, description, decoded := decodeSkillIdentity(r.Body)
-			if !decoded || name == "" {
+			decodedBody, decoded := decodeSkillMetaBody(r.Body)
+			if !decoded || decodedBody.GetName() == "" {
+				continue
+			}
+			meta, ok := pinnedSkillMeta(r.Source, decodedBody)
+			if !ok {
 				continue
 			}
 			out = append(out, codersdk.ChatContextResource{
@@ -375,8 +450,9 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Kind:             kind,
 				SizeBytes:        r.SizeBytes,
 				Status:           codersdk.ChatContextResourceStatusOK,
-				SkillName:        name,
-				SkillDescription: description,
+				SkillName:        meta.Name,
+				SkillDescription: meta.Description,
+				PluginName:       meta.PluginName,
 			})
 		case database.WorkspaceAgentContextBodyKindMcpConfig:
 			out = append(out, codersdk.ChatContextResource{
@@ -386,22 +462,61 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Status:    codersdk.ChatContextResourceStatusOK,
 			})
 		case database.WorkspaceAgentContextBodyKindMcpServer:
-			out = append(out, codersdk.ChatContextResource{
+			resource := codersdk.ChatContextResource{
 				Source:    r.Source,
 				Kind:      kind,
 				SizeBytes: r.SizeBytes,
 				Status:    codersdk.ChatContextResourceStatusOK,
-				Tools:     mcpToolsFromServerBody(r.Source, r.Body),
+			}
+			if decodedBody, decoded := decodeMCPServerBody(r.Body); decoded {
+				resource.Tools = mcpToolsFromServerBody(r.Source, decodedBody)
+				if pluginName := decodedBody.GetPluginName(); pluginName != "" {
+					if workspacesdk.ValidatePluginName(pluginName) != nil {
+						continue
+					}
+					resource.PluginName = pluginName
+				}
+			}
+			out = append(out, resource)
+		case database.WorkspaceAgentContextBodyKindPlugin:
+			decodedBody, decoded := decodePluginBody(r.Body)
+			if !decoded || workspacesdk.ValidatePluginName(decodedBody.GetName()) != nil {
+				continue
+			}
+			out = append(out, codersdk.ChatContextResource{
+				Source:     r.Source,
+				Kind:       kind,
+				SizeBytes:  r.SizeBytes,
+				Status:     codersdk.ChatContextResourceStatusOK,
+				PluginName: decodedBody.GetName(),
 			})
 		}
 	}
 	return out
 }
 
+// pinnedRowBelongsToPlugin reports whether a pinned row is an Agent Plugin
+// manifest or a skill or mcp_server body attributed to a plugin. A body that
+// cannot be decoded is treated as unattributed.
+func pinnedRowBelongsToPlugin(r database.ChatContextResource) bool {
+	switch r.BodyKind {
+	case database.WorkspaceAgentContextBodyKindPlugin:
+		return true
+	case database.WorkspaceAgentContextBodyKindSkill:
+		decoded, ok := decodeSkillMetaBody(r.Body)
+		return ok && decoded.GetPluginName() != ""
+	case database.WorkspaceAgentContextBodyKindMcpServer:
+		decoded, ok := decodeMCPServerBody(r.Body)
+		return ok && decoded.GetPluginName() != ""
+	default:
+		return false
+	}
+}
+
 // contextResourceKind maps a database body kind to the codersdk kind reported
 // on the chat. ok is false only for kinds chatd does not track yet (the
-// reserved plugin/hook/subagent/command kinds), which are omitted from the
-// resource list.
+// reserved hook/subagent/command kinds), which are omitted from the resource
+// list.
 func contextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.ChatContextResourceKind, bool) {
 	switch kind {
 	case database.WorkspaceAgentContextBodyKindInstructionFile:
@@ -412,6 +527,8 @@ func contextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.
 		return codersdk.ChatContextResourceKindMCPConfig, true
 	case database.WorkspaceAgentContextBodyKindMcpServer:
 		return codersdk.ChatContextResourceKindMCPServer, true
+	case database.WorkspaceAgentContextBodyKindPlugin:
+		return codersdk.ChatContextResourceKindPlugin, true
 	default:
 		return "", false
 	}

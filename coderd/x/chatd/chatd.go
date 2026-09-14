@@ -436,7 +436,9 @@ func (p *Server) resolveWorkspaceMCPTools(
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
 // definitions. Calls still proxy through the agent connection, and agent pushes
-// live-sync definitions, so no invalidation callback is needed.
+// live-sync definitions, so no invalidation callback is needed. Servers
+// attributed to an Agent Plugin contribute only while the agent-plugins
+// experiment is enabled.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
@@ -446,7 +448,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 	if err != nil {
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
-	infos := workspaceMCPToolInfosFromResources(resources)
+	infos := workspaceMCPToolInfosFromResources(resources, p.pinnedContextOptions())
 	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
 }
 
@@ -3606,30 +3608,36 @@ type systemPromptBehaviorContext struct {
 	isRootChat           bool
 }
 
-func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
-	if len(workspaceSkills) == 0 {
-		return nil
-	}
-	resolved := make([]skillspkg.Skill, 0, len(workspaceSkills))
+// splitWorkspaceSkillsForResolution converts pinned skill metadata into the
+// source-aware skills MergeSkills expects: skills carrying a plugin name
+// become SourcePlugin skills identified by (plugin, name), the rest become
+// SourceWorkspace skills.
+func splitWorkspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) (workspace, plugin []skillspkg.Skill) {
 	for _, skill := range workspaceSkills {
-		resolved = append(resolved, skillspkg.Skill{
+		if skill.PluginName != "" {
+			plugin = append(plugin, skillspkg.Skill{
+				Name:        skill.Name,
+				Description: skill.Description,
+				Source:      skillspkg.SourcePlugin,
+				Plugin:      skill.PluginName,
+			})
+			continue
+		}
+		workspace = append(workspace, skillspkg.Skill{
 			Name:        skill.Name,
 			Description: skill.Description,
 			Source:      skillspkg.SourceWorkspace,
 		})
 	}
-	return resolved
+	return workspace, plugin
 }
 
 func mergeTurnSkills(
 	personalSkills []skillspkg.Skill,
 	workspaceSkills []chattool.SkillMeta,
 ) []skillspkg.ResolvedSkill {
-	return skillspkg.MergeSkills(
-		personalSkills,
-		workspaceSkillsForResolution(workspaceSkills),
-		nil,
-	)
+	workspace, plugin := splitWorkspaceSkillsForResolution(workspaceSkills)
+	return skillspkg.MergeSkills(personalSkills, workspace, plugin)
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed

@@ -81,6 +81,7 @@ const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
 	skill: "skill",
 	mcp_config: "MCP config",
 	mcp_server: "MCP server",
+	plugin: "plugin",
 };
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
