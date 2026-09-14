@@ -22,10 +22,6 @@ export const AgentChatPageErrorView: FC<AgentChatPageErrorViewProps> = ({
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
 				}}
-				onArchiveAgent={() => {}}
-				onUnarchiveAgent={() => {}}
-				onArchiveAndDeleteWorkspace={() => {}}
-				hasWorkspace={false}
 			/>
 			<div className="flex flex-1 items-center justify-center px-6 text-center">
 				<div className="flex flex-col items-center">

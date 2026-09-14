@@ -28,11 +28,13 @@ export type UserAdminAction =
 type UserActionDialogsProps = {
 	action: UserAdminAction | undefined;
 	onClose: () => void;
+	onDeleted?: (user: User) => void;
 };
 
 export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 	action,
 	onClose,
+	onDeleted,
 }) => {
 	const queryClient = useQueryClient();
 	const user = action?.user;
@@ -99,6 +101,7 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 							await deleteUserMutation.mutateAsync(user.id);
 							onClose();
 							toast.success(`User "${user.username}" deleted successfully.`);
+							onDeleted?.(user);
 						} catch (error) {
 							toast.error(
 								getErrorMessage(

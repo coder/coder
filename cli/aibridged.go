@@ -14,11 +14,11 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -39,8 +39,7 @@ import (
 // That reload blocks while acquiring a client, and it passes a background
 // context, so only the daemon lifecycle bounds the wait. That is acceptable
 // here: the embedded daemon's connection is an in-memory pipe that comes up
-// immediately, and the env seed (which holds the seed lock) has already
-// completed earlier in startup, so the wait is negligible.
+// immediately.
 func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg prometheus.Registerer, metrics *aibridge.Metrics) (*aibridged.Server, func(), error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
@@ -216,6 +215,8 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.RoleARN = b.GetRoleArn()
 		bedrock.ExternalID = b.GetExternalId()
 		bedrock.Protocol = codersdk.AIProviderBedrockProtocol(b.GetProtocol())
+		bedrock.ResolvedModel = b.GetResolvedModel()
+		bedrock.ResolvedSmallFastModel = b.GetResolvedSmallFastModel()
 		spec.Bedrock = new(bedrock)
 	}
 	return spec
@@ -281,20 +282,10 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			SendActorHeaders: sendActorHeaders,
 		}), nil
 
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
-		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
-		// A spec typed 'bedrock' authenticates exclusively via settings;
-		// without populated Bedrock credentials it cannot make upstream
-		// calls, so refuse rather than falling back to an unsigned
-		// Anthropic client.
-		if spec.Type == database.AIProviderTypeBedrock && bedrock == nil {
-			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
-		}
-		// Bedrock-backed Anthropic authenticates via AWS credentials in
-		// the settings blob, not bearer keys. A bearer-token Anthropic
-		// without any key cannot make upstream calls.
-		if bedrock == nil && len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("anthropic provider has no api keys, no bedrock credentials, and BYOK is not enabled")
+	case database.AIProviderTypeAnthropic:
+		// A bearer-token Anthropic without any key cannot make upstream calls.
+		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
+			return nil, xerrors.New("anthropic provider has no api keys and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
 		if len(spec.Keys) > 0 {
@@ -311,7 +302,24 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, bedrock)
+		}, nil)
+
+	case database.AIProviderTypeBedrock:
+		// A spec typed 'bedrock' authenticates exclusively via settings;
+		// without populated Bedrock credentials it cannot make upstream
+		// calls, so refuse rather than falling back to an unsigned
+		// Anthropic client.
+		bedrock := agplaibridge.BedrockConfig(spec.BaseURL, spec.Bedrock)
+		if bedrock == nil {
+			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
+		}
+		return aibridge.NewBedrockProvider(ctx, aibridge.AnthropicConfig{
+			Name:             spec.Name,
+			BaseURL:          spec.BaseURL,
+			APIDumpDir:       dumpDir,
+			CircuitBreaker:   cbCfg,
+			SendActorHeaders: sendActorHeaders,
+		}, *bedrock)
 
 	case database.AIProviderTypeCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each
@@ -332,34 +340,6 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 // len(keys) > 0 first; keypool.New rejects empty input.
 func buildAIProviderKeyPool(providerName string, keys []string, metrics *aibridge.Metrics) (*keypool.Pool, error) {
 	return keypool.New(providerName, keys, quartz.NewReal(), metrics)
-}
-
-// bedrockConfig returns nil when the settings are absent or when the
-// Bedrock fields are not actually configured. The provider's BaseURL is
-// the generic upstream endpoint and is always non-empty, so it cannot
-// serve as a Bedrock detection signal; gate on the settings alone via
-// [codersdk.AIProviderBedrockSettings.IsConfigured].
-func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) *aibridge.AWSBedrockConfig {
-	if bedrock == nil {
-		return nil
-	}
-	bedrockSettings := *bedrock
-	if !bedrockSettings.IsConfigured() {
-		return nil
-	}
-	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)
-	accessKeySecret := ptr.NilToEmpty(bedrockSettings.AccessKeySecret)
-	return &aibridge.AWSBedrockConfig{
-		BaseURL:         baseURL,
-		Region:          bedrockSettings.Region,
-		AccessKey:       accessKey,
-		AccessKeySecret: accessKeySecret,
-		Model:           bedrockSettings.Model,
-		SmallFastModel:  bedrockSettings.SmallFastModel,
-		RoleARN:         bedrockSettings.RoleARN,
-		ExternalID:      bedrockSettings.ExternalID,
-		Protocol:        config.BedrockProtocol(bedrockSettings.ResolvedProtocol()),
-	}
 }
 
 // circuitBreakerConfig returns nil when the breaker is disabled.

@@ -13,16 +13,10 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import type {
-	ChatPlanModeOrClear,
-	CreateChatMessageRequestWithClearablePlanMode,
-} from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
-	chat as chatById,
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
@@ -37,21 +31,16 @@ import {
 	mcpServerConfigs,
 	openChat,
 	patchChatEntity,
+	planModeFieldsForCreateMessage,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
-	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
-import { preferenceSettings } from "#/api/queries/users";
-import {
-	workspaceById,
-	workspaceByIdKey,
-	workspaces,
-} from "#/api/queries/workspaces";
+import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -70,17 +59,13 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
-import {
-	getParentChatID,
-	getWorkspaceAgent,
-} from "./components/ChatConversation/chatHelpers";
+import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -88,7 +73,6 @@ import {
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
-	waitForPendingChatSettingsSyncs,
 } from "./components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
@@ -107,13 +91,11 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import { getWorkspaceOptionsWithLinkedWorkspace } from "./components/workspaceOptions";
 import {
 	BuiltInCommandPendingError,
 	useConversationEditingState,
 } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
-import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
@@ -125,7 +107,6 @@ import {
 	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
 	isUnavailableHistoricalModelID,
-	resolveCompactionThreshold,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
@@ -142,10 +123,6 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
-
-type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
-
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, string> | undefined => {
@@ -159,20 +136,11 @@ const buildAttachmentMediaTypes = (
 };
 
 const AgentChatPage: FC = () => {
-	const { agentId } = useParams<{ agentId: string }>();
+	const { agentId } = useParams() as { agentId: string };
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		requestArchiveAgent,
-		requestArchiveAndDeleteWorkspace,
-		requestUnarchiveAgent,
-		requestPinAgent,
-		requestUnpinAgent,
-		isArchiving,
-		archivingChatId,
-		activeChatChildren,
-		onOpenRenameDialog,
 		onChatReady,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
@@ -184,19 +152,16 @@ const AgentChatPage: FC = () => {
 	const isEditReasoningEffortDirtyRef = useRef(false);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
-		agentId
-			? parseStoredDraft(
-					localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`),
-				).text
-			: "",
+		parseStoredDraft(
+			localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`),
+		).text,
 	);
 
 	const { showSidebarPanel, handleSetShowSidebarPanel } =
 		useAgentChatPanelPreference();
 
 	const chatQuery = useQuery({
-		...openChat(agentId ?? ""),
-		enabled: Boolean(agentId),
+		...openChat(agentId),
 		// Poll while the chat runs (this override replaces openChat's
 		// interval, and queued_for_capacity depends on the poll) or while
 		// the binding is unresolved: repair happens on chat reads and watch
@@ -220,15 +185,9 @@ const AgentChatPage: FC = () => {
 		refetchIntervalInBackground: false,
 	});
 	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
-	const chatMessagesQuery = useInfiniteQuery({
-		...chatMessagesForInfiniteScroll(agentId ?? ""),
-		enabled: Boolean(agentId),
-	});
-	const parentChatID = getParentChatID(chatQuery.data);
-	const parentChatQuery = useQuery({
-		...chatById(parentChatID ?? ""),
-		enabled: Boolean(parentChatID),
-	});
+	const chatMessagesQuery = useInfiniteQuery(
+		chatMessagesForInfiniteScroll(agentId),
+	);
 	const workspaceId = chatQuery.data?.workspace_id;
 	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
@@ -243,8 +202,6 @@ const AgentChatPage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const userThresholdsQuery = useQuery(userCompactionThresholds());
-	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
@@ -253,12 +210,6 @@ const AgentChatPage: FC = () => {
 	const isDefaultChatOrganization = organizations.some(
 		(organization) =>
 			organization.id === chatOrganizationId && organization.is_default,
-	);
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
-		workspacesQuery.data?.workspaces ?? [],
-		workspace,
-		currentUser.id,
 	);
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
 	const debugLoggingEnabled = Boolean(
@@ -316,28 +267,6 @@ const AgentChatPage: FC = () => {
 	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
 		chat !== undefined && currentUser.id !== chat.owner_id;
-	const isRootChat = chat !== undefined && getParentChatID(chat) === undefined;
-	const chatAuthorizationObject =
-		chat !== undefined
-			? {
-					resource_type: "chat" as const,
-					owner_id: chat.owner_id,
-					organization_id: chat.organization_id,
-				}
-			: undefined;
-	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (chatAuthorizationObject !== undefined && isRootChat) {
-		chatAuthorizationChecks.canShareChat = {
-			object: chatAuthorizationObject,
-			action: "share",
-		};
-	}
-	const chatAuthorizationQuery = useQuery({
-		...checkAuthorization({ checks: chatAuthorizationChecks }),
-		enabled: Object.keys(chatAuthorizationChecks).length > 0,
-	});
-	const canShareChat =
-		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -350,7 +279,6 @@ const AgentChatPage: FC = () => {
 		if (chat?.mcp_server_ids) {
 			return chat.mcp_server_ids;
 		}
-		// Check for a previously saved selection in localStorage.
 		const saved = chatOrganizationId
 			? getSavedMCPSelection(
 					chatOrganizationId,
@@ -405,34 +333,34 @@ const AgentChatPage: FC = () => {
 	// spread). Keeping no intermediate variable prevents future code
 	// from accidentally closing over the unstable object.
 	const { isPending: isSendPending, mutateAsync: sendMessage } = useMutation(
-		createChatMessage(queryClient, agentId ?? ""),
+		createChatMessage(queryClient, agentId),
 	);
 	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
-		editChatMessage(queryClient, agentId ?? ""),
+		editChatMessage(queryClient, agentId),
 	);
 	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
-		interruptChat(queryClient, agentId ?? ""),
+		interruptChat(queryClient, agentId),
 	);
 	const { isPending: isCompactPending, mutateAsync: compact } = useMutation(
-		compactChat(queryClient, agentId ?? ""),
+		compactChat(queryClient, agentId),
 	);
 	const { isPending: isClearPending, mutateAsync: clearChatContext } =
-		useMutation(clearChat(queryClient, agentId ?? ""));
+		useMutation(clearChat(queryClient, agentId));
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
 		staleTime: 60_000,
 	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
-		deleteChatQueuedMessage(queryClient, agentId ?? ""),
+		deleteChatQueuedMessage(queryClient, agentId),
 	);
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
-		promoteChatQueuedMessage(queryClient, agentId ?? ""),
+		promoteChatQueuedMessage(queryClient, agentId),
 	);
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
-		mutateAsync: updateChatWorkspaceAsync,
+		mutate: updateChatWorkspaceMutate,
 	} = useMutation({
 		...updateChatWorkspaceBase,
 		onError: (error, variables, context) => {
@@ -444,7 +372,7 @@ const AgentChatPage: FC = () => {
 	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
 	const {
 		isPending: isUpdateChatPlanModePending,
-		mutateAsync: updateChatPlanModeAsync,
+		mutate: updateChatPlanModeMutate,
 	} = useMutation({
 		...updateChatPlanModeBase,
 		onError: (error, variables, context) => {
@@ -464,21 +392,6 @@ const AgentChatPage: FC = () => {
 		patchChatEntity(queryClient, chatId, (previousChat) =>
 			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
-	};
-
-	const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
-	const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
-	const trackPendingChatSettingSync = (
-		syncPromise: Promise<unknown>,
-		syncRef: { current: Promise<unknown> | null },
-	) => {
-		const trackedSync: Promise<unknown> = syncPromise.finally(() => {
-			if (syncRef.current === trackedSync) {
-				syncRef.current = null;
-			}
-		});
-		syncRef.current = trackedSync;
-		void trackedSync.catch(() => undefined);
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
@@ -507,7 +420,7 @@ const AgentChatPage: FC = () => {
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord: chat,
-		cachedError: agentId ? chatErrorReasons[agentId] : undefined,
+		cachedError: chatErrorReasons[agentId],
 	});
 
 	// Git watcher: runs regardless of sidebar visibility, but only
@@ -597,11 +510,6 @@ const AgentChatPage: FC = () => {
 			)
 		: undefined;
 
-	const compressionThreshold = resolveCompactionThreshold(
-		chatLastModelConfigID,
-		userThresholdsQuery.data?.thresholds,
-		models,
-	);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelDataPending,
@@ -630,24 +538,18 @@ const AgentChatPage: FC = () => {
 		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
-
-	const isWorkspaceLoading =
-		workspacesQuery.isLoading || isUpdateChatWorkspacePending;
 	const handlePlanModeToggle = (enabled: boolean) => {
-		if (!agentId || enabled === planModeEnabled) {
+		if (enabled === planModeEnabled) {
 			return;
 		}
-		trackPendingChatSettingSync(
-			updateChatPlanModeAsync({
-				chatId: agentId,
-				planMode: enabled ? "plan" : undefined,
-			}),
-			pendingPlanModeSyncRef,
-		);
+		updateChatPlanModeMutate({
+			chatId: agentId,
+			planMode: enabled ? "plan" : undefined,
+		});
 	};
 
 	const handleRequestError = (error: unknown): void => {
-		if (!agentId || !isApiError(error)) {
+		if (!isApiError(error)) {
 			return;
 		}
 		const detail = error.response?.data?.detail?.trim() || undefined;
@@ -666,23 +568,20 @@ const AgentChatPage: FC = () => {
 	};
 
 	const handleInterrupt = () => {
-		if (!agentId || isInterruptPending) {
+		if (isInterruptPending) {
 			return;
 		}
 		void interrupt();
 	};
 
 	const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
-		if (!agentId || nextWorkspaceId === selectedWorkspaceId) {
+		if (nextWorkspaceId === selectedWorkspaceId) {
 			return;
 		}
-		trackPendingChatSettingSync(
-			updateChatWorkspaceAsync({
-				chatId: agentId,
-				workspaceId: nextWorkspaceId,
-			}),
-			pendingWorkspaceSyncRef,
-		);
+		updateChatWorkspaceMutate({
+			chatId: agentId,
+			workspaceId: nextWorkspaceId,
+		});
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
@@ -728,51 +627,6 @@ const AgentChatPage: FC = () => {
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
 
-	const handleArchiveAgentAction = () => {
-		if (!agentId || isArchived) {
-			return;
-		}
-		requestArchiveAgent(agentId);
-	};
-
-	const handleArchiveAndDeleteWorkspaceAction = () => {
-		if (!agentId || isArchived || !workspaceId) {
-			return;
-		}
-		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
-	};
-
-	const handleUnarchiveAgentAction = () => {
-		if (!agentId || !isArchived) {
-			return;
-		}
-		requestUnarchiveAgent(agentId);
-	};
-
-	const handlePinAgentAction = () => {
-		if (!agentId || isArchived) {
-			return;
-		}
-		requestPinAgent(agentId);
-	};
-
-	const handleUnpinAgentAction = () => {
-		if (!agentId || isArchived) {
-			return;
-		}
-		requestUnpinAgent(agentId);
-	};
-
-	const handleOpenRenameDialogAction =
-		onOpenRenameDialog && chat
-			? () => {
-					if (isArchived) {
-						return;
-					}
-					onOpenRenameDialog(chat);
-				}
-			: undefined;
-
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
@@ -786,7 +640,7 @@ const AgentChatPage: FC = () => {
 		) {
 			return;
 		}
-		chatReadyFiredRef.current = agentId ?? null;
+		chatReadyFiredRef.current = agentId;
 		onChatReady();
 	}, [
 		onChatReady,
@@ -867,28 +721,22 @@ const AgentChatPage: FC = () => {
 		attachments,
 		editedMessageID,
 		useComposerContent = true,
-		planModeSwitch,
+		clearPlanMode = false,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
-		planModeSwitch?: PlanModeSwitch;
+		clearPlanMode?: boolean;
 	}) {
 		const { content, hasContent } = buildChatInputContent({
 			message,
 			attachments,
 			useComposerContent,
 		});
-		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
+		if (!hasContent || isSubmissionPending || !hasModelOptions) {
 			return;
 		}
-		// Wait for chat-setting mutations to settle before sending so the
-		// message observes the workspace and plan-mode choices the user just made.
-		await waitForPendingChatSettingsSyncs([
-			pendingPlanModeSyncRef.current,
-			pendingWorkspaceSyncRef.current,
-		]);
 
 		// Built-ins only intercept new, text-only sends. A personal or workspace
 		// skill with the same name takes precedence.
@@ -1018,17 +866,12 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		const request: CreateChatMessageRequestWithClearablePlanMode = {
+		const request = {
 			content,
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
 			mcp_server_ids: [...effectiveMCPServerIds],
-			...(planModeSwitch !== undefined
-				? {
-						plan_mode:
-							planModeSwitch === "clear" ? clearChatPlanMode : planModeSwitch,
-					}
-				: {}),
+			...planModeFieldsForCreateMessage(clearPlanMode),
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
@@ -1121,11 +964,8 @@ const AgentChatPage: FC = () => {
 		} else {
 			localStorage.removeItem(lastModelConfigIDStorageKey);
 		}
-		if (planModeSwitch !== undefined) {
-			setCachedChatPlanMode(
-				agentId,
-				planModeSwitch === "clear" ? undefined : planModeSwitch,
-			);
+		if (clearPlanMode) {
+			setCachedChatPlanMode(agentId, undefined);
 		}
 	}
 
@@ -1151,7 +991,7 @@ const AgentChatPage: FC = () => {
 	const handleImplementPlan = async () => {
 		await submitChatTurn({
 			message: "Implement the plan.",
-			planModeSwitch: "clear",
+			clearPlanMode: true,
 			useComposerContent: false,
 		});
 	};
@@ -1163,10 +1003,6 @@ const AgentChatPage: FC = () => {
 			</title>
 			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
 				<AgentChatPageLoadingView
-					sendShortcut={getAgentChatSendShortcut(
-						preferencesQuery.data?.agent_chat_send_shortcut,
-						preferencesQuery.isLoading,
-					)}
 					inputRef={editing.chatInputRef}
 					initialValue={editing.editorInitialValue}
 					initialEditorState={editing.initialEditorState}
@@ -1203,19 +1039,13 @@ const AgentChatPage: FC = () => {
 						}}
 					/>
 				)
-			) : !chat || !chatMessagesQuery.data?.pages?.length || !agentId ? (
+			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
 					key={agentId}
 					chat={chat}
-					sendShortcut={getAgentChatSendShortcut(
-						preferencesQuery.data?.agent_chat_send_shortcut,
-						preferencesQuery.isLoading,
-					)}
-					parentChat={parentChatQuery.data}
 					persistedError={persistedError}
-					canShareChat={canShareChat}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
@@ -1224,6 +1054,7 @@ const AgentChatPage: FC = () => {
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
+					models={modelCatalog?.models}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
 					modelSelectorHelp={modelSelectorHelp}
 					modelCatalogError={modelsQuery.error}
@@ -1243,15 +1074,13 @@ const AgentChatPage: FC = () => {
 					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}
-					compressionThreshold={compressionThreshold}
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
 					isInterruptPending={isInterruptPending}
-					workspaceOptions={workspaceOptions}
 					onWorkspaceChange={
 						canUpdateChatWorkspace ? handleWorkspaceChange : undefined
 					}
-					isWorkspaceLoading={isWorkspaceLoading}
+					isWorkspaceLoading={isUpdateChatWorkspacePending}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
@@ -1263,21 +1092,6 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
-					handleArchiveAgentAction={handleArchiveAgentAction}
-					handleUnarchiveAgentAction={handleUnarchiveAgentAction}
-					handleArchiveAndDeleteWorkspaceAction={
-						handleArchiveAndDeleteWorkspaceAction
-					}
-					handlePinAgentAction={handlePinAgentAction}
-					handleUnpinAgentAction={handleUnpinAgentAction}
-					handleOpenRenameDialogAction={handleOpenRenameDialogAction}
-					isArchivingThisChat={
-						isArchiving &&
-						(archivingChatId === undefined || archivingChatId === agentId)
-					}
-					isArchiveBlocked={
-						!chatFamilyAllowsArchive(liveChatStatus, activeChatChildren)
-					}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
@@ -1289,7 +1103,6 @@ const AgentChatPage: FC = () => {
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
 					onMCPAuthComplete={handleMCPAuthComplete}
-					workspaceSkills={chatWorkspaceSkills}
 				/>
 			)}
 		</>
@@ -1301,6 +1114,9 @@ const AgentChatPage: FC = () => {
 // editing, queries, scroller) cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
+	if (!agentId) {
+		return <AgentChatPageNotFoundView />;
+	}
 	return (
 		<MessageScroller.Provider
 			key={agentId}

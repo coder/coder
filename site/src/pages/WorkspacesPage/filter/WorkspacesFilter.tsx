@@ -1,8 +1,8 @@
 import {
 	Building2Icon,
 	CircleDotIcon,
-	LayoutGridIcon,
-	SlidersHorizontalIcon,
+	LayoutPanelTopIcon,
+	TagsIcon,
 	UserIcon,
 } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
@@ -66,13 +66,13 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "template",
 				label: "Template",
-				icon: <LayoutGridIcon />,
+				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
 			{
 				key: "attributes",
 				label: "Attributes",
-				icon: <SlidersHorizontalIcon />,
+				icon: <TagsIcon />,
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
 				chipKeys: ATTRIBUTE_CHIP_KEYS,

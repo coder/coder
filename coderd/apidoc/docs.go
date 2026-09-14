@@ -15564,7 +15564,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
                         "name": "q",
                         "in": "query"
                     },
@@ -17414,65 +17414,15 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeAnthropicConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeBedrockConfig": {
-            "type": "object",
-            "properties": {
-                "access_key": {
-                    "type": "string"
-                },
-                "access_key_secret": {
-                    "type": "string"
-                },
-                "base_url": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "region": {
-                    "type": "string"
-                },
-                "small_fast_model": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
                 "allow_byok": {
                     "type": "boolean"
                 },
-                "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
-                        }
-                    ]
-                },
                 "api_dump_dir": {
                     "description": "APIDumpDir is the base directory under which each provider's\nrequest/response dumps are written, in a subdirectory named after\nthe provider. Empty disables dumping.",
                     "type": "string"
-                },
-                "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
-                        }
-                    ]
                 },
                 "budget_period": {
                     "type": "string"
@@ -17507,21 +17457,6 @@ const docTemplate = `{
                 "max_concurrency": {
                     "type": "integer"
                 },
-                "openai": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
-                        }
-                    ]
-                },
-                "providers": {
-                    "description": "Providers holds provider instances populated from ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e` + "`" + `\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIProviderConfig"
-                    }
-                },
                 "rate_limit": {
                     "type": "integer"
                 },
@@ -17554,17 +17489,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeOpenAIConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "type": "string"
-                },
-                "key": {
                     "type": "string"
                 }
             }
@@ -18085,32 +18009,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                }
-            }
-        },
-        "codersdk.AIProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL of the upstream provider API.",
-                    "type": "string"
-                },
-                "bedrock_model": {
-                    "type": "string"
-                },
-                "bedrock_region": {
-                    "type": "string"
-                },
-                "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
-                    "type": "string"
                 }
             }
         },
@@ -19401,10 +19299,7 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_auto_pause",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -19415,10 +19310,7 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection",
-                "BuildReasonTaskAutoPause",
-                "BuildReasonTaskManualPause",
-                "BuildReasonTaskResume"
+                "BuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -22541,18 +22433,14 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
                 "CreateWorkspaceBuildReasonCLI",
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
-                "CreateWorkspaceBuildReasonJetbrainsConnection",
-                "CreateWorkspaceBuildReasonTaskManualPause",
-                "CreateWorkspaceBuildReasonTaskResume"
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -22594,8 +22482,7 @@ const docTemplate = `{
                         "cli",
                         "ssh_connection",
                         "vscode_connection",
-                        "jetbrains_connection",
-                        "task_manual_pause"
+                        "jetbrains_connection"
                     ],
                     "allOf": [
                         {
@@ -23054,9 +22941,6 @@ const docTemplate = `{
                 },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
-                },
-                "enable_ai_tasks": {
-                    "type": "boolean"
                 },
                 "enable_authz_recording": {
                     "type": "boolean"
@@ -26646,6 +26530,10 @@ const docTemplate = `{
                     "description": "Daemons is the number of built-in terraform provisioners.",
                     "type": "integer"
                 },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the reuse of Terraform modules cached at\ntemplate import for every template in the deployment. Templates cannot\nopt back in.",
+                    "type": "boolean"
+                },
                 "force_cancel_interval": {
                     "type": "integer"
                 }
@@ -28024,7 +27912,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning.",
+                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning for this template. It is read-only while\nModuleCacheDisabledByDeployment is true.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -28043,6 +27931,10 @@ const docTemplate = `{
                 },
                 "max_port_share_level": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
+                "module_cache_disabled_by_deployment": {
+                    "description": "ModuleCacheDisabledByDeployment reports that the deployment disables the\nTerraform module cache for every template. Templates cannot opt back in,\nso the effective state is disabled regardless of DisableModuleCache.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -28362,6 +28254,11 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "session_id": {
+                    "description": "SessionID is the wizard session this request belongs to, as reported to\nPOST /api/v2/templatebuilder/sessions. It is optional and used only to\nattribute a build failure to the session that produced it.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -29677,7 +29574,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is recommended not to disable this.",
+                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is ignored while the deployment disables the module\ncache for all templates. It is recommended not to disable this.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -29842,9 +29739,6 @@ const docTemplate = `{
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
-                },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
                 },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
@@ -30532,9 +30426,6 @@ const docTemplate = `{
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
-                },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
@@ -30867,10 +30758,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.SharedWorkspaceActor"
                     }
-                },
-                "task_id": {
-                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
-                    "type": "string"
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -31825,10 +31712,6 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "has_ai_task": {
-                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
-                    "type": "boolean"
                 },
                 "has_external_agent": {
                     "type": "boolean"

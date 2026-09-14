@@ -65,7 +65,7 @@ func awsCredentialSpecFromBedrock(cfg config.AWSBedrock) awsCredentialSpec {
 // Whether a region is mandatory depends on how the caller builds its endpoint,
 // so that policy belongs to the caller; this function only requires a region
 // when one is needed to assume a role.
-func buildAWSCredentials(ctx context.Context, spec awsCredentialSpec) (aws.CredentialsProvider, string, error) {
+func buildAWSCredentials(ctx context.Context, spec awsCredentialSpec) (aws.Config, error) {
 	var loadOpts []func(*awsconfig.LoadOptions) error
 	if spec.Region != "" {
 		loadOpts = append(loadOpts, awsconfig.WithRegion(spec.Region))
@@ -85,21 +85,21 @@ func buildAWSCredentials(ctx context.Context, spec awsCredentialSpec) (aws.Crede
 		))
 	// Only one set: misconfiguration.
 	case spec.AccessKey != "" || spec.AccessKeySecret != "":
-		return nil, "", xerrors.New("both access key and access key secret must be provided together")
+		return aws.Config{}, xerrors.New("both access key and access key secret must be provided together")
 	// Neither set: SDK default credential chain resolves the base identity.
 	default:
 	}
 
 	base, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
-		return nil, "", xerrors.Errorf("failed to load AWS config: %w", err)
+		return aws.Config{}, xerrors.Errorf("failed to load AWS config: %w", err)
 	}
 
 	// Assuming a role calls STS, which needs a region to resolve its endpoint.
 	// The region may come from the config or the AWS environment; if neither
 	// supplies one, fail here.
 	if spec.RoleARN != "" && base.Region == "" {
-		return nil, "", xerrors.New("region is required to assume a role, but was not specified")
+		return aws.Config{}, xerrors.New("region is required to assume a role, but was not specified")
 	}
 
 	// The base identity signs requests directly unless a target role is
@@ -137,15 +137,16 @@ func buildAWSCredentials(ctx context.Context, spec awsCredentialSpec) (aws.Crede
 
 	// base.Region is the region the SDK resolved (explicit config, AWS_REGION /
 	// AWS_DEFAULT_REGION, shared config, or IMDS).
-	return credsProvider, base.Region, nil
+	base.Credentials = credsProvider
+	return base, nil
 }
 
 // buildBedrockCredentials resolves the AWS credentials used to sign Bedrock
 // requests. Bedrock accepts an explicit base URL in place of a region, so
 // either one satisfies the endpoint requirement.
-func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.CredentialsProvider, string, error) {
+func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Config, error) {
 	if cfg.Region == "" && cfg.BaseURL == "" {
-		return nil, "", xerrors.New("region or base url required")
+		return aws.Config{}, xerrors.New("region or base url required")
 	}
 	return buildAWSCredentials(ctx, awsCredentialSpecFromBedrock(cfg))
 }

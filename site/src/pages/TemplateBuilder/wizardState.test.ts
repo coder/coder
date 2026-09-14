@@ -517,6 +517,7 @@ describe("toCreateTemplateRequest", () => {
 			description: "A test template",
 			icon: "/icon/docker.svg",
 			modules: [{ id: "code-server" }],
+			sessionId: "session-123",
 		};
 		const request = toCreateTemplateRequest(state, {
 			organization_id: "org-123",
@@ -532,6 +533,8 @@ describe("toCreateTemplateRequest", () => {
 		expect(request.description).toBe("A test template");
 		expect(request.icon).toBe("/icon/docker.svg");
 		expect(request.modules).toEqual([{ id: "code-server" }]);
+		// Correlates a server-reported build failure with this wizard visit.
+		expect(request.session_id).toBe("session-123");
 	});
 
 	it("omits empty optional fields", () => {
@@ -550,6 +553,7 @@ describe("toCreateTemplateRequest", () => {
 		expect(request.display_name).toBeUndefined();
 		expect(request.description).toBeUndefined();
 		expect(request.icon).toBeUndefined();
+		expect(request.session_id).toBeUndefined();
 	});
 });
 

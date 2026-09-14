@@ -505,6 +505,18 @@ export const MockSiteRoles = [
 	MockWorkspaceCreationBanRole,
 ];
 
+export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	thinking_display_mode: "auto",
+	shell_tool_display_mode: "auto",
+	code_diff_display_mode: "auto",
+	agent_chat_send_shortcut: "enter",
+};
+
+export const MockUserChatCompactionThresholds: TypesGen.UserChatCompactionThresholds =
+	{
+		thresholds: [],
+	};
+
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
 	username: "TestUser",
@@ -616,6 +628,18 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		updated_at: "2026-05-03T18:30:00Z",
 	},
 ];
+
+// Legacy file-only secret: not enableable while a deployment blocks file paths.
+export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
+	id: "secret-file-only-disabled",
+	name: "legacy-kubeconfig",
+	description: "Written to a workspace file before file paths were disabled.",
+	env_name: "",
+	file_path: "~/.kube/config",
+	enabled: false,
+	created_at: "2026-04-27T16:30:00Z",
+	updated_at: "2026-05-03T20:30:00Z",
+};
 
 export const MockImportedUserSecret: TypesGen.UserSecret = {
 	id: "imported-database-url",
@@ -952,6 +976,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
 };
 
@@ -2711,10 +2736,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	has_license: false,
 	features: withDefaultFeatures({
 		workspace_batch_actions: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-		task_batch_actions: {
 			enabled: true,
 			entitlement: "entitled",
 		},

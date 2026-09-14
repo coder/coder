@@ -1,4 +1,6 @@
-# Caddy
+---
+title: Caddy
+---
 
 This is an example configuration of how to use Coder with
 [caddy](https://caddyserver.com/docs). To use Caddy to generate TLS

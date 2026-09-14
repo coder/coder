@@ -29,7 +29,7 @@ concurrency:
 env:
   REFRESH_BRANCH: bot/aigateway-prices-refresh
   PRICES_FILE: coderd/aibridge/prices/data/prices.json
-  CATALOG_FILE: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+  CATALOG_FILE: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
 jobs:
   refresh:

@@ -364,64 +364,12 @@ title: Schemas
 | `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
 | `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
 
-## codersdk.AIBridgeAnthropicConfig
-
-```json
-{
-  "base_url": "string",
-  "key": "string"
-}
-```
-
-### Properties
-
-| Name       | Type   | Required | Restrictions | Description |
-|------------|--------|----------|--------------|-------------|
-| `base_url` | string | false    |              |             |
-| `key`      | string | false    |              |             |
-
-## codersdk.AIBridgeBedrockConfig
-
-```json
-{
-  "access_key": "string",
-  "access_key_secret": "string",
-  "base_url": "string",
-  "model": "string",
-  "region": "string",
-  "small_fast_model": "string"
-}
-```
-
-### Properties
-
-| Name                | Type   | Required | Restrictions | Description |
-|---------------------|--------|----------|--------------|-------------|
-| `access_key`        | string | false    |              |             |
-| `access_key_secret` | string | false    |              |             |
-| `base_url`          | string | false    |              |             |
-| `model`             | string | false    |              |             |
-| `region`            | string | false    |              |             |
-| `small_fast_model`  | string | false    |              |             |
-
 ## codersdk.AIBridgeConfig
 
 ```json
 {
   "allow_byok": true,
-  "anthropic": {
-    "base_url": "string",
-    "key": "string"
-  },
   "api_dump_dir": "string",
-  "bedrock": {
-    "access_key": "string",
-    "access_key_secret": "string",
-    "base_url": "string",
-    "model": "string",
-    "region": "string",
-    "small_fast_model": "string"
-  },
   "budget_period": "string",
   "budget_policy": "string",
   "circuit_breaker_enabled": true,
@@ -432,20 +380,6 @@ title: Schemas
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
-  "openai": {
-    "base_url": "string",
-    "key": "string"
-  },
-  "providers": [
-    {
-      "base_url": "string",
-      "bedrock_model": "string",
-      "bedrock_region": "string",
-      "bedrock_small_fast_model": "string",
-      "name": "string",
-      "type": "string"
-    }
-  ],
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
@@ -455,28 +389,24 @@ title: Schemas
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                     |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                                 |
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
-| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.          |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
-| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                                 |
-| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                              |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                                 |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                    |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
-| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                                 |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                                 |
+| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                            |
+|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                        |
+| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping. |
+| `budget_period`                     | string  | false    |              |                                                                                                                                                                        |
+| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                     |
+| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                        |
+| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                        |
+| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                        |
+| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                        |
+| `enabled`                           | boolean | false    |              |                                                                                                                                                                        |
+| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                           |
+| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                        |
+| `rate_limit`                        | integer | false    |              |                                                                                                                                                                        |
+| `retention`                         | integer | false    |              |                                                                                                                                                                        |
+| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
+| `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -543,22 +473,6 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
-
-## codersdk.AIBridgeOpenAIConfig
-
-```json
-{
-  "base_url": "string",
-  "key": "string"
-}
-```
-
-### Properties
-
-| Name       | Type   | Required | Restrictions | Description |
-|------------|--------|----------|--------------|-------------|
-| `base_url` | string | false    |              |             |
-| `key`      | string | false    |              |             |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -1057,19 +971,7 @@ title: Schemas
   },
   "bridge": {
     "allow_byok": true,
-    "anthropic": {
-      "base_url": "string",
-      "key": "string"
-    },
     "api_dump_dir": "string",
-    "bedrock": {
-      "access_key": "string",
-      "access_key_secret": "string",
-      "base_url": "string",
-      "model": "string",
-      "region": "string",
-      "small_fast_model": "string"
-    },
     "budget_period": "string",
     "budget_policy": "string",
     "circuit_breaker_enabled": true,
@@ -1080,20 +982,6 @@ title: Schemas
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
-    "openai": {
-      "base_url": "string",
-      "key": "string"
-    },
-    "providers": [
-      {
-        "base_url": "string",
-        "bedrock_model": "string",
-        "bedrock_region": "string",
-        "bedrock_small_fast_model": "string",
-        "name": "string",
-        "type": "string"
-      }
-    ],
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
@@ -1266,30 +1154,6 @@ title: Schemas
 | `status`       | [codersdk.AIProviderStatus](#codersdkaiproviderstatus)     | false    |              | Status carries runtime routing status; nil when empty. |
 | `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |                                                        |
 | `updated_at`   | string                                                     | false    |              |                                                        |
-
-## codersdk.AIProviderConfig
-
-```json
-{
-  "base_url": "string",
-  "bedrock_model": "string",
-  "bedrock_region": "string",
-  "bedrock_small_fast_model": "string",
-  "name": "string",
-  "type": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type   | Required | Restrictions | Description                                                                                                                                           |
-|----------------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                |
-| `bedrock_model`            | string | false    |              |                                                                                                                                                       |
-| `bedrock_region`           | string | false    |              |                                                                                                                                                       |
-| `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                       |
-| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                            |
-| `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot". |
 
 ## codersdk.AIProviderKey
 
@@ -2230,9 +2094,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `task_auto_pause`, `task_manual_pause`, `task_resume`, `vscode_connection` |
+| Value(s)                                                                                                                            |
+|-------------------------------------------------------------------------------------------------------------------------------------|
+| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CORSBehavior
 
@@ -6877,9 +6741,9 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Value(s)                                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------------|
-| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `task_manual_pause`, `task_resume`, `vscode_connection` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -6932,11 +6796,11 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property     | Value(s)                                                                                               |
-|--------------|--------------------------------------------------------------------------------------------------------|
-| `log_level`  | `debug`                                                                                                |
-| `reason`     | `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `task_manual_pause`, `vscode_connection` |
-| `transition` | `delete`, `start`, `stop`                                                                              |
+| Property     | Value(s)                                                                          |
+|--------------|-----------------------------------------------------------------------------------|
+| `log_level`  | `debug`                                                                           |
+| `reason`     | `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| `transition` | `delete`, `start`, `stop`                                                         |
 
 ## codersdk.CreateWorkspaceProxyRequest
 
@@ -7385,19 +7249,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "bridge": {
         "allow_byok": true,
-        "anthropic": {
-          "base_url": "string",
-          "key": "string"
-        },
         "api_dump_dir": "string",
-        "bedrock": {
-          "access_key": "string",
-          "access_key_secret": "string",
-          "base_url": "string",
-          "model": "string",
-          "region": "string",
-          "small_fast_model": "string"
-        },
         "budget_period": "string",
         "budget_policy": "string",
         "circuit_breaker_enabled": true,
@@ -7408,20 +7260,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
-        "openai": {
-          "base_url": "string",
-          "key": "string"
-        },
-        "providers": [
-          {
-            "base_url": "string",
-            "bedrock_model": "string",
-            "bedrock_region": "string",
-            "bedrock_small_fast_model": "string",
-            "name": "string",
-            "type": "string"
-          }
-        ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
@@ -7519,7 +7357,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
-    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -7752,6 +7589,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "string"
       ],
       "daemons": 0,
+      "disable_module_cache": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -8018,19 +7856,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "bridge": {
       "allow_byok": true,
-      "anthropic": {
-        "base_url": "string",
-        "key": "string"
-      },
       "api_dump_dir": "string",
-      "bedrock": {
-        "access_key": "string",
-        "access_key_secret": "string",
-        "base_url": "string",
-        "model": "string",
-        "region": "string",
-        "small_fast_model": "string"
-      },
       "budget_period": "string",
       "budget_policy": "string",
       "circuit_breaker_enabled": true,
@@ -8041,20 +7867,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
-      "openai": {
-        "base_url": "string",
-        "key": "string"
-      },
-      "providers": [
-        {
-          "base_url": "string",
-          "bedrock_model": "string",
-          "bedrock_region": "string",
-          "bedrock_small_fast_model": "string",
-          "name": "string",
-          "type": "string"
-        }
-      ],
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
@@ -8152,7 +7964,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
-  "enable_ai_tasks": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -8385,6 +8196,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "string"
     ],
     "daemons": 0,
+    "disable_module_cache": true,
     "force_cancel_interval": 0
   },
   "proxy_health_status_interval": 0,
@@ -8540,7 +8352,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
-| `enable_ai_tasks`                              | boolean                                                                                              | false    |              |                                                                           |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                           |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                           |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                           |
@@ -12537,20 +12348,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "string"
   ],
   "daemons": 0,
+  "disable_module_cache": true,
   "force_cancel_interval": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                               |
-|-------------------------|-----------------|----------|--------------|-----------------------------------------------------------|
-| `daemon_poll_interval`  | integer         | false    |              |                                                           |
-| `daemon_poll_jitter`    | integer         | false    |              |                                                           |
-| `daemon_psk`            | string          | false    |              |                                                           |
-| `daemon_types`          | array of string | false    |              |                                                           |
-| `daemons`               | integer         | false    |              | Daemons is the number of built-in terraform provisioners. |
-| `force_cancel_interval` | integer         | false    |              |                                                           |
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                |
+|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `daemon_poll_interval`  | integer         | false    |              |                                                                                                                                                            |
+| `daemon_poll_jitter`    | integer         | false    |              |                                                                                                                                                            |
+| `daemon_psk`            | string          | false    |              |                                                                                                                                                            |
+| `daemon_types`          | array of string | false    |              |                                                                                                                                                            |
+| `daemons`               | integer         | false    |              | Daemons is the number of built-in terraform provisioners.                                                                                                  |
+| `disable_module_cache`  | boolean         | false    |              | Disable module cache disables the reuse of Terraform modules cached at template import for every template in the deployment. Templates cannot opt back in. |
+| `force_cancel_interval` | integer         | false    |              |                                                                                                                                                            |
 
 ## codersdk.ProvisionerDaemon
 
@@ -13828,6 +13641,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
+  "module_cache_disabled_by_deployment": true,
   "name": "string",
   "organization_display_name": "string",
   "organization_icon": "string",
@@ -13845,46 +13659,47 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                     |
-|------------------------------------|--------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `active_user_count`                | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                    |
-| `active_version_id`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `activity_bump_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                 |
-| `agents_allowed`                   | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
-| `allow_user_autostart`             | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                         |
-| `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
-| `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
-| `allow_workspace_renames`          | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                   |
-| `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                 |
-| `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.                      |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                 |
-| `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                 |
-| `created_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
-| `deleted`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
-| `deprecated`                       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
-| `deprecation_message`              | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `disable_module_cache`             | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning.                                                                                                          |
-| `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `failure_ttl_ms`                   | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
-| `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `id`                               | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                 |
-| `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `organization_display_name`        | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `organization_icon`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `organization_id`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `organization_name`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                     |
-| `time_til_autostop_notify_ms`      | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                     |
-| `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
-| `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
-| `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `use_classic_parameter_flow`       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
+| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                |
+|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `active_user_count`                   | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                               |
+| `active_version_id`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `activity_bump_ms`                    | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `agents_allowed`                      | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                    |
+| `allow_user_autostop`                 | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                              |
+| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                            |
+| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.                                                 |
+| `build_time_stats`                    | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                            |
+| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                            |
+| `created_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `created_by_id`                       | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `created_by_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `default_ttl_ms`                      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `deleted`                             | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `deprecated`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `deprecation_message`                 | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                    |
+| `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                            |
+| `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                            |
+| `module_cache_disabled_by_deployment` | boolean                                                                        | false    |              | Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache. |
+| `name`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `organization_display_name`           | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `organization_icon`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `organization_id`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `organization_name`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `provisioner`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                |
+| `time_til_autostop_notify_ms`         | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                                                |
+| `time_til_dormant_autodelete_ms`      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `time_til_dormant_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
+| `updated_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
+| `use_classic_parameter_flow`          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
@@ -14264,25 +14079,27 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "provisioner_tags": {
     "property1": "string",
     "property2": "string"
-  }
+  },
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                                                    | Required | Restrictions | Description |
-|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id`     | string                                                                                  | false    |              |             |
-| `base_variable_values` | object                                                                                  | false    |              |             |
-| » `[any property]`     | string                                                                                  | false    |              |             |
-| `description`          | string                                                                                  | false    |              |             |
-| `display_name`         | string                                                                                  | false    |              |             |
-| `icon`                 | string                                                                                  | false    |              |             |
-| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
-| `name`                 | string                                                                                  | true     |              |             |
-| `organization_id`      | string                                                                                  | true     |              |             |
-| `provisioner_tags`     | object                                                                                  | false    |              |             |
-| » `[any property]`     | string                                                                                  | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description                                                                                                                                                                                                |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base_template_id`     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `base_variable_values` | object                                                                                  | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `description`          | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `display_name`         | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `icon`                 | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |                                                                                                                                                                                                            |
+| `name`                 | string                                                                                  | true     |              |                                                                                                                                                                                                            |
+| `organization_id`      | string                                                                                  | true     |              |                                                                                                                                                                                                            |
+| `provisioner_tags`     | object                                                                                  | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `session_id`           | string                                                                                  | false    |              | Session ID is the wizard session this request belongs to, as reported to POST /api/v2/templatebuilder/sessions. It is optional and used only to attribute a build failure to the session that produced it. |
 
 ## codersdk.TemplateBuilderCreateTemplateResponse
 
@@ -14333,6 +14150,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "max_port_share_level": "owner",
+    "module_cache_disabled_by_deployment": true,
     "name": "string",
     "organization_display_name": "string",
     "organization_icon": "string",
@@ -15968,7 +15786,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `deprecation_message`              | string                                                                         | false    |              | Deprecation message if set, will mark the template as deprecated and block any new workspaces from using this template. If passed an empty string, will remove the deprecated message, making the template usable for new workspaces again.                                                                                                                                        |
 | `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `disable_everyone_group_access`    | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template.                                                                |
-| `disable_module_cache`             | boolean                                                                        | false    |              | Disable module cache disables the using of cached Terraform modules during provisioning. It is recommended not to disable this.                                                                                                                                                                                                                                                    |
+| `disable_module_cache`             | boolean                                                                        | false    |              | Disable module cache disables the using of cached Terraform modules during provisioning. It is ignored while the deployment disables the module cache for all templates. It is recommended not to disable this.                                                                                                                                                                    |
 | `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `failure_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -16099,20 +15917,18 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "shell_tool_display_mode": "auto",
-  "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type                                                             | Required | Restrictions | Description |
-|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
-| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
+| Name                       | Type                                                             | Required | Restrictions | Description |
+|----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -16963,20 +16779,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "shell_tool_display_mode": "auto",
-  "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type                                                             | Required | Restrictions | Description |
-|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
-| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
+| Name                       | Type                                                             | Required | Restrictions | Description |
+|----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 
@@ -17267,7 +17081,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -17504,7 +17317,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ]
     }
   ],
-  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -17544,7 +17356,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `owner_id`                                  | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `owner_name`                                | string                                                                  | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                                                                                                                   |
 | `shared_with`                               | array of [codersdk.SharedWorkspaceActor](#codersdksharedworkspaceactor) | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `task_id`                                   | string                                                                  | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
 | `template_active_version_id`                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_allow_user_cancel_workspace_jobs` | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_display_name`                     | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
@@ -18601,7 +18412,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
-  "has_ai_task": true,
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -18823,33 +18633,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description                                                              |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------|
-| `build_number`               | integer                                                           | false    |              |                                                                          |
-| `created_at`                 | string                                                            | false    |              |                                                                          |
-| `daily_cost`                 | integer                                                           | false    |              |                                                                          |
-| `deadline`                   | string                                                            | false    |              |                                                                          |
-| `has_ai_task`                | boolean                                                           | false    |              | Deprecated: This field has been deprecated in favor of Task WorkspaceID. |
-| `has_external_agent`         | boolean                                                           | false    |              |                                                                          |
-| `id`                         | string                                                            | false    |              |                                                                          |
-| `initiator_id`               | string                                                            | false    |              |                                                                          |
-| `initiator_name`             | string                                                            | false    |              |                                                                          |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                          |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                          |
-| `max_deadline`               | string                                                            | false    |              |                                                                          |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                          |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                          |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                          |
-| `template_version_id`        | string                                                            | false    |              |                                                                          |
-| `template_version_name`      | string                                                            | false    |              |                                                                          |
-| `template_version_preset_id` | string                                                            | false    |              |                                                                          |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                          |
-| `updated_at`                 | string                                                            | false    |              |                                                                          |
-| `workspace_id`               | string                                                            | false    |              |                                                                          |
-| `workspace_name`             | string                                                            | false    |              |                                                                          |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                          |
-| `workspace_owner_id`         | string                                                            | false    |              |                                                                          |
-| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace.      |
+| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
+|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `build_number`               | integer                                                           | false    |              |                                                                     |
+| `created_at`                 | string                                                            | false    |              |                                                                     |
+| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
+| `deadline`                   | string                                                            | false    |              |                                                                     |
+| `has_external_agent`         | boolean                                                           | false    |              |                                                                     |
+| `id`                         | string                                                            | false    |              |                                                                     |
+| `initiator_id`               | string                                                            | false    |              |                                                                     |
+| `initiator_name`             | string                                                            | false    |              |                                                                     |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
+| `max_deadline`               | string                                                            | false    |              |                                                                     |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
+| `template_version_id`        | string                                                            | false    |              |                                                                     |
+| `template_version_name`      | string                                                            | false    |              |                                                                     |
+| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
+| `updated_at`                 | string                                                            | false    |              |                                                                     |
+| `workspace_id`               | string                                                            | false    |              |                                                                     |
+| `workspace_name`             | string                                                            | false    |              |                                                                     |
+| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
+| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
+| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
 
 #### Enumerated Values
 
@@ -19466,7 +19275,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
-        "has_ai_task": true,
         "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -19675,7 +19483,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ]
         }
       ],
-      "task_id": "string",
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",

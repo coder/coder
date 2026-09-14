@@ -1,4 +1,6 @@
-# Shared Workspaces
+---
+title: Shared workspaces
+---
 
 Multiple users can securely connect to a single Coder workspace for programming and debugging.
 
