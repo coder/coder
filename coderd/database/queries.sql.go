@@ -3818,6 +3818,42 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return err
 }
 
+const deleteAPIKeyByIDReturningRow = `-- name: DeleteAPIKeyByIDReturningRow :one
+DELETE FROM
+	api_keys
+WHERE
+	id = $1
+RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+`
+
+// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+// this the arbiter of single use. A prior read cannot arbitrate: its result is
+// stale the moment it returns.
+//
+// Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+// level: the second transaction waits for the first, then removes nothing.
+// SERIALIZABLE would abort and retry it instead.
+func (q *sqlQuerier) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, deleteAPIKeyByIDReturningRow, id)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
 const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
 	api_keys
@@ -14983,58 +15019,6 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
-}
-
-const deleteCachedModuleFilesCreatedBetween = `-- name: DeleteCachedModuleFilesCreatedBetween :execrows
-WITH doomed AS (
-	SELECT
-		files.id
-	FROM
-		files
-	INNER JOIN
-		template_version_terraform_values
-		ON template_version_terraform_values.cached_module_files = files.id
-	WHERE
-		files.created_by = '00000000-0000-0000-0000-000000000000'
-		AND files.mimetype = 'application/x-tar'
-		AND files.created_at >= $1
-		AND files.created_at < $2
-), cleared AS (
-	-- The foreign key is NO ACTION, so references must be cleared before the
-	-- files rows can be deleted. Data-modifying CTEs always run to completion,
-	-- and the constraint is checked at the end of the statement.
-	UPDATE
-		template_version_terraform_values
-	SET
-		cached_module_files = NULL
-	WHERE
-		cached_module_files IN (SELECT id FROM doomed)
-	RETURNING 1
-)
-DELETE FROM
-	files
-USING
-	doomed
-WHERE
-	files.id = doomed.id
-`
-
-type DeleteCachedModuleFilesCreatedBetweenParams struct {
-	CreatedAtAfter  time.Time `db:"created_at_after" json:"created_at_after"`
-	CreatedAtBefore time.Time `db:"created_at_before" json:"created_at_before"`
-}
-
-// Deletes cached Terraform module archives ingested in the given time range and
-// clears the template version references to them. created_by and mimetype
-// identify a provisionerd-written module archive, matching the checks in
-// provisionerdserver, so user-uploaded template tarballs are never removed.
-// Only archives referenced by a template version are considered.
-func (q *sqlQuerier) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteCachedModuleFilesCreatedBetween, arg.CreatedAtAfter, arg.CreatedAtBefore)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
@@ -31829,6 +31813,54 @@ WHERE
 func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, id)
 	return err
+}
+
+const updateUserEmail = `-- name: UpdateUserEmail :one
+UPDATE
+	users
+SET
+	email = $1,
+	updated_at = $2,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
+WHERE
+	LOWER(email) = LOWER($3)
+	AND deleted = false
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+`
+
+type UpdateUserEmailParams struct {
+	NewEmail  string    `db:"new_email" json:"new_email"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	OldEmail  string    `db:"old_email" json:"old_email"`
+}
+
+func (q *sqlQuerier) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserEmail, arg.NewEmail, arg.UpdatedAt, arg.OldEmail)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+		&i.Name,
+		&i.GithubComUserID,
+		&i.HashedOneTimePasscode,
+		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
+		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
+	)
+	return i, err
 }
 
 const updateUserGithubComUserID = `-- name: UpdateUserGithubComUserID :exec

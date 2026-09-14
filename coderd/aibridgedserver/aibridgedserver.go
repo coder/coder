@@ -1191,14 +1191,16 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 	}
 	if settings.Bedrock != nil {
 		p.Bedrock = &proto.AIProviderKindBedrock{
-			Region:          settings.Bedrock.Region,
-			AccessKey:       ptr.NilToEmpty(settings.Bedrock.AccessKey),
-			AccessKeySecret: ptr.NilToEmpty(settings.Bedrock.AccessKeySecret),
-			Model:           settings.Bedrock.Model,
-			SmallFastModel:  settings.Bedrock.SmallFastModel,
-			RoleArn:         settings.Bedrock.RoleARN,
-			ExternalId:      settings.Bedrock.ExternalID,
-			Protocol:        string(settings.Bedrock.Protocol),
+			Region:                 settings.Bedrock.Region,
+			AccessKey:              ptr.NilToEmpty(settings.Bedrock.AccessKey),
+			AccessKeySecret:        ptr.NilToEmpty(settings.Bedrock.AccessKeySecret),
+			Model:                  settings.Bedrock.Model,
+			SmallFastModel:         settings.Bedrock.SmallFastModel,
+			RoleArn:                settings.Bedrock.RoleARN,
+			ExternalId:             settings.Bedrock.ExternalID,
+			Protocol:               string(settings.Bedrock.Protocol),
+			ResolvedModel:          settings.Bedrock.ResolvedModel,
+			ResolvedSmallFastModel: settings.Bedrock.ResolvedSmallFastModel,
 		}
 	}
 

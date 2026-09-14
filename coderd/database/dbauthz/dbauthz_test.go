@@ -83,6 +83,40 @@ func TestPing(t *testing.T) {
 	require.NoError(t, err, "must not error")
 }
 
+// TestSingleUseDeleteNotFound pins that a fetch-then-query wrapper whose
+// fetch finds nothing returns an error that still matches sql.ErrNoRows, and
+// never reaches the query. The OAuth2 grants rely on both to answer
+// invalid_grant when a single-use delete finds its row already gone.
+func TestSingleUseDeleteNotFound(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
+	newQuerier := func(t *testing.T) (*dbmock.MockStore, database.Store) {
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+		return db, dbauthz.New(db, &coderdtest.RecordingAuthorizer{}, slog.Make(), coderdtest.AccessControlStorePointer())
+	}
+
+	t.Run("DeleteAPIKeyByIDReturningRow", func(t *testing.T) {
+		t.Parallel()
+		db, q := newQuerier(t)
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), "gone").Return(database.APIKey{}, sql.ErrNoRows)
+
+		_, err := q.DeleteAPIKeyByIDReturningRow(ctx, "gone")
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("DeleteOAuth2ProviderAppCodeByID", func(t *testing.T) {
+		t.Parallel()
+		db, q := newQuerier(t)
+		id := uuid.New()
+		db.EXPECT().GetOAuth2ProviderAppCodeByID(gomock.Any(), id).Return(database.OAuth2ProviderAppCode{}, sql.ErrNoRows)
+
+		_, err := q.DeleteOAuth2ProviderAppCodeByID(ctx, id)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+}
+
 // TestInTX is not perfect, just checks that it properly checks auth.
 func TestInTX(t *testing.T) {
 	t.Parallel()
@@ -457,6 +491,12 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
 		dbm.EXPECT().DeleteAPIKeyByID(gomock.Any(), key.ID).Return(nil).AnyTimes()
 		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns()
+	}))
+	s.Run("DeleteAPIKeyByIDReturningRow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.APIKey{})
+		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
+		dbm.EXPECT().DeleteAPIKeyByIDReturningRow(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
+		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns(key)
 	}))
 	s.Run("DeleteExpiredAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		args := database.DeleteExpiredAPIKeysParams{
@@ -3119,6 +3159,13 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateUserDeletedByID(gomock.Any(), u.ID).Return(nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionDelete).Returns()
 	}))
+	s.Run("UpdateUserEmail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserEmailParams{OldEmail: u.Email, NewEmail: "new@example.com", UpdatedAt: u.UpdatedAt}
+		dbm.EXPECT().GetUserByEmailOrUsername(gomock.Any(), database.GetUserByEmailOrUsernameParams{Email: u.Email}).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserEmail(gomock.Any(), arg).Return(u, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdate).Returns(u)
+	}))
 	s.Run("UpdateUserGithubComUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.UpdateUserGithubComUserIDParams{ID: u.ID}
@@ -5294,11 +5341,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		t := time.Time{}
 		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
-	}))
-	s.Run("DeleteCachedModuleFilesCreatedBetween", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.DeleteCachedModuleFilesCreatedBetweenParams{}
-		dbm.EXPECT().DeleteCachedModuleFilesCreatedBetween(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertWorkspaceAgentStatsParams{}

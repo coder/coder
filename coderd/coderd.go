@@ -773,6 +773,7 @@ func New(options *Options) *API {
 		DeploymentID:          api.DeploymentID,
 		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
+		OAuth2Provider:        api.DeploymentValues.OAuth2.Provider.Enable.Value(),
 	}
 	api.SiteHandler, err = site.New(&site.Options{
 		CacheDir:                  siteCacheDir,
@@ -1326,6 +1327,11 @@ func New(options *Options) *API {
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
+
+		r.Route("/users/email", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Put("/", api.putUserEmailExperimental)
+		})
 
 		// NOTE(DanielleMaywood):
 		r.Route("/users/{user}/skills", func(r chi.Router) {

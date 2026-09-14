@@ -18621,6 +18621,22 @@ func TestSingleUseDelete(t *testing.T) {
 		_, err = db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
+
+	t.Run("APIKey", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+		deleted, err := db.DeleteAPIKeyByIDReturningRow(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key, deleted)
+
+		_, err = db.DeleteAPIKeyByIDReturningRow(ctx, key.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
 }
 
 func TestGetUnpricedAIModelsSince(t *testing.T) {
@@ -19089,4 +19105,75 @@ func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFam
 	counts, err := codersdk.SessionCountsByFamilyJSON(data)
 	require.NoError(t, err)
 	return counts
+}
+
+func TestUpdateUserEmail(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	// SQL-specific: the WHERE clause matches old_email case-insensitively.
+	t.Run("MatchesCaseInsensitively", func(t *testing.T) {
+		t.Parallel()
+		origEmail := "CaseSensitive" + testutil.GetRandomName(t) + "@example.com"
+		user := dbgen.User(t, db, database.User{Email: origEmail})
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  strings.ToLower(origEmail),
+			NewEmail:  "newcase" + testutil.GetRandomName(t) + "@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, user.ID, updated.ID, "should match the same user case-insensitively")
+	})
+
+	// SQL-specific: the WHERE clause excludes soft-deleted users.
+	t.Run("DoesNotMatchDeletedUsers", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		err := db.UpdateUserDeletedByID(ctx, user.ID)
+		require.NoError(t, err)
+
+		_, err = db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  "shouldfail@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	// SQL-specific: new_email is stored verbatim (no lower-casing on write).
+	t.Run("PreservesNewEmailCasing", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		mixedCase := "Mixed.Case." + testutil.GetRandomName(t) + "@Example.COM"
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  mixedCase,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, mixedCase, updated.Email, "new email casing must be preserved exactly")
+	})
+
+	// SQL-specific: the unique index name is users_email_lower_idx and the
+	// constraint fires on a case-variant collision.
+	t.Run("RejectsUniqueEmailCollision", func(t *testing.T) {
+		t.Parallel()
+		user1 := dbgen.User(t, db, database.User{})
+		user2 := dbgen.User(t, db, database.User{})
+		_, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user1.Email,
+			NewEmail:  strings.ToUpper(user2.Email),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.True(t, database.IsUniqueViolation(err, database.UniqueUsersEmailLowerIndex),
+			"expected unique_violation on users_email_lower_idx, got: %v", err)
+	})
 }
