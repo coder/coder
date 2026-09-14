@@ -125,12 +125,6 @@
 					"icon_path": "./images/icons/terminal.svg"
 				},
 				{
-					"title": "RPM (RHEL family)",
-					"description": "Install the Coder control plane from an RPM package on Red Hat Enterprise Linux and other RHEL-family distributions.",
-					"path": "./install/rpm.md",
-					"icon_path": "./images/icons/system.svg"
-				},
-				{
 					"title": "Docker",
 					"description": "Install and run Coder using the official Docker images for a quick single-machine deployment.",
 					"path": "./install/docker.md",
@@ -160,6 +154,12 @@
 					"description": "Install Coder on a Red Hat OpenShift cluster using Helm, with the required security context settings.",
 					"path": "./install/openshift.md",
 					"icon_path": "./images/icons/openshift.svg"
+				},
+				{
+					"title": "RPM (RHEL family)",
+					"description": "Install the Coder control plane from an RPM package on Red Hat Enterprise Linux and other RHEL-family distributions.",
+					"path": "./install/rpm.md",
+					"icon_path": "./images/icons/system.svg"
 				},
 				{
 					"title": "Cloud Providers",

@@ -22,9 +22,7 @@ curl -L https://coder.com/install.sh | sh
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for
 alternate installation methods (e.g. standalone binaries, system packages).
 
-To run the Coder server on a Red Hat Enterprise Linux host or another
-RHEL-family distribution, see
-[Install Coder on RHEL-family Linux](./rpm.md).
+To run the Coder server on a Red Hat Enterprise Linux host or another RHEL-family distribution, refer to [Install Coder on RHEL-family Linux](./rpm.md).
 
 ## Windows
 

@@ -2,144 +2,136 @@
 title: Install Coder on RHEL-family Linux
 ---
 
-Coder publishes an RPM package with every release, so you can run the Coder
-control plane directly on a Red Hat Enterprise Linux host or any RHEL-family
-distribution, managed by `systemd` like any other service.
-
-Use this guide when you want a single Linux host running the control plane. For
-multi-replica or high-availability deployments, install Coder on
-[Kubernetes](./kubernetes.md) or [OpenShift](./openshift.md) instead.
-
-> [!NOTE]
-> This page covers the Coder server. To install the CLI on a workstation that
-> connects to an existing deployment, see [Install the Coder CLI](./cli.md).
+This guide is for a Coder deployment administrator who runs the Coder control plane on a single Red Hat Enterprise Linux host or another RHEL-family distribution.
+Coder publishes an RPM with every release, and `systemd` manages the server like any other service.
+For a multi-replica deployment, refer to [Kubernetes](./kubernetes.md) or [OpenShift](./openshift.md) instead.
+To install the CLI on a workstation that connects to an existing deployment, refer to [Install the Coder CLI](./cli.md).
 
 ## Supported distributions
 
-Coder builds one RPM per release and architecture. The install script selects it
-based on the `ID` and `ID_LIKE` fields in `/etc/os-release`, so RHEL derivatives
-are detected automatically.
+Coder builds one RPM per release and architecture.
+The install script reads `/etc/os-release` and selects the RPM when `ID` or `ID_LIKE` names a Fedora-family or openSUSE-family distribution.
 
-| Distribution              | Versions         | `ID` in `/etc/os-release`              |
-|---------------------------|------------------|----------------------------------------|
-| Red Hat Enterprise Linux  | 8, 9, 10         | `rhel`                                 |
-| Rocky Linux               | 8, 9, 10         | `rocky`                                |
-| AlmaLinux                 | 8, 9, 10         | `almalinux`                            |
-| CentOS Stream             | 9, 10            | `centos`                               |
-| Amazon Linux              | 2, 2023          | `amzn`                                 |
-| Fedora                    | Current releases | `fedora`                               |
-| openSUSE Leap, Tumbleweed | Current releases | `opensuse-leap`, `opensuse-tumbleweed` |
+| Distribution             | Versions         | `ID`                                   |
+|--------------------------|------------------|----------------------------------------|
+| Red Hat Enterprise Linux | 8, 9, 10         | `rhel`                                 |
+| Rocky Linux              | 8, 9, 10         | `rocky`                                |
+| AlmaLinux                | 8, 9, 10         | `almalinux`                            |
+| CentOS Stream            | 9, 10            | `centos`                               |
+| Amazon Linux             | 2, 2023          | `amzn`                                 |
+| Fedora                   | Current releases | `fedora`                               |
+| openSUSE                 | Leap, Tumbleweed | `opensuse-leap`, `opensuse-tumbleweed` |
 
-Every RHEL-family entry above declares `fedora` in its `ID_LIKE` field, which is
-what the install script matches on, so derivatives not listed here generally
-work the same way.
-
-RPMs are published for `amd64`, `arm64`, and `armv7`.
+Every RHEL-family distribution in the table lists `fedora` in `ID_LIKE`, and both openSUSE variants list `opensuse`.
+A derivative that isn't listed here takes the same path when its `ID_LIKE` includes `fedora`.
+Each release publishes RPMs for `amd64`, `arm64`, and `armv7`.
 
 ## Requirements
 
 - A host running one of the distributions above.
-- 2 CPU cores and 4 GB of memory for an evaluation deployment. For production
-  sizing, see the
-  [validated architectures](../admin/infrastructure/validated-architectures/index.md).
-- `root` or `sudo` access to install the package and manage the service.
-- An external PostgreSQL database for anything beyond a proof of concept. See
-  [Using an external database](../tutorials/external-database.md).
+- 2 CPU cores and 4&nbsp;GB of memory to evaluate Coder.
+  For production sizing, refer to [validated architectures](../admin/infrastructure/validated-architectures/index.md).
+- `root` or `sudo` access.
+- An external PostgreSQL database for anything beyond a proof of concept.
+  Refer to [Using an external database](../tutorials/external-database.md).
 
 ## Install the package
 
+The install script detects the distribution and installs the matching RPM.
+Install the package directly with `dnf` or `rpm` when the host can't run a piped shell script, or when you stage packages yourself.
+
 <div class="tabs">
 
-## Install script
+### Install script
 
-The install script detects your distribution, downloads the matching RPM from
-the GitHub release, and installs it:
-
-```shell
+```sh
 curl -L https://coder.com/install.sh | sh
 ```
 
-To install a specific release channel or version, pass `--stable` or
-`--version X.Y.Z`. Run the script with `--dry-run` to print the commands it would
-run without running them.
+The script installs the latest mainline release.
+Pass `--stable` for the latest stable release, or `--version X.Y.Z` for a specific version.
+Pass `--dry-run` to print the commands without running them.
 
-## dnf
+### dnf
 
-Download the RPM for your version and architecture from
-[GitHub releases](https://github.com/coder/coder/releases), then install it with
-your package manager so dependencies resolve normally:
+1. Download the RPM for your version and architecture from [GitHub releases](https://github.com/coder/coder/releases).
+2. Install the package.
 
-```shell
-sudo dnf install ./coder_<version>_linux_amd64.rpm
-```
+   ```sh
+   sudo dnf install ./coder_<version>_linux_amd64.rpm
+   ```
 
-On hosts that still use `yum`, substitute `sudo yum install`.
+On hosts that use `yum`, run `sudo yum install` instead.
 
-## rpm
+### rpm
 
-If you only need the package installed or upgraded in place, use `rpm` directly.
-This is what the install script runs:
+Install or upgrade the package in place.
+This is the command the install script runs.
 
-```shell
+```sh
 sudo rpm -U coder_<version>_linux_amd64.rpm
 ```
 
 </div>
 
-Both package managers work in air-gapped environments if you stage the RPM on
-the host first. See [Air-gapped deployments](./airgap.md).
+The package installs the `coder` binary to `/usr/bin/coder`, the configuration file to `/etc/coder.d/coder.env`, and two `systemd` units: `coder.service` for the control plane and `coder-workspace-proxy.service` for an optional [workspace proxy](../admin/networking/workspace-proxies.md).
+It also creates the unprivileged `coder` user that the service runs as.
 
-## Configure and start the service
+To stage the RPM on a host with no internet access, refer to [Air-gapped deployments](./airgap.md).
 
-The package installs a `systemd` unit and reads its configuration from
-`/etc/coder.d/coder.env`. Edit that file to set your access URL, database
-connection string, and any other
-[server options](../admin/setup/index.md):
+## Configure the server
 
-```shell
-sudo vi /etc/coder.d/coder.env
-```
+`coder.service` doesn't start while `/etc/coder.d/coder.env` is empty.
+Set your configuration before you start the service.
 
-Start Coder now and on every boot:
+1. Open the configuration file.
 
-```shell
-sudo systemctl enable --now coder
-```
+   ```sh
+   sudo vi /etc/coder.d/coder.env
+   ```
 
-Check that the service came up:
+2. Set `CODER_ACCESS_URL` to the external URL that users and workspaces connect to.
+3. Set `CODER_PG_CONNECTION_URL` to your PostgreSQL connection string.
+4. Save the file.
 
-```shell
-journalctl -u coder.service -b
-```
+The file ships with the TLS and HTTP address variables commented in place.
+For every server option, refer to the [configuration reference](../admin/setup/configuration-reference.md).
 
-You can also run the server in the foreground with `coder server`, which is
-useful when you're testing configuration changes.
+## Start the service
 
-## Hardened and regulated environments
+1. Start Coder now and on every boot.
 
-For environments that require an accredited base image, Coder publishes a
-container image built on Red Hat's UBI9-minimal base through
-[Iron Bank](https://ironbank.dso.mil/), the DoD hardened container registry. Use
-that image when your compliance program requires a hardened, scanned base rather
-than a package installed on a host you manage.
+   ```sh
+   sudo systemctl enable --now coder
+   ```
 
-The Iron Bank image is a container image: run it on
-[Kubernetes](./kubernetes.md) or [OpenShift](./openshift.md), not through the
-RPM path described on this page.
+2. Confirm that the service is running.
 
-## SELinux and workspaces on RHEL nodes
+   ```console
+   $ systemctl is-active coder
+   active
+   ```
 
-Installing and running the control plane works with SELinux in enforcing mode
-and needs no policy changes.
+3. Read the startup logs.
 
-SELinux does affect workspaces that run a container runtime inside themselves.
-If your templates use Docker or Podman inside a workspace on a RHEL-family node,
-you might need to set SELinux to permissive mode or add a policy for the
-runtime. See
-[Docker in workspaces](../admin/templates/extending-templates/docker-in-workspaces.md)
-for the runtime-specific requirements.
+   ```sh
+   journalctl -u coder.service -b
+   ```
 
-## Next steps
+To test a configuration change without the service manager, run `coder server` in the foreground.
+
+## SELinux and container runtimes in workspaces
+
+SELinux affects workspaces that run their own container runtime.
+If your templates run Docker or Podman inside a workspace on a RHEL-family node, refer to [Docker in workspaces](../admin/templates/extending-templates/docker-in-workspaces.md) for the runtime requirements.
+
+## Hardened base images
+
+Coder publishes a container image built on Red Hat's UBI9-minimal base through [Iron Bank](https://ironbank.dso.mil/), the Department of Defense hardened container registry.
+Choose that image when your compliance program requires an accredited base image.
+The Iron Bank image is a container image, so deploy it with [Kubernetes](./kubernetes.md) or [OpenShift](./openshift.md) rather than through the RPM.
+
+## Learn more
 
 - [Set up your control plane](../admin/setup/index.md)
 - [Create your first template](../tutorials/template-from-scratch.md)
