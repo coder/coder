@@ -164,7 +164,7 @@ func resolvePluginCommand(command, root string) (string, error) {
 		return "", xerrors.Errorf("command %q must be a single token", command)
 	}
 	if strings.HasPrefix(command, "./") {
-		resolved, err := filepath.EvalSymlinks(filepath.Join(root, command))
+		resolved, err := canonicalExisting(filepath.Join(root, command))
 		if err != nil {
 			return "", xerrors.Errorf("command %q: %w", command, err)
 		}
@@ -191,7 +191,7 @@ func resolvePluginCwd(cwd string, scope PluginScope) (string, error) {
 	}
 	var (
 		base, target string
-		resolve      = filepath.EvalSymlinks
+		resolve      = canonicalExisting
 	)
 	switch {
 	case strings.HasPrefix(cwd, "./"):
@@ -235,7 +235,27 @@ func requireInside(base, resolved string) error {
 	return nil
 }
 
-// resolveExistingPrefix is filepath.EvalSymlinks that tolerates a
+// canonicalExisting resolves symlinks in an existing path. When the
+// filesystem cannot report symlink targets (Windows substituted drives
+// fail EvalSymlinks even for plain directories) and the path itself is
+// not a symlink, the cleaned path is used instead; a path that is a
+// symlink must resolve or it is rejected.
+func canonicalExisting(path string) (string, error) {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err == nil {
+		return resolved, nil
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	info, lerr := os.Lstat(path)
+	if lerr != nil || info.Mode()&os.ModeSymlink != 0 {
+		return "", err
+	}
+	return filepath.Clean(path), nil
+}
+
+// resolveExistingPrefix is canonicalExisting that tolerates a
 // missing tail: the longest existing ancestor is resolved and the
 // remaining components are appended lexically, so a symlinked ancestor
 // of a not-yet-created directory is still followed.
@@ -243,7 +263,7 @@ func resolveExistingPrefix(path string) (string, error) {
 	path = filepath.Clean(path)
 	var tail []string
 	for {
-		resolved, err := filepath.EvalSymlinks(path)
+		resolved, err := canonicalExisting(path)
 		if err == nil {
 			for i := len(tail) - 1; i >= 0; i-- {
 				resolved = filepath.Join(resolved, tail[i])

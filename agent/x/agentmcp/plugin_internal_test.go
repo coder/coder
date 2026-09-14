@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -25,14 +26,26 @@ func newTestPluginScope(t *testing.T, name string) PluginScope {
 	base := t.TempDir()
 	root := filepath.Join(base, name)
 	require.NoError(t, os.Mkdir(root, 0o755))
-	canonRoot, err := filepath.EvalSymlinks(root)
-	require.NoError(t, err)
+	canonRoot := root
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		canonRoot = resolved
+	}
 	return PluginScope{
 		Name:    name,
 		Root:    canonRoot,
 		DataDir: filepath.Join(base, "data", name),
 	}
 }
+
+// fakeServerFileName is the file name the test binary is installed
+// under inside a plugin root. Windows resolves an extension-less command
+// by appending .exe, so the copy carries the suffix there.
+var fakeServerFileName = "server" + func() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
+}()
 
 // installFakeServer places the test binary inside the plugin root as
 // "server" so a ./-relative command resolves within the root. A hard
@@ -42,7 +55,7 @@ func installFakeServer(t *testing.T, root string) {
 	t.Helper()
 	testBin, err := os.Executable()
 	require.NoError(t, err)
-	dst := filepath.Join(root, "server")
+	dst := filepath.Join(root, fakeServerFileName)
 	if err := os.Link(testBin, dst); err == nil {
 		return
 	}
@@ -65,7 +78,7 @@ func fakePluginServerEntry(extraEnv map[string]string) map[string]any {
 	}
 	return map[string]any{
 		"type":    "stdio",
-		"command": "./server",
+		"command": "./" + fakeServerFileName,
 		"args":    []string{"-test.run=^TestConnectServer_StdioProcessSurvivesConnect$"},
 		"env":     env,
 	}

@@ -72,6 +72,23 @@ var pluginAuthorFields = map[string]struct{}{
 	"url":   {},
 }
 
+// canonicalExistingDir resolves symlinks in an existing directory
+// path. When the filesystem cannot report symlink targets (Windows
+// substituted drives fail EvalSymlinks even for plain directories)
+// and the directory itself is not a symlink, the cleaned path is used
+// instead.
+func canonicalExistingDir(dir string) (string, error) {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err == nil {
+		return resolved, nil
+	}
+	info, lerr := os.Lstat(dir)
+	if lerr != nil || !info.IsDir() {
+		return "", err
+	}
+	return filepath.Clean(dir), nil
+}
+
 // pluginManifest is the validated content of a plugin.json.
 type pluginManifest struct {
 	Name        string
@@ -210,7 +227,7 @@ func pluginContainersFor(rootPath string) []string {
 // prefix checks, resource IDs, and Source values all use the same
 // path.
 func (r *Resolver) discoverPlugin(dir string, root ScanRoot, out *[]Resource, seenID map[string]int, pluginNames map[string]int) (recognized, ok bool) {
-	pluginRoot, err := filepath.EvalSymlinks(dir)
+	pluginRoot, err := canonicalExistingDir(dir)
 	if err != nil {
 		return false, false
 	}

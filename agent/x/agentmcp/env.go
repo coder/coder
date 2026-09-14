@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -33,6 +34,27 @@ var pluginEnvAllowList = map[string]struct{}{
 	"REQUESTS_CA_BUNDLE":  {},
 }
 
+// pluginEnvAllowListWindows names the additional variables a Windows
+// process needs to start and locate its profile and temp directories.
+// Windows variable names are case-insensitive, so lookups on Windows
+// compare in upper case against this list and pluginEnvAllowList.
+var pluginEnvAllowListWindows = map[string]struct{}{
+	"SYSTEMROOT":   {},
+	"WINDIR":       {},
+	"COMSPEC":      {},
+	"PATHEXT":      {},
+	"TEMP":         {},
+	"TMP":          {},
+	"USERPROFILE":  {},
+	"USERNAME":     {},
+	"HOMEDRIVE":    {},
+	"HOMEPATH":     {},
+	"APPDATA":      {},
+	"LOCALAPPDATA": {},
+	"PROGRAMDATA":  {},
+	"PROGRAMFILES": {},
+}
+
 // pluginEnvAllowPrefixes are inherited by prefix match.
 var pluginEnvAllowPrefixes = []string{"LC_", "XDG_"}
 
@@ -53,6 +75,16 @@ func filterPluginEnv(env []string) []string {
 func pluginEnvAllowed(key string) bool {
 	if _, ok := pluginEnvAllowList[key]; ok {
 		return true
+	}
+	if runtime.GOOS == "windows" {
+		upper := strings.ToUpper(key)
+		if _, ok := pluginEnvAllowList[upper]; ok {
+			return true
+		}
+		if _, ok := pluginEnvAllowListWindows[upper]; ok {
+			return true
+		}
+		key = upper
 	}
 	for _, prefix := range pluginEnvAllowPrefixes {
 		if strings.HasPrefix(key, prefix) {

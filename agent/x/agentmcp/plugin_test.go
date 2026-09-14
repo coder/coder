@@ -3,6 +3,7 @@ package agentmcp_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,10 @@ func newPluginScope(t *testing.T, name string) agentmcp.PluginScope {
 	base := t.TempDir()
 	root := filepath.Join(base, "plugin")
 	require.NoError(t, os.Mkdir(root, 0o755))
-	canonRoot, err := filepath.EvalSymlinks(root)
-	require.NoError(t, err)
+	canonRoot := root
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		canonRoot = resolved
+	}
 	return agentmcp.PluginScope{
 		Name:    name,
 		Root:    canonRoot,
@@ -120,6 +123,9 @@ func TestParseSource_PluginEntries(t *testing.T) {
 		// rejected.
 		want        func(scope agentmcp.PluginScope) agentmcp.ServerConfig
 		errContains string
+		// symlink marks cases that create symlinks, which need
+		// privileges on Windows.
+		symlink bool
 	}{
 		{
 			name:  "StdioBareCommand",
@@ -146,7 +152,8 @@ func TestParseSource_PluginEntries(t *testing.T) {
 			},
 		},
 		{
-			name: "StdioRelativeCommandThroughSymlinkInsideRoot",
+			name:    "StdioRelativeCommandThroughSymlinkInsideRoot",
+			symlink: true,
 			setup: func(t *testing.T, scope agentmcp.PluginScope, _ string) {
 				writeExecutable(t, scope.Root, "bin/real")
 				require.NoError(t, os.Symlink(filepath.Join(scope.Root, "bin", "real"), filepath.Join(scope.Root, "bin", "link")))
@@ -161,7 +168,8 @@ func TestParseSource_PluginEntries(t *testing.T) {
 			},
 		},
 		{
-			name: "StdioRelativeCommandSymlinkEscape",
+			name:    "StdioRelativeCommandSymlinkEscape",
+			symlink: true,
 			setup: func(t *testing.T, scope agentmcp.PluginScope, outside string) {
 				target := writeExecutable(t, outside, "evil")
 				require.NoError(t, os.MkdirAll(filepath.Join(scope.Root, "bin"), 0o755))
@@ -265,7 +273,8 @@ func TestParseSource_PluginEntries(t *testing.T) {
 			errContains: "resolves outside",
 		},
 		{
-			name: "StdioCwdSymlinkEscape",
+			name:    "StdioCwdSymlinkEscape",
+			symlink: true,
 			setup: func(t *testing.T, scope agentmcp.PluginScope, outside string) {
 				require.NoError(t, os.Symlink(outside, filepath.Join(scope.Root, "work")))
 			},
@@ -447,6 +456,9 @@ func TestParseSource_PluginEntries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			if tt.symlink && runtime.GOOS == "windows" {
+				t.Skip("symlinks require elevated privileges on Windows")
+			}
 			scope := newPluginScope(t, "p")
 			outside := filepath.Join(filepath.Dir(scope.Root), "outside")
 			require.NoError(t, os.Mkdir(outside, 0o755))
@@ -509,6 +521,9 @@ func TestPluginDataDir(t *testing.T) {
 
 func TestParseSource_PluginMCPConfigSymlinkOutsideRootRejected(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require elevated privileges on Windows")
+	}
 
 	scope := newPluginScope(t, "acme")
 	outside := filepath.Join(t.TempDir(), "mcp.json")

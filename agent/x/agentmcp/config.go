@@ -3,7 +3,6 @@ package agentmcp
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -84,7 +83,7 @@ func ParseSource(src ConfigSource) ([]ServerConfig, map[string]error, error) {
 	if src.Plugin != nil {
 		// A plugin's mcp.json is read through its resolved path, which
 		// must stay inside the plugin root.
-		resolved, err := filepath.EvalSymlinks(src.Path)
+		resolved, err := canonicalExisting(src.Path)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("resolve mcp config %q: %w", src.Path, err)
 		}
