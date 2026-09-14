@@ -168,7 +168,7 @@
 					"title": "2. Prepare prerequisites",
 					"description": "Gather the DNS records, certificates, database, license, and identity provider application a deployment needs.",
 					"path": "./install/prepare/index.md",
-					"icon_path": "./images/icons/check.svg",
+					"icon_path": "./images/icons/dependency.svg",
 					"children": [
 						{
 							"title": "Licensing",
@@ -261,7 +261,7 @@
 					"title": "4. Validate your deployment",
 					"description": "Harden the deployment, then prove it works and holds up under load.",
 					"path": "./install/validate/index.md",
-					"icon_path": "./images/icons/observability.svg",
+					"icon_path": "./images/icons/health.svg",
 					"children": [
 						{
 							"title": "Scale Testing",
