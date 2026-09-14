@@ -3,25 +3,13 @@ import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 
 type TerminalOutputProps = {
-	/** Accessible name for the scrollable output region. */
 	ariaLabel: string;
-	/**
-	 * Shell command the output belongs to. Pinned to the top of the pane so
-	 * it stays visible while the output scrolls.
-	 */
 	command?: string;
-	/** Outer placement classes, e.g. "col-start-1 col-span-2 mt-2". */
 	className?: string;
-	/** Renders the streaming cursor; pass the tool call status, not a process liveness snapshot. */
 	streaming?: boolean;
 	children: React.ReactNode;
 };
 
-/**
- * Shared terminal-style output pane for execute and process output tool
- * cards. Keeps the shared ScrollArea contract: a max-h-64 viewport cap,
- * a focusable region with an accessible name, and the narrow scrollbar.
- */
 export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 	ariaLabel,
 	command,
@@ -54,16 +42,12 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 		)}
 		<div className="space-y-2 px-3 py-2.5 font-mono text-xs leading-5">
 			{children}
-			{streaming && <TerminalCursor />}
+			{streaming && (
+				<span
+					aria-hidden
+					className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-content-secondary align-middle motion-reduce:animate-none"
+				/>
+			)}
 		</div>
 	</ScrollArea>
-);
-
-/** Streaming block cursor shown while a command is still producing output. */
-export const TerminalCursor: React.FC = () => (
-	<span
-		aria-hidden
-		data-testid="terminal-streaming-cursor"
-		className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-content-secondary align-middle motion-reduce:animate-none"
-	/>
 );
