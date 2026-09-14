@@ -10,6 +10,7 @@ import { type ComponentProps, createRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
@@ -203,6 +204,32 @@ describe("AgentChatInput", () => {
 			mockGitHubMCP.id,
 			mockNotionMCP.id,
 		]);
+	});
+
+	it("disconnects a connected OAuth server from the group popover", async () => {
+		const user = userEvent.setup();
+		const disconnect = vi
+			.spyOn(API.experimental, "disconnectMCPServerOAuth2")
+			.mockResolvedValue({ token_revoked: true });
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("button", {
+				name: "Disconnect GitHub",
+			}),
+		);
+		await user.click(await screen.findByRole("button", { name: "Disconnect" }));
+		await waitFor(() => {
+			expect(disconnect).toHaveBeenCalledWith(mockGitHubMCP.id);
+		});
 	});
 
 	it("keeps two active MCP servers as individual pills", async () => {

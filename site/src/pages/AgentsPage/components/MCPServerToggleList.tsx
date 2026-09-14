@@ -1,4 +1,4 @@
-import { ServerIcon, UnlinkIcon } from "lucide-react";
+import { LockIcon, ServerIcon, UnlinkIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -73,12 +73,19 @@ export const MCPServerToggleList: FC<MCPServerToggleListProps> = ({
 									<UnlinkIcon />
 								</Button>
 							)}
+							{isForceOn && (
+								<LockIcon className="size-3 shrink-0 text-content-secondary" />
+							)}
 							<Switch
 								size="sm"
 								checked={isSelected}
 								onCheckedChange={(checked) => onToggle(server.id, checked)}
 								disabled={isDisabled || isForceOn}
-								aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+								aria-label={
+									isForceOn
+										? `${server.display_name} always on`
+										: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
+								}
 							/>
 						</>
 					)}
