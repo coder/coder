@@ -134,6 +134,7 @@
 		"one-var": ["error", "never"],
 		"prefer-number-properties": ["error", { "checkInfinity": true }],
 		"no-else-return": ["error", { "allowElseIf": false }],
+		"no-inferrable-types": "error",
 
 		// --- suspicious ---
 		"no-cond-assign": "error",
@@ -206,7 +207,6 @@
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
 		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
-		"no-inferrable-types": "off", // style/noInferrableTypes (medium, coder error rule)
 		"jsx-curly-brace-presence": "off", // style/useConsistentCurlyBraces (medium, coder error rule)
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
