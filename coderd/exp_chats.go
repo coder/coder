@@ -1144,18 +1144,27 @@ func validateChatMCPServerIDs(
 }
 
 // normalizeRequestedChatMCPServerIDs validates a request's MCP server
-// selection for an existing chat. When requested is nil there is no
-// change to make. IDs already persisted on the chat are exempt from the
-// enabled-in-organization check: a server that is disabled or revoked
-// after selection must not block sends. The generation path skips
-// servers the chat can no longer use, and keeping the ID preserves the
-// selection if the server is re-enabled. A non-nil response indicates
-// the caller must write it with the returned status and stop.
+// selection for an existing chat against the chat owner's ACL. The
+// selection decides which servers receive the owner's credentials, so
+// the caller's own access is irrelevant. When requested is nil there is
+// no change to make. IDs already persisted on the chat are exempt from
+// the enabled-in-organization check: a server that is disabled or
+// revoked after selection must not block sends. The generation path
+// skips servers the chat can no longer use, and keeping the ID preserves
+// the selection if the server is re-enabled. A non-nil response
+// indicates the caller must write it with the returned status and stop.
 func (api *API) normalizeRequestedChatMCPServerIDs(ctx context.Context, chat database.Chat, requested *[]uuid.UUID) (*[]uuid.UUID, int, *codersdk.Response) {
 	if requested == nil {
 		return nil, 0, nil
 	}
-	normalized, invalid, err := validateChatMCPServerIDs(ctx, api.Database, chat.OrganizationID, *requested)
+	owner, _, err := httpmw.UserRBACSubject(ctx, api.Database, chat.OwnerID, rbac.ScopeAll)
+	if err != nil {
+		return nil, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to validate MCP server IDs.",
+			Detail:  err.Error(),
+		}
+	}
+	normalized, invalid, err := validateChatMCPServerIDs(dbauthz.As(ctx, owner), api.Database, chat.OrganizationID, *requested)
 	if err != nil {
 		return nil, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to validate MCP server IDs.",

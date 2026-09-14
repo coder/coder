@@ -18863,6 +18863,61 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Only the chat owner")
 	})
 
+	// An org admin may PATCH a member's chat, but the MCP selection is
+	// validated with the owner's ACL because the selected servers
+	// receive the owner's credentials.
+	t.Run("PatchChatMCPServerIDsUseOwnerACL", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "member chat for owner ACL test",
+			}},
+		})
+		require.NoError(t, err)
+
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(
+			t,
+			client.Client,
+			firstUser.OrganizationID,
+			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+		)
+		adminClient := codersdk.NewExperimentalClient(orgAdminRaw)
+
+		// Empty ACLs: only org admins can read this config.
+		adminOnlyCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+			GroupACL:       database.ChatACL{},
+			UserACL:        database.ChatACL{},
+		})
+		err = adminClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			MCPServerIDs: &[]uuid.UUID{adminOnlyCfg.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+
+		// Default ACL grants the org's Everyone group read, so the
+		// owner can use this config and the admin's PATCH succeeds.
+		everyoneCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+		err = adminClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			MCPServerIDs: &[]uuid.UUID{everyoneCfg.ID},
+		})
+		require.NoError(t, err)
+	})
+
 	// Verify the owner can still operate normally.
 	t.Run("OwnerCanSendMessages", func(t *testing.T) {
 		t.Parallel()
