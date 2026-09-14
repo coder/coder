@@ -976,7 +976,7 @@ func (api *API) putUserEmailExperimental(rw http.ResponseWriter, r *http.Request
 			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("update user email: %w", err)
 		}
 
 		//nolint:gocritic // This break-glass operation must revoke all API keys

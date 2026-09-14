@@ -1792,6 +1792,11 @@ export interface BuildInfoResponse {
 	 * Telemetry is a boolean that indicates whether telemetry is enabled.
 	 */
 	readonly telemetry: boolean;
+	/**
+	 * OAuth2Provider reports whether the OAuth 2.1 authorization server is
+	 * enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	 */
+	readonly oauth2_provider: boolean;
 	readonly workspace_proxy: boolean;
 	/**
 	 * AgentAPIVersion is the current version of the Agent API (back versions
@@ -6592,6 +6597,7 @@ export const OAuth2ClientTypes: OAuth2ClientType[] = ["confidential", "public"];
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
+	readonly provider: OAuth2ProviderConfig;
 }
 
 // From codersdk/oauth2.go
@@ -6709,6 +6715,18 @@ export interface OAuth2ProviderAppSecret {
 export interface OAuth2ProviderAppSecretFull {
 	readonly id: string;
 	readonly client_secret_full: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * OAuth2ProviderConfig configures Coder's own OAuth 2.1 authorization server.
+ * This is separate from the GitHub login integration. It is also distinct
+ * from OAuth2ProviderSettings: this struct decides whether the server is on
+ * at all, while OAuth2ProviderSettings holds runtime behavior such as
+ * dynamic client registration that admins change while it runs.
+ */
+export interface OAuth2ProviderConfig {
+	readonly enable: boolean;
 }
 
 // From codersdk/oauth2.go
