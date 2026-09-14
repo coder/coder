@@ -96,7 +96,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return xerrors.Errorf("parse --output flags: %w", err)
 			}
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
@@ -288,7 +288,15 @@ func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, work
 
 		c.URL = fmt.Sprintf("%s://%s", client.URL.Scheme, strings.Replace(appHost, "*", agent.Apps[i].SubdomainName, 1))
 	} else {
-		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), workspace.OwnerName, workspace.Name, agent.Name, agent.Apps[i].Slug)
+		// Path-based apps are served at a trailing-slash URL: coderd (and
+		// workspace proxies) 307-redirect "/apps/<slug>" to "/apps/<slug>/"
+		// (coderd/workspaceapps/proxy.go, the path == "" branch), and the
+		// scaletest client rejects redirects by default (absent
+		// --allow-redirects), so the WebSocket handshake fails on the redirect
+		// unless we request the normalized URL. JoinPath keeps
+		// the trailing slash while collapsing any double slash from a
+		// trailing-slash deployment URL.
+		c.URL = client.URL.JoinPath("@"+workspace.OwnerName, workspace.Name+"."+agent.Name, "apps", agent.Apps[i].Slug+"/").String()
 	}
 
 	return c, nil
