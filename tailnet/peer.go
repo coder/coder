@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -121,7 +122,16 @@ func (p *peer) storeMappingLocked(
 	}, nil
 }
 
-func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) error {
+func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.Error(ctx, "panic handling peer request",
+				slog.F("panic", recovered),
+				slog.F("stack", string(debug.Stack())),
+			)
+			err = xerrors.New(CloseErrInternal)
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():

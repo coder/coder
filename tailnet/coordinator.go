@@ -27,6 +27,7 @@ const (
 	RequestBufferSize        = 32
 	CloseErrOverwritten      = "peer ID overwritten by new connection"
 	CloseErrCoordinatorClose = "coordinator closed"
+	CloseErrInternal         = "internal coordinator error"
 	ReadyForHandshakeError   = "ready for handshake error"
 )
 
@@ -235,6 +236,9 @@ func (c *core) node(id uuid.UUID) *Node {
 }
 
 func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.CoordinateRequest) error {
+	if err := ValidateCoordinateRequest(req); err != nil {
+		return err
+	}
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if c.closed {
