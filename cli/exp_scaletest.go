@@ -863,7 +863,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 			}
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return xerrors.Errorf("parse --output flags: %w", err)
 			}
 
 			if template == "" {
@@ -1214,7 +1214,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return xerrors.Errorf("parse --output flags: %w", err)
 			}
 
 			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
@@ -1488,7 +1488,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return xerrors.Errorf("parse --output flags: %w", err)
 			}
 			reg := prometheus.NewRegistry()
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
