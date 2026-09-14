@@ -3256,7 +3256,8 @@ export interface ChatQueuedMessage {
 	readonly created_at: string;
 	/**
 	 * HeldAt is set while the owner edits the message. A held message
-	 * and every message behind it wait until the hold is released.
+	 * and every message behind it wait until the hold is released; a
+	 * turn that ends at a held message pauses the chat.
 	 */
 	readonly held_at?: string;
 }

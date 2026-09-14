@@ -92,8 +92,8 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
-	// ChatStatusPaused: the turn ended at a held queued message. The
-	// queue waits until it is released, sent now, or deleted.
+	// ChatStatusPaused: the chat is not running and its queued messages
+	// wait until it resumes. A send queues.
 	ChatStatusPaused ChatStatus = "paused"
 )
 
@@ -1692,7 +1692,8 @@ type ChatQueuedMessage struct {
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	// HeldAt is set while the owner edits the message. A held message
-	// and every message behind it wait until the hold is released.
+	// and every message behind it wait until the hold is released; a
+	// turn that ends at a held message pauses the chat.
 	HeldAt *time.Time `json:"held_at,omitempty" format:"date-time"`
 }
 

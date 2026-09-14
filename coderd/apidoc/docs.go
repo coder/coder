@@ -21200,7 +21200,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "held_at": {
-                    "description": "HeldAt is set while the owner edits the message. A held message\nand every message behind it wait until the hold is released.",
+                    "description": "HeldAt is set while the owner edits the message. A held message\nand every message behind it wait until the hold is released; a\nturn that ends at a held message pauses the chat.",
                     "type": "string",
                     "format": "date-time"
                 },
