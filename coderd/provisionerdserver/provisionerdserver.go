@@ -684,9 +684,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
 
-		// Fetch the file id of the cached module files if it exists.
+		// Fetch the file id of the cached module files if it exists. Modules
+		// stay cached for parameter rendering even when the cache is
+		// disabled; they are only withheld from the build.
 		versionModulesFile := ""
-		if !template.DisableModuleCache {
+		if !codersdk.ModuleCacheDisabled(s.DeploymentValues, template.DisableModuleCache) {
 			tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				// Older templates (before dynamic parameters) will not have cached module files.

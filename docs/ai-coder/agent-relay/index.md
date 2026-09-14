@@ -6,14 +6,16 @@ Agent Relay connects a cloud-hosted AI coding agent's hosted sessions to self-ho
 Developers keep the cloud agent's client and workflow.
 Coder provides the workspace where the agent's tool calls run.
 
-## What Agent Relay does
+<img src="../../images/guides/ai-agents/agent-relay-stack.png" alt="Agent Relay architecture diagram" style="border: none;">
+
+## How Agent Relay works
 
 Agent Relay watches for pending agent sessions from a supported provider.
 When a session starts, Agent Relay provisions a Coder workspace from a mapped template and connects the session to a worker process inside that workspace.
 The worker executes the agent's tool calls, such as reading files, running commands, and using development tools, against the resources available in that workspace.
 Agent Relay manages the workspace for the life of the session and tears it down when the session ends.
 
-<img src="../../images/guides/ai-agents/agent-relay-stack.png" alt="Agent Relay architecture diagram" style="border: none;">
+<img src="../../images/guides/ai-agents/agent-relay-workflow.png" alt="Agent Relay workflow diagram" style="border: none;">
 
 ## What Agent Relay is and isn't
 
@@ -49,7 +51,7 @@ Configuring a relay requires a provider credential and a compatible template, so
 
 ## Supported providers
 
-[Cursor](./cursor.md) is the first provider Agent Relay supports.
+[Cursor](./cursor.md) and [Claude Code](./claude-code.md) are the providers Agent Relay supports.
 Coder built Agent Relay to support additional cloud-hosted agent providers as they add support for self-hosted execution.
 
 ## Get started
@@ -59,5 +61,6 @@ If you want access to Agent Relay or want updates on the support status for your
 ## Learn more
 
 - [Agent Relay for Cursor](./cursor.md)
+- [Agent Relay for Claude Code](./claude-code.md)
 - [Coder Agents](../agents/index.md)
 - [Architecture](../../admin/infrastructure/architecture.md)

@@ -151,9 +151,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if contextTokens <= 0 && !config.Force {
 		return CompactionResult{}, nil
 	}
-	metadataLimit := extractContextLimit(opts.StepMetadata)
 	contextLimit := resolveContextLimit(
-		metadataLimit.Int64,
 		config.ContextLimit,
 		opts.ContextLimitFallback,
 	)
@@ -300,13 +298,9 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 	return total
 }
 
-// resolveContextLimit picks the first positive value from metadata,
-// configured limit, and fallback — in that priority order. Returns
-// 0 when none are positive.
-func resolveContextLimit(metadataLimit, configLimit, fallback int64) int64 {
-	if metadataLimit > 0 {
-		return metadataLimit
-	}
+// resolveContextLimit returns the configured limit when positive, then
+// the fallback, or zero when neither is positive.
+func resolveContextLimit(configLimit, fallback int64) int64 {
 	if configLimit > 0 {
 		return configLimit
 	}
@@ -400,9 +394,6 @@ func startCompactionDebugRun(
 
 	return compactionCtx, func(runErr error) {
 		status := chatdebug.ClassifyError(runErr)
-		if runErr != nil && xerrors.Is(runErr, ErrInterrupted) {
-			status = chatdebug.StatusInterrupted
-		}
 		// Debug instrumentation must not surface as a compaction failure.
 		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
 			RunID:  run.ID,

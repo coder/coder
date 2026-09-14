@@ -143,6 +143,20 @@ runs:
           [[ -f "${pidfile}" ]] && kill "$(cat "${pidfile}")" 2> /dev/null || true
         done
 
+    - name: Collect PostgreSQL logs (Linux)
+      if: failure() && runner.os == 'Linux'
+      shell: bash
+      env:
+        POSTGRES_VERSION: ${{ inputs.postgres-version }}
+      run: make test-postgres-docker-logs > postgres.log 2>&1
+
+    - name: Upload PostgreSQL logs (Linux)
+      if: failure() && runner.os == 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: postgres-logs-${{ github.job }}
+        path: postgres.log
+
     - name: Upload I/O samples (Linux)
       if: failure() && runner.os == 'Linux'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
