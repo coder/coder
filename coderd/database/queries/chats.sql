@@ -1593,8 +1593,8 @@ WITH updated_chat AS (
 UPDATE
     chats
 SET
-    mcp_server_ids = @mcp_server_ids::uuid[],
-    updated_at = NOW()
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    mcp_server_ids = @mcp_server_ids::uuid[]
 WHERE
     id = @id::uuid
 RETURNING *

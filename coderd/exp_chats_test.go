@@ -7204,6 +7204,48 @@ func TestPatchChat(t *testing.T) {
 			require.Empty(t, updated.MCPServerIDs)
 		})
 
+		t.Run("PreservesUpdatedAt", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+				DeploymentValues:    coderdtest.DeploymentValues(t),
+				Database:            db,
+				Pubsub:              ps,
+				ChatProviderAPIKeys: &providerKeys,
+			})
+			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+			client := codersdk.NewExperimentalClient(clientRaw)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+			orgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+				OrganizationID: firstUser.OrganizationID,
+				Enabled:        true,
+			})
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "select mcp servers in place")
+			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+			_, err := sqlDB.ExecContext(ctx,
+				"UPDATE chats SET updated_at = $1 WHERE id = $2",
+				past, chat.ID,
+			)
+			require.NoError(t, err)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				MCPServerIDs: &[]uuid.UUID{orgConfig.ID},
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, []uuid.UUID{orgConfig.ID}, updated.MCPServerIDs)
+			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
+				"mcp server selection bumped updated_at; it should be preserved to keep list ordering stable")
+		})
+
 		t.Run("InvalidRejected", func(t *testing.T) {
 			t.Parallel()
 
