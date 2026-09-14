@@ -26,8 +26,8 @@ Merge the following into `~/.claude/settings.json`, preserving your existing set
 ```json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "https://coder.example.com/api/v2/ai-gateway/anthropic",
-    "ANTHROPIC_AUTH_TOKEN": "YOUR_CODER_API_TOKEN"
+    "ANTHROPIC_BASE_URL": "<your-deployment-url>/api/v2/ai-gateway/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "<your-coder-api-token>"
   }
 }
 ```
