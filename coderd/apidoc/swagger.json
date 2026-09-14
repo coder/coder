@@ -4362,7 +4362,6 @@
 			},
 			"patch": {
 				"consumes": ["application/json"],
-				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Edit chat queued message",
 				"operationId": "edit-chat-queued-message",
