@@ -67,9 +67,11 @@ counted.
 
 The checker also reports a `##` or `###` heading that states a rule but carries
 no footer, so a rule can't drop out of the table by never being annotated. A
-heading is exempt when it only groups sub-headings, when it is the `Learn more`
-navigation section, or when it carries an out-of-scope note. Headings deeper
-than `###` are detail inside a section, not rules.
+footer belongs to the nearest heading above it, and a heading that has
+sub-headings is treated as covered by them, so a parent rule whose footer sits
+after a scoping sub-heading isn't flagged. A heading is also exempt when it is
+the `Learn more` navigation section or carries an out-of-scope note. Headings
+deeper than `###` are detail inside a section, not rules.
 
 - **Documentation-only**: the annotation declares the section
   `Documentation-only`. This wins over everything else, so a section that only
