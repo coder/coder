@@ -1,8 +1,13 @@
 package main
 
 import (
+	"net/url"
+	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/spf13/pflag"
 
 	"github.com/coder/serpent"
 )
@@ -235,5 +240,79 @@ func TestRenderPipeline(t *testing.T) {
 	}
 	if strings.Contains(got, "Unsettable") {
 		t.Error("option with no env/flag/YAML should be skipped")
+	}
+}
+
+func TestValueType(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		value       pflag.Value
+		wantName    string
+		wantChoices []string
+	}{
+		{"plain type", serpent.BoolOf(new(bool)), "bool", nil},
+		{"duration", serpent.DurationOf(new(time.Duration)), "duration", nil},
+		{
+			"enum lists its choices",
+			serpent.EnumOf(new(string), "password", "awsiamrds"),
+			"enum",
+			[]string{"password", "awsiamrds"},
+		},
+		{"nil value has no type", nil, "", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			gotName, gotChoices := valueType(serpent.Option{Value: tc.value})
+			if gotName != tc.wantName {
+				t.Errorf("valueType() name = %q, want %q", gotName, tc.wantName)
+			}
+			if !slices.Equal(gotChoices, tc.wantChoices) {
+				t.Errorf("valueType() choices = %v, want %v", gotChoices, tc.wantChoices)
+			}
+		})
+	}
+}
+
+// TestRenderTypeAndSecret covers the two fields the reference previously
+// dropped: every option's value type, and the marker that keeps a secret out
+// of a YAML configuration file.
+func TestRenderTypeAndSecret(t *testing.T) {
+	t.Parallel()
+
+	secret := serpent.Option{
+		Name:        "Client Secret",
+		Description: "Client secret for the identity provider.",
+		Flag:        "oidc-client-secret",
+		Env:         "CODER_OIDC_CLIENT_SECRET",
+		Value:       serpent.StringOf(new(string)),
+		Annotations: serpent.Annotations{}.Mark("secret", "true"),
+	}
+	plain := serpent.Option{
+		Name:        "Access URL",
+		Description: "The URL the deployment is reachable at.",
+		Flag:        "access-url",
+		Env:         "CODER_ACCESS_URL",
+		YAML:        "accessURL",
+		Value:       serpent.URLOf(&url.URL{}),
+	}
+
+	got := render(buildTree(serpent.OptionSet{secret, plain}))
+
+	wantContains := []string{
+		"- Type: `string`",
+		"- Type: `url`",
+		"- Holds a secret: Coder never writes this option to a YAML configuration file.",
+	}
+	for _, w := range wantContains {
+		if !strings.Contains(got, w) {
+			t.Errorf("render() missing %q\n---\n%s", w, got)
+		}
+	}
+
+	// Only the annotated option carries the secret marker.
+	if n := strings.Count(got, "Holds a secret"); n != 1 {
+		t.Errorf("secret marker rendered %d times, want 1", n)
 	}
 }
