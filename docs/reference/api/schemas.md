@@ -4438,6 +4438,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `top_logprobs`        | integer                                                                                          | false    |              |             |
 | `user`                | string                                                                                           | false    |              |             |
 
+## codersdk.ChatPersonalMemorySettings
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
+
 ## codersdk.ChatPersonalModelOverride
 
 ```json
@@ -5242,6 +5256,38 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Property | Value(s) |
 |----------|----------|
 | `role`   | `read`   |
+
+## codersdk.ChatUserMemory
+
+```json
+{
+  "body": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by_username": "string",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "source_chat_id": "5fa953ed-8c56-4ffd-9537-cfa0711f78cc",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                  | Type   | Required | Restrictions | Description |
+|-----------------------|--------|----------|--------------|-------------|
+| `body`                | string | false    |              |             |
+| `created_at`          | string | false    |              |             |
+| `created_by_username` | string | false    |              |             |
+| `description`         | string | false    |              |             |
+| `id`                  | string | false    |              |             |
+| `name`                | string | false    |              |             |
+| `organization_id`     | string | false    |              |             |
+| `source_chat_id`      | string | false    |              |             |
+| `updated_at`          | string | false    |              |             |
+| `user_id`             | string | false    |              |             |
 
 ## codersdk.ChatWatchEvent
 
@@ -6280,6 +6326,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
 | `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+
+## codersdk.CreateChatUserMemoryRequest
+
+```json
+{
+  "body": "string",
+  "description": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+|-------------------|--------|----------|--------------|-------------|
+| `body`            | string | true     |              |             |
+| `description`     | string | true     |              |             |
+| `name`            | string | true     |              |             |
+| `organization_id` | string | true     |              |             |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -15717,6 +15783,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `model`                 | string                                                       | false    |              |             |
 | `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
 
+## codersdk.UpdateChatPersonalMemorySettingsRequest
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
+
 ## codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest
 
 ```json
@@ -15838,6 +15918,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |---------------------------------|---------|----------|--------------|-------------|
 | `include_default_system_prompt` | boolean | false    |              |             |
 | `system_prompt`                 | string  | false    |              |             |
+
+## codersdk.UpdateChatUserMemoryRequest
+
+```json
+{
+  "body": "string",
+  "description": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `body`        | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `name`        | string | false    |              |             |
 
 ## codersdk.UpdateChatWorkspaceTTLRequest
 

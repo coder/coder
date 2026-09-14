@@ -59,6 +59,17 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 					})
 				})
 			}
+			r.Route("/memories", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
+				r.Get("/", api.listChatUserMemories)
+				r.Post("/", api.postChatUserMemory)
+				r.Route("/{memory}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatUserMemoryParam(api.Database))
+					r.Get("/", api.getChatUserMemory)
+					r.Patch("/", api.patchChatUserMemory)
+					r.Delete("/", api.deleteChatUserMemory)
+				})
+			})
 			r.Route("/projects", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
 				r.Get("/", api.listChatProjects)
@@ -100,7 +111,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			// Reserve unmounted segments so they return 404 instead of
 			// falling into the {chat} wildcard and failing UUID parsing
 			// with a 400.
-			segments := []string{"/model-configs", "/projects"}
+			segments := []string{"/memories", "/model-configs", "/projects"}
 			// TODO(CODAGT-922): drop the provider reservations with the
 			// experimental mounts.
 			segments = append(segments, "/providers", "/user-provider-configs")
@@ -135,6 +146,8 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Put("/user-debug-logging", api.putUserChatDebugLogging)
 			r.Get("/user-prompt", api.getUserChatCustomPrompt)
 			r.Put("/user-prompt", api.putUserChatCustomPrompt)
+			r.Get("/user-memory", api.getUserChatPersonalMemorySettings)
+			r.Put("/user-memory", api.putUserChatPersonalMemorySettings)
 			r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
 			r.Put("/user-compaction-thresholds/{modelConfig}", api.putUserChatCompactionThreshold)
 			r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)

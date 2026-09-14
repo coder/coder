@@ -1065,6 +1065,83 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/user-debug-logging \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user chat personal memory settings
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/config/user-memory \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/config/user-memory`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                               |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatPersonalMemorySettings](schemas.md#codersdkchatpersonalmemorysettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update user chat personal memory settings
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/chats/config/user-memory \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/chats/config/user-memory`
+
+> Body parameter
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                           | Required | Description  |
+|--------|------|----------------------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatPersonalMemorySettingsRequest](schemas.md#codersdkupdatechatpersonalmemorysettingsrequest) | true     | Request body |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                               |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatPersonalMemorySettings](schemas.md#codersdkchatpersonalmemorysettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get user chat custom prompt
 
 ### Code samples
