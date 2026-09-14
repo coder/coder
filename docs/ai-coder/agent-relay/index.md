@@ -51,7 +51,7 @@ Configuring a relay requires a provider credential and a compatible template, so
 
 ## Supported providers
 
-[Cursor](./cursor.md) is the first provider Agent Relay supports.
+[Cursor](./cursor.md) and [Claude Code](./claude-code.md) are the providers Agent Relay supports.
 Coder built Agent Relay to support additional cloud-hosted agent providers as they add support for self-hosted execution.
 
 ## Get started
@@ -61,5 +61,6 @@ If you want access to Agent Relay or want updates on the support status for your
 ## Learn more
 
 - [Agent Relay for Cursor](./cursor.md)
+- [Agent Relay for Claude Code](./claude-code.md)
 - [Coder Agents](../agents/index.md)
 - [Architecture](../../admin/infrastructure/architecture.md)
