@@ -175,9 +175,8 @@ func executeTaskSafely(ctx context.Context, fn func(context.Context) error) (err
 }
 
 type interruptionOutcome struct {
-	Chat           database.Chat
-	Kind           runnerActionKind
-	WatchEventKind codersdk.ChatWatchEventKind
+	Chat database.Chat
+	Kind runnerActionKind
 }
 
 type taskStarter struct {
@@ -335,9 +334,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.runAfterInterruptionOutcome(ctx, interruptionOutcome{
-		Chat:           committed,
-		Kind:           runnerActionKindFinishInterruption,
-		WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
+		Chat: committed,
+		Kind: runnerActionKindFinishInterruption,
 	})
 }
 

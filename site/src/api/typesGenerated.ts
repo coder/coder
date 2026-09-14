@@ -7551,6 +7551,12 @@ export interface ProvisionerConfig {
 	readonly daemon_poll_jitter: number;
 	readonly force_cancel_interval: number;
 	readonly daemon_psk: string;
+	/**
+	 * DisableModuleCache disables the reuse of Terraform modules cached at
+	 * template import for every template in the deployment. Templates cannot
+	 * opt back in.
+	 */
+	readonly disable_module_cache: boolean;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -8954,9 +8960,16 @@ export interface Template {
 	readonly agents_allowed: boolean;
 	/**
 	 * DisableModuleCache disables the use of cached Terraform modules during
-	 * provisioning.
+	 * provisioning for this template. It is read-only while
+	 * ModuleCacheDisabledByDeployment is true.
 	 */
 	readonly disable_module_cache: boolean;
+	/**
+	 * ModuleCacheDisabledByDeployment reports that the deployment disables the
+	 * Terraform module cache for every template. Templates cannot opt back in,
+	 * so the effective state is disabled regardless of DisableModuleCache.
+	 */
+	readonly module_cache_disabled_by_deployment: boolean;
 	/**
 	 * AllowWorkspaceRenames permits users to rename workspaces built from this
 	 * template. Renaming can be destructive for templates whose Terraform
@@ -9963,7 +9976,8 @@ export interface UpdateTemplateMeta {
 	readonly use_classic_parameter_flow?: boolean;
 	/**
 	 * DisableModuleCache disables the using of cached Terraform modules during
-	 * provisioning. It is recommended not to disable this.
+	 * provisioning. It is ignored while the deployment disables the module
+	 * cache for all templates. It is recommended not to disable this.
 	 */
 	readonly disable_module_cache?: boolean;
 	/**
@@ -10034,6 +10048,16 @@ export interface UpdateUserChatPersonalModelOverrideRequest {
 	readonly mode: ChatPersonalModelOverrideMode;
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
+}
+
+// From codersdk/users.go
+/**
+ * UpdateUserEmailRequest changes a user's email by matching their current
+ * email address. This API is experimental and may change without notice.
+ */
+export interface UpdateUserEmailRequest {
+	readonly old_email: string;
+	readonly new_email: string;
 }
 
 // From codersdk/notifications.go
