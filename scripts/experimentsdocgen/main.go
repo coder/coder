@@ -3,7 +3,7 @@
 //
 // Two sources are combined. The set of experiments, their display names, and
 // whether each one is safe to enable through the wildcard come from the
-// codersdk package at run time. The per-experiment descriptions live only as
+// codersdk package at run time. The per-experiment descriptions live as
 // trailing comments on the Experiment constants, so they are read from the
 // syntax tree of the file that declares them.
 package main
@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	utilstrings "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
 	"github.com/coder/coder/v2/scripts/docgenenv"
@@ -37,7 +38,7 @@ Experiments are disabled by default, are not guaranteed to be backward compatibl
 Enable one by passing its key to ` + "`coder server`" + `:
 
 ` + "```shell" + `
-coder server --experiments=example,workspace-usage
+coder server --experiments=<experiment-key>
 ` + "```" + `
 
 The same keys work through the ` + "`CODER_EXPERIMENTS`" + ` environment variable.
@@ -74,8 +75,12 @@ func main() {
 	if err != nil {
 		flog.Fatalf("%v", err)
 	}
+	displayNames, err := readDisplayNames(*source)
+	if err != nil {
+		flog.Fatalf("%v", err)
+	}
 
-	content, err := render(*route, descriptions)
+	content, err := render(*route, codersdk.ExperimentsKnown, codersdk.ExperimentsSafe, descriptions, displayNames)
 	if err != nil {
 		flog.Fatalf("render experiments reference: %v", err)
 	}
@@ -86,9 +91,7 @@ func main() {
 }
 
 // readDescriptions returns the trailing comment on each Experiment constant,
-// keyed by the experiment's string value. The comments are the only
-// description the codebase carries for an experiment, and they are not
-// reachable at run time.
+// keyed by the experiment's string value.
 func readDescriptions(path string) (map[string]string, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
@@ -97,26 +100,25 @@ func readDescriptions(path string) (map[string]string, error) {
 	}
 
 	descriptions := map[string]string{}
-	ast.Inspect(file, func(n ast.Node) bool {
-		spec, ok := n.(*ast.ValueSpec)
+	for node := range ast.Preorder(file) {
+		spec, ok := node.(*ast.ValueSpec)
 		if !ok {
-			return true
+			continue
 		}
 		ident, ok := spec.Type.(*ast.Ident)
 		if !ok || ident.Name != "Experiment" || len(spec.Values) != 1 {
-			return true
+			continue
 		}
 		lit, ok := spec.Values[0].(*ast.BasicLit)
 		if !ok || lit.Kind != token.STRING {
-			return true
+			continue
 		}
 		value, err := strconv.Unquote(lit.Value)
 		if err != nil {
-			return true
+			continue
 		}
-		descriptions[value] = commentText(spec)
-		return true
-	})
+		descriptions[value] = commentSentence(spec)
+	}
 
 	if len(descriptions) == 0 {
 		return nil, xerrors.Errorf("no Experiment constants found in %q", path)
@@ -124,19 +126,72 @@ func readDescriptions(path string) (map[string]string, error) {
 	return descriptions, nil
 }
 
-// commentText prefers the trailing comment on the constant's own line and
-// falls back to the doc comment above it.
-func commentText(spec *ast.ValueSpec) string {
-	if spec.Comment != nil {
-		return sentence(spec.Comment.Text())
+func readDisplayNames(path string) (map[string]bool, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("parse %q: %w", path, err)
 	}
-	if spec.Doc != nil {
-		return sentence(spec.Doc.Text())
+
+	constants := map[string]string{}
+	for node := range ast.Preorder(file) {
+		spec, ok := node.(*ast.ValueSpec)
+		if !ok || len(spec.Names) != 1 || len(spec.Values) != 1 {
+			continue
+		}
+		ident, ok := spec.Type.(*ast.Ident)
+		if !ok || ident.Name != "Experiment" {
+			continue
+		}
+		lit, ok := spec.Values[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			continue
+		}
+		value, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			continue
+		}
+		constants[spec.Names[0].Name] = value
 	}
-	return ""
+
+	displayNames := map[string]bool{}
+	for node := range ast.Preorder(file) {
+		decl, ok := node.(*ast.FuncDecl)
+		if !ok || decl.Name.Name != "DisplayName" || decl.Recv == nil || len(decl.Recv.List) != 1 {
+			continue
+		}
+		receiver, ok := decl.Recv.List[0].Type.(*ast.Ident)
+		if !ok || receiver.Name != "Experiment" {
+			continue
+		}
+		for node := range ast.Preorder(decl.Body) {
+			clause, ok := node.(*ast.CaseClause)
+			if !ok {
+				continue
+			}
+			for _, expr := range clause.List {
+				ident, ok := expr.(*ast.Ident)
+				if !ok {
+					continue
+				}
+				if value, ok := constants[ident.Name]; ok {
+					displayNames[value] = true
+				}
+			}
+		}
+	}
+
+	return displayNames, nil
 }
 
-func render(route docgenenv.Route, descriptions map[string]string) (string, error) {
+func commentSentence(spec *ast.ValueSpec) string {
+	if spec.Comment == nil {
+		return ""
+	}
+	return sentence(spec.Comment.Text())
+}
+
+func render(route docgenenv.Route, known, safe codersdk.Experiments, descriptions map[string]string, displayNames map[string]bool) (string, error) {
 	var b strings.Builder
 	// The front matter title renders as the page heading, so the body starts
 	// at the intro and its sections begin at level two.
@@ -144,9 +199,9 @@ func render(route docgenenv.Route, descriptions map[string]string) (string, erro
 	_, _ = b.WriteString(intro)
 	_, _ = b.WriteString(wildcardSection)
 
-	if len(codersdk.ExperimentsSafe) > 0 {
+	if len(safe) > 0 {
 		_, _ = b.WriteString("These experiments are safe to enable with the wildcard:\n\n")
-		for _, exp := range codersdk.ExperimentsSafe {
+		for _, exp := range safe {
 			_, _ = fmt.Fprintf(&b, "- `%s`\n", exp)
 		}
 		_, _ = b.WriteString("\n")
@@ -157,18 +212,26 @@ func render(route docgenenv.Route, descriptions map[string]string) (string, erro
 	_, _ = b.WriteString(tableSection)
 	_, _ = b.WriteString("| Experiment | Key | Description |\n|------------|-----|-------------|\n")
 
-	known := slices.Clone(codersdk.ExperimentsKnown)
+	known = slices.Clone(known)
 	slices.Sort(known)
 	for _, exp := range known {
 		key := string(exp)
 		desc, ok := descriptions[key]
-		if !ok {
+		if !ok || desc == "" {
 			return "", xerrors.Errorf("experiment %q has no description comment on its constant", key)
 		}
-		_, _ = fmt.Fprintf(&b, "| %s | `%s` | %s |\n", exp.DisplayName(), key, desc)
+		displayName := exp.DisplayName()
+		if !displayNames[key] {
+			return "", xerrors.Errorf("experiment %q has no explicit display name", key)
+		}
+		_, _ = fmt.Fprintf(&b, "| %s | `%s` | %s |\n", markdownCell(displayName), key, markdownCell(desc))
 	}
 
 	return strings.TrimRight(b.String(), "\n") + "\n", nil
+}
+
+func markdownCell(value string) string {
+	return strings.ReplaceAll(value, "|", `\|`)
 }
 
 // sentence collapses a comment to one line, capitalizes it, and gives it
@@ -178,7 +241,7 @@ func sentence(s string) string {
 	if s == "" {
 		return s
 	}
-	s = strings.ToUpper(s[:1]) + s[1:]
+	s = utilstrings.Capitalize(s)
 	if !strings.HasSuffix(s, ".") {
 		s += "."
 	}

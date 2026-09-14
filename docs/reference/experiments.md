@@ -13,7 +13,7 @@ Experiments are disabled by default, are not guaranteed to be backward compatibl
 Enable one by passing its key to `coder server`:
 
 ```shell
-coder server --experiments=example,workspace-usage
+coder server --experiments=<experiment-key>
 ```
 
 The same keys work through the `CODER_EXPERIMENTS` environment variable.

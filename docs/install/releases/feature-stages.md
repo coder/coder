@@ -48,8 +48,7 @@ access features:
   ```
 
   The wildcard does not enable every experiment. Coder enables only the ones it
-  marks as safe, and no experiment currently carries that mark, so name the
-  experiments you want instead.
+  marks as safe.
 
 - Enable multiple early access features:
 
