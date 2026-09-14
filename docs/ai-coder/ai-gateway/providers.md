@@ -391,7 +391,7 @@ and how to enable or disable it.
 
 ## Failure modes
 
-| Symptom                                       | Likely cause                                    | Corrective action                    |
+| Symptom                                       | Likely cause                                    | Corrective action                     |
 |-----------------------------------------------|-------------------------------------------------|---------------------------------------|
 | Provider returns errors with no upstream call | The provider is `disabled` or in `error` status | Consult the `coderd` logs for details |
 | Configuration changes not taking effect       | Reloads are firing but failing to apply         | Consult the `coderd` logs for details |
