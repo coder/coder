@@ -236,6 +236,41 @@ type UpdateChatUserMemoryRequest struct {
 	Body        *string `json:"body,omitempty"`
 }
 
+// ChatMemoryConsolidationStatus is the outcome of a memory consolidation run.
+type ChatMemoryConsolidationStatus string
+
+const (
+	ChatMemoryConsolidationStatusRunning   ChatMemoryConsolidationStatus = "running"
+	ChatMemoryConsolidationStatusSucceeded ChatMemoryConsolidationStatus = "succeeded"
+	ChatMemoryConsolidationStatusFailed    ChatMemoryConsolidationStatus = "failed"
+	ChatMemoryConsolidationStatusSkipped   ChatMemoryConsolidationStatus = "skipped"
+)
+
+// ChatMemoryMutation is one applied memory consolidation change.
+type ChatMemoryMutation struct {
+	Op     string   `json:"op"`
+	Name   string   `json:"name,omitempty"`
+	Into   string   `json:"into,omitempty"`
+	From   []string `json:"from,omitempty"`
+	Reason string   `json:"reason,omitempty"`
+}
+
+// ChatMemoryConsolidation records a detached memory consolidation run.
+type ChatMemoryConsolidation struct {
+	ID             uuid.UUID                     `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID                     `json:"organization_id" format:"uuid"`
+	ProjectID      *uuid.UUID                    `json:"project_id,omitempty" format:"uuid"`
+	UserID         *uuid.UUID                    `json:"user_id,omitempty" format:"uuid"`
+	Status         ChatMemoryConsolidationStatus `json:"status"`
+	StartedAt      time.Time                     `json:"started_at" format:"date-time"`
+	FinishedAt     *time.Time                    `json:"finished_at,omitempty" format:"date-time"`
+	Model          string                        `json:"model"`
+	MemoriesBefore int32                         `json:"memories_before"`
+	MemoriesAfter  int32                         `json:"memories_after"`
+	Mutations      []ChatMemoryMutation          `json:"mutations"`
+	Error          string                        `json:"error"`
+}
+
 // ChatContext reports a chat's pinned workspace context and whether it has
 // drifted from the agent's latest pushed snapshot. The chat stays usable
 // when dirty; refreshing re-pins it to the latest snapshot.
@@ -2210,6 +2245,20 @@ func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, projec
 	return memories, ReadBodyAsJSON(res, &memories)
 }
 
+// ListChatProjectMemoryConsolidations lists recent project memory consolidation runs.
+func (c *ExperimentalClient) ListChatProjectMemoryConsolidations(ctx context.Context, projectID uuid.UUID) ([]ChatMemoryConsolidation, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/consolidations", projectID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var records []ChatMemoryConsolidation
+	return records, ReadBodyAsJSON(res, &records)
+}
+
 // CreateChatProjectMemory creates a project memory.
 func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, projectID uuid.UUID, req CreateChatProjectMemoryRequest) (ChatProjectMemory, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/projects/%s/memories", projectID), req)
@@ -2277,6 +2326,20 @@ func (c *ExperimentalClient) ListChatUserMemories(ctx context.Context, organizat
 	}
 	var memories []ChatUserMemory
 	return memories, ReadBodyAsJSON(res, &memories)
+}
+
+// ListChatUserMemoryConsolidations lists recent personal memory consolidation runs.
+func (c *ExperimentalClient) ListChatUserMemoryConsolidations(ctx context.Context, organizationID uuid.UUID) ([]ChatMemoryConsolidation, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/memories/consolidations?organization=%s", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var records []ChatMemoryConsolidation
+	return records, ReadBodyAsJSON(res, &records)
 }
 
 // CreateChatUserMemory creates a user-scoped memory.

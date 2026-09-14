@@ -130,7 +130,9 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 	if turnUsedMemoryTools(messages, cursor.HistoryVersion) {
 		if _, err := p.db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
 			logger.Debug(ctx, "failed to advance memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
+			return
 		}
+		p.maybeConsolidateMemoriesAsync(ctx, logger, chat)
 		return
 	}
 	entries, err := store.List(ctx)
@@ -150,7 +152,7 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 		return
 	}
 	call := resolved.newObjectCall("memory_extraction", "Record new durable memories stated by the user in this turn.", memoryExtractionMaxOutputTokens)
-	call.Prompt = quickgenPrompt(fmt.Sprintf(memoryExtractionPrompt, scope.Intro(), scope.Guidance()), fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatMemoryIndex(scope, entries), transcript))
+	call.Prompt = quickgenPrompt(fmt.Sprintf(memoryExtractionPrompt, scope.Intro(), scope.Guidance()), fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatMemoryIndexForTool(entries), transcript))
 	modelCtx, cancelModel := context.WithTimeout(ctx, memoryExtractionModelTimeout)
 	defer cancelModel()
 	result, err := generateQuickgenObject[memoryExtraction](modelCtx, resolved.model.LanguageModel(), call)
@@ -165,7 +167,9 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 	}
 	if _, err := p.db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
 		logger.Debug(ctx, "failed to advance memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
+		return
 	}
+	p.maybeConsolidateMemoriesAsync(ctx, logger, chat)
 }
 
 // applyMemoryUpsert records a memory the extractor proposed. It only creates:

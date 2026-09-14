@@ -2657,6 +2657,47 @@ export const ChatListSources: ChatListSource[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatMemoryConsolidation records a detached memory consolidation run.
+ */
+export interface ChatMemoryConsolidation {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly project_id?: string;
+	readonly user_id?: string;
+	readonly status: ChatMemoryConsolidationStatus;
+	readonly started_at: string;
+	readonly finished_at?: string;
+	readonly model: string;
+	readonly memories_before: number;
+	readonly memories_after: number;
+	readonly mutations: readonly ChatMemoryMutation[];
+	readonly error: string;
+}
+
+// From codersdk/chats.go
+export type ChatMemoryConsolidationStatus =
+	| "failed"
+	| "running"
+	| "skipped"
+	| "succeeded";
+
+export const ChatMemoryConsolidationStatuses: ChatMemoryConsolidationStatus[] =
+	["failed", "running", "skipped", "succeeded"];
+
+// From codersdk/chats.go
+/**
+ * ChatMemoryMutation is one applied memory consolidation change.
+ */
+export interface ChatMemoryMutation {
+	readonly op: string;
+	readonly name?: string;
+	readonly into?: string;
+	readonly from?: readonly string[];
+	readonly reason?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatMessage represents a single message in a chat.
  */
 export interface ChatMessage {

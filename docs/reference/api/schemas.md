@@ -2936,6 +2936,90 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------|
 | `file`, `file-reference`, `text` |
 
+## codersdk.ChatMemoryConsolidation
+
+```json
+{
+  "error": "string",
+  "finished_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "memories_after": 0,
+  "memories_before": 0,
+  "model": "string",
+  "mutations": [
+    {
+      "from": [
+        "string"
+      ],
+      "into": "string",
+      "name": "string",
+      "op": "string",
+      "reason": "string"
+    }
+  ],
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "running",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                             | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `error`           | string                                                                           | false    |              |             |
+| `finished_at`     | string                                                                           | false    |              |             |
+| `id`              | string                                                                           | false    |              |             |
+| `memories_after`  | integer                                                                          | false    |              |             |
+| `memories_before` | integer                                                                          | false    |              |             |
+| `model`           | string                                                                           | false    |              |             |
+| `mutations`       | array of [codersdk.ChatMemoryMutation](#codersdkchatmemorymutation)              | false    |              |             |
+| `organization_id` | string                                                                           | false    |              |             |
+| `project_id`      | string                                                                           | false    |              |             |
+| `started_at`      | string                                                                           | false    |              |             |
+| `status`          | [codersdk.ChatMemoryConsolidationStatus](#codersdkchatmemoryconsolidationstatus) | false    |              |             |
+| `user_id`         | string                                                                           | false    |              |             |
+
+## codersdk.ChatMemoryConsolidationStatus
+
+```json
+"running"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                    |
+|---------------------------------------------|
+| `failed`, `running`, `skipped`, `succeeded` |
+
+## codersdk.ChatMemoryMutation
+
+```json
+{
+  "from": [
+    "string"
+  ],
+  "into": "string",
+  "name": "string",
+  "op": "string",
+  "reason": "string"
+}
+```
+
+### Properties
+
+| Name     | Type            | Required | Restrictions | Description |
+|----------|-----------------|----------|--------------|-------------|
+| `from`   | array of string | false    |              |             |
+| `into`   | string          | false    |              |             |
+| `name`   | string          | false    |              |             |
+| `op`     | string          | false    |              |             |
+| `reason` | string          | false    |              |             |
+
 ## codersdk.ChatMessage
 
 ```json

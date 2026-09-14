@@ -310,6 +310,7 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
+	FinishChatMemoryConsolidation(ctx context.Context, arg FinishChatMemoryConsolidationParams) (ChatMemoryConsolidation, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -486,6 +487,8 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
+	GetChatMemoryConsolidationsByProject(ctx context.Context, arg GetChatMemoryConsolidationsByProjectParams) ([]ChatMemoryConsolidation, error)
+	GetChatMemoryConsolidationsByUser(ctx context.Context, arg GetChatMemoryConsolidationsByUserParams) ([]ChatMemoryConsolidation, error)
 	GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatMemoryCursor, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
@@ -689,6 +692,8 @@ type sqlcQuerier interface {
 	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	GetLatestChatMemoryConsolidationByProject(ctx context.Context, projectID uuid.UUID) (ChatMemoryConsolidation, error)
+	GetLatestChatMemoryConsolidationByUser(ctx context.Context, arg GetLatestChatMemoryConsolidationByUserParams) (ChatMemoryConsolidation, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
@@ -1163,6 +1168,7 @@ type sqlcQuerier interface {
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
+	InsertChatMemoryConsolidation(ctx context.Context, arg InsertChatMemoryConsolidationParams) (ChatMemoryConsolidation, error)
 	// Returns the inserted rows in input array order. Ids are allocated before the
 	// insert and the k-th smallest is assigned to input index k, so callers may
 	// index the result positionally.
@@ -1379,6 +1385,8 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	PruneChatMemoryConsolidationsByProject(ctx context.Context, arg PruneChatMemoryConsolidationsByProjectParams) error
+	PruneChatMemoryConsolidationsByUser(ctx context.Context, arg PruneChatMemoryConsolidationsByUserParams) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)

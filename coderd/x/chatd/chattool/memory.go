@@ -87,10 +87,12 @@ type MemoryIndexEntry struct {
 type MemoryStore interface {
 	Get(ctx context.Context, name string) (Memory, error)
 	List(ctx context.Context) ([]MemoryIndexEntry, error)
+	ListFull(ctx context.Context) ([]Memory, error)
 	Count(ctx context.Context) (int64, error)
 	Insert(ctx context.Context, input MemoryInput) (Memory, error)
 	Upsert(ctx context.Context, input MemoryInput) (Memory, error)
 	Delete(ctx context.Context, name string) error
+	InTx(func(MemoryStore) error) error
 }
 
 type projectMemoryStore struct {
@@ -127,6 +129,18 @@ func (s projectMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error
 		entries[i] = MemoryIndexEntry{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description}
 	}
 	return entries, nil
+}
+
+func (s projectMemoryStore) ListFull(ctx context.Context) ([]Memory, error) {
+	rows, err := s.db.GetChatProjectMemoriesByProjectID(ctx, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	memories := make([]Memory, len(rows))
+	for i, row := range rows {
+		memories[i] = Memory{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description, Body: row.ChatProjectMemory.Body, UpdatedAt: row.ChatProjectMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}
+	}
+	return memories, nil
 }
 
 func (s projectMemoryStore) Count(ctx context.Context) (int64, error) {
@@ -167,6 +181,12 @@ func (s projectMemoryStore) Delete(ctx context.Context, name string) error {
 	return err
 }
 
+func (s projectMemoryStore) InTx(fn func(MemoryStore) error) error {
+	return s.db.InTx(func(tx database.Store) error {
+		return fn(projectMemoryStore{db: tx, projectID: s.projectID, organizationID: s.organizationID, chatID: s.chatID, ownerID: s.ownerID})
+	}, nil)
+}
+
 type personalMemoryStore struct {
 	db                             database.Store
 	userID, organizationID, chatID uuid.UUID
@@ -198,6 +218,18 @@ func (s personalMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, erro
 		entries[i] = MemoryIndexEntry{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description}
 	}
 	return entries, nil
+}
+
+func (s personalMemoryStore) ListFull(ctx context.Context) ([]Memory, error) {
+	rows, err := s.db.GetChatUserMemoriesByUserAndOrganization(ctx, database.GetChatUserMemoriesByUserAndOrganizationParams{UserID: s.userID, OrganizationID: s.organizationID})
+	if err != nil {
+		return nil, err
+	}
+	memories := make([]Memory, len(rows))
+	for i, row := range rows {
+		memories[i] = Memory{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description, Body: row.ChatUserMemory.Body, UpdatedAt: row.ChatUserMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}
+	}
+	return memories, nil
 }
 
 func (s personalMemoryStore) Count(ctx context.Context) (int64, error) {
@@ -233,6 +265,12 @@ func (s personalMemoryStore) Delete(ctx context.Context, name string) error {
 		return ErrMemoryNotFound
 	}
 	return err
+}
+
+func (s personalMemoryStore) InTx(fn func(MemoryStore) error) error {
+	return s.db.InTx(func(tx database.Store) error {
+		return fn(personalMemoryStore{db: tx, userID: s.userID, organizationID: s.organizationID, chatID: s.chatID})
+	}, nil)
 }
 
 // ValidateMemoryName validates a stable memory identifier.
@@ -300,20 +338,22 @@ const (
 		"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
 )
 
-// FormatMemoryIndex renders the compact memory index for the system prompt.
-func FormatMemoryIndex(scope MemoryScope, entries []MemoryIndexEntry) string {
-	var b strings.Builder
-	_, _ = b.WriteString("<memory>\n")
-	_, _ = b.WriteString(scope.Intro())
-	_, _ = b.WriteString("\n")
-	_, _ = b.WriteString(scope.Guidance())
-	_, _ = b.WriteString("\n\n")
+// FormatMemoryGuidance renders the stable durable-memory prompt block.
+func FormatMemoryGuidance(scope MemoryScope) string {
+	return "<memory>\n" + scope.Intro() + "\n" + scope.Guidance() + "\n</memory>"
+}
+
+// FormatMemoryIndexForTool renders the compact memory index for read_memory.
+func FormatMemoryIndexForTool(entries []MemoryIndexEntry) string {
 	if len(entries) == 0 {
-		_, _ = b.WriteString("No memories saved yet.\n</memory>")
-		return b.String()
+		return "No memories saved yet."
 	}
+
+	const prefix = "Available memories (newest first):\n"
+	var b strings.Builder
+	_, _ = b.WriteString(prefix)
 	shown := 0
-	truncationReserve := len(fmt.Sprintf("%d more memories not shown.\n", len(entries))) + len("</memory>")
+	truncationReserve := len(fmt.Sprintf("%d more memories not shown.", len(entries)))
 	for _, entry := range entries {
 		if shown >= MaxMemoryIndexLines {
 			break
@@ -327,10 +367,10 @@ func FormatMemoryIndex(scope MemoryScope, entries []MemoryIndexEntry) string {
 		shown++
 	}
 	if omitted := len(entries) - shown; omitted > 0 {
-		_, _ = b.WriteString(fmt.Sprintf("%d more memories not shown.\n", omitted))
+		_, _ = b.WriteString(fmt.Sprintf("%d more memories not shown.", omitted))
+		return b.String()
 	}
-	_, _ = b.WriteString("</memory>")
-	return b.String()
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 type readMemoryArgs struct {
@@ -346,8 +386,8 @@ type deleteMemoryArgs struct {
 }
 
 // ReadMemory returns a tool that reads a full memory body.
-func ReadMemory(store MemoryStore, scope MemoryScope) fantasy.AgentTool {
-	return fantasy.NewAgentTool(ReadMemoryToolName, "Read a full durable memory by name. Scope: "+scope.Intro(), func(ctx context.Context, args readMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func ReadMemory(store MemoryStore, _ MemoryScope, entries []MemoryIndexEntry) fantasy.AgentTool {
+	return fantasy.NewAgentTool(ReadMemoryToolName, "Read a memory by name. "+FormatMemoryIndexForTool(entries), func(ctx context.Context, args readMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
 		}
