@@ -3512,7 +3512,7 @@ export interface ChatToolResultPart {
 	readonly tool_call_id?: string;
 	readonly tool_name?: string;
 	readonly mcp_server_config_id?: string;
-	readonly result?: Record<string, string>;
+	readonly result?: unknown;
 	readonly result_delta?: string;
 	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
@@ -5020,7 +5020,6 @@ export type Experiment =
 	| "mcp-tool-search"
 	| "nats_pubsub"
 	| "notifications"
-	| "oauth2"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5037,7 +5036,6 @@ export const Experiments: Experiment[] = [
 	"mcp-tool-search",
 	"nats_pubsub",
 	"notifications",
-	"oauth2",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
