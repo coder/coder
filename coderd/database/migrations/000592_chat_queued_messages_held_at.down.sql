@@ -9,3 +9,7 @@ EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 DROP INDEX chat_queued_messages_one_held_per_chat;
 
 ALTER TABLE chat_queued_messages DROP COLUMN held_at;
+
+-- Paused rows lose the hold that justified them. Remap to waiting; the
+-- enum value itself stays, as 000519 leaves `interrupting` in place.
+UPDATE chats SET status = 'waiting' WHERE status = 'paused';

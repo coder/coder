@@ -1,3 +1,8 @@
+-- A turn boundary that finds a held head leaves the chat in this status
+-- instead of promoting the head or going idle. Idle (`waiting`) chats
+-- have no queued rows; paused chats have rows and must not drain them.
+ALTER TYPE chat_status ADD VALUE IF NOT EXISTS 'paused';
+
 ALTER TABLE chat_queued_messages ADD COLUMN held_at timestamptz;
 
 COMMENT ON COLUMN chat_queued_messages.held_at IS 'Set while the owner is editing the row. At most one row per chat is held. A turn boundary does not promote a held head; the chat pauses at it instead.';
