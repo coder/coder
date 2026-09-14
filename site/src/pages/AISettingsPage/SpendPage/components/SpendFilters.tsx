@@ -1,28 +1,14 @@
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import type { AIGatewaySpendFilter } from "#/api/typesGenerated";
 import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
-import { SearchField } from "#/components/SearchField/SearchField";
-import {
-	ClientFilter,
-	type ClientFilterMenu,
-} from "#/pages/AIBridgePage/filters/ClientFilter";
-import {
-	ModelFilter,
-	type ModelFilterMenu,
-} from "#/pages/AIBridgePage/filters/ModelFilter";
-import {
-	ProviderFilter,
-	type ProviderFilterMenu,
-} from "#/pages/AIBridgePage/filters/ProviderFilter";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import { spendFilterCategories } from "./spendFilterCategories";
 
-// Narrower than the SelectFilter default so the search field keeps most of
-// the row, matching the sessions page.
-const FILTER_WIDTH = 150;
-
-// The URL keys match both the spend API query parameters and the sessions
+// The chip keys match both the spend API query parameters and the sessions
 // page filter keys, so a drill-in can hand its filters to the sessions link
 // unchanged.
 export type SpendDimensions = Pick<
@@ -30,73 +16,48 @@ export type SpendDimensions = Pick<
 	"provider_name" | "client" | "model"
 >;
 
-export interface SpendFilterMenus {
-	provider: ProviderFilterMenu;
-	client: ClientFilterMenu;
-	model: ModelFilterMenu;
-}
-
 interface SpendFiltersProps {
-	menus: SpendFilterMenus;
+	// The combobox is query-string driven, like the workspaces filter: chips for
+	// provider/client/model plus free text for the user search.
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	categories?: readonly FilterCategory[];
 	now?: Date;
 	dateRange: DateRangeValue;
 	onDateRangeChange: (value: DateRangeValue) => void;
-	search?: { value: string; onChange: (value: string) => void };
+	errorMessage?: string;
 }
 
 export const SpendFilters: FC<SpendFiltersProps> = ({
-	menus,
+	filterQuery,
+	onFilterQueryChange,
+	categories = spendFilterCategories,
 	now,
 	dateRange,
 	onDateRangeChange,
-	search,
+	errorMessage,
 }) => {
-	// The settings sidebar leaves this row less room than the full-width
-	// sessions filter, so it measures its own width instead of the viewport and
-	// keeps wrapping until the search field would stay usable on one line.
+	// The FilterCombobox renders its popover in-flow (disablePortal), so no
+	// ancestor here may establish CSS containment: a `container-type` (e.g.
+	// Tailwind's `@container`) would become the popover's containing block and
+	// misposition it to the top-left. Plain flex-wrap keeps the combobox and date
+	// picker on one line when there is room and stacks them when cramped.
 	return (
-		<div className="@container">
-			<div className="flex flex-wrap gap-2 @5xl:flex-nowrap">
-				{search && <SpendSearchField {...search} />}
-				<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
-				<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
-				<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
-				<DateRangePicker
-					now={now}
-					value={dateRange}
-					onChange={onDateRangeChange}
-					size="lg"
-				/>
-			</div>
+		<div className="flex flex-wrap items-start gap-2">
+			<FilterCombobox
+				value={filterQuery}
+				onChange={onFilterQueryChange}
+				categories={categories}
+				placeholder="Search and filter spend…"
+				className="w-full min-w-60 flex-1 md:max-w-lg"
+				errorMessage={errorMessage}
+			/>
+			<DateRangePicker
+				now={now}
+				value={dateRange}
+				onChange={onDateRangeChange}
+				size="lg"
+			/>
 		</div>
-	);
-};
-
-// The URL owns the search, but an input controlled by the URL waits for the
-// router re-render between keystrokes and drops characters from fast typists,
-// so the field shows its own draft while it has focus.
-const SpendSearchField: FC<{
-	value: string;
-	onChange: (value: string) => void;
-}> = ({ value, onChange }) => {
-	const [draft, setDraft] = useState(value);
-	const [isEditing, setIsEditing] = useState(false);
-
-	return (
-		<SearchField
-			className="w-full"
-			value={isEditing ? draft : value}
-			onFocus={() => {
-				setDraft(value);
-				setIsEditing(true);
-			}}
-			onBlur={() => setIsEditing(false)}
-			onChange={(next) => {
-				setDraft(next);
-				onChange(next);
-			}}
-			placeholder="Search by name or username"
-			aria-label="Search spend by name or username"
-		/>
 	);
 };

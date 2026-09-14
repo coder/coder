@@ -16,14 +16,10 @@ import {
 	type DateRangeValue,
 	toBoundary,
 } from "#/components/DateRangePicker/DateRangePicker";
-import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
-import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
-import { useProviderFilterMenu } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import { pageTitle } from "#/utils/page";
 import type { SpendDimensions } from "./components/SpendFilters";
@@ -32,12 +28,15 @@ import {
 	spendUsersSort,
 	userSearchParam,
 } from "./components/SpendUsersTable";
+import {
+	queryToSpendFilter,
+	spendFilterToQuery,
+} from "./components/spendFilterQuery";
 import { SpendPageView } from "./SpendPageView";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
 const DEFAULT_DATE_RANGE_DAYS = 30;
-const SEARCH_DEBOUNCE_MS = 300;
 const SPEND_USERS_PAGE_SIZE = 10;
 
 // Same calendar-day boundaries as the picker's "Last 30 days" preset, so the
@@ -91,29 +90,27 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	};
 
 	const searchFilter = searchParams.get("search") ?? "";
-	const debouncedSearch = useDebouncedValue(searchFilter, SEARCH_DEBOUNCE_MS);
 
 	const dimensions: SpendDimensions = {
 		provider_name: searchParams.get("provider_name") || undefined,
 		client: searchParams.get("client") || undefined,
 		model: searchParams.get("model") || undefined,
 	};
-	const filterMenus = {
-		provider: useProviderFilterMenu({
-			value: dimensions.provider_name,
-			onChange: (option) => setFilterParams({ provider_name: option?.value }),
-			enabled: canViewSpend,
-		}),
-		client: useClientFilterMenu({
-			value: dimensions.client,
-			onChange: (option) => setFilterParams({ client: option?.value }),
-			enabled: canViewSpend,
-		}),
-		model: useModelFilterMenu({
-			value: dimensions.model,
-			onChange: (option) => setFilterParams({ model: option?.value }),
-			enabled: canViewSpend,
-		}),
+
+	// The combobox is query-string driven like the workspaces filter, but the
+	// discrete params stay canonical: build its value from them and parse its
+	// changes back so sorting, pagination, and the sessions link are unaffected.
+	// The combobox owns input state and debouncing, so the URL updates are
+	// already debounced for free-text search.
+	const filterQuery = spendFilterToQuery(dimensions, searchFilter);
+	const onFilterQueryChange = (query: string) => {
+		const next = queryToSpendFilter(query);
+		setFilterParams({
+			provider_name: next.dimensions.provider_name,
+			client: next.dimensions.client,
+			model: next.dimensions.model,
+			search: next.search || undefined,
+		});
 	};
 
 	const startDateParam = searchParams.get(startDateSearchParam)?.trim() ?? "";
@@ -161,7 +158,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	const usersQuery = usePaginatedQuery({
 		...paginatedAIGatewaySpendUsers({
 			...spendFilter,
-			search: debouncedSearch,
+			search: searchFilter,
 			...spendUsersSort(searchParams),
 		}),
 		recordsPerPage: SPEND_USERS_PAGE_SIZE,
@@ -191,11 +188,9 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				dateRange={dateRange}
 				onDateRangeChange={onDateRangeChange}
 				dimensions={dimensions}
-				filterMenus={filterMenus}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
 				searchFilter={searchFilter}
-				onSearchFilterChange={(value) =>
-					setFilterParams({ search: value.trim() })
-				}
 				usersQuery={usersQuery}
 				drillInUserId={selectedUserId}
 				drillInUser={selectedUserQuery.data ?? null}

@@ -90,6 +90,18 @@ function renderSpend(search = initialSearch) {
 	return { router, usersSpy, summarySpy, userSummarySpy };
 }
 
+// The workspaces-style combobox replaces the old dropdowns: open the menu,
+// pick the Provider category, then choose an option.
+async function filterByOpenAIProvider(
+	user: ReturnType<typeof userEvent.setup>,
+) {
+	await user.click(
+		await screen.findByRole("button", { name: "Toggle filters" }),
+	);
+	await user.click(await screen.findByRole("option", { name: "Provider" }));
+	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+}
+
 it("resets pagination when toggling or changing the server-side sort", async () => {
 	const user = userEvent.setup();
 	const { router, usersSpy } = renderSpend(`${initialSearch}&page=2`);
@@ -175,56 +187,39 @@ it("debounces and trims user search without filtering the deployment summary", a
 	const { router, usersSpy, summarySpy } = renderSpend(
 		`${initialSearch}&page=2`,
 	);
-	const search = await screen.findByRole("textbox", {
-		name: "Search spend by name or username",
+	const search = await screen.findByRole("combobox", {
+		name: "Search and filter spend\u2026",
 	});
 	await screen.findByRole("table", { name: "Spend by user" });
 	usersSpy.mockClear();
 	summarySpy.mockClear();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 	const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+	// The combobox owns the debounce, so the URL and query stay put mid-type.
 	await user.type(search, " user01 ");
+	await act(() => vi.advanceTimersByTimeAsync(299));
+	expect(
+		new URLSearchParams(router.state.location.search).get("search"),
+	).toBeNull();
+	expect(
+		usersSpy.mock.calls.every(([params]) => params.search === undefined),
+	).toBe(true);
+	await act(() => vi.advanceTimersByTimeAsync(1));
+	// The leading/trailing whitespace is trimmed before it reaches the URL.
 	expect(new URLSearchParams(router.state.location.search).get("search")).toBe(
 		"user01",
 	);
 	expect(
 		new URLSearchParams(router.state.location.search).get("page"),
 	).toBeNull();
-	await act(() => vi.advanceTimersByTimeAsync(299));
-	expect(
-		usersSpy.mock.calls.every(([params]) => params.search === undefined),
-	).toBe(true);
-	await act(() => vi.advanceTimersByTimeAsync(1));
-	expect(usersSpy).toHaveBeenCalledWith(
-		expect.objectContaining({ search: "user01", offset: 0 }),
-	);
-	expect(summarySpy).not.toHaveBeenCalled();
-});
-
-it("keeps fast keystrokes before the URL-driven render", async () => {
-	const user = userEvent.setup();
-	const { usersSpy } = renderSpend();
-	const search = await screen.findByRole<HTMLInputElement>("textbox", {
-		name: "Search spend by name or username",
-	});
-	await user.click(search);
-	// Raw input events expose controlled-input resets that userEvent.type can mask.
-	const setNativeValue = Object.getOwnPropertyDescriptor(
-		HTMLInputElement.prototype,
-		"value",
-	)?.set;
-	act(() => {
-		for (const char of " user01 ") {
-			setNativeValue?.call(search, search.value + char);
-			search.dispatchEvent(new Event("input", { bubbles: true }));
-		}
-	});
-	expect(search).toHaveValue(" user01 ");
+	// Real timers again so waitFor can poll the react-query refetch.
+	vi.useRealTimers();
 	await waitFor(() =>
 		expect(usersSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ search: "user01" }),
+			expect.objectContaining({ search: "user01", offset: 0 }),
 		),
 	);
+	expect(summarySpy).not.toHaveBeenCalled();
 });
 
 it("preserves the provider filter through drill-in and pops Back to the sorted list", async () => {
@@ -233,8 +228,7 @@ it("preserves the provider filter through drill-in and pops Back to the sorted l
 		`${initialSearch}&page=2&sort_by=request_count&sort_order=asc`,
 	);
 	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await filterByOpenAIProvider(user);
 	await waitFor(() =>
 		expect(usersSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ provider_name: "openai", offset: 0 }),
@@ -299,10 +293,7 @@ it("replaces a drill-in when its filters differ from the originating list", asyn
 	const { router, usersSpy, userSummarySpy } = renderSpend();
 	await user.click(await screen.findByRole("link", { name: "User 1" }));
 	await screen.findByRole("link", { name: "View sessions" });
-	await user.click(
-		await screen.findByRole("button", { name: "Select provider" }),
-	);
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await filterByOpenAIProvider(user);
 	await waitFor(() =>
 		expect(userSummarySpy).toHaveBeenCalledWith(
 			"user-1",
