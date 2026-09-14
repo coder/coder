@@ -502,6 +502,37 @@ func TestAIModelPricesList(t *testing.T) {
 		require.Equal(t, def[0], all[1])
 	})
 
+	t.Run("RejectsUnsupportedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		client := setupAIModelPricesCLI(t)
+
+		// When: an unsupported provider type is passed.
+		inv, conf := newCLI(t, "exp", "ai-model-prices", "list", "--provider", "unknown-provider")
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+		err := inv.Run()
+
+		// Then: the API rejects it.
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `Provider "unknown-provider" is not supported.`)
+	})
+
+	t.Run("RejectsOpenAICompat", func(t *testing.T) {
+		t.Parallel()
+
+		client := setupAIModelPricesCLI(t)
+
+		// When: the openai-compat provider is passed, which is excluded from
+		// model pricing.
+		inv, conf := newCLI(t, "exp", "ai-model-prices", "list", "--provider", "openai-compat")
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+		err := inv.Run()
+
+		// Then: the API rejects it.
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `Provider "openai-compat" is not supported.`)
+	})
+
 	t.Run("RejectsAnUnknownSource", func(t *testing.T) {
 		t.Parallel()
 
