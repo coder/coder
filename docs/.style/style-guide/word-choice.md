@@ -272,6 +272,9 @@ The heading choice rests on 2 rationales:
 - [Set workspace autostart](./autostart.md)
 ```
 
+*Enforced by `Coder.LearnMore` (planned).
+The planned rule flags **Next steps** only.*
+
 ### The What's next? section in sequenced tutorials
 
 A tutorial in an ordered series may add a **What's next?** section that points to the single next tutorial in that series.
@@ -292,8 +295,8 @@ Now that you added a language, [install your own command-line tools](./install-c
 - [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
 ```
 
-*Enforced by `Coder.LearnMore` (planned).
-The planned rule flags **Next steps** only.*
+*Documentation-only.
+No Vale rule.*
 
 ## Tutorial, not walkthrough
 

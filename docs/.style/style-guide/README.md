@@ -22,23 +22,23 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 76 rules.
+The guide documents 77 rules.
 Automated tooling checks 8 of them, and 1 of those 8 doesn't run on published pages.
-The other 68 are yours to apply by reading.
+The other 69 are yours to apply by reading, 70 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
 
 ### Checks that run today
 
-| Check                              | Tool               | Severity  | Scope                                                       | What it catches                                                 |
-|------------------------------------|--------------------|-----------|-------------------------------------------------------------|-----------------------------------------------------------------|
-| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`               | `Hashicorp` casing only, not the other brands in the same table |
-| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | Headings that lead with a gerund                                |
-| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | `click` and its inflections                                     |
-| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only | Sentence boundaries mid-line, on contributor docs only          |
-| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                | Heading increments, single H1, fence language, missing alt text |
-| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                  | Em-dash, en-dash, and ` -- ` as punctuation                     |
+| Check                              | Tool               | Severity  | Scope                                                       | What it catches                                                       |
+|------------------------------------|--------------------|-----------|-------------------------------------------------------------|-----------------------------------------------------------------------|
+| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`               | `Hashicorp` casing only, not the other brands in the word-choice list |
+| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | Headings that lead with a gerund                                      |
+| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | `click` and its inflections                                           |
+| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only | Sentence boundaries mid-line, on contributor docs only                |
+| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                | Heading increments, single H1, fence language, missing alt text       |
+| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                  | Em-dash, en-dash, and ` -- ` as punctuation                           |
 
 The markdownlint row lists only the rules that map to a rule in this guide.
 markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.
@@ -55,17 +55,18 @@ The markdownlint and emdash checks do fail the build.
 | [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
 | [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
 | [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
-| [Word choice](./word-choice.md)                                       | 14    | 2            | 9       | 3                  |
+| [Word choice](./word-choice.md)                                       | 15    | 2            | 9       | 4                  |
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 3       | 8                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
 | [Formatting](./formatting.md)                                         | 12    | 2            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
-| **Total**                                                             | 76    | 8            | 25      | 43                 |
+| **Total**                                                             | 77    | 8            | 25      | 44                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
-Every heading that states a rule carries one.
-Example, navigation, and reference headings don't, and neither does [Color contrast](./accessibility-and-inclusion.md#color-contrast), which the guide marks out of scope, so none of them are counted.
+Every heading that states a rule of its own carries one, including a sub-heading that adds a rule to its parent.
+Headings that only group sub-rules don't, and neither do example and navigation headings.
+[Color contrast](./accessibility-and-inclusion.md#color-contrast) carries an out-of-scope note rather than an enforcement footer, because the docs site theme owns it, so it isn't a rule of this guide and isn't counted.
 
 Classify a counted section from its footer, in this order:
 
@@ -76,11 +77,12 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 9 checks in the table above cover 8 sections, and each check counts under the section that owns it rather than under every section that mentions it.
+So the 6 rows in the table above name 9 checks, because the markdownlint row bundles 4, and those 9 checks cover 8 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.
-The same is true of every third-party `Google.*`, `alex.*`, and `write-good.*` rule the guide names: the repo-root `.vale.ini` sets `BasedOnStyles = Coder`, and third-party rules return one per PR after their corpus is clean.
+The same is true of every third-party `Google.*`, `alex.*`, and `write-good.*` rule the guide names: the repo-root `.vale.ini` sets `BasedOnStyles = Coder`, so none of them load.
+Each one returns in its own PR, once `docs/` passes that rule cleanly.
 
 Keep this table honest when a rule lands.
 The per-rule PR pattern in the [Vale doctrine README](../README.md) already requires touching this guide, so update the row in the same change.
