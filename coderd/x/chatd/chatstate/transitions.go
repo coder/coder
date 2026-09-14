@@ -891,9 +891,9 @@ type EditQueuedMessageResult struct {
 // pauses (P) instead of promoting.
 //
 // From P, releasing the head resumes the chat: the row is promoted and
-// the chat runs. Moving the hold off the head is refused with
-// [ErrPausedHeadMustResume], because that would release it as a side
-// effect of an edit on a different row.
+// the chat runs. Holding any other row is refused with
+// [ErrPausedHeadMustResume]: the paused head leaves the queue only by
+// an explicit resume, send, or delete, never as a side effect.
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
 	if err != nil {
@@ -986,10 +986,21 @@ func (tx *Tx) releaseOtherHold(exceptID int64) error {
 
 // resumeIfHeadPromotable is how a transition leaves P. After the held
 // head was released or deleted, the head (if any) is promotable: pop it
-// into history and run. With no rows left the chat is simply idle.
+// into history and run. With no rows left the chat goes idle (W).
 func (tx *Tx) resumeIfHeadPromotable(chat database.Chat) error {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if errors.Is(err, sql.ErrNoRows) {
+		_, err := tx.applyExecutionState(executionStateUpdate{
+			Status:                   database.ChatStatusWaiting,
+			Archived:                 false,
+			WorkerID:                 chat.WorkerID,
+			RunnerID:                 chat.RunnerID,
+			LastError:                chat.LastError,
+			RequiresActionDeadlineAt: sql.NullTime{},
+		})
+		if err != nil {
+			return xerrors.Errorf("set waiting: %w", err)
+		}
 		return nil
 	}
 	if err != nil {
@@ -1006,7 +1017,8 @@ func (tx *Tx) resumeIfHeadPromotable(chat database.Chat) error {
 // sets the chat running with last_error cleared. Every outstanding tool
 // call is closed first (not just dynamic ones) so the LLM history stays
 // valid. Used when the chat is not mid generation: PromoteQueuedMessage
-// from W/E*/A*/P and the P exits.
+// from E1/A1/P, and the P exits of EditQueuedMessage and
+// DeleteQueuedMessage.
 func (tx *Tx) promoteQueuedRow(chat database.Chat, target database.ChatQueuedMessage) (database.ChatMessage, []database.ChatMessage, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {
@@ -1584,7 +1596,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	}
 	if head.HeldAt.Valid {
 		if _, err := tx.applyExecutionState(executionStateUpdate{
-			Status:                   database.ChatStatusWaiting,
+			Status:                   database.ChatStatusPaused,
 			Archived:                 false,
 			WorkerID:                 chat.WorkerID,
 			RunnerID:                 chat.RunnerID,
@@ -1669,7 +1681,7 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	}
 	if head.HeldAt.Valid {
 		updated, err := tx.applyExecutionState(executionStateUpdate{
-			Status:                   database.ChatStatusWaiting,
+			Status:                   database.ChatStatusPaused,
 			Archived:                 false,
 			WorkerID:                 chat.WorkerID,
 			RunnerID:                 chat.RunnerID,

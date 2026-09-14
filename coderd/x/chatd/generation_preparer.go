@@ -875,10 +875,10 @@ func (server *Server) deriveFinalTurnRunResult(
 	chat database.Chat,
 	logger slog.Logger,
 ) runChatResult {
-	// generateFinalTurnStatusLabel only produces a model-generated label for
-	// the Waiting status, so skip the model resolution and history read
-	// otherwise.
-	if chat.Status != database.ChatStatusWaiting {
+	// generateFinalTurnStatusLabel only produces a model-generated label
+	// when the turn finished (waiting or paused), so skip the model
+	// resolution and history read otherwise.
+	if !turnFinished(chat.Status) {
 		return runChatResult{}
 	}
 
