@@ -29,6 +29,7 @@ export const ResizableChatsSidebarFrame = ({
 	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
 	const isDragging = useRef(false);
+	const activePointerId = useRef<number | null>(null);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 
@@ -54,15 +55,21 @@ export const ResizableChatsSidebarFrame = ({
 	}, []);
 
 	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+		// Only a primary left-button pointer starts a drag; a second pointer
+		// cannot take over one that is already in progress.
+		if (isDragging.current || e.button !== 0 || !e.isPrimary) {
+			return;
+		}
 		e.preventDefault();
 		isDragging.current = true;
+		activePointerId.current = e.pointerId;
 		startX.current = e.clientX;
 		startWidth.current = width;
 		e.currentTarget.setPointerCapture?.(e.pointerId);
 	};
 
 	const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-		if (!isDragging.current) {
+		if (!isDragging.current || e.pointerId !== activePointerId.current) {
 			return;
 		}
 
@@ -70,12 +77,17 @@ export const ResizableChatsSidebarFrame = ({
 		setUserWidth(rawWidth);
 	};
 
+	// Ends the drag on pointerup, pointercancel, and lostpointercapture. The
+	// last two fire without pointerup when the browser claims the gesture or
+	// capture is lost (window deactivation, context menu), so all three must
+	// reset the drag state.
 	const handlePointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
-		if (!isDragging.current) {
+		if (!isDragging.current || e.pointerId !== activePointerId.current) {
 			return;
 		}
 
 		isDragging.current = false;
+		activePointerId.current = null;
 		if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
 			e.currentTarget.releasePointerCapture?.(e.pointerId);
 		}
@@ -129,6 +141,7 @@ export const ResizableChatsSidebarFrame = ({
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerEnd}
 				onPointerCancel={handlePointerEnd}
+				onLostPointerCapture={handlePointerEnd}
 				onKeyDown={handleKeyDown}
 				className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-hidden sm:block"
 			/>

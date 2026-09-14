@@ -35,7 +35,7 @@ func (p *Server) storeChatAttachment(
 	data []byte,
 ) (chattool.AttachmentMetadata, error) {
 	if !chatSnapshot.WorkspaceID.Valid {
-		return chattool.AttachmentMetadata{}, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
+		return chattool.AttachmentMetadata{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
 	}
 
 	storedName, mediaType, err := chatfiles.PrepareStoredFile(name, detectName, data)

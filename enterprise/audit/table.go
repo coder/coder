@@ -154,7 +154,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_name":         ActionIgnore,
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
-		"has_ai_task":             ActionIgnore, // Never changes.
 		"has_external_agent":      ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
@@ -217,7 +216,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"initiator_by_username":      ActionIgnore,
 		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
-		"has_ai_task":                ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
 		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
 	},

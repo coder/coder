@@ -623,7 +623,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
 		}
 
 		if chatSnapshot.AgentID.Valid {
@@ -4660,7 +4660,7 @@ const (
 	// Subagent summaries reuse the final report instead of generating
 	// text, so their work timeout only covers two database round trips.
 	subagentReportSummaryTimeout = 15 * time.Second
-	// Bound the extracted report snippet near the 1-3 sentence
+	// Bound the extracted report snippet near the headline of the
 	// generated summaries that root chats get, so subagent and parent
 	// summary panels read the same.
 	subagentReportSummaryMaxRunes     = 300

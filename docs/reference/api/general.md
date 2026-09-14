@@ -533,6 +533,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "string"
       ],
       "daemons": 0,
+      "disable_module_cache": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,

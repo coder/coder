@@ -684,9 +684,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
 
-		// Fetch the file id of the cached module files if it exists.
+		// Fetch the file id of the cached module files if it exists. Modules
+		// stay cached for parameter rendering even when the cache is
+		// disabled; they are only withheld from the build.
 		versionModulesFile := ""
-		if !template.DisableModuleCache {
+		if !codersdk.ModuleCacheDisabled(s.DeploymentValues, template.DisableModuleCache) {
 			tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				// Older templates (before dynamic parameters) will not have cached module files.
@@ -2038,9 +2040,6 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		}
 		err = db.UpdateTemplateVersionFlagsByJobID(ctx, database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID: jobID,
-			// Tasks are removed; the has_ai_task column is dropped in a
-			// follow-up migration.
-			HasAITask: sql.NullBool{Bool: false, Valid: true},
 			HasExternalAgent: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasExternalAgents,
 				Valid: true,
@@ -2320,9 +2319,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
-			// Tasks are removed; the has_ai_task column is dropped in a
-			// follow-up migration.
-			HasAITask: sql.NullBool{Bool: false, Valid: true},
 			HasExternalAgent: sql.NullBool{
 				Bool:  hasExternalAgent,
 				Valid: true,

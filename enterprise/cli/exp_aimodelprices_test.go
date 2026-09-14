@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -180,6 +181,35 @@ func TestAIModelPricesUpdate(t *testing.T) {
 
 		// Then: the price is applied.
 		require.Contains(t, stdout.String(), "Updated prices for 1 model(s).")
+	})
+
+	t.Run("DefaultsConfirmationToYes", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a licensed deployment and a document, run without --yes.
+		client := setupAIModelPricesCLI(t)
+		path := filepath.Join(t.TempDir(), "prices.json")
+		require.NoError(t, os.WriteFile(path, []byte(aiModelPricesDocument), 0o600))
+
+		inv, conf := newCLI(t, "exp", "ai-model-prices", "update", path)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		done := make(chan error, 1)
+		go func() {
+			done <- inv.WithContext(ctx).Run()
+		}()
+
+		// When: the confirmation is answered with an empty line.
+		pty.ExpectMatch(ctx, "Apply?")
+		pty.WriteLine("")
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
+
+		// Then: the default is yes, so the price is applied.
+		prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx,
+			codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "my-model"})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
 	})
 
 	t.Run("AppliesASingleModelFromFlags", func(t *testing.T) {

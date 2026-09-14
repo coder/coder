@@ -1407,7 +1407,7 @@ jobs:
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
           # Enable React profiling build and discoverable source maps
-          # for the dogfood deployment (dev.coder.com). This also
+          # for the dogfood deployment (dogfood.cdr.dev). This also
           # applies to release/* branch builds, but those still
           # produce coder-preview images, not release images.
           # Release images are built by release.yaml (no profiling).
