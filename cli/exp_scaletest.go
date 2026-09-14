@@ -1948,7 +1948,11 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				// Bound token lifetime to just beyond the run so tokens orphaned by a
 				// hard kill expire quickly rather than at the deployment default.
 				tokenLifetime := workspaceJobTimeout + autostartBuildTimeout + autostartDelay + time.Hour
-				users, err := loadtestutil.SelectReuseUsers(ctx, client, usernameInfix, int(workspaceCount), nil)
+				pool, err := loadtestutil.GetScaletestUsersWithPrefix(ctx, client, loadtestutil.ReuseSearchPrefix(usernameInfix))
+				if err != nil {
+					return xerrors.Errorf("list scaletest users: %w", err)
+				}
+				users, err := loadtestutil.SelectReuseUsers(pool, int(workspaceCount), nil)
 				if err != nil {
 					return annotateInsufficientUsersError(err, createUsersCommandHint(int(workspaceCount), 0, usernameInfix))
 				}

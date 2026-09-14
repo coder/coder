@@ -43,18 +43,13 @@ func ReuseSearchPrefix(usernameInfix string) string {
 	return prefix
 }
 
-// SelectReuseUsers lists the scaletest users in the pool identified by
-// usernameInfix, keeps those matching filter (a nil filter matches any user),
-// and returns the first count of them. It performs only read requests and mints
-// no tokens; use MintReuseTokens for that. It returns an *InsufficientUsersError
-// when fewer than count users match, so callers can select every group they need
-// before minting any tokens.
-func SelectReuseUsers(ctx context.Context, client *codersdk.Client, usernameInfix string, count int, filter func(codersdk.User) bool) ([]codersdk.User, error) {
-	users, err := GetScaletestUsersWithPrefix(ctx, client, ReuseSearchPrefix(usernameInfix))
-	if err != nil {
-		return nil, xerrors.Errorf("list scaletest users: %w", err)
-	}
-
+// SelectReuseUsers keeps the users matching filter (a nil filter matches any
+// user) and returns the first count of them. It returns an
+// *InsufficientUsersError when fewer than count users match. Callers fetch the
+// pool with GetScaletestUsersWithPrefix first, so a run that needs several
+// disjoint groups can list the pool once and select each group from it. It mints
+// no tokens; use MintReuseTokens for that.
+func SelectReuseUsers(users []codersdk.User, count int, filter func(codersdk.User) bool) ([]codersdk.User, error) {
 	matched := users
 	if filter != nil {
 		matched = make([]codersdk.User, 0, len(users))

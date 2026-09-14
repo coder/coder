@@ -123,16 +123,20 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			// hard kill expire quickly rather than at the deployment default.
 			tokenLifetime := notificationTimeout + dialTimeout + time.Hour
 			hint := createUsersCommandHint(int(userCount), templateAdminPercentage, usernameInfix)
-			// Select both groups (read-only) before minting any tokens, so an
-			// insufficient pool fails without leaving orphaned tokens. Template
-			// admins and regular users are disjoint by role, so the two selections
-			// never pick the same user.
+			// List the pool once, then select both groups before minting any
+			// tokens, so an insufficient pool fails without leaving orphaned
+			// tokens. Template admins and regular users are disjoint by role, so
+			// the two selections never pick the same user.
+			pool, err := loadtestutil.GetScaletestUsersWithPrefix(ctx, client, loadtestutil.ReuseSearchPrefix(usernameInfix))
+			if err != nil {
+				return xerrors.Errorf("list scaletest users: %w", err)
+			}
 			isTemplateAdmin := func(u codersdk.User) bool { return loadtestutil.UserHasRole(u, codersdk.RoleTemplateAdmin) }
-			adminUsers, err := loadtestutil.SelectReuseUsers(ctx, client, usernameInfix, int(templateAdminCount), isTemplateAdmin)
+			adminUsers, err := loadtestutil.SelectReuseUsers(pool, int(templateAdminCount), isTemplateAdmin)
 			if err != nil {
 				return annotateInsufficientUsersError(err, hint)
 			}
-			regularUsers, err := loadtestutil.SelectReuseUsers(ctx, client, usernameInfix, int(regularUserCount), func(u codersdk.User) bool {
+			regularUsers, err := loadtestutil.SelectReuseUsers(pool, int(regularUserCount), func(u codersdk.User) bool {
 				return !isTemplateAdmin(u)
 			})
 			if err != nil {
