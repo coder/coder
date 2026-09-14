@@ -12,6 +12,7 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { useRegisterComposerAttachments } from "../context/ComposerAttachmentsContext";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -441,6 +442,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 	} = modeAttachments;
+	useRegisterComposerAttachments(handleAttach);
 
 	// Edit attachments are scoped to the chat being edited, not the compose
 	// draft. Clear them when navigation changes the chat scope.

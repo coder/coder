@@ -63,6 +63,8 @@ const (
 	// a hash suffix to the cookie name.
 	//nolint:gosec
 	SubdomainAppSessionTokenCookie = "coder_subdomain_app_session_token"
+	// AppAnnotationCookie is the name of the cookie that enables annotations in a workspace app.
+	AppAnnotationCookie = "coder_app_annotation"
 	// SignedAppTokenCookie is the name of the cookie that stores a temporary
 	// JWT that can be used to authenticate instead of the app session token.
 	//nolint:gosec

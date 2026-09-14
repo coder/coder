@@ -29,7 +29,8 @@ func StripCoderCookies(header string) string {
 			// subdomain hostname. See the workspaceapps package for more
 			// details.
 			strings.HasPrefix(name, codersdk.SubdomainAppSessionTokenCookie) ||
-			name == codersdk.SignedAppTokenCookie {
+			name == codersdk.SignedAppTokenCookie ||
+			name == codersdk.AppAnnotationCookie {
 			continue
 		}
 		cookies = append(cookies, part)

@@ -5187,6 +5187,7 @@ const (
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
+	ExperimentChatUIAnnotations         Experiment = "chat-ui-annotations"         // Injects the UI annotation overlay into app previews opened from agent chats.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 )
 
@@ -5216,6 +5217,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
+	case ExperimentChatUIAnnotations:
+		return "Chat UI Annotations"
 	case ExperimentAgentLifecycleHooks:
 		return "Agent Lifecycle Hooks"
 	default:
@@ -5241,6 +5244,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
+	ExperimentChatUIAnnotations,
 	ExperimentAgentLifecycleHooks,
 }
 

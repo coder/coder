@@ -34,6 +34,9 @@ func TestStripCoderCookies(t *testing.T) {
 	}, {
 		"coder_signed_app_token=ok; wow=test",
 		"wow=test",
+	}, {
+		"coder_app_annotation=1; wow=test",
+		"wow=test",
 	}} {
 		t.Run(tc.Input, func(t *testing.T) {
 			t.Parallel()

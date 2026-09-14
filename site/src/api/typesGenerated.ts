@@ -1512,6 +1512,12 @@ export const AgentsUnsupportedProviderTypes: AgentsUnsupportedProviderType[] = [
  */
 export const AnthropicInlineImageCapBytes = 5242880;
 
+// From codersdk/client.go
+/**
+ * AppAnnotationCookie is the name of the cookie that enables annotations in a workspace app.
+ */
+export const AppAnnotationCookie = "coder_app_annotation";
+
 // From codersdk/deployment.go
 export interface AppHostResponse {
 	/**
@@ -5010,6 +5016,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-ui-annotations"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5026,6 +5033,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-ui-annotations",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",

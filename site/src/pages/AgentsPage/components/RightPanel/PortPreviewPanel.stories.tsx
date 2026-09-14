@@ -1,6 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { FC } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	ComposerAttachmentsProvider,
+	useRegisterComposerAttachments,
+} from "../../context/ComposerAttachmentsContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -94,5 +99,47 @@ export const InvalidWildcardHost: Story = {
 			),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
+	},
+};
+
+const Composer: FC = () => {
+	useRegisterComposerAttachments(() => undefined);
+	return null;
+};
+
+const withComposer: Decorator = (Story) => (
+	<ComposerAttachmentsProvider>
+		<Composer />
+		<Story />
+	</ComposerAttachmentsProvider>
+);
+
+export const CanAnnotate: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const AnnotatePicking: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+		const frame = canvas.getByTitle<HTMLIFrameElement>("Preview :3000");
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: { type: "coder-annotator:state", picking: true, count: 2 },
+				origin: new URL(frame.src).origin,
+				source: frame.contentWindow,
+			}),
+		);
 	},
 };
