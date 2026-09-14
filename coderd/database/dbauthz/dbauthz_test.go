@@ -7237,6 +7237,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().GetAIProviderByName(gomock.Any(), provider.Name).Return(provider, nil).AnyTimes()
 		check.Args(provider.Name).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns(provider)
 	}))
+	s.Run("GetAIProviderFilterOptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		options := []database.GetAIProviderFilterOptionsRow{
+			testutil.Fake(s.T(), faker, database.GetAIProviderFilterOptionsRow{}),
+		}
+		dbm.EXPECT().GetAIProviderFilterOptions(gomock.Any()).Return(options, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(options)
+	}))
 	s.Run("GetAIProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		providerA := testutil.Fake(s.T(), faker, database.AIProvider{})
 		providerB := testutil.Fake(s.T(), faker, database.AIProvider{})
