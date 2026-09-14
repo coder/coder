@@ -24,7 +24,7 @@ which templates developers can use. For example:
 Roles determine which actions users can take within the platform.
 The roles in the following table apply across the whole deployment.
 Organizations have their own roles.
-Refer to [Organization roles](#organization-roles).
+Refer to [Organization roles](#organization-roles) for more information.
 
 |                                                                 | Auditor | User Admin | Template Admin | Owner |
 |-----------------------------------------------------------------|---------|------------|----------------|-------|
