@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -155,7 +156,7 @@ func TestClassify(t *testing.T) {
 		{"*Enforced by `markdownlint` rule `MD001`. The nested rule is documentation-only.*", classTool},
 	}
 	for _, tc := range cases {
-		if got := classify(tc.text, rules); got != tc.want {
+		if got := classify(tc.text, rules, map[string]bool{"Coder": true}); got != tc.want {
 			t.Errorf("classify(%q) = %v, want %v", tc.text, got, tc.want)
 		}
 	}
@@ -301,23 +302,15 @@ func coverageTable(counts map[string][4]int) string {
 func itoa(n int) string { return strconv.Itoa(n) }
 
 func containsMsg(findings []finding, substr string) bool {
-	for _, f := range findings {
-		if strings.Contains(f.msg, substr) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(findings, func(f finding) bool {
+		return strings.Contains(f.msg, substr)
+	})
 }
 
 func assertSame(t *testing.T, label string, got, want []string) {
 	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s = %v, want %v", label, got, want)
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			t.Fatalf("%s = %v, want %v", label, got, want)
-		}
+	if !slices.Equal(got, want) {
+		t.Errorf("%s = %v, want %v", label, got, want)
 	}
 }
 
@@ -576,4 +569,108 @@ func TestRunReconcilesTheRepository(t *testing.T) {
 	for _, f := range findings {
 		t.Errorf("%s:%d: %s", f.file, f.line, f.msg)
 	}
+}
+
+// TestScopeText pins every shape the rule model can take, including the ones
+// no rule in .vale.ini has today, so a future config change meets a test rather
+// than a surprise.
+func TestScopeText(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		rule valeRule
+		want string
+	}{
+		{
+			name: "on everywhere",
+			rule: valeRule{defaultOn: true},
+			want: "`docs/**`",
+		},
+		{
+			name: "on everywhere except one section",
+			rule: valeRule{defaultOn: true, disabledIn: []string{"docs/.style/style-guide/**"}},
+			want: "`docs/**` except `docs/.style/style-guide/**`",
+		},
+		{
+			name: "off by default, on in two sections",
+			rule: valeRule{enabledIn: []string{"docs/a/*.md", "docs/b/*.md"}},
+			want: "`docs/a/*.md` and `docs/b/*.md` only",
+		},
+		{
+			name: "a single-directory glob is not reached by a subdirectory disable",
+			rule: valeRule{enabledIn: []string{"docs/.style/*.md"}, disabledIn: []string{"docs/.style/style-guide/**"}},
+			want: "`docs/.style/*.md` only",
+		},
+		{
+			name: "a recursive glob is reached by a disable inside it",
+			rule: valeRule{enabledIn: []string{"docs/admin/**"}, disabledIn: []string{"docs/admin/generated/**"}},
+			want: "`docs/admin/**` except `docs/admin/generated/**`, and nowhere else",
+		},
+		{
+			name: "off everywhere",
+			rule: valeRule{},
+			want: "nowhere",
+		},
+	}
+
+	for _, tc := range cases {
+		if got := tc.rule.scopeText(); got != tc.want {
+			t.Errorf("%s: scopeText() = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestCheckClaimsRejectsDisabledRule covers the enablement gate: a rule file can
+// exist and still run nowhere, and a section must not cite it as enforcement.
+func TestCheckClaimsRejectsDisabledRule(t *testing.T) {
+	t.Parallel()
+
+	rules := []valeRule{{name: "BrandNames", severity: "error"}}
+	annotations := map[string][]annotation{
+		"voice-and-tone.md": {{file: "voice-and-tone.md", line: 10, text: "*Enforced by `Coder.BrandNames`.*"}},
+	}
+	landing := coverageTable(map[string][4]int{"voice-and-tone.md": {1, 0, 0, 1}})
+
+	findings := checkClaims(testPages, []string{"Coder"}, rules, annotations, landing)
+	if !containsMsg(findings, "leaves it off everywhere") {
+		t.Errorf("findings = %v, want a finding for a rule that runs nowhere", findings)
+	}
+	// A rule that runs nowhere must not also be demanded in the tables, or the
+	// author is left with no way to satisfy the checker.
+	if containsMsg(findings, "missing from the checks table") {
+		t.Errorf("findings = %v, want no table demand for a disabled rule", findings)
+	}
+	if containsMsg(findings, "no style guide section cites it") {
+		t.Errorf("findings = %v, want no citation demand for a disabled rule", findings)
+	}
+}
+
+func TestUnfencedTracksTheOpeningDelimiter(t *testing.T) {
+	t.Parallel()
+
+	src := "```md\n~~~\n*Enforced by `Coder.InsideTheFence`.*\n```\n\n*Documentation-only.\nNo Vale rule.*\n"
+	got := parseAnnotations("page.md", src)
+	if len(got) != 1 || strings.Contains(got[0].text, "InsideTheFence") {
+		t.Fatalf("parseAnnotations() = %v, want only the footer outside the fence", got)
+	}
+
+	tilde := "~~~md\n*Enforced by `Coder.InsideTheFence`.*\n~~~\n"
+	if found := parseAnnotations("page.md", tilde); len(found) != 0 {
+		t.Errorf("parseAnnotations() = %v, want nothing from a tilde-fenced example", found)
+	}
+}
+
+func TestActiveCitationsSharedPlannedPrefix(t *testing.T) {
+	t.Parallel()
+
+	active, planned := activeCitations("*Planned Vale rules `Coder.One` and `Coder.Two`.*")
+	if len(active) != 0 {
+		t.Errorf("active = %v, want none: the prefix marks both citations planned", active)
+	}
+	assertSame(t, "planned", planned, []string{"Coder.One", "Coder.Two"})
+
+	active, planned = activeCitations("*Enforced by `Coder.One` (planned) and `Coder.Two`.*")
+	assertSame(t, "active", active, []string{"Coder.Two"})
+	assertSame(t, "planned", planned, []string{"Coder.One"})
 }

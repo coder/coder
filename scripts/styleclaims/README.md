@@ -59,7 +59,9 @@ Mark each planned citation individually. `(planned)` after the citation, or
 ```
 
 A trailing clause such as `(both planned)` that covers several citations at once
-isn't understood; mark each one.
+isn't understood; mark each one. A marker that opens the sentence, as in
+"Planned Vale rules" followed by a list, does cover every citation in that
+sentence.
 
 ## Counting
 

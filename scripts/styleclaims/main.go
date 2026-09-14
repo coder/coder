@@ -84,25 +84,47 @@ func subpages(dir, landing string) ([]string, map[string][]annotation, map[strin
 	return pages, annotations, sources, nil
 }
 
-// coverageRows returns the section files the coverage table links.
+// coverageRows returns the section files the coverage table links. Discovery
+// and validation share coverageRow, so a row the table validates can never be
+// a row discovery ignores.
 func coverageRows(landing string) []string {
 	var pages []string
 	for _, line := range unfenced(landing) {
-		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
+		row, ok := coverageRow(line)
+		if !ok || row.page == "" {
 			continue
 		}
-		cells := tableCells(line)
-		if len(cells) < 5 {
-			continue
-		}
-		if _, ok := fourInts(cells[1:5]); !ok {
-			continue
-		}
-		if page, ok := linkedPage(cells[0]); ok {
-			pages = append(pages, page)
-		}
+		pages = append(pages, row.page)
 	}
 	return pages
+}
+
+// tableRow is one parsed "Coverage by section" row.
+type tableRow struct {
+	page  string // the linked section file, empty on the total row
+	total bool   // true on the total row
+	nums  [4]int
+}
+
+// coverageRow recognizes a coverage table row: a Markdown row whose last four
+// cells are counts.
+func coverageRow(line string) (tableRow, bool) {
+	if !strings.HasPrefix(strings.TrimSpace(line), "|") {
+		return tableRow{}, false
+	}
+	cells := tableCells(line)
+	if len(cells) < 5 {
+		return tableRow{}, false
+	}
+	nums, ok := fourInts(cells[1:5])
+	if !ok {
+		return tableRow{}, false
+	}
+	if strings.Contains(cells[0], "Total") {
+		return tableRow{total: true, nums: nums}, true
+	}
+	page, _ := linkedPage(cells[0])
+	return tableRow{page: page, nums: nums}, true
 }
 
 // annotationStart matches the opening of a rule section's enforcement
@@ -112,7 +134,7 @@ var annotationStart = regexp.MustCompile(`^\*(Enforced|Documentation-only|Adapte
 // citation matches a backticked rule or tool name inside an annotation. A Vale
 // rule is `Style.Rule`; the style alternation is open so a citation to a style
 // the repo doesn't load is still read as a claim and reported.
-var citation = regexp.MustCompile("`([A-Z][A-Za-z0-9-]*\\.[A-Za-z0-9]+|alex\\.[A-Za-z0-9*]+|write-good\\.[A-Za-z0-9]+|markdownlint|scripts/check_emdash\\.sh|MD[0-9]{3})`")
+var citation = regexp.MustCompile("`([A-Z][A-Za-z0-9-]*\\.[A-Za-z0-9_-]+|alex\\.[A-Za-z0-9*]+|write-good\\.[A-Za-z0-9]+|markdownlint|scripts/check_emdash\\.sh|MD[0-9]{3})`")
 
 // severityCell matches the severity column of a "Checks that run today" row.
 var severityCell = regexp.MustCompile("`(error|warning|suggestion)`")
@@ -284,18 +306,38 @@ func checkFooterCoverage(page, src string) []finding {
 func unfenced(src string) []string {
 	lines := strings.Split(src, "\n")
 	out := make([]string, len(lines))
-	fenced := false
+	// opener remembers the delimiter that started the current block, because
+	// CommonMark closes a fence only with the delimiter that opened it. A
+	// nested `~~~` inside a ``` block is content, not a fence.
+	opener := ""
 	for i, line := range lines {
-		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			fenced = !fenced
+		if delim := fenceDelimiter(line); delim != "" {
+			switch opener {
+			case "":
+				opener = delim
+			case delim:
+				opener = ""
+			}
 			continue
 		}
-		if fenced {
+		if opener != "" {
 			continue
 		}
 		out[i] = line
 	}
 	return out
+}
+
+// fenceDelimiter returns the fence marker a line opens or closes with, or the
+// empty string when the line is not a fence.
+func fenceDelimiter(line string) string {
+	trimmed := strings.TrimSpace(line)
+	for _, delim := range []string{"```", "~~~"} {
+		if strings.HasPrefix(trimmed, delim) {
+			return delim
+		}
+	}
+	return ""
 }
 
 // parseValeConfig returns the styles listed in BasedOnStyles and the per-rule
@@ -425,6 +467,9 @@ func (r valeRule) scopeText() string {
 		return strings.Join(out, " and ")
 	}
 	if !r.defaultOn {
+		if len(r.enabledIn) == 0 {
+			return "nowhere"
+		}
 		if overlaps := r.disabledOverlaps(); len(overlaps) > 0 {
 			return quote(r.enabledIn) + " except " + quote(overlaps) + ", and nowhere else"
 		}
@@ -499,6 +544,13 @@ func activeCitations(text string) (active, planned []string) {
 			continue
 		}
 		locs := citation.FindAllStringSubmatchIndex(sentence, -1)
+		if len(locs) == 0 {
+			continue
+		}
+		// A marker before the first citation introduces the whole list, as in
+		// "Planned Vale rules `A` and `B`", so it covers every citation the
+		// sentence names.
+		prefixPlanned := strings.Contains(strings.ToLower(sentence[:locs[0][0]]), "planned")
 		for i, loc := range locs {
 			name := sentence[loc[2]:loc[3]]
 			start := 0
@@ -522,7 +574,7 @@ func activeCitations(text string) (active, planned []string) {
 				before = before[end+1:]
 			}
 			window := strings.ToLower(before + sentence[loc[1]:end])
-			if strings.Contains(window, "planned") {
+			if prefixPlanned || strings.Contains(window, "planned") {
 				planned = append(planned, name)
 				continue
 			}
@@ -568,16 +620,21 @@ func isTool(c string) bool {
 // annotation that declares its section documentation-only stays
 // documentation-only even when it cross-references a rule that another
 // section owns, so a single rule is never counted under two sections.
-func classify(text string, ruleNames map[string]bool) class {
+func classify(text string, ruleNames, loadedStyle map[string]bool) class {
 	if documentationOnly.MatchString(text) {
 		return classDocumentationOnly
 	}
 	active, planned := activeCitations(text)
 	for _, c := range active {
+		style, _, _ := strings.Cut(c, ".")
 		switch {
 		case isTool(c):
 			return classTool
 		case strings.HasPrefix(c, coderPackage+".") && ruleNames[strings.TrimPrefix(c, coderPackage+".")]:
+			return classTool
+		case style != coderPackage && loadedStyle[style]:
+			// A third-party rule counts as tool coverage once the repo loads
+			// its style, the same as a Coder rule with a rule file.
 			return classTool
 		}
 	}
@@ -613,7 +670,7 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 		var total, tool, planned, docOnly int
 		for _, a := range annotations[page] {
 			total++
-			cls := classify(a.text, ruleNames)
+			cls := classify(a.text, ruleNames, loadedStyle)
 			switch cls {
 			case classTool:
 				tool++
@@ -668,12 +725,17 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 	}
 
 	for _, r := range rules {
-		if !cited[r.name] {
-			findings = append(findings, finding{
-				filepath.Join(styleGuide, landingPage), 0,
-				fmt.Sprintf("rule `%s.%s` is enabled but no style guide section cites it as active. Add the section, or remove the rule.", coderPackage, r.name),
-			})
+		// A rule .vale.ini leaves off everywhere runs nowhere, so no section
+		// should claim it. Requiring a citation for it would deadlock a staged
+		// rollout, where the rule file lands before the directories that
+		// enable it.
+		if !r.active() || cited[r.name] {
+			continue
 		}
+		findings = append(findings, finding{
+			filepath.Join(styleGuide, landingPage), 0,
+			fmt.Sprintf("rule `%s.%s` is enabled but no style guide section cites it as active. Add the section, or remove the rule.", coderPackage, r.name),
+		})
 	}
 
 	findings = append(findings, checkChecksTable(landing, rules)...)
@@ -716,22 +778,30 @@ func checkChecksTable(landing string, rules []valeRule) []finding {
 			})
 			continue
 		}
+		if !rule.active() {
+			findings = append(findings, finding{
+				path, i + 1,
+				fmt.Sprintf("table lists `%s.%s` as running today, but %s leaves it off everywhere. Remove the row, or enable the rule.", coderPackage, name, valeConfig),
+			})
+			continue
+		}
 		if m := severityCell.FindStringSubmatch(cells[2]); len(m) < 2 || m[1] != rule.severity {
 			findings = append(findings, finding{
 				path, i + 1,
-				fmt.Sprintf("severity for `%s.%s` is %q in the table but %q in the rule file", coderPackage, name, strings.TrimSpace(cells[2]), rule.severity),
+				fmt.Sprintf("severity for `%s.%s` is %q in the table but %q in the rule file. Update the table, or change the rule's level.", coderPackage, name, strings.TrimSpace(cells[2]), rule.severity),
 			})
 		}
 		findings = append(findings, checkScopeCell(path, i+1, cells[3], *rule)...)
 	}
 
 	for _, r := range rules {
-		if !listed[r.name] {
-			findings = append(findings, finding{
-				path, 0,
-				fmt.Sprintf("rule `%s.%s` is enabled but missing from the checks table", coderPackage, r.name),
-			})
+		if !r.active() || listed[r.name] {
+			continue
 		}
+		findings = append(findings, finding{
+			path, 0,
+			fmt.Sprintf("rule `%s.%s` is enabled but missing from the checks table. Add the row, or disable the rule.", coderPackage, r.name),
+		})
 	}
 	return findings
 }
@@ -768,52 +838,47 @@ func checkCoverageTable(pages []string, landing string, counts map[string][4]int
 	}
 
 	for i, line := range unfenced(landing) {
-		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
-			continue
-		}
-		cells := tableCells(line)
-		if len(cells) < 5 {
-			continue
-		}
-		nums, ok := fourInts(cells[1:5])
+		row, ok := coverageRow(line)
 		if !ok {
 			continue
 		}
-		if strings.Contains(cells[0], "Total") {
-			if nums != wantTotal {
+		if row.total {
+			if row.nums != wantTotal {
 				findings = append(findings, finding{
 					path, i + 1,
-					fmt.Sprintf("total row is %v but the annotations sum to %v (rules, tool-checked, planned, documentation-only)", nums, wantTotal),
+					fmt.Sprintf("total row is %v but the annotations sum to %v (rules, tool-checked, planned, documentation-only)", row.nums, wantTotal),
 				})
 			}
 			seen["**Total**"] = true
 			continue
 		}
-		page, ok := linkedPage(cells[0])
-		if !ok {
+		if row.page == "" {
 			findings = append(findings, finding{
 				path, i + 1,
 				"coverage row has counts but no link to a style guide section; write the first cell as [Section](./section.md)",
 			})
 			continue
 		}
-		want, known := counts[page]
+		want, known := counts[row.page]
 		if !known {
-			findings = append(findings, finding{path, i + 1, fmt.Sprintf("coverage row links %q, which is not a style guide section", page)})
-			continue
-		}
-		seen[page] = true
-		if nums != want {
 			findings = append(findings, finding{
 				path, i + 1,
-				fmt.Sprintf("counts for %s are %v but the annotations give %v (rules, tool-checked, planned, documentation-only)", page, nums, want),
+				fmt.Sprintf("coverage row links %q, which is not a style guide section. Add the section, or remove the row.", row.page),
+			})
+			continue
+		}
+		seen[row.page] = true
+		if row.nums != want {
+			findings = append(findings, finding{
+				path, i + 1,
+				fmt.Sprintf("counts for %s are %v but the annotations give %v (rules, tool-checked, planned, documentation-only)", row.page, row.nums, want),
 			})
 		}
 	}
 
 	for _, page := range pages {
 		if !seen[page] {
-			findings = append(findings, finding{path, 0, fmt.Sprintf("coverage table has no row for %s", page)})
+			findings = append(findings, finding{path, 0, fmt.Sprintf("coverage table has no row for %s. Add the row.", page)})
 		}
 	}
 	if !seen["**Total**"] {
