@@ -53,7 +53,7 @@ func TestLogOAuth2ProviderState(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			rec := &logRecorder{}
+			sink := testutil.NewFakeSink(t)
 			db := dbmock.NewMockStore(gomock.NewController(t))
 			// The query runs only while the provider is disabled. An
 			// unexpected call fails the test.
@@ -62,11 +62,22 @@ func TestLogOAuth2ProviderState(t *testing.T) {
 			}
 
 			cfg := codersdk.OAuth2ProviderConfig{Enable: serpent.Bool(tc.enabled)}
-			LogOAuth2ProviderState(ctx, slog.Make(rec), db, cfg)
+			LogOAuth2ProviderState(ctx, sink.Logger(), db, cfg)
 
-			require.Equal(t, []string{tc.wantInfo}, rec.messages(slog.LevelInfo),
+			require.Equal(t, []string{tc.wantInfo}, loggedMessages(sink, slog.LevelInfo),
 				"exactly one info line per start")
-			require.Equal(t, tc.wantWarn, rec.messages(slog.LevelWarn))
+			require.Equal(t, tc.wantWarn, loggedMessages(sink, slog.LevelWarn))
 		})
 	}
+}
+
+// loggedMessages returns the messages captured at exactly the given level,
+// in the order they were logged. It returns nil when nothing was logged so
+// it compares equal to an unset expectation.
+func loggedMessages(sink *testutil.FakeSink, level slog.Level) []string {
+	var messages []string
+	for _, e := range sink.Entries(func(e slog.SinkEntry) bool { return e.Level == level }) {
+		messages = append(messages, e.Message)
+	}
+	return messages
 }
