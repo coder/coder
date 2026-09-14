@@ -32,8 +32,6 @@ Merge the following into `~/.claude/settings.json`, preserving your existing set
 }
 ```
 
-Replace `https://coder.example.com` with your Coder deployment URL and `YOUR_CODER_API_TOKEN` with your Coder API token.
-
 </details>
 
 ## BYOK (Personal API Key)
