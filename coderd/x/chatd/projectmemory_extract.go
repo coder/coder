@@ -74,7 +74,7 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 		}
 		return
 	}
-	cursor, err := p.db.GetChatProjectMemoryCursor(ctx, chat.ID)
+	cursor, err := p.db.GetChatMemoryCursor(ctx, chat.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		logger.Debug(ctx, "failed to read project memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
 		return
@@ -97,7 +97,7 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 		// The main agent curated memory itself this turn. Running the
 		// extractor on top of that mostly produced split duplicates of
 		// what it had just saved, so advance the cursor and stop.
-		if _, err := p.db.UpsertChatProjectMemoryCursor(ctx, database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
+		if _, err := p.db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
 			logger.Debug(ctx, "failed to advance project memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
 		}
 		return
@@ -136,7 +136,7 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 			logger.Debug(ctx, "ignored invalid project memory upsert", slog.F("chat_id", chat.ID), slog.F("name", upsert.Name), slog.Error(err))
 		}
 	}
-	if _, err := p.db.UpsertChatProjectMemoryCursor(ctx, database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
+	if _, err := p.db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
 		logger.Debug(ctx, "failed to advance project memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
 	}
 }

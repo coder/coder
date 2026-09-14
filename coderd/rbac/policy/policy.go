@@ -140,6 +140,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"chat_project_memory": {
 		Actions: chatProjectMemoryActions,
 	},
+	"chat_user_memory": {
+		Actions: chatProjectMemoryActions,
+	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,
 	},

@@ -7108,6 +7108,19 @@ func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg Dele
 	return err
 }
 
+const getChatMemoryCursor = `-- name: GetChatMemoryCursor :one
+SELECT chat_id, history_version, extracted_at
+FROM chat_memory_cursors
+WHERE chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatMemoryCursor, error) {
+	row := q.db.QueryRowContext(ctx, getChatMemoryCursor, chatID)
+	var i ChatMemoryCursor
+	err := row.Scan(&i.ChatID, &i.HistoryVersion, &i.ExtractedAt)
+	return i, err
+}
+
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
 SELECT
     chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
@@ -7230,19 +7243,6 @@ func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChat
 	return i, err
 }
 
-const getChatProjectMemoryCursor = `-- name: GetChatProjectMemoryCursor :one
-SELECT chat_id, history_version, extracted_at
-FROM chat_project_memory_cursors
-WHERE chat_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatProjectMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, getChatProjectMemoryCursor, chatID)
-	var i ChatProjectMemoryCursor
-	err := row.Scan(&i.ChatID, &i.HistoryVersion, &i.ExtractedAt)
-	return i, err
-}
-
 const insertChatProjectMemory = `-- name: InsertChatProjectMemory :one
 INSERT INTO chat_project_memories (
     id,
@@ -7346,6 +7346,32 @@ func (q *sqlQuerier) UpdateChatProjectMemoryByID(ctx context.Context, arg Update
 	return i, err
 }
 
+const upsertChatMemoryCursor = `-- name: UpsertChatMemoryCursor :one
+INSERT INTO chat_memory_cursors (chat_id, history_version)
+VALUES ($1::uuid, $2::bigint)
+ON CONFLICT (chat_id) DO UPDATE
+SET
+    -- Detached extractors can finish out of order, so never regress the cursor.
+    history_version = GREATEST(
+        chat_project_memory_cursors.history_version,
+        EXCLUDED.history_version
+    ),
+    extracted_at = now()
+RETURNING chat_id, history_version, extracted_at
+`
+
+type UpsertChatMemoryCursorParams struct {
+	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
+	HistoryVersion int64     `db:"history_version" json:"history_version"`
+}
+
+func (q *sqlQuerier) UpsertChatMemoryCursor(ctx context.Context, arg UpsertChatMemoryCursorParams) (ChatMemoryCursor, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatMemoryCursor, arg.ChatID, arg.HistoryVersion)
+	var i ChatMemoryCursor
+	err := row.Scan(&i.ChatID, &i.HistoryVersion, &i.ExtractedAt)
+	return i, err
+}
+
 const upsertChatProjectMemoryByName = `-- name: UpsertChatProjectMemoryByName :one
 INSERT INTO chat_project_memories (
     project_id,
@@ -7407,32 +7433,6 @@ func (q *sqlQuerier) UpsertChatProjectMemoryByName(ctx context.Context, arg Upse
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
-	return i, err
-}
-
-const upsertChatProjectMemoryCursor = `-- name: UpsertChatProjectMemoryCursor :one
-INSERT INTO chat_project_memory_cursors (chat_id, history_version)
-VALUES ($1::uuid, $2::bigint)
-ON CONFLICT (chat_id) DO UPDATE
-SET
-    -- Detached extractors can finish out of order, so never regress the cursor.
-    history_version = GREATEST(
-        chat_project_memory_cursors.history_version,
-        EXCLUDED.history_version
-    ),
-    extracted_at = now()
-RETURNING chat_id, history_version, extracted_at
-`
-
-type UpsertChatProjectMemoryCursorParams struct {
-	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
-	HistoryVersion int64     `db:"history_version" json:"history_version"`
-}
-
-func (q *sqlQuerier) UpsertChatProjectMemoryCursor(ctx context.Context, arg UpsertChatProjectMemoryCursorParams) (ChatProjectMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatProjectMemoryCursor, arg.ChatID, arg.HistoryVersion)
-	var i ChatProjectMemoryCursor
-	err := row.Scan(&i.ChatID, &i.HistoryVersion, &i.ExtractedAt)
 	return i, err
 }
 
@@ -14566,6 +14566,336 @@ type UpsertChatHeartbeatParams struct {
 func (q *sqlQuerier) UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error {
 	_, err := q.db.ExecContext(ctx, upsertChatHeartbeat, arg.ChatID, arg.RunnerID)
 	return err
+}
+
+const countChatUserMemoriesByUserAndOrganization = `-- name: CountChatUserMemoriesByUserAndOrganization :one
+SELECT COUNT(*)::bigint
+FROM chat_user_memories
+WHERE user_id = $1::uuid
+    AND organization_id = $2::uuid
+`
+
+type CountChatUserMemoriesByUserAndOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) CountChatUserMemoriesByUserAndOrganization(ctx context.Context, arg CountChatUserMemoriesByUserAndOrganizationParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatUserMemoriesByUserAndOrganization, arg.UserID, arg.OrganizationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const deleteChatUserMemoryByID = `-- name: DeleteChatUserMemoryByID :exec
+DELETE FROM chat_user_memories
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatUserMemoryByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatUserMemoryByID, id)
+	return err
+}
+
+const deleteChatUserMemoryByName = `-- name: DeleteChatUserMemoryByName :exec
+DELETE FROM chat_user_memories
+WHERE user_id = $1::uuid
+    AND organization_id = $2::uuid
+    AND lower(name) = lower($3::text)
+`
+
+type DeleteChatUserMemoryByNameParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteChatUserMemoryByName(ctx context.Context, arg DeleteChatUserMemoryByNameParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatUserMemoryByName, arg.UserID, arg.OrganizationID, arg.Name)
+	return err
+}
+
+const getChatUserMemoriesByUserAndOrganization = `-- name: GetChatUserMemoriesByUserAndOrganization :many
+SELECT
+    chat_user_memories.id, chat_user_memories.organization_id, chat_user_memories.user_id, chat_user_memories.name, chat_user_memories.description, chat_user_memories.body, chat_user_memories.source_chat_id, chat_user_memories.created_at, chat_user_memories.updated_at,
+    visible_users.username AS created_by_username
+FROM chat_user_memories
+JOIN visible_users ON visible_users.id = chat_user_memories.user_id
+WHERE chat_user_memories.user_id = $1::uuid
+    AND chat_user_memories.organization_id = $2::uuid
+ORDER BY chat_user_memories.updated_at DESC
+`
+
+type GetChatUserMemoriesByUserAndOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GetChatUserMemoriesByUserAndOrganizationRow struct {
+	ChatUserMemory    ChatUserMemory `db:"chat_user_memory" json:"chat_user_memory"`
+	CreatedByUsername string         `db:"created_by_username" json:"created_by_username"`
+}
+
+func (q *sqlQuerier) GetChatUserMemoriesByUserAndOrganization(ctx context.Context, arg GetChatUserMemoriesByUserAndOrganizationParams) ([]GetChatUserMemoriesByUserAndOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatUserMemoriesByUserAndOrganization, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatUserMemoriesByUserAndOrganizationRow
+	for rows.Next() {
+		var i GetChatUserMemoriesByUserAndOrganizationRow
+		if err := rows.Scan(
+			&i.ChatUserMemory.ID,
+			&i.ChatUserMemory.OrganizationID,
+			&i.ChatUserMemory.UserID,
+			&i.ChatUserMemory.Name,
+			&i.ChatUserMemory.Description,
+			&i.ChatUserMemory.Body,
+			&i.ChatUserMemory.SourceChatID,
+			&i.ChatUserMemory.CreatedAt,
+			&i.ChatUserMemory.UpdatedAt,
+			&i.CreatedByUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatUserMemoryByID = `-- name: GetChatUserMemoryByID :one
+SELECT
+    chat_user_memories.id, chat_user_memories.organization_id, chat_user_memories.user_id, chat_user_memories.name, chat_user_memories.description, chat_user_memories.body, chat_user_memories.source_chat_id, chat_user_memories.created_at, chat_user_memories.updated_at,
+    visible_users.username AS created_by_username
+FROM chat_user_memories
+JOIN visible_users ON visible_users.id = chat_user_memories.user_id
+WHERE chat_user_memories.id = $1::uuid
+`
+
+type GetChatUserMemoryByIDRow struct {
+	ChatUserMemory    ChatUserMemory `db:"chat_user_memory" json:"chat_user_memory"`
+	CreatedByUsername string         `db:"created_by_username" json:"created_by_username"`
+}
+
+func (q *sqlQuerier) GetChatUserMemoryByID(ctx context.Context, id uuid.UUID) (GetChatUserMemoryByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatUserMemoryByID, id)
+	var i GetChatUserMemoryByIDRow
+	err := row.Scan(
+		&i.ChatUserMemory.ID,
+		&i.ChatUserMemory.OrganizationID,
+		&i.ChatUserMemory.UserID,
+		&i.ChatUserMemory.Name,
+		&i.ChatUserMemory.Description,
+		&i.ChatUserMemory.Body,
+		&i.ChatUserMemory.SourceChatID,
+		&i.ChatUserMemory.CreatedAt,
+		&i.ChatUserMemory.UpdatedAt,
+		&i.CreatedByUsername,
+	)
+	return i, err
+}
+
+const getChatUserMemoryByName = `-- name: GetChatUserMemoryByName :one
+SELECT
+    chat_user_memories.id, chat_user_memories.organization_id, chat_user_memories.user_id, chat_user_memories.name, chat_user_memories.description, chat_user_memories.body, chat_user_memories.source_chat_id, chat_user_memories.created_at, chat_user_memories.updated_at,
+    visible_users.username AS created_by_username
+FROM chat_user_memories
+JOIN visible_users ON visible_users.id = chat_user_memories.user_id
+WHERE chat_user_memories.user_id = $1::uuid
+    AND chat_user_memories.organization_id = $2::uuid
+    AND lower(chat_user_memories.name) = lower($3::text)
+`
+
+type GetChatUserMemoryByNameParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+type GetChatUserMemoryByNameRow struct {
+	ChatUserMemory    ChatUserMemory `db:"chat_user_memory" json:"chat_user_memory"`
+	CreatedByUsername string         `db:"created_by_username" json:"created_by_username"`
+}
+
+func (q *sqlQuerier) GetChatUserMemoryByName(ctx context.Context, arg GetChatUserMemoryByNameParams) (GetChatUserMemoryByNameRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatUserMemoryByName, arg.UserID, arg.OrganizationID, arg.Name)
+	var i GetChatUserMemoryByNameRow
+	err := row.Scan(
+		&i.ChatUserMemory.ID,
+		&i.ChatUserMemory.OrganizationID,
+		&i.ChatUserMemory.UserID,
+		&i.ChatUserMemory.Name,
+		&i.ChatUserMemory.Description,
+		&i.ChatUserMemory.Body,
+		&i.ChatUserMemory.SourceChatID,
+		&i.ChatUserMemory.CreatedAt,
+		&i.ChatUserMemory.UpdatedAt,
+		&i.CreatedByUsername,
+	)
+	return i, err
+}
+
+const insertChatUserMemory = `-- name: InsertChatUserMemory :one
+INSERT INTO chat_user_memories (
+    id,
+    organization_id,
+    user_id,
+    name,
+    description,
+    body,
+    source_chat_id
+)
+VALUES (
+    COALESCE($1::uuid, gen_random_uuid()),
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::uuid
+)
+RETURNING id, organization_id, user_id, name, description, body, source_chat_id, created_at, updated_at
+`
+
+type InsertChatUserMemoryParams struct {
+	ID             uuid.NullUUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
+}
+
+func (q *sqlQuerier) InsertChatUserMemory(ctx context.Context, arg InsertChatUserMemoryParams) (ChatUserMemory, error) {
+	row := q.db.QueryRowContext(ctx, insertChatUserMemory,
+		arg.ID,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.Name,
+		arg.Description,
+		arg.Body,
+		arg.SourceChatID,
+	)
+	var i ChatUserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.SourceChatID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatUserMemoryByID = `-- name: UpdateChatUserMemoryByID :one
+UPDATE chat_user_memories
+SET
+    name = $1::text,
+    description = $2::text,
+    body = $3::text,
+    updated_at = now()
+WHERE id = $4::uuid
+RETURNING id, organization_id, user_id, name, description, body, source_chat_id, created_at, updated_at
+`
+
+type UpdateChatUserMemoryByIDParams struct {
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Body        string    `db:"body" json:"body"`
+	ID          uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatUserMemoryByID(ctx context.Context, arg UpdateChatUserMemoryByIDParams) (ChatUserMemory, error) {
+	row := q.db.QueryRowContext(ctx, updateChatUserMemoryByID,
+		arg.Name,
+		arg.Description,
+		arg.Body,
+		arg.ID,
+	)
+	var i ChatUserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.SourceChatID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertChatUserMemoryByName = `-- name: UpsertChatUserMemoryByName :one
+INSERT INTO chat_user_memories (
+    organization_id,
+    user_id,
+    name,
+    description,
+    body,
+    source_chat_id
+)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::uuid
+)
+ON CONFLICT (user_id, organization_id, lower(name)) DO UPDATE
+SET
+    description = EXCLUDED.description,
+    body = EXCLUDED.body,
+    source_chat_id = EXCLUDED.source_chat_id,
+    updated_at = now()
+RETURNING id, organization_id, user_id, name, description, body, source_chat_id, created_at, updated_at
+`
+
+type UpsertChatUserMemoryByNameParams struct {
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
+}
+
+func (q *sqlQuerier) UpsertChatUserMemoryByName(ctx context.Context, arg UpsertChatUserMemoryByNameParams) (ChatUserMemory, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatUserMemoryByName,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.Name,
+		arg.Description,
+		arg.Body,
+		arg.SourceChatID,
+	)
+	var i ChatUserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.SourceChatID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
@@ -31794,6 +32124,23 @@ func (q *sqlQuerier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID 
 	return debug_logging_enabled, err
 }
 
+const getUserChatPersonalMemoryEnabled = `-- name: GetUserChatPersonalMemoryEnabled :one
+SELECT
+	value
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'chat_personal_memory_enabled'
+`
+
+func (q *sqlQuerier) GetUserChatPersonalMemoryEnabled(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatPersonalMemoryEnabled, userID)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getUserCodeDiffDisplayMode = `-- name: GetUserCodeDiffDisplayMode :one
 SELECT
 	value AS code_diff_display_mode
@@ -33076,6 +33423,33 @@ type UpsertUserChatDebugLoggingEnabledParams struct {
 func (q *sqlQuerier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error {
 	_, err := q.db.ExecContext(ctx, upsertUserChatDebugLoggingEnabled, arg.UserID, arg.DebugLoggingEnabled)
 	return err
+}
+
+const upsertUserChatPersonalMemoryEnabled = `-- name: UpsertUserChatPersonalMemoryEnabled :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'chat_personal_memory_enabled', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'chat_personal_memory_enabled'
+RETURNING user_id, key, value
+`
+
+type UpsertUserChatPersonalMemoryEnabledParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Value  string    `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertUserChatPersonalMemoryEnabled(ctx context.Context, arg UpsertUserChatPersonalMemoryEnabledParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserChatPersonalMemoryEnabled, arg.UserID, arg.Value)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
 }
 
 const validateUserIDs = `-- name: ValidateUserIDs :one

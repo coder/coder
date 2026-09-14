@@ -195,6 +195,22 @@ func (r GetChatProjectMemoryByNameRow) RBACObject() rbac.Object {
 	return r.ChatProjectMemory.RBACObject()
 }
 
+func (m ChatUserMemory) RBACObject() rbac.Object {
+	return rbac.ResourceChatUserMemory.WithID(m.ID).InOrg(m.OrganizationID).WithOwner(m.UserID.String())
+}
+
+func (r GetChatUserMemoriesByUserAndOrganizationRow) RBACObject() rbac.Object {
+	return r.ChatUserMemory.RBACObject()
+}
+
+func (r GetChatUserMemoryByIDRow) RBACObject() rbac.Object {
+	return r.ChatUserMemory.RBACObject()
+}
+
+func (r GetChatUserMemoryByNameRow) RBACObject() rbac.Object {
+	return r.ChatUserMemory.RBACObject()
+}
+
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).

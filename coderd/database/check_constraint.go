@@ -35,6 +35,9 @@ const (
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck                     CheckConstraint = "chat_usage_limit_config_period_check"                      // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck                  CheckConstraint = "chat_usage_limit_config_singleton_check"                   // chat_usage_limit_config
+	CheckChatUserMemoriesBodyLength                          CheckConstraint = "chat_user_memories_body_length"                            // chat_user_memories
+	CheckChatUserMemoriesDescriptionLength                   CheckConstraint = "chat_user_memories_description_length"                     // chat_user_memories
+	CheckChatUserMemoriesNameFormat                          CheckConstraint = "chat_user_memories_name_format"                            // chat_user_memories
 	CheckChatUserModelOverridesContextCheck                  CheckConstraint = "chat_user_model_overrides_context_check"                   // chat_user_model_overrides
 	CheckChatUserModelOverridesModeCheck                     CheckConstraint = "chat_user_model_overrides_mode_check"                      // chat_user_model_overrides
 	CheckChatUserModelOverridesModelRequiresConfigCheck      CheckConstraint = "chat_user_model_overrides_model_requires_config_check"     // chat_user_model_overrides

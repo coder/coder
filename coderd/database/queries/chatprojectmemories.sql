@@ -98,13 +98,13 @@ DELETE FROM chat_project_memories
 WHERE project_id = @project_id::uuid
     AND lower(name) = lower(@name::text);
 
--- name: GetChatProjectMemoryCursor :one
+-- name: GetChatMemoryCursor :one
 SELECT *
-FROM chat_project_memory_cursors
+FROM chat_memory_cursors
 WHERE chat_id = @chat_id::uuid;
 
--- name: UpsertChatProjectMemoryCursor :one
-INSERT INTO chat_project_memory_cursors (chat_id, history_version)
+-- name: UpsertChatMemoryCursor :one
+INSERT INTO chat_memory_cursors (chat_id, history_version)
 VALUES (@chat_id::uuid, @history_version::bigint)
 ON CONFLICT (chat_id) DO UPDATE
 SET

@@ -221,8 +221,8 @@ func TestExtractProjectMemories(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		chat := newChat()
 		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
-		db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-			database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}, nil,
+		db.EXPECT().GetChatMemoryCursor(gomock.Any(), chat.ID).Return(
+			database.ChatMemoryCursor{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}, nil,
 		)
 
 		newServer(t, db, nil).extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -260,8 +260,8 @@ func TestExtractProjectMemories(t *testing.T) {
 		}
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-				database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
+			db.EXPECT().GetChatMemoryCursor(gomock.Any(), chat.ID).Return(
+				database.ChatMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
 			),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "remember this", 5),
@@ -269,10 +269,10 @@ func TestExtractProjectMemories(t *testing.T) {
 				saveResult,
 			}, nil),
 			// The cursor advances without loading memories or calling the model.
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
+			db.EXPECT().UpsertChatMemoryCursor(gomock.Any(), database.UpsertChatMemoryCursorParams{
 				ChatID:         chat.ID,
 				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			}).Return(database.ChatMemoryCursor{}, nil),
 		)
 
 		newServer(t, db, nil).extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -319,8 +319,8 @@ func TestExtractProjectMemories(t *testing.T) {
 
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-				database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
+			db.EXPECT().GetChatMemoryCursor(gomock.Any(), chat.ID).Return(
+				database.ChatMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
 			),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "old detail", 2),
@@ -332,10 +332,10 @@ func TestExtractProjectMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(0), nil),
 			db.EXPECT().InsertChatProjectMemory(gomock.Any(), validUpsert).Return(database.ChatProjectMemory{}, nil),
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
+			db.EXPECT().UpsertChatMemoryCursor(gomock.Any(), database.UpsertChatMemoryCursorParams{
 				ChatID:         chat.ID,
 				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			}).Return(database.ChatMemoryCursor{}, nil),
 		)
 
 		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -365,8 +365,8 @@ func TestExtractProjectMemories(t *testing.T) {
 		}))
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-				database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
+			db.EXPECT().GetChatMemoryCursor(gomock.Any(), chat.ID).Return(
+				database.ChatMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
 			),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "when do we deploy?", 5),
@@ -387,10 +387,10 @@ func TestExtractProjectMemories(t *testing.T) {
 				CreatedBy:      chat.OwnerID,
 			}).Return(database.ChatProjectMemory{}, &pq.Error{Code: "23505"}),
 			// A unique constraint conflict leaves the existing memory alone.
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
+			db.EXPECT().UpsertChatMemoryCursor(gomock.Any(), database.UpsertChatMemoryCursorParams{
 				ChatID:         chat.ID,
 				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			}).Return(database.ChatMemoryCursor{}, nil),
 		)
 
 		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -416,7 +416,7 @@ func TestExtractProjectMemories(t *testing.T) {
 
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(database.ChatProjectMemoryCursor{}, sql.ErrNoRows),
+			db.EXPECT().GetChatMemoryCursor(gomock.Any(), chat.ID).Return(database.ChatMemoryCursor{}, sql.ErrNoRows),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
@@ -425,10 +425,10 @@ func TestExtractProjectMemories(t *testing.T) {
 		expectModelResolution(db, chat)
 		gomock.InOrder(
 			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(chattool.MaxProjectMemories), nil),
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
+			db.EXPECT().UpsertChatMemoryCursor(gomock.Any(), database.UpsertChatMemoryCursorParams{
 				ChatID:         chat.ID,
 				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			}).Return(database.ChatMemoryCursor{}, nil),
 		)
 
 		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -451,7 +451,7 @@ func TestExtractProjectMemories(t *testing.T) {
 
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(database.ChatProjectMemoryCursor{}, sql.ErrNoRows),
+			db.EXPECT().GetChatMemoryCursor(gomock.Any(), chat.ID).Return(database.ChatMemoryCursor{}, sql.ErrNoRows),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
