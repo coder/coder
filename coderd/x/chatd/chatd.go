@@ -3628,6 +3628,7 @@ func mergeTurnSkills(
 	return skillspkg.MergeSkills(
 		personalSkills,
 		workspaceSkillsForResolution(workspaceSkills),
+		nil,
 	)
 }
 
