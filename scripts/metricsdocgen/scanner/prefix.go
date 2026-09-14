@@ -106,7 +106,7 @@ func propagateThroughForwarders(index prefixIndex, files []parsedFile) {
 }
 
 // forwardedPackages returns the package directories that this file's
-// constructors pass their own parameters to.
+// constructors pass their prometheus.Registerer parameter to.
 func forwardedPackages(pf parsedFile) []string {
 	var targets []string
 
@@ -116,13 +116,16 @@ func forwardedPackages(pf parsedFile) []string {
 			continue
 		}
 
-		params := map[string]bool{}
+		registerers := map[string]bool{}
 		for _, field := range fn.Type.Params.List {
+			if !isPrometheusRegisterer(field.Type) {
+				continue
+			}
 			for _, name := range field.Names {
-				params[name.Name] = true
+				registerers[name.Name] = true
 			}
 		}
-		if len(params) == 0 {
+		if len(registerers) == 0 {
 			continue
 		}
 
@@ -144,7 +147,7 @@ func forwardedPackages(pf parsedFile) []string {
 				return true
 			}
 			for _, arg := range call.Args {
-				if argIdent, ok := arg.(*ast.Ident); ok && params[argIdent.Name] {
+				if argIdent, ok := arg.(*ast.Ident); ok && registerers[argIdent.Name] {
 					targets = append(targets, target)
 				}
 			}
@@ -153,6 +156,18 @@ func forwardedPackages(pf parsedFile) []string {
 	}
 
 	return targets
+}
+
+// isPrometheusRegisterer reports whether expr names prometheus.Registerer.
+// The prefix scanner intentionally stays syntax-only, so it recognizes the
+// package name used throughout this repository rather than loading type data.
+func isPrometheusRegisterer(expr ast.Expr) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Registerer" {
+		return false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	return ok && pkg.Name == "prometheus"
 }
 
 // parsedFile is a parsed Go file plus the import information needed to resolve

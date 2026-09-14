@@ -1,6 +1,8 @@
 # HELP agent_scripts_executed_total Total number of scripts executed by the Coder agent. Includes cron scheduled scripts.
 # TYPE agent_scripts_executed_total counter
 agent_scripts_executed_total{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1
+# Agent statistics labels are configured at runtime, so this static metadata
+# overrides the scanner's incomplete label sets.
 # HELP coderd_agentstats_startup_script_seconds The number of seconds the startup script took to execute.
 # TYPE coderd_agentstats_startup_script_seconds gauge
 coderd_agentstats_startup_script_seconds{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1.969900304
