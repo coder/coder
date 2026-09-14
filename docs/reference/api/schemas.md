@@ -10761,6 +10761,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
 | `tos_uri`                    | string                                                                              | false    |              |             |
 
+## codersdk.OAuth2ClientType
+
+```json
+"confidential"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                 |
+|--------------------------|
+| `confidential`, `public` |
+
 ## codersdk.OAuth2Config
 
 ```json
@@ -10904,6 +10918,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -10918,13 +10933,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
-|----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                              |
+|----------------|------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                                                                                          |
+| `client_type`  | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public". A public client has no client secret: it authenticates with PKCE only, and its type is fixed at registration. Admin-created apps are always confidential; public clients can only arrive through dynamic client registration. |
+| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint).                                                                  |
+| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                                                                                          |
+| `id`           | string                                                     | false    |              |                                                                                                                                                                                                                                                                          |
+| `name`         | string                                                     | false    |              |                                                                                                                                                                                                                                                                          |
 
 ## codersdk.OAuth2ProviderAppSecret
 

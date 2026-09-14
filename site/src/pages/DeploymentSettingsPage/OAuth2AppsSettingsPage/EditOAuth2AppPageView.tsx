@@ -60,9 +60,13 @@ export const EditOAuth2AppPageView: FC = () => {
 		...oauth2.getApp(appId ?? ""),
 		enabled: Boolean(appId),
 	});
+	// A public client authenticates with PKCE and has no client secret — its
+	// type is fixed at registration, so there is nothing to fetch or generate.
+	const isPublicClient = appQuery.data?.client_type === "public";
 	const secretsQuery = useQuery({
 		...oauth2.getAppSecrets(appId ?? ""),
-		enabled: Boolean(appId) && permissions.viewOAuth2AppSecrets,
+		enabled:
+			Boolean(appId) && permissions.viewOAuth2AppSecrets && !isPublicClient,
 	});
 
 	const putAppMutation = useMutation(oauth2.putApp(queryClient));
@@ -220,7 +224,18 @@ export const EditOAuth2AppPageView: FC = () => {
 					/>
 				</div>
 
-				{canViewAppSecrets && (
+				{canViewAppSecrets && isPublicClient && (
+					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
+						<h2 className="m-0 text-xl font-semibold">Client secrets</h2>
+						<Alert severity="info">
+							This is a public client. It authenticates with PKCE and has no
+							client secret — its type is fixed at registration. If you need a
+							confidential client instead, register a new application.
+						</Alert>
+					</div>
+				)}
+
+				{canViewAppSecrets && !isPublicClient && (
 					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
 						<div className="flex flex-row gap-4 items-center justify-between">
 							<h2 className="m-0 text-xl font-semibold">Client secrets</h2>

@@ -20,6 +20,12 @@ type OAuth2ProviderApp struct {
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
 
+	// ClientType is "confidential" or "public". A public client has no client
+	// secret: it authenticates with PKCE only, and its type is fixed at
+	// registration. Admin-created apps are always confidential; public
+	// clients can only arrive through dynamic client registration.
+	ClientType OAuth2ClientType `json:"client_type"`
+
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
 	// a '/.well-known/openid-configuration' endpoint).
