@@ -3,7 +3,6 @@ import { OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -13,6 +12,7 @@ import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import {
 	sanitizeExecuteModelIntent,
@@ -85,6 +85,9 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	);
 
 	const isRunning = status === "running" || processRunning;
+	// A poll that times out while the process lives leaves a stale running
+	// snapshot, so the streaming cursor tracks the tool call status only.
+	const streaming = status === "running";
 	// A clean exit is the expected outcome of a check, so only
 	// failures earn a badge. The label verb carries the rest.
 	const isFailed = exitCode !== null && exitCode !== 0;
@@ -152,22 +155,21 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 				)}
 			</ToolCall.HeaderLayout>
 			<ToolCall.Content>
-				<ScrollArea
-					className="mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
-					viewportClassName="max-h-64"
-					viewportTabIndex={0}
-					viewportAriaLabel="Process output"
-					scrollBarClassName="w-1.5"
+				<TerminalOutput
+					ariaLabel="Process output"
+					command={command}
+					className="mt-2"
+					streaming={streaming}
 				>
 					<pre
 						className={cn(
-							"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-3 py-2.5 font-mono text-xs leading-5",
+							"m-0 border-0 whitespace-pre-wrap break-all bg-transparent p-0 font-mono text-xs leading-5",
 							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>
 						{output}
 					</pre>
-				</ScrollArea>
+				</TerminalOutput>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);
