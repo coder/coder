@@ -10,6 +10,5 @@ DROP INDEX chat_queued_messages_one_held_per_chat;
 
 ALTER TABLE chat_queued_messages DROP COLUMN held_at;
 
--- Paused rows lose the hold that justified them. Remap to waiting; the
--- enum value itself stays, as 000519 leaves `interrupting` in place.
+-- The enum value stays, as 000519 leaves `interrupting`.
 UPDATE chats SET status = 'waiting' WHERE status = 'paused';
