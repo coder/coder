@@ -71,7 +71,7 @@ func TestBuildWorkspaceUpdatesConfigs(t *testing.T) {
 			require.Equal(t, reuse[i].User.ID, configs[i].PreCreatedUser.ID)
 		}
 		// Regular users follow, each owning regularUserWorkspaceCount, assigned
-		// reuse[powerUserCount..total) — the offset the review flagged.
+		// reuse[powerUserCount..total): the offset the review flagged.
 		for i := range params.regularUserCount {
 			cfg := configs[params.powerUserCount+i]
 			require.Equal(t, int64(params.regularUserWorkspaceCount), cfg.WorkspaceCount)
