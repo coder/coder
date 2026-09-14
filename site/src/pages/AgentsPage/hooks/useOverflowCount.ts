@@ -1,0 +1,191 @@
+import { type RefObject, useLayoutEffect, useState } from "react";
+
+// Tolerance for getBoundingClientRect subpixel rounding and integer
+// scrollWidth/clientWidth rounding.
+const TOLERANCE_PX = 1;
+
+// Last visible width of each overflow-managed element: hidden items
+// report zero, so fit decisions reuse the width they had while
+// visible. Element-keyed, so it survives re-renders and count changes.
+const lastVisibleWidths = new WeakMap<Element, number>();
+
+/**
+ * Number of leading items whose widths, plus the gaps between them,
+ * fit within the budget.
+ */
+export function countThatFit(
+	widths: readonly number[],
+	gap: number,
+	budget: number,
+): number {
+	let used = 0;
+	for (let i = 0; i < widths.length; i++) {
+		used += widths[i] + (i > 0 ? gap : 0);
+		if (used > budget + TOLERANCE_PX) {
+			return i;
+		}
+	}
+	return widths.length;
+}
+
+/**
+ * Overflow count for one measured snapshot: zero when every item fits
+ * in the available space, otherwise how many trailing items must move
+ * into the "+N" pill, whose width is reserved from the budget.
+ */
+export function computeOverflowCount(snapshot: {
+	widths: readonly number[];
+	gap: number;
+	available: number;
+	pillWidth: number;
+}): number {
+	const { widths, gap, available, pillWidth } = snapshot;
+	if (countThatFit(widths, gap, available) === widths.length) {
+		return 0;
+	}
+	const visible = countThatFit(widths, gap, available - pillWidth - gap);
+	// Defensive: once the first pass fails, at least one item overflows.
+	return Math.max(widths.length - visible, 1);
+}
+
+/**
+ * Observes a flex container laid out as:
+ *
+ *   [item₀] [item₁] … [itemₙ₋₁] [pill]
+ *
+ * and reports how many of the first `itemCount` children do not fit
+ * in the space available to the container, updating as layout or
+ * children change.
+ *
+ * Contract with the caller:
+ *
+ * - Overflowed items are hidden with `display: none` so they release
+ *   their layout space; their last visible width is cached here.
+ * - The "+N" pill always renders as the last child (invisible when
+ *   the count is 0) so its width can be read from the DOM.
+ * - The container is the last child of its flex group (LTR assumed),
+ *   so the group's right edge bounds the items' space. Growing
+ *   siblings (the model pill) get priority: their truncation deficit
+ *   is reserved before items claim space.
+ */
+export function useOverflowCount(
+	containerRef: RefObject<HTMLElement | null>,
+	itemCount: number,
+): number {
+	const [overflowCount, setOverflowCount] = useState(0);
+
+	useLayoutEffect(() => {
+		const container = containerRef.current;
+		const parent = container?.parentElement;
+		if (!container || !parent) {
+			return;
+		}
+
+		const measure = () => {
+			const children = container.children;
+			const count = Math.min(itemCount, children.length);
+			if (count === 0) {
+				setOverflowCount(0);
+				return;
+			}
+
+			const widths: number[] = [];
+			for (let i = 0; i < count; i++) {
+				const child = children[i];
+				const width = child.getBoundingClientRect().width;
+				if (width > 0) {
+					lastVisibleWidths.set(child, width);
+				}
+				widths.push(lastVisibleWidths.get(child) ?? 0);
+			}
+
+			const pill = children[children.length - 1];
+			setOverflowCount(
+				computeOverflowCount({
+					widths,
+					gap: Number.parseFloat(getComputedStyle(container).columnGap || "0"),
+					available:
+						parent.getBoundingClientRect().right -
+						container.getBoundingClientRect().left -
+						siblingTruncationDeficit(parent, container),
+					pillWidth: pill ? pill.getBoundingClientRect().width : 0,
+				}),
+			);
+		};
+
+		const ro = new ResizeObserver(measure);
+		// Available space also shifts when siblings grow or shrink
+		// without resizing the parent, and when items hide or show
+		// without resizing the container.
+		const observeAll = () => {
+			ro.observe(container);
+			ro.observe(parent);
+			for (const sibling of parent.children) {
+				if (sibling !== container) {
+					ro.observe(sibling);
+				}
+			}
+			for (const child of container.children) {
+				ro.observe(child);
+			}
+		};
+
+		measure();
+		observeAll();
+
+		// Re-attach in case a child was replaced in place; re-observing
+		// is a no-op.
+		const mo = new MutationObserver(() => {
+			observeAll();
+			measure();
+		});
+		mo.observe(container, { childList: true });
+
+		return () => {
+			ro.disconnect();
+			mo.disconnect();
+		};
+	}, [containerRef, itemCount]);
+
+	return overflowCount;
+}
+
+// How much wider the container's siblings want to be: the widest
+// clipped overflow among each sibling's descendants. Only elements
+// that clip (overflow-x hidden or clip) count, and only the widest
+// per sibling, so nested wrappers cannot double-count. Reserving this
+// keeps sibling pills at full width in preference to inline items.
+//
+// Stability invariant: when a pill absorbs freed space and grows by
+// some delta, the container's left edge shifts right by that same
+// delta while the pill's clipped deficit shrinks by it, so the two
+// cancel and `available` stays constant regardless of how far the
+// pills have grown. Measurements therefore reach a fixed point
+// instead of oscillating between hide and show.
+function siblingTruncationDeficit(
+	parent: HTMLElement,
+	container: HTMLElement,
+): number {
+	let deficit = 0;
+	for (const sibling of parent.children) {
+		if (sibling === container || !(sibling instanceof HTMLElement)) {
+			continue;
+		}
+		let widest = 0;
+		for (const el of [sibling, ...sibling.querySelectorAll("*")]) {
+			if (!(el instanceof HTMLElement)) {
+				continue;
+			}
+			const overflowX = getComputedStyle(el).overflowX;
+			if (overflowX !== "hidden" && overflowX !== "clip") {
+				continue;
+			}
+			const clipped = el.scrollWidth - el.clientWidth;
+			if (clipped > TOLERANCE_PX) {
+				widest = Math.max(widest, clipped);
+			}
+		}
+		deficit += widest;
+	}
+	return deficit;
+}

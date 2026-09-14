@@ -1,0 +1,113 @@
+/**
+ * Copied from shadc/ui on 12/13/2024
+ * @see {@link https://ui.shadcn.com/docs/components/breadcrumb}
+ */
+
+import { cn } from "cn";
+import { MoreHorizontalIcon } from "lucide-react";
+import { NavLink } from "react-router";
+
+type BreadcrumbProps = React.ComponentPropsWithRef<"nav"> & {
+	separator?: React.ReactNode;
+};
+
+export const Breadcrumb: React.FC<BreadcrumbProps> = ({ ...props }) => {
+	return <nav aria-label="breadcrumb" {...props} />;
+};
+
+export const BreadcrumbList: React.FC<React.ComponentPropsWithRef<"ol">> = ({
+	className,
+	...props
+}) => {
+	return (
+		<ol
+			className={cn(
+				"flex flex-wrap items-center text-sm pl-6 my-4 gap-1.5 wrap-break-word font-medium list-none sm:gap-2.5",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+export const BreadcrumbItem: React.FC<React.ComponentPropsWithRef<"li">> = ({
+	className,
+	...props
+}) => {
+	return (
+		<li
+			className={cn(
+				"inline-flex items-center gap-1.5 text-content-secondary",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type BreadcrumbLinkProps = React.ComponentProps<typeof NavLink>;
+
+export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<NavLink
+			className={cn(
+				"text-content-secondary transition-colors hover:text-content-primary no-underline hover:underline",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+export const BreadcrumbPage: React.FC<React.ComponentPropsWithRef<"span">> = ({
+	className,
+	...props
+}) => {
+	return (
+		<span
+			aria-current="page"
+			className={cn(
+				"flex items-center gap-2 text-content-secondary",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+export const BreadcrumbSeparator: React.FC<
+	Omit<React.ComponentPropsWithRef<"li">, "children">
+> = ({ className, ...props }) => {
+	return (
+		<li
+			role="presentation"
+			aria-hidden="true"
+			className={cn(
+				"text-content-disabled [&>svg]:w-3.5 [&>svg]:h-3.5",
+				className,
+			)}
+			{...props}
+		>
+			/
+		</li>
+	);
+};
+
+export const BreadcrumbEllipsis: React.FC<
+	Omit<React.ComponentPropsWithRef<"span">, "children">
+> = ({ className, ...props }) => {
+	return (
+		<span
+			role="presentation"
+			aria-hidden="true"
+			className={cn("flex size-9 items-center justify-center", className)}
+			{...props}
+		>
+			<MoreHorizontalIcon className="size-4" />
+			<span className="sr-only">More</span>
+		</span>
+	);
+};

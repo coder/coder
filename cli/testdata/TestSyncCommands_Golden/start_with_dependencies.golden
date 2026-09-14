@@ -1,0 +1,2 @@
+Unit "test-unit" is waiting for dependencies to be satisfied: [dep-unit, dep-unit-2]
+Unit "test-unit" finished waiting for dependencies: [dep-unit, dep-unit-2]

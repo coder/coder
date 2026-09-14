@@ -1,0 +1,771 @@
+import {
+	MockChatModelACL,
+	MockMCPServerConfigACL,
+	MockMCPServerConfigACLAvailable,
+	MockProvisionerJob,
+	MockStoppedWorkspace,
+	MockTemplate,
+	MockTemplateVersion2,
+	MockWorkspace,
+	MockWorkspaceBuild,
+} from "#/testHelpers/entities";
+import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
+import type * as TypesGen from "./typesGenerated";
+
+const axiosInstance = API.getAxiosInstance();
+
+describe("api.ts", () => {
+	describe("login", () => {
+		it("should return LoginResponse", async () => {
+			// given
+			const loginResponse: TypesGen.LoginWithPasswordResponse = {
+				session_token: "abc_123_test",
+			};
+
+			vi.spyOn(axiosInstance, "post").mockResolvedValueOnce({
+				data: loginResponse,
+			});
+
+			// when
+			const result = await API.login("test", "123");
+
+			// then
+			expect(axiosInstance.post).toHaveBeenCalled();
+			expect(result).toStrictEqual(loginResponse);
+		});
+
+		it("should throw an error on 401", async () => {
+			// given
+			// ..ensure that we await our expect assertion in async/await test
+			expect.assertions(1);
+			const expectedError = {
+				message: "Validation failed",
+				errors: [{ field: "email", code: "email" }],
+			};
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
+				return Promise.reject(expectedError);
+			});
+			axiosInstance.post = axiosMockPost;
+
+			try {
+				await API.login("test", "123");
+			} catch (error) {
+				expect(error).toStrictEqual(expectedError);
+			}
+		});
+	});
+
+	describe("logout", () => {
+		it("should return without erroring", async () => {
+			// given
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
+				return Promise.resolve();
+			});
+			axiosInstance.post = axiosMockPost;
+
+			// when
+			await API.logout();
+
+			// then
+			expect(axiosMockPost).toHaveBeenCalled();
+		});
+
+		it("should throw an error on 500", async () => {
+			// given
+			// ..ensure that we await our expect assertion in async/await test
+			expect.assertions(1);
+			const expectedError = {
+				message: "Failed to logout.",
+			};
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
+				return Promise.reject(expectedError);
+			});
+
+			axiosInstance.post = axiosMockPost;
+
+			try {
+				await API.logout();
+			} catch (error) {
+				expect(error).toStrictEqual(expectedError);
+			}
+		});
+	});
+
+	describe("getApiKey", () => {
+		it("should return APIKeyResponse", async () => {
+			// given
+			const apiKeyResponse: TypesGen.GenerateAPIKeyResponse = {
+				key: "abc_123_test",
+			};
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
+				return Promise.resolve({ data: apiKeyResponse });
+			});
+
+			axiosInstance.post = axiosMockPost;
+
+			// when
+			const result = await API.getApiKey();
+
+			// then
+			expect(axiosMockPost).toHaveBeenCalled();
+			expect(result).toStrictEqual(apiKeyResponse);
+		});
+
+		it("should throw an error on 401", async () => {
+			// given
+			// ..ensure that we await our expect assertion in async/await test
+			expect.assertions(1);
+			const expectedError = {
+				message: "No Cookie!",
+			};
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
+				return Promise.reject(expectedError);
+			});
+
+			axiosInstance.post = axiosMockPost;
+
+			try {
+				await API.getApiKey();
+			} catch (error) {
+				expect(error).toStrictEqual(expectedError);
+			}
+		});
+	});
+
+	describe("getURLWithSearchParams - workspaces", () => {
+		it.each<[string, TypesGen.WorkspaceFilter | undefined, string]>([
+			["/api/v2/workspaces", undefined, "/api/v2/workspaces"],
+
+			["/api/v2/workspaces", { q: "" }, "/api/v2/workspaces"],
+			[
+				"/api/v2/workspaces",
+				{ q: "owner:1" },
+				"/api/v2/workspaces?q=owner%3A1",
+			],
+
+			[
+				"/api/v2/workspaces",
+				{ q: "owner:me" },
+				"/api/v2/workspaces?q=owner%3Ame",
+			],
+		])(
+			"Workspaces - getURLWithSearchParams(%p, %p) returns %p",
+			(basePath, filter, expected) => {
+				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+			},
+		);
+	});
+
+	describe("getURLWithSearchParams - users", () => {
+		it.each<[string, TypesGen.UsersRequest | undefined, string]>([
+			["/api/v2/users", undefined, "/api/v2/users"],
+			[
+				"/api/v2/users",
+				{ q: "status:active" },
+				"/api/v2/users?q=status%3Aactive",
+			],
+			["/api/v2/users", { q: "" }, "/api/v2/users"],
+		])(
+			"Users - getURLWithSearchParams(%p, %p) returns %p",
+			(basePath, filter, expected) => {
+				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+			},
+		);
+	});
+
+	describe("AI spend requests", () => {
+		const window = {
+			period_start: "2026-07-01T00:00:00Z",
+			period_end: "2026-08-01T00:00:00Z",
+		};
+
+		// Each endpoint's request, URL path, and response for the given IDs.
+		const endpoints = [
+			{
+				name: "getOrganizationGroupsAISpend",
+				path: "/api/v2/organizations/my-org/groups/ai/spend",
+				request: (ids: string[]) =>
+					API.getOrganizationGroupsAISpend("my-org", ids),
+				response: (ids: string[]) => ({
+					...window,
+					groups: ids.map((id) => ({
+						group_id: id,
+						spend_micros: 0,
+						budget: null,
+					})),
+				}),
+			},
+			{
+				name: "getGroupMembersAISpend",
+				path: "/api/v2/groups/group-1/members/ai/spend",
+				request: (ids: string[]) => API.getGroupMembersAISpend("group-1", ids),
+				response: (ids: string[]) => ({
+					...window,
+					members: ids.map((id) => ({
+						user_id: id,
+						effective_group_id: null,
+						effective_budget: null,
+						group_budget: null,
+						group_spend_micros: 0,
+					})),
+				}),
+			},
+		];
+
+		afterEach(() => {
+			// The suite doesn't auto-restore mocks; don't leak the stubs.
+			vi.restoreAllMocks();
+		});
+
+		describe.each(endpoints)("$name", ({ path, request, response }) => {
+			it("rejects an empty ID list without sending a request", async () => {
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValue({ data: {} });
+
+				await expect(request([])).rejects.toThrow(/must not be empty/);
+				expect(getSpy).not.toHaveBeenCalled();
+			});
+
+			it("sends a single request for up to 100 IDs", async () => {
+				const ids = Array.from({ length: 25 }, (_, i) => `id-${i}`);
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValueOnce({ data: response(ids) });
+
+				const result = await request(ids);
+
+				expect(getSpy).toHaveBeenCalledTimes(1);
+				expect(getSpy.mock.calls[0][0]).toContain(path);
+				expect(getSpy.mock.calls[0][0]).toContain(
+					encodeURIComponent(ids.join(",")),
+				);
+				expect(result).toStrictEqual(response(ids));
+			});
+
+			it("batches requests of 100 IDs and merges the results", async () => {
+				const ids = Array.from({ length: 150 }, (_, i) => `id-${i}`);
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValueOnce({ data: response(ids.slice(0, 100)) })
+					.mockResolvedValueOnce({ data: response(ids.slice(100)) });
+
+				const result = await request(ids);
+
+				expect(getSpy).toHaveBeenCalledTimes(2);
+				expect(getSpy.mock.calls[0][0]).toContain(
+					encodeURIComponent(ids.slice(0, 100).join(",")),
+				);
+				expect(getSpy.mock.calls[1][0]).toContain(
+					encodeURIComponent(ids.slice(100).join(",")),
+				);
+				expect(result).toStrictEqual(response(ids));
+			});
+		});
+	});
+
+	describe("update", () => {
+		describe("given a running workspace", () => {
+			it("stops with current version before starting with the latest version", async () => {
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+					...MockWorkspaceBuild,
+					transition: "stop",
+				});
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+					...MockWorkspaceBuild,
+					template_version_id: MockTemplateVersion2.id,
+					transition: "start",
+				});
+				vi.spyOn(API, "getTemplate").mockResolvedValueOnce({
+					...MockTemplate,
+					active_version_id: MockTemplateVersion2.id,
+				});
+				await API.updateWorkspace(MockWorkspace);
+				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+					transition: "stop",
+					log_level: undefined,
+				});
+				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+					transition: "start",
+					template_version_id: MockTemplateVersion2.id,
+					rich_parameter_values: [],
+				});
+			});
+
+			it("fails when the server returns parameter validation errors", async () => {
+				const validationErrors = [
+					{ field: "first_parameter", detail: "First parameter is required" },
+					{
+						field: "second_parameter",
+						detail: "Second parameter is not valid",
+					},
+				];
+
+				vi.spyOn(API, "postWorkspaceBuild")
+					// First postWorkspaceBuild call is for the stop, which should succeed
+					.mockResolvedValueOnce({
+						...MockWorkspaceBuild,
+						transition: "stop",
+					})
+					// Second postWorkspaceBuild call is for the start, which should fail
+					// with validation errors.
+					.mockRejectedValueOnce({
+						isAxiosError: true,
+						response: {
+							status: 400,
+							data: {
+								message: "Invalid build parameters",
+								validations: validationErrors,
+							},
+						},
+					});
+				vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+
+				let error: unknown;
+				try {
+					await API.updateWorkspace(MockWorkspace);
+				} catch (e) {
+					error = e;
+				}
+
+				expect(error).toBeInstanceOf(ParameterValidationError);
+				if (!(error instanceof ParameterValidationError)) {
+					throw new Error("expected a ParameterValidationError");
+				}
+				expect(error.versionId).toBe(MockTemplate.active_version_id);
+				expect(error.validations).toEqual(validationErrors);
+			});
+
+			it("succeeds when the server accepts the build parameters", async () => {
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+					...MockWorkspaceBuild,
+					transition: "stop",
+				});
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+					...MockWorkspaceBuild,
+					template_version_id: MockTemplate.active_version_id,
+					transition: "start",
+				});
+				vi.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
+				await API.updateWorkspace(MockWorkspace);
+				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+					transition: "stop",
+					log_level: undefined,
+				});
+				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+					transition: "start",
+					template_version_id: MockTemplate.active_version_id,
+					rich_parameter_values: [],
+				});
+			});
+		});
+		describe("given a stopped workspace", () => {
+			it("creates a build with start and the latest template", async () => {
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce(
+					MockWorkspaceBuild,
+				);
+				vi.spyOn(API, "getTemplate").mockResolvedValueOnce({
+					...MockTemplate,
+					active_version_id: MockTemplateVersion2.id,
+				});
+				await API.updateWorkspace(MockStoppedWorkspace);
+				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(
+					MockStoppedWorkspace.id,
+					{
+						transition: "start",
+						template_version_id: MockTemplateVersion2.id,
+						rich_parameter_values: [],
+					},
+				);
+			});
+		});
+	});
+
+	describe("changeWorkspaceVersion", () => {
+		it("stops workspace before changing version if running", async () => {
+			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				transition: "stop",
+			});
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "succeeded",
+			});
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				template_version_id: MockTemplateVersion2.id,
+				transition: "start",
+			});
+
+			await API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id);
+
+			expect(API.stopWorkspace).toHaveBeenCalledWith(MockWorkspace.id);
+			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+				transition: "start",
+				template_version_id: MockTemplateVersion2.id,
+				rich_parameter_values: [],
+			});
+		});
+
+		it("does not stop workspace if already stopped", async () => {
+			vi.spyOn(API, "stopWorkspace");
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				template_version_id: MockTemplateVersion2.id,
+				transition: "start",
+			});
+
+			await API.changeWorkspaceVersion(
+				MockStoppedWorkspace,
+				MockTemplateVersion2.id,
+			);
+
+			expect(API.stopWorkspace).not.toHaveBeenCalled();
+		});
+
+		it("rejects if stop is canceled", async () => {
+			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				transition: "stop",
+			});
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "canceled",
+			});
+			vi.spyOn(API, "postWorkspaceBuild");
+
+			await expect(
+				API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id),
+			).rejects.toThrow("Workspace stop was canceled");
+			expect(API.postWorkspaceBuild).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("chat configuration endpoints", () => {
+		const organizationId = "organization/id";
+
+		it.each<[string, () => Promise<unknown>, unknown]>([
+			[
+				"/api/v2/organizations/organization%2Fid/chats/models",
+				() => API.experimental.getChatModels(organizationId),
+				{ models: [], providers: [], unsupported_providers: [] },
+			],
+		])("returns response data for %s", async (path, request, responseData) => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: responseData,
+			});
+
+			const result = await request();
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+			expect(result).toStrictEqual(responseData);
+		});
+
+		it("rejects chat model responses without a models array", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: { providers: [], unsupported_providers: [] },
+			});
+
+			await expect(
+				API.experimental.getChatModels(organizationId),
+			).rejects.toThrow(
+				"Invalid chat models response: models must be an array.",
+			);
+		});
+
+		it.each<[string, () => Promise<unknown>]>([
+			[
+				"/api/v2/organizations/organization%2Fid/chats/models",
+				() => API.experimental.getChatModels(organizationId),
+			],
+		])("rethrows axios errors for %s", async (path, request) => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "get").mockRejectedValueOnce(expectedError);
+
+			await expect(request()).rejects.toBe(expectedError);
+			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+		});
+
+		it("uses organization-nested chat model item paths", async () => {
+			const modelId = "model/id";
+			const responseData = { id: modelId };
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: responseData,
+			});
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({
+				data: responseData,
+			});
+			vi.spyOn(axiosInstance, "delete").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getChatModel(organizationId, modelId),
+			).resolves.toStrictEqual(responseData);
+			await expect(
+				API.experimental.updateChatModel(organizationId, modelId, {
+					enabled: true,
+				}),
+			).resolves.toStrictEqual(responseData);
+			await expect(
+				API.experimental.deleteChatModel(organizationId, modelId),
+			).resolves.toBeUndefined();
+
+			const itemPath =
+				"/api/v2/organizations/organization%2Fid/chats/models/model%2Fid";
+			expect(axiosInstance.get).toHaveBeenCalledWith(itemPath);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(itemPath, {
+				enabled: true,
+			});
+			expect(axiosInstance.delete).toHaveBeenCalledWith(itemPath);
+		});
+
+		it("uses organization-nested chat model ACL paths", async () => {
+			const modelId = "model/id";
+			const update: TypesGen.UpdateChatModelACLRequest = {
+				user_roles: { "user-1": "read" },
+				group_roles: { "group-1": "" },
+			};
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: MockChatModelACL,
+			});
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getChatModelACL(organizationId, modelId),
+			).resolves.toStrictEqual(MockChatModelACL);
+			await expect(
+				API.experimental.updateChatModelACL(organizationId, modelId, update),
+			).resolves.toBeUndefined();
+
+			const aclPath =
+				"/api/v2/organizations/organization%2Fid/chats/models/model%2Fid/acl";
+			expect(axiosInstance.get).toHaveBeenCalledWith(aclPath);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, update);
+		});
+
+		it("uses organization-nested MCP server ACL paths", async () => {
+			const serverId = "server/id";
+			const update: TypesGen.UpdateMCPServerConfigACLRequest = {
+				user_roles: { "user-1": "read" },
+			};
+			vi.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockMCPServerConfigACL })
+				.mockResolvedValueOnce({ data: MockMCPServerConfigACLAvailable });
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getMCPServerConfigACL(organizationId, serverId),
+			).resolves.toStrictEqual(MockMCPServerConfigACL);
+			await expect(
+				API.experimental.getMCPServerConfigACLAvailable(
+					organizationId,
+					serverId,
+					{ q: "alice@example.com", limit: 25 },
+				),
+			).resolves.toStrictEqual(MockMCPServerConfigACLAvailable);
+			await expect(
+				API.experimental.updateMCPServerConfigACL(
+					organizationId,
+					serverId,
+					update,
+				),
+			).resolves.toBeUndefined();
+
+			const aclPath =
+				"/api/v2/organizations/organization%2Fid/mcp-servers/server%2Fid/acl";
+			const aclAvailablePath =
+				"/api/v2/organizations/organization%2Fid/mcp-servers/server%2Fid/acl/available";
+			expect(axiosInstance.get).toHaveBeenNthCalledWith(1, aclPath);
+			expect(axiosInstance.get).toHaveBeenNthCalledWith(
+				2,
+				`${aclAvailablePath}?q=alice%40example.com&limit=25`,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, update);
+		});
+	});
+
+	describe("user secrets endpoints", () => {
+		const userId = "me";
+		const secretName = "EXAMPLE_TOKEN";
+		const secretNameWithPathChars = "foo%2Fbar value";
+		const userSecret: TypesGen.UserSecret = {
+			id: "00000000-0000-0000-0000-000000000001",
+			name: secretName,
+			description: "Example token for tests",
+			env_name: secretName,
+			file_path: "",
+			enabled: true,
+			created_at: "2026-05-04T00:00:00Z",
+			updated_at: "2026-05-04T00:00:00Z",
+		};
+
+		it("lists user secrets with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: [userSecret],
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecrets(userId);
+
+			expect(axiosMockGet).toHaveBeenCalledWith("/api/v2/users/me/secrets");
+			expect(result).toStrictEqual([userSecret]);
+		});
+
+		it("gets a user secret with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecret(userId, secretNameWithPathChars);
+
+			expect(axiosMockGet).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("creates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.CreateUserSecretRequest = {
+				name: secretName,
+				value: "",
+				description: "Example token for tests",
+				env_name: secretName,
+			};
+			const axiosMockPost = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.post = axiosMockPost;
+
+			const result = await API.createUserSecret(userId, request);
+
+			expect(axiosMockPost).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets",
+				request,
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("updates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.UpdateUserSecretRequest = {
+				description: "Updated example token for tests",
+			};
+			const updatedSecret: TypesGen.UserSecret = {
+				...userSecret,
+				description: "Updated example token for tests",
+				updated_at: "2026-05-04T00:01:00Z",
+			};
+			const axiosMockPatch = vi.fn().mockResolvedValueOnce({
+				data: updatedSecret,
+			});
+			axiosInstance.patch = axiosMockPatch;
+
+			const result = await API.updateUserSecret(
+				userId,
+				secretNameWithPathChars,
+				request,
+			);
+
+			expect(axiosMockPatch).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+				request,
+			);
+			expect(result).toStrictEqual(updatedSecret);
+		});
+
+		it("deletes a user secret with the correct method and URL", async () => {
+			const axiosMockDelete = vi.fn().mockResolvedValueOnce(undefined);
+			axiosInstance.delete = axiosMockDelete;
+
+			await API.deleteUserSecret(userId, secretNameWithPathChars);
+
+			expect(axiosMockDelete).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+			);
+		});
+	});
+
+	describe("chat ACL endpoints", () => {
+		const chatId = "chat-1";
+		const chatACL: TypesGen.ChatACL = {
+			users: [],
+			groups: [],
+		};
+
+		it("gets a chat ACL", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: chatACL,
+			});
+
+			const result = await API.experimental.getChatACL(chatId);
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				`/api/v2/chats/${chatId}/acl`,
+			);
+			expect(result).toStrictEqual(chatACL);
+		});
+
+		it("updates a chat ACL", async () => {
+			const request: TypesGen.UpdateChatACL = {
+				user_roles: { "user-1": "read" },
+			};
+
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await API.experimental.updateChatACL(chatId, request);
+
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`/api/v2/chats/${chatId}/acl`,
+				request,
+			);
+		});
+	});
+
+	describe("oauth2 provider settings", () => {
+		const settings: TypesGen.OAuth2ProviderSettings = {
+			dynamic_client_registration_enabled: true,
+		};
+
+		it("gets oauth2 provider settings", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: settings,
+			});
+
+			const result = await API.getOAuth2ProviderSettings();
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/settings",
+			);
+			expect(result).toStrictEqual(settings);
+		});
+
+		it("propagates errors when getting oauth2 provider settings", async () => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "get").mockRejectedValueOnce(expectedError);
+
+			await expect(API.getOAuth2ProviderSettings()).rejects.toBe(expectedError);
+		});
+
+		it("updates oauth2 provider settings", async () => {
+			vi.spyOn(axiosInstance, "put").mockResolvedValueOnce({
+				data: settings,
+			});
+
+			const result = await API.putOAuth2ProviderSettings(settings);
+
+			expect(axiosInstance.put).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/settings",
+				settings,
+			);
+			expect(result).toStrictEqual(settings);
+		});
+
+		it("propagates errors when updating oauth2 provider settings", async () => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "put").mockRejectedValueOnce(expectedError);
+
+			await expect(API.putOAuth2ProviderSettings(settings)).rejects.toBe(
+				expectedError,
+			);
+		});
+	});
+});

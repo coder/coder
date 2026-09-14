@@ -1,0 +1,37 @@
+import type { StorybookConfig } from "@storybook/react-vite";
+
+export default {
+	stories: ["../src/**/*.stories.tsx"],
+
+	addons: [
+		"@storybook/addon-a11y",
+		"@storybook/addon-docs",
+		"@storybook/addon-links",
+		"@storybook/addon-themes",
+		"storybook-addon-remix-react-router",
+		"@storybook/addon-vitest",
+		"@storybook/addon-mcp",
+	],
+
+	staticDirs: ["../static", "./static"],
+
+	framework: {
+		name: "@storybook/react-vite",
+		options: {},
+	},
+
+	core: {
+		allowedHosts: [".coder", ".dogfood.cdr.dev"],
+	},
+
+	async viteFinal(config) {
+		// Storybook seems to strip this setting out of our Vite config. We need to
+		// put it back in order to be able to access Storybook with Coder Desktop or
+		// port sharing.
+		config.server = {
+			...config.server,
+			allowedHosts: [".coder", ".dogfood.cdr.dev"],
+		};
+		return config;
+	},
+} satisfies StorybookConfig;

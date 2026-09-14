@@ -1,0 +1,11 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations members remove <username | user_id>
+
+  Remove a new member to the current organization
+
+  Aliases: rm
+
+———
+Run `coder --help` for a list of global options.

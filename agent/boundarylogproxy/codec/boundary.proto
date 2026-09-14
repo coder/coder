@@ -1,0 +1,29 @@
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/agent/boundarylogproxy/codec";
+
+package coder.boundarylogproxy.codec.v1;
+
+import "agent/proto/agent.proto";
+
+// BoundaryMessage is the envelope for all TagV2 messages sent over the
+// boundary <-> agent unix socket. TagV1 carries a bare
+// ReportBoundaryLogsRequest for backwards compatibility; TagV2 wraps
+// everything in this envelope so the protocol can be extended with new
+// message types without adding more tags.
+message BoundaryMessage {
+	oneof msg {
+		coder.agent.v2.ReportBoundaryLogsRequest logs = 1;
+		BoundaryStatus status = 2;
+	}
+}
+
+// BoundaryStatus carries operational metadata from boundary to the agent.
+// The agent records these values as Prometheus metrics. This message is
+// never forwarded to coderd.
+message BoundaryStatus {
+	// Logs dropped because boundary's internal channel buffer was full.
+	int64 dropped_channel_full = 1;
+	// Logs dropped because boundary's batch buffer was full after a
+	// failed flush attempt.
+	int64 dropped_batch_full = 2;
+}

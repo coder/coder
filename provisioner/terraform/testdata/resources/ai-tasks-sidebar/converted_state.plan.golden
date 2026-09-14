@@ -1,0 +1,12 @@
+{
+  "Resources": [
+    {
+      "name": "a",
+      "type": "coder_ai_task"
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "HasExternalAgents": false
+}

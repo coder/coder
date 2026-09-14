@@ -1,0 +1,7 @@
+An apply_start without a corresponding apply_complete will not produce a timing (and vice-versa).
+
+-- plan --
+{"@level":"info","@message":"data.coder_provisioner.me: Refreshing...","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.194726+02:00","hook":{"resource":{"addr":"data.coder_provisioner.me","module":"","resource":"data.coder_provisioner.me","implied_provider":"coder","resource_type":"coder_provisioner","resource_name":"me","resource_key":null},"action":"read"},"type":"apply_start"}
+-- apply --
+{"@level":"info","@message":"coder_agent.main: Creation complete after 0s [id=a23083da-4679-4396-a306-f7b466237883]","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.618045+02:00","hook":{"resource":{"addr":"coder_agent.main","module":"","resource":"coder_agent.main","implied_provider":"coder","resource_type":"coder_agent","resource_name":"main","resource_key":null},"action":"create","id_key":"id","id_value":"a23083da-4679-4396-a306-f7b466237883","elapsed_seconds":0},"type":"apply_complete"}
+-- timings --

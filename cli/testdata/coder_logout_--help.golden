@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder logout [flags]
+
+  Unauthenticate your local session
+
+OPTIONS:
+  -y, --yes bool
+          Bypass confirmation prompts.
+
+———
+Run `coder --help` for a list of global options.

@@ -1,0 +1,125 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
+import { expect, within } from "storybook/test";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "#/components/Filter/storyHelpers";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
+import {
+	MockConnectedSSHConnectionLog,
+	MockDisconnectedSSHConnectionLog,
+	MockPermissions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
+import { docs } from "#/utils/docs";
+import { ConnectionLogPageView } from "./ConnectionLogPageView";
+
+type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];
+
+const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+	query: `username:${MockUserOwner.username}`,
+	values: {
+		username: MockUserOwner.username,
+		status: undefined,
+		type: undefined,
+		organization: undefined,
+	},
+	menus: {
+		user: MockMenu,
+		status: MockMenu,
+		type: MockMenu,
+	},
+});
+
+const meta: Meta<typeof ConnectionLogPageView> = {
+	title: "pages/ConnectionLogPage",
+	component: ConnectionLogPageView,
+	args: {
+		connectionLogs: [
+			MockConnectedSSHConnectionLog,
+			MockDisconnectedSSHConnectionLog,
+		],
+		isConnectionLogVisible: true,
+		filterProps: defaultFilterProps,
+		permissions: MockPermissions,
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof ConnectionLogPageView>;
+
+export const ConnectionLog: Story = {
+	parameters: { pixel: { matrix: pixelWithTablet } },
+	args: {
+		connectionLogsQuery: mockSuccessResult,
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		connectionLogs: undefined,
+		isNonInitialPage: false,
+		connectionLogsQuery: mockInitialRenderResult,
+	},
+};
+
+export const EmptyPage: Story = {
+	args: {
+		connectionLogs: [],
+		isNonInitialPage: true,
+		connectionLogsQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+		} as UsePaginatedQueryResult,
+	},
+};
+
+export const NoLogs: Story = {
+	args: {
+		connectionLogs: [],
+		isNonInitialPage: false,
+		connectionLogsQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+		} as UsePaginatedQueryResult,
+	},
+};
+
+export const NotVisible: Story = {
+	args: {
+		isConnectionLogVisible: false,
+		connectionLogsQuery: mockInitialRenderResult,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/monitoring/connection-logs"));
+	},
+};
+
+export const NotVisibleWithoutLicenseAccess: Story = {
+	args: {
+		...NotVisible.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
+	},
+};

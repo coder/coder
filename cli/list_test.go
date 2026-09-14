@@ -1,0 +1,181 @@
+package cli_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
+)
+
+func TestList(t *testing.T) {
+	t.Parallel()
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		// setup template
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUser.ID,
+		}).WithAgent().Do()
+
+		inv, root := clitest.New(t, "ls")
+		clitest.SetupConfig(t, member, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancelFunc()
+		done := make(chan any)
+		go func() {
+			errC := inv.WithContext(ctx).Run()
+			assert.NoError(t, errC)
+			close(done)
+		}()
+		stdout.ExpectMatch(ctx, r.Workspace.Name)
+		stdout.ExpectMatch(ctx, "Started")
+		cancelFunc()
+		<-done
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUser.ID,
+		}).WithAgent().Do()
+
+		inv, root := clitest.New(t, "list", "--output=json")
+		clitest.SetupConfig(t, member, root)
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancelFunc()
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var workspaces []codersdk.Workspace
+		require.NoError(t, json.Unmarshal(out.Bytes(), &workspaces))
+		require.Len(t, workspaces, 1)
+	})
+
+	t.Run("NoWorkspacesJSON", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		inv, root := clitest.New(t, "list", "--output=json")
+		clitest.SetupConfig(t, member, root)
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancelFunc()
+
+		stdout := bytes.NewBuffer(nil)
+		stderr := bytes.NewBuffer(nil)
+		inv.Stdout = stdout
+		inv.Stderr = stderr
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var workspaces []codersdk.Workspace
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &workspaces))
+		require.Len(t, workspaces, 0)
+
+		require.Len(t, stderr.Bytes(), 0)
+	})
+
+	t.Run("SharedWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db           = coderdtest.NewWithDatabase(t, nil)
+			orgOwner             = coderdtest.CreateFirstUser(t, client)
+			memberClient, member = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace      = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				Name:           "wibble",
+				OwnerID:        orgOwner.UserID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				Name:           "wobble",
+				OwnerID:        orgOwner.UserID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				member.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+
+		inv, root := clitest.New(t, "list", "--shared-with-me", "--output=json")
+		clitest.SetupConfig(t, memberClient, root)
+
+		stdout := new(bytes.Buffer)
+		inv.Stdout = stdout
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var workspaces []codersdk.Workspace
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &workspaces))
+		require.Len(t, workspaces, 1)
+		require.Equal(t, sharedWorkspace.ID, workspaces[0].ID)
+	})
+
+	t.Run("HTMLResponse", func(t *testing.T) {
+		t.Parallel()
+		// Simulate an SSO portal or misconfigured reverse proxy that
+		// returns 200 OK with an HTML body instead of JSON.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<!DOCTYPE html><html><head><title>Sign in</title></head><body>Sign in</body></html>"))
+		}))
+		defer srv.Close()
+
+		parsedURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		client := codersdk.New(parsedURL)
+		client.SetSessionToken("test-token")
+
+		inv, root := clitest.New(t, "list")
+		clitest.SetupConfig(t, client, root)
+		err = inv.Run()
+		require.Error(t, err)
+
+		// The list command wraps the error, so errors.As must
+		// traverse the wrapping to find the SDK error.
+		var sdkErr *codersdk.Error
+		require.True(t, errors.As(err, &sdkErr))
+		require.Equal(t, http.StatusOK, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+		require.Contains(t, sdkErr.Helper, "/api/v2")
+		require.NotContains(t, err.Error(), "invalid character")
+		require.NotContains(t, err.Error(), "unexpected status code")
+	})
+}

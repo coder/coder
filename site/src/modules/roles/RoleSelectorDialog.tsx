@@ -1,0 +1,140 @@
+import { useState } from "react";
+import type { AssignableRoles, SlimRole } from "#/api/typesGenerated";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import { getRoleNames } from "./index";
+import { RoleSelector } from "./RoleSelector";
+
+type RoleSelectorDialogProps = {
+	/**
+	 * The user who is currently being edited. The dialog will be hidden if no
+	 * no user is provided.
+	 */
+	user?: ThingWithRoles;
+	/** The roles available in this context that can be given or removed from the user */
+	availableRoles?: AssignableRoles[];
+	additionalImpliedRoles?: AssignableRoles[];
+
+	onCancel: () => void;
+	onUpdateRoles: (roles: string[]) => Promise<void>;
+	isUpdatingRoles: boolean;
+	loading?: boolean;
+	error?: unknown;
+};
+
+type ThingWithRoles = {
+	username: string;
+	email: string;
+	roles: readonly SlimRole[];
+	avatar_url?: string;
+};
+
+export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
+	user,
+	availableRoles = [],
+	additionalImpliedRoles = [],
+	onCancel,
+	onUpdateRoles,
+	isUpdatingRoles,
+	loading,
+	error,
+}) => {
+	if (!user) {
+		return null;
+	}
+
+	return (
+		<ActiveRoleSelectorDialog
+			user={user}
+			availableRoles={availableRoles}
+			additionalImpliedRoles={additionalImpliedRoles}
+			onCancel={onCancel}
+			onUpdateRoles={onUpdateRoles}
+			isUpdatingRoles={isUpdatingRoles}
+			loading={Boolean(loading)}
+			error={error}
+		/>
+	);
+};
+
+const ActiveRoleSelectorDialog: React.FC<{
+	user: ThingWithRoles;
+	availableRoles: AssignableRoles[];
+	additionalImpliedRoles: AssignableRoles[];
+	onCancel: () => void;
+	onUpdateRoles: (roles: string[]) => Promise<void>;
+	isUpdatingRoles: boolean;
+	loading: boolean;
+	error?: unknown;
+}> = ({
+	user,
+	availableRoles,
+	additionalImpliedRoles,
+	onCancel,
+	onUpdateRoles,
+	isUpdatingRoles,
+	loading,
+	error,
+}) => {
+	const [selectedRoles, setSelectedRoles] = useState<Set<string>>(
+		() => new Set(getRoleNames(user.roles)),
+	);
+	// A role the user holds explicitly must stay selectable even when it
+	// is also implied (for example via the organization's default roles);
+	// otherwise the explicit grant could never be removed here. Derived
+	// from the user's initial roles so rows do not vanish mid-edit.
+	const [impliedRoles] = useState<AssignableRoles[]>(() => {
+		const explicitRoleNames = new Set(getRoleNames(user.roles));
+		return additionalImpliedRoles.filter(
+			(role) => !explicitRoleNames.has(role.name),
+		);
+	});
+
+	return (
+		<Dialog
+			open
+			onOpenChange={(isOpen) => {
+				if (!isOpen) {
+					onCancel();
+				}
+			}}
+		>
+			<DialogContent>
+				<DialogHeader>
+					<div className="flex flex-row justify-between items-center">
+						<DialogTitle>Edit roles</DialogTitle>
+						<AvatarData
+							title={user.username}
+							subtitle={user.email}
+							src={user.avatar_url}
+						/>
+					</div>
+				</DialogHeader>
+				<RoleSelector
+					hideLabel
+					loading={loading}
+					error={error}
+					availableRoles={availableRoles}
+					additionalImpliedRoles={impliedRoles}
+					selectedRoles={selectedRoles}
+					onChange={setSelectedRoles}
+				/>
+				<DialogFooter>
+					<DialogActions
+						onCancel={onCancel}
+						onConfirm={() => onUpdateRoles([...selectedRoles])}
+						confirmLoading={isUpdatingRoles}
+						confirmDisabled={loading || Boolean(error)}
+					/>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+};

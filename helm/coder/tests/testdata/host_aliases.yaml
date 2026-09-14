@@ -1,0 +1,11 @@
+coder:
+  image:
+    tag: latest
+  hostAliases:
+    - hostnames:
+        - "coder.nicecorp.org"
+        - "coder.internal"
+      ip: "1.1.1.1"
+    - hostnames:
+        - "db.internal"
+      ip: "10.0.0.5"

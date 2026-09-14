@@ -1,0 +1,266 @@
+# This workflow checks if a PR requires documentation updates.
+# It creates a Coder Agent chat session that uses AI to analyze the PR
+# changes, search existing docs, and comment with recommendations.
+#
+# Triggers:
+#   - New PR opened: Initial documentation review
+#   - PR updated (synchronize): Re-review after changes
+#   - Label "doc-check" added: Manual trigger for review
+#   - PR marked ready for review: Review when draft is promoted
+#   - Workflow dispatch: Manual run with PR URL
+#
+# Note: This workflow requires access to secrets and will be skipped for:
+#   - Any PR where secrets are not available
+# For these PRs, maintainers can manually trigger via workflow_dispatch.
+
+name: AI Documentation Check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - labeled
+      - ready_for_review
+  workflow_dispatch:
+    inputs:
+      pr_url:
+        description: "Pull Request URL to check"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  doc-check:
+    name: Analyze PR for Documentation Updates Needed
+    runs-on: ubuntu-latest
+    # Run on: opened, synchronize, labeled (with doc-check label), ready_for_review, or workflow_dispatch
+    # Skip draft PRs unless manually triggered
+    if: |
+      (
+        github.event.action == 'opened' ||
+        github.event.action == 'synchronize' ||
+        github.event.label.name == 'doc-check' ||
+        github.event.action == 'ready_for_review' ||
+        github.event_name == 'workflow_dispatch'
+      ) &&
+      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Check if secrets are available
+        id: check-secrets
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+        run: |
+          if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "Secrets not available - skipping doc-check."
+            echo "This is expected for PRs where secrets are not available."
+            echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            {
+              echo "⚠️ Workflow skipped: Secrets not available"
+              echo ""
+              echo "This workflow requires secrets that are unavailable for this run."
+              echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Determine PR Context
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: determine-context
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action }}
+          GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          INPUTS_PR_URL: ${{ inputs.pr_url }}
+        run: |
+          # Determine trigger type for context
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "trigger_type=manual" >> "${GITHUB_OUTPUT}"
+            echo "Using PR URL: ${INPUTS_PR_URL}"
+
+            # Validate PR URL format
+            if [[ ! "${INPUTS_PR_URL}" =~ ^https://github\.com/[^/]+/[^/]+/pull/[0-9]+$ ]]; then
+              echo "::error::Invalid PR URL format: ${INPUTS_PR_URL}"
+              echo "::error::Expected format: https://github.com/owner/repo/pull/NUMBER"
+              exit 1
+            fi
+
+            ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
+            echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
+            ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            # Set trigger type based on action
+            case "${GITHUB_EVENT_ACTION}" in
+              opened)
+                echo "trigger_type=new_pr" >> "${GITHUB_OUTPUT}"
+                ;;
+              synchronize)
+                echo "trigger_type=pr_updated" >> "${GITHUB_OUTPUT}"
+                ;;
+              labeled)
+                echo "trigger_type=label_requested" >> "${GITHUB_OUTPUT}"
+                ;;
+              ready_for_review)
+                echo "trigger_type=ready_for_review" >> "${GITHUB_OUTPUT}"
+                ;;
+              *)
+                echo "trigger_type=unknown" >> "${GITHUB_OUTPUT}"
+                ;;
+            esac
+
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+      - name: Check the review workspace is usable
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: check-workspace
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+        run: |
+          # A review reuses one chat per PR, and that chat owns one workspace.
+          # The workspace stops after about a day and then goes dormant. A chat
+          # cannot repair a dormant workspace: start_workspace and
+          # create_workspace both fail with
+          # "unauthorized: rbac: forbidden". The review then reads
+          # nothing and posts nothing, and this job used to still pass. Fail
+          # here instead, so the check reports what happened.
+          # https://linear.app/codercom/issue/CODAGT-1025
+          WS_NAME="doc-check-pr-${PR_NUMBER}"
+          RESPONSE=$(curl -sS --fail-with-body -G \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            --data-urlencode "q=owner:me name:${WS_NAME}" \
+            "${CODER_URL%/}/api/v2/workspaces") || {
+              echo "::warning::Could not read the workspace state from Coder. Continuing."
+              exit 0
+            }
+          DORMANT_AT=$(echo "${RESPONSE}" | jq -r '.workspaces[0].dormant_at // empty')
+          if [[ -n "${DORMANT_AT}" ]]; then
+            echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
+            {
+              echo "### Documentation check did not run"
+              echo ""
+              echo "The workspace \`${WS_NAME}\` is dormant since ${DORMANT_AT}."
+              echo ""
+              echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See [CODAGT-1025](https://linear.app/codercom/issue/CODAGT-1025)."
+              echo ""
+              echo "To run the review now, start \`${WS_NAME}\` in Coder, then push again or re-run this job."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+          echo "Workspace state is usable."
+
+      - name: Build chat prompt
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: extract-context
+        env:
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+          TRIGGER_TYPE: ${{ steps.determine-context.outputs.trigger_type }}
+        run: |
+          echo "Analyzing PR #${PR_NUMBER} (trigger: ${TRIGGER_TYPE})"
+
+          # Build context based on trigger type
+          case "${TRIGGER_TYPE}" in
+            new_pr)
+              CONTEXT="This is a NEW PR. Perform initial documentation review."
+              ;;
+            pr_updated)
+              CONTEXT="This PR was UPDATED with new commits. Check if previous feedback was addressed or if new doc needs arose."
+              ;;
+            label_requested)
+              CONTEXT="A documentation review was REQUESTED via label. Perform a thorough review."
+              ;;
+            ready_for_review)
+              CONTEXT="This PR was marked READY FOR REVIEW. Perform a thorough review."
+              ;;
+            manual)
+              CONTEXT="This is a MANUAL review request. Perform a thorough review."
+              ;;
+            *)
+              CONTEXT="Perform a documentation review."
+              ;;
+          esac
+
+          # Build the chat prompt. Durable rules live in the skill
+          # (.claude/skills/doc-check/SKILL.md), so this prompt stays short
+          # and carries only what changes per run.
+          CHAT_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
+
+          ${CONTEXT}
+
+          Use \`gh\` to read the PR details, the diff, and every comment.
+
+          Follow the skill in full: its evidence discipline, its comment
+          rules, and its comment format. **Do not comment if no
+          documentation changes are needed.**
+
+          ## When the workspace is broken
+
+          A tool call that fails with \`unauthorized: rbac: forbidden\` is an
+          infrastructure state, not a bad command, so retrying the same
+          command changes nothing.
+
+          Call \`start_workspace\` with no arguments. If it answers
+          \`workspace was deleted\` or \`chat has no workspace\`, call
+          \`list_templates\` for the \`coder-workflow-bot\` template ID, then
+          \`create_workspace\` with it, and run the failed call again. If it
+          answers \`load workspace: unauthorized: rbac: forbidden\`, the
+          workspace is dormant and you cannot repair it: stop, say you could
+          not review the PR, and name the error. Post no comment, and do not
+          imply the docs are fine, because you did not read them.
+
+          Create any new workspace from the \"coder-workflow-bot\" template."
+
+          # Output the prompt
+          {
+            echo "chat_prompt<<EOFOUTPUT"
+            echo "${CHAT_PROMPT}"
+            echo "EOFOUTPUT"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Run doc-check via Coder Agent Chat
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: coder/agents-chat-action@b3fc81d7dae5006dd124e98ef6fada1a36cdd86e # v0.3.0
+        with:
+          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          # The bot account belongs to many organizations on this deployment,
+          # where the action's fallback organization choice is not
+          # deterministic. Pin it, because a model configuration ID only
+          # resolves inside its own organization.
+          coder-organization: coder
+          # Pins the model that reviews the PR. Set this repository variable to
+          # a model configuration ID in the organization above. Unset means the
+          # deployment's default model, so clearing the variable is the
+          # rollback path and needs no code change.
+          model-config-id: ${{ vars.DOC_CHECK_MODEL_CONFIG_ID }}
+          chat-prompt: ${{ steps.extract-context.outputs.chat_prompt }}
+          github-url: ${{ steps.determine-context.outputs.pr_url }}
+          github-token: ${{ github.token }}
+          wait: complete
+          wait-timeout-seconds: "600"
+          # The doc-check agent posts its own sticky comment when there
+          # are findings; failures surface in the workflow run log.
+          comment-on-issue: "false"

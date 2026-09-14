@@ -1,0 +1,704 @@
+package audit
+
+import (
+	"database/sql"
+	"encoding/json"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+)
+
+func Test_diffValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Normal", func(t *testing.T) {
+		t.Parallel()
+
+		type foo struct {
+			Bar string `json:"bar"`
+			Baz int    `json:"baz"`
+		}
+
+		table := auditMap(map[any]map[string]Action{
+			&foo{}: {
+				"bar": ActionTrack,
+				"baz": ActionTrack,
+			},
+		})
+
+		runDiffValuesTests(t, table, []diffTest{
+			{
+				name: "LeftEmpty",
+				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "bar", Baz: 10},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "", New: "bar"},
+					"baz": audit.OldNew{Old: 0, New: 10},
+				},
+			},
+			{
+				name: "RightEmpty",
+				left: foo{Bar: "Bar", Baz: 10}, right: foo{Bar: "", Baz: 0},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "Bar", New: ""},
+					"baz": audit.OldNew{Old: 10, New: 0},
+				},
+			},
+			{
+				name: "NoChange",
+				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "", Baz: 0},
+				exp: audit.Map{},
+			},
+			{
+				name: "SingleFieldChange",
+				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "Bar", Baz: 0},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "", New: "Bar"},
+				},
+			},
+		})
+	})
+
+	t.Run("PointerField", func(t *testing.T) {
+		t.Parallel()
+
+		type foo struct {
+			Bar *string `json:"bar"`
+		}
+
+		table := auditMap(map[any]map[string]Action{
+			&foo{}: {
+				"bar": ActionTrack,
+			},
+		})
+
+		runDiffValuesTests(t, table, []diffTest{
+			{
+				name: "LeftNil",
+				left: foo{Bar: nil}, right: foo{Bar: new("baz")},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "", New: "baz"},
+				},
+			},
+			{
+				name: "RightNil",
+				left: foo{Bar: new("baz")}, right: foo{Bar: nil},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "baz", New: ""},
+				},
+			},
+		})
+	})
+
+	//nolint:revive
+	t.Run("EmbeddedStruct", func(t *testing.T) {
+		t.Parallel()
+
+		type Bar struct {
+			Baz  int    `json:"baz"`
+			Buzz string `json:"buzz"`
+		}
+
+		type PtrBar struct {
+			Qux string `json:"qux"`
+		}
+
+		type foo struct {
+			Bar
+			*PtrBar
+			TopLevel string `json:"top_level"`
+		}
+
+		table := auditMap(map[any]map[string]Action{
+			&foo{}: {
+				"baz":       ActionTrack,
+				"buzz":      ActionTrack,
+				"qux":       ActionTrack,
+				"top_level": ActionTrack,
+			},
+		})
+
+		runDiffValuesTests(t, table, []diffTest{
+			{
+				name:  "SingleFieldChange",
+				left:  foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				right: foo{TopLevel: "top-after", Bar: Bar{Baz: 0, Buzz: "after"}, PtrBar: &PtrBar{Qux: "qux-after"}},
+				exp: audit.Map{
+					"baz":       audit.OldNew{Old: 1, New: 0},
+					"buzz":      audit.OldNew{Old: "before", New: "after"},
+					"qux":       audit.OldNew{Old: "qux-before", New: "qux-after"},
+					"top_level": audit.OldNew{Old: "top-before", New: "top-after"},
+				},
+			},
+			{
+				name:  "Empty",
+				left:  foo{},
+				right: foo{},
+				exp:   audit.Map{},
+			},
+			{
+				name:  "NoChange",
+				left:  foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				right: foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				exp:   audit.Map{},
+			},
+			{
+				name:  "LeftEmpty",
+				left:  foo{},
+				right: foo{TopLevel: "top-after", Bar: Bar{Baz: 1, Buzz: "after"}, PtrBar: &PtrBar{Qux: "qux-after"}},
+				exp: audit.Map{
+					"baz":       audit.OldNew{Old: 0, New: 1},
+					"buzz":      audit.OldNew{Old: "", New: "after"},
+					"qux":       audit.OldNew{Old: "", New: "qux-after"},
+					"top_level": audit.OldNew{Old: "", New: "top-after"},
+				},
+			},
+			{
+				name:  "RightNil",
+				left:  foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				right: foo{},
+				exp: audit.Map{
+					"baz":       audit.OldNew{Old: 1, New: 0},
+					"buzz":      audit.OldNew{Old: "before", New: ""},
+					"qux":       audit.OldNew{Old: "qux-before", New: ""},
+					"top_level": audit.OldNew{Old: "top-before", New: ""},
+				},
+			},
+		})
+	})
+
+	// We currently don't support nested structs.
+	// t.Run("NestedStruct", func(t *testing.T) {
+	// 	t.Parallel()
+
+	// 	type bar struct {
+	// 		Baz string `json:"baz"`
+	// 	}
+
+	// 	type foo struct {
+	// 		Bar *bar `json:"bar"`
+	// 	}
+
+	// 	table := auditMap(map[any]map[string]Action{
+	// 		&foo{}: {
+	// 			"bar": ActionTrack,
+	// 		},
+	// 		&bar{}: {
+	// 			"baz": ActionTrack,
+	// 		},
+	// 	})
+
+	// 	runDiffValuesTests(t, table, []diffTest{
+	// 		{
+	// 			name: "LeftEmpty",
+	// 			left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{
+	// 					"baz": audit.OldNew{Old: "", New: "baz"},
+	// 				},
+	// 			},
+	// 		},
+	// 		{
+	// 			name: "RightEmpty",
+	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{
+	// 					"baz": audit.OldNew{Old: "baz", New: ""},
+	// 				},
+	// 			},
+	// 		},
+	// 		{
+	// 			name: "LeftNil",
+	// 			left: foo{Bar: nil}, right: foo{Bar: &bar{}},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{},
+	// 			},
+	// 		},
+	// 		{
+	// 			name: "RightNil",
+	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{
+	// 					"baz": audit.OldNew{Old: "baz", New: ""},
+	// 				},
+	// 			},
+	// 		},
+	// 	})
+	// })
+}
+
+type diffTest struct {
+	name        string
+	left, right any
+	exp         any
+}
+
+func runDiffValuesTests(t *testing.T, table Table, tests []diffTest) {
+	t.Helper()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t,
+				test.exp,
+				diffValues(test.left, test.right, table),
+			)
+		})
+	}
+}
+
+func Test_diff(t *testing.T) {
+	t.Parallel()
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "Create",
+			left: audit.Empty[database.GitSSHKey](),
+			right: database.GitSSHKey{
+				UserID:     uuid.UUID{1},
+				CreatedAt:  time.Now(),
+				UpdatedAt:  time.Now(),
+				PrivateKey: "a very secret private key",
+				PublicKey:  "a very public public key",
+			},
+			exp: audit.Map{
+				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"private_key": audit.OldNew{Old: "", New: "", Secret: true},
+				"public_key":  audit.OldNew{Old: "", New: "a very public public key"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "Create",
+			left: audit.Empty[database.Template](),
+			right: database.Template{
+				ID:              uuid.UUID{1},
+				CreatedAt:       time.Now(),
+				UpdatedAt:       time.Now(),
+				OrganizationID:  uuid.UUID{2},
+				Deleted:         false,
+				Name:            "rust",
+				Provisioner:     database.ProvisionerTypeTerraform,
+				ActiveVersionID: uuid.UUID{3},
+				DefaultTTL:      int64(time.Hour),
+				CreatedBy:       uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"id":                audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"name":              audit.OldNew{Old: "", New: "rust"},
+				"provisioner":       audit.OldNew{Old: database.ProvisionerType(""), New: database.ProvisionerTypeTerraform},
+				"active_version_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"default_ttl":       audit.OldNew{Old: int64(0), New: int64(time.Hour)},
+				"created_by":        audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "Create",
+			left: audit.Empty[database.TemplateVersion](),
+			right: database.TemplateVersion{
+				ID:             uuid.UUID{1},
+				TemplateID:     uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+				OrganizationID: uuid.UUID{3},
+				Name:           "rust",
+				CreatedBy:      uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"template_id": audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+				"created_by":  audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
+				"name":        audit.OldNew{Old: "", New: "rust"},
+			},
+		},
+		{
+			name: "CreateNullTemplateID",
+			left: audit.Empty[database.TemplateVersion](),
+			right: database.TemplateVersion{
+				ID:             uuid.UUID{1},
+				TemplateID:     uuid.NullUUID{},
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+				OrganizationID: uuid.UUID{3},
+				Name:           "rust",
+				CreatedBy:      uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"id":         audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"created_by": audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
+				"name":       audit.OldNew{Old: "", New: "rust"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "Create",
+			left: audit.Empty[database.User](),
+			right: database.User{
+				ID:             uuid.UUID{1},
+				Email:          "colin@coder.com",
+				Username:       "colin",
+				HashedPassword: []byte("hunter2ButHashed"),
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+				Status:         database.UserStatusActive,
+				RBACRoles:      []string{"omega admin"},
+			},
+			exp: audit.Map{
+				"id":              audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"email":           audit.OldNew{Old: "", New: "colin@coder.com"},
+				"username":        audit.OldNew{Old: "", New: "colin"},
+				"hashed_password": audit.OldNew{Old: ([]byte)(nil), New: ([]byte)(nil), Secret: true},
+				"status":          audit.OldNew{Old: database.UserStatus(""), New: database.UserStatusActive},
+				"rbac_roles":      audit.OldNew{Old: (pq.StringArray)(nil), New: pq.StringArray{"omega admin"}},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// Chat titles can contain sensitive content, so they must be
+			// masked in audit diffs via ActionSecret. This case guards
+			// against a regression where title is flipped back to
+			// ActionTrack in enterprise/audit/table.go.
+			name: "TitleMasked",
+			left: audit.Empty[database.Chat](),
+			right: database.Chat{
+				ID:          uuid.UUID{1},
+				OwnerID:     uuid.UUID{2},
+				WorkspaceID: uuid.NullUUID{UUID: uuid.UUID{3}, Valid: true},
+				Title:       "a very secret chat title",
+			},
+			exp: audit.Map{
+				"id":           audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"owner_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"workspace_id": audit.OldNew{Old: "null", New: uuid.UUID{3}.String()},
+				"title":        audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// User skill content is user-authored instruction text, not secret
+			// material, so audit diffs can include the content change.
+			name: "UserSkillContentTracked",
+			left: audit.Empty[database.UserSkill](),
+			right: database.UserSkill{
+				ID:          uuid.UUID{1},
+				UserID:      uuid.UUID{2},
+				Name:        "review-guidance",
+				Description: "How to review private projects",
+				Content:     "review markdown",
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"name":        audit.OldNew{Old: "", New: "review-guidance"},
+				"description": audit.OldNew{Old: "", New: "How to review private projects"},
+				"content":     audit.OldNew{Old: "", New: "review markdown"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "Create",
+			left: audit.Empty[database.WorkspaceTable](),
+			right: database.WorkspaceTable{
+				ID:                uuid.UUID{1},
+				CreatedAt:         time.Now(),
+				UpdatedAt:         time.Now(),
+				OwnerID:           uuid.UUID{2},
+				TemplateID:        uuid.UUID{3},
+				Name:              "rust workspace",
+				AutostartSchedule: sql.NullString{String: "0 12 * * 1-5", Valid: true},
+				Ttl:               sql.NullInt64{Int64: int64(8 * time.Hour), Valid: true},
+			},
+			exp: audit.Map{
+				"id":                 audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"owner_id":           audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"template_id":        audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"name":               audit.OldNew{Old: "", New: "rust workspace"},
+				"autostart_schedule": audit.OldNew{Old: "null", New: "0 12 * * 1-5"},
+				"ttl":                audit.OldNew{Old: int64(0), New: int64(8 * time.Hour)}, // XXX: pq still does not support time.Duration
+			},
+		},
+		{
+			name: "NullSchedules",
+			left: audit.Empty[database.WorkspaceTable](),
+			right: database.WorkspaceTable{
+				ID:                uuid.UUID{1},
+				CreatedAt:         time.Now(),
+				UpdatedAt:         time.Now(),
+				OwnerID:           uuid.UUID{2},
+				TemplateID:        uuid.UUID{3},
+				Name:              "rust workspace",
+				AutostartSchedule: sql.NullString{},
+				Ttl:               sql.NullInt64{},
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"owner_id":    audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"template_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"name":        audit.OldNew{Old: "", New: "rust workspace"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "PropertyChange",
+			left: database.AIProvider{
+				ID:          uuid.UUID{1},
+				Type:        database.AIProviderTypeOpenai,
+				Name:        "primary-openai",
+				DisplayName: sql.NullString{String: "Primary", Valid: true},
+				Enabled:     true,
+				BaseUrl:     "https://api.openai.com/v1",
+			},
+			right: database.AIProvider{
+				ID:          uuid.UUID{1},
+				Type:        database.AIProviderTypeOpenai,
+				Name:        "primary-openai",
+				DisplayName: sql.NullString{String: "Renamed", Valid: true},
+				Enabled:     false,
+				BaseUrl:     "https://api.openai.com/v2",
+			},
+			exp: audit.Map{
+				"display_name": audit.OldNew{Old: "Primary", New: "Renamed"},
+				"enabled":      audit.OldNew{Old: true, New: false},
+				"base_url":     audit.OldNew{Old: "https://api.openai.com/v1", New: "https://api.openai.com/v2"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// api_key is tracked, but callers must pre-mask before the
+			// row reaches the audit pipeline. The pre-masked rendering
+			// (sk-prefix...suffix) is what flows into the diff.
+			name: "PreMaskedKeyFlowsThrough",
+			left: audit.Empty[database.AIProviderKey](),
+			right: database.AIProviderKey{
+				ID:         uuid.UUID{1},
+				ProviderID: uuid.UUID{2},
+				APIKey:     "sk-a...wxyz",
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"provider_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"api_key":     audit.OldNew{Old: "", New: "sk-a...wxyz"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// Prompt text is tracked, not secret: reviewers must see what
+			// agents are told to do (CODAGT-719). The system-prompt
+			// endpoint populates only its two fields; the untouched
+			// plan-mode field stays zero on both sides and never diffs.
+			name: "SystemPromptChangeTracked",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "old instructions",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "new instructions",
+				IncludeDefaultSystemPrompt: false,
+			},
+			exp: audit.Map{
+				"system_prompt":                 audit.OldNew{Old: "old instructions", New: "new instructions"},
+				"include_default_system_prompt": audit.OldNew{Old: true, New: false},
+			},
+		},
+		{
+			// The plan-mode endpoint populates only its own field; the
+			// system-prompt fields stay zero on both sides, so a
+			// plan-mode change diffs exactly one field.
+			name: "PlanModeInstructionsChangeTracked",
+			left: database.ChatInstructionSettings{
+				PlanModeInstructions: "old plan guidance",
+			},
+			right: database.ChatInstructionSettings{
+				ID:                   uuid.UUID{1},
+				PlanModeInstructions: "new plan guidance",
+			},
+			exp: audit.Map{
+				"plan_mode_instructions": audit.OldNew{Old: "old plan guidance", New: "new plan guidance"},
+			},
+		},
+		{
+			// The artificial ID is ignored, so a value-identical write
+			// would diff empty. Handlers additionally suppress the entry
+			// entirely by leaving both resource IDs nil.
+			name: "ArtificialIDIgnored",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			exp: audit.Map{},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "CreateEmptyStoredValues",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			},
+			exp: audit.Map{},
+		},
+		{
+			name: "Create",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				Slug:               "github",
+				Url:                "https://mcp.example.com/v1",
+				AuthType:           "api_key",
+				APIKeyHeader:       "X-Api-Key",
+				APIKeyValue:        "plaintext-api-key",
+				CustomHeaders:      `{"Authorization":"Bearer plaintext-header"}`,
+				ToolAllowList:      []string{"issues"},
+				ToolDenyList:       []string{"delete_repository"},
+				OAuth2ClientSecret: "plaintext-oauth-secret",
+				Enabled:            true,
+				CreatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				UpdatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":         audit.OldNew{Old: "", New: "GitHub MCP"},
+				"slug":                 audit.OldNew{Old: "", New: "github"},
+				"url":                  audit.OldNew{Old: "", New: "https://mcp.example.com/v1"},
+				"auth_type":            audit.OldNew{Old: "", New: "api_key"},
+				"api_key_header":       audit.OldNew{Old: "", New: "X-Api-Key"},
+				"api_key_value":        audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers":       audit.OldNew{Old: "", New: "", Secret: true},
+				"tool_allow_list":      audit.OldNew{Old: []string(nil), New: []string{"issues"}},
+				"tool_deny_list":       audit.OldNew{Old: []string(nil), New: []string{"delete_repository"}},
+				"oauth2_client_secret": audit.OldNew{Old: "", New: "", Secret: true},
+				"enabled":              audit.OldNew{Old: false, New: true},
+				"created_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+				"updated_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+			},
+		},
+		{
+			name: "CustomHeadersAdded",
+			left: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "CustomHeadersRemoved",
+			left: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "SecretRotationRedacted",
+			left: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				AuthType:           "api_key",
+				APIKeyValue:        "old-plaintext-api-key",
+				APIKeyValueKeyID:   sql.NullString{String: "key-1", Valid: true},
+				CustomHeaders:      `{"Authorization":"Bearer old-plaintext"}`,
+				CustomHeadersKeyID: sql.NullString{String: "key-1", Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			right: database.MCPServerConfig{
+				ID:             uuid.UUID{1},
+				DisplayName:    "Renamed MCP",
+				AuthType:       "api_key",
+				APIKeyValue:    "new-plaintext-api-key",
+				CustomHeaders:  `{"Authorization":"Bearer new-plaintext"}`,
+				OrganizationID: uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":   audit.OldNew{Old: "GitHub MCP", New: "Renamed MCP"},
+				"api_key_value":  audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+}
+
+func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
+	t.Parallel()
+
+	secrets := []string{
+		"plaintext-oauth-secret",
+		"plaintext-api-key",
+		"Bearer plaintext-header",
+	}
+	left := audit.Empty[database.MCPServerConfig]()
+	right := database.MCPServerConfig{
+		ID:                 uuid.UUID{1},
+		DisplayName:        "GitHub MCP",
+		AuthType:           "oauth2",
+		OAuth2ClientID:     "client-id",
+		OAuth2ClientSecret: secrets[0],
+		APIKeyValue:        secrets[1],
+		CustomHeaders:      `{"Authorization":"` + secrets[2] + `"}`,
+		OrganizationID:     uuid.UUID{4},
+	}
+
+	raw, err := json.Marshal(diffValues(left, right, AuditableResources))
+	require.NoError(t, err)
+	for _, secret := range secrets {
+		require.NotContains(t, string(raw), secret)
+	}
+	require.Contains(t, string(raw), "client-id")
+}
+
+func runDiffTests(t *testing.T, tests []diffTest) {
+	t.Helper()
+
+	for _, test := range tests {
+		typName := reflect.TypeOf(test.left).Name()
+		t.Run(typName+"/"+test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t,
+				test.exp,
+				diffValues(test.left, test.right, AuditableResources),
+			)
+		})
+	}
+}

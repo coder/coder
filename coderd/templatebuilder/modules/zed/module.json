@@ -1,0 +1,54 @@
+{
+  "id": "zed",
+  "display_name": "Zed",
+  "description": "Add a one-click button to launch Zed",
+  "icon": "/icon/zed.svg",
+  "category": "IDE",
+  "tags": [
+    "ide",
+    "zed",
+    "editor"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.1.4",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "agent_name",
+      "type": "string",
+      "description": "The name of the agent",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "folder",
+      "type": "string",
+      "description": "The folder to open in Zed",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "settings",
+      "type": "string",
+      "description": "JSON encoded settings.json",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

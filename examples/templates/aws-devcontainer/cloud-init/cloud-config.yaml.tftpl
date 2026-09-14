@@ -1,0 +1,15 @@
+#cloud-config
+cloud_final_modules:
+  - [scripts-user, always]
+hostname: ${hostname}
+users:
+  - name: ${linux_user}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - "${ssh_pubkey}"
+# Automatically grow the partition
+growpart:
+  mode: auto
+  devices: ['/']
+  ignore_growroot_disabled: false

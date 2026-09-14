@@ -1,0 +1,221 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
+import {
+	MockGroup,
+	MockGroup2,
+	MockGroup3,
+	MockGroupSyncSettings,
+	MockGroupSyncSettings2,
+	MockLegacyMappingGroupSyncSettings,
+	MockMultipleOverflowGroupSyncSettings,
+	MockOrganization,
+	MockRoleSyncSettings,
+} from "#/testHelpers/entities";
+import IdpSyncPageView from "./IdpSyncPageView";
+
+const groupsMap = new Map<string, string>();
+for (const group of [MockGroup, MockGroup2, MockGroup3]) {
+	groupsMap.set(group.id, group.display_name || group.name);
+}
+
+const hoverUnknownClaimWarning = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const warnings = canvas.getAllByRole("button", {
+		name: "Unknown claim value",
+	});
+	const warning = warnings[0];
+	if (!warning) {
+		throw new Error("Expected an unknown claim warning");
+	}
+	await userEvent.hover(warning);
+	await screen.findByRole("tooltip", {
+		name: /has not be seen in the specified claim field/i,
+	});
+};
+
+const meta: Meta<typeof IdpSyncPageView> = {
+	title: "pages/IdpSyncPage",
+	component: IdpSyncPageView,
+	args: {
+		tab: "groups",
+		groupSyncSettings: MockGroupSyncSettings,
+		roleSyncSettings: MockRoleSyncSettings,
+		groupClaimFieldValues: Object.keys(MockGroupSyncSettings.mapping),
+		roleClaimFieldValues: Object.keys(MockRoleSyncSettings.mapping),
+		groups: [MockGroup, MockGroup2],
+		groupsMap,
+		organization: MockOrganization,
+		error: undefined,
+		onSubmitGroupSyncSettings: fn(),
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof IdpSyncPageView>;
+
+export const Empty: Story = {
+	args: {
+		groupSyncSettings: {
+			field: "",
+			mapping: {},
+			regex_filter: "",
+			auto_create_missing_groups: false,
+		},
+		roleSyncSettings: {
+			field: "",
+			mapping: {},
+		},
+		groups: [],
+		groupsMap: undefined,
+		organization: MockOrganization,
+		error: undefined,
+	},
+};
+
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("tab", { name: "Group sync settings" }),
+		).toHaveAttribute("aria-selected", "true");
+		await expect(
+			canvas.getByRole("heading", { name: "Sync field" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("switch", { name: /auto create missing groups/i }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Group mapping" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: /export policy/i }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("heading", { name: "Role mapping" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("heading", { name: "Legacy group sync" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const DeleteGroupMapping: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const row = canvas.getByRole("row", { name: /idp-group-1/ });
+		const neighbor = canvas.getByRole("row", { name: /idp-group-2/ });
+
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: "Delete mapping for idp-group-1",
+			}),
+		);
+
+		const dialog = await screen.findByRole("dialog", {
+			name: "Delete group mapping",
+		});
+		await expect(neighbor).toBeVisible();
+		await expect(
+			within(dialog).getByRole("button", { name: /^delete$/i }),
+		).toBeDisabled();
+
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Cancel" }),
+		);
+		await expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		await expect(row).toBeVisible();
+		await expect(args.onSubmitGroupSyncSettings).not.toHaveBeenCalled();
+
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: "Delete mapping for idp-group-1",
+			}),
+		);
+		const confirmDialog = await screen.findByRole("dialog", {
+			name: "Delete group mapping",
+		});
+		await userEvent.type(
+			within(confirmDialog).getByLabelText(
+				"Name of the group mapping to delete",
+			),
+			"idp-group-1",
+		);
+		await userEvent.click(
+			within(confirmDialog).getByRole("button", { name: /^delete$/i }),
+		);
+		await expect(args.onSubmitGroupSyncSettings).toHaveBeenCalled();
+	},
+};
+
+export const HasError: Story = {
+	args: {
+		error: "This is a test error",
+	},
+};
+
+export const MissingGroups: Story = {
+	args: {
+		groupSyncSettings: MockGroupSyncSettings2,
+	},
+};
+
+export const MultipleOverflowGroups: Story = {
+	args: {
+		groupSyncSettings: MockMultipleOverflowGroupSyncSettings,
+	},
+};
+
+export const WithLegacyMapping: Story = {
+	args: {
+		groupSyncSettings: MockLegacyMappingGroupSyncSettings,
+		groupClaimFieldValues: Object.keys(
+			MockLegacyMappingGroupSyncSettings.legacy_group_name_mapping,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Legacy group sync" }),
+		).toBeVisible();
+	},
+};
+
+export const GroupsTabMissingClaims: Story = {
+	args: {
+		groupClaimFieldValues: [],
+	},
+	play: async ({ canvasElement }) => {
+		await hoverUnknownClaimWarning(canvasElement);
+	},
+};
+
+export const RolesTab: Story = {
+	args: {
+		tab: "roles",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("tab", { name: "Role sync settings" }),
+		).toHaveAttribute("aria-selected", "true");
+		await expect(
+			canvas.getByRole("heading", { name: "Sync field" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Role mapping" }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("heading", { name: "Group mapping" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const RolesTabMissingClaims: Story = {
+	args: {
+		tab: "roles",
+		roleClaimFieldValues: [],
+	},
+	play: async ({ canvasElement }) => {
+		await hoverUnknownClaimWarning(canvasElement);
+	},
+};

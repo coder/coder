@@ -1,0 +1,28 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder groups edit [flags] <name>
+
+  Edit a user group
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+  -a, --add-users string-array
+          Add users to the group. Accepts emails or IDs.
+
+  -u, --avatar-url string
+          Update the group avatar.
+
+      --display-name string, $CODER_DISPLAY_NAME
+          Optional human friendly name for the group.
+
+  -n, --name string
+          Update the group name.
+
+  -r, --rm-users string-array
+          Remove users to the group. Accepts emails or IDs.
+
+———
+Run `coder --help` for a list of global options.

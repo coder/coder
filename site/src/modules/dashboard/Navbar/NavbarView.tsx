@@ -1,0 +1,223 @@
+import { cn } from "cn";
+import type { FC } from "react";
+import { NavLink, useLocation } from "react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
+import type { ProxyContextValue } from "#/contexts/ProxyContext";
+import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
+import { getPrereleaseFlag } from "#/utils/buildInfo";
+import {
+	type AdminSettingsPermissions,
+	canViewAdminSettings,
+} from "./AdminSettings";
+import { AdminSettingsDropdown } from "./DeploymentDropdown";
+import { MobileMenu } from "./MobileMenu";
+import { ProxyMenu } from "./ProxyMenu";
+import { SupportIcon } from "./SupportIcon";
+import { UserDropdown } from "./UserDropdown/UserDropdown";
+
+interface NavbarViewProps {
+	user: TypesGen.User;
+	buildInfo?: TypesGen.BuildInfoResponse;
+	supportLinks: readonly TypesGen.LinkConfig[];
+	codernautsEnabled?: boolean;
+	onSignOut: () => void;
+	adminPermissions: AdminSettingsPermissions;
+	canCreateChat: boolean;
+	canViewLicenses: boolean;
+	proxyContextValue?: ProxyContextValue;
+}
+
+const linkStyles = {
+	default:
+		"text-sm font-medium text-content-secondary no-underline block h-full px-2 flex items-center hover:text-content-primary transition-colors",
+	active: "text-content-primary",
+};
+
+export const NavbarView: FC<NavbarViewProps> = ({
+	user,
+	buildInfo,
+	supportLinks,
+	codernautsEnabled,
+	onSignOut,
+	adminPermissions,
+	canCreateChat,
+	canViewLicenses,
+	proxyContextValue,
+}) => {
+	const prerelease = getPrereleaseFlag(buildInfo);
+
+	return (
+		<div
+			className={cn(
+				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6",
+				prerelease &&
+					cn(
+						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",
+						"[&:before]:right-0 [&:before]:h-1 [&:before]:top-0",
+						"[&:before]:bg-[repeating-linear-gradient(-45deg,transparent,transparent_4px,hsl(var(--stripe-color)/0.5)_4px,hsl(var(--stripe-color)/0.5)_8px)]",
+					),
+			)}
+			style={{
+				"--stripe-color":
+					prerelease === "rc"
+						? "var(--border-sky)"
+						: prerelease === "devel"
+							? "var(--content-warning)"
+							: undefined,
+			}}
+		>
+			<NavLink to="/workspaces">
+				<ProductLogo className="h-7" />
+			</NavLink>
+
+			<NavItems className="ml-4 hidden md:flex" canCreateChat={canCreateChat} />
+
+			{prerelease && buildInfo?.version && (
+				<a
+					href={buildInfo.external_url}
+					target="_blank"
+					rel="noreferrer"
+					className="absolute top-0 left-1/2 -translate-x-1/2 no-underline z-10"
+				>
+					<Badge
+						variant={prerelease === "rc" ? "info" : "warning"}
+						size="sm"
+						className="font-mono rounded-t-none border-t-0"
+					>
+						{buildInfo.version}
+					</Badge>
+				</a>
+			)}
+
+			<div className="flex items-center gap-3 ml-auto">
+				{supportLinks.filter(isNavbarLink).map((link) => (
+					<div key={link.name} className="hidden md:block">
+						<SupportButton
+							name={link.name}
+							target={link.target}
+							icon={link.icon}
+						/>
+					</div>
+				))}
+
+				{proxyContextValue && (
+					<div className="hidden md:block">
+						<ProxyMenu proxyContextValue={proxyContextValue} />
+					</div>
+				)}
+
+				{canViewAdminSettings(adminPermissions) && (
+					<div className="hidden md:block">
+						<AdminSettingsDropdown permissions={adminPermissions} />
+					</div>
+				)}
+
+				<NotificationsInbox
+					fetchNotifications={API.getInboxNotifications}
+					markAllAsRead={API.markAllInboxNotificationsAsRead}
+					markNotificationAsRead={(notificationId) =>
+						API.updateInboxNotificationReadStatus(notificationId, {
+							is_read: true,
+						})
+					}
+				/>
+
+				<div className="hidden md:block">
+					<UserDropdown
+						user={user}
+						buildInfo={buildInfo}
+						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
+						codernautsEnabled={codernautsEnabled}
+						onSignOut={onSignOut}
+						canViewLicenses={canViewLicenses}
+					/>
+				</div>
+
+				<div className="md:hidden">
+					<MobileMenu
+						proxyContextValue={proxyContextValue}
+						adminPermissions={adminPermissions}
+						user={user}
+						supportLinks={supportLinks}
+						onSignOut={onSignOut}
+					/>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+interface NavItemsProps {
+	className?: string;
+	canCreateChat: boolean;
+}
+
+const NavItems: FC<NavItemsProps> = ({ className, canCreateChat }) => {
+	const location = useLocation();
+
+	return (
+		<nav className={cn("flex items-center gap-4 h-full", className)}>
+			<NavLink
+				className={({ isActive }) => {
+					if (location.pathname.startsWith("/@")) {
+						isActive = true;
+					}
+					return cn(linkStyles.default, { [linkStyles.active]: isActive });
+				}}
+				to="/workspaces"
+			>
+				Workspaces
+			</NavLink>
+			<NavLink
+				className={({ isActive }) => {
+					return cn(linkStyles.default, { [linkStyles.active]: isActive });
+				}}
+				to="/templates"
+			>
+				Templates
+			</NavLink>
+			{canCreateChat && (
+				<NavLink
+					className={({ isActive }) => {
+						return cn(linkStyles.default, { [linkStyles.active]: isActive });
+					}}
+					to="/agents"
+				>
+					Agents
+				</NavLink>
+			)}
+		</nav>
+	);
+};
+
+function isNavbarLink(link: TypesGen.LinkConfig): boolean {
+	return link.location === "navbar";
+}
+
+interface SupportButtonProps {
+	name: string;
+	target: string;
+	icon: string;
+	location?: string;
+}
+
+const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
+	return (
+		<Button asChild variant="outline">
+			<a
+				href={target}
+				target="_blank"
+				rel="noreferrer"
+				className="inline-block"
+			>
+				{icon && <SupportIcon icon={icon} className="text-content-secondary" />}
+				{name}
+				<span className="sr-only"> (link opens in new tab)</span>
+			</a>
+		</Button>
+	);
+};

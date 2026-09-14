@@ -1,0 +1,422 @@
+import {
+	type MutationOptions,
+	mutationOptions,
+	type QueryClient,
+	type QueryOptions,
+} from "react-query";
+import {
+	API,
+	type GetTemplatesOptions,
+	type GetTemplatesQuery,
+} from "#/api/api";
+import type {
+	CreateTemplateRequest,
+	CreateTemplateVersionRequest,
+	ProvisionerJob,
+	ProvisionerJobStatus,
+	Template,
+	TemplateRole,
+	TemplateVersion,
+	UpdateTemplateMeta,
+	UsersRequest,
+} from "#/api/typesGenerated";
+import { delay } from "#/utils/delay";
+import { getTemplateVersionFiles } from "#/utils/templateVersion";
+
+const templateKey = (templateId: string) => ["template", templateId];
+const templateListsKey = ["templates", "list"] as const;
+
+export const template = (templateId: string) => {
+	return {
+		queryKey: templateKey(templateId),
+		queryFn: async () => API.getTemplate(templateId),
+	} satisfies QueryOptions<Template>;
+};
+
+export const templateByNameKey = (organization: string, name: string) => [
+	organization,
+	"template",
+	name,
+];
+
+export const templateByName = (organization: string, name: string) => {
+	return {
+		queryKey: templateByNameKey(organization, name),
+		queryFn: async () => API.getTemplateByName(organization, name),
+	} satisfies QueryOptions<Template>;
+};
+
+export const getTemplatesQueryKey = (
+	options?: GetTemplatesOptions | GetTemplatesQuery,
+) => [...templateListsKey, options];
+
+export const templates = (
+	options?: GetTemplatesOptions | GetTemplatesQuery,
+) => {
+	return {
+		queryKey: getTemplatesQueryKey(options),
+		queryFn: () => API.getTemplates(options),
+	};
+};
+
+export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({
+		queryKey: templateListsKey,
+		refetchType: "all",
+	});
+
+type UpdateTemplateMetaVariables = {
+	template: Template;
+	data: UpdateTemplateMeta;
+};
+
+export const updateTemplateMeta = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({ template, data }: UpdateTemplateMetaVariables) =>
+			API.updateTemplateMeta(template.id, data),
+		onSuccess: async (result, { template }) => {
+			const updatedTemplate = result ?? template;
+			await Promise.all([
+				invalidateTemplateListQueries(queryClient),
+				queryClient.invalidateQueries({
+					queryKey: templateKey(template.id),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: templateByNameKey(
+						updatedTemplate.organization_name,
+						updatedTemplate.name,
+					),
+				}),
+			]);
+		},
+	});
+
+export const templateACL = (templateId: string) => {
+	return {
+		queryKey: ["templateAcl", templateId],
+		queryFn: () => API.getTemplateACL(templateId),
+	};
+};
+
+export const setUserRole = (
+	queryClient: QueryClient,
+): MutationOptions<
+	Awaited<ReturnType<typeof API.updateTemplateACL>>,
+	unknown,
+	{ templateId: string; userId: string; role: TemplateRole }
+> => {
+	return {
+		mutationFn: ({ templateId, userId, role }) =>
+			API.updateTemplateACL(templateId, {
+				user_perms: {
+					[userId]: role,
+				},
+			}),
+		onSuccess: async (_res, { templateId }) => {
+			await queryClient.invalidateQueries({
+				queryKey: ["templateAcl", templateId],
+			});
+		},
+	};
+};
+
+export const setGroupRole = (
+	queryClient: QueryClient,
+): MutationOptions<
+	Awaited<ReturnType<typeof API.updateTemplateACL>>,
+	unknown,
+	{ templateId: string; groupId: string; role: TemplateRole }
+> => {
+	return {
+		mutationFn: ({ templateId, groupId, role }) =>
+			API.updateTemplateACL(templateId, {
+				group_perms: {
+					[groupId]: role,
+				},
+			}),
+		onSuccess: async (_res, { templateId }) => {
+			await queryClient.invalidateQueries({
+				queryKey: ["templateAcl", templateId],
+			});
+		},
+	};
+};
+
+export const templateExamples = () => {
+	return {
+		queryKey: ["templates", "examples"],
+		queryFn: () => API.getTemplateExamples(),
+	};
+};
+
+export const templateVersionRoot: string = "templateVersion";
+
+export const templateVersion = (versionId: string) => {
+	return {
+		queryKey: [templateVersionRoot, versionId],
+		queryFn: () => API.getTemplateVersion(versionId),
+	};
+};
+
+export const templateVersionByName = (
+	organizationId: string,
+	templateName: string,
+	versionName: string,
+) => {
+	return {
+		queryKey: [templateVersionRoot, organizationId, templateName, versionName],
+		queryFn: () =>
+			API.getTemplateVersionByName(organizationId, templateName, versionName),
+	};
+};
+
+export const templateVersionsQueryKey = (templateId: string) => [
+	"templateVersions",
+	templateId,
+];
+
+export const templateVersions = (templateId: string) => {
+	return {
+		queryKey: templateVersionsQueryKey(templateId),
+		queryFn: () => API.getTemplateVersions(templateId),
+	};
+};
+
+export const templateVersionVariablesKey = (versionId: string) => [
+	templateVersionRoot,
+	versionId,
+	"variables",
+];
+
+export const templateVersionVariables = (versionId: string) => {
+	return {
+		queryKey: templateVersionVariablesKey(versionId),
+		queryFn: () => API.getTemplateVersionVariables(versionId),
+	};
+};
+
+export const createTemplateVersion = (organizationId: string) => {
+	return {
+		mutationFn: async (request: CreateTemplateVersionRequest) => {
+			const newVersion = await API.createTemplateVersion(
+				organizationId,
+				request,
+			);
+			return newVersion;
+		},
+	};
+};
+
+export const createAndBuildTemplateVersion = (organization: string) => {
+	return {
+		mutationFn: async (request: CreateTemplateVersionRequest) => {
+			const newVersion = await API.createTemplateVersion(organization, request);
+			await waitBuildToBeFinished(newVersion);
+			return newVersion;
+		},
+	};
+};
+
+export const updateActiveTemplateVersion = (
+	template: Template,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (versionId: string) =>
+			API.updateActiveTemplateVersion(template.id, {
+				id: versionId,
+			}),
+		onSuccess: async () => {
+			await Promise.all([
+				// invalidated because of `active_version_id`
+				queryClient.invalidateQueries({
+					queryKey: templateByNameKey(
+						template.organization_name,
+						template.name,
+					),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: templateVersionsQueryKey(template.id),
+				}),
+			]);
+		},
+	};
+};
+
+export const enableTemplateParameterCompatibilityMode = (
+	template: Template,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (compatibilityModeEnabled: boolean) =>
+			API.updateTemplateMeta(template.id, {
+				use_classic_parameter_flow: compatibilityModeEnabled,
+			}),
+		onSuccess: () =>
+			queryClient.invalidateQueries({
+				queryKey: templateByNameKey(template.organization_name, template.name),
+			}),
+	};
+};
+
+export const templaceACLAvailable = (
+	templateId: string,
+	options: UsersRequest,
+) => {
+	return {
+		queryKey: ["template", templateId, "aclAvailable", options],
+		queryFn: () => API.getTemplateACLAvailable(templateId, options),
+	};
+};
+
+const templateVersionExternalAuthKey = (versionId: string, userId = "me") => [
+	templateVersionRoot,
+	versionId,
+	userId,
+	"externalAuth",
+];
+
+export const templateVersionExternalAuth = (
+	versionId: string,
+	userId = "me",
+) => {
+	return {
+		queryKey: templateVersionExternalAuthKey(versionId, userId),
+		queryFn: () => API.getTemplateVersionExternalAuth(versionId, userId),
+	};
+};
+
+export const createTemplate = () => {
+	return {
+		mutationFn: createTemplateFn,
+	};
+};
+
+export type CreateTemplateOptions = {
+	organization: string;
+	version: CreateTemplateVersionRequest;
+	template: Omit<CreateTemplateRequest, "template_version_id">;
+	onCreateVersion?: (version: TemplateVersion) => void;
+	onTemplateVersionChanges?: (version: TemplateVersion) => void;
+};
+
+const createTemplateFn = async (options: CreateTemplateOptions) => {
+	const version = await API.createTemplateVersion(
+		options.organization,
+		options.version,
+	);
+	options.onCreateVersion?.(version);
+	await waitBuildToBeFinished(version, options.onTemplateVersionChanges);
+	return API.createTemplate(options.organization, {
+		...options.template,
+		template_version_id: version.id,
+	});
+};
+
+export const templateVersionLogs = (versionId: string) => {
+	return {
+		queryKey: [templateVersionRoot, versionId, "logs"],
+		queryFn: () => API.getTemplateVersionLogs(versionId),
+	};
+};
+
+export const richParametersKey = (versionId: string) => [
+	templateVersionRoot,
+	versionId,
+	"richParameters",
+];
+
+export const richParameters = (versionId: string) => {
+	return {
+		queryKey: richParametersKey(versionId),
+		queryFn: () => API.getTemplateVersionRichParameters(versionId),
+	};
+};
+
+export const resources = (versionId: string) => {
+	return {
+		queryKey: [templateVersionRoot, versionId, "resources"],
+		queryFn: () => API.getTemplateVersionResources(versionId),
+	};
+};
+
+export const templateFiles = (fileId: string) => {
+	return {
+		queryKey: ["templateFiles", fileId],
+		queryFn: async () => {
+			const tarFile = await API.getFile(fileId);
+			return getTemplateVersionFiles(tarFile);
+		},
+	};
+};
+
+export const previousTemplateVersion = (
+	organizationId: string,
+	templateName: string,
+	versionName: string,
+) => {
+	return {
+		queryKey: [
+			templateVersionRoot,
+			organizationId,
+			templateName,
+			versionName,
+			"previous",
+		],
+		queryFn: async () => {
+			const result = await API.getPreviousTemplateVersionByName(
+				organizationId,
+				templateName,
+				versionName,
+			);
+
+			return result ?? null;
+		},
+	};
+};
+
+const templateVersionPresetsKey = (versionId: string) => [
+	templateVersionRoot,
+	versionId,
+	"presets",
+];
+
+export const templateVersionPresets = (versionId: string) => {
+	return {
+		queryKey: templateVersionPresetsKey(versionId),
+		queryFn: () => API.getTemplateVersionPresets(versionId),
+	};
+};
+
+const waitBuildToBeFinished = async (
+	version: TemplateVersion,
+	onRequest?: (data: TemplateVersion) => void,
+) => {
+	let data: TemplateVersion;
+	let jobStatus: ProvisionerJobStatus | undefined;
+	do {
+		// When pending we want to poll more frequently
+		await delay(jobStatus === "pending" ? 250 : 1000);
+		data = await API.getTemplateVersion(version.id);
+		onRequest?.(data);
+		jobStatus = data.job.status;
+
+		if (jobStatus === "succeeded") {
+			return version.id;
+		}
+	} while (jobStatus === "pending" || jobStatus === "running");
+
+	// No longer pending/running, but didn't succeed
+	throw new JobError(data.job, version);
+};
+
+export class JobError extends Error {
+	public job: ProvisionerJob;
+	public version: TemplateVersion;
+
+	constructor(job: ProvisionerJob, version: TemplateVersion) {
+		super(job.error);
+		this.job = job;
+		this.version = version;
+	}
+}

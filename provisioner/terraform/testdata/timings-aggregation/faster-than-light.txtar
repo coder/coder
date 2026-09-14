@@ -1,0 +1,7 @@
+A provisioning which appears to complete before it started has its start and end times aligned.
+
+-- apply --
+{"@level":"info","@message":"coder_agent.main: Creating...","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.616546+02:00","hook":{"resource":{"addr":"coder_agent.main","module":"","resource":"coder_agent.main","implied_provider":"coder","resource_type":"coder_agent","resource_name":"main","resource_key":null},"action":"create"},"type":"apply_start"}
+{"@level":"info","@message":"coder_agent.main: Creation complete after 0s [id=a23083da-4679-4396-a306-f7b466237883]","@module":"terraform.ui","@timestamp":"2024-08-15T10:21:39.618045+02:00","hook":{"resource":{"addr":"coder_agent.main","module":"","resource":"coder_agent.main","implied_provider":"coder","resource_type":"coder_agent","resource_name":"main","resource_key":null},"action":"create","id_key":"id","id_value":"a23083da-4679-4396-a306-f7b466237883","elapsed_seconds":0},"type":"apply_complete"}
+-- timings --
+{"start":"2024-08-15T08:21:39.618045Z","end":"2024-08-15T08:21:39.618045Z","action":"create","source":"coder","resource":"coder_agent.main","stage":"apply","state":"COMPLETED"}

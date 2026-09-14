@@ -1,0 +1,18 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder licenses list [flags]
+
+  List licenses (including expired)
+
+  Aliases: ls
+
+OPTIONS:
+  -c, --column [id|uuid|uploaded at|features|expires at|trial] (default: ID,UUID,Expires At,Uploaded At,Features)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

@@ -1,0 +1,45 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.dev (expand)" [label = "coder_agent.dev", shape = "box"]
+		"[root] data.coder_parameter.sample (expand)" [label = "data.coder_parameter.sample", shape = "box"]
+		"[root] data.coder_workspace_preset.MyFirstProject (expand)" [label = "data.coder_workspace_preset.MyFirstProject", shape = "box"]
+		"[root] module.this_is_external_module.data.coder_parameter.first_parameter_from_module (expand)" [label = "module.this_is_external_module.data.coder_parameter.first_parameter_from_module", shape = "box"]
+		"[root] module.this_is_external_module.data.coder_parameter.second_parameter_from_module (expand)" [label = "module.this_is_external_module.data.coder_parameter.second_parameter_from_module", shape = "box"]
+		"[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_first_parameter_from_module (expand)" [label = "module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_first_parameter_from_module", shape = "box"]
+		"[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module (expand)" [label = "module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module", shape = "box"]
+		"[root] null_resource.dev (expand)" [label = "null_resource.dev", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
+		"[root] coder_agent.dev (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_parameter.sample (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_workspace_preset.MyFirstProject (expand)" -> "[root] data.coder_parameter.sample (expand)"
+		"[root] module.this_is_external_module (close)" -> "[root] module.this_is_external_module.data.coder_parameter.first_parameter_from_module (expand)"
+		"[root] module.this_is_external_module (close)" -> "[root] module.this_is_external_module.data.coder_parameter.second_parameter_from_module (expand)"
+		"[root] module.this_is_external_module (close)" -> "[root] module.this_is_external_module.module.this_is_external_child_module (close)"
+		"[root] module.this_is_external_module.data.coder_parameter.first_parameter_from_module (expand)" -> "[root] module.this_is_external_module (expand)"
+		"[root] module.this_is_external_module.data.coder_parameter.first_parameter_from_module (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.this_is_external_module.data.coder_parameter.second_parameter_from_module (expand)" -> "[root] module.this_is_external_module (expand)"
+		"[root] module.this_is_external_module.data.coder_parameter.second_parameter_from_module (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.this_is_external_module.module.this_is_external_child_module (close)" -> "[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_first_parameter_from_module (expand)"
+		"[root] module.this_is_external_module.module.this_is_external_child_module (close)" -> "[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module (expand)"
+		"[root] module.this_is_external_module.module.this_is_external_child_module (expand)" -> "[root] module.this_is_external_module (expand)"
+		"[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_first_parameter_from_module (expand)" -> "[root] module.this_is_external_module.module.this_is_external_child_module (expand)"
+		"[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_first_parameter_from_module (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module (expand)" -> "[root] module.this_is_external_module.module.this_is_external_child_module (expand)"
+		"[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] null_resource.dev (expand)" -> "[root] coder_agent.dev (expand)"
+		"[root] null_resource.dev (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.dev (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_workspace_preset.MyFirstProject (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.this_is_external_module.data.coder_parameter.first_parameter_from_module (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.this_is_external_module.data.coder_parameter.second_parameter_from_module (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_first_parameter_from_module (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.dev (expand)"
+		"[root] root" -> "[root] module.this_is_external_module (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
+	}
+}

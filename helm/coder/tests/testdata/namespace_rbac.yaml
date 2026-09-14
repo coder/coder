@@ -1,0 +1,28 @@
+coder:
+  image:
+    tag: latest
+  serviceAccount:
+    workspacePerms: true
+    enableDeployments: true
+    extraRules:
+      - apiGroups: ["networking.k8s.io"]
+        resources: ["ingresses"]
+        verbs:
+          - get
+          - list
+    workspaceNamespaces:
+      - name: test-namespace1
+      - name: test-namespace2
+        workspacePerms: false
+        enableDeployments: true
+      - name: test-namespace3
+        workspacePerms: true
+        enableDeployments: false
+        extraRules:
+          - apiGroups: ["batch"]
+            resources: ["jobs"]
+            verbs:
+              - get
+              - list
+              - create
+      - name: test-namespace4

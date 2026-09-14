@@ -1,0 +1,2 @@
+Encountered an error running "coder exp example-error arg-required", see "coder exp example-error arg-required --help" for more information
+error: wanted 1 args but got 0 []

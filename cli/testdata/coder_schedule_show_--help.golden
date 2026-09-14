@@ -1,0 +1,28 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder schedule show [flags] <workspace | --search <query> | --all>
+
+  Show workspace schedules
+
+  Shows the following information for the given workspace(s):
+    * The automatic start schedule
+    * The next scheduled start time
+    * The duration after which it will stop
+    * The next scheduled stop time
+
+OPTIONS:
+  -a, --all bool
+          Specifies whether all workspaces will be listed or not.
+
+  -c, --column [workspace|starts at|starts next|stops after|stops next] (default: workspace,starts at,starts next,stops after,stops next)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+      --search string (default: owner:me)
+          Search for a workspace with a query.
+
+———
+Run `coder --help` for a list of global options.

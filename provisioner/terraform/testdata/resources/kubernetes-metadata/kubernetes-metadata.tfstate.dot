@@ -1,0 +1,63 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
+		"[root] coder_app.code-server (expand)" [label = "coder_app.code-server", shape = "box"]
+		"[root] coder_metadata.kubernetes_pod_main (expand)" [label = "coder_metadata.kubernetes_pod_main", shape = "box"]
+		"[root] data.coder_workspace.me (expand)" [label = "data.coder_workspace.me", shape = "box"]
+		"[root] data.google_client_config.provider (expand)" [label = "data.google_client_config.provider", shape = "box"]
+		"[root] data.google_container_cluster.dev-4-2 (expand)" [label = "data.google_container_cluster.dev-4-2", shape = "box"]
+		"[root] kubernetes_config_map.coder_workspace (expand)" [label = "kubernetes_config_map.coder_workspace", shape = "box"]
+		"[root] kubernetes_pod.main (expand)" [label = "kubernetes_pod.main", shape = "box"]
+		"[root] kubernetes_role.coder_workspace (expand)" [label = "kubernetes_role.coder_workspace", shape = "box"]
+		"[root] kubernetes_role_binding.coder_workspace (expand)" [label = "kubernetes_role_binding.coder_workspace", shape = "box"]
+		"[root] kubernetes_secret.coder_workspace (expand)" [label = "kubernetes_secret.coder_workspace", shape = "box"]
+		"[root] kubernetes_service_account.coder_workspace (expand)" [label = "kubernetes_service_account.coder_workspace", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/hashicorp/google\"]" [label = "provider[\"registry.terraform.io/hashicorp/google\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]" [label = "provider[\"registry.terraform.io/hashicorp/kubernetes\"]", shape = "diamond"]
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_app.code-server (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_metadata.kubernetes_pod_main (expand)" -> "[root] kubernetes_pod.main (expand)"
+		"[root] coder_metadata.kubernetes_pod_main (expand)" -> "[root] local.gpu (expand)"
+		"[root] data.coder_workspace.me (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.google_client_config.provider (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/google\"]"
+		"[root] data.google_container_cluster.dev-4-2 (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/google\"]"
+		"[root] kubernetes_config_map.coder_workspace (expand)" -> "[root] local.namespace (expand)"
+		"[root] kubernetes_config_map.coder_workspace (expand)" -> "[root] local.workspace_name (expand)"
+		"[root] kubernetes_config_map.coder_workspace (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]"
+		"[root] kubernetes_pod.main (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] kubernetes_pod.main (expand)" -> "[root] kubernetes_config_map.coder_workspace (expand)"
+		"[root] kubernetes_pod.main (expand)" -> "[root] kubernetes_role.coder_workspace (expand)"
+		"[root] kubernetes_pod.main (expand)" -> "[root] kubernetes_role_binding.coder_workspace (expand)"
+		"[root] kubernetes_pod.main (expand)" -> "[root] kubernetes_secret.coder_workspace (expand)"
+		"[root] kubernetes_pod.main (expand)" -> "[root] kubernetes_service_account.coder_workspace (expand)"
+		"[root] kubernetes_pod.main (expand)" -> "[root] local.cpu (expand)"
+		"[root] kubernetes_pod.main (expand)" -> "[root] local.memory (expand)"
+		"[root] kubernetes_role.coder_workspace (expand)" -> "[root] local.namespace (expand)"
+		"[root] kubernetes_role.coder_workspace (expand)" -> "[root] local.workspace_name (expand)"
+		"[root] kubernetes_role.coder_workspace (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]"
+		"[root] kubernetes_role_binding.coder_workspace (expand)" -> "[root] local.namespace (expand)"
+		"[root] kubernetes_role_binding.coder_workspace (expand)" -> "[root] local.workspace_name (expand)"
+		"[root] kubernetes_role_binding.coder_workspace (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]"
+		"[root] kubernetes_secret.coder_workspace (expand)" -> "[root] local.namespace (expand)"
+		"[root] kubernetes_secret.coder_workspace (expand)" -> "[root] local.workspace_name (expand)"
+		"[root] kubernetes_secret.coder_workspace (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]"
+		"[root] kubernetes_service_account.coder_workspace (expand)" -> "[root] local.namespace (expand)"
+		"[root] kubernetes_service_account.coder_workspace (expand)" -> "[root] local.workspace_name (expand)"
+		"[root] kubernetes_service_account.coder_workspace (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]"
+		"[root] local.workspace_name (expand)" -> "[root] data.coder_workspace.me (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_app.code-server (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_metadata.kubernetes_pod_main (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/google\"] (close)" -> "[root] data.google_client_config.provider (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/google\"] (close)" -> "[root] data.google_container_cluster.dev-4-2 (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"] (close)" -> "[root] kubernetes_pod.main (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]" -> "[root] data.google_client_config.provider (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"]" -> "[root] data.google_container_cluster.dev-4-2 (expand)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/google\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/kubernetes\"] (close)"
+	}
+}
+

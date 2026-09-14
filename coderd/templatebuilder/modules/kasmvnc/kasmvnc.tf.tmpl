@@ -1,0 +1,9 @@
+module "kasmvnc" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/kasmvnc/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  desktop_environment = {{ .Variables.desktop_environment }}
+  kasm_version = {{ .Variables.kasm_version }}
+  port = {{ .Variables.port }}
+}

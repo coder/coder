@@ -1,0 +1,2759 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatModelKey } from "#/api/queries/chats";
+import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { MCPServerConfig } from "#/api/typesGenerated";
+import { MockChatModel } from "#/testHelpers/chatModels";
+import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
+import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { BlockList } from "../../ChatConversation/MessageBlocks";
+import { DesktopPanelContext } from "./DesktopPanelContext";
+import { Tool, toolRendererNames } from "./Tool";
+
+const executeCommand = "git fetch origin";
+const executeIntentCommand = "npm test";
+const longExecuteCommand =
+	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
+
+// 1x1 solid coral (#FF6B6B) PNG encoded as base64.
+const TEST_PNG_B64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
+
+const meta: Meta<typeof Tool> = {
+	title: "pages/AgentsPage/ChatElements/tools/Tool",
+	component: Tool,
+	args: {
+		organizationId: MockChatModel.organization_id,
+		name: "execute",
+		args: { command: executeCommand },
+		status: "completed",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			routing: { path: "/" },
+		}),
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof Tool>;
+
+type ToolShowcaseItem = {
+	name: string;
+	status?: React.ComponentProps<typeof Tool>["status"];
+	args?: unknown;
+	result?: unknown;
+	isError?: boolean;
+	killedBySignal?: "kill" | "terminate";
+	modelIntent?: string;
+	parsedCommands?: readonly string[][];
+	subagentVariants?: Map<string, "general" | "explore" | "computer_use">;
+};
+
+const allToolShowcaseItems: ToolShowcaseItem[] = [
+	{
+		name: "execute",
+		args: { command: "pnpm check", model_intent: "Checking frontend" },
+		modelIntent: "Checking frontend",
+		parsedCommands: [["pnpm", "check"]],
+		result: {
+			output: "Checked 1799 files.",
+			wall_duration_ms: 2400,
+			exit_code: 0,
+		},
+	},
+	{
+		name: "process_output",
+		args: { process_id: "storybook-process" },
+		result: { output: "dev server ready on :6006" },
+	},
+	{
+		name: "process_list",
+		args: {},
+		result: {
+			processes: [
+				{
+					id: "storybook-process",
+					command: "pnpm storybook",
+					status: "running",
+				},
+			],
+		},
+	},
+	{
+		name: "process_signal",
+		args: { process_id: "storybook-process", signal: "terminate" },
+		result: { success: true },
+	},
+	{
+		name: "read_file",
+		args: { path: "site/src/pages/AgentsPage/AgentChatPage.tsx" },
+		result: { content: "export const AgentChatPage = () => null;" },
+	},
+	{
+		name: "write_file",
+		args: { path: "docs/example.md", content: "# Example\n" },
+		result: { path: "docs/example.md" },
+	},
+	{
+		name: "edit_files",
+		args: {
+			files: [
+				{
+					path: "site/src/example.ts",
+					edits: [{ old_text: "foo", new_text: "bar" }],
+				},
+			],
+		},
+		result: { files: [{ path: "site/src/example.ts", status: "edited" }] },
+	},
+	{
+		name: "list_templates",
+		result: {
+			templates: [
+				{
+					id: "template-1",
+					name: "go-template",
+					display_name: "Go Development",
+				},
+			],
+			count: 1,
+		},
+	},
+	{
+		name: "list_agents",
+		result: {
+			agents: [{ id: "agent-1", title: "Workspace diagnostics" }],
+			total: 1,
+		},
+	},
+	{
+		name: "list_subagent_models",
+		result: {
+			models: [
+				{
+					model_config_id: "model-1",
+					display_name: "Fast Model",
+					model: "fast-1",
+					provider: "openai",
+					is_default: true,
+				},
+			],
+		},
+	},
+	{
+		name: "read_template",
+		args: { template_id: "template-1" },
+		result: {
+			template: { name: "go-template", display_name: "Go Development" },
+		},
+	},
+	{
+		name: "create_workspace",
+		result: {
+			created: true,
+			workspace_name: "agent-icons",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "start_workspace",
+		result: {
+			started: true,
+			workspace_name: "agent-icons",
+			agent_status: "ready",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "chat_summarized",
+		result: { summary: "Earlier transcript content was compacted." },
+	},
+	{
+		name: "chat_cleared",
+		args: { source: "manual" },
+		result: { source: "manual" },
+	},
+	{
+		name: "propose_plan",
+		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
+		result: { path: "/home/coder/.coder/plans/PLAN-example.md" },
+	},
+	{
+		name: "ask_user_question",
+		args: { questions: [] },
+		status: "running",
+	},
+	{
+		name: "advisor",
+		args: { question: "Which icon family should represent transcript tools?" },
+		result: { answer: "Use category-level icons for better scanning." },
+	},
+	{
+		name: "computer",
+		args: { action: "screenshot" },
+		result: { output: { type: "image", data: TEST_PNG_B64 } },
+	},
+	{
+		name: "read_skill",
+		args: { name: "deep-review" },
+		result: {
+			name: "deep-review",
+			content: "# Deep Review\nReview code carefully.",
+		},
+	},
+	{
+		name: "read_skill_file",
+		args: { name: "deep-review", path: "roles/security-reviewer.md" },
+		result: { content: "# Security Reviewer Role\nCheck auth boundaries." },
+	},
+	{
+		name: "spawn_agent",
+		args: { title: "Repository review", prompt: "Review the code." },
+		result: {
+			chat_id: "bot-child",
+			title: "Repository review",
+			status: "completed",
+		},
+	},
+	{
+		name: "wait_agent",
+		args: { chat_id: "bot-child" },
+		result: {
+			chat_id: "bot-child",
+			title: "Repository review",
+			status: "completed",
+			report: "No issues found.",
+		},
+	},
+	{
+		name: "message_agent",
+		args: { chat_id: "bot-child", message: "Check icon consistency." },
+		result: { chat_id: "bot-child", status: "completed" },
+	},
+	{
+		name: "interrupt_agent",
+		args: { chat_id: "bot-child" },
+		result: { chat_id: "bot-child", status: "completed" },
+	},
+	{
+		name: "spawn_computer_use_agent",
+		args: { prompt: "Inspect the UI." },
+		result: { chat_id: "desktop-child", status: "completed" },
+		subagentVariants: new Map([["desktop-child", "computer_use"]]),
+	},
+	{
+		name: "read_file",
+		args: { path: "site/src/pages/AgentsPage/Missing.tsx" },
+		status: "error",
+		isError: true,
+		result: { error: "File not found" },
+	},
+	{
+		name: "create_workspace",
+		status: "running",
+		args: { workspace_name: "agent-icons" },
+		result: {
+			workspace_name: "agent-icons",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "find_tools",
+		args: { queries: ["github issues"] },
+		result: {
+			matches: [
+				{
+					name: "github__list_issues",
+					description: "List issues in a GitHub repository.",
+				},
+			],
+			activated: ["github__list_issues"],
+			total_deferred: 12,
+		},
+	},
+	{
+		name: "unknown_tool",
+		args: { example: true },
+		result: { ok: true },
+	},
+];
+
+// ---------------------------------------------------------------------------
+// Execute stories
+// ---------------------------------------------------------------------------
+
+export const ExecuteRunning: Story = {
+	args: {
+		status: "running",
+		result: {
+			output: "remote: Enumerating objects: 12, done.\nFetching origin...",
+		},
+	},
+};
+
+export const ExecuteModelIntent: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeIntentCommand,
+			model_intent: "Running tests using npm for 5s",
+		},
+		modelIntent: "Running tests using npm for 5s",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+};
+
+export const ExecuteModelIntentRunning: Story = {
+	args: {
+		shellToolDisplayMode: "always_expanded",
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking repository state",
+		},
+		modelIntent: "checking repository state",
+		result: {
+			output: "",
+		},
+	},
+};
+
+export const ExecuteModelIntentLeadingUsing: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeCommand,
+			model_intent: "using git fetch origin",
+		},
+		modelIntent: "using git fetch origin",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+};
+
+export const ExecuteSuccess: Story = {
+	args: {
+		shellToolDisplayMode: "auto",
+		args: { command: longExecuteCommand },
+		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
+			output:
+				"From github.com:coder/coder\n * [new branch]      feature/agent-ui -> origin/feature/agent-ui",
+		},
+	},
+};
+
+export const ExecuteError: Story = {
+	args: {
+		name: "execute",
+		status: "error",
+		isError: true,
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 8600,
+			exit_code: 1,
+			output: Array.from(
+				{ length: 47 },
+				(_, index) => `error line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand command" }),
+		);
+	},
+};
+
+export const ExecuteDeniedByHook: Story = {
+	args: {
+		name: "execute",
+		status: "error",
+		isError: true,
+		args: { command: "cat /etc/secrets" },
+		parsedCommands: [["cat", "/etc/secrets"]],
+		result: {
+			error:
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
+		},
+	},
+};
+
+export const ExecuteRewrittenByHook: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "echo REWRITTEN_BY_HOOK" },
+		parsedCommands: [["echo", "REWRITTEN_BY_HOOK"]],
+		hookRewritten: true,
+		result: { output: "REWRITTEN_BY_HOOK", exit_code: 0 },
+	},
+};
+
+export const WriteFileRewrittenByHook: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: {
+			path: "src/utils/helpers.ts",
+			content: "export const helper = true;\n",
+		},
+		hookRewritten: true,
+		result: { success: true },
+	},
+};
+
+export const SubagentRewrittenByHook: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		hookRewritten: true,
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+};
+
+export const NonCollapsibleRewrittenByHook: Story = {
+	args: {
+		name: "read_template",
+		status: "completed",
+		args: { template_id: "template-1" },
+		hookRewritten: true,
+		result: {
+			template: { name: "go-template", display_name: "Go Development" },
+		},
+	},
+};
+
+export const ExecuteBackgrounded: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "npm start" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			background_process_id: "process-123",
+			backgrounded: true,
+			output: "",
+			wall_duration_ms: 2100,
+		},
+	},
+};
+
+export const ExecuteAlwaysCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: executeCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "From github.com:coder/coder\nFetching origin/main",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		await userEvent.click(commandButton);
+	},
+};
+
+export const ExecuteLongCommandCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
+			output: Array.from(
+				{ length: 61 },
+				(_, index) => `output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
+		expect(commandButton).toHaveAttribute("aria-expanded", "false");
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(canvas.getByText(/for 47\.2s/)).toBeVisible();
+		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ProcessOutputAlwaysCollapsed: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "build completed\n0 errors",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand process output" }),
+		);
+	},
+};
+
+export const ProcessOutputAlwaysExpanded: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_expanded",
+		result: {
+			output: Array.from(
+				{ length: 30 },
+				(_, index) => `process output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+};
+
+export const ProcessOutputExitZeroNoBadge: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "dogfood complete",
+			exit_code: 0,
+		},
+	},
+};
+
+export const ProcessOutputModelIntent: Story = {
+	args: {
+		name: "process_output",
+		status: "running",
+		args: {
+			process_id: "process-123",
+			model_intent: "Waiting for the dev server to be ready",
+		},
+		modelIntent: "Waiting for the dev server to be ready",
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+		},
+	},
+};
+
+/**
+ * Wait timed out while the process lives on: running:true in the result.
+ * The label keeps the present tense, but the row must not keep animating
+ * (spinner/shimmer) once the poll itself has completed.
+ */
+export const ProcessOutputStillRunningResult: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+			running: true,
+			note: "process is still running",
+		},
+	},
+};
+
+/** A later kill overrides a stale running snapshot; SIGTERM does not. */
+export const ProcessOutputRunningThenSignaled: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		killedBySignal: "kill",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+			running: true,
+			note: "process is still running",
+		},
+	},
+};
+
+/** Older transcripts carry no command; the label falls back. */
+export const ProcessOutputNoCommand: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			output: "some output",
+			exit_code: 0,
+		},
+	},
+};
+
+export const ProcessOutputStringError: Story = {
+	args: {
+		name: "process_output",
+		status: "error",
+		isError: true,
+		result: "permission denied",
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Subagent stories
+// ---------------------------------------------------------------------------
+
+export const SubagentRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
+	},
+};
+
+const mockChatModel = {
+	...MockChatModel,
+	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+	model: "claude-sonnet-4-6",
+	display_name: "Claude Sonnet 4.6",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
+};
+
+export const SubagentSpawnWithModelAndEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatModelKey(mockChatModel.organization_id, mockChatModel.id),
+				data: mockChatModel,
+			},
+		],
+	},
+};
+
+export const SubagentSpawnWithModelDefaultEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatModelKey(mockChatModel.organization_id, mockChatModel.id),
+				data: mockChatModel,
+			},
+		],
+	},
+};
+
+// Effort-only spawns resolve against an inherited model whose effort
+// bounds are unknown client-side, so no suffix is shown.
+export const SubagentSpawnWithEffortOnly: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatModelKey(mockChatModel.organization_id, mockChatModel.id),
+				data: mockChatModel,
+			},
+		],
+	},
+};
+
+export const SubagentSpawnWithUnknownModelConfig: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatModelKey(
+					MockChatModel.organization_id,
+					"00000000-0000-0000-0000-000000000000",
+				),
+				data: null,
+			},
+		],
+	},
+};
+
+export const ExploreSubagentRunning: Story = {
+	args: {
+		name: "spawn_explore_agent",
+		status: "running",
+		args: {
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "explore-chat-id",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/explore-chat-id",
+		);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SubagentAwaitLinkCard: Story = {
+	args: {
+		name: "wait_agent",
+		args: { title: "Sub-agent" },
+		result: { chat_id: "child-chat-id", status: "pending" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
+	},
+};
+
+export const SubagentMessageLinkCard: Story = {
+	args: {
+		name: "message_agent",
+		args: { title: "Sub-agent" },
+		result: { chat_id: "child-chat-id", status: "pending" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
+	},
+};
+
+export const SubagentNoErrorWhenCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		args: undefined,
+		result: {
+			chat_id: "child-chat-id",
+			status: "completed",
+			error: "provider metadata noise",
+		},
+		status: "error",
+		isError: true,
+	},
+};
+
+export const SubagentAwaitPreferredTitle: Story = {
+	args: {
+		name: "wait_agent",
+		args: { title: "Fallback title" },
+		result: {
+			chat_id: "child-chat-id",
+			title: "Delegated child title",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Delegated child title")).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
+		expect(canvas.queryByText("Fallback title")).toBeNull();
+	},
+};
+
+export const SpawnSubagentGeneralRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			type: "general",
+			status: "pending",
+		},
+	},
+};
+
+export const SpawnSubagentGeneralCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			type: "general",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+};
+
+export const SpawnSubagentExploreRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			type: "explore",
+			status: "pending",
+		},
+	},
+};
+
+export const SpawnSubagentExploreCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			type: "explore",
+			status: "completed",
+		},
+	},
+};
+
+export const SpawnSubagentComputerUseRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			type: "computer_use",
+			status: "pending",
+		},
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "spawn-desktop-child",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+};
+
+export const SpawnSubagentComputerUseCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			type: "computer_use",
+			title: "Visual regression check",
+			status: "completed",
+		},
+	},
+};
+
+export const WaitAgentExploreStreamingFromHistory: Story = {
+	args: {
+		name: "wait_agent",
+		status: "running",
+		args: { chat_id: "explore-child" },
+		result: { chat_id: "explore-child", status: "pending" },
+		subagentVariants: new Map([["explore-child", "explore"]]),
+	},
+};
+
+export const MessageAgentExploreStreamingFromResult: Story = {
+	args: {
+		name: "message_agent",
+		status: "running",
+		args: { chat_id: "message-child", message: "continue" },
+		result: {
+			chat_id: "message-child",
+			type: "explore",
+			status: "pending",
+		},
+	},
+};
+
+// interrupt_agent is the post-rename name for close_agent. The response
+// carries `interrupted: true`.
+export const InterruptAgentExploreCompleted: Story = {
+	args: {
+		name: "interrupt_agent",
+		status: "completed",
+		args: { chat_id: "interrupt-child" },
+		result: {
+			chat_id: "interrupt-child",
+			type: "explore",
+			status: "completed",
+			interrupted: true,
+		},
+	},
+};
+
+// list_agents renders through ListAgentsTool, showing a count in the
+// header and an expandable list of agents with links.
+export const ListAgentsCompleted: Story = {
+	args: {
+		name: "list_agents",
+		status: "completed",
+		args: {},
+		result: {
+			agents: [
+				{
+					chat_id: "agent-1",
+					title: "Repository review",
+					type: "general",
+					status: "completed",
+					created_at: "2026-04-21T00:00:00.000Z",
+					updated_at: "2026-04-21T00:05:00.000Z",
+				},
+				{
+					chat_id: "agent-2",
+					title: "Inspect repository",
+					type: "explore",
+					status: "running",
+					created_at: "2026-04-21T00:01:00.000Z",
+					updated_at: "2026-04-21T00:06:00.000Z",
+				},
+				{
+					chat_id: "agent-3",
+					title: "Drive the desktop",
+					type: "computer_use",
+					status: "pending",
+					created_at: "2026-04-21T00:02:00.000Z",
+					updated_at: "2026-04-21T00:07:00.000Z",
+				},
+			],
+			total: 3,
+			returned: 3,
+			offset: 0,
+			has_more: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", { name: /Listed 3 of 3 agents/ });
+		await userEvent.click(header);
+	},
+};
+
+export const ListAgentsRunning: Story = {
+	args: {
+		name: "list_agents",
+		status: "running",
+		args: {},
+		result: undefined,
+	},
+};
+
+export const ListAgentsEmpty: Story = {
+	args: {
+		name: "list_agents",
+		status: "completed",
+		args: {},
+		result: {
+			agents: [],
+			total: 0,
+			has_more: false,
+		},
+	},
+};
+
+export const ListAgentsError: Story = {
+	args: {
+		name: "list_agents",
+		status: "error",
+		isError: true,
+		args: {},
+		result: "list_agents is only available on root chats",
+	},
+};
+
+// ---------------------------------------------------------------------------
+// ListSubagentModels stories
+// ---------------------------------------------------------------------------
+
+export const ListSubagentModelsCompleted: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "completed",
+		args: {},
+		result: {
+			models: [
+				{
+					model_config_id: "10000000-0000-0000-0000-000000000001",
+					display_name: "Fast Model",
+					model: "fast-1",
+					provider: "openai",
+					context_limit: 200_000,
+					is_default: true,
+					reasoning_efforts: ["low", "medium", "high"],
+				},
+				{
+					model_config_id: "20000000-0000-0000-0000-000000000002",
+					display_name: "Large Model",
+					model: "large-2",
+					provider: "anthropic",
+					context_limit: 1_000_000,
+					is_default: false,
+					reasoning_efforts: [
+						"none",
+						"minimal",
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max",
+					],
+				},
+				{
+					model_config_id: "30000000-0000-0000-0000-000000000003",
+					display_name: "",
+					model: "gemini-3.6-flash",
+					provider: "google",
+					context_limit: 262_000,
+					is_default: false,
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", {
+			name: /Listed 3 subagent models/,
+		});
+		await userEvent.click(header);
+	},
+};
+
+export const ListSubagentModelsRunning: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "running",
+		args: {},
+		result: undefined,
+	},
+};
+
+export const ListSubagentModelsEmpty: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "completed",
+		args: {},
+		result: {
+			models: [],
+		},
+	},
+};
+
+export const ListSubagentModelsError: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "error",
+		isError: true,
+		args: {},
+		result: "list_subagent_models is only available on root chats",
+	},
+};
+
+// ---------------------------------------------------------------------------
+// ListTemplates stories
+// ---------------------------------------------------------------------------
+
+export const ListTemplatesRunning: Story = {
+	args: {
+		name: "list_templates",
+		status: "running",
+	},
+};
+
+export const ListTemplatesSuccess: Story = {
+	args: {
+		name: "list_templates",
+		status: "completed",
+		result: {
+			templates: [
+				{
+					id: "template-1",
+					name: "go-template",
+					display_name: "Go Development",
+					description: "A template for Go development with VS Code",
+				},
+				{
+					id: "template-2",
+					name: "python-template",
+					description: "Python development environment",
+				},
+			],
+			count: 2,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+	},
+};
+
+export const ListTemplatesSingle: Story = {
+	args: {
+		name: "list_templates",
+		status: "completed",
+		result: {
+			templates: [
+				{
+					id: "template-1",
+					name: "go-template",
+					description: "Go development template",
+				},
+			],
+			count: 1,
+		},
+	},
+};
+
+export const ListTemplatesEmpty: Story = {
+	args: {
+		name: "list_templates",
+		status: "completed",
+		result: {
+			templates: [],
+			count: 0,
+		},
+	},
+};
+
+// ---------------------------------------------------------------------------
+// ChatSummarized stories
+// ---------------------------------------------------------------------------
+
+export const ChatSummarized: Story = {
+	args: {
+		name: "chat_summarized",
+		args: undefined,
+		result: { summary: "Compaction summary text." },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Summarized" });
+		await userEvent.click(toggle);
+	},
+};
+
+// Automatic compactions include source: "automatic" but keep the
+// plain "Summarized" label; only manual ones are called out.
+export const ChatSummarizedAutomaticSource: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "automatic" }),
+		result: { summary: "Compaction summary text.", source: "automatic" },
+	},
+};
+
+// A user-requested /compact renders with a distinct manual label.
+export const ChatSummarizedManual: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		result: { summary: "Manual compaction summary text.", source: "manual" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Summarized (manual)" });
+		await userEvent.click(toggle);
+	},
+};
+
+// While the summary streams in, the manual source is only present in
+// the call args; the header still shows the running label.
+export const ChatSummarizedManualRunning: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const ChatCleared: Story = {
+	args: {
+		name: "chat_cleared",
+		args: JSON.stringify({ source: "manual" }),
+		result: { source: "manual" },
+	},
+};
+
+export const ChatClearedError: Story = {
+	args: {
+		name: "chat_cleared",
+		args: JSON.stringify({ source: "manual" }),
+		result: { error: "chat is archived" },
+		status: "error",
+		isError: true,
+	},
+};
+
+// ---------------------------------------------------------------------------
+// SubagentInterrupt stories
+// ---------------------------------------------------------------------------
+
+export const SubagentInterrupt: Story = {
+	args: {
+		name: "interrupt_agent",
+		args: undefined,
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Generic fallback stories
+// ---------------------------------------------------------------------------
+
+export const TaskNameGenericRendering: Story = {
+	args: {
+		name: "task",
+		args: undefined,
+	},
+};
+
+// ---------------------------------------------------------------------------
+// MCP tool stories (generic renderer with MCP server context)
+// ---------------------------------------------------------------------------
+
+const sampleMCPServers = [
+	{
+		id: "mcp-server-1",
+		organization_id: "00000000-0000-4000-8000-000000000001",
+		slug: "linear",
+		display_name: "Linear",
+		description: "Project management",
+		icon_url: "https://linear.app/favicon.ico",
+		transport: "streamable_http",
+		url: "https://mcp.linear.app",
+		auth_type: "oauth2",
+		has_oauth2_secret: false,
+		has_api_key: false,
+		has_custom_headers: false,
+		tool_allow_list: [],
+		tool_deny_list: [],
+		availability: "default_on",
+		enabled: true,
+		model_intent: false,
+		allow_in_plan_mode: false,
+		forward_coder_headers: false,
+		auth_connected: true,
+		created_at: "2025-01-01T00:00:00Z",
+		updated_at: "2025-01-01T00:00:00Z",
+	},
+] satisfies MCPServerConfig[];
+
+export const MCPToolRunning: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "running",
+		args: { project: "backend" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+};
+
+export const MCPToolCompleted: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "completed",
+		args: { project: "backend" },
+		result: {
+			issues: [
+				{ id: "LIN-123", title: "Fix auth flow" },
+				{ id: "LIN-456", title: "Update dashboard" },
+			],
+		},
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+	},
+};
+
+export const MCPToolError: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		args: { project: "backend" },
+		result: { error: "Authentication token expired" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+};
+
+export const MCPToolNoResult: Story = {
+	args: {
+		name: "linear__create_issue",
+		status: "completed",
+		args: { title: "New issue" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+	},
+};
+
+export const MCPToolSlackIcon: Story = {
+	args: {
+		name: "slack__post_message",
+		status: "completed",
+		result: { ok: true, channel: "#general" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "slack",
+				display_name: "Slack",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/500px-Slack_icon_2019.svg.png",
+			},
+		],
+	},
+};
+
+export const MCPToolGitHubIcon: Story = {
+	args: {
+		name: "github__list_prs",
+		status: "completed",
+		result: { prs: [{ id: 1, title: "Fix bug" }] },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "github",
+				display_name: "GitHub",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg",
+			},
+		],
+	},
+};
+
+export const MCPToolFigmaIcon: Story = {
+	args: {
+		name: "figma__get_file",
+		status: "completed",
+		result: { file: "design.fig" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "figma",
+				display_name: "Figma",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
+			},
+		],
+	},
+};
+
+export const MCPToolNoServer: Story = {
+	args: {
+		name: "some_custom_tool",
+		status: "completed",
+		result: { output: "Tool finished successfully" },
+	},
+};
+
+export const WorkspaceMCPToolCompleted: Story = {
+	args: {
+		name: "workspace-mcp__echo",
+		status: "completed",
+		args: { message: "hello from workspace MCP" },
+		result: { output: "hello from workspace MCP" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+	},
+};
+
+export const MCPToolModelIntentRunning: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "running",
+		args: { project: "backend" },
+		modelIntent: "Fetching backend issues from Linear",
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+};
+
+export const MCPToolModelIntentCompleted: Story = {
+	args: {
+		name: "github__create_pull_request",
+		status: "completed",
+		args: { title: "Fix auth flow", base: "main" },
+		result: { url: "https://github.com/org/repo/pull/42" },
+		modelIntent: "creating pull request for auth fix",
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "github",
+				display_name: "GitHub",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg",
+			},
+		],
+	},
+};
+
+// ---------------------------------------------------------------------------
+// WriteFile stories
+// ---------------------------------------------------------------------------
+
+export const WriteFileRunning: Story = {
+	args: {
+		name: "write_file",
+		status: "running",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+		},
+	},
+};
+
+export const WriteFileSuccess: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Wrote helpers\.ts/ }),
+		);
+	},
+};
+
+export const WriteFileAlwaysExpanded: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "always_expanded",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+		},
+	},
+};
+
+export const WriteFileDeniedByHook: Story = {
+	args: {
+		name: "write_file",
+		status: "error",
+		isError: true,
+		codeDiffDisplayMode: "auto",
+		args: {
+			path: "src/utils/helpers.ts",
+			content: "export const helper = true;\n",
+		},
+		result: {
+			error:
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: writes to src are blocked.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Failed to write helpers\.ts/ }),
+		);
+	},
+};
+
+// ---------------------------------------------------------------------------
+// EditFiles stories
+// ---------------------------------------------------------------------------
+
+export const EditFilesSingleRunning: Story = {
+	args: {
+		name: "edit_files",
+		status: "running",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
+export const EditFilesSingleSuccess: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
+export const EditFilesAlwaysCollapsed: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "always_collapsed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Edited config\.ts/ }),
+		);
+	},
+};
+
+export const EditFilesMultipleSuccess: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
+/**
+ * Exercises the LCS-based interleaved diff: only the first and last
+ * lines change while the middle line stays the same, so the viewer
+ * should show context around the modifications instead of removing
+ * everything then re-adding everything.
+ */
+export const EditFilesInterleavedContext: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/constants.ts",
+					edits: [
+						{
+							search:
+								'const API_URL = "http://localhost:3000";\nconst RETRY_COUNT = 3;\nconst TIMEOUT_MS = 5000;',
+							replace:
+								'const API_URL = "https://api.prod.example.com";\nconst RETRY_COUNT = 3;\nconst TIMEOUT_MS = 10000;',
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
+export const EditFilesError: Story = {
+	args: {
+		name: "edit_files",
+		status: "error",
+		isError: true,
+		args: {
+			files: [
+				{
+					path: "src/missing.ts",
+					edits: [
+						{
+							search: "old",
+							replace: "new",
+						},
+					],
+				},
+			],
+		},
+		result: { error: "File not found" },
+	},
+};
+
+export const EditFilesServerDiffMultiFile: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+				{
+					path: "src/server.ts",
+					diff: '--- src/server.ts\n+++ src/server.ts\n@@ -1,3 +1,3 @@\n export const server = {\n-\tconst host = "localhost";\n+\tconst host = "0.0.0.0";\n };\n',
+				},
+			],
+		},
+	},
+};
+
+export const EditFilesServerDiffNoOp: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/unchanged.ts",
+					edits: [
+						{
+							search: "same",
+							replace: "same",
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [{ path: "src/unchanged.ts", diff: "" }],
+		},
+	},
+};
+
+export const EditFilesFallbackToSynthetic: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/legacy.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+		result: { ok: true },
+	},
+};
+
+export const EditFilesServerDiffPartialFallback: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+			],
+		},
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Computer tool stories
+// ---------------------------------------------------------------------------
+
+import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
+
+export const ComputerScreenshot: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: {
+			data: DESKTOP_SCREENSHOT_BASE64,
+			text: "",
+			mime_type: "image/jpeg",
+		},
+	},
+};
+
+export const ComputerRunning: Story = {
+	args: {
+		name: "computer",
+		status: "running",
+	},
+};
+
+export const ComputerTextFallback: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: {
+			data: "",
+			text: "Screen resolution: 1920x1080\nActive window: Terminal",
+			mime_type: "image/png",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Text-only results are collapsed by default (no image).
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerError: Story = {
+	args: {
+		name: "computer",
+		status: "error",
+		isError: true,
+		result: {
+			data: "",
+			text: "",
+			mime_type: "image/png",
+		},
+	},
+};
+
+export const ComputerPromotedAttachmentArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+				attachment_file_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				attachment_name: "screenshot-2026-04-21T00-00-00Z.png",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
+		await userEvent.click(toggle);
+	},
+};
+
+// The array-form computer result without an attachment, rendered as an
+// image rather than text.
+export const ComputerArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+			},
+			{ type: "text", text: "Clicked on button" },
+		],
+	},
+};
+
+export const AttachFileLabelFallsBackToPathBasename: Story = {
+	args: {
+		name: "attach_file",
+		status: "completed",
+		args: {
+			path: "docs/runbooks/incident.md",
+		},
+		result: {},
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Tool failure display stories
+// ---------------------------------------------------------------------------
+
+export const GenericToolFailed: Story = {
+	args: {
+		name: "some_custom_tool",
+		status: "error",
+		isError: true,
+		args: { input: "test data" },
+		result: { error: "Connection refused: could not reach upstream service" },
+	},
+};
+
+export const GenericToolStringError: Story = {
+	args: {
+		name: "web_search",
+		status: "error",
+		isError: true,
+		result: "Network unreachable",
+	},
+};
+
+const longCodeLine =
+	'export const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };';
+
+const tallWideFileContent = [
+	longCodeLine,
+	...Array.from({ length: 40 }, (_, i) => `const line${i} = ${i};`),
+].join("\n");
+
+export const ReadFileLongLine: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+	},
+};
+
+export const ReadFileFailed: Story = {
+	args: {
+		name: "read_file",
+		status: "error",
+		isError: true,
+		args: { path: "site/src/config.ts" },
+		result: { error: "permission denied" },
+	},
+};
+
+export const ReadFileTallAndWide: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: tallWideFileContent },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+	},
+};
+
+export const GenericToolLongOutput: Story = {
+	args: {
+		name: "some_custom_tool",
+		args: { query: "lookup" },
+		result: { value: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /some_custom_tool/i }),
+		);
+	},
+};
+
+export const SubagentWaitTimedOut: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: "timed out waiting for delegated subagent completion",
+	},
+};
+
+// The title from the subagentTitles map instead of the fallback descriptor.
+export const SubagentWaitTimedOutTitleFromMap: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: "timed out waiting for delegated subagent completion",
+		subagentTitles: new Map([["timed-out-child", "Refactor auth module"]]),
+	},
+};
+
+export const SubagentWaitTimedOutStructured: Story = {
+	args: {
+		name: "wait_agent",
+		status: "completed",
+		isError: false,
+		args: { chat_id: "timed-out-child" },
+		result: {
+			chat_id: "timed-out-child",
+			title: "Fix login bug",
+			status: "running",
+			timed_out: true,
+		},
+	},
+};
+
+export const SubagentSpawnError: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "error",
+		isError: true,
+		args: {
+			title: "Database migration",
+			prompt: "Run the pending migrations.",
+		},
+		result: {
+			chat_id: "failed-child",
+			error: "workspace not found",
+			status: "error",
+		},
+	},
+};
+
+export const SubagentWaitError: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "error-child" },
+		result: {
+			chat_id: "error-child",
+			error: "subagent crashed unexpectedly",
+			status: "error",
+			title: "Lint codebase",
+		},
+	},
+};
+
+// ---------------------------------------------------------------------------
+// spawn_computer_use_agent stories
+// ---------------------------------------------------------------------------
+
+export const SpawnComputerUseAgentRunning: Story = {
+	args: {
+		name: "spawn_computer_use_agent",
+		status: "running",
+		args: {
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Visual regression check",
+			status: "pending",
+		},
+	},
+};
+
+export const SpawnComputerUseAgentCompleted: Story = {
+	args: {
+		name: "spawn_computer_use_agent",
+		status: "completed",
+		args: {
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Visual regression check",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Spawned/)).toBeInTheDocument();
+		expect(canvas.getByText(/Visual regression check/)).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/desktop-child-1",
+		);
+	},
+};
+
+export const SpawnComputerUseAgentError: Story = {
+	args: {
+		name: "spawn_computer_use_agent",
+		status: "error",
+		isError: true,
+		result: {
+			chat_id: "desktop-child-1",
+			status: "error",
+		},
+	},
+};
+
+// ---------------------------------------------------------------------------
+// wait_agent with computer-use subagent stories
+// ---------------------------------------------------------------------------
+
+export const WaitAgentComputerUseRunning: Story = {
+	args: {
+		name: "wait_agent",
+		status: "running",
+		args: {
+			chat_id: "desktop-child-1",
+		},
+		result: {
+			chat_id: "desktop-child-1",
+			status: "pending",
+		},
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "desktop-child-1",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+};
+
+export const WaitAgentComputerUseCompletedNoRecording: Story = {
+	args: {
+		name: "wait_agent",
+		status: "completed",
+		args: { chat_id: "desktop-child-1" },
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Set up environment",
+			status: "waiting",
+			report: "Configured the dev environment.",
+		},
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "desktop-child-1",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+};
+
+export const WaitAgentComputerUseTimedOutNoRecording: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "desktop-child-1" },
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Set up environment",
+			status: "pending",
+			error: "timed out waiting for agent",
+		},
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
+	},
+};
+
+// ---------------------------------------------------------------------------
+// read_skill stories
+// ---------------------------------------------------------------------------
+
+export const ReadSkillRunning: Story = {
+	args: {
+		name: "read_skill",
+		status: "running",
+		args: { name: "deep-review" },
+	},
+};
+
+export const ReadSkillCompleted: Story = {
+	args: {
+		name: "read_skill",
+		status: "completed",
+		args: { name: "deep-review" },
+		result: {
+			name: "deep-review",
+			body: "## Deep Review Skill\n\nReview the code changes thoroughly.\n\n1. Check for correctness\n2. Verify tests\n3. Ensure style consistency",
+			files: ["roles/security-reviewer.md", "templates/review-checklist.md"],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+	},
+};
+
+export const ReadSkillError: Story = {
+	args: {
+		name: "read_skill",
+		status: "error",
+		isError: true,
+		args: { name: "nonexistent-skill" },
+		result: { error: 'skill "nonexistent-skill" not found' },
+	},
+};
+
+// ---------------------------------------------------------------------------
+// read_skill_file stories
+// ---------------------------------------------------------------------------
+
+export const ReadSkillFileRunning: Story = {
+	args: {
+		name: "read_skill_file",
+		status: "running",
+		args: { name: "deep-review", path: "roles/security-reviewer.md" },
+	},
+};
+
+export const ReadSkillFileCompleted: Story = {
+	args: {
+		name: "read_skill_file",
+		status: "completed",
+		args: { name: "deep-review", path: "roles/security-reviewer.md" },
+		result: {
+			content:
+				"# Security Reviewer Role\n\nFocus on authentication, authorization, and input validation.\n\n## Checklist\n- [ ] Verify auth middleware\n- [ ] Check for SQL injection\n- [ ] Validate user inputs",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+	},
+};
+
+export const ReadSkillFileError: Story = {
+	args: {
+		name: "read_skill_file",
+		status: "error",
+		isError: true,
+		args: { name: "deep-review", path: "missing-file.md" },
+		result: { error: "file not found" },
+	},
+};
+
+// ---------------------------------------------------------------------------
+// start_workspace stories
+// ---------------------------------------------------------------------------
+
+export const StartWorkspaceRunning: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "starting",
+					},
+				},
+			},
+		],
+	},
+};
+
+export const StartWorkspaceCompleted: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: "my-project",
+			agent_status: "ready",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+};
+
+export const StartWorkspaceError: Story = {
+	args: {
+		name: "start_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "workspace was deleted; use create_workspace to make a new one",
+		},
+	},
+};
+
+export const StartWorkspaceBuildFailed: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error: "workspace start build failed: terraform apply failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+};
+
+export const StartWorkspaceQuotaReached: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace start build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not start this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+};
+
+// ---------------------------------------------------------------------------
+// create_workspace stories
+// ---------------------------------------------------------------------------
+
+export const CreateWorkspaceRunning: Story = {
+	args: {
+		name: "create_workspace",
+		status: "running",
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "starting",
+					},
+				},
+			},
+		],
+	},
+};
+
+export const CreateWorkspaceCompleted: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: true,
+			workspace_name: "my-project",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+};
+
+export const CreateWorkspaceQuotaReached: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not create this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+};
+
+export const CreateWorkspaceAlreadyExists: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: false,
+			workspace_name: "my-project",
+		},
+	},
+};
+
+export const CreateWorkspaceError: Story = {
+	args: {
+		name: "create_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "template not found",
+		},
+	},
+};
+
+export const CreateWorkspaceBuildFailed: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error: "workspace build failed: terraform apply failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+};
+
+export const AllToolIconsTranscript: Story = {
+	render: () => (
+		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+			<DesktopPanelContext.Provider
+				value={{ desktopChatId: "desktop-child", onOpenDesktop: fn() }}
+			>
+				<div className="flex flex-col gap-2">
+					<BlockList
+						blocks={[
+							{
+								type: "thinking",
+								text: "Thinking\nReviewing the available tools and grouping them by category.",
+							},
+						]}
+						tools={[]}
+						keyPrefix="all-tool-icons-thinking"
+					/>
+					{allToolShowcaseItems.map((tool, index) => (
+						<Tool
+							key={`${tool.name}-${index}`}
+							name={tool.name}
+							status={tool.status ?? "completed"}
+							args={tool.args}
+							result={tool.result}
+							isError={tool.isError}
+							killedBySignal={tool.killedBySignal}
+							modelIntent={tool.modelIntent}
+							parsedCommands={tool.parsedCommands}
+							subagentVariants={tool.subagentVariants}
+							shellToolDisplayMode="always_collapsed"
+							codeDiffDisplayMode="always_collapsed"
+							showDesktopPreviews={false}
+						/>
+					))}
+				</div>
+			</DesktopPanelContext.Provider>
+		</ChatWorkspaceContext>
+	),
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "running",
+					},
+				},
+			},
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+};
+
+const policyCaseLabel = (name: string, index: number) =>
+	`policy case ${name} ${index}`;
+
+// WorkspaceBuildLogSection falls back to the workspace's latest build when a
+// tool result carries no build_id, so both must resolve to the seeded logs.
+const showcaseBuildId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+const policyCaseWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-workspace-id",
+	latest_build: {
+		...MockWorkspaceBuild,
+		id: showcaseBuildId,
+		workspace_id: "test-workspace-id",
+	},
+};
+
+export const PolicyBadgeCoversEveryRenderer: Story = {
+	render: () => (
+		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+			<DesktopPanelContext.Provider
+				value={{ desktopChatId: "desktop-child", onOpenDesktop: fn() }}
+			>
+				<div className="flex flex-col gap-2">
+					{allToolShowcaseItems.map((tool, index) => (
+						<div
+							key={`${tool.name}-${index}`}
+							role="group"
+							aria-label={policyCaseLabel(tool.name, index)}
+						>
+							<Tool
+								name={tool.name}
+								status={tool.status ?? "completed"}
+								args={tool.args}
+								result={tool.result}
+								isError={tool.isError}
+								killedBySignal={tool.killedBySignal}
+								modelIntent={tool.modelIntent}
+								parsedCommands={tool.parsedCommands}
+								subagentVariants={tool.subagentVariants}
+								hookRewritten
+								shellToolDisplayMode="always_collapsed"
+								codeDiffDisplayMode="always_collapsed"
+								showDesktopPreviews={false}
+							/>
+						</div>
+					))}
+				</div>
+			</DesktopPanelContext.Provider>
+		</ChatWorkspaceContext>
+	),
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey("test-workspace-id"),
+				data: policyCaseWorkspace,
+			},
+			{
+				key: workspaceBuildLogs(showcaseBuildId).queryKey,
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const covered = new Set(allToolShowcaseItems.map((tool) => tool.name));
+		expect(
+			toolRendererNames.filter((name) => !covered.has(name)),
+		).toStrictEqual([]);
+
+		const canvas = within(canvasElement);
+		const rendered = new Set<string>();
+		const missingBadge: string[] = [];
+		allToolShowcaseItems.forEach((tool, index) => {
+			const toolCase = canvas.getByRole("group", {
+				name: policyCaseLabel(tool.name, index),
+			});
+			if (toolCase.textContent?.trim() === "") {
+				return;
+			}
+			rendered.add(tool.name);
+			// checkVisibility, not presence: a badge hidden by the card's own
+			// layout still satisfies a text query.
+			if (
+				!within(toolCase).queryByText("Modified by policy")?.checkVisibility()
+			) {
+				missingBadge.push(tool.name);
+			}
+		});
+
+		expect(missingBadge).toStrictEqual([]);
+		expect(
+			toolRendererNames.filter((name) => !rendered.has(name)),
+		).toStrictEqual([]);
+	},
+};

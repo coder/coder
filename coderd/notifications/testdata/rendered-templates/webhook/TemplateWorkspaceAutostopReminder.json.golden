@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "Workspace Autostop Reminder",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View workspace",
+        "url": "http://test.com/@bobby/bobby-workspace"
+      }
+    ],
+    "labels": {
+      "timeTilShutdown": "1 hour from now",
+      "workspace": "bobby-workspace"
+    },
+    "data": null,
+    "targets": null
+  },
+  "title": "Your workspace \"bobby-workspace\" will stop soon",
+  "title_markdown": "Your workspace \"bobby-workspace\" will stop soon",
+  "body": "Your workspace bobby-workspace will automatically stop 1 hour from now.\n\nConnect to it or extend the deadline to keep it running.",
+  "body_markdown": "Your workspace **bobby-workspace** will automatically stop 1 hour from now.\n\nConnect to it or extend the deadline to keep it running."
+}

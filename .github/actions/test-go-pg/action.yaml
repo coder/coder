@@ -1,0 +1,155 @@
+name: "Test Go with PostgreSQL"
+description: "Run Go tests with PostgreSQL database"
+
+inputs:
+  postgres-version:
+    description: "PostgreSQL version to use"
+    required: false
+    default: "13"
+  test-parallelism-packages:
+    description: "Number of packages to test in parallel (-p flag)"
+    required: false
+    default: "8"
+  test-parallelism-tests:
+    description: "Number of tests to run in parallel within each package (-parallel flag)"
+    required: false
+    default: "8"
+  race-detection:
+    description: "Enable race detection"
+    required: false
+    default: "false"
+  test-count:
+    description: "Number of times to run each test (empty for cached results)"
+    required: false
+    default: ""
+  test-packages:
+    description: "Packages to test (default: ./...)"
+    required: false
+    default: "./..."
+  run-regex:
+    description: "Go test name regex passed via RUN"
+    required: false
+    default: ""
+  test-shuffle:
+    description: "Go test shuffle mode passed via TEST_SHUFFLE"
+    required: false
+    default: ""
+  gotestsum-json-file:
+    description: "Optional Linux path for gotestsum --jsonfile output. Use default for RUNNER_TEMP/go-test.json."
+    required: false
+    default: ""
+  embedded-pg-path:
+    description: "Path for embedded postgres data (Windows/macOS only)"
+    required: false
+    default: ""
+  embedded-pg-cache:
+    description: "Path for embedded postgres cache (Windows/macOS only)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Mount tmpfs for Go temp dir (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: | # zizmor: ignore[github-env] GOTMPDIR uses only runner-provided paths.
+        # GOTMPDIR holds test binaries and t.TempDir() output. Keep them off
+        # the EBS-backed root disk like the Windows and macOS RAM disks do.
+        # Default the path here so the mount does not depend on the caller
+        # also running ./.github/actions/setup-go-paths.
+        if [[ -z "${GOTMPDIR:-}" ]]; then
+          GOTMPDIR="${RUNNER_TEMP}/go-tmp"
+          echo "GOTMPDIR=${GOTMPDIR}" >> "${GITHUB_ENV}"
+        fi
+        mkdir -p "${GOTMPDIR}"
+        sudo mount -t tmpfs -o size=8g tmpfs "${GOTMPDIR}"
+
+    - name: Download Go modules
+      shell: bash
+      run: ./.github/scripts/retry.sh -- go mod download
+
+    - name: Start PostgreSQL Docker container (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        POSTGRES_VERSION: ${{ inputs.postgres-version }}
+        TEST_POSTGRES_LOG_STATEMENT: none
+      run: make test-postgres-docker
+
+    - name: Start I/O sampler (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        nohup vmstat -t 1 > "${RUNNER_TEMP}/vmstat.log" 2>&1 &
+        echo $! > "${RUNNER_TEMP}/vmstat.pid"
+        if command -v iostat > /dev/null; then
+          nohup iostat -dxt 1 > "${RUNNER_TEMP}/iostat.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/iostat.pid"
+        fi
+
+    - name: Setup Embedded Postgres (Windows/macOS)
+      if: runner.os != 'Linux'
+      shell: bash
+      env:
+        POSTGRES_VERSION: ${{ inputs.postgres-version }}
+        EMBEDDED_PG_PATH: ${{ inputs.embedded-pg-path }}
+        EMBEDDED_PG_CACHE_DIR: ${{ inputs.embedded-pg-cache }}
+      run: |
+        go run scripts/embedded-pg/main.go -path "${EMBEDDED_PG_PATH}" -cache "${EMBEDDED_PG_CACHE_DIR}"
+
+    - name: Run tests
+      shell: bash
+      env:
+        TEST_NUM_PARALLEL_PACKAGES: ${{ inputs.test-parallelism-packages }}
+        TEST_NUM_PARALLEL_TESTS: ${{ inputs.test-parallelism-tests }}
+        TEST_COUNT: ${{ inputs.test-count }}
+        RUN: ${{ inputs.run-regex }}
+        TEST_SHUFFLE: ${{ inputs.test-shuffle }}
+        TEST_PACKAGES: ${{ inputs.test-packages }}
+        RACE_DETECTION: ${{ inputs.race-detection }}
+        GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
+        TS_DEBUG_DISCO: "true"
+        TS_DEBUG_DERP: "true"
+        LC_CTYPE: "en_US.UTF-8"
+        LC_ALL: "en_US.UTF-8"
+      run: |
+        set -euo pipefail
+
+        # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
+        # of writing a PATH shim. "default" is the historical
+        # ${RUNNER_TEMP}/go-test.json location consumed by
+        # ./.github/actions/go-test-failure-report.
+        if [[ -n "${GOTESTSUM_JSONFILE_INPUT}" ]]; then
+          if [[ "${GOTESTSUM_JSONFILE_INPUT}" == "default" ]]; then
+            export GOTESTSUM_JSONFILE="${RUNNER_TEMP}/go-test.json"
+          else
+            export GOTESTSUM_JSONFILE="${GOTESTSUM_JSONFILE_INPUT}"
+          fi
+        fi
+
+        if [[ ${RACE_DETECTION} == true ]]; then
+          make test-race
+        else
+          make test
+        fi
+
+    - name: Stop I/O sampler (Linux)
+      if: always() && runner.os == 'Linux'
+      shell: bash
+      run: |
+        for name in vmstat iostat; do
+          pidfile="${RUNNER_TEMP}/${name}.pid"
+          [[ -f "${pidfile}" ]] && kill "$(cat "${pidfile}")" 2> /dev/null || true
+        done
+
+    - name: Upload I/O samples (Linux)
+      if: failure() && runner.os == 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: io-samples-${{ github.job }}
+        path: |
+          ${{ runner.temp }}/vmstat.log
+          ${{ runner.temp }}/iostat.log
+        if-no-files-found: ignore
+        retention-days: 7

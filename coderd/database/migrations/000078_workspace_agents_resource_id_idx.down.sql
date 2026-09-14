@@ -1,0 +1,1 @@
+DROP INDEX workspace_agents_resource_id_idx;

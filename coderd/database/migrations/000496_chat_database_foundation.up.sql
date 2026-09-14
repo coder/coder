@@ -1,0 +1,35 @@
+CREATE VIEW chats_expanded AS
+SELECT
+    c.id,
+    c.owner_id,
+    c.workspace_id,
+    c.title,
+    c.status,
+    c.worker_id,
+    c.started_at,
+    c.heartbeat_at,
+    c.created_at,
+    c.updated_at,
+    c.parent_chat_id,
+    c.root_chat_id,
+    c.last_model_config_id,
+    c.archived,
+    c.last_error,
+    c.mode,
+    c.mcp_server_ids,
+    c.labels,
+    c.build_id,
+    c.agent_id,
+    c.pin_order,
+    c.last_read_message_id,
+    c.last_injected_context,
+    c.dynamic_tools,
+    c.organization_id,
+    c.plan_mode,
+    c.client_type,
+    c.last_turn_summary,
+    owner.username AS owner_username,
+    owner.name AS owner_name
+FROM
+    chats c
+    JOIN visible_users owner ON owner.id = c.owner_id;

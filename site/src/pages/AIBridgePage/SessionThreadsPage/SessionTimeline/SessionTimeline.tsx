@@ -1,0 +1,754 @@
+import { cn } from "cn";
+import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
+import { type FC, useEffect, useRef, useState } from "react";
+import type {
+	AgentFirewallLog,
+	AIBridgeAgenticAction,
+	AIBridgeSessionNetworkCallSummary,
+	AIBridgeThread,
+	MinimalUser,
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
+import { AgenticLoopTable } from "./AgenticLoopTable";
+import { HighlightText } from "./HighlightText";
+import { NetworkCallsTable } from "./NetworkCallsTable";
+import { PromptTable } from "./PromptTable";
+import {
+	classifyThreadSearch,
+	matchesNetworkCallSearch,
+} from "./sessionSearch";
+import { ToolCallTable } from "./ToolCallTable";
+
+interface ExpandableTextProps {
+	maxHeight: number;
+	text: string;
+	className?: string;
+	/** Matches render in bold. */
+	highlight?: string;
+	/**
+	 * True when the query matched this text. A match reveals the full text so
+	 * the reason it surfaced is visible. Explicit user toggles still win.
+	 */
+	expandToMatch?: boolean;
+}
+
+const ExpandableText: FC<ExpandableTextProps> = ({
+	maxHeight,
+	text,
+	className,
+	highlight,
+	expandToMatch = false,
+}) => {
+	const contentRef = useRef<HTMLParagraphElement>(null);
+	// Only user toggles are stored, so expansion follows the search.
+	const [userToggled, setUserToggled] = useState<boolean | null>(null);
+	const isExpanded = userToggled ?? expandToMatch;
+
+	// The paragraph always renders its full text, so one scrollHeight
+	// measurement suffices for the collapse toggle.
+	const [fullHeight, setFullHeight] = useState(0);
+	useEffect(() => {
+		const el = contentRef.current;
+		if (!el) return;
+
+		const measure = () => setFullHeight(el.scrollHeight);
+		measure();
+
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+
+		return () => observer.disconnect();
+	}, []);
+
+	const isExpandable = fullHeight > maxHeight;
+
+	return (
+		<div className="relative">
+			<p
+				ref={contentRef}
+				style={
+					isExpandable && !isExpanded
+						? {
+								maxHeight,
+							}
+						: undefined
+				}
+				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
+			>
+				<HighlightText text={text} highlight={highlight ?? ""} />
+			</p>
+			{isExpandable && (
+				<div
+					className={cn(
+						"flex justify-end mt-1 absolute bottom-0 right-0 left-0",
+						!isExpanded && "bg-linear-to-t from-surface-primary to-transparent",
+					)}
+				>
+					<Button
+						size="sm"
+						variant="outline"
+						className="bg-surface-primary shadow-xs"
+						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
+					>
+						{isExpanded ? "Collapse" : "Show more"}
+					</Button>
+				</div>
+			)}
+		</div>
+	);
+};
+
+interface CollapseButtonProps {
+	isOpen: boolean;
+	onClick: () => void;
+	children: React.ReactNode;
+	className?: string;
+}
+
+const CollapseButton: FC<CollapseButtonProps> = ({
+	isOpen,
+	onClick,
+	children,
+}) => (
+	<Button
+		type="button"
+		variant="subtle"
+		onClick={onClick}
+		className="border-none bg-transparent text-content-secondary flex items-center"
+		size="sm"
+	>
+		<ChevronRightIcon
+			className={cn(
+				"mr-4 transition-transform size-3.5",
+				isOpen && "rotate-90",
+			)}
+		/>
+		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
+		{children}
+	</Button>
+);
+
+// Wraps content with a visual left-bracket connector: two rounded corner lines
+// that flank the content row, creating an indented visual grouping.
+interface BracketConnectorProps {
+	children: React.ReactNode;
+	contentClassName?: string;
+	firstRowHeight?: "2rem" | "60px";
+	hideBottomLine?: boolean;
+}
+
+const BracketConnector: FC<BracketConnectorProps> = ({
+	children,
+	contentClassName,
+	firstRowHeight = "2rem",
+	hideBottomLine = false,
+}) => (
+	<div
+		className={cn(
+			"grid grid-cols-[1rem_1rem_1fr]",
+			firstRowHeight === "60px"
+				? "grid-rows-[60px_auto]"
+				: "grid-rows-[2rem_auto]",
+		)}
+	>
+		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid rounded-bl-lg">
+			{/* top rounded line */}
+		</div>
+		{!hideBottomLine && (
+			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid rounded-tl-lg -mt-px">
+				{/* bottom rounded line */}
+			</div>
+		)}
+		<div className={cn("row-start-1 col-start-3 row-span-2", contentClassName)}>
+			{children}
+		</div>
+	</div>
+);
+
+interface ThinkingBlockProps {
+	text: string;
+}
+
+const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
+	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
+		<div className="flex items-center">
+			<LoaderIcon className="size-icon-xs text-content-secondary" />
+			<span className="font-mono ml-2 text-xs">Thinking...</span>
+		</div>
+		<ExpandableText
+			maxHeight={50}
+			text={text}
+			className="text-sm text-pretty font-normal m-0"
+		/>
+	</BracketConnector>
+);
+
+interface ToolCallBlockProps {
+	tool: string;
+	serverURL: string;
+	input: string;
+	inputTokens: number;
+	outputTokens: number;
+	timestamp: Date;
+	tokenUsageMetadata?: Record<string, unknown>;
+	expandedByDefault?: boolean;
+	/** The active query, used to bold matches in the tool name and input. */
+	highlight: string;
+}
+
+const ToolCallBlock: FC<ToolCallBlockProps> = ({
+	tool,
+	serverURL,
+	input,
+	inputTokens,
+	outputTokens,
+	timestamp,
+	tokenUsageMetadata,
+	expandedByDefault = false,
+	highlight,
+}) => {
+	// Only user toggles are stored, so a later search match still reveals it.
+	const [userToggled, setUserToggled] = useState<boolean | null>(null);
+	const isOpen = userToggled ?? expandedByDefault;
+
+	return (
+		<BracketConnector contentClassName="mt-2 mr-4 border border-solid rounded-md overflow-x-auto">
+			<div className="flex items-center">
+				<CollapseButton
+					isOpen={isOpen}
+					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
+				>
+					<span className="text-sm font-normal">Tool call</span>
+					<Badge size="xs" className="font-mono ml-1">
+						<HighlightText text={tool} highlight={highlight} />
+					</Badge>
+				</CollapseButton>
+			</div>
+			{isOpen && (
+				<>
+					<ToolCallTable
+						className="mt-2 ml-5 mr-4 lg:w-1/2 overflow-x-auto"
+						timestamp={timestamp}
+						serverURL={serverURL}
+						inputTokens={inputTokens}
+						outputTokens={outputTokens}
+						tokenUsageMetadata={tokenUsageMetadata}
+					/>
+					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
+						<span>
+							<HighlightText text={tool} highlight={highlight} />
+						</span>
+						<span>
+							<JsonPrettyPrinter input={input} />
+						</span>
+					</pre>
+				</>
+			)}
+		</BracketConnector>
+	);
+};
+
+interface AgenticActionItemProps {
+	action: AIBridgeAgenticAction;
+	/**
+	 * When set with entries, only these tool calls render, and they start
+	 * expanded. A search that matched a tool name or input hides the others
+	 * and reveals these. An empty set means the search matched elsewhere, so
+	 * all tool calls render unchanged.
+	 */
+	matchedToolCallIds?: Set<string>;
+	/** The active query, used to bold matches in the tool calls. */
+	highlight: string;
+}
+
+const AgenticActionItem: FC<AgenticActionItemProps> = ({
+	action,
+	matchedToolCallIds,
+	highlight,
+}) => {
+	const visibleToolCalls = matchedToolCallIds?.size
+		? action.tool_calls.filter((tool_call) =>
+				matchedToolCallIds.has(tool_call.id),
+			)
+		: action.tool_calls;
+
+	return (
+		<>
+			{/* thinking blocks */}
+			{action.thinking.map((t) => (
+				<ThinkingBlock key={t.text} text={t.text} />
+			))}
+
+			{/* tool call blocks */}
+			{visibleToolCalls.map((tool_call) => (
+				<ToolCallBlock
+					key={tool_call.id}
+					tool={tool_call.tool}
+					serverURL={tool_call.server_url}
+					input={tool_call.input}
+					inputTokens={action.token_usage.input_tokens}
+					outputTokens={action.token_usage.output_tokens}
+					tokenUsageMetadata={tool_call.metadata}
+					timestamp={new Date(tool_call.created_at)}
+					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
+					highlight={highlight}
+				/>
+			))}
+		</>
+	);
+};
+
+interface ThreadItemProps {
+	thread: AIBridgeThread;
+	initiator: MinimalUser;
+	/**
+	 * True when the query matched this thread's prompt.
+	 */
+	searchPromptMatch: boolean;
+	/**
+	 * True when the query matched a tool name or input in this thread.
+	 */
+	searchToolMatch: boolean;
+	/**
+	 * The tool calls that matched the query. Empty when the search matched
+	 * something other than a tool call, so all tool calls render.
+	 */
+	matchedToolCallIds?: Set<string>;
+	/** The active query, used to bold matching prompt and tool text. */
+	highlight: string;
+}
+
+const ThreadItem: FC<ThreadItemProps> = ({
+	thread,
+	initiator,
+	searchPromptMatch,
+	searchToolMatch,
+	matchedToolCallIds,
+	highlight,
+}) => {
+	// Only user toggles are stored, so the loop follows the search.
+	const [userToggled, setUserToggled] = useState<boolean | null>(null);
+	const agenticLoopOpen = userToggled ?? searchToolMatch;
+
+	const toggleAgenticLoop = () =>
+		setUserToggled((prev) => !(prev ?? searchToolMatch));
+
+	const durationInMs =
+		new Date(thread.ended_at ?? Date.now()).getTime() -
+		new Date(thread.started_at).getTime();
+
+	const hasAgenticLoop = thread.agentic_actions.length > 0;
+
+	const toolCalls = thread.agentic_actions.reduce(
+		(count, action) => count + action.tool_calls.length,
+		0,
+	);
+
+	return (
+		<>
+			<div className="border border-solid rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
+				{/* left column: avatar and username */}
+				<div className="flex flex-row items-center gap-1">
+					<Avatar
+						src={initiator.avatar_url}
+						fallback={initiator.name ?? initiator.username}
+						size="sm"
+						className="shrink-0"
+					/>
+					<span className="text-sm text-content-secondary font-normal py-1">
+						{initiator.username}
+					</span>
+				</div>
+
+				{/* center column: prompt */}
+				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
+					{thread.prompt && (
+						<>
+							<div className="text-sm text-content-secondary font-normal my-1 flex items-center gap-1">
+								Prompt
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent
+											className="max-w-96 text-sm font-normal"
+											align="start"
+											side="top"
+										>
+											<p className="text-content-secondary m-0 mb-1">
+												Prompt origin cannot be reliably determined. This may
+												have been authored by a human or generated by an agent.{" "}
+											</p>
+											<Link
+												href={docs(
+													"/ai-coder/ai-gateway/audit#human-vs-agent-attribution",
+												)}
+												target="_blank"
+												className="text-sm"
+											>
+												Learn about human vs. agent attribution
+											</Link>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							</div>
+							<ExpandableText
+								maxHeight={200}
+								text={thread.prompt}
+								highlight={highlight}
+								expandToMatch={searchPromptMatch}
+								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 m-0 text-pretty"
+							/>
+						</>
+					)}
+				</div>
+				{/* right column: details */}
+				<PromptTable
+					className="lg:max-w-64 shrink-0 w-full lg:w-auto"
+					timestamp={new Date(thread.started_at)}
+					model={thread.model}
+					inputTokens={thread.token_usage.input_tokens}
+					outputTokens={thread.token_usage.output_tokens}
+					tokenUsageMetadata={thread.token_usage.metadata}
+				/>
+			</div>
+
+			{hasAgenticLoop ? (
+				<BracketConnector
+					firstRowHeight="60px"
+					contentClassName="border border-dashed rounded-md my-4"
+				>
+					{/* Agentic loop */}
+					<div className="flex flex-col lg:flex-row lg:items-center justify-between">
+						<div>
+							<CollapseButton
+								isOpen={agenticLoopOpen}
+								onClick={toggleAgenticLoop}
+							>
+								<span className="text-sm font-normal">Agentic loop</span>
+							</CollapseButton>
+						</div>
+
+						<AgenticLoopTable
+							className="lg:max-w-64 flex-1 my-3 mx-2"
+							duration={durationInMs}
+							toolCalls={
+								matchedToolCallIds?.size ? matchedToolCallIds.size : toolCalls
+							}
+						/>
+					</div>
+
+					{agenticLoopOpen && (
+						<>
+							{/* the little top rounded line above the thinking block */}
+							<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+								{/* we need the 1px extra to line up with the left border on the other lines */}
+							</div>
+
+							{/* Agentic actions */}
+							{thread.agentic_actions?.map((action, i) => (
+								<AgenticActionItem
+									key={`${thread.id}-${i}`}
+									action={action}
+									matchedToolCallIds={matchedToolCallIds}
+									highlight={highlight}
+								/>
+							))}
+
+							{/* Agentic loop completed */}
+							<BracketConnector contentClassName="py-4 -my-px" hideBottomLine>
+								<div className="flex flex-row items-center ml-2">
+									<StatusIndicatorDot variant="success" />
+									<span className="text-content-success font-normal ml-2 text-sm py-1">
+										Agentic loop completed
+									</span>
+								</div>
+							</BracketConnector>
+						</>
+					)}
+				</BracketConnector>
+			) : (
+				// Spacer to create visual gap between threads. Hidden on the
+				// last thread via the wrapper div's :last-child selector.
+				<div className="h-4 thread-gap" />
+			)}
+		</>
+	);
+};
+
+interface SessionTimelineProps {
+	initiator: MinimalUser;
+	threads: readonly AIBridgeThread[];
+	/**
+	 * Undefined when the session did not pass through Agent Firewall, in which
+	 * case the network calls panel is not rendered.
+	 */
+	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
+	networkCalls: readonly AgentFirewallLog[];
+	/**
+	 * Filters threads (prompt text, tool names, tool inputs) and network
+	 * calls (destination) to matches. See sessionSearch.ts.
+	 */
+	searchQuery: string;
+	hasNextPage: boolean;
+	isFetchingNextPage: boolean;
+	onFetchNextPage: () => void;
+}
+
+export const SessionTimeline: FC<SessionTimelineProps> = ({
+	initiator,
+	threads,
+	networkCallSummary,
+	networkCalls,
+	searchQuery,
+	hasNextPage,
+	isFetchingNextPage,
+	onFetchNextPage,
+}) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	const isSearching = searchQuery.trim() !== "";
+
+	// One walk per thread feeds filtering and search-driven expansion.
+	const threadItems = threads
+		.map((thread) => ({
+			thread,
+			classification: classifyThreadSearch(thread, searchQuery),
+		}))
+		.filter(
+			({ classification }) =>
+				classification.promptMatch || classification.toolCallIds.size > 0,
+		);
+
+	const filteredNetworkCalls = networkCalls.filter((call) =>
+		matchesNetworkCallSearch(call, searchQuery),
+	);
+
+	const hasAnyMatches =
+		threadItems.length > 0 || filteredNetworkCalls.length > 0;
+
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+
+		// A client-only search cannot be satisfied by fetching more pages, and an
+		// empty filtered list would keep the sentinel intersecting and cascade
+		// page loads. Stop paginating while a search is active.
+		if (!sentinel || !hasNextPage || isSearching) {
+			return;
+		}
+
+		const observer = new IntersectionObserver(
+			([div]) => {
+				if (div.isIntersecting && hasNextPage && !isFetchingNextPage) {
+					onFetchNextPage();
+				}
+			},
+			{ rootMargin: "200px" },
+		);
+
+		observer.observe(sentinel);
+
+		return () => {
+			observer.disconnect();
+		};
+	}, [hasNextPage, isFetchingNextPage, isSearching, onFetchNextPage]);
+
+	return (
+		<div className="relative">
+			<div className="grid grid-cols-[16px_1rem_1px_1fr_auto_16px]">
+				{/* row 1: session start */}
+				<div className="row-start-1 col-start-2 relative h-10 py-1">
+					<StatusIndicatorDot
+						variant="inactive"
+						className="absolute right-0 translate-x-1/2 translate-y-1/2"
+					/>
+				</div>
+				<div className="row-start-1 col-start-4 col-span-2 flex items-center h-10">
+					<span className="text-content-secondary font-normal ml-4 py-1 text-sm">
+						Session started
+					</span>
+				</div>
+
+				{/* row 2: vertical line */}
+				<div className="row-start-2 col-start-3 border-0 border-l border-solid">
+					{/* vertical line */}
+				</div>
+
+				{/* row 3: sized intentionally to create the visual space above the timeline border */}
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid h-6">
+					{/* vertical line */}
+				</div>
+
+				{/* row 3/4: AI Governance tooltip */}
+				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-sm text-content-secondary font-normal px-2 pt-1">
+					AI Governance
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
+							</TooltipTrigger>
+							<TooltipContent
+								className="max-w-80 text-sm font-normal"
+								align="end"
+								side="top"
+							>
+								<div className="text-content-secondary mb-1">
+									Controls and logs AI tooling so AI use stays secure,
+									compliant, and visible.
+								</div>
+								<div>
+									<Link
+										href={docs("/ai-coder/ai-governance")}
+										target="_blank"
+										className="text-sm"
+									>
+										More about AI Governance
+									</Link>
+								</div>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</div>
+
+				{/* row 4:  */}
+				<div className="row-start-4 col-start-1 border-0 border-l border-t border-dashed border-surface-green rounded-tl-lg size-4">
+					{/* top left rounded corner */}
+				</div>
+				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
+					{/* horizontal border */}
+				</div>
+				<div className="row-start-4 col-start-3 border-0 border-l border-solid">
+					{/* vertical line */}
+				</div>
+				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
+					{/* horizontal border */}
+				</div>
+				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg size-4">
+					{/* top right rounded corner */}
+				</div>
+
+				{/* row 5: threads */}
+				<div className="row-start-5 col-start-1 border-0 border-l border-dashed border-surface-green">
+					{/* left vertical line */}
+				</div>
+				<div className="row-start-5 col-start-2 col-span-4">
+					{networkCallSummary && (
+						<div className="mb-4">
+							<NetworkCallsTable
+								summary={networkCallSummary}
+								calls={filteredNetworkCalls}
+								search={
+									isSearching
+										? { loaded: networkCalls.length, query: searchQuery }
+										: undefined
+								}
+							/>
+						</div>
+					)}
+					{/* threads */}
+					<div className="[&>.thread-gap:last-child]:hidden">
+						{threadItems.map(({ thread, classification }) => (
+							<ThreadItem
+								key={thread.id}
+								thread={thread}
+								initiator={initiator}
+								searchPromptMatch={isSearching && classification.promptMatch}
+								searchToolMatch={classification.toolCallIds.size > 0}
+								matchedToolCallIds={classification.toolCallIds}
+								highlight={searchQuery}
+							/>
+						))}
+					</div>
+					{isSearching && !hasAnyMatches ? (
+						<p
+							className="m-0 py-4 text-sm font-normal text-content-secondary"
+							role="status"
+						>
+							No events match your search in the loaded events.
+							{hasNextPage &&
+								" More matches may exist; clear the search to load more."}
+						</p>
+					) : (
+						isSearching &&
+						hasNextPage && (
+							<p
+								className="m-0 py-2 text-xs font-normal text-content-secondary"
+								role="status"
+							>
+								Search covers only the loaded threads. More matches may exist;
+								clear the search to load more.
+							</p>
+						)
+					)}
+					{/* infinite scroll sentinel. Sits 200px below the last thread. */}
+					<div ref={sentinelRef} />
+					{isFetchingNextPage && (
+						<div className="flex items-center justify-center py-4 text-sm text-content-secondary">
+							<Spinner loading size="sm" />
+						</div>
+					)}
+				</div>
+				<div className="row-start-5 col-start-6 border-0 border-r border-dashed border-surface-green">
+					{/* right vertical line */}
+				</div>
+
+				{/* row 6: more design and session end */}
+				<div className="row-start-6 col-start-1 border-0 border-l border-b border-dashed border-surface-green rounded-bl-lg size-4">
+					{/* bottom left rounded corner */}
+				</div>
+				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
+					{/* horizontal line */}
+				</div>
+				<div className="row-start-6 col-start-3 border-0 border-l border-solid">
+					{/* vertical line */}
+				</div>
+				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
+					{/* horizontal line */}
+				</div>
+				<div className="row-start-6 col-start-6 border-0 border-r border-b border-dashed border-surface-green rounded-br-lg size-4">
+					{/* bottom right rounded corner */}
+				</div>
+
+				{/* rows 7-8: session end marker. Only rendered once every thread
+				    has loaded so "Session completed" cannot appear below
+				    still-loading threads and be mistaken for the end of the
+				    session. */}
+				{!hasNextPage && !isFetchingNextPage && (
+					<>
+						{/* row 7: sized intentionally to create the visual space below the timeline border */}
+						<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
+							{/* vertical line */}
+						</div>
+
+						{/* row 8: session completed */}
+						<div className="row-start-8 col-start-2 relative">
+							<StatusIndicatorDot
+								variant="success"
+								className="absolute right-0 translate-x-1/2 translate-y-1/2"
+							/>
+						</div>
+						<div className="row-start-8 col-start-4 flex items-center">
+							<span className="text-content-success font-normal ml-4 text-sm py-1">
+								Session completed
+							</span>
+						</div>
+					</>
+				)}
+			</div>
+		</div>
+	);
+};

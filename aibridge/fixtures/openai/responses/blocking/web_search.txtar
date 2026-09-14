@@ -1,0 +1,114 @@
+-- request --
+{
+  "input": [
+    {
+      "role": "user",
+      "content": "Search the web for the Example domain."
+    }
+  ],
+  "model": "gpt-5.4",
+  "stream": false,
+  "tools": [
+    {
+      "type": "web_search"
+    }
+  ]
+}
+
+-- non-streaming --
+{
+  "id": "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+  "object": "response",
+  "created_at": 1782819954,
+  "status": "completed",
+  "background": false,
+  "completed_at": 1782819963,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5.4",
+  "output": [
+    {
+      "id": "msg_0b8f5f61bf0dee5f016a43ac78e6c0819c9d1852c768844565",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "I'm invoking the web search tool now."
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "id": "ws_0b8f5f61bf0dee5f016a43ac7947bc819c945bff3bf2bcdbc9",
+      "type": "web_search_call",
+      "status": "completed",
+      "action": {
+        "type": "search",
+        "queries": [
+          "example domain"
+        ],
+        "query": "example domain"
+      }
+    },
+    {
+      "id": "msg_0b8f5f61bf0dee5f016a43ac7ae384819c8495d9f565ea2eed",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "The search ran successfully and returned normal web results."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "web_search"
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 50,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 30,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 80
+  },
+  "user": null,
+  "metadata": {}
+}

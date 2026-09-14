@@ -1,0 +1,177 @@
+{
+  "report": {
+    "start_time": "0001-01-01T00:00:00Z",
+    "end_time": "0001-01-01T00:00:00Z",
+    "template_ids": [],
+    "active_users": 0,
+    "apps_usage": [
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "Visual Studio Code",
+        "slug": "vscode",
+        "icon": "/icon/code.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "JetBrains",
+        "slug": "jetbrains",
+        "icon": "/icon/intellij.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "Web Terminal",
+        "slug": "reconnecting-pty",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "SSH",
+        "slug": "ssh",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "SFTP",
+        "slug": "sftp",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0,
+        "times_used": 0
+      }
+    ],
+    "parameters_usage": [
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "display_name": "otherparam1",
+        "name": "otherparam1",
+        "type": "string",
+        "description": "This is another parameter",
+        "values": [
+          {
+            "value": "",
+            "count": 1
+          },
+          {
+            "value": "xyz",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002"
+        ],
+        "display_name": "param1",
+        "name": "param1",
+        "type": "string",
+        "description": "This is first parameter",
+        "values": [
+          {
+            "value": "",
+            "count": 1
+          },
+          {
+            "value": "ABC",
+            "count": 1
+          },
+          {
+            "value": "abc",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002"
+        ],
+        "display_name": "param2",
+        "name": "param2",
+        "type": "string",
+        "description": "This is second parameter",
+        "values": [
+          {
+            "value": "",
+            "count": 1
+          },
+          {
+            "value": "123",
+            "count": 3
+          }
+        ]
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002"
+        ],
+        "display_name": "param3",
+        "name": "param3",
+        "type": "string",
+        "description": "This is third parameter",
+        "values": [
+          {
+            "value": "",
+            "count": 1
+          },
+          {
+            "value": "BBB",
+            "count": 2
+          },
+          {
+            "value": "bbb",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "display_name": "param4",
+        "name": "param4",
+        "type": "string",
+        "description": "This is fourth parameter",
+        "options": [
+          {
+            "name": "option1",
+            "description": "",
+            "value": "option1",
+            "icon": ""
+          },
+          {
+            "name": "option2",
+            "description": "",
+            "value": "option2",
+            "icon": ""
+          }
+        ],
+        "values": [
+          {
+            "value": "option1",
+            "count": 2
+          },
+          {
+            "value": "option2",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  }
+}

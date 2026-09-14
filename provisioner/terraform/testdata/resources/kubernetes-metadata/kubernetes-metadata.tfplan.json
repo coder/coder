@@ -1,0 +1,2179 @@
+{
+  "format_version": "1.1",
+  "terraform_version": "1.3.6",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "env": null,
+            "motd_file": null,
+            "os": "linux",
+            "shutdown_script": null,
+            "startup_script": "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "coder_app.code-server",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "code-server",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "command": null,
+            "display_name": null,
+            "healthcheck": [],
+            "icon": "/icon/code.svg",
+            "name": null,
+            "relative_path": true,
+            "share": "owner",
+            "slug": "code-server",
+            "subdomain": null,
+            "url": "http://localhost:13337?folder=/home/coder"
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          }
+        },
+        {
+          "address": "coder_metadata.kubernetes_pod_main[0]",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "kubernetes_pod_main",
+          "index": 0,
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "daily_cost": null,
+            "hide": null,
+            "icon": null,
+            "item": [
+              {
+                "key": "cpu",
+                "sensitive": false,
+                "value": "1"
+              },
+              {
+                "key": "memory",
+                "sensitive": false,
+                "value": "1Gi"
+              },
+              {
+                "key": "gpu",
+                "sensitive": false,
+                "value": "1"
+              }
+            ]
+          },
+          "sensitive_values": {
+            "item": [
+              {},
+              {},
+              {}
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_config_map.coder_workspace[0]",
+          "mode": "managed",
+          "type": "kubernetes_config_map",
+          "name": "coder_workspace",
+          "index": 0,
+          "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+          "schema_version": 0,
+          "values": {
+            "binary_data": null,
+            "data": null,
+            "metadata": [
+              {
+                "annotations": null,
+                "generate_name": null,
+                "labels": null,
+                "name": "coder-default-default",
+                "namespace": "colin-coder"
+              }
+            ]
+          },
+          "sensitive_values": {
+            "metadata": [
+              {}
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_pod.main[0]",
+          "mode": "managed",
+          "type": "kubernetes_pod",
+          "name": "main",
+          "index": 0,
+          "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+          "schema_version": 1,
+          "values": {
+            "metadata": [
+              {
+                "annotations": null,
+                "generate_name": null,
+                "labels": null,
+                "name": "coder-default-default",
+                "namespace": "colin-coder"
+              }
+            ],
+            "spec": [
+              {
+                "active_deadline_seconds": null,
+                "affinity": [],
+                "automount_service_account_token": true,
+                "container": [
+                  {
+                    "args": null,
+                    "env": [
+                      {
+                        "name": "CODER_AGENT_TOKEN",
+                        "value_from": []
+                      }
+                    ],
+                    "env_from": [],
+                    "image": "codercom/enterprise-base:ubuntu",
+                    "lifecycle": [],
+                    "liveness_probe": [],
+                    "name": "dev",
+                    "port": [],
+                    "readiness_probe": [],
+                    "resources": [
+                      {
+                        "limits": {
+                          "cpu": "1",
+                          "memory": "1Gi"
+                        }
+                      }
+                    ],
+                    "security_context": [
+                      {
+                        "allow_privilege_escalation": true,
+                        "capabilities": [],
+                        "privileged": false,
+                        "read_only_root_filesystem": false,
+                        "run_as_group": null,
+                        "run_as_non_root": null,
+                        "run_as_user": "1000",
+                        "se_linux_options": [],
+                        "seccomp_profile": []
+                      }
+                    ],
+                    "startup_probe": [],
+                    "stdin": false,
+                    "stdin_once": false,
+                    "termination_message_path": "/dev/termination-log",
+                    "tty": false,
+                    "volume_mount": [],
+                    "working_dir": null
+                  }
+                ],
+                "dns_config": [],
+                "dns_policy": "ClusterFirst",
+                "enable_service_links": true,
+                "host_aliases": [],
+                "host_ipc": false,
+                "host_network": false,
+                "host_pid": false,
+                "init_container": [],
+                "node_selector": null,
+                "priority_class_name": null,
+                "restart_policy": "Always",
+                "security_context": [],
+                "service_account_name": "coder-default-default",
+                "share_process_namespace": false,
+                "subdomain": null,
+                "termination_grace_period_seconds": 30,
+                "toleration": [],
+                "topology_spread_constraint": []
+              }
+            ],
+            "timeouts": null
+          },
+          "sensitive_values": {
+            "metadata": [
+              {}
+            ],
+            "spec": [
+              {
+                "affinity": [],
+                "container": [
+                  {
+                    "command": [],
+                    "env": [
+                      {
+                        "value": true,
+                        "value_from": []
+                      }
+                    ],
+                    "env_from": [],
+                    "lifecycle": [],
+                    "liveness_probe": [],
+                    "port": [],
+                    "readiness_probe": [],
+                    "resources": [
+                      {
+                        "limits": {},
+                        "requests": {}
+                      }
+                    ],
+                    "security_context": [
+                      {
+                        "capabilities": [],
+                        "se_linux_options": [],
+                        "seccomp_profile": []
+                      }
+                    ],
+                    "startup_probe": [],
+                    "volume_mount": []
+                  }
+                ],
+                "dns_config": [],
+                "host_aliases": [],
+                "image_pull_secrets": [],
+                "init_container": [],
+                "readiness_gate": [],
+                "security_context": [],
+                "toleration": [],
+                "topology_spread_constraint": [],
+                "volume": []
+              }
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_role.coder_workspace[0]",
+          "mode": "managed",
+          "type": "kubernetes_role",
+          "name": "coder_workspace",
+          "index": 0,
+          "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+          "schema_version": 0,
+          "values": {
+            "metadata": [
+              {
+                "annotations": null,
+                "generate_name": null,
+                "labels": null,
+                "name": "coder-default-default",
+                "namespace": "colin-coder"
+              }
+            ],
+            "rule": [
+              {
+                "api_groups": [
+                  "*"
+                ],
+                "resource_names": [
+                  "coder-default-default"
+                ],
+                "resources": [
+                  "configmaps"
+                ],
+                "verbs": [
+                  "*"
+                ]
+              }
+            ]
+          },
+          "sensitive_values": {
+            "metadata": [
+              {}
+            ],
+            "rule": [
+              {
+                "api_groups": [
+                  false
+                ],
+                "resource_names": [
+                  false
+                ],
+                "resources": [
+                  false
+                ],
+                "verbs": [
+                  false
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_role_binding.coder_workspace[0]",
+          "mode": "managed",
+          "type": "kubernetes_role_binding",
+          "name": "coder_workspace",
+          "index": 0,
+          "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+          "schema_version": 0,
+          "values": {
+            "metadata": [
+              {
+                "annotations": null,
+                "labels": null,
+                "name": "coder-default-default",
+                "namespace": "colin-coder"
+              }
+            ],
+            "role_ref": [
+              {
+                "api_group": "rbac.authorization.k8s.io",
+                "kind": "Role",
+                "name": "coder-default-default"
+              }
+            ],
+            "subject": [
+              {
+                "kind": "ServiceAccount",
+                "name": "coder-default-default",
+                "namespace": "colin-coder"
+              }
+            ]
+          },
+          "sensitive_values": {
+            "metadata": [
+              {}
+            ],
+            "role_ref": [
+              {}
+            ],
+            "subject": [
+              {}
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_secret.coder_workspace[0]",
+          "mode": "managed",
+          "type": "kubernetes_secret",
+          "name": "coder_workspace",
+          "index": 0,
+          "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+          "schema_version": 0,
+          "values": {
+            "binary_data": null,
+            "immutable": null,
+            "metadata": [
+              {
+                "annotations": {
+                  "kubernetes.io/service-account.name": "coder-default-default",
+                  "kubernetes.io/service-account.namespace": "colin-coder"
+                },
+                "generate_name": null,
+                "labels": null,
+                "name": "coder-default-default",
+                "namespace": "colin-coder"
+              }
+            ],
+            "type": "kubernetes.io/service-account-token"
+          },
+          "sensitive_values": {
+            "data": {},
+            "metadata": [
+              {
+                "annotations": {}
+              }
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_service_account.coder_workspace[0]",
+          "mode": "managed",
+          "type": "kubernetes_service_account",
+          "name": "coder_workspace",
+          "index": 0,
+          "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+          "schema_version": 0,
+          "values": {
+            "automount_service_account_token": true,
+            "image_pull_secret": [],
+            "metadata": [
+              {
+                "annotations": null,
+                "generate_name": null,
+                "labels": null,
+                "name": "coder-default-default",
+                "namespace": "colin-coder"
+              }
+            ],
+            "secret": [],
+            "timeouts": null
+          },
+          "sensitive_values": {
+            "image_pull_secret": [],
+            "metadata": [
+              {}
+            ],
+            "secret": []
+          }
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.main",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "main",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "arch": "amd64",
+          "auth": "token",
+          "connection_timeout": 120,
+          "dir": null,
+          "env": null,
+          "motd_file": null,
+          "os": "linux",
+          "shutdown_script": null,
+          "startup_script": "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
+          "troubleshooting_url": null
+        },
+        "after_unknown": {
+          "id": true,
+          "init_script": true,
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "token": true
+        }
+      }
+    },
+    {
+      "address": "coder_app.code-server",
+      "mode": "managed",
+      "type": "coder_app",
+      "name": "code-server",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "command": null,
+          "display_name": null,
+          "healthcheck": [],
+          "icon": "/icon/code.svg",
+          "name": null,
+          "relative_path": true,
+          "share": "owner",
+          "slug": "code-server",
+          "subdomain": null,
+          "url": "http://localhost:13337?folder=/home/coder"
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "healthcheck": [],
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "healthcheck": []
+        }
+      }
+    },
+    {
+      "address": "coder_metadata.kubernetes_pod_main[0]",
+      "mode": "managed",
+      "type": "coder_metadata",
+      "name": "kubernetes_pod_main",
+      "index": 0,
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "daily_cost": null,
+          "hide": null,
+          "icon": null,
+          "item": [
+            {
+              "key": "cpu",
+              "sensitive": false,
+              "value": "1"
+            },
+            {
+              "key": "memory",
+              "sensitive": false,
+              "value": "1Gi"
+            },
+            {
+              "key": "gpu",
+              "sensitive": false,
+              "value": "1"
+            }
+          ]
+        },
+        "after_unknown": {
+          "id": true,
+          "item": [
+            {
+              "is_null": true
+            },
+            {
+              "is_null": true
+            },
+            {
+              "is_null": true
+            }
+          ],
+          "resource_id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "item": [
+            {},
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "kubernetes_config_map.coder_workspace[0]",
+      "mode": "managed",
+      "type": "kubernetes_config_map",
+      "name": "coder_workspace",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "binary_data": null,
+          "data": null,
+          "metadata": [
+            {
+              "annotations": null,
+              "generate_name": null,
+              "labels": null,
+              "name": "coder-default-default",
+              "namespace": "colin-coder"
+            }
+          ]
+        },
+        "after_unknown": {
+          "id": true,
+          "metadata": [
+            {
+              "generation": true,
+              "resource_version": true,
+              "uid": true
+            }
+          ]
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "metadata": [
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "kubernetes_pod.main[0]",
+      "mode": "managed",
+      "type": "kubernetes_pod",
+      "name": "main",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "metadata": [
+            {
+              "annotations": null,
+              "generate_name": null,
+              "labels": null,
+              "name": "coder-default-default",
+              "namespace": "colin-coder"
+            }
+          ],
+          "spec": [
+            {
+              "active_deadline_seconds": null,
+              "affinity": [],
+              "automount_service_account_token": true,
+              "container": [
+                {
+                  "args": null,
+                  "env": [
+                    {
+                      "name": "CODER_AGENT_TOKEN",
+                      "value_from": []
+                    }
+                  ],
+                  "env_from": [],
+                  "image": "codercom/enterprise-base:ubuntu",
+                  "lifecycle": [],
+                  "liveness_probe": [],
+                  "name": "dev",
+                  "port": [],
+                  "readiness_probe": [],
+                  "resources": [
+                    {
+                      "limits": {
+                        "cpu": "1",
+                        "memory": "1Gi"
+                      }
+                    }
+                  ],
+                  "security_context": [
+                    {
+                      "allow_privilege_escalation": true,
+                      "capabilities": [],
+                      "privileged": false,
+                      "read_only_root_filesystem": false,
+                      "run_as_group": null,
+                      "run_as_non_root": null,
+                      "run_as_user": "1000",
+                      "se_linux_options": [],
+                      "seccomp_profile": []
+                    }
+                  ],
+                  "startup_probe": [],
+                  "stdin": false,
+                  "stdin_once": false,
+                  "termination_message_path": "/dev/termination-log",
+                  "tty": false,
+                  "volume_mount": [],
+                  "working_dir": null
+                }
+              ],
+              "dns_config": [],
+              "dns_policy": "ClusterFirst",
+              "enable_service_links": true,
+              "host_aliases": [],
+              "host_ipc": false,
+              "host_network": false,
+              "host_pid": false,
+              "init_container": [],
+              "node_selector": null,
+              "priority_class_name": null,
+              "restart_policy": "Always",
+              "security_context": [],
+              "service_account_name": "coder-default-default",
+              "share_process_namespace": false,
+              "subdomain": null,
+              "termination_grace_period_seconds": 30,
+              "toleration": [],
+              "topology_spread_constraint": []
+            }
+          ],
+          "timeouts": null
+        },
+        "after_unknown": {
+          "id": true,
+          "metadata": [
+            {
+              "generation": true,
+              "resource_version": true,
+              "uid": true
+            }
+          ],
+          "spec": [
+            {
+              "affinity": [],
+              "container": [
+                {
+                  "command": true,
+                  "env": [
+                    {
+                      "value": true,
+                      "value_from": []
+                    }
+                  ],
+                  "env_from": [],
+                  "image_pull_policy": true,
+                  "lifecycle": [],
+                  "liveness_probe": [],
+                  "port": [],
+                  "readiness_probe": [],
+                  "resources": [
+                    {
+                      "limits": {},
+                      "requests": true
+                    }
+                  ],
+                  "security_context": [
+                    {
+                      "capabilities": [],
+                      "se_linux_options": [],
+                      "seccomp_profile": []
+                    }
+                  ],
+                  "startup_probe": [],
+                  "termination_message_policy": true,
+                  "volume_mount": []
+                }
+              ],
+              "dns_config": [],
+              "host_aliases": [],
+              "hostname": true,
+              "image_pull_secrets": true,
+              "init_container": [],
+              "node_name": true,
+              "readiness_gate": true,
+              "security_context": [],
+              "toleration": [],
+              "topology_spread_constraint": [],
+              "volume": true
+            }
+          ]
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "metadata": [
+            {}
+          ],
+          "spec": [
+            {
+              "affinity": [],
+              "container": [
+                {
+                  "command": [],
+                  "env": [
+                    {
+                      "value": true,
+                      "value_from": []
+                    }
+                  ],
+                  "env_from": [],
+                  "lifecycle": [],
+                  "liveness_probe": [],
+                  "port": [],
+                  "readiness_probe": [],
+                  "resources": [
+                    {
+                      "limits": {},
+                      "requests": {}
+                    }
+                  ],
+                  "security_context": [
+                    {
+                      "capabilities": [],
+                      "se_linux_options": [],
+                      "seccomp_profile": []
+                    }
+                  ],
+                  "startup_probe": [],
+                  "volume_mount": []
+                }
+              ],
+              "dns_config": [],
+              "host_aliases": [],
+              "image_pull_secrets": [],
+              "init_container": [],
+              "readiness_gate": [],
+              "security_context": [],
+              "toleration": [],
+              "topology_spread_constraint": [],
+              "volume": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "kubernetes_role.coder_workspace[0]",
+      "mode": "managed",
+      "type": "kubernetes_role",
+      "name": "coder_workspace",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "metadata": [
+            {
+              "annotations": null,
+              "generate_name": null,
+              "labels": null,
+              "name": "coder-default-default",
+              "namespace": "colin-coder"
+            }
+          ],
+          "rule": [
+            {
+              "api_groups": [
+                "*"
+              ],
+              "resource_names": [
+                "coder-default-default"
+              ],
+              "resources": [
+                "configmaps"
+              ],
+              "verbs": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "after_unknown": {
+          "id": true,
+          "metadata": [
+            {
+              "generation": true,
+              "resource_version": true,
+              "uid": true
+            }
+          ],
+          "rule": [
+            {
+              "api_groups": [
+                false
+              ],
+              "resource_names": [
+                false
+              ],
+              "resources": [
+                false
+              ],
+              "verbs": [
+                false
+              ]
+            }
+          ]
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "metadata": [
+            {}
+          ],
+          "rule": [
+            {
+              "api_groups": [
+                false
+              ],
+              "resource_names": [
+                false
+              ],
+              "resources": [
+                false
+              ],
+              "verbs": [
+                false
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "kubernetes_role_binding.coder_workspace[0]",
+      "mode": "managed",
+      "type": "kubernetes_role_binding",
+      "name": "coder_workspace",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "metadata": [
+            {
+              "annotations": null,
+              "labels": null,
+              "name": "coder-default-default",
+              "namespace": "colin-coder"
+            }
+          ],
+          "role_ref": [
+            {
+              "api_group": "rbac.authorization.k8s.io",
+              "kind": "Role",
+              "name": "coder-default-default"
+            }
+          ],
+          "subject": [
+            {
+              "kind": "ServiceAccount",
+              "name": "coder-default-default",
+              "namespace": "colin-coder"
+            }
+          ]
+        },
+        "after_unknown": {
+          "id": true,
+          "metadata": [
+            {
+              "generation": true,
+              "resource_version": true,
+              "uid": true
+            }
+          ],
+          "role_ref": [
+            {}
+          ],
+          "subject": [
+            {
+              "api_group": true
+            }
+          ]
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "metadata": [
+            {}
+          ],
+          "role_ref": [
+            {}
+          ],
+          "subject": [
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "kubernetes_secret.coder_workspace[0]",
+      "mode": "managed",
+      "type": "kubernetes_secret",
+      "name": "coder_workspace",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "binary_data": null,
+          "immutable": null,
+          "metadata": [
+            {
+              "annotations": {
+                "kubernetes.io/service-account.name": "coder-default-default",
+                "kubernetes.io/service-account.namespace": "colin-coder"
+              },
+              "generate_name": null,
+              "labels": null,
+              "name": "coder-default-default",
+              "namespace": "colin-coder"
+            }
+          ],
+          "type": "kubernetes.io/service-account-token"
+        },
+        "after_unknown": {
+          "data": true,
+          "id": true,
+          "metadata": [
+            {
+              "annotations": {},
+              "generation": true,
+              "resource_version": true,
+              "uid": true
+            }
+          ]
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "binary_data": true,
+          "data": true,
+          "metadata": [
+            {
+              "annotations": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "kubernetes_service_account.coder_workspace[0]",
+      "mode": "managed",
+      "type": "kubernetes_service_account",
+      "name": "coder_workspace",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "automount_service_account_token": true,
+          "image_pull_secret": [],
+          "metadata": [
+            {
+              "annotations": null,
+              "generate_name": null,
+              "labels": null,
+              "name": "coder-default-default",
+              "namespace": "colin-coder"
+            }
+          ],
+          "secret": [],
+          "timeouts": null
+        },
+        "after_unknown": {
+          "default_secret_name": true,
+          "id": true,
+          "image_pull_secret": [],
+          "metadata": [
+            {
+              "generation": true,
+              "resource_version": true,
+              "uid": true
+            }
+          ],
+          "secret": []
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "image_pull_secret": [],
+          "metadata": [
+            {}
+          ],
+          "secret": []
+        }
+      }
+    }
+  ],
+  "prior_state": {
+    "format_version": "1.0",
+    "terraform_version": "1.3.6",
+    "values": {
+      "root_module": {
+        "resources": [
+          {
+            "address": "data.coder_workspace.me",
+            "mode": "data",
+            "type": "coder_workspace",
+            "name": "me",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "access_port": 443,
+              "access_url": "https://mydeployment.coder.com",
+              "id": "c5370d91-41d6-4d00-a6c2-95b03007aec9",
+              "name": "default",
+              "owner": "default",
+              "owner_email": "",
+              "owner_id": "00000000-0000-0000-0000-000000000000",
+              "start_count": 1,
+              "transition": "start"
+            },
+            "sensitive_values": {}
+          },
+          {
+            "address": "data.google_client_config.provider",
+            "mode": "data",
+            "type": "google_client_config",
+            "name": "provider",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "schema_version": 0,
+            "values": {
+              "access_token": "",
+              "id": "projects//regions//zones/",
+              "project": "",
+              "region": "",
+              "zone": ""
+            },
+            "sensitive_values": {}
+          },
+          {
+            "address": "data.google_container_cluster.dev-4-2",
+            "mode": "data",
+            "type": "google_container_cluster",
+            "name": "dev-4-2",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "schema_version": 0,
+            "values": {
+              "addons_config": [
+                {
+                  "cloudrun_config": [],
+                  "dns_cache_config": [
+                    {
+                      "enabled": true
+                    }
+                  ],
+                  "gce_persistent_disk_csi_driver_config": [
+                    {
+                      "enabled": true
+                    }
+                  ],
+                  "gcp_filestore_csi_driver_config": [],
+                  "horizontal_pod_autoscaling": [
+                    {
+                      "disabled": false
+                    }
+                  ],
+                  "http_load_balancing": [],
+                  "network_policy_config": [
+                    {
+                      "disabled": true
+                    }
+                  ]
+                }
+              ],
+              "authenticator_groups_config": [
+                {
+                  "security_group": "gke-security-groups@coder.com"
+                }
+              ],
+              "binary_authorization": [
+                {
+                  "enabled": false,
+                  "evaluation_mode": ""
+                }
+              ],
+              "cluster_autoscaling": [
+                {
+                  "auto_provisioning_defaults": [],
+                  "enabled": false,
+                  "resource_limits": []
+                }
+              ],
+              "cluster_ipv4_cidr": "10.48.0.0/14",
+              "confidential_nodes": [],
+              "cost_management_config": [],
+              "database_encryption": [
+                {
+                  "key_name": "",
+                  "state": "DECRYPTED"
+                }
+              ],
+              "datapath_provider": "ADVANCED_DATAPATH",
+              "default_max_pods_per_node": 110,
+              "default_snat_status": [
+                {
+                  "disabled": false
+                }
+              ],
+              "description": "",
+              "dns_config": [],
+              "enable_autopilot": false,
+              "enable_binary_authorization": false,
+              "enable_intranode_visibility": false,
+              "enable_kubernetes_alpha": false,
+              "enable_l4_ilb_subsetting": false,
+              "enable_legacy_abac": false,
+              "enable_shielded_nodes": true,
+              "enable_tpu": false,
+              "endpoint": "",
+              "id": "projects/coder-dev-1/locations/us-central1-a/clusters/dev-4-2",
+              "initial_node_count": 1,
+              "ip_allocation_policy": [
+                {
+                  "cluster_ipv4_cidr_block": "10.48.0.0/14",
+                  "cluster_secondary_range_name": "gke-dev-4-2-pods-ac8c82cd",
+                  "services_ipv4_cidr_block": "10.52.0.0/20",
+                  "services_secondary_range_name": "gke-dev-4-2-services-ac8c82cd"
+                }
+              ],
+              "label_fingerprint": "a9dc16a7",
+              "location": "us-central1-a",
+              "logging_config": [
+                {
+                  "enable_components": [
+                    "SYSTEM_COMPONENTS",
+                    "WORKLOADS"
+                  ]
+                }
+              ],
+              "logging_service": "logging.googleapis.com/kubernetes",
+              "maintenance_policy": [
+                {
+                  "daily_maintenance_window": [],
+                  "maintenance_exclusion": [],
+                  "recurring_window": [
+                    {
+                      "end_time": "2022-09-16T05:00:00Z",
+                      "recurrence": "FREQ=WEEKLY;BYDAY=SU",
+                      "start_time": "2022-09-15T05:00:00Z"
+                    }
+                  ]
+                }
+              ],
+              "master_auth": [
+                {
+                  "client_certificate": "",
+                  "client_certificate_config": [
+                    {
+                      "issue_client_certificate": false
+                    }
+                  ],
+                  "client_key": "",
+                  "cluster_ca_certificate": ""
+                }
+              ],
+              "master_authorized_networks_config": [],
+              "master_version": "1.24.5-gke.600",
+              "mesh_certificates": [],
+              "min_master_version": null,
+              "monitoring_config": [
+                {
+                  "enable_components": [
+                    "SYSTEM_COMPONENTS"
+                  ],
+                  "managed_prometheus": []
+                }
+              ],
+              "monitoring_service": "monitoring.googleapis.com/kubernetes",
+              "name": "dev-4-2",
+              "network": "projects/coder-dev-1/global/networks/main",
+              "network_policy": [
+                {
+                  "enabled": false,
+                  "provider": "PROVIDER_UNSPECIFIED"
+                }
+              ],
+              "networking_mode": "VPC_NATIVE",
+              "node_config": [
+                {
+                  "boot_disk_kms_key": "",
+                  "disk_size_gb": 100,
+                  "disk_type": "pd-ssd",
+                  "gcfs_config": [],
+                  "guest_accelerator": [],
+                  "gvnic": [],
+                  "image_type": "UBUNTU_CONTAINERD",
+                  "labels": {},
+                  "local_ssd_count": 0,
+                  "logging_variant": "DEFAULT",
+                  "machine_type": "e2-standard-4",
+                  "metadata": {
+                    "disable-legacy-endpoints": "true"
+                  },
+                  "min_cpu_platform": "",
+                  "node_group": "",
+                  "oauth_scopes": [
+                    "https://www.googleapis.com/auth/logging.write",
+                    "https://www.googleapis.com/auth/monitoring"
+                  ],
+                  "preemptible": true,
+                  "reservation_affinity": [],
+                  "resource_labels": {},
+                  "service_account": "default",
+                  "shielded_instance_config": [
+                    {
+                      "enable_integrity_monitoring": true,
+                      "enable_secure_boot": false
+                    }
+                  ],
+                  "spot": false,
+                  "tags": [],
+                  "taint": [],
+                  "workload_metadata_config": [
+                    {
+                      "mode": "GKE_METADATA"
+                    }
+                  ]
+                }
+              ],
+              "node_locations": [],
+              "node_pool": [
+                {
+                  "autoscaling": [
+                    {
+                      "location_policy": "ANY",
+                      "max_node_count": 8,
+                      "min_node_count": 2,
+                      "total_max_node_count": 0,
+                      "total_min_node_count": 0
+                    }
+                  ],
+                  "initial_node_count": 2,
+                  "instance_group_urls": [
+                    "https://www.googleapis.com/compute/v1/projects/coder-dev-1/zones/us-central1-a/instanceGroupManagers/gke-dev-4-2-coder-node-pool-8b0aaa9c-grp"
+                  ],
+                  "managed_instance_group_urls": [
+                    "https://www.googleapis.com/compute/v1/projects/coder-dev-1/zones/us-central1-a/instanceGroups/gke-dev-4-2-coder-node-pool-8b0aaa9c-grp"
+                  ],
+                  "management": [
+                    {
+                      "auto_repair": true,
+                      "auto_upgrade": true
+                    }
+                  ],
+                  "max_pods_per_node": 110,
+                  "name": "coder-node-pool",
+                  "name_prefix": "",
+                  "network_config": [
+                    {
+                      "create_pod_range": false,
+                      "enable_private_nodes": false,
+                      "pod_ipv4_cidr_block": "10.48.0.0/14",
+                      "pod_range": "gke-dev-4-2-pods-ac8c82cd"
+                    }
+                  ],
+                  "node_config": [
+                    {
+                      "boot_disk_kms_key": "",
+                      "disk_size_gb": 100,
+                      "disk_type": "pd-ssd",
+                      "gcfs_config": [],
+                      "guest_accelerator": [],
+                      "gvnic": [],
+                      "image_type": "UBUNTU_CONTAINERD",
+                      "labels": {},
+                      "local_ssd_count": 0,
+                      "logging_variant": "DEFAULT",
+                      "machine_type": "e2-standard-4",
+                      "metadata": {
+                        "disable-legacy-endpoints": "true"
+                      },
+                      "min_cpu_platform": "",
+                      "node_group": "",
+                      "oauth_scopes": [
+                        "https://www.googleapis.com/auth/logging.write",
+                        "https://www.googleapis.com/auth/monitoring"
+                      ],
+                      "preemptible": true,
+                      "reservation_affinity": [],
+                      "resource_labels": {},
+                      "service_account": "default",
+                      "shielded_instance_config": [
+                        {
+                          "enable_integrity_monitoring": true,
+                          "enable_secure_boot": false
+                        }
+                      ],
+                      "spot": false,
+                      "tags": [],
+                      "taint": [],
+                      "workload_metadata_config": [
+                        {
+                          "mode": "GKE_METADATA"
+                        }
+                      ]
+                    }
+                  ],
+                  "node_count": 2,
+                  "node_locations": [
+                    "us-central1-a"
+                  ],
+                  "upgrade_settings": [
+                    {
+                      "blue_green_settings": [],
+                      "max_surge": 1,
+                      "max_unavailable": 0,
+                      "strategy": "SURGE"
+                    }
+                  ],
+                  "version": "1.24.4-gke.800"
+                }
+              ],
+              "node_pool_defaults": [
+                {
+                  "node_config_defaults": [
+                    {
+                      "logging_variant": "DEFAULT"
+                    }
+                  ]
+                }
+              ],
+              "node_version": "1.24.4-gke.800",
+              "notification_config": [
+                {
+                  "pubsub": [
+                    {
+                      "enabled": false,
+                      "filter": [],
+                      "topic": ""
+                    }
+                  ]
+                }
+              ],
+              "operation": null,
+              "private_cluster_config": [],
+              "private_ipv6_google_access": "",
+              "project": "coder-dev-1",
+              "release_channel": [
+                {
+                  "channel": "RAPID"
+                }
+              ],
+              "remove_default_node_pool": null,
+              "resource_labels": {},
+              "resource_usage_export_config": [
+                {
+                  "bigquery_destination": [
+                    {
+                      "dataset_id": "gke_usage"
+                    }
+                  ],
+                  "enable_network_egress_metering": true,
+                  "enable_resource_consumption_metering": true
+                }
+              ],
+              "self_link": "https://container.googleapis.com/v1/projects/coder-dev-1/zones/us-central1-a/clusters/dev-4-2",
+              "service_external_ips_config": [
+                {
+                  "enabled": false
+                }
+              ],
+              "services_ipv4_cidr": "10.52.0.0/20",
+              "subnetwork": "projects/coder-dev-1/regions/us-central1/subnetworks/internal",
+              "tpu_ipv4_cidr_block": "",
+              "vertical_pod_autoscaling": [
+                {
+                  "enabled": true
+                }
+              ],
+              "workload_identity_config": [
+                {
+                  "workload_pool": "coder-dev-1.svc.id.goog"
+                }
+              ]
+            },
+            "sensitive_values": {
+              "addons_config": [
+                {
+                  "cloudrun_config": [],
+                  "dns_cache_config": [
+                    {}
+                  ],
+                  "gce_persistent_disk_csi_driver_config": [
+                    {}
+                  ],
+                  "gcp_filestore_csi_driver_config": [],
+                  "horizontal_pod_autoscaling": [
+                    {}
+                  ],
+                  "http_load_balancing": [],
+                  "network_policy_config": [
+                    {}
+                  ]
+                }
+              ],
+              "authenticator_groups_config": [
+                {}
+              ],
+              "binary_authorization": [
+                {}
+              ],
+              "cluster_autoscaling": [
+                {
+                  "auto_provisioning_defaults": [],
+                  "resource_limits": []
+                }
+              ],
+              "confidential_nodes": [],
+              "cost_management_config": [],
+              "database_encryption": [
+                {}
+              ],
+              "default_snat_status": [
+                {}
+              ],
+              "dns_config": [],
+              "ip_allocation_policy": [
+                {}
+              ],
+              "logging_config": [
+                {
+                  "enable_components": [
+                    false,
+                    false
+                  ]
+                }
+              ],
+              "maintenance_policy": [
+                {
+                  "daily_maintenance_window": [],
+                  "maintenance_exclusion": [],
+                  "recurring_window": [
+                    {}
+                  ]
+                }
+              ],
+              "master_auth": [
+                {
+                  "client_certificate_config": [
+                    {}
+                  ]
+                }
+              ],
+              "master_authorized_networks_config": [],
+              "mesh_certificates": [],
+              "monitoring_config": [
+                {
+                  "enable_components": [
+                    false
+                  ],
+                  "managed_prometheus": []
+                }
+              ],
+              "network_policy": [
+                {}
+              ],
+              "node_config": [
+                {
+                  "gcfs_config": [],
+                  "guest_accelerator": [],
+                  "gvnic": [],
+                  "labels": {},
+                  "metadata": {},
+                  "oauth_scopes": [
+                    false,
+                    false
+                  ],
+                  "reservation_affinity": [],
+                  "resource_labels": {},
+                  "shielded_instance_config": [
+                    {}
+                  ],
+                  "tags": [],
+                  "taint": [],
+                  "workload_metadata_config": [
+                    {}
+                  ]
+                }
+              ],
+              "node_locations": [],
+              "node_pool": [
+                {
+                  "autoscaling": [
+                    {}
+                  ],
+                  "instance_group_urls": [
+                    false
+                  ],
+                  "managed_instance_group_urls": [
+                    false
+                  ],
+                  "management": [
+                    {}
+                  ],
+                  "network_config": [
+                    {}
+                  ],
+                  "node_config": [
+                    {
+                      "gcfs_config": [],
+                      "guest_accelerator": [],
+                      "gvnic": [],
+                      "labels": {},
+                      "metadata": {},
+                      "oauth_scopes": [
+                        false,
+                        false
+                      ],
+                      "reservation_affinity": [],
+                      "resource_labels": {},
+                      "shielded_instance_config": [
+                        {}
+                      ],
+                      "tags": [],
+                      "taint": [],
+                      "workload_metadata_config": [
+                        {}
+                      ]
+                    }
+                  ],
+                  "node_locations": [
+                    false
+                  ],
+                  "upgrade_settings": [
+                    {
+                      "blue_green_settings": []
+                    }
+                  ]
+                }
+              ],
+              "node_pool_defaults": [
+                {
+                  "node_config_defaults": [
+                    {}
+                  ]
+                }
+              ],
+              "notification_config": [
+                {
+                  "pubsub": [
+                    {
+                      "filter": []
+                    }
+                  ]
+                }
+              ],
+              "private_cluster_config": [],
+              "release_channel": [
+                {}
+              ],
+              "resource_labels": {},
+              "resource_usage_export_config": [
+                {
+                  "bigquery_destination": [
+                    {}
+                  ]
+                }
+              ],
+              "service_external_ips_config": [
+                {}
+              ],
+              "vertical_pod_autoscaling": [
+                {}
+              ],
+              "workload_identity_config": [
+                {}
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": "0.6.5"
+      },
+      "google": {
+        "name": "google",
+        "full_name": "registry.terraform.io/hashicorp/google",
+        "version_constraint": "4.46.0"
+      },
+      "kubernetes": {
+        "name": "kubernetes",
+        "full_name": "registry.terraform.io/hashicorp/kubernetes",
+        "version_constraint": "~> 2.13.1",
+        "expressions": {
+          "cluster_ca_certificate": {
+            "references": [
+              "data.google_container_cluster.dev-4-2.master_auth[0].cluster_ca_certificate",
+              "data.google_container_cluster.dev-4-2.master_auth[0]",
+              "data.google_container_cluster.dev-4-2.master_auth",
+              "data.google_container_cluster.dev-4-2"
+            ]
+          },
+          "host": {
+            "references": [
+              "data.google_container_cluster.dev-4-2.endpoint",
+              "data.google_container_cluster.dev-4-2"
+            ]
+          },
+          "token": {
+            "references": [
+              "data.google_client_config.provider.access_token",
+              "data.google_client_config.provider"
+            ]
+          }
+        }
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "os": {
+              "constant_value": "linux"
+            },
+            "startup_script": {
+              "constant_value": "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n"
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "coder_app.code-server",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "code-server",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.main.id",
+                "coder_agent.main"
+              ]
+            },
+            "icon": {
+              "constant_value": "/icon/code.svg"
+            },
+            "relative_path": {
+              "constant_value": true
+            },
+            "slug": {
+              "constant_value": "code-server"
+            },
+            "url": {
+              "constant_value": "http://localhost:13337?folder=/home/coder"
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "coder_metadata.kubernetes_pod_main",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "kubernetes_pod_main",
+          "provider_config_key": "coder",
+          "expressions": {
+            "item": [
+              {
+                "key": {
+                  "constant_value": "cpu"
+                },
+                "value": {
+                  "references": [
+                    "local.cpu"
+                  ]
+                }
+              },
+              {
+                "key": {
+                  "constant_value": "memory"
+                },
+                "value": {
+                  "references": [
+                    "local.memory"
+                  ]
+                }
+              },
+              {
+                "key": {
+                  "constant_value": "gpu"
+                },
+                "value": {
+                  "references": [
+                    "local.gpu"
+                  ]
+                }
+              }
+            ],
+            "resource_id": {
+              "references": [
+                "kubernetes_pod.main[0].id",
+                "kubernetes_pod.main[0]",
+                "kubernetes_pod.main"
+              ]
+            }
+          },
+          "schema_version": 0,
+          "count_expression": {
+            "references": [
+              "data.coder_workspace.me.start_count",
+              "data.coder_workspace.me"
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_config_map.coder_workspace",
+          "mode": "managed",
+          "type": "kubernetes_config_map",
+          "name": "coder_workspace",
+          "provider_config_key": "kubernetes",
+          "expressions": {
+            "metadata": [
+              {
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "namespace": {
+                  "references": [
+                    "local.namespace"
+                  ]
+                }
+              }
+            ]
+          },
+          "schema_version": 0,
+          "count_expression": {
+            "references": [
+              "data.coder_workspace.me.start_count",
+              "data.coder_workspace.me"
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_pod.main",
+          "mode": "managed",
+          "type": "kubernetes_pod",
+          "name": "main",
+          "provider_config_key": "kubernetes",
+          "expressions": {
+            "metadata": [
+              {
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "namespace": {
+                  "references": [
+                    "local.namespace"
+                  ]
+                }
+              }
+            ],
+            "spec": [
+              {
+                "container": [
+                  {
+                    "command": {
+                      "references": [
+                        "coder_agent.main.init_script",
+                        "coder_agent.main"
+                      ]
+                    },
+                    "env": [
+                      {
+                        "name": {
+                          "constant_value": "CODER_AGENT_TOKEN"
+                        },
+                        "value": {
+                          "references": [
+                            "coder_agent.main.token",
+                            "coder_agent.main"
+                          ]
+                        }
+                      }
+                    ],
+                    "image": {
+                      "constant_value": "codercom/enterprise-base:ubuntu"
+                    },
+                    "name": {
+                      "constant_value": "dev"
+                    },
+                    "resources": [
+                      {
+                        "limits": {
+                          "references": [
+                            "local.cpu",
+                            "local.memory"
+                          ]
+                        }
+                      }
+                    ],
+                    "security_context": [
+                      {
+                        "run_as_user": {
+                          "constant_value": "1000"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "service_account_name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                }
+              }
+            ]
+          },
+          "schema_version": 1,
+          "count_expression": {
+            "references": [
+              "data.coder_workspace.me.start_count",
+              "data.coder_workspace.me"
+            ]
+          },
+          "depends_on": [
+            "kubernetes_role.coder_workspace",
+            "kubernetes_role_binding.coder_workspace",
+            "kubernetes_service_account.coder_workspace",
+            "kubernetes_secret.coder_workspace",
+            "kubernetes_config_map.coder_workspace"
+          ]
+        },
+        {
+          "address": "kubernetes_role.coder_workspace",
+          "mode": "managed",
+          "type": "kubernetes_role",
+          "name": "coder_workspace",
+          "provider_config_key": "kubernetes",
+          "expressions": {
+            "metadata": [
+              {
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "namespace": {
+                  "references": [
+                    "local.namespace"
+                  ]
+                }
+              }
+            ],
+            "rule": [
+              {
+                "api_groups": {
+                  "constant_value": [
+                    "*"
+                  ]
+                },
+                "resource_names": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "resources": {
+                  "constant_value": [
+                    "configmaps"
+                  ]
+                },
+                "verbs": {
+                  "constant_value": [
+                    "*"
+                  ]
+                }
+              }
+            ]
+          },
+          "schema_version": 0,
+          "count_expression": {
+            "references": [
+              "data.coder_workspace.me.start_count",
+              "data.coder_workspace.me"
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_role_binding.coder_workspace",
+          "mode": "managed",
+          "type": "kubernetes_role_binding",
+          "name": "coder_workspace",
+          "provider_config_key": "kubernetes",
+          "expressions": {
+            "metadata": [
+              {
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "namespace": {
+                  "references": [
+                    "local.namespace"
+                  ]
+                }
+              }
+            ],
+            "role_ref": [
+              {
+                "api_group": {
+                  "constant_value": "rbac.authorization.k8s.io"
+                },
+                "kind": {
+                  "constant_value": "Role"
+                },
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                }
+              }
+            ],
+            "subject": [
+              {
+                "kind": {
+                  "constant_value": "ServiceAccount"
+                },
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "namespace": {
+                  "references": [
+                    "local.namespace"
+                  ]
+                }
+              }
+            ]
+          },
+          "schema_version": 0,
+          "count_expression": {
+            "references": [
+              "data.coder_workspace.me.start_count",
+              "data.coder_workspace.me"
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_secret.coder_workspace",
+          "mode": "managed",
+          "type": "kubernetes_secret",
+          "name": "coder_workspace",
+          "provider_config_key": "kubernetes",
+          "expressions": {
+            "metadata": [
+              {
+                "annotations": {
+                  "references": [
+                    "local.workspace_name",
+                    "local.namespace"
+                  ]
+                },
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "namespace": {
+                  "references": [
+                    "local.namespace"
+                  ]
+                }
+              }
+            ],
+            "type": {
+              "constant_value": "kubernetes.io/service-account-token"
+            }
+          },
+          "schema_version": 0,
+          "count_expression": {
+            "references": [
+              "data.coder_workspace.me.start_count",
+              "data.coder_workspace.me"
+            ]
+          }
+        },
+        {
+          "address": "kubernetes_service_account.coder_workspace",
+          "mode": "managed",
+          "type": "kubernetes_service_account",
+          "name": "coder_workspace",
+          "provider_config_key": "kubernetes",
+          "expressions": {
+            "metadata": [
+              {
+                "name": {
+                  "references": [
+                    "local.workspace_name"
+                  ]
+                },
+                "namespace": {
+                  "references": [
+                    "local.namespace"
+                  ]
+                }
+              }
+            ]
+          },
+          "schema_version": 0,
+          "count_expression": {
+            "references": [
+              "data.coder_workspace.me.start_count",
+              "data.coder_workspace.me"
+            ]
+          }
+        },
+        {
+          "address": "data.coder_workspace.me",
+          "mode": "data",
+          "type": "coder_workspace",
+          "name": "me",
+          "provider_config_key": "coder",
+          "schema_version": 0
+        },
+        {
+          "address": "data.google_client_config.provider",
+          "mode": "data",
+          "type": "google_client_config",
+          "name": "provider",
+          "provider_config_key": "google",
+          "schema_version": 0
+        },
+        {
+          "address": "data.google_container_cluster.dev-4-2",
+          "mode": "data",
+          "type": "google_container_cluster",
+          "name": "dev-4-2",
+          "provider_config_key": "google",
+          "expressions": {
+            "location": {
+              "constant_value": "us-central1-a"
+            },
+            "name": {
+              "constant_value": "dev-4-2"
+            },
+            "project": {
+              "constant_value": "coder-dev-1"
+            }
+          },
+          "schema_version": 0
+        }
+      ]
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "coder_agent.main",
+      "attribute": [
+        "init_script"
+      ]
+    },
+    {
+      "resource": "coder_agent.main",
+      "attribute": [
+        "token"
+      ]
+    },
+    {
+      "resource": "kubernetes_pod.main[0]",
+      "attribute": [
+        "id"
+      ]
+    },
+    {
+      "resource": "data.coder_workspace.me",
+      "attribute": [
+        "owner"
+      ]
+    },
+    {
+      "resource": "data.coder_workspace.me",
+      "attribute": [
+        "name"
+      ]
+    },
+    {
+      "resource": "coder_agent.main",
+      "attribute": [
+        "id"
+      ]
+    }
+  ]
+}

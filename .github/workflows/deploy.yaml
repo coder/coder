@@ -1,0 +1,127 @@
+name: deploy
+
+on:
+  # Via workflow_call, called from ci.yaml
+  workflow_call:
+    inputs:
+      image:
+        description: "Image and tag to potentially deploy. Current branch will be validated against should-deploy check."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }} # no per-branch concurrency
+  cancel-in-progress: false
+
+jobs:
+  # Determines if the given branch should be deployed to dogfood.
+  should-deploy:
+    name: should-deploy
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }} # DEPLOY or NOOP
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check if deploy is enabled
+        id: check
+        run: |
+          set -euo pipefail
+          verdict="$(./scripts/should_deploy.sh)"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: "deploy"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: should-deploy
+    if: needs.should-deploy.outputs.verdict == 'DEPLOY'
+    permissions:
+      contents: read
+      id-token: write # to authenticate to EKS cluster
+      packages: write # to retag image as dogfood
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: GHCR Login
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
+          aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
+
+      - name: Get Cluster Credentials
+        run: aws eks update-kubeconfig --name "$AWS_DOGFOOD_CLUSTER_NAME" --region "$AWS_DOGFOOD_DEPLOY_REGION"
+        env:
+          AWS_DOGFOOD_CLUSTER_NAME: ${{ vars.AWS_DOGFOOD_CLUSTER_NAME }}
+          AWS_DOGFOOD_DEPLOY_REGION: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
+
+      - name: Set up Flux CLI
+        uses: fluxcd/flux2/action@889be9d6cc8afa8ed639e1e1ba4ab678e3b38d8c # v2.9.4
+        with:
+          # Keep this and the github action up to date with the version of flux installed in dogfood cluster
+          version: "2.8.2"
+
+      # Retag image as dogfood while maintaining the multi-arch manifest
+      - name: Tag image as dogfood
+        run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:dogfood" "$IMAGE"
+        env:
+          IMAGE: ${{ inputs.image }}
+
+      - name: Reconcile Flux
+        run: |
+          set -euxo pipefail
+          flux --namespace flux-system reconcile source git flux-system
+          flux --namespace flux-system reconcile source git coder-main
+          flux --namespace flux-system reconcile kustomization flux-system
+          flux --namespace flux-system reconcile kustomization coder
+          flux --namespace flux-system reconcile source chart coder-coder
+          flux --namespace flux-system reconcile source chart coder-coder-provisioner
+          flux --namespace coder reconcile helmrelease coder
+          flux --namespace coder reconcile helmrelease coder-provisioner
+          flux --namespace coder reconcile helmrelease coder-provisioner-tagged
+          flux --namespace coder reconcile helmrelease coder-provisioner-tagged-prebuilds
+
+      # Just updating Flux is usually not enough. The Helm release may get
+      # redeployed, but unless something causes the Deployment to update the
+      # pods won't be recreated. It's important that the pods get recreated,
+      # since we use `imagePullPolicy: Always` to ensure we're running the
+      # latest image.
+      - name: Rollout Deployment
+        run: |
+          set -euxo pipefail
+          kubectl --namespace coder rollout restart deployment/coder
+          kubectl --namespace coder rollout status deployment/coder
+          kubectl --namespace coder rollout restart deployment/coder-provisioner
+          kubectl --namespace coder rollout status deployment/coder-provisioner
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged-prebuilds
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged-prebuilds

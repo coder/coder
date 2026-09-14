@@ -1,0 +1,151 @@
+# Deploy Coder in Lima with Incus
+# See: https://coder.com/docs/install
+# $ limactl start ./coder-incus.yaml
+# $ limactl shell coder-incus
+# The web UI is accessible on http://localhost:3000. Ports are forwarded automatically by Lima.
+# $ coder login http://localhost:3000
+
+minimumLimaVersion: "2.0.0"
+
+images:
+  - location: "https://cloud.debian.org/images/cloud/trixie/20260327-2429/debian-13-genericcloud-amd64-20260327-2429.qcow2"
+    arch: "x86_64"
+    digest: "sha512:09559ec27d263997827dd8cddf76e97ea8e0f1803380aa501ea7eaa4b4968cd76ffef4ec7eb07ef1a9ccbeb0925a5020492ea9ed53eb167d62f3a2285039912c"
+  - location: "https://cloud.debian.org/images/cloud/trixie/20260327-2429/debian-13-genericcloud-arm64-20260327-2429.qcow2"
+    arch: "aarch64"
+    digest: "sha512:cb25e88240d8760c860f780c42257472f7c63c1ab54368c4eaa4ddb44e1e6224df8e719ee7ab0fb0d52d5de505f98034dd44ee73a9d9dcf66a2035215f1e8512"
+  # Fallback to the latest release image.
+  # Hint: run `limactl prune` to invalidate the cache
+  - location: "https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-genericcloud-amd64-daily.qcow2"
+    arch: "x86_64"
+  - location: "https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-genericcloud-arm64-daily.qcow2"
+    arch: "aarch64"
+
+# Disable 9p mounts; they are not supported by the Debian cloud image kernel.
+mountTypesUnsupported: [9p]
+
+# Your home directory is mounted read-only
+mounts:
+  - location: "~"
+containerd:
+  system: false
+  user: false
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      command -v incus >/dev/null 2>&1 && exit 0
+      export DEBIAN_FRONTEND=noninteractive
+      # Wait for any apt locks from unattended-upgrades on first boot
+      while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+      # Incus is available natively in Debian Trixie
+      apt-get update
+      apt-get install -qqy incus btrfs-progs
+      # Initialize Incus with preseed config.
+      # We use an explicit subnet because --minimal's auto-detection fails
+      # when Lima's own bridge already claims the common ranges.
+      cat <<'PRESEED' | incus admin init --preseed
+      networks:
+      - name: incusbr0
+        type: bridge
+        config:
+          ipv4.address: 10.155.0.1/24
+          ipv4.nat: "true"
+          ipv6.address: none
+      storage_pools:
+      - name: coder
+        driver: btrfs
+      profiles:
+      - name: default
+        devices:
+          eth0:
+            name: eth0
+            network: incusbr0
+            type: nic
+          root:
+            path: /
+            pool: coder
+            type: disk
+      PRESEED
+      # Give the Lima user access to Incus
+      usermod -aG incus-admin {{.User}}
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      command -v coder >/dev/null 2>&1 && exit 0
+      export DEBIAN_FRONTEND=noninteractive
+      export HOME=/root
+      # Wait for any apt locks from unattended-upgrades on first boot
+      while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+      # Using install.sh --with-terraform requires unzip to be available.
+      apt-get update
+      apt-get install -qqy unzip
+      curl -fsSL https://coder.com/install.sh | sh -s -- --with-terraform
+      # Ensure Coder has access to the Incus socket
+      usermod -aG incus-admin coder
+      # Ensure coder listens on all interfaces
+      sed -i 's/CODER_HTTP_ADDRESS=.*/CODER_HTTP_ADDRESS=0.0.0.0:3000/' /etc/coder.d/coder.env
+      # Also set the access URL to host.lima.internal for fast deployments
+      sed -i 's#CODER_ACCESS_URL=.*#CODER_ACCESS_URL=http://host.lima.internal:3000#' /etc/coder.d/coder.env
+      # Ensure coder starts on boot
+      systemctl enable coder
+      systemctl start coder
+      # Wait for Terraform to be installed
+      timeout 60s bash -c 'until /usr/local/bin/terraform version >/dev/null 2>&1; do sleep 1; done'
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      # If we are already logged in, nothing to do
+      coder templates list >/dev/null 2>&1 && exit 0
+      # Set up initial user
+      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 \
+        --first-user-username admin \
+        --first-user-email admin@coder.com \
+        --first-user-password "$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c12 | tee ${HOME}/.config/coderv2/password)"
+      # Create an initial Incus template
+      coder templates init --id incus
+      pushd ./incus
+      coder templates push incus --yes
+      popd
+      rm -rf ./incus
+probes:
+  - description: "incus to be installed"
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      if ! timeout 30s bash -c "until command -v incus >/dev/null 2>&1; do sleep 3; done"; then
+        echo >&2 "incus is not installed yet"
+        exit 1
+      fi
+    hint: |
+      See `/var/log/lima-guestagent.log` or run `limactl shell coder-incus` to debug.
+  - description: "coder to be installed"
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      if ! timeout 30s bash -c "until command -v coder >/dev/null 2>&1; do sleep 3; done"; then
+        echo >&2 "coder is not installed yet"
+        exit 1
+      fi
+    hint: |
+      See `/var/log/lima-guestagent.log` or run `limactl shell coder-incus` to debug.
+message: |
+  All Done! Your Coder instance is accessible at http://localhost:3000
+
+  Username: "admin@coder.com"
+  Password: Run `LIMA_INSTANCE={{.Instance.Name}} lima cat /home/${USER}.linux/.config/coderv2/password`
+
+   Create your first workspace:
+  ------
+  limactl shell {{.Instance.Name}}
+  coder create my-workspace --template incus
+  ------
+
+  Get started creating your own template now:
+  ------
+  limactl shell {{.Instance.Name}}
+  cd && coder templates init
+  ------

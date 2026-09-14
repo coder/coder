@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder stat cpu [flags]
+
+  Show CPU usage, in cores.
+
+OPTIONS:
+      --host bool
+          Force host CPU measurement.
+
+  -o, --output text|json (default: text)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

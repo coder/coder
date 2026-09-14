@@ -1,0 +1,182 @@
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { templateBuilderModules } from "#/api/queries/templateBuilder";
+import type {
+	TemplateBuilderModule,
+	TemplateBuilderModulesResponse,
+	TemplateBuilderModuleVariable,
+} from "#/api/typesGenerated";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import type { ConfigurationFieldDefinition } from "./ConfigurationField";
+import { defaultPlaceholder } from "./defaultPlaceholder";
+import { ModuleConfiguration } from "./ModuleConfiguration";
+import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
+
+interface ModuleSettingsStepProps {
+	baseId: string;
+	selectedModuleIds: string[];
+	moduleVariables: Record<string, Record<string, string>>;
+	onChangeModuleVariables: (
+		moduleId: string,
+		variables: Record<string, string>,
+	) => void;
+	onRemoveModule: (moduleId: string) => void;
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
+	showErrors?: boolean;
+}
+
+function variableToField(
+	moduleId: string,
+	variable: TemplateBuilderModuleVariable,
+	value: string,
+	onChange: (name: string, value: string) => void,
+	error: boolean,
+): ConfigurationFieldDefinition {
+	const id = `mod-${moduleId}-${variable.name}`;
+	const label = variable.name;
+
+	if (variable.type === "bool") {
+		return {
+			type: "switch",
+			id,
+			label,
+			description: variable.description || undefined,
+			required: variable.required,
+			checked: value === "true",
+			onCheckedChange: (checked) =>
+				onChange(variable.name, checked ? "true" : "false"),
+		};
+	}
+
+	return {
+		type: "text",
+		id,
+		label,
+		description: variable.description || undefined,
+		required: variable.required,
+		placeholder:
+			getModuleFieldPlaceholder(moduleId, variable.name) ??
+			defaultPlaceholder(variable.default) ??
+			(variable.required ? "Required" : ""),
+		field: {
+			name: variable.name,
+			id,
+			value,
+			onChange: (e) => onChange(variable.name, e.target.value),
+			onBlur: () => {},
+			error,
+		},
+	};
+}
+
+function moduleDetailsUrl(moduleId: string): string {
+	return `https://registry.coder.com/modules/${moduleId}`;
+}
+
+/**
+ * Returns true when all required, non-sensitive variables across all
+ * selected modules have non-empty values.
+ */
+export function moduleSettingsComplete(
+	modulesData: TemplateBuilderModulesResponse | undefined,
+	selectedModuleIds: string[],
+	moduleVariables: Record<string, Record<string, string>>,
+): boolean {
+	if (!modulesData) {
+		return true;
+	}
+	const modulesById = new Map(modulesData.modules.map((m) => [m.id, m]));
+	for (const moduleId of selectedModuleIds) {
+		const mod = modulesById.get(moduleId);
+		if (!mod) continue;
+		const vars = moduleVariables[moduleId] ?? {};
+		const required = mod.variables.filter((v) => v.required && !v.sensitive);
+		for (const v of required) {
+			const val = vars[v.name];
+			if (val === undefined || val === "") {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
+	baseId,
+	selectedModuleIds,
+	moduleVariables,
+	onChangeModuleVariables,
+	onRemoveModule,
+	registerModuleRef,
+	showErrors = false,
+}) => {
+	const { data } = useQuery(templateBuilderModules(baseId));
+	const modules = data?.modules ?? [];
+
+	const selectedModules = selectedModuleIds
+		.map((id) => modules.find((m) => m.id === id))
+		.filter((m): m is TemplateBuilderModule => m != null);
+
+	const handleChange = (moduleId: string, varName: string, value: string) => {
+		const current = moduleVariables[moduleId] ?? {};
+		onChangeModuleVariables(moduleId, { ...current, [varName]: value });
+	};
+
+	return (
+		<>
+			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>Customise your modules.</TemplateBuilderSubtitle>
+
+			<div className="flex flex-col gap-6">
+				{selectedModules.map((mod) => {
+					const configurableVars = mod.variables.filter((v) => !v.sensitive);
+					const sensitiveVars = mod.variables.filter((v) => v.sensitive);
+					const vars = moduleVariables[mod.id] ?? {};
+
+					const toField = (v: TemplateBuilderModuleVariable) => {
+						const rawValue = vars[v.name];
+						const hasError =
+							showErrors &&
+							v.required &&
+							(rawValue === undefined || rawValue === "");
+						return variableToField(
+							mod.id,
+							v,
+							vars[v.name] ?? defaultPlaceholder(v.default) ?? "",
+							(name, val) => handleChange(mod.id, name, val),
+							hasError,
+						);
+					};
+
+					const requiredVars = configurableVars.filter((v) => v.required);
+					const optionalVars = configurableVars.filter((v) => !v.required);
+
+					const requiredFields = requiredVars.map(toField);
+					const optionalFields = optionalVars.map(toField);
+
+					return (
+						<div
+							key={mod.id}
+							ref={(node) => registerModuleRef(mod.id, node)}
+							className="scroll-mt-24"
+						>
+							<ModuleConfiguration
+								name={mod.display_name}
+								description={mod.description}
+								iconUrl={mod.icon}
+								detailsUrl={moduleDetailsUrl(mod.id)}
+								fields={requiredFields}
+								optionalFields={optionalFields}
+								sensitiveVariables={sensitiveVars}
+								onRemove={() => onRemoveModule(mod.id)}
+							/>
+						</div>
+					);
+				})}
+			</div>
+		</>
+	);
+};

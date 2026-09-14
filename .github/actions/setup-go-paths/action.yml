@@ -1,0 +1,32 @@
+name: "Setup Go Paths"
+description: Overrides Go paths like GOCACHE and GOMODCACHE to use temporary directories.
+runs:
+  using: "composite"
+  steps:
+    - name: Override Go paths
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+      with:
+        script: |
+          const path = require('path');
+
+          // RUNNER_TEMP should be backed by a RAM disk on Windows if
+          // coder/setup-ramdisk-action was used
+          const runnerTemp = process.env.RUNNER_TEMP;
+          const gocacheDir = path.join(runnerTemp, 'go-cache');
+          const gomodcacheDir = path.join(runnerTemp, 'go-mod-cache');
+          const gopathDir = path.join(runnerTemp, 'go-path');
+          const gotmpDir = path.join(runnerTemp, 'go-tmp');
+
+          core.exportVariable('GOCACHE', gocacheDir);
+          core.exportVariable('GOMODCACHE', gomodcacheDir);
+          core.exportVariable('GOPATH', gopathDir);
+          core.exportVariable('GOTMPDIR', gotmpDir);
+
+    - name: Create directories
+      shell: bash
+      run: |
+        set -e
+        mkdir -p "$GOCACHE"
+        mkdir -p "$GOMODCACHE"
+        mkdir -p "$GOPATH"
+        mkdir -p "$GOTMPDIR"

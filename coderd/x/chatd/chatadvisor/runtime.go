@@ -1,0 +1,156 @@
+package chatadvisor
+
+import (
+	"sync/atomic"
+
+	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	"golang.org/x/xerrors"
+)
+
+// RuntimeConfig configures a single advisor runtime instance.
+type RuntimeConfig struct {
+	Model fantasy.LanguageModel
+	// CallTemplate's provider options are cloned for each nested call.
+	CallTemplate    fantasy.Call
+	MaxUsesPerRun   int
+	MaxOutputTokens int64
+}
+
+// Runtime executes nested, tool-less advisor runs against the configured
+// language model.
+//
+// Each Runtime instance is scoped to a single outer chat run. The
+// MaxUsesPerRun counter increments on every successful advisor call and
+// is never reset, so callers must construct a fresh Runtime (via
+// NewRuntime) for each outer run. There is intentionally no Reset method:
+// the per-run quota is a safety bound on a single run, not a rolling
+// window.
+type Runtime struct {
+	cfg  RuntimeConfig
+	used atomic.Int64
+}
+
+// NewRuntime validates and normalizes advisor runtime configuration.
+func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
+	if cfg.Model == nil {
+		return nil, xerrors.New("advisor model is required")
+	}
+	if cfg.MaxUsesPerRun <= 0 {
+		return nil, xerrors.New("advisor max uses per run must be positive")
+	}
+	if cfg.MaxOutputTokens <= 0 {
+		return nil, xerrors.New("advisor max output tokens must be positive")
+	}
+	if cfg.CallTemplate.MaxOutputTokens != nil &&
+		*cfg.CallTemplate.MaxOutputTokens != cfg.MaxOutputTokens {
+		return nil, xerrors.Errorf(
+			"advisor call template max output tokens (%d) must match runtime max output tokens (%d)",
+			*cfg.CallTemplate.MaxOutputTokens,
+			cfg.MaxOutputTokens,
+		)
+	}
+
+	normalized := cfg
+	normalized.CallTemplate.ProviderOptions = cloneProviderOptions(cfg.CallTemplate.ProviderOptions)
+	maxOutputTokens := cfg.MaxOutputTokens
+	normalized.CallTemplate.MaxOutputTokens = &maxOutputTokens
+
+	return &Runtime{cfg: normalized}, nil
+}
+
+// cloneProviderOptions returns a copy of opts with pointer entries for
+// known, in-place mutated provider option types replaced by shallow struct
+// copies, so a nested advisor call that disables Store does so on its own
+// copy rather than the parent run's entry. Value fields such as Metadata
+// and Include remain shared; callers that need true deep-copy semantics
+// must handle those fields explicitly.
+func cloneProviderOptions(opts fantasy.ProviderOptions) fantasy.ProviderOptions {
+	if opts == nil {
+		return nil
+	}
+	cloned := make(fantasy.ProviderOptions, len(opts))
+	for key, value := range opts {
+		switch typed := value.(type) {
+		case *fantasyopenai.ResponsesProviderOptions:
+			if typed == nil {
+				cloned[key] = value
+				continue
+			}
+			copied := *typed
+			cloned[key] = &copied
+		default:
+			cloned[key] = value
+		}
+	}
+	return cloned
+}
+
+// resetProviderOptionsForNestedCall forces Store off so ephemeral advisor
+// calls leave no stored response behind on the provider. It mutates opts
+// in place, so it must be called on a cloned map, never on options shared
+// with the parent run.
+func resetProviderOptionsForNestedCall(opts fantasy.ProviderOptions) {
+	for _, value := range opts {
+		if typed, ok := value.(*fantasyopenai.ResponsesProviderOptions); ok && typed != nil {
+			storeDisabled := false
+			typed.Store = &storeDisabled
+		}
+	}
+}
+
+// RemainingUses reports how many advisor calls are still available for the
+// current runtime.
+func (rt *Runtime) RemainingUses() int {
+	if rt == nil || rt.cfg.MaxUsesPerRun <= 0 {
+		return 0
+	}
+
+	remaining := int64(rt.cfg.MaxUsesPerRun) - rt.used.Load()
+	if remaining < 0 {
+		return 0
+	}
+	return int(remaining)
+}
+
+// MaxOutputTokens reports the resolved output-token cap applied to each
+// advisor call. NewRuntime validates that this value is positive and that
+// it matches ModelConfig.MaxOutputTokens when both are set, so the
+// accessor always returns the value the runtime will actually send.
+func (rt *Runtime) MaxOutputTokens() int64 {
+	if rt == nil {
+		return 0
+	}
+	return rt.cfg.MaxOutputTokens
+}
+
+// ProviderOptions reports the resolved provider options applied to each
+// advisor call. NewRuntime clones the supplied options so the returned
+// map reflects what nested calls will actually receive; callers must not
+// mutate the map or its entries.
+func (rt *Runtime) ProviderOptions() fantasy.ProviderOptions {
+	if rt == nil {
+		return nil
+	}
+	return rt.cfg.CallTemplate.ProviderOptions
+}
+
+func (rt *Runtime) tryAcquire() bool {
+	for {
+		used := rt.used.Load()
+		if used >= int64(rt.cfg.MaxUsesPerRun) {
+			return false
+		}
+		if rt.used.CompareAndSwap(used, used+1) {
+			return true
+		}
+	}
+}
+
+// release returns a previously acquired use to the pool. Callers must
+// invoke this at most once per successful tryAcquire when the advisor
+// call did not complete successfully, so a transient provider failure
+// does not permanently consume quota for the run.
+func (rt *Runtime) release() {
+	rt.used.Add(-1)
+}

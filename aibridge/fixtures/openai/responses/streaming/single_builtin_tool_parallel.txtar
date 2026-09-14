@@ -1,0 +1,86 @@
+-- request --
+{
+  "input": [
+    {
+      "role": "user",
+      "content": "Is 3 + 5 a prime number? Also add 10 + 20. Use the add function for both."
+    }
+  ],
+  "model": "gpt-4.1",
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "name": "add",
+      "description": "Add two numbers together.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "number"
+          },
+          "b": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  ]
+}
+
+-- streaming --
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_parallel_streaming_001","object":"response","created_at":1767875312,"status":"in_progress","background":false,"completed_at":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-2025-04-14","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"function","description":"Add two numbers together.","name":"add","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+event: response.in_progress
+data: {"type":"response.in_progress","response":{"id":"resp_parallel_streaming_001","object":"response","created_at":1767875312,"status":"in_progress","background":false,"completed_at":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-2025-04-14","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"function","description":"Add two numbers together.","name":"add","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"rs_parallel_streaming_reasoning_001","type":"reasoning","status":"in_progress","summary":[]},"output_index":0,"sequence_number":2}
+
+event: response.reasoning_summary_part.added
+data: {"type":"response.reasoning_summary_part.added","item_id":"rs_parallel_streaming_reasoning_001","output_index":0,"part":{"type":"summary_text","text":""},"summary_index":0,"sequence_number":3}
+
+event: response.reasoning_summary_text.delta
+data: {"type":"response.reasoning_summary_text.delta","item_id":"rs_parallel_streaming_reasoning_001","output_index":0,"summary_index":0,"delta":"The user wants two additions: 3+5 and 10+20. I'll call add for both.","sequence_number":4}
+
+event: response.reasoning_summary_text.done
+data: {"type":"response.reasoning_summary_text.done","item_id":"rs_parallel_streaming_reasoning_001","output_index":0,"summary_index":0,"text":"The user wants two additions: 3+5 and 10+20. I'll call add for both.","sequence_number":5}
+
+event: response.reasoning_summary_part.done
+data: {"type":"response.reasoning_summary_part.done","item_id":"rs_parallel_streaming_reasoning_001","output_index":0,"part":{"type":"summary_text","text":"The user wants two additions: 3+5 and 10+20. I'll call add for both."},"summary_index":0,"sequence_number":6}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"rs_parallel_streaming_reasoning_001","type":"reasoning","status":"completed","summary":[{"type":"summary_text","text":"The user wants two additions: 3+5 and 10+20. I'll call add for both."}]},"output_index":0,"sequence_number":7}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"fc_parallel_streaming_first_001","type":"function_call","status":"in_progress","arguments":"","call_id":"call_ParallelStreamFirst001","name":"add"},"output_index":1,"sequence_number":8}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"{\"a\":3,\"b\":5}","item_id":"fc_parallel_streaming_first_001","output_index":1,"sequence_number":9}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","arguments":"{\"a\":3,\"b\":5}","item_id":"fc_parallel_streaming_first_001","output_index":1,"sequence_number":10}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"fc_parallel_streaming_first_001","type":"function_call","status":"completed","arguments":"{\"a\":3,\"b\":5}","call_id":"call_ParallelStreamFirst001","name":"add"},"output_index":1,"sequence_number":11}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"fc_parallel_streaming_second_001","type":"function_call","status":"in_progress","arguments":"","call_id":"call_ParallelStreamSecond01","name":"add"},"output_index":2,"sequence_number":12}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"{\"a\":10,\"b\":20}","item_id":"fc_parallel_streaming_second_001","output_index":2,"sequence_number":13}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","arguments":"{\"a\":10,\"b\":20}","item_id":"fc_parallel_streaming_second_001","output_index":2,"sequence_number":14}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"fc_parallel_streaming_second_001","type":"function_call","status":"completed","arguments":"{\"a\":10,\"b\":20}","call_id":"call_ParallelStreamSecond01","name":"add"},"output_index":2,"sequence_number":15}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_parallel_streaming_001","object":"response","created_at":1767875312,"status":"completed","background":false,"completed_at":1767875312,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-2025-04-14","output":[{"id":"rs_parallel_streaming_reasoning_001","type":"reasoning","status":"completed","summary":[{"type":"summary_text","text":"The user wants two additions: 3+5 and 10+20. I'll call add for both."}]},{"id":"fc_parallel_streaming_first_001","type":"function_call","status":"completed","arguments":"{\"a\":3,\"b\":5}","call_id":"call_ParallelStreamFirst001","name":"add"},{"id":"fc_parallel_streaming_second_001","type":"function_call","status":"completed","arguments":"{\"a\":10,\"b\":20}","call_id":"call_ParallelStreamSecond01","name":"add"}],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"function","description":"Add two numbers together.","name":"add","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":65,"input_tokens_details":{"cached_tokens":0},"output_tokens":30,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":95},"user":null,"metadata":{}},"sequence_number":16}
+

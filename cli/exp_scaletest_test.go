@@ -1,0 +1,347 @@
+package cli_test
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/testutil"
+)
+
+func TestScaleTestCreateWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	// This test only validates that the CLI command accepts known arguments.
+	// More thorough testing is done in scaletest/createworkspaces/run_test.go.
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		// We are not including any provisioner daemons because we do not actually
+		// build any workspaces here.
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Write a parameters file.
+	tDir := t.TempDir()
+	outputFile := filepath.Join(tDir, "output.json")
+
+	inv, root := clitest.New(t, "exp", "scaletest", "create-workspaces",
+		"--count", "2",
+		"--template", "doesnotexist",
+		"--no-cleanup",
+		"--no-wait-for-agents",
+		"--concurrency", "2",
+		"--timeout", "30s",
+		"--job-timeout", "15s",
+		"--cleanup-concurrency", "1",
+		"--cleanup-timeout", "30s",
+		"--cleanup-job-timeout", "15s",
+		"--output", "text",
+		"--output", "json:"+outputFile,
+		"--parameter", "foo=baz",
+		"--rich-parameter-file", "/path/to/some/parameter/file.ext",
+		"--max-failures", "1",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
+}
+
+func TestScaleTestCreateUsers(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		// No provisioner daemons are required because this command only creates
+		// users.
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "create-users",
+		"--count", "3",
+		"--template-admin-percentage", "34",
+		"--no-cleanup",
+		"--concurrency", "2",
+		"--timeout", "30s",
+		"--job-timeout", "15s",
+		"--cleanup-concurrency", "1",
+		"--cleanup-timeout", "30s",
+		"--cleanup-job-timeout", "15s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+
+	// Verify the users were created and roughly the requested percentage are
+	// template admins (34% of 3 rounds down to 1).
+	res, err := client.Users(ctx, codersdk.UsersRequest{Search: loadtestutil.ScaleTestPrefix + "-"})
+	require.NoError(t, err)
+
+	var created, templateAdmins int
+	for _, u := range res.Users {
+		if !loadtestutil.IsScaleTestUser(u.Username, u.Email) {
+			continue
+		}
+		created++
+		for _, role := range u.Roles {
+			if role.Name == codersdk.RoleTemplateAdmin {
+				templateAdmins++
+			}
+		}
+	}
+	require.Equal(t, 3, created)
+	require.Equal(t, 1, templateAdmins)
+}
+
+// TestScaleTestNotifications_ReuseUsersInsufficient verifies that the
+// notifications scaletest checks the user pool up front and exits with an
+// actionable error when not enough scaletest users (or template admins) exist,
+// rather than creating any.
+func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "2",
+		"--template-admin-percentage", "50",
+		"--dial-timeout", "5s",
+		"--notification-timeout", "5s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "not enough scaletest users to reuse")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+// A more comprehensive test is performed in workspacetraffic/run_test.go
+func TestScaleTestWorkspaceTraffic(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
+		"--timeout", "1s",
+		"--bytes-per-tick", "1024",
+		"--tick-interval", "100ms",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--ssh",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "no scaletest workspaces exist")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+func TestScaleTestWorkspaceTraffic_Template(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
+		"--template", "doesnotexist",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+func TestScaleTestWorkspaceTraffic_TargetWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
+		"--target-workspaces", "0:0",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "invalid target workspaces \"0:0\": start and end cannot be equal")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+func TestScaleTestCleanup_Template(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "cleanup",
+		"--template", "doesnotexist",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+func TestScaleTestDashboard(t *testing.T) {
+	t.Parallel()
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	t.Run("MinWait", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancelFunc()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--interval", "0s",
+		)
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "--interval must be greater than zero")
+	})
+
+	t.Run("MaxWait", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancelFunc()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--interval", "1s",
+			"--jitter", "1s",
+		)
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "--jitter must be less than --interval")
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancelFunc()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--interval", "1s",
+			"--jitter", "500ms",
+			"--timeout", "5s",
+			"--scaletest-prometheus-address", "127.0.0.1:0",
+			"--scaletest-prometheus-wait", "0s",
+			"--rand-seed", "1234567890",
+		)
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err, "")
+	})
+
+	t.Run("TargetUsers", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancelFunc()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--target-users", "0:0",
+		)
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "invalid target users \"0:0\": start and end cannot be equal")
+	})
+}

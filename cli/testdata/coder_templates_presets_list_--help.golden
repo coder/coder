@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder templates presets list [flags] <template>
+
+  List all presets of the specified template. Defaults to the active template
+  version.
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+  -c, --column [name|description|parameters|default|desired prebuild instances] (default: name,description,parameters,default,desired prebuild instances)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+      --template-version string
+          Specify a template version to list presets for. Defaults to the active
+          version.
+
+———
+Run `coder --help` for a list of global options.

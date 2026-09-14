@@ -1,0 +1,48 @@
+import type { FC, HTMLAttributes } from "react";
+import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { PaginationAmount } from "./PaginationAmount";
+import { PaginationWidgetBase } from "./PaginationWidgetBase";
+
+export type PaginationResult<Data = unknown> = PaginationResultInfo & {
+	isPlaceholderData: boolean;
+	data?: Data;
+};
+
+type PaginationProps = HTMLAttributes<HTMLDivElement> & {
+	query: PaginationResult;
+	paginationUnitLabel: string;
+};
+
+export const PaginationContainer: FC<PaginationProps> = ({
+	children,
+	query,
+	paginationUnitLabel,
+	...delegatedProps
+}) => {
+	return (
+		<div className="flex flex-col gap-y-4" {...delegatedProps}>
+			{children}
+
+			<PaginationAmount
+				limit={query.limit}
+				totalRecords={query.totalRecords}
+				currentOffsetStart={query.currentOffsetStart}
+				paginationUnitLabel={paginationUnitLabel}
+				countIsCapped={query.countIsCapped}
+				className="justify-end"
+			/>
+
+			{query.isSuccess && (
+				<PaginationWidgetBase
+					totalRecords={query.totalRecords}
+					totalPages={query.totalPages}
+					currentPage={query.currentPage}
+					pageSize={query.limit}
+					onPageChange={query.onPageChange}
+					hasPreviousPage={query.hasPreviousPage}
+					hasNextPage={query.hasNextPage}
+				/>
+			)}
+		</div>
+	);
+};

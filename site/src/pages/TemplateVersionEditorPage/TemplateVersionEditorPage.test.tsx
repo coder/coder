@@ -1,0 +1,673 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
+import WS from "jest-websocket-mock";
+import { HttpResponse, http } from "msw";
+import { QueryClient } from "react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { AppProviders } from "#/App";
+import * as apiModule from "#/api/api";
+import { templateVersionVariablesKey } from "#/api/queries/templates";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
+import {
+	MockTemplate,
+	MockTemplateVersion,
+	MockTemplateVersionVariable1,
+	MockTemplateVersionVariable2,
+	MockWorkspaceBuildLogs,
+} from "#/testHelpers/entities";
+import {
+	createTestQueryClient,
+	renderWithAuth,
+	waitForLoaderToBeRemoved,
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import type { FileTree } from "#/utils/filetree";
+import type { MonacoEditorProps } from "./MonacoEditor";
+import TemplateVersionEditorPage, {
+	findEntrypointFile,
+	getActivePath,
+} from "./TemplateVersionEditorPage";
+
+const { API } = apiModule;
+
+// Monaco is a large and complicated codebase that slows tests down and we don't
+// need to test.
+vi.mock("#/pages/TemplateVersionEditorPage/MonacoEditor", () => ({
+	MonacoEditor: (props: MonacoEditorProps) => (
+		<textarea
+			data-testid="monaco-editor"
+			value={props.value}
+			onChange={(e) => {
+				props.onChange?.(e.target.value);
+			}}
+		/>
+	),
+}));
+
+const renderTemplateEditorPage = () => {
+	renderWithAuth(<TemplateVersionEditorPage />, {
+		route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+		path: "/templates/:template/versions/:version/edit",
+		extraRoutes: [
+			{
+				path: "/templates/:templateId",
+				element: <div></div>,
+			},
+		],
+	});
+};
+
+const typeOnEditor = async (value: string, user: UserEvent) => {
+	const editor = await screen.findByTestId("monaco-editor");
+	await user.type(editor, value);
+};
+
+const buildTemplateVersion = async (
+	templateVersion: TemplateVersion,
+	user: UserEvent,
+	topbar: HTMLElement,
+) => {
+	vi.spyOn(API, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
+	vi.spyOn(API, "createTemplateVersion").mockResolvedValue({
+		...templateVersion,
+		job: {
+			...templateVersion.job,
+			status: "running",
+		},
+	});
+	vi.spyOn(API, "getTemplateVersionByName").mockResolvedValue(templateVersion);
+	vi.spyOn(apiModule, "watchBuildLogsByTemplateVersionId").mockImplementation(
+		(_, options) => {
+			options.onMessage(MockWorkspaceBuildLogs[0]);
+			options.onDone?.();
+			const wsMock = {
+				close: vi.fn(),
+			} as unknown;
+			return wsMock as WebSocket;
+		},
+	);
+	const buildButton = within(topbar).getByRole("button", {
+		name: "Build",
+	});
+	await user.click(buildButton);
+	await within(topbar).findByText("Success");
+	await screen.findByText(
+		`Template version "${templateVersion.name}" built successfully.`,
+	);
+};
+
+test("Use custom name, message and set it as active when publishing", async () => {
+	const user = userEvent.setup();
+	renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion: TemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	// Publish
+	const patchTemplateVersion = vi
+		.spyOn(API, "patchTemplateVersion")
+		.mockResolvedValue(newTemplateVersion);
+	const updateActiveTemplateVersion = vi
+		.spyOn(API, "updateActiveTemplateVersion")
+		.mockResolvedValue({ message: "" });
+	const publishButton = within(topbar).getByRole("button", {
+		name: "Publish",
+	});
+	await user.click(publishButton);
+	const publishDialog = await screen.findByTestId("dialog");
+	const nameField = within(publishDialog).getByLabelText("Version name");
+	await user.clear(nameField);
+	await user.type(nameField, "v1.0");
+	const messageField = within(publishDialog).getByLabelText("Message");
+	await user.clear(messageField);
+	await user.type(messageField, "Informative message");
+	await user.click(
+		within(publishDialog).getByRole("button", { name: "Publish" }),
+	);
+	await waitFor(() => {
+		expect(patchTemplateVersion).toBeCalledWith("new-version-id", {
+			name: "v1.0",
+			message: "Informative message",
+		});
+		expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
+			id: "new-version-id",
+		});
+	});
+	// Wait for the dialog to close so all async state updates (setIsPublishingDialogOpen,
+	// setLastSuccessfulPublishedVersion, navigation) settle before the test ends.
+	await waitFor(() => {
+		expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
+	});
+}, 20_000);
+
+test("Do not mark as active if promote is not checked", async () => {
+	const user = userEvent.setup();
+	renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	// Publish
+	const patchTemplateVersion = vi
+		.spyOn(API, "patchTemplateVersion")
+		.mockResolvedValue(newTemplateVersion);
+	const updateActiveTemplateVersion = vi
+		.spyOn(API, "updateActiveTemplateVersion")
+		.mockResolvedValue({ message: "" });
+	const publishButton = within(topbar).getByRole("button", {
+		name: "Publish",
+	});
+	await user.click(publishButton);
+	const publishDialog = await screen.findByTestId("dialog");
+	const nameField = within(publishDialog).getByLabelText("Version name");
+	await user.clear(nameField);
+	await user.type(nameField, "v1.0");
+	await user.click(
+		within(publishDialog).getByLabelText("Promote to active version"),
+	);
+	await user.click(
+		within(publishDialog).getByRole("button", { name: "Publish" }),
+	);
+	await waitFor(() => {
+		expect(patchTemplateVersion).toBeCalledWith("new-version-id", {
+			name: "v1.0",
+			message: "",
+		});
+	});
+	expect(updateActiveTemplateVersion).toBeCalledTimes(0);
+	// Wait for the dialog to close so all async state updates settle before the
+	// test ends, preventing act() warnings from pending state mutations.
+	await waitFor(() => {
+		expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
+	});
+});
+
+test("Patch request is not send when there are no changes", async () => {
+	const user = userEvent.setup();
+	renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+		message: "",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	// Publish
+	const patchTemplateVersion = vi
+		.spyOn(API, "patchTemplateVersion")
+		.mockResolvedValue(newTemplateVersion);
+	const publishButton = within(topbar).getByRole("button", {
+		name: "Publish",
+	});
+	await user.click(publishButton);
+	const publishDialog = await screen.findByTestId("dialog");
+	// It is using the name from the template
+	const nameField = within(publishDialog).getByLabelText("Version name");
+	expect(nameField).toHaveValue(newTemplateVersion.name);
+	// Publish
+	await user.click(
+		within(publishDialog).getByRole("button", { name: "Publish" }),
+	);
+	expect(patchTemplateVersion).toBeCalledTimes(0);
+});
+
+test("The file is uploaded with the correct content type", async () => {
+	const user = userEvent.setup();
+	renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	expect(API.uploadFile).toHaveBeenCalledWith(
+		expect.objectContaining({
+			name: "template.tar",
+			type: "application/x-tar",
+		}),
+	);
+});
+
+test("Preserves the currently open file path when building a template version", async () => {
+	const user = userEvent.setup();
+	const { router } = renderWithAuth(<TemplateVersionEditorPage />, {
+		route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit?path=myfile.tf`,
+		path: "/templates/:template/versions/:version/edit",
+		extraRoutes: [
+			{
+				path: "/templates/:templateId",
+				element: <div></div>,
+			},
+		],
+	});
+
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion: TemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	// Verify that the path query parameter is preserved in the URL
+	await waitFor(() => {
+		expect(router.state.location.pathname).toBe(
+			`/templates/${MockTemplate.name}/versions/new-version/edit`,
+		);
+	});
+	expect(router.state.location.search).toBe("?path=myfile.tf");
+});
+
+test("Creating a new file opens it in the editor", async () => {
+	const user = userEvent.setup();
+	const { router } = renderWithAuth(<TemplateVersionEditorPage />, {
+		route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+		path: "/templates/:template/versions/:version/edit",
+	});
+
+	// Wait for the default entrypoint file to load.
+	const editor = await screen.findByTestId("monaco-editor");
+	await waitFor(() => {
+		expect(editor).not.toHaveValue("");
+	});
+
+	const createButton = await screen.findByRole("button", {
+		name: "Create File",
+	});
+	await user.click(createButton);
+
+	const dialog = await screen.findByTestId("dialog");
+	const pathField = within(dialog).getByLabelText("File Path");
+	await user.type(pathField, "newfile.tf");
+	await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+	// The new (empty) file should be opened in the editor and the URL path
+	// query parameter should reflect the new file.
+	await waitFor(() => {
+		expect(screen.getByTestId("monaco-editor")).toHaveValue("");
+	});
+	expect(router.state.location.search).toBe("?path=newfile.tf");
+});
+
+test("Renaming a file does not throw and opens the new path", async () => {
+	const user = userEvent.setup();
+	const { router } = renderWithAuth(<TemplateVersionEditorPage />, {
+		route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+		path: "/templates/:template/versions/:version/edit",
+	});
+
+	// Wait for the default entrypoint file to load and capture its content so
+	// we can confirm the same content is shown after renaming.
+	const editor = await screen.findByTestId("monaco-editor");
+	await waitFor(() => {
+		expect(editor).not.toHaveValue("");
+	});
+	if (!(editor instanceof HTMLTextAreaElement)) {
+		throw new Error("editor is not a textarea");
+	}
+	const originalContent = editor.value;
+
+	// Open the file actions menu for the active file and click Rename.
+	const fileActions = await screen.findByRole("button", {
+		name: "File actions",
+	});
+	await user.click(fileActions);
+	await user.click(await screen.findByRole("menuitem", { name: /rename/i }));
+
+	const dialog = await screen.findByTestId("dialog");
+	const pathField = within(dialog).getByLabelText("File Path");
+	await user.clear(pathField);
+	await user.type(pathField, "renamed.tf");
+	await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+
+	// The renamed file should still be open with its original content and
+	// the URL path query parameter should reflect the new name. Previously
+	// this path threw "File is not a text file" because the parent's stale
+	// file tree fell back to the old entrypoint name.
+	await waitFor(() => {
+		expect(screen.getByTestId("monaco-editor")).toHaveValue(originalContent);
+	});
+	expect(router.state.location.search).toBe("?path=renamed.tf");
+});
+
+describe.each([
+	{
+		testName: "Do not ask when template version has no errors",
+		initialVariables: undefined,
+		loadedVariables: undefined,
+		templateVersion: MockTemplateVersion,
+		askForVariables: false,
+	},
+	{
+		testName:
+			"Do not ask when template version has no errors even when having previously loaded variables",
+		initialVariables: [
+			MockTemplateVersionVariable1,
+			MockTemplateVersionVariable2,
+		],
+		loadedVariables: undefined,
+		templateVersion: MockTemplateVersion,
+		askForVariables: false,
+	},
+	{
+		testName: "Ask when template version has errors",
+		initialVariables: undefined,
+		templateVersion: {
+			...MockTemplateVersion,
+			job: {
+				...MockTemplateVersion.job,
+				error_code: "REQUIRED_TEMPLATE_VARIABLES",
+			},
+		},
+		loadedVariables: [
+			MockTemplateVersionVariable1,
+			MockTemplateVersionVariable2,
+		],
+		askForVariables: true,
+	},
+])(
+	"Missing template variables",
+	({
+		testName,
+		initialVariables,
+		loadedVariables,
+		templateVersion,
+		askForVariables,
+	}) => {
+		it(testName, async () => {
+			vi.resetAllMocks();
+			const queryClient = new QueryClient();
+			queryClient.setQueryData(
+				templateVersionVariablesKey(MockTemplateVersion.id),
+				initialVariables,
+			);
+
+			server.use(
+				http.get(
+					"/api/v2/organizations/:org/templates/:template/versions/:version",
+					() => {
+						return HttpResponse.json(templateVersion);
+					},
+				),
+			);
+
+			if (loadedVariables) {
+				server.use(
+					http.get("/api/v2/templateversions/:version/variables", () => {
+						return HttpResponse.json(loadedVariables);
+					}),
+				);
+			}
+
+			renderEditorPage(queryClient);
+			await waitForLoaderToBeRemoved();
+
+			const dialogSelector = /template variables/i;
+			if (askForVariables) {
+				await screen.findByText(dialogSelector);
+			} else {
+				expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
+			}
+		});
+	},
+);
+
+test("display pending badge and update it to running when status changes", async () => {
+	const MockPendingTemplateVersion = {
+		...MockTemplateVersion,
+		job: {
+			...MockTemplateVersion.job,
+			status: "pending",
+		},
+	};
+	const MockRunningTemplateVersion = {
+		...MockTemplateVersion,
+		job: {
+			...MockTemplateVersion.job,
+			status: "running",
+		},
+	};
+
+	let running = false;
+	server.use(
+		http.get(
+			"/api/v2/organizations/:org/templates/:template/versions/:version",
+			() => {
+				return HttpResponse.json(
+					running ? MockRunningTemplateVersion : MockPendingTemplateVersion,
+				);
+			},
+		),
+	);
+
+	// Mock the logs when the status is running. This prevents connection errors
+	// from being thrown in the console during the test.
+	new WS(
+		`ws://localhost/api/v2/templateversions/${MockTemplateVersion.name}/logs?follow=true`,
+	);
+
+	renderEditorPage(createTestQueryClient());
+
+	const status = await screen.findByRole("status", { name: /pending/i });
+	expect(status).toHaveTextContent("Pending");
+
+	// Manually update the endpoint, as to not rely on the editor page
+	// making a specific number of requests.
+	running = true;
+
+	await waitFor(
+		() => {
+			expect(status).toHaveTextContent("Running");
+		},
+		// Increase the timeout due to the page fetching results every second, which
+		// may cause delays.
+		{ timeout: 5_000 },
+	);
+});
+
+function renderEditorPage(queryClient: QueryClient) {
+	return render(
+		<AppProviders queryClient={queryClient}>
+			<RouterProvider
+				router={createMemoryRouter(
+					[
+						{
+							element: <RequireAuth />,
+							children: [
+								{
+									element: <TemplateVersionEditorPage />,
+									path: "/templates/:template/versions/:version/edit",
+								},
+							],
+						},
+					],
+					{
+						initialEntries: [
+							`/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+						],
+					},
+				)}
+			/>
+		</AppProviders>,
+	);
+}
+
+describe("Get active path", () => {
+	it("empty path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+		};
+		const searchParams = new URLSearchParams({ path: "" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("main.tf");
+	});
+	it("invalid path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+		};
+		const searchParams = new URLSearchParams({ path: "foobaz" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("main.tf");
+	});
+	it("valid path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+			"foobar.tf": "foobaz",
+		};
+		const searchParams = new URLSearchParams({ path: "foobar.tf" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("foobar.tf");
+	});
+});
+
+describe("Find entrypoint", () => {
+	it("empty tree", () => {
+		const ft: FileTree = {};
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBeUndefined();
+	});
+	it("flat structure, main.tf in root", () => {
+		const ft: FileTree = {
+			"aaa.tf": "hello",
+			"bbb.tf": "world",
+			"main.tf": "foobar",
+			"nnn.tf": "foobaz",
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("main.tf");
+	});
+	it("flat structure, no main.tf", () => {
+		const ft: FileTree = {
+			"aaa.tf": "hello",
+			"bbb.tf": "world",
+			"ccc.tf": "foobaz",
+			"nnn.tf": "foobaz",
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("nnn.tf");
+	});
+	it("with dirs, single main.tf", () => {
+		const ft: FileTree = {
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"bbb-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"main.tf": "foobar",
+			"nnn.tf": "foobaz",
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("main.tf");
+	});
+	it("with dirs, multiple main.tf's", () => {
+		const ft: FileTree = {
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"bbb-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"ccc-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"main.tf": "foobar",
+			"nnn.tf": "foobaz",
+			"zzz-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("main.tf");
+	});
+	it("with dirs, multiple main.tf, no main.tf in root", () => {
+		const ft: FileTree = {
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"bbb-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"ccc-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"nnn.tf": "foobaz",
+			"zzz-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("aaa-dir/main.tf");
+	});
+	it("with dirs, multiple main.tf, unordered file tree", () => {
+		const ft: FileTree = {
+			"ccc-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"zzz-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("aaa-dir/main.tf");
+	});
+});

@@ -1,0 +1,1165 @@
+import { cn } from "cn";
+import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	type FC,
+	type ReactNode,
+	type RefObject,
+	useEffect,
+	useState,
+} from "react";
+import { useQueryClient } from "react-query";
+import type { UrlTransform } from "streamdown";
+import { invalidateChatDiffContents } from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import {
+	getAgentBrowserApp,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
+import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
+import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { generateConnectionSessionId, generateUUID } from "#/utils/random";
+import { findWorkspaceAgent } from "#/utils/workspace";
+import {
+	AgentChatInput,
+	type ChatMessageInputRef,
+} from "./components/AgentChatInput";
+import {
+	ChatConversationSkeleton,
+	RightPanelSkeleton,
+} from "./components/AgentsSkeletons";
+import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./components/ChatConversation/chatStore";
+
+import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
+import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import type { PendingAttachment } from "./components/ChatPageContent";
+import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
+import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
+import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
+import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
+import { ChatTopBar } from "./components/ChatTopBar";
+import { GitPanel } from "./components/GitPanel/GitPanel";
+import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
+import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
+import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
+import { RightPanel } from "./components/RightPanel/RightPanel";
+import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
+import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
+import { TerminalPanel } from "./components/TerminalPanel";
+import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
+import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
+import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { parsePullRequestUrl } from "./utils/pullRequest";
+import {
+	getPersistedDefaultTerminalHidden,
+	getPersistedRightPanelTabs,
+	getPersistedVisibleSingletonTabs,
+	savePersistedDefaultTerminalHidden,
+	savePersistedRightPanelTabs,
+	savePersistedVisibleSingletonTabs,
+} from "./utils/rightPanelTabStorage";
+import {
+	isSingletonRightPanelTabId,
+	type PortSelection,
+	type SingletonRightPanelTabId,
+	singletonRightPanelTabIds,
+	type UserRightPanelTab,
+	validateUserRightPanelTabs,
+} from "./utils/rightPanelTabs";
+import {
+	getPersistedSidebarTabId,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
+
+type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+interface EditingState {
+	chatInputRef: RefObject<ChatMessageInputRef | null>;
+	editorInitialValue: string;
+	initialEditorState: string | undefined;
+	remountKey: number;
+	editingMessageId: number | null;
+	editingFileBlocks: readonly ChatMessagePart[];
+	handleEditUserMessage: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly ChatMessagePart[],
+	) => void;
+	handleCancelHistoryEdit: () => void;
+	handleSendFromInput: (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => void;
+	handleContentChange: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
+}
+
+interface AgentChatPageViewProps {
+	chat: TypesGen.Chat;
+	persistedError: ChatDetailError | undefined;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	workspace?: TypesGen.Workspace;
+
+	// Store handle.
+	store: ChatStoreHandle;
+	/** Messages as first loaded; read once at mount for the initial anchor. */
+	initialMessages: readonly TypesGen.ChatMessage[];
+
+	// Editing state.
+	editing: EditingState;
+
+	// Model/input configuration.
+	effectiveSelectedModel: string;
+	setSelectedModel: (model: string) => void;
+	modelOptions: readonly ModelSelectorOption[];
+	models: readonly TypesGen.ChatModel[] | undefined;
+	modelSelectorPlaceholder: string;
+	modelSelectorHelp?: ReactNode;
+	modelCatalogError?: unknown;
+	unavailableModelNotice?: string;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
+	hasModelOptions: boolean;
+	isModelCatalogLoading?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
+	isInputDisabled: boolean;
+	isSubmissionPending: boolean;
+	isInterruptPending: boolean;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
+	isWorkspaceLoading?: boolean;
+
+	// Right panel state (owned by the parent so loading and
+	// loaded views share the same layout).
+	showSidebarPanel: boolean;
+	onSetShowSidebarPanel: (next: boolean) => void;
+
+	// Sidebar content data.
+	debugLoggingEnabled: boolean;
+	gitWatcher: {
+		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+		everDirty: ReadonlySet<string>;
+		hasReceivedChanges: boolean;
+
+		refresh: () => boolean;
+	};
+
+	// Workspace action handlers.
+	sshCommand: string | undefined;
+	handleCommit: (repoRoot: string) => void;
+
+	// Chat action handlers.
+	handleInterrupt: () => void;
+	handleDeleteQueuedMessage: (id: number) => Promise<void>;
+	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+
+	// Pagination for loading older messages.
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	isHydratingMessages: boolean;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
+
+	urlTransform?: UrlTransform;
+
+	// MCP server state.
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds: readonly string[];
+	onMCPSelectionChange: (ids: string[]) => void;
+	onMCPAuthComplete: (serverId: string) => void;
+	onDisabledWorkspaceMCPServersChange: (names: string[]) => void;
+
+	// Desktop chat ID (optional).
+	desktopChatId?: string;
+}
+
+const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
+	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
+		{message}
+	</div>
+);
+
+interface UserTabContentProps {
+	tab: UserRightPanelTab;
+	chatId: string;
+	workspace: TypesGen.Workspace | undefined;
+	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
+	wildcardHostname: string;
+	sidebarVisible: boolean;
+	isActive: boolean;
+	isPending: boolean;
+	onTerminalReady: (tabId: string) => void;
+}
+
+const UserTabContent: FC<UserTabContentProps> = ({
+	tab,
+	chatId,
+	workspace,
+	workspaceAgent,
+	wildcardHostname,
+	sidebarVisible,
+	isActive,
+	isPending,
+	onTerminalReady,
+}) => {
+	switch (tab.kind) {
+		case "terminal":
+			return workspace && workspaceAgent ? (
+				<TerminalPanel
+					chatId={chatId}
+					reconnectionToken={tab.reconnectionToken}
+					initialCommand={tab.initialCommand}
+					isHot={sidebarVisible && (isActive || isPending)}
+					autoFocus={sidebarVisible && isActive}
+					onReady={() => onTerminalReady(tab.id)}
+					workspace={workspace}
+					workspaceAgent={workspaceAgent}
+				/>
+			) : (
+				<UnavailableTabMessage message="Terminal will be available once the workspace agent is ready." />
+			);
+		case "workspace_app": {
+			if (!workspace) {
+				return null;
+			}
+			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
+			if (!app || !isWorkspaceAppEmbeddable(app)) {
+				return (
+					<UnavailableTabMessage message="This workspace app is no longer available as a right-panel tab." />
+				);
+			}
+			return (
+				<WorkspaceAppFrame workspace={workspace} app={app} active={isActive} />
+			);
+		}
+		case "port": {
+			if (!workspace) {
+				return null;
+			}
+			const agent = findWorkspaceAgent(workspace, tab.agentId);
+			if (!agent) {
+				return (
+					<UnavailableTabMessage message="This port preview tab is no longer available." />
+				);
+			}
+			return (
+				<PortPreviewPanel
+					workspace={workspace}
+					agent={agent}
+					host={wildcardHostname}
+					tab={tab}
+				/>
+			);
+		}
+		default: {
+			const _exhaustive: never = tab;
+			return _exhaustive;
+		}
+	}
+};
+
+export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
+	chat,
+	persistedError,
+	workspaceAgent,
+	workspace,
+	store,
+	initialMessages,
+	editing,
+	effectiveSelectedModel,
+	setSelectedModel,
+	modelOptions,
+	models,
+	modelSelectorPlaceholder,
+	modelSelectorHelp,
+	modelCatalogError,
+	unavailableModelNotice,
+	reasoningEffort,
+	onReasoningEffortChange,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
+	unsupportedProviderNames,
+	aiGatewayDisabled,
+	hasModelOptions,
+	isModelCatalogLoading = false,
+	onPlanModeToggle,
+	isInputDisabled,
+	isSubmissionPending,
+	isInterruptPending,
+	onWorkspaceChange,
+	isWorkspaceLoading = false,
+	showSidebarPanel,
+	onSetShowSidebarPanel,
+	debugLoggingEnabled,
+	gitWatcher,
+	sshCommand,
+	handleCommit,
+	handleInterrupt,
+	handleDeleteQueuedMessage,
+	handlePromoteQueuedMessage,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	isHydratingMessages,
+	hasFetchMoreError,
+	onFetchMoreMessages,
+	urlTransform,
+	mcpServers,
+	selectedMCPServerIds,
+	onMCPSelectionChange,
+	onMCPAuthComplete,
+	onDisabledWorkspaceMCPServersChange,
+	desktopChatId,
+}) => {
+	const queryClient = useQueryClient();
+	const { proxy } = useProxy();
+	const { entitlements } = useDashboard();
+	const { permissions, user: currentUser } = useAuthenticated();
+	const wildcardHostname = proxy.preferredWildcardHostname;
+	const agentId = chat.id;
+	const organizationId = chat.organization_id;
+	const isArchived = chat.archived;
+	const liveChatStatus =
+		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const parsedPrNumber = Number(
+		parsePullRequestUrl(chat.diff_status?.url)?.number,
+	);
+	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
+
+	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
+
+	// Wrap the git watcher refresh to also invalidate the cached
+	// remote/PR diff contents so the panel re-fetches from GitHub.
+	const handleRefresh = () => {
+		const sent = gitWatcher.refresh();
+		if (sent && agentId) {
+			void invalidateChatDiffContents(queryClient, agentId);
+		}
+		return sent;
+	};
+
+	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	// The turn already running when the page loaded must not anchor the
+	// scroller, even if its prompt is older than the newest messages page and
+	// only renders after the user pages up. Message ids are allocated from one
+	// sequence, so every user row created after mount (sends, queue
+	// promotions, edit re-sends) has an id above the initial maximum.
+	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
+		chat.status === "running" || chat.status === "interrupting"
+			? (initialMessages.at(-1)?.id ?? -1)
+			: undefined,
+	);
+	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
+		null,
+	);
+	// Expansion must never outlive the panel: when narrow-viewport
+	// suppression or an explicit close hides the panel, gate expansion
+	// off (rather than resetting it) so it is restored with the panel.
+	const visualExpanded =
+		showSidebarPanel && (dragVisualExpanded ?? isRightPanelExpanded);
+
+	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
+		getPersistedSidebarTabId(agentId),
+	);
+	const [userRightPanelTabs, setUserRightPanelTabsState] = useState<
+		UserRightPanelTab[]
+	>(() => getPersistedRightPanelTabs(agentId));
+	const [defaultTerminalHidden, setDefaultTerminalHiddenState] =
+		useState<boolean>(() => getPersistedDefaultTerminalHidden(agentId));
+	const [visibleSingletonTabs, setVisibleSingletonTabsState] = useState<
+		SingletonRightPanelTabId[]
+	>(() => getPersistedVisibleSingletonTabs(agentId));
+	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
+	// One client session ID per page visit, shared by every terminal in this
+	// chat. It regenerates when this view remounts (switching chats or
+	// reloading), independent of any terminal's reconnection token.
+	const [clientSessionId] = useState(generateConnectionSessionId);
+
+	const setSidebarTabId = (tabId: string) => {
+		setSidebarTabIdState(tabId);
+		if (!isArchived) {
+			savePersistedSidebarTabId(agentId, tabId);
+		}
+	};
+
+	useEffect(() => {
+		if (!isArchived) {
+			savePersistedRightPanelTabs(agentId, userRightPanelTabs);
+		}
+	}, [agentId, isArchived, userRightPanelTabs]);
+
+	useEffect(() => {
+		if (!isArchived) {
+			savePersistedDefaultTerminalHidden(agentId, defaultTerminalHidden);
+		}
+	}, [agentId, defaultTerminalHidden, isArchived]);
+
+	useEffect(() => {
+		if (!isArchived) {
+			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
+		}
+	}, [agentId, isArchived, visibleSingletonTabs]);
+
+	const shouldShowSidebar = showSidebarPanel;
+
+	// Prefer the git repository root over the agent's expanded directory
+	// for VS Code folder resolution (important for monorepos).
+	const preferredFolder = (() => {
+		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
+		return repoRoots[0] || workspaceAgent?.expanded_directory;
+	})();
+
+	const workspaceRoute = workspace
+		? `/@${workspace.owner_name}/${workspace.name}`
+		: undefined;
+
+	const attachedWorkspace = (() => {
+		if (!workspace || !workspaceRoute) return undefined;
+
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
+		);
+		const statusIcon = <StatusIcon type={effectiveType} />;
+		return {
+			id: workspace.id,
+			name: workspace.name,
+			route: workspaceRoute,
+			statusIcon,
+			statusLabel,
+		};
+	})();
+
+	// Desktop is only available when the workspace and agent are ready;
+	// offer it as a singleton panel on that same condition to avoid
+	// selecting "desktop" when no desktop panel is rendered.
+	const availableDesktopChatId =
+		workspace && workspaceAgent ? desktopChatId : undefined;
+
+	const availableBrowserApp = workspace
+		? getAgentBrowserApp(workspaceAgent)
+		: undefined;
+
+	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
+		browser: availableBrowserApp !== undefined,
+		desktop: availableDesktopChatId !== undefined,
+		debug: debugLoggingEnabled === true,
+	};
+	const supportedSingletonTabs = singletonRightPanelTabIds.filter(
+		(tabId) => singletonTabSupport[tabId],
+	);
+	// A saved choice survives a panel losing support, so the tab returns
+	// once the workspace, app, or debug setting is available again.
+	const shownSingletonTabs = supportedSingletonTabs.filter((tabId) =>
+		visibleSingletonTabs.includes(tabId),
+	);
+	const isSingletonTabShown = (tabId: SingletonRightPanelTabId) =>
+		shownSingletonTabs.includes(tabId);
+
+	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
+		userRightPanelTabs,
+		{ workspace, workspaceAgent, wildcardHostname },
+	);
+
+	const hasBuiltInTerminal = Boolean(
+		workspace && workspaceAgent && !defaultTerminalHidden,
+	);
+	// Single source of truth for available tabs and their order. The list
+	// of tab IDs used by `getEffectiveTabId` is derived from this so a
+	// new tab can never be added to one without the other going out of
+	// sync. Desktop is ordered before terminals so terminals are rightmost.
+	const builtInSidebarTabConfigs = [
+		{ id: "summary", label: "Summary" },
+		{ id: "git", label: "Git" },
+		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
+		...(isSingletonTabShown("browser")
+			? [{ id: "browser", label: "Browser" }]
+			: []),
+		...(isSingletonTabShown("desktop")
+			? [{ id: "desktop", label: "Desktop" }]
+			: []),
+		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
+	];
+	// Dense terminal numbering: position among unlabeled terminal tabs,
+	// after the built-in Terminal when visible. Labeled terminals (command
+	// apps) display their own label, so they don't consume a number.
+	// Closing a terminal renumbers the ones after it.
+	const terminalNumbers = new Map(
+		validatedUserRightPanelTabs
+			.filter((tab) => tab.kind === "terminal" && tab.label === undefined)
+			.map(
+				(tab, index) =>
+					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
+			),
+	);
+	const sidebarTabConfigs = [
+		...builtInSidebarTabConfigs,
+		// Only unlabeled terminal tabs fall through to the numbered label;
+		// every other tab kind has a required label.
+		...validatedUserRightPanelTabs.map((tab) => {
+			const terminalNumber = terminalNumbers.get(tab.id);
+			return {
+				id: tab.id,
+				label:
+					tab.label ??
+					(terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`),
+			};
+		}),
+	];
+	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
+	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
+
+	const activateRightPanelTab = (tabId: string) => {
+		onSetShowSidebarPanel(true);
+		setPendingTabId(null);
+		setSidebarTabId(tabId);
+	};
+
+	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
+		setVisibleSingletonTabsState((currentTabIds) =>
+			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
+		);
+		activateRightPanelTab(tabId);
+	};
+
+	const desktopPanelCtx = {
+		desktopChatId,
+		// Only offer the action when the panel can render, which keeps a tool
+		// action from selecting a Desktop tab that the tab list omits.
+		onOpenDesktop: availableDesktopChatId
+			? () => showSingletonTab("desktop")
+			: undefined,
+	};
+
+	// Ignore late readiness from a tab the user already navigated past.
+	const handleTerminalTabReady = (tabId: string) => {
+		if (pendingTabId !== tabId) {
+			return;
+		}
+		setPendingTabId(null);
+		setSidebarTabId(tabId);
+	};
+
+	const handleActiveTabChange = (tabId: string) => {
+		setPendingTabId(null);
+		setSidebarTabId(tabId);
+	};
+
+	const startPendingTab = (tabId: string) => {
+		onSetShowSidebarPanel(true);
+		setPendingTabId(tabId);
+	};
+
+	const createUserRightPanelTabId = (
+		kind: UserRightPanelTab["kind"],
+	): string => {
+		return `${kind}-${generateUUID()}`;
+	};
+
+	const handleAddTerminalTab = () => {
+		if (!workspace || !workspaceAgent) {
+			return;
+		}
+		// Reopen the built-in Terminal instead of creating Terminal 2 with no Terminal 1.
+		if (defaultTerminalHidden) {
+			setDefaultTerminalHiddenState(false);
+			startPendingTab("terminal");
+			return;
+		}
+		const tabId = createUserRightPanelTabId("terminal");
+		setUserRightPanelTabsState((currentTabs) => [
+			...currentTabs,
+			{
+				id: tabId,
+				kind: "terminal",
+				reconnectionToken: generateUUID(),
+			},
+		]);
+		startPendingTab(tabId);
+	};
+
+	const handleOpenWorkspaceAppTab = (app: TypesGen.WorkspaceApp) => {
+		if (!workspaceAgent) {
+			return;
+		}
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) =>
+				tab.kind === "workspace_app" &&
+				tab.agentId === workspaceAgent.id &&
+				tab.appId === app.id,
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+		const tab: UserRightPanelTab = {
+			id: createUserRightPanelTabId("workspace_app"),
+			kind: "workspace_app",
+			label: app.display_name ?? app.slug,
+			agentId: workspaceAgent.id,
+			appId: app.id,
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
+	};
+
+	const handleOpenCommandAppTab = (app: TypesGen.WorkspaceApp) => {
+		if (!workspace || !workspaceAgent || !app.command) {
+			return;
+		}
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) => tab.kind === "terminal" && tab.sourceAppId === app.id,
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+		const tab: UserRightPanelTab = {
+			id: createUserRightPanelTabId("terminal"),
+			kind: "terminal",
+			label: app.display_name ?? app.slug,
+			reconnectionToken: generateUUID(),
+			initialCommand: app.command,
+			sourceAppId: app.id,
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		startPendingTab(tab.id);
+	};
+
+	const handleOpenPortTab = (selection: PortSelection) => {
+		if (!workspaceAgent) {
+			return;
+		}
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) =>
+				tab.kind === "port" &&
+				tab.agentId === workspaceAgent.id &&
+				tab.port === selection.port &&
+				tab.protocol === selection.protocol,
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+		const tab: UserRightPanelTab = {
+			id: createUserRightPanelTabId("port"),
+			kind: "port",
+			label: selection.label,
+			agentId: workspaceAgent.id,
+			port: selection.port,
+			protocol: selection.protocol,
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
+	};
+
+	const renderTabContent = (tabId: string): ReactNode => {
+		switch (tabId) {
+			case "summary":
+				return (
+					<ChatSummaryPanel
+						chatId={agentId}
+						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+					/>
+				);
+			case "git":
+				return (
+					<GitPanel
+						prTab={
+							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
+						}
+						repositories={gitWatcher.repositories}
+						everDirty={gitWatcher.everDirty}
+						isGitStatusLoading={
+							workspaceAgent?.status === "connected" &&
+							!gitWatcher.hasReceivedChanges
+						}
+						onRefresh={handleRefresh}
+						onCommit={handleCommit}
+						isExpanded={visualExpanded}
+						remoteDiffStats={chat.diff_status}
+						chatInputRef={editing.chatInputRef}
+					/>
+				);
+			case "browser":
+				return workspace && workspaceAgent && availableBrowserApp ? (
+					<WorkspaceAppFrame
+						workspace={workspace}
+						app={{ ...availableBrowserApp, agent: workspaceAgent }}
+						active={effectiveSidebarTabId === "browser"}
+					/>
+				) : null;
+			case "desktop":
+				return availableDesktopChatId ? (
+					<DesktopPanel
+						chatId={availableDesktopChatId}
+						isVisible={effectiveSidebarTabId === "desktop"}
+					/>
+				) : null;
+			case "terminal":
+				return workspace && workspaceAgent ? (
+					<TerminalPanel
+						chatId={agentId}
+						isHot={
+							shouldShowSidebar &&
+							(effectiveSidebarTabId === "terminal" ||
+								pendingTabId === "terminal")
+						}
+						autoFocus={
+							shouldShowSidebar && effectiveSidebarTabId === "terminal"
+						}
+						onReady={() => handleTerminalTabReady("terminal")}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
+					/>
+				) : null;
+			case "debug":
+				return (
+					<DebugPanel
+						chatId={agentId}
+						isVisible={shouldShowSidebar && effectiveSidebarTabId === "debug"}
+					/>
+				);
+			default: {
+				const userTab = validatedUserRightPanelTabs.find(
+					(tab) => tab.id === tabId,
+				);
+				return userTab ? (
+					<UserTabContent
+						tab={userTab}
+						chatId={agentId}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
+						wildcardHostname={wildcardHostname}
+						sidebarVisible={shouldShowSidebar}
+						isActive={effectiveSidebarTabId === userTab.id}
+						isPending={pendingTabId === userTab.id}
+						onTerminalReady={handleTerminalTabReady}
+					/>
+				) : null;
+			}
+		}
+	};
+
+	const handleCloseTab = (tabId: string) => {
+		setPendingTabId((currentTabId) =>
+			currentTabId === tabId ? null : currentTabId,
+		);
+		const remainingTabIds = sidebarTabIds.filter((id) => id !== tabId);
+		const closedTabIndex = sidebarTabIds.indexOf(tabId);
+
+		if (tabId === "terminal") {
+			setDefaultTerminalHiddenState(true);
+		} else if (isSingletonRightPanelTabId(tabId)) {
+			setVisibleSingletonTabsState((currentTabIds) =>
+				currentTabIds.filter((id) => id !== tabId),
+			);
+		} else {
+			setUserRightPanelTabsState((currentTabs) =>
+				currentTabs.filter((tab) => tab.id !== tabId),
+			);
+		}
+
+		if (effectiveSidebarTabId !== tabId) {
+			return;
+		}
+		const nextActiveTabId =
+			remainingTabIds[Math.min(closedTabIndex, remainingTabIds.length - 1)];
+		if (nextActiveTabId) {
+			setSidebarTabId(nextActiveTabId);
+		}
+	};
+
+	const handleToggleSingletonTab = (tabId: SingletonRightPanelTabId) => {
+		if (!singletonTabSupport[tabId]) {
+			return;
+		}
+		if (isSingletonTabShown(tabId)) {
+			handleCloseTab(tabId);
+		} else {
+			showSingletonTab(tabId);
+		}
+	};
+
+	const sidebarTabs = sidebarTabConfigs.map((tab) => {
+		const isCloseable =
+			tab.id === "terminal" ||
+			isSingletonRightPanelTabId(tab.id) ||
+			validatedUserRightPanelTabs.some((userTab) => userTab.id === tab.id);
+		return {
+			id: tab.id,
+			label: tab.label,
+			content: renderTabContent(tab.id),
+			onClose: isCloseable ? () => handleCloseTab(tab.id) : undefined,
+		};
+	});
+
+	const isEditing = editing.editingMessageId !== null;
+
+	const chatOwnerUsername = chat.owner_username?.trim();
+	const chatOwnerLabel =
+		chat.owner_name?.trim() ||
+		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
+	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
+	const chatOwnerWarning = isOtherUserReadOnly
+		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
+		: undefined;
+
+	const hasLicense = entitlements.has_license;
+	const canManageLicenses = permissions.viewAllLicenses;
+	const runtimeHours = entitlements.features.agent_runtime_hours;
+	const agentHoursHardLimit =
+		runtimeHours.enabled &&
+		runtimeHours.hard_limit !== undefined &&
+		runtimeHours.actual !== undefined &&
+		runtimeHours.actual >= runtimeHours.hard_limit
+			? runtimeHours.hard_limit
+			: undefined;
+
+	return (
+		<TerminalClientSessionContext value={clientSessionId}>
+			<ChatWorkspaceContext
+				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
+			>
+				<DesktopPanelContext value={desktopPanelCtx}>
+					<div
+						className={cn(
+							"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+							shouldShowSidebar && !visualExpanded && "flex-row",
+						)}
+					>
+						<div
+							data-testid="agents-chat-panel"
+							className={cn(
+								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
+								visualExpanded && "hidden",
+								shouldShowSidebar && "max-lg:hidden",
+							)}
+						>
+							<div className="relative z-10 shrink-0 overflow-visible">
+								{" "}
+								<ChatTopBar
+									chat={chat}
+									liveChatStatus={liveChatStatus}
+									panel={{
+										showSidebarPanel,
+										onToggleSidebar: () =>
+											onSetShowSidebarPanel(!showSidebarPanel),
+									}}
+								/>
+								{modelCatalogError != null && (
+									<ErrorAlert error={modelCatalogError} />
+								)}
+								{unavailableModelNotice && (
+									<div
+										role="status"
+										aria-label={unavailableModelNotice}
+										aria-live="polite"
+										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+									>
+										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+										{unavailableModelNotice}
+									</div>
+								)}
+								{chatOwnerWarning && (
+									<div
+										role="status"
+										aria-live="polite"
+										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+									>
+										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+										{chatOwnerWarning}
+									</div>
+								)}
+								{isArchived && (
+									<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+										<ArchiveIcon className="size-4 shrink-0" />
+										This agent has been archived and is read-only.
+									</div>
+								)}
+								<div
+									aria-hidden
+									className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+									style={{
+										maskImage:
+											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+										WebkitMaskImage:
+											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+									}}
+								/>
+							</div>
+							<ChatPageTimeline
+								key={agentId}
+								organizationId={organizationId}
+								store={store}
+								chatFiles={chat.files}
+								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+								persistedError={persistedError}
+								hasMoreMessages={hasMoreMessages}
+								isFetchingMoreMessages={isFetchingMoreMessages}
+								isHydratingMessages={isHydratingMessages}
+								hasFetchMoreError={hasFetchMoreError}
+								onFetchMoreMessages={onFetchMoreMessages}
+								onEditUserMessage={
+									isOtherUserReadOnly
+										? undefined
+										: editing.handleEditUserMessage
+								}
+								editingMessageId={editing.editingMessageId}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+								onImplementPlan={
+									isOtherUserReadOnly || !canSubmitChatTurn
+										? undefined
+										: onImplementPlan
+								}
+								onSendAskUserQuestionResponse={
+									isOtherUserReadOnly || !canSubmitChatTurn
+										? undefined
+										: onSendAskUserQuestionResponse
+								}
+								footer={
+									chat.queued_for_capacity ? (
+										<QueuedForCapacityCallout
+											hasLicense={hasLicense}
+											canManageLicenses={canManageLicenses}
+											agentHoursHardLimit={agentHoursHardLimit}
+										/>
+									) : undefined
+								}
+							/>
+							{!isArchived && (
+								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+									<ChatPageInput
+										chat={chat}
+										store={store}
+										models={models}
+										onSend={editing.handleSendFromInput}
+										onDeleteQueuedMessage={handleDeleteQueuedMessage}
+										onPromoteQueuedMessage={handlePromoteQueuedMessage}
+										onInterrupt={handleInterrupt}
+										isInputDisabled={isInputDisabled}
+										isReadOnly={isOtherUserReadOnly}
+										isSendPending={isSubmissionPending}
+										isInterruptPending={isInterruptPending}
+										hasModelOptions={hasModelOptions}
+										canConfigureAgentSetup={canConfigureAgentSetup}
+										providerCount={providerCount}
+										modelCount={modelCount}
+										unsupportedProviderNames={unsupportedProviderNames}
+										aiGatewayDisabled={aiGatewayDisabled}
+										selectedModel={effectiveSelectedModel}
+										onModelChange={setSelectedModel}
+										modelOptions={modelOptions}
+										modelSelectorPlaceholder={modelSelectorPlaceholder}
+										modelSelectorHelp={modelSelectorHelp}
+										reasoningEffort={reasoningEffort}
+										onReasoningEffortChange={onReasoningEffortChange}
+										onPlanModeToggle={onPlanModeToggle}
+										isModelCatalogLoading={isModelCatalogLoading}
+										onWorkspaceChange={onWorkspaceChange}
+										isWorkspaceLoading={isWorkspaceLoading}
+										inputRef={editing.chatInputRef}
+										initialValue={editing.editorInitialValue}
+										initialEditorState={editing.initialEditorState}
+										remountKey={editing.remountKey}
+										onContentChange={editing.handleContentChange}
+										isEditing={isEditing}
+										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+										editingFileBlocks={editing.editingFileBlocks}
+										mcpServers={mcpServers}
+										selectedMCPServerIds={selectedMCPServerIds}
+										onMCPSelectionChange={onMCPSelectionChange}
+										onMCPAuthComplete={onMCPAuthComplete}
+										onDisabledWorkspaceMCPServersChange={
+											onDisabledWorkspaceMCPServersChange
+										}
+										workspace={workspace}
+										workspaceAgent={workspaceAgent}
+										sshCommand={sshCommand}
+										attachedWorkspace={attachedWorkspace}
+										folder={preferredFolder}
+									/>
+								</div>
+							)}
+						</div>
+						<RightPanel
+							isOpen={shouldShowSidebar}
+							isExpanded={showSidebarPanel && isRightPanelExpanded}
+							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+							onClose={() => onSetShowSidebarPanel(false)}
+							onVisualExpandedChange={setDragVisualExpanded}
+						>
+							<SidebarTabView
+								effectiveTabId={effectiveSidebarTabId}
+								onActiveTabChange={handleActiveTabChange}
+								tabs={sidebarTabs}
+								addTabControl={
+									<RightPanelAddTabControl
+										workspace={workspace}
+										agent={workspaceAgent}
+										host={wildcardHostname}
+										isRunning={workspace?.latest_build.status === "running"}
+										supportedSingletonTabs={supportedSingletonTabs}
+										visibleSingletonTabs={shownSingletonTabs}
+										onToggleSingletonTab={handleToggleSingletonTab}
+										onNewTerminal={handleAddTerminalTab}
+										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
+										onOpenCommandApp={handleOpenCommandAppTab}
+										onOpenPort={handleOpenPortTab}
+									/>
+								}
+								onClose={() => onSetShowSidebarPanel(false)}
+								isExpanded={visualExpanded}
+								onToggleExpanded={() =>
+									setIsRightPanelExpanded((prev) => !prev)
+								}
+								chatTitle={chat.title}
+							/>
+						</RightPanel>
+					</div>
+				</DesktopPanelContext>
+			</ChatWorkspaceContext>
+		</TerminalClientSessionContext>
+	);
+};
+
+interface AgentChatPageLoadingViewProps {
+	inputRef: RefObject<ChatMessageInputRef | null>;
+	initialValue: string;
+	initialEditorState: string | undefined;
+	remountKey: number;
+	onContentChange: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
+	isInputDisabled: boolean;
+	effectiveSelectedModel: string;
+	setSelectedModel: (model: string) => void;
+	modelOptions: readonly ModelSelectorOption[];
+	modelSelectorPlaceholder: string;
+	hasModelOptions: boolean;
+	isModelCatalogLoading?: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
+	showRightPanel: boolean;
+}
+
+export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+	inputRef,
+	initialValue,
+	initialEditorState,
+	remountKey,
+	onContentChange,
+	isInputDisabled,
+	effectiveSelectedModel,
+	setSelectedModel,
+	modelOptions,
+	modelSelectorPlaceholder,
+	hasModelOptions,
+	isModelCatalogLoading = false,
+	planModeEnabled,
+	onPlanModeToggle,
+	showRightPanel,
+}) => {
+	const [chatFullWidth] = useChatFullWidth();
+	return (
+		<div
+			className={cn(
+				"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+				showRightPanel && "flex-row",
+			)}
+		>
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">
+				<ChatTopBar
+					panel={{
+						showSidebarPanel: false,
+						onToggleSidebar: () => {},
+					}}
+				/>
+				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+					<div className="px-4">
+						<div
+							className={cn(
+								"mx-auto w-full py-6",
+								chatWidthClass(chatFullWidth),
+							)}
+						>
+							<ChatConversationSkeleton />
+						</div>
+					</div>
+				</div>
+				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+					<AgentChatInput
+						onSend={() => {}}
+						inputRef={inputRef}
+						initialValue={initialValue}
+						initialEditorState={initialEditorState}
+						remountKey={remountKey}
+						onContentChange={onContentChange}
+						isDisabled={isInputDisabled}
+						isLoading={false}
+						selectedModel={effectiveSelectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={onPlanModeToggle}
+						isModelCatalogLoading={isModelCatalogLoading}
+						hasModelOptions={hasModelOptions}
+						canConfigureAgentSetup={false}
+					/>
+				</div>{" "}
+			</div>
+			{showRightPanel && (
+				<RightPanel
+					isOpen
+					isExpanded={false}
+					onToggleExpanded={() => {}}
+					onClose={() => {}}
+				>
+					<RightPanelSkeleton />
+				</RightPanel>
+			)}
+		</div>
+	);
+};
+
+export const AgentChatPageNotFoundView: FC = () => {
+	return (
+		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+			<ChatTopBar
+				panel={{
+					showSidebarPanel: false,
+					onToggleSidebar: () => {},
+				}}
+			/>
+			<div className="flex flex-1 items-center justify-center text-content-secondary">
+				Chat not found
+			</div>
+		</div>
+	);
+};

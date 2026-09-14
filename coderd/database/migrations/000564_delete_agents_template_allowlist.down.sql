@@ -1,0 +1,2 @@
+-- No-op. The up migration deleted the only copy of the deployment-wide
+-- allowlist, so there is nothing left to restore.

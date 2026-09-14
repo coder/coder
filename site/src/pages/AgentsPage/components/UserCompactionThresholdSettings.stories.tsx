@@ -1,0 +1,365 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
+import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
+
+const modelsOrganization = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+};
+
+const organizationWithEmptyDisplayName = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+	display_name: "",
+};
+
+const mockModels: TypesGen.ChatModel[] = [
+	{
+		...MockChatModel,
+		id: "model-1",
+		model: "gpt-4o",
+		display_name: "GPT-4o",
+		is_default: true,
+		context_limit: 128000,
+		compression_threshold: 80,
+		created_at: "2025-01-01T00:00:00Z",
+		updated_at: "2025-01-01T00:00:00Z",
+	},
+	{
+		...MockChatModel,
+		id: "model-2",
+		ai_provider_id: "provider-anthropic",
+		model: "claude-sonnet",
+		display_name: "Claude Sonnet",
+		created_at: "2025-01-01T00:00:00Z",
+		updated_at: "2025-01-01T00:00:00Z",
+	},
+	{
+		...MockChatModel,
+		id: "model-3",
+		model: "gpt-3.5",
+		display_name: "GPT-3.5 (Disabled)",
+		enabled: false,
+		context_limit: 16000,
+		compression_threshold: 60,
+		created_at: "2025-01-01T00:00:00Z",
+		updated_at: "2025-01-01T00:00:00Z",
+	},
+];
+
+const meta = {
+	title: "pages/AgentsPage/UserCompactionThresholdSettings",
+	component: UserCompactionThresholdSettings,
+	decorators: [withAuthProvider, withDashboardProvider],
+	args: {
+		models: mockModels,
+		providerTypeByID: new Map<string, string>([
+			["provider-1", "openai"],
+			["provider-anthropic", "anthropic"],
+		]),
+		organizations: [modelsOrganization],
+		thresholds: [],
+		isThresholdsLoading: false,
+		thresholdsError: undefined,
+		onSaveThreshold: fn(async () => undefined),
+		onResetThreshold: fn(async () => undefined),
+	},
+	parameters: {
+		user: MockUserOwner,
+	},
+} satisfies Meta<typeof UserCompactionThresholdSettings>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "95");
+	},
+};
+
+export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
+	args: {
+		organizations: [organizationWithEmptyDisplayName],
+		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
+	},
+};
+
+export const SaveAll: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+
+		// Edit both models
+		await userEvent.type(gpt4oInput, "95");
+		await userEvent.type(claudeInput, "50");
+
+		// Footer should show "Save 2 changes"
+		const saveButton = await canvas.findByRole("button", {
+			name: /Save 2 changes/i,
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 95);
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
+		});
+	},
+};
+
+export const WithOverrides: Story = {
+	args: {
+		thresholds: [
+			{ model_config_id: "model-1", threshold_percent: 90 },
+			{ model_config_id: "model-2", threshold_percent: 50 },
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+
+		expect(gpt4oInput).toHaveValue("90");
+		expect(claudeInput).toHaveValue("50");
+
+		// Reset buttons should be visible for both overridden models
+		const resetButtons = canvas.getAllByRole("button", {
+			name: /Reset .+ to default/i,
+		});
+		expect(resetButtons).toHaveLength(2);
+
+		await userEvent.click(resetButtons[0]);
+		await waitFor(() => {
+			expect(args.onResetThreshold).toHaveBeenCalledWith("model-1");
+		});
+	},
+};
+
+export const CancelChanges: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "42");
+		const cancelButton = await canvas.findByRole("button", { name: /Cancel/i });
+		await userEvent.click(cancelButton);
+	},
+};
+
+export const InvalidDraftShowsFooter: Story = {
+	name: "Invalid Draft Shows Footer",
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		// Type an out-of-range value.
+		await userEvent.type(gpt4oInput, "150");
+	},
+};
+
+export const DisableCompactionWarning: Story = {
+	name: "100% Disable Compaction Warning",
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "100");
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		isThresholdsLoading: true,
+	},
+};
+
+export const PartialSaveFailure: Story = {
+	name: "Partial Save Failure",
+	args: {
+		onSaveThreshold: fn(async (modelId: string) => {
+			if (modelId === "model-2") {
+				throw new globalThis.Error("Network error");
+			}
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "90");
+		await userEvent.type(claudeInput, "55");
+
+		const saveButton = await canvas.findByRole("button", {
+			name: /Save 2 changes/i,
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 90);
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 55);
+		});
+
+		// model-2 should show an error, footer should still be visible
+		// with Save showing "Save 1 change" for the failed row
+		await waitFor(() => {
+			expect(canvas.getByText("Network error")).toBeInTheDocument();
+			expect(
+				canvas.getByRole("button", { name: /Save 1 change/i }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const OrganizationFilter: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const filter = await canvas.findByRole("button", {
+			name: `Organization ${modelsOrganization.display_name}`,
+		});
+
+		await userEvent.click(filter);
+		const option = await within(document.body).findByRole("option", {
+			name: MockOrganization2.display_name,
+		});
+		await userEvent.click(option);
+	},
+};
+
+export const SingleOrganizationHidesFilter: Story = {};
+
+export const OrganizationFilterScopesSaveActions: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(gpt4oInput, "95");
+		await canvas.findByRole("button", { name: /Save 1 change/i });
+
+		// Switch to the other organization: the draft belongs to a hidden
+		// row, so the footer must disappear.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${modelsOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("button", { name: /Save/i })).toBeNull();
+		});
+
+		// Editing the visible row saves only that row.
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+		await userEvent.type(claudeInput, "50");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Save 1 change/i }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
+			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
+		});
+
+		// Switching back restores the hidden draft and its footer.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: modelsOrganization.display_name,
+			}),
+		);
+		const restoredInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		expect(restoredInput).toHaveValue("95");
+		// Wait out the temporary "Saved" footer state (2.5s) before the
+		// action buttons reappear.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: /Save 1 change/i }),
+				).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
+	},
+};
+
+export const ErrorState: Story = {
+	name: "Error",
+	args: {
+		thresholdsError: new globalThis.Error("Failed to load thresholds"),
+	},
+};
+
+export const PartialModelLoadError: Story = {
+	args: {
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
+	},
+};

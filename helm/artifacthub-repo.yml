@@ -1,0 +1,7 @@
+# This file is uploaded to GCS at helm.coder.com/v2/artifacthub-repo.yml and
+# used by ArtifactHub to verify the repository.
+# See: https://artifacthub.io/packages/helm/coder-v2/coder
+repositoryID: b23f08c6-ad91-4122-aeb9-e2dfd02cda43
+owners:
+  - name: colin
+    email: colin@coder.com

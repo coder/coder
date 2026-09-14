@@ -1,0 +1,2326 @@
+package toolsdk_test
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/aisdk-go"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
+)
+
+// setupWorkspaceForAgent creates a workspace setup exactly like main SSH tests
+// nolint:gocritic // This is in a test package and does not end up in the build
+func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.Client, database.WorkspaceTable, string) {
+	t.Helper()
+	return setupWorkspaceForAgentWithName(t, opts, "myworkspace")
+}
+
+// setupWorkspaceForAgentWithName creates a workspace setup exactly like main
+// SSH tests, but with a caller-provided workspace name.
+// nolint:gocritic // This is in a test package and does not end up in the build
+func setupWorkspaceForAgentWithName(t *testing.T, opts *coderdtest.Options, workspaceName string) (*codersdk.Client, database.WorkspaceTable, string) {
+	t.Helper()
+
+	client, store := coderdtest.NewWithDatabase(t, opts)
+	client.SetLogger(testutil.Logger(t).Named("client"))
+	first := coderdtest.CreateFirstUser(t, client)
+	userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+		r.Username = "myuser"
+	})
+	// nolint:gocritic // This is in a test package and does not end up in the build
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		Name:           workspaceName,
+		OrganizationID: first.OrganizationID,
+		OwnerID:        user.ID,
+	}).WithAgent().Do()
+
+	return userClient, r.Workspace, r.AgentToken
+}
+
+type recordingAgentConnFunc struct {
+	conn    workspacesdk.AgentConn
+	err     error
+	agentID uuid.UUID
+	calls   int
+}
+
+func (d *recordingAgentConnFunc) AgentConn(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	d.calls++
+	d.agentID = agentID
+	if d.err != nil {
+		return nil, nil, d.err
+	}
+	return d.conn, nil, nil
+}
+
+// These tests are dependent on the state of the coder server.
+// Running them in parallel is prone to racy behavior.
+// nolint:tparallel,paralleltest
+func TestGenericToolMCPAnnotations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		toolName        string
+		readOnlyHint    bool
+		destructiveHint bool
+		idempotentHint  bool
+		openWorldHint   bool
+	}{
+		{
+			name:            "ReadOnlyTool",
+			toolName:        toolsdk.ToolNameGetAuthenticatedUser,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "DownloadChatFileIsReadOnly",
+			toolName:        toolsdk.ToolNameDownloadChatFile,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "AwaitChatIsReadOnly",
+			toolName:        toolsdk.ToolNameAwaitChat,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "ListChatsIsReadOnly",
+			toolName:        toolsdk.ToolNameListChats,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "DestructiveTool",
+			toolName:        toolsdk.ToolNameWorkspaceWriteFile,
+			readOnlyHint:    false,
+			destructiveHint: true,
+			idempotentHint:  false,
+			openWorldHint:   false,
+		},
+		{
+			name:            "MutatingTool",
+			toolName:        toolsdk.ToolNameCreateWorkspace,
+			readOnlyHint:    false,
+			destructiveHint: false,
+			idempotentHint:  false,
+			openWorldHint:   false,
+		},
+		{
+			name:            "PortForwardIsReadOnly",
+			toolName:        toolsdk.ToolNameWorkspacePortForward,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "GetTemplateIsReadOnly",
+			toolName:        toolsdk.ToolNameGetTemplate,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		tc := tt
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var found *toolsdk.GenericTool
+			for i := range toolsdk.All {
+				if toolsdk.All[i].Name == tc.toolName {
+					found = &toolsdk.All[i]
+					break
+				}
+			}
+			require.NotNil(t, found)
+			assert.Equal(t, tc.readOnlyHint, found.MCPAnnotations.ReadOnlyHint)
+			assert.Equal(t, tc.destructiveHint, found.MCPAnnotations.DestructiveHint)
+			assert.Equal(t, tc.idempotentHint, found.MCPAnnotations.IdempotentHint)
+			assert.Equal(t, tc.openWorldHint, found.MCPAnnotations.OpenWorldHint)
+		})
+	}
+}
+
+func TestGenericToolArgumentValidation(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Mode  string `json:"mode"`
+		Value int64  `json:"value"`
+	}
+	tests := []struct {
+		name      string
+		arguments string
+		contains  []string
+	}{
+		{
+			name:      "MissingRequiredProperty",
+			arguments: `{"mode":"allowed"}`,
+			contains:  []string{"required", "value"},
+		},
+		{
+			name:      "IncorrectPropertyType",
+			arguments: `{"mode":"allowed","value":false}`,
+			contains:  []string{"type", "value"},
+		},
+		{
+			name:      "BelowMinimum",
+			arguments: `{"mode":"allowed","value":0}`,
+			contains:  []string{"minimum", "value"},
+		},
+		{
+			name:      "InvalidEnumValue",
+			arguments: `{"mode":"denied","value":1}`,
+			contains:  []string{"enum", "mode"},
+		},
+		{
+			name:      "UnknownProperty",
+			arguments: `{"mode":"allowed","value":1,"unknown":true}`,
+			contains:  []string{"unexpected additional properties", "unknown"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			called := false
+			tool := toolsdk.Tool[arguments, struct{}]{
+				Tool: aisdk.Tool{
+					Name: "test_validation",
+					Schema: aisdk.Schema{
+						Properties: map[string]any{
+							"mode": map[string]any{
+								"type": "string",
+								"enum": []string{"allowed"},
+							},
+							"value": map[string]any{
+								"type":    "integer",
+								"minimum": 1,
+							},
+						},
+						Required: []string{"mode", "value"},
+					},
+				},
+				Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+					called = true
+					return struct{}{}, nil
+				},
+			}.Generic()
+
+			result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(test.arguments))
+			require.Nil(t, result)
+			var validationErr *toolsdk.ArgumentValidationError
+			require.ErrorAs(t, err, &validationErr)
+			for _, expected := range test.contains {
+				require.ErrorContains(t, validationErr, expected)
+			}
+			require.False(t, called)
+		})
+	}
+}
+
+func TestGenericToolArgumentValidation_TypedDecode(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Port int `json:"port"`
+	}
+	called := false
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_typed_decode",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"port": map[string]any{"type": "number"},
+				},
+				Required: []string{"port"},
+			},
+		},
+		Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+			called = true
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"port":8080.5}`))
+	require.Nil(t, result)
+	var validationErr *toolsdk.ArgumentValidationError
+	require.True(t, errors.As(err, &validationErr))
+	require.ErrorContains(t, validationErr, "cannot unmarshal number")
+	require.False(t, called)
+}
+
+func TestGenericToolArgumentValidation_PreservesLargeInteger(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Value int64 `json:"value"`
+	}
+	const value = int64(9007199254740993)
+	var received int64
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_large_integer",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"value": map[string]any{"type": "integer"},
+				},
+				Required: []string{"value"},
+			},
+		},
+		Handler: func(_ context.Context, _ toolsdk.Deps, args arguments) (struct{}, error) {
+			received = args.Value
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"value":9007199254740993}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(result))
+	require.Equal(t, value, received)
+}
+
+func TestGenericToolArgumentValidation_OmittedArguments(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	tool := toolsdk.Tool[toolsdk.NoArgs, struct{}]{
+		Tool: aisdk.Tool{
+			Name:   "test_omitted_arguments",
+			Schema: aisdk.Schema{Properties: map[string]any{}},
+		},
+		Handler: func(context.Context, toolsdk.Deps, toolsdk.NoArgs) (struct{}, error) {
+			called = true
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, nil)
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(result))
+	require.True(t, called)
+}
+
+func TestGenericToolArgumentValidation_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Labels map[string]string `json:"labels"`
+	}
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_concurrent_validation",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"labels": map[string]any{
+						"type": "object",
+						"patternProperties": map[string]any{
+							"^label_": map[string]any{"type": "string"},
+						},
+					},
+				},
+				Required: []string{"labels"},
+			},
+		},
+		Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	const callers = 32
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Go(func() {
+			<-start
+			_, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"labels":{"label_one":"value"}}`))
+			errs <- err
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+}
+
+// These tests are dependent on the state of the coder server.
+// Running them in parallel is prone to racy behavior.
+// nolint:tparallel,paralleltest
+func TestTools(t *testing.T) {
+	// Given: a running coderd instance using SSH test setup pattern
+	setupCtx := testutil.Context(t, testutil.WaitShort)
+	client, store := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	// Given: a member user with which to test the tools.
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	// Given: a workspace with an agent.
+	// nolint:gocritic // This is in a test package and does not end up in the build
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        member.ID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Apps = []*proto.App{
+			{
+				Slug: "some-agent-app",
+			},
+		}
+		return agents
+	}).Do()
+	preset := dbgen.Preset(t, store, database.InsertPresetParams{
+		TemplateVersionID: r.TemplateVersion.ID,
+		Name:              testutil.GetRandomNameHyphenated(t),
+		CreatedAt:         r.TemplateVersion.CreatedAt,
+		Description:       "Preset for agent tool tests.",
+	})
+
+	// Given: a client configured with the agent token.
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	// Get the agent ID from the API. Overriding it in dbfake doesn't work.
+	ws, err := client.Workspace(setupCtx, r.Workspace.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, ws.LatestBuild.Resources)
+	require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
+	agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+
+	// Given: the workspace agent has written logs.
+	agentClient.PatchLogs(setupCtx, agentsdk.PatchLogs{
+		Logs: []agentsdk.Log{
+			{
+				CreatedAt: time.Now(),
+				Level:     codersdk.LogLevelInfo,
+				Output:    "test log message",
+			},
+		},
+	})
+
+	t.Run("ReportTask", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
+			return agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+				AppSlug: "some-agent-app",
+				Message: args.Summary,
+				URI:     args.Link,
+				State:   codersdk.WorkspaceAppStatusState(args.State),
+			})
+		}))
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
+			Summary: "test summary",
+			State:   "complete",
+			Link:    "https://example.com",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("GetWorkspace", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		tests := []struct {
+			name      string
+			workspace string
+		}{
+			{
+				name:      "ByID",
+				workspace: r.Workspace.ID.String(),
+			},
+			{
+				name:      "ByName",
+				workspace: r.Workspace.Name,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+					WorkspaceID: tt.workspace,
+				})
+				require.NoError(t, err)
+				require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+			})
+		}
+	})
+
+	t.Run("GetWorkspace_ByUUIDLikeName", func(t *testing.T) {
+		t.Parallel()
+
+		// Regression test: a workspace whose name is a valid dashless
+		// UUID should resolve correctly. Previously, the handler would
+		// parse the name as a UUID, get a 404 from the ID-based lookup,
+		// and never fall back to name-based lookup.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		uuidWorkspace := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			Name:           uuidLikeName,
+		}).Do()
+
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+			WorkspaceID: uuidLikeName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuidWorkspace.Workspace.ID, result.ID)
+	})
+
+	t.Run("ListTemplates", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		// Get the templates directly for comparison
+		expected, err := memberClient.Templates(context.Background(), codersdk.TemplateFilter{})
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.ListTemplates, tb, toolsdk.NoArgs{})
+
+		require.NoError(t, err)
+		require.Len(t, result, len(expected))
+
+		// Sort the results by name to ensure the order is consistent
+		sort.Slice(expected, func(a, b int) bool {
+			return expected[a].Name < expected[b].Name
+		})
+		sort.Slice(result, func(a, b int) bool {
+			return result[a].Name < result[b].Name
+		})
+		for i, template := range result {
+			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].OrganizationID.String(), template.OrganizationID)
+			require.Equal(t, expected[i].AgentsAllowed, template.AgentsAllowed)
+		}
+	})
+
+	t.Run("Whoami", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.GetAuthenticatedUser, tb, toolsdk.NoArgs{})
+
+		require.NoError(t, err)
+		require.Equal(t, member.ID, result.ID)
+		require.Equal(t, member.Username, result.Username)
+	})
+
+	t.Run("ListWorkspaces", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListWorkspaces, tb, toolsdk.ListWorkspacesArgs{})
+
+		require.NoError(t, err)
+		require.Len(t, result, 1, "expected 1 workspace")
+		workspace := result[0]
+		require.Equal(t, r.Workspace.OrganizationID.String(), workspace.OrganizationID)
+		require.Equal(t, r.Workspace.ID.String(), workspace.ID, "expected the workspace to match the one we created")
+	})
+
+	t.Run("CreateWorkspaceBuild", func(t *testing.T) {
+		t.Run("Stop", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID: r.Workspace.ID.String(),
+				Transition:  "stop",
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStop, result.Transition)
+			require.Equal(t, r.Workspace.ID, result.WorkspaceID)
+			require.Equal(t, r.TemplateVersion.ID, result.TemplateVersionID)
+			require.Equal(t, codersdk.WorkspaceTransitionStop, result.Transition)
+
+			// Important: cancel the build. We don't run any provisioners, so this
+			// will remain in the 'pending' state indefinitely.
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("Start_NoAutoBumpAcrossActiveVersionChange", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: move the template's active version
+			// forward without changing the workspace's previously built
+			// version, so the start request must choose between them.
+			noBumpBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			previousVersionID := noBumpBuild.TemplateVersion.ID
+
+			newActiveVersion := dbfake.TemplateVersion(t, store).
+				// nolint:gocritic // This is in a test package and does not end up in the build
+				Seed(database.TemplateVersion{
+					OrganizationID: owner.OrganizationID,
+					CreatedBy:      owner.UserID,
+					TemplateID:     uuid.NullUUID{UUID: noBumpBuild.Template.ID, Valid: true},
+				}).Do()
+			require.NotEqual(t, previousVersionID, newActiveVersion.TemplateVersion.ID)
+
+			// Confirm v2 is now the template's active version. Without this the test
+			// would silently degrade to a tautology if dbfake.TemplateVersion's
+			// promote-by-default behavior ever changed: the contract being locked in
+			// is "do not auto-bump to the *currently active* version", which requires
+			// v2 to actually be active here.
+			template, err := store.GetTemplateByID(dbauthz.AsSystemRestricted(ctx), noBumpBuild.Template.ID)
+			require.NoError(t, err)
+			require.Equal(t, newActiveVersion.TemplateVersion.ID, template.ActiveVersionID)
+
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID: noBumpBuild.Workspace.ID.String(),
+				Transition:  "start",
+			})
+			require.NoError(t, err)
+			require.Equal(t, previousVersionID, result.TemplateVersionID)
+
+			// Important: cancel the build. We don't run any provisioners, so this
+			// will remain in the 'pending' state indefinitely.
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("TemplateVersionChange", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			// Get the current template version ID before updating
+			workspace, err := memberClient.Workspace(ctx, r.Workspace.ID)
+			require.NoError(t, err)
+			originalVersionID := workspace.LatestBuild.TemplateVersionID
+
+			// Create a new template version to update to
+			newVersion := dbfake.TemplateVersion(t, store).
+				// nolint:gocritic // This is in a test package and does not end up in the build
+				Seed(database.TemplateVersion{
+					OrganizationID: owner.OrganizationID,
+					CreatedBy:      owner.UserID,
+					TemplateID:     uuid.NullUUID{UUID: r.Template.ID, Valid: true},
+				}).Do()
+
+			// Update to new version
+			updateBuild, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:       r.Workspace.ID.String(),
+				Transition:        "start",
+				TemplateVersionID: newVersion.TemplateVersion.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, updateBuild.Transition)
+			require.Equal(t, r.Workspace.ID.String(), updateBuild.WorkspaceID.String())
+			require.Equal(t, newVersion.TemplateVersion.ID.String(), updateBuild.TemplateVersionID.String())
+			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, updateBuild.ID, codersdk.CancelWorkspaceBuildParams{}))
+
+			// Roll back to the original version
+			rollbackBuild, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:       r.Workspace.ID.String(),
+				Transition:        "start",
+				TemplateVersionID: originalVersionID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, rollbackBuild.Transition)
+			require.Equal(t, r.Workspace.ID.String(), rollbackBuild.WorkspaceID.String())
+			require.Equal(t, originalVersionID.String(), rollbackBuild.TemplateVersionID.String())
+			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, rollbackBuild.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("Start_WithPreset", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "start",
+				TemplateVersionPresetID: preset.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
+			require.Equal(t, r.Workspace.ID, result.WorkspaceID)
+			require.NotNil(t, result.TemplateVersionPresetID,
+				"build must record the preset ID supplied to create_workspace_build")
+			require.Equal(t, preset.ID, *result.TemplateVersionPresetID)
+
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("Start_WithRichParameters", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: a template version with one rich
+			// parameter, so rich_parameters has something to bind
+			// to. The shared `r` fixture has no parameters.
+			rpBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: rpBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:    rpBuild.Workspace.ID.String(),
+				Transition:     "start",
+				RichParameters: map[string]string{"region": "us-west-2"},
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
+
+			params, err := memberClient.WorkspaceBuildParameters(ctx, result.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value)
+
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("Start_WithPresetAndParams", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: a template version with a parameter
+			// and a preset that sets it. Asserts the documented
+			// override direction: when preset and rich_parameters
+			// conflict, the preset value wins. Mirrors the
+			// CreateWorkspace/WithPresetAndParams contract.
+			ovBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+			ovPreset := dbgen.Preset(t, store, database.InsertPresetParams{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              testutil.GetRandomNameHyphenated(t),
+				CreatedAt:         ovBuild.TemplateVersion.CreatedAt,
+				Description:       "Preset for build override test.",
+			})
+			dbgen.PresetParameter(t, store, database.InsertPresetParametersParams{
+				TemplateVersionPresetID: ovPreset.ID,
+				Names:                   []string{"region"},
+				Values:                  []string{"us-west-2"},
+			})
+
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             ovBuild.Workspace.ID.String(),
+				Transition:              "start",
+				TemplateVersionPresetID: ovPreset.ID.String(),
+				RichParameters:          map[string]string{"region": "us-east-1"},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, result.TemplateVersionPresetID)
+			require.Equal(t, ovPreset.ID, *result.TemplateVersionPresetID)
+
+			params, err := memberClient.WorkspaceBuildParameters(ctx, result.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value,
+				"preset parameter value must override conflicting rich_parameters entry")
+
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("RejectsPresetOnStop", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "stop",
+				TemplateVersionPresetID: preset.ID.String(),
+			})
+			require.ErrorContains(t, err, "template_version_preset_id is only valid for start")
+		})
+
+		t.Run("RejectsParamsOnDelete", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:    r.Workspace.ID.String(),
+				Transition:     "delete",
+				RichParameters: map[string]string{"region": "us-west-2"},
+			})
+			require.ErrorContains(t, err, "rich_parameters is only valid for start")
+		})
+
+		t.Run("RejectsBothOnStop", func(t *testing.T) {
+			// Both fields set on a non-start transition. The
+			// handler must surface both violations via errors.Join
+			// so agents fix both in one round-trip rather than
+			// fix-one, retry, hit-the-next.
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "stop",
+				TemplateVersionPresetID: preset.ID.String(),
+				RichParameters:          map[string]string{"region": "us-west-2"},
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "template_version_preset_id is only valid for start")
+			require.ErrorContains(t, err, "rich_parameters is only valid for start")
+		})
+
+		t.Run("InvalidPresetID", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "start",
+				TemplateVersionPresetID: "not-a-uuid",
+			})
+			require.ErrorContains(t, err, "template_version_preset_id must be a valid UUID")
+		})
+	})
+
+	t.Run("ListTemplateVersionParameters", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		params, err := testTool(t, toolsdk.ListTemplateVersionParameters, tb, toolsdk.ListTemplateVersionParametersArgs{
+			TemplateVersionID: r.TemplateVersion.ID.String(),
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, params)
+	})
+
+	t.Run("GetTemplate", func(t *testing.T) {
+		// Build an isolated fixture so the existing fixture's
+		// assertions (no parameters, single preset with no
+		// preset parameters) stay intact.
+		gtBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).Do()
+		// Add a rich parameter to the active version so
+		// `parameters` is non-empty in the response.
+		dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+			TemplateVersionID: gtBuild.TemplateVersion.ID,
+			Name:              "region",
+			DisplayName:       "Region",
+			Description:       "Region to deploy in.",
+			Type:              "string",
+			DefaultValue:      "us-east-1",
+			Required:          false,
+			Mutable:           true,
+		})
+		// Attach a preset with one parameter so we can assert
+		// PresetParameters round-trip end-to-end.
+		const gtPresetDesiredPrebuildInstances = 3
+		gtPreset := dbgen.Preset(t, store, database.InsertPresetParams{
+			TemplateVersionID: gtBuild.TemplateVersion.ID,
+			Name:              testutil.GetRandomNameHyphenated(t),
+			CreatedAt:         gtBuild.TemplateVersion.CreatedAt,
+			Description:       "Preset for GetTemplate tests.",
+			DesiredInstances: sql.NullInt32{
+				Int32: gtPresetDesiredPrebuildInstances,
+				Valid: true,
+			},
+		})
+		dbgen.PresetParameter(t, store, database.InsertPresetParametersParams{
+			TemplateVersionPresetID: gtPreset.ID,
+			Names:                   []string{"region"},
+			Values:                  []string{"us-west-2"},
+		})
+
+		// A second template with no presets, used to assert
+		// the omit-when-empty behavior of the `presets` field.
+		gtNoPresetBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).Do()
+
+		t.Run("WithPresets", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: gtBuild.Template.ID.String(),
+			})
+			require.NoError(t, err)
+
+			// MinimalTemplate fields populated.
+			require.Equal(t, gtBuild.Template.ID.String(), result.ID)
+			require.Equal(t, gtBuild.Template.OrganizationID.String(), result.OrganizationID)
+			require.Equal(t, gtBuild.Template.Name, result.Name)
+			require.Equal(t, gtBuild.Template.ActiveVersionID, result.ActiveVersionID)
+
+			// Parameters round-trip from the active version.
+			require.Len(t, result.Parameters, 1)
+			require.Equal(t, "region", result.Parameters[0].Name)
+			require.Equal(t, "us-east-1", result.Parameters[0].DefaultValue)
+
+			// Presets and their parameters round-trip.
+			require.Len(t, result.Presets, 1)
+			require.Equal(t, gtPreset.ID, result.Presets[0].ID)
+			require.Equal(t, gtPreset.Name, result.Presets[0].Name)
+			require.Equal(t, "Preset for GetTemplate tests.", result.Presets[0].Description)
+			require.Len(t, result.Presets[0].Parameters, 1)
+			require.Equal(t, "region", result.Presets[0].Parameters[0].Name)
+			require.Equal(t, "us-west-2", result.Presets[0].Parameters[0].Value)
+
+			// DesiredPrebuildInstances round-trips through toPresetView.
+			// The tool description tells the LLM to prefer presets with
+			// desired_prebuild_instances > 0; if this field stops
+			// flowing, that hint silently breaks.
+			require.NotNil(t, result.Presets[0].DesiredPrebuildInstances,
+				"desired_prebuild_instances should be populated when the preset has DesiredInstances")
+			require.EqualValues(t, gtPresetDesiredPrebuildInstances, *result.Presets[0].DesiredPrebuildInstances)
+		})
+
+		t.Run("WithoutPresets", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: gtNoPresetBuild.Template.ID.String(),
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, gtNoPresetBuild.Template.ID.String(), result.ID)
+			require.Empty(t, result.Presets, "presets should be empty when the template has none")
+
+			// The `presets` field should be absent from the
+			// JSON entirely when the template has no presets.
+			b, err := json.Marshal(result)
+			require.NoError(t, err)
+			require.NotContains(t, string(b), `"presets"`)
+			require.Contains(t, string(b), `"organization_id":"`+gtNoPresetBuild.Template.OrganizationID.String()+`"`)
+		})
+
+		t.Run("InvalidID", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			_, err = testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: "not-a-uuid",
+			})
+			require.ErrorContains(t, err, "template_id must be a valid UUID")
+		})
+
+		t.Run("NotFound", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			_, err = testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: uuid.New().String(),
+			})
+			require.ErrorContains(t, err, "get template")
+		})
+	})
+
+	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
+		_ = testutil.Context(t, testutil.WaitShort)
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		logs, err := testTool(t, toolsdk.GetWorkspaceAgentLogs, tb, toolsdk.GetWorkspaceAgentLogsArgs{
+			WorkspaceAgentID: agentID.String(),
+		})
+
+		require.NoError(t, err)
+		require.NotEmpty(t, logs)
+	})
+
+	t.Run("GetWorkspaceBuildLogs", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		logs, err := testTool(t, toolsdk.GetWorkspaceBuildLogs, tb, toolsdk.GetWorkspaceBuildLogsArgs{
+			WorkspaceBuildID: r.Build.ID.String(),
+		})
+
+		require.NoError(t, err)
+		_ = logs // The build may not have any logs yet, so we just check that the function returns successfully
+	})
+
+	t.Run("GetTemplateVersionLogs", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		logs, err := testTool(t, toolsdk.GetTemplateVersionLogs, tb, toolsdk.GetTemplateVersionLogsArgs{
+			TemplateVersionID: r.TemplateVersion.ID.String(),
+		})
+
+		require.NoError(t, err)
+		_ = logs // Just ensuring the call succeeds
+	})
+
+	t.Run("UpdateTemplateActiveVersion", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.UpdateTemplateActiveVersion, tb, toolsdk.UpdateTemplateActiveVersionArgs{
+			TemplateID:        r.Template.ID.String(),
+			TemplateVersionID: r.TemplateVersion.ID.String(),
+		})
+
+		require.NoError(t, err)
+		require.Contains(t, result, "Successfully updated")
+	})
+
+	t.Run("DeleteTemplate", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.DeleteTemplate, tb, toolsdk.DeleteTemplateArgs{
+			TemplateID: r.Template.ID.String(),
+		})
+
+		// This will fail with because there already exists a workspace.
+		require.ErrorContains(t, err, "All workspaces must be deleted before a template can be removed")
+	})
+
+	t.Run("UploadTarFile", func(t *testing.T) {
+		files := map[string]string{
+			"main.tf": `resource "null_resource" "example" {}`,
+		}
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.UploadTarFile, tb, toolsdk.UploadTarFileArgs{
+			Files: files,
+		})
+
+		require.NoError(t, err)
+		require.NotEmpty(t, result.ID)
+	})
+
+	t.Run("CreateTemplateVersion", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		file := dbgen.File(t, store, database.File{})
+		t.Run("WithoutTemplateID", func(t *testing.T) {
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				FileID: file.ID.String(),
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, tv)
+		})
+		t.Run("WithTemplateID", func(t *testing.T) {
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				FileID:     file.ID.String(),
+				TemplateID: r.Template.ID.String(),
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, tv)
+		})
+		t.Run("ExplicitOrganization", func(t *testing.T) {
+			organization := dbgen.Organization(t, store, database.Organization{})
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				OrganizationID: organization.ID.String(),
+				FileID:         file.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, organization.ID, tv.OrganizationID)
+		})
+	})
+
+	t.Run("CreateTemplate", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+		organization := dbgen.Organization(t, store, database.Organization{})
+		// Create a new template version for use here.
+		tv := dbfake.TemplateVersion(t, store).
+			// nolint:gocritic // This is in a test package and does not end up in the build
+			Seed(database.TemplateVersion{OrganizationID: organization.ID, CreatedBy: owner.UserID}).
+			SkipCreateTemplate().Do()
+
+		// We're going to re-use the pre-existing template version
+		created, err := testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
+			OrganizationID: organization.ID.String(),
+			Name:           testutil.GetRandomNameHyphenated(t),
+			DisplayName:    "Test Template",
+			Description:    "This is a test template",
+			VersionID:      tv.TemplateVersion.ID.String(),
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, organization.ID, created.OrganizationID)
+	})
+
+	t.Run("CreateWorkspace", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+		t.Run("WithoutPreset", func(t *testing.T) {
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				TemplateVersionID: r.TemplateVersion.ID.String(),
+				Name:              testutil.GetRandomNameHyphenated(t),
+				RichParameters:    map[string]string{},
+			})
+
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+		})
+
+		t.Run("WithPreset", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:                    "me",
+				TemplateVersionID:       r.TemplateVersion.ID.String(),
+				TemplateVersionPresetID: preset.ID.String(),
+				Name:                    testutil.GetRandomNameHyphenated(t),
+				RichParameters:          map[string]string{},
+			})
+
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+
+			build, err := client.WorkspaceBuild(ctx, res.LatestBuild.ID)
+			require.NoError(t, err)
+			require.NotNil(t, build.TemplateVersionPresetID)
+			require.Equal(t, preset.ID, *build.TemplateVersionPresetID)
+		})
+
+		t.Run("WithTemplateID", func(t *testing.T) {
+			// Exercises the template_id path on create_workspace,
+			// which lets the server resolve the active version
+			// atomically with the build. Mirrors how the chattool
+			// surface keys this tool.
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:           "me",
+				TemplateID:     r.Template.ID.String(),
+				Name:           testutil.GetRandomNameHyphenated(t),
+				RichParameters: map[string]string{},
+			})
+
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+		})
+
+		t.Run("WithRichParameters", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: a template version with a single
+			// rich parameter, no preset. Confirms that
+			// rich_parameters round-trip on their own without
+			// being shadowed or overridden by preset auto-binding
+			// when no preset matches.
+			rpBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: rpBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				TemplateVersionID: rpBuild.TemplateVersion.ID.String(),
+				Name:              testutil.GetRandomNameHyphenated(t),
+				RichParameters:    map[string]string{"region": "us-west-2"},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+
+			params, err := client.WorkspaceBuildParameters(ctx, res.LatestBuild.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value)
+		})
+
+		t.Run("RejectsBothIDs", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				TemplateID:        r.Template.ID.String(),
+				TemplateVersionID: r.TemplateVersion.ID.String(),
+				Name:              testutil.GetRandomNameHyphenated(t),
+				RichParameters:    map[string]string{},
+			})
+			require.ErrorContains(t, err, "exactly one of template_id or template_version_id")
+		})
+
+		t.Run("RejectsNeitherID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:           "me",
+				Name:           testutil.GetRandomNameHyphenated(t),
+				RichParameters: map[string]string{},
+			})
+			require.ErrorContains(t, err, "exactly one of template_id or template_version_id")
+		})
+
+		t.Run("WithPresetAndParams", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Build an isolated fixture: a template version with one
+			// rich parameter and a preset that sets it. The shared
+			// fixture's preset has no parameters and would not exercise
+			// the override path.
+			ovBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+			ovPreset := dbgen.Preset(t, store, database.InsertPresetParams{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              testutil.GetRandomNameHyphenated(t),
+				CreatedAt:         ovBuild.TemplateVersion.CreatedAt,
+				Description:       "Preset for override test.",
+			})
+			dbgen.PresetParameter(t, store, database.InsertPresetParametersParams{
+				TemplateVersionPresetID: ovPreset.ID,
+				Names:                   []string{"region"},
+				Values:                  []string{"us-west-2"},
+			})
+
+			// Send conflicting rich_parameters; the preset value
+			// should win, per the contract advertised in the
+			// template_version_preset_id schema description.
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:                    "me",
+				TemplateVersionID:       ovBuild.TemplateVersion.ID.String(),
+				TemplateVersionPresetID: ovPreset.ID.String(),
+				Name:                    testutil.GetRandomNameHyphenated(t),
+				RichParameters:          map[string]string{"region": "us-east-1"},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+
+			// wsbuilder persists resolved parameters during the
+			// build transaction, before provisioning, so the values
+			// are readable immediately without waiting for the
+			// build job to complete.
+			params, err := client.WorkspaceBuildParameters(ctx, res.LatestBuild.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value,
+				"preset parameter value must override conflicting rich_parameters entry")
+		})
+
+		t.Run("RejectsInvalidTemplateID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				Name:           testutil.GetRandomNameHyphenated(t),
+				TemplateID:     "not-a-uuid",
+				RichParameters: map[string]string{},
+			})
+			require.ErrorContains(t, err, "template_id must be a valid UUID")
+		})
+
+		t.Run("RejectsInvalidTemplateVersionID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				Name:              testutil.GetRandomNameHyphenated(t),
+				TemplateVersionID: "not-a-uuid",
+				RichParameters:    map[string]string{},
+			})
+			require.ErrorContains(t, err, "template_version_id must be a valid UUID")
+		})
+
+		t.Run("RejectsInvalidTemplateVersionPresetID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:                    "me",
+				Name:                    testutil.GetRandomNameHyphenated(t),
+				TemplateVersionID:       uuid.NewString(),
+				TemplateVersionPresetID: "not-a-uuid",
+				RichParameters:          map[string]string{},
+			})
+			require.ErrorContains(t, err, "template_version_preset_id must be a valid UUID")
+		})
+	})
+
+	t.Run("WorkspaceSSHExec", func(t *testing.T) {
+		// Setup workspace exactly like main SSH tests
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+
+		// Start agent and wait for it to be ready (following main SSH test pattern)
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready like main SSH tests do
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		// Create tool dependencies using client
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		// Test basic command execution
+		result, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: workspace.Name,
+			Command:   "echo 'hello world'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "hello world", result.Output)
+
+		// Test output trimming
+		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: workspace.Name,
+			Command:   "echo '  test with whitespace  '",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "test with whitespace", result.Output) // Should be trimmed
+
+		// Test non-zero exit code
+		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: workspace.Name,
+			Command:   "exit 42",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 42, result.ExitCode)
+		require.Empty(t, result.Output)
+
+		// Test with workspace owner format - using the myuser from setup
+		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: "myuser/" + workspace.Name,
+			Command:   "echo 'owner format works'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "owner format works", result.Output)
+
+		// Regression test: agent-backed tools should also work when the
+		// workspace name is a valid dashless UUID.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		uuidClient, uuidWorkspace, uuidAgentToken := setupWorkspaceForAgentWithName(t, nil, uuidLikeName)
+		_ = agenttest.New(t, uuidClient.URL, uuidAgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, uuidClient, uuidWorkspace.ID).Wait()
+
+		uuidTB, err := toolsdk.NewDeps(uuidClient)
+		require.NoError(t, err)
+
+		result, err = testTool(t, toolsdk.WorkspaceBash, uuidTB, toolsdk.WorkspaceBashArgs{
+			Workspace: uuidWorkspace.Name,
+			Command:   "echo 'uuid-like name works'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "uuid-like name works", result.Output)
+	})
+
+	t.Run("WorkspaceLS", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+
+		dirPath := filepath.Join(tmpdir, "dir1/dir2")
+		err = fs.MkdirAll(dirPath, 0o755)
+		require.NoError(t, err)
+
+		filePath := filepath.Join(tmpdir, "dir1", "foo")
+		err = afero.WriteFile(fs, filePath, []byte("foo bar"), 0o644)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+			Workspace: workspace.Name,
+			Path:      "relative",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "path must be absolute")
+
+		res, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+			Workspace: workspace.Name,
+			Path:      filepath.Dir(dirPath),
+		})
+		require.NoError(t, err)
+		require.Equal(t, []toolsdk.WorkspaceLSFile{
+			{
+				Path:  dirPath,
+				IsDir: true,
+			},
+			{
+				Path:  filePath,
+				IsDir: false,
+			},
+		}, res.Contents)
+	})
+
+	t.Run("WorkspaceToolsUseInjectedAgentConnFunc", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		ws, err := client.Workspace(t.Context(), workspace.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, ws.LatestBuild.Resources)
+		require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
+		agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+		sentinelErr := xerrors.New("injected agent connection function used")
+
+		tests := []struct {
+			name string
+			run  func(t *testing.T, tb toolsdk.Deps) error
+		}{
+			{
+				name: "WorkspaceLS",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceReadFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceReadFile, tb, toolsdk.WorkspaceReadFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceWriteFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Content:   []byte("hello from agent connection function"),
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Edits: []workspacesdk.FileEdit{{
+							OldText: "hello",
+							NewText: "goodbye",
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFiles",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+						Workspace: workspace.Name,
+						Files: []workspacesdk.FileEdits{{
+							Path: "/tmp/file",
+							Edits: []workspacesdk.FileEdit{{
+								OldText: "hello",
+								NewText: "goodbye",
+							}},
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceBash",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+						Workspace: workspace.Name,
+						Command:   "echo hello",
+					})
+					return err
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				agentConnFn := &recordingAgentConnFunc{err: sentinelErr}
+				tb, err := toolsdk.NewDeps(client, toolsdk.WithAgentConnFunc(agentConnFn.AgentConn))
+				require.NoError(t, err)
+
+				err = tt.run(t, tb)
+				require.ErrorIs(t, err, sentinelErr)
+				require.ErrorContains(t, err, "failed to dial agent")
+				require.Equal(t, 1, agentConnFn.calls)
+				require.Equal(t, agentID, agentConnFn.agentID)
+			})
+		}
+	})
+
+	t.Run("WorkspaceReadFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "file")
+		err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
+		require.NoError(t, err)
+
+		largeFilePath := filepath.Join(tmpdir, "large")
+		largeFile, err := fs.Create(largeFilePath)
+		require.NoError(t, err)
+		err = largeFile.Truncate(1 << 21)
+		require.NoError(t, err)
+
+		imagePath := filepath.Join(tmpdir, "file.png")
+		err = afero.WriteFile(fs, imagePath, []byte("not really an image"), 0o644)
+		require.NoError(t, err)
+
+		tests := []struct {
+			name     string
+			path     string
+			limit    int64
+			offset   int64
+			mimeType string
+			bytes    []byte
+			length   int
+			error    string
+		}{
+			{
+				name:  "NonExistent",
+				path:  filepath.Join(tmpdir, "does-not-exist"),
+				error: "file does not exist",
+			},
+			{
+				name:     "Exists",
+				path:     filePath,
+				bytes:    []byte("content"),
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:     "Limit1Offset2",
+				path:     filePath,
+				limit:    1,
+				offset:   2,
+				bytes:    []byte("n"),
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:     "DefaultMaxLimit",
+				path:     largeFilePath,
+				length:   1 << 20,
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:  "ExceedMaxLimit",
+				path:  filePath,
+				limit: 1 << 21,
+				error: "limit must be 1048576 or less, got 2097152",
+			},
+			{
+				name:     "ImageMimeType",
+				path:     imagePath,
+				bytes:    []byte("not really an image"),
+				mimeType: "image/png",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				resp, err := testTool(t, toolsdk.WorkspaceReadFile, tb, toolsdk.WorkspaceReadFileArgs{
+					Workspace: workspace.Name,
+					Path:      tt.path,
+					Limit:     tt.limit,
+					Offset:    tt.offset,
+				})
+				if tt.error != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tt.error)
+				} else {
+					require.NoError(t, err)
+					if tt.length != 0 {
+						require.Len(t, resp.Content, tt.length)
+					}
+					if tt.bytes != nil {
+						require.Equal(t, tt.bytes, resp.Content)
+					}
+					require.Equal(t, tt.mimeType, resp.MimeType)
+				}
+			})
+		}
+	})
+
+	t.Run("WorkspaceWriteFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "write")
+
+		_, err = testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
+			Workspace: workspace.Name,
+			Path:      filePath,
+			Content:   []byte("content"),
+		})
+		require.NoError(t, err)
+
+		b, err := afero.ReadFile(fs, filePath)
+		require.NoError(t, err)
+		require.Equal(t, []byte("content"), b)
+	})
+
+	t.Run("WorkspaceEditFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "edit")
+		err = afero.WriteFile(fs, filePath, []byte("foo bar"), 0o644)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+			Workspace: workspace.Name,
+			Path:      filePath,
+			Edits:     []workspacesdk.FileEdit{},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must specify at least one edit")
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+			Workspace: workspace.Name,
+			Path:      filePath,
+			Edits: []workspacesdk.FileEdit{
+				{
+					OldText: "foo",
+					NewText: "bar",
+				},
+			},
+		})
+		require.NoError(t, err)
+		b, err := afero.ReadFile(fs, filePath)
+		require.NoError(t, err)
+		require.Equal(t, "bar bar", string(b))
+	})
+
+	t.Run("WorkspaceEditFiles", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath1 := filepath.Join(tmpdir, "edit1")
+		err = afero.WriteFile(fs, filePath1, []byte("foo1 bar1"), 0o644)
+		require.NoError(t, err)
+
+		filePath2 := filepath.Join(tmpdir, "edit2")
+		err = afero.WriteFile(fs, filePath2, []byte("foo2 bar2"), 0o644)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+			Workspace: workspace.Name,
+			Files:     []workspacesdk.FileEdits{},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must specify at least one file")
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+			Workspace: workspace.Name,
+			Files: []workspacesdk.FileEdits{
+				{
+					Path: filePath1,
+					Edits: []workspacesdk.FileEdit{
+						{
+							OldText: "foo1",
+							NewText: "bar1",
+						},
+					},
+				},
+				{
+					Path: filePath2,
+					Edits: []workspacesdk.FileEdit{
+						{
+							OldText: "foo2",
+							NewText: "bar2",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		b, err := afero.ReadFile(fs, filePath1)
+		require.NoError(t, err)
+		require.Equal(t, "bar1 bar1", string(b))
+
+		b, err = afero.ReadFile(fs, filePath2)
+		require.NoError(t, err)
+		require.Equal(t, "bar2 bar2", string(b))
+	})
+
+	t.Run("WorkspacePortForward", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			workspace string
+			host      string
+			port      int
+			expect    string
+			error     string
+		}{
+			{
+				name:      "OK",
+				workspace: "myuser/myworkspace",
+				port:      1234,
+				host:      "*.test.coder.com",
+				expect:    "%s://1234--dev--myworkspace--myuser.test.coder.com:%s",
+			},
+			{
+				name:      "NonExistentWorkspace",
+				workspace: "doesnotexist",
+				port:      1234,
+				host:      "*.test.coder.com",
+				error:     "failed to find workspace",
+			},
+			{
+				name:      "NoAppHost",
+				host:      "",
+				workspace: "myuser/myworkspace",
+				port:      1234,
+				error:     "no app host",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				client, workspace, agentToken := setupWorkspaceForAgent(t, &coderdtest.Options{
+					AppHostname: tt.host,
+				})
+				_ = agenttest.New(t, client.URL, agentToken)
+				coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+				tb, err := toolsdk.NewDeps(client)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.WorkspacePortForward, tb, toolsdk.WorkspacePortForwardArgs{
+					Workspace: tt.workspace,
+					Port:      tt.port,
+				})
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, fmt.Sprintf(tt.expect, client.URL.Scheme, client.URL.Port()), res.URL)
+				}
+			})
+		}
+	})
+
+	t.Run("WorkspaceListApps", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		_ = dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "list-app-workspace-one-agent",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "zero",
+					Url:  "http://zero.dev.coder.com",
+				},
+			}
+			return agents
+		}).Do()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		_ = dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "list-app-workspace-multi-agent",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "one",
+					Url:  "http://one.dev.coder.com",
+				},
+				{
+					Slug: "two",
+					Url:  "http://two.dev.coder.com",
+				},
+				{
+					Slug: "three",
+					Url:  "http://three.dev.coder.com",
+				},
+			}
+			agents = append(agents, &proto.Agent{
+				Id:   uuid.NewString(),
+				Name: "dev2",
+				Auth: &proto.Agent_Token{
+					Token: uuid.NewString(),
+				},
+				Env: map[string]string{},
+				Apps: []*proto.App{
+					{
+						Slug: "four",
+						Url:  "http://four.dev.coder.com",
+					},
+				},
+			})
+			return agents
+		}).Do()
+
+		tests := []struct {
+			name     string
+			args     toolsdk.WorkspaceListAppsArgs
+			expected []toolsdk.WorkspaceListApp
+			error    string
+		}{
+			{
+				name: "NonExistentWorkspace",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-appp-workspace-does-not-exist",
+				},
+				error: "failed to find workspace",
+			},
+			{
+				name: "OneAgentOneApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-one-agent",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "zero",
+						URL:  "http://zero.dev.coder.com",
+					},
+				},
+			},
+			{
+				name: "MultiAgent",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent",
+				},
+				error: "multiple agents found, please specify the agent name",
+			},
+			{
+				name: "MultiAgentOneApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent.dev2",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "four",
+						URL:  "http://four.dev.coder.com",
+					},
+				},
+			},
+			{
+				name: "MultiAgentMultiApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent.dev",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "one",
+						URL:  "http://one.dev.coder.com",
+					},
+					{
+						Name: "three",
+						URL:  "http://three.dev.coder.com",
+					},
+					{
+						Name: "two",
+						URL:  "http://two.dev.coder.com",
+					},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.WorkspaceListApps, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, tt.expected, res.Apps)
+				}
+			})
+		}
+	})
+}
+
+// TestedTools keeps track of which tools have been tested.
+var testedTools sync.Map
+
+// testTool is a helper function to test a tool and mark it as tested.
+// Note that we test the _generic_ version of the tool and not the typed one.
+// This is to mimic how we expect external callers to use the tool.
+func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsdk.Deps, args Arg) (Ret, error) {
+	t.Helper()
+	defer func() { testedTools.Store(tool.Name, true) }()
+	toolArgs, err := json.Marshal(args)
+	require.NoError(t, err, "failed to marshal args")
+	result, err := tool.Generic().Handler(t.Context(), tb, toolArgs)
+	var ret Ret
+	if err == nil {
+		require.NotEmpty(t, result, "tool returned an empty successful result")
+	}
+	if len(result) > 0 {
+		require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
+	}
+	return ret, err
+}
+
+// TestEditFileTools_DecodeDeprecatedKeys pins that deprecated-key
+// MCP args survive decoding into the typed edit args.
+func TestEditFileTools_DecodeDeprecatedKeys(t *testing.T) {
+	t.Parallel()
+
+	var single toolsdk.WorkspaceEditFileArgs
+	require.NoError(t, json.Unmarshal([]byte(
+		`{"workspace":"w","path":"/p","edits":[{"search":"foo","replace":"bar"}]}`), &single))
+	require.Equal(t, "foo", single.Edits[0].OldText)
+	require.Equal(t, "bar", single.Edits[0].NewText)
+
+	var multi toolsdk.WorkspaceEditFilesArgs
+	require.NoError(t, json.Unmarshal([]byte(
+		`{"workspace":"w","files":[{"path":"/p","edits":[{"search":"foo","replace":"bar"}]}]}`), &multi))
+	require.Equal(t, "foo", multi.Files[0].Edits[0].OldText)
+	require.Equal(t, "bar", multi.Files[0].Edits[0].NewText)
+}
+
+func TestWithRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		fakeTool := toolsdk.GenericTool{
+			Tool: aisdk.Tool{
+				Name:        "echo",
+				Description: "Echoes the input.",
+			},
+			Handler: func(ctx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				return args, nil
+			},
+		}
+
+		wrapped := toolsdk.WithRecover(fakeTool.Handler)
+		v, err := wrapped(context.Background(), toolsdk.Deps{}, []byte(`{}`))
+		require.NoError(t, err)
+		require.JSONEq(t, `{}`, string(v))
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+		fakeTool := toolsdk.GenericTool{
+			Tool: aisdk.Tool{
+				Name:        "fake_tool",
+				Description: "Returns an error for testing.",
+			},
+			Handler: func(ctx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				return nil, assert.AnError
+			},
+		}
+		wrapped := toolsdk.WithRecover(fakeTool.Handler)
+		v, err := wrapped(context.Background(), toolsdk.Deps{}, []byte(`{}`))
+		require.Nil(t, v)
+		require.ErrorIs(t, err, assert.AnError)
+	})
+
+	t.Run("Panic", func(t *testing.T) {
+		t.Parallel()
+		panicTool := toolsdk.GenericTool{
+			Tool: aisdk.Tool{
+				Name:        "panic_tool",
+				Description: "Panics for testing.",
+			},
+			Handler: func(ctx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				panic("you can't sweat this fever out")
+			},
+		}
+
+		wrapped := toolsdk.WithRecover(panicTool.Handler)
+		v, err := wrapped(context.Background(), toolsdk.Deps{}, []byte("disco"))
+		require.Empty(t, v)
+		require.ErrorContains(t, err, "you can't sweat this fever out")
+	})
+}
+
+type testContextKey struct{}
+
+func TestWithCleanContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoContextKeys", func(t *testing.T) {
+		t.Parallel()
+
+		// This test is to ensure that the context values are not set in the
+		// toolsdk package.
+		ctxTool := toolsdk.GenericTool{
+			Tool: aisdk.Tool{
+				Name:        "context_tool",
+				Description: "Returns the context value for testing.",
+			},
+			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				v := toolCtx.Value(testContextKey{})
+				assert.Nil(t, v, "expected the context value to be nil")
+				return nil, nil
+			},
+		}
+
+		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
+		ctx := context.WithValue(context.Background(), testContextKey{}, "test")
+		_, _ = wrapped(ctx, toolsdk.Deps{}, []byte(`{}`))
+	})
+
+	t.Run("PropagateCancel", func(t *testing.T) {
+		t.Parallel()
+
+		// This test is to ensure that the context is canceled properly.
+		callCh := make(chan struct{})
+		ctxTool := toolsdk.GenericTool{
+			Tool: aisdk.Tool{
+				Name:        "context_tool",
+				Description: "Returns the context value for testing.",
+			},
+			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				defer close(callCh)
+				// Wait for the context to be canceled
+				<-toolCtx.Done()
+				return nil, toolCtx.Err()
+			},
+		}
+		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
+		errCh := make(chan error, 1)
+
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		go func() {
+			_, err := wrapped(ctx, toolsdk.Deps{}, []byte(`{}`))
+			errCh <- err
+		}()
+
+		cancel()
+
+		// Ensure the tool is called
+		select {
+		case <-callCh:
+		case <-tCtx.Done():
+			require.Fail(t, "test timed out before handler was called")
+		}
+
+		// Ensure the correct error is returned
+		select {
+		case <-tCtx.Done():
+			require.Fail(t, "test timed out")
+		case err := <-errCh:
+			// Context was canceled and the done channel was closed
+			require.ErrorIs(t, err, context.Canceled)
+		}
+	})
+
+	t.Run("PropagateDeadline", func(t *testing.T) {
+		t.Parallel()
+
+		// This test ensures that the context deadline is propagated to the child
+		// from the parent.
+		ctxTool := toolsdk.GenericTool{
+			Tool: aisdk.Tool{
+				Name:        "context_tool_deadline",
+				Description: "Checks if context has deadline.",
+			},
+			Handler: func(toolCtx context.Context, tb toolsdk.Deps, args json.RawMessage) (json.RawMessage, error) {
+				_, ok := toolCtx.Deadline()
+				assert.True(t, ok, "expected deadline to be set on the child context")
+				return nil, nil
+			},
+		}
+
+		wrapped := toolsdk.WithCleanContext(ctxTool.Handler)
+		parent, cancel := context.WithTimeout(context.Background(), testutil.IntervalFast)
+		t.Cleanup(cancel)
+		_, err := wrapped(parent, toolsdk.Deps{}, []byte(`{}`))
+		require.NoError(t, err)
+	})
+}
+
+func TestToolSchemaFields(t *testing.T) {
+	t.Parallel()
+
+	// Test that all tools have the required Schema fields (Properties and Required)
+	for _, tool := range toolsdk.All {
+		t.Run(tool.Name, func(t *testing.T) {
+			t.Parallel()
+
+			// Check that Properties is not nil
+			require.NotNil(t, tool.Schema.Properties,
+				"Tool %q missing Schema.Properties", tool.Name)
+
+			// Check that Required is not nil
+			require.NotNil(t, tool.Schema.Required,
+				"Tool %q missing Schema.Required", tool.Name)
+
+			// Ensure Properties has entries for all required fields
+			for _, requiredField := range tool.Schema.Required {
+				_, exists := tool.Schema.Properties[requiredField]
+				require.True(t, exists,
+					"Tool %q requires field %q but it is not defined in Properties",
+					tool.Name, requiredField)
+			}
+		})
+	}
+}
+
+// TestMain runs after all tests to ensure that all tools in this package have
+// been tested once.
+func TestMain(m *testing.M) {
+	// Initialize testedTools
+	for _, tool := range toolsdk.All {
+		testedTools.Store(tool.Name, false)
+	}
+
+	code := m.Run()
+
+	// Ensure all tools have been tested
+	var untested []string
+	for _, tool := range toolsdk.All {
+		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			untested = append(untested, tool.Name)
+		}
+	}
+
+	if len(untested) > 0 && code == 0 {
+		_, _ = fmt.Fprintln(os.Stderr, "The following tools were not tested:")
+		for _, tool := range untested {
+			_, _ = fmt.Fprintf(os.Stderr, " - %s\n", tool)
+		}
+		_, _ = fmt.Fprintln(os.Stderr, "Please ensure that all tools are tested using testTool().")
+		_, _ = fmt.Fprintln(os.Stderr, "If you just added a new tool, please add a test for it.")
+		// Only fail when the full suite ran. When -run filters to a
+		// subset (e.g. CI flake checks use -run ^TestTools), tools
+		// covered by other top-level functions appear untested.
+		if f := flag.Lookup("test.run"); f == nil || f.Value.String() == "" {
+			code = 1
+		} else {
+			_, _ = fmt.Fprintln(os.Stderr, "NOTE: if you just ran an individual test, this is expected.")
+		}
+	}
+
+	// Check for goroutine leaks. Below is adapted from goleak.VerifyTestMain:
+	if code == 0 {
+		if err := goleak.Find(testutil.GoleakOptions...); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "goleak: Errors on successful test run:", err.Error())
+			code = 1
+		}
+	}
+
+	os.Exit(code)
+}
+
+func TestReportTaskNilPointerDeref(t *testing.T) {
+	t.Parallel()
+
+	// Create deps without a task reporter (simulating remote MCP server scenario)
+	client, _ := coderdtest.NewWithDatabase(t, nil)
+	deps, err := toolsdk.NewDeps(client)
+	require.NoError(t, err)
+
+	// Prepare test arguments
+	args := toolsdk.ReportTaskArgs{
+		Summary: "Test task",
+		Link:    "https://example.com",
+		State:   string(codersdk.WorkspaceAppStatusStateWorking),
+	}
+
+	_, err = toolsdk.ReportTask.Handler(t.Context(), deps, args)
+
+	// We expect an error, not a panic
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task reporting not available")
+}
+
+func TestReportTaskWithReporter(t *testing.T) {
+	t.Parallel()
+
+	// Create deps with a task reporter
+	client, _ := coderdtest.NewWithDatabase(t, nil)
+
+	called := false
+	reporter := func(args toolsdk.ReportTaskArgs) error {
+		called = true
+		require.Equal(t, "Test task", args.Summary)
+		require.Equal(t, "https://example.com", args.Link)
+		require.Equal(t, string(codersdk.WorkspaceAppStatusStateWorking), args.State)
+		return nil
+	}
+
+	deps, err := toolsdk.NewDeps(client, toolsdk.WithTaskReporter(reporter))
+	require.NoError(t, err)
+
+	args := toolsdk.ReportTaskArgs{
+		Summary: "Test task",
+		Link:    "https://example.com",
+		State:   string(codersdk.WorkspaceAppStatusStateWorking),
+	}
+
+	result, err := toolsdk.ReportTask.Handler(t.Context(), deps, args)
+	require.NoError(t, err)
+	require.True(t, called)
+
+	// Verify response
+	require.Equal(t, "Thanks for reporting!", result.Message)
+}
+
+func TestNormalizeWorkspaceInput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "SimpleWorkspace",
+			input:    "workspace",
+			expected: "workspace",
+		},
+		{
+			name:     "WorkspaceWithAgent",
+			input:    "workspace.agent",
+			expected: "workspace.agent",
+		},
+		{
+			name:     "OwnerAndWorkspace",
+			input:    "owner/workspace",
+			expected: "owner/workspace",
+		},
+		{
+			name:     "OwnerDashWorkspace",
+			input:    "owner--workspace",
+			expected: "owner/workspace",
+		},
+		{
+			name:     "OwnerWorkspaceAgent",
+			input:    "owner/workspace.agent",
+			expected: "owner/workspace.agent",
+		},
+		{
+			name:     "OwnerDashWorkspaceAgent",
+			input:    "owner--workspace.agent",
+			expected: "owner/workspace.agent",
+		},
+		{
+			name:     "CoderConnectFormat",
+			input:    "agent.workspace.owner", // Special Coder Connect reverse format
+			expected: "owner/workspace.agent",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := toolsdk.NormalizeWorkspaceInput(tc.input)
+			require.Equal(t, tc.expected, result, "Input %q should normalize to %q but got %q", tc.input, tc.expected, result)
+		})
+	}
+}

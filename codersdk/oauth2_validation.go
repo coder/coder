@@ -1,0 +1,336 @@
+package codersdk
+
+import (
+	"net/url"
+	"slices"
+	"strings"
+
+	"golang.org/x/xerrors"
+)
+
+// RFC 7591 validation functions for Dynamic Client Registration
+
+func (req *OAuth2ClientRegistrationRequest) Validate() error {
+	// Validate redirect URIs - required for authorization code flow
+	if len(req.RedirectURIs) == 0 {
+		return xerrors.New("redirect_uris is required for authorization code flow")
+	}
+
+	// The client type is derived once, by DetermineClientType, so which RFC 8252
+	// rules apply here cannot drift from what gets stored in client_type.
+	if err := validateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
+		return xerrors.Errorf("invalid redirect_uris: %w", err)
+	}
+
+	// Validate grant types if specified
+	if len(req.GrantTypes) > 0 {
+		if err := validateGrantTypes(req.GrantTypes); err != nil {
+			return xerrors.Errorf("invalid grant_types: %w", err)
+		}
+	}
+
+	// Validate response types if specified
+	if len(req.ResponseTypes) > 0 {
+		if err := validateResponseTypes(req.ResponseTypes); err != nil {
+			return xerrors.Errorf("invalid response_types: %w", err)
+		}
+	}
+
+	// Validate token endpoint auth method if specified
+	if req.TokenEndpointAuthMethod != "" {
+		if err := validateTokenEndpointAuthMethod(req.TokenEndpointAuthMethod); err != nil {
+			return xerrors.Errorf("invalid token_endpoint_auth_method: %w", err)
+		}
+	}
+
+	// Validate URI fields
+	if req.ClientURI != "" {
+		if err := validateURIField(req.ClientURI, "client_uri"); err != nil {
+			return err
+		}
+	}
+
+	if req.LogoURI != "" {
+		if err := validateURIField(req.LogoURI, "logo_uri"); err != nil {
+			return err
+		}
+	}
+
+	if req.TOSURI != "" {
+		if err := validateURIField(req.TOSURI, "tos_uri"); err != nil {
+			return err
+		}
+	}
+
+	if req.PolicyURI != "" {
+		if err := validateURIField(req.PolicyURI, "policy_uri"); err != nil {
+			return err
+		}
+	}
+
+	if req.JWKSURI != "" {
+		if err := validateURIField(req.JWKSURI, "jwks_uri"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ValidateRedirectURIScheme reports whether the callback URL's scheme is
+// safe to use as a redirect target. It returns an error when the scheme
+// is empty, an unsupported URN, or one of the schemes that are dangerous
+// in browser/HTML contexts (javascript, data, file, ftp).
+//
+// Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
+// are allowed.
+// ValidateRedirectURIScheme reports whether the callback URL's scheme is
+// safe to use as a redirect target. It returns an error when the scheme
+// is empty, an unsupported URN, or one of the schemes that are dangerous
+// in browser/HTML contexts (javascript, data, file, ftp).
+//
+// Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
+// are allowed.
+func ValidateRedirectURIScheme(u *url.URL) error {
+	return validateScheme(u)
+}
+
+// RedirectURIMatches reports whether a redirect_uri a client presented may be
+// used in place of one the app registered. The rule is exact string equality
+// (OAuth 2.1 §2.3.1). The one exception is a registered http URI to a loopback
+// host, where the port is ignored (RFC 8252 §7.3). The exception depends on the
+// registered URI alone, not on the client type.
+func RedirectURIMatches(presented, registered *url.URL) bool {
+	if presented.String() == registered.String() {
+		return true
+	}
+	if registered.Scheme != "http" || !isLoopbackAddress(registered.Hostname()) {
+		return false
+	}
+	// Drop the port from both sides. Every other component must still match.
+	// Hostname() also strips IPv6 brackets, so both strings are built the same
+	// way and stay comparable.
+	p, r := *presented, *registered
+	p.Host, r.Host = p.Hostname(), r.Hostname()
+	return p.String() == r.String()
+}
+
+func validateScheme(u *url.URL) error {
+	if u.Scheme == "" {
+		return xerrors.New("redirect URI must have a scheme")
+	}
+
+	// Handle special URNs (RFC 6749 section 3.1.2.1).
+	if u.Scheme == "urn" {
+		if u.String() == "urn:ietf:wg:oauth:2.0:oob" {
+			return nil
+		}
+		return xerrors.New("redirect URI uses unsupported URN scheme")
+	}
+
+	// Block dangerous schemes for security (not allowed by RFCs
+	// for OAuth2).
+	dangerousSchemes := []string{"javascript", "data", "file", "ftp"}
+	for _, dangerous := range dangerousSchemes {
+		if strings.EqualFold(u.Scheme, dangerous) {
+			return xerrors.Errorf("redirect URI uses dangerous scheme %s which is not allowed", dangerous)
+		}
+	}
+
+	return nil
+}
+
+// validateRedirectURIs validates redirect URIs according to RFC 7591, 8252.
+// clientType selects which rules apply and is derived by DetermineClientType,
+// the single owner of that mapping, so this cannot disagree with the type the
+// app is stored as.
+func validateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
+	if len(uris) == 0 {
+		return xerrors.New("at least one redirect URI is required")
+	}
+
+	for i, uriStr := range uris {
+		if uriStr == "" {
+			return xerrors.Errorf("redirect URI at index %d cannot be empty", i)
+		}
+
+		uri, err := url.Parse(uriStr)
+		if err != nil {
+			return xerrors.Errorf("redirect URI at index %d is not a valid URL: %w", i, err)
+		}
+
+		if err := validateScheme(uri); err != nil {
+			return xerrors.Errorf("redirect URI at index %d: %w", i, err)
+		}
+
+		// The urn:ietf:wg:oauth:2.0:oob scheme passed validation
+		// above but needs no further checks.
+		if uri.Scheme == "urn" {
+			continue
+		}
+
+		isPublicClient := clientType == OAuth2ClientTypePublic
+
+		// Handle different validation for public vs confidential clients
+		if uri.Scheme == "http" || uri.Scheme == "https" {
+			// HTTP/HTTPS validation (RFC 8252 section 7.3)
+			if uri.Scheme == "http" {
+				if isPublicClient {
+					// For public clients, only allow loopback (RFC 8252)
+					if !isLoopbackAddress(uri.Hostname()) {
+						return xerrors.Errorf("redirect URI at index %d: public clients may only use http with loopback addresses (127.0.0.1, ::1, localhost)", i)
+					}
+				} else {
+					// For confidential clients, allow localhost for development
+					if !isLocalhost(uri.Hostname()) {
+						return xerrors.Errorf("redirect URI at index %d must use https scheme for non-localhost URLs", i)
+					}
+				}
+			}
+		} else if isPublicClient {
+			// mailto, tel, and sms hand off to a mail client, dialer, or SMS
+			// app rather than returning control to the application that
+			// started the flow. A public client has no other way to obtain
+			// its authorization code, so registering one of these would
+			// produce a client that can never complete authorization.
+			//
+			// This check runs only for public clients because that is how
+			// custom-scheme validation was scoped before this change, not
+			// because these three schemes are known to be safe for a
+			// confidential client's redirect; confidential clients were
+			// never subject to any scheme-shape check beyond validateScheme
+			// and remain so here.
+			switch uri.Scheme {
+			case "mailto", "tel", "sms":
+				return xerrors.Errorf("redirect URI at index %d: public clients may not use the %s scheme", i, uri.Scheme)
+			}
+		}
+		// Beyond that, custom schemes need no further check: validateScheme
+		// already blocked the ones that are dangerous in a redirect context,
+		// and RFC 8252 §7.1 only recommends reverse-domain notation rather
+		// than requiring it. Rejecting bare schemes such as vscode:// or
+		// jetbrains:// would penalize the native and CLI apps this client
+		// type exists for; PKCE, not the scheme's spelling, is what secures
+		// the redirect.
+
+		// Prevent URI fragments (RFC 6749 section 3.1.2)
+		if uri.Fragment != "" || strings.Contains(uriStr, "#") {
+			return xerrors.Errorf("redirect URI at index %d must not contain a fragment component", i)
+		}
+	}
+
+	return nil
+}
+
+// validateGrantTypes validates OAuth2 grant types
+func validateGrantTypes(grantTypes []OAuth2ProviderGrantType) error {
+	for _, grant := range grantTypes {
+		if !isSupportedGrantType(grant) {
+			return xerrors.Errorf("unsupported grant type: %s", grant)
+		}
+	}
+
+	// Ensure authorization_code is present if redirect_uris are specified
+	hasAuthCode := slices.Contains(grantTypes, OAuth2ProviderGrantTypeAuthorizationCode)
+	if !hasAuthCode {
+		return xerrors.New("authorization_code grant type is required when redirect_uris are specified")
+	}
+
+	return nil
+}
+
+func isSupportedGrantType(grant OAuth2ProviderGrantType) bool {
+	switch grant {
+	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken:
+		return true
+	}
+	return false
+}
+
+// validateResponseTypes validates OAuth2 response types
+func validateResponseTypes(responseTypes []OAuth2ProviderResponseType) error {
+	for _, responseType := range responseTypes {
+		if !isSupportedResponseType(responseType) {
+			return xerrors.Errorf("unsupported response type: %s", responseType)
+		}
+	}
+
+	return nil
+}
+
+func isSupportedResponseType(responseType OAuth2ProviderResponseType) bool {
+	return responseType == OAuth2ProviderResponseTypeCode
+}
+
+// validateTokenEndpointAuthMethod validates token endpoint authentication method
+func validateTokenEndpointAuthMethod(method OAuth2TokenEndpointAuthMethod) error {
+	if !method.Valid() {
+		return xerrors.Errorf("unsupported token endpoint auth method: %s", method)
+	}
+
+	return nil
+}
+
+// ValidatePKCECodeChallengeMethod validates PKCE code_challenge_method parameter.
+// Per OAuth 2.1, only S256 is supported; plain is rejected for security reasons.
+func ValidatePKCECodeChallengeMethod(method string) error {
+	if method == "" {
+		return nil // Optional, defaults to S256 if code_challenge is provided
+	}
+
+	m := OAuth2PKCECodeChallengeMethod(method)
+
+	if m == OAuth2PKCECodeChallengeMethodPlain {
+		return xerrors.New("code_challenge_method 'plain' is not supported; use 'S256'")
+	}
+
+	if m != OAuth2PKCECodeChallengeMethodS256 {
+		return xerrors.Errorf("unsupported code_challenge_method: %s", method)
+	}
+
+	return nil
+}
+
+// validateURIField validates a URI field
+func validateURIField(uriStr, fieldName string) error {
+	if uriStr == "" {
+		return nil // Empty URIs are allowed for optional fields
+	}
+
+	uri, err := url.Parse(uriStr)
+	if err != nil {
+		return xerrors.Errorf("invalid %s: %w", fieldName, err)
+	}
+
+	// Require absolute URLs with scheme
+	if !uri.IsAbs() {
+		return xerrors.Errorf("%s must be an absolute URL", fieldName)
+	}
+
+	// Only allow http/https schemes
+	if uri.Scheme != "http" && uri.Scheme != "https" {
+		return xerrors.Errorf("%s must use http or https scheme", fieldName)
+	}
+
+	// For production, prefer HTTPS
+	// Note: we allow HTTP for localhost but prefer HTTPS for production
+	// This could be made configurable in the future
+
+	return nil
+}
+
+// isLocalhost checks if hostname is localhost (allows broader development usage)
+func isLocalhost(hostname string) bool {
+	return hostname == "localhost" ||
+		hostname == "127.0.0.1" ||
+		hostname == "::1" ||
+		strings.HasSuffix(hostname, ".localhost")
+}
+
+// isLoopbackAddress reports whether hostname is a loopback host. RFC 8252 §7.3
+// names 127.0.0.1 and ::1. Coder also accepts localhost as its own policy.
+func isLoopbackAddress(hostname string) bool {
+	return hostname == "localhost" ||
+		hostname == "127.0.0.1" ||
+		hostname == "::1"
+}

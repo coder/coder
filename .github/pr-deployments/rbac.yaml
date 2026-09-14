@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coder-workspace-pr${PR_NUMBER}
+  namespace: pr${PR_NUMBER}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-workspace-pr${PR_NUMBER}
+  namespace: pr${PR_NUMBER}
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coder-workspace-pr${PR_NUMBER}
+  namespace: pr${PR_NUMBER}
+subjects:
+  - kind: ServiceAccount
+    name: coder-workspace-pr${PR_NUMBER}
+    namespace: pr${PR_NUMBER}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-workspace-pr${PR_NUMBER}

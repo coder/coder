@@ -1,0 +1,662 @@
+import { cn } from "cn";
+import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import type { UrlTransform } from "streamdown";
+import {
+	chatPromptsQuery,
+	refreshChatContext,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
+import { workspaces } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useFileAttachments } from "../hooks/useFileAttachments";
+import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	getProviderForModelOption,
+	resolveCompactionThreshold,
+} from "../utils/modelOptions";
+import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
+import {
+	AgentChatInput,
+	type AttachedWorkspaceInfo,
+	type ChatMessageInputRef,
+	isUploadInProgress,
+	type UploadState,
+	type WorkspaceMCPServer,
+} from "./AgentChatInput";
+import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
+import type { ChatDetailError } from "./ChatConversation/chatError";
+import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
+import {
+	selectChatStatus,
+	selectHasStreamState,
+	selectIsAwaitingFirstStreamChunk,
+	selectMessagesByID,
+	selectOrderedMessageIDs,
+	selectQueuedMessages,
+	selectReconnectState,
+	selectRetryState,
+	selectStreamError,
+	selectStreamState,
+	selectSubagentStatusOverrides,
+	useChatSelector,
+	type useChatStore,
+} from "./ChatConversation/chatStore";
+import {
+	LiveStreamTailContent,
+	TerminalStatusRow,
+} from "./ChatConversation/LiveStreamTail";
+import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
+import {
+	buildSubagentMaps,
+	getPendingToolCallIDs,
+	parseMessagesWithMergedTools,
+} from "./ChatConversation/messageParsing";
+import { buildStreamTools } from "./ChatConversation/streamState";
+import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
+import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { ChatMessageScroller } from "./ChatMessageScroller";
+import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
+
+type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+const isChatMessage = (
+	message: TypesGen.ChatMessage | undefined,
+): message is TypesGen.ChatMessage => Boolean(message);
+
+// A resolved chat with no context (unpinned) or no resources authoritatively
+// has no workspace skills; only an unresolved chat leaves them unknown.
+// Duplicate names keep the first resource to match read_skill resolution,
+// which also collapses duplicates first-wins in resource order.
+export const workspaceSkillsFromChat = (
+	chat: TypesGen.Chat | undefined,
+): SkillMetadata[] | undefined => {
+	if (!chat) {
+		return undefined;
+	}
+	const skills = new Map<string, SkillMetadata>();
+	for (const resource of chat.context?.resources ?? []) {
+		if (
+			resource.kind !== "skill" ||
+			resource.status !== "ok" ||
+			skills.has(resource.skill_name ?? "")
+		) {
+			continue;
+		}
+		skills.set(resource.skill_name ?? "", {
+			name: resource.skill_name ?? "",
+			description: resource.skill_description ?? "",
+		});
+	}
+	return [...skills.values()];
+};
+
+export const workspaceMCPServersFromChat = (
+	chat: TypesGen.Chat | undefined,
+): WorkspaceMCPServer[] =>
+	(chat?.context?.resources ?? [])
+		.filter(
+			(resource) => resource.kind === "mcp_server" && resource.status === "ok",
+		)
+		.map((resource) => ({
+			name: resource.source,
+			toolCount: resource.tools?.length ?? 0,
+		}))
+		.sort((a, b) => a.name.localeCompare(b.name));
+
+interface ChatPageTimelineProps {
+	organizationId: string | undefined;
+	store: ChatStoreHandle;
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
+	persistedError: ChatDetailError | undefined;
+	initialActiveTurnMaxMessageId?: number;
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	isHydratingMessages: boolean;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+	) => void;
+	editingMessageId?: number | null;
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	footer?: ReactNode;
+}
+
+export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
+	organizationId,
+	store,
+	chatFiles,
+	persistedError,
+	initialActiveTurnMaxMessageId,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	isHydratingMessages,
+	hasFetchMoreError,
+	onFetchMoreMessages,
+	onEditUserMessage,
+	editingMessageId,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
+	urlTransform,
+	mcpServers,
+	footer,
+}) => {
+	const [chatFullWidth] = useChatFullWidth();
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isAwaitingFirstStreamChunk = useChatSelector(
+		store,
+		selectIsAwaitingFirstStreamChunk,
+	);
+	const streamState = useChatSelector(store, selectStreamState);
+	const streamError = useChatSelector(store, selectStreamError);
+	const retryState = useChatSelector(store, selectRetryState);
+	const reconnectState = useChatSelector(store, selectReconnectState);
+	const subagentStatusOverrides = useChatSelector(
+		store,
+		selectSubagentStatusOverrides,
+	);
+	const isChatCompleted = !hasStream;
+
+	const liveStatus = deriveLiveStatus({
+		streamState,
+		retryState,
+		reconnectState,
+		streamError,
+		persistedError: persistedError ?? null,
+		isAwaitingFirstStreamChunk,
+		chatStatus,
+	});
+	const streamTools = buildStreamTools(
+		streamState?.toolCalls,
+		streamState?.toolResults,
+	);
+
+	const messages = orderedMessageIDs
+		.map((messageID) => {
+			const message = messagesByID.get(messageID);
+			if (!message && process.env.NODE_ENV !== "production") {
+				console.warn(
+					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
+						"not found in messagesByID. This may indicate a store/cache " +
+						"desync bug.",
+				);
+			}
+			return message;
+		})
+		.filter(isChatMessage);
+	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
+	const parsedMessages = parseMessagesWithMergedTools(messages, {
+		pendingToolCallIDs,
+	});
+	const { titles: subagentTitles, variants: subagentVariants } =
+		buildSubagentMaps(parsedMessages);
+	const onRenderProfiler = useOnRenderProfiler();
+
+	return (
+		<Profiler id="AgentChat" onRender={onRenderProfiler}>
+			<ChatMessageScroller
+				hasMoreMessages={hasMoreMessages}
+				isFetchingMoreMessages={isFetchingMoreMessages}
+				isHydratingMessages={isHydratingMessages}
+				hasFetchMoreError={hasFetchMoreError}
+				hasTranscriptRows={parsedMessages.length > 0}
+				onFetchMoreMessages={onFetchMoreMessages}
+			>
+				{/* VNC sessions for completed agents may already be
+					   terminated, so inline desktop previews are disabled
+					   via showDesktopPreviews={false} to avoid a perpetual
+					   "disconnected" state. The MonitorIcon variant still
+					   renders correctly. */}
+				<ConversationTimeline
+					organizationId={organizationId}
+					parsedMessages={parsedMessages}
+					chatFiles={chatFiles}
+					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+					streamState={streamState}
+					streamTools={streamTools}
+					liveStatus={liveStatus}
+					subagentStatusOverrides={subagentStatusOverrides}
+					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
+					onEditUserMessage={onEditUserMessage}
+					editingMessageId={editingMessageId}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
+					hasActiveStream={hasStream}
+					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+					showDesktopPreviews={false}
+				/>
+				<TerminalStatusRow liveStatus={liveStatus} />
+			</ChatMessageScroller>
+			{/* The empty state sits outside the scroller content, which holds
+			    transcript rows only. */}
+			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
+				<LiveStreamTailContent
+					isTranscriptEmpty={parsedMessages.length === 0}
+					liveStatus={liveStatus}
+				/>
+				{footer}
+			</div>
+		</Profiler>
+	);
+};
+
+export type PendingAttachment = {
+	fileId: string;
+	mediaType: string;
+};
+
+interface ChatPageInputProps {
+	chat: TypesGen.Chat;
+	store: ChatStoreHandle;
+	models: readonly TypesGen.ChatModel[] | undefined;
+	onSend: (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => Promise<void> | void;
+	onDeleteQueuedMessage: (id: number) => Promise<void>;
+	onPromoteQueuedMessage: (id: number) => Promise<void>;
+	onInterrupt: () => void;
+	isInputDisabled: boolean;
+	isReadOnly?: boolean;
+	isSendPending: boolean;
+	isInterruptPending: boolean;
+	hasModelOptions: boolean;
+	selectedModel: string;
+	onModelChange: (modelID: string) => void;
+	modelOptions: readonly ModelSelectorOption[];
+	modelSelectorPlaceholder: string;
+	modelSelectorHelp?: ReactNode;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
+	isModelCatalogLoading?: boolean;
+	// Imperative editor handle plus the one-time initial draft,
+	// owned by the conversation component.
+	inputRef?: React.Ref<ChatMessageInputRef>;
+	initialValue?: string;
+	initialEditorState?: string;
+	remountKey?: number;
+	onContentChange?: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
+	isEditing: boolean;
+	onCancelHistoryEdit: () => void;
+	// File parts from the message being edited, converted to
+	// File objects and pre-populated into attachments.
+	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	// MCP server picker state.
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds?: readonly string[];
+	onMCPSelectionChange?: (ids: string[]) => void;
+	onMCPAuthComplete?: (serverId: string) => void;
+	onDisabledWorkspaceMCPServersChange?: (names: string[]) => void;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
+	isWorkspaceLoading?: boolean;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	sshCommand?: string;
+	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
+}
+
+export const ChatPageInput: FC<ChatPageInputProps> = ({
+	chat,
+	store,
+	models,
+	onSend,
+	onDeleteQueuedMessage,
+	onPromoteQueuedMessage,
+	onInterrupt,
+	isInputDisabled,
+	isReadOnly = false,
+	isSendPending,
+	isInterruptPending,
+	hasModelOptions,
+	selectedModel,
+	onModelChange,
+	modelOptions,
+	modelSelectorPlaceholder,
+	modelSelectorHelp,
+	reasoningEffort,
+	onReasoningEffortChange,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
+	unsupportedProviderNames,
+	aiGatewayDisabled,
+	onPlanModeToggle,
+	isModelCatalogLoading = false,
+	inputRef,
+	initialValue,
+	initialEditorState,
+	remountKey,
+	onContentChange,
+	isEditing,
+	onCancelHistoryEdit,
+	editingFileBlocks,
+	mcpServers,
+	selectedMCPServerIds,
+	onMCPSelectionChange,
+	onMCPAuthComplete,
+	onDisabledWorkspaceMCPServersChange,
+	onWorkspaceChange,
+	isWorkspaceLoading = false,
+	workspace,
+	workspaceAgent,
+	sshCommand,
+	attachedWorkspace,
+	folder,
+}) => {
+	const { user: currentUser } = useAuthenticated();
+	const organizationId = chat.organization_id;
+	const chatId = chat.id;
+	const chatContext = chat.context;
+	const planModeEnabled = chat.plan_mode === "plan";
+	const selectedWorkspaceId = chat.workspace_id ?? null;
+	const workspaceSkills = workspaceSkillsFromChat(chat);
+	const workspaceMCPServers = workspaceMCPServersFromChat(chat);
+	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
+		workspacesQuery.data?.workspaces ?? [],
+		workspace,
+		currentUser.id,
+	);
+	const thresholdsQuery = useQuery(userCompactionThresholds());
+	const compressionThreshold = resolveCompactionThreshold(
+		chat.last_model_config_id,
+		thresholdsQuery.data?.thresholds,
+		models,
+	);
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const hasStreamState = useChatSelector(store, selectHasStreamState);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+
+	const messages = orderedMessageIDs
+		.map((messageID) => {
+			const message = messagesByID.get(messageID);
+			if (!message && process.env.NODE_ENV !== "production") {
+				console.warn(
+					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
+						"not found in messagesByID. This may indicate a store/cache " +
+						"desync bug.",
+				);
+			}
+			return message;
+		})
+		.filter(isChatMessage);
+	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
+	const userPromptHistory: readonly string[] =
+		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
+
+	const rawUsage = getLatestContextUsage(messages);
+	const latestContextUsage =
+		rawUsage || chatContext
+			? {
+					...(rawUsage ?? {}),
+					compressionThreshold,
+					context: chatContext,
+				}
+			: rawUsage;
+	const queryClient = useQueryClient();
+	const refreshContextMutation = useMutation(
+		refreshChatContext(queryClient, chatId ?? ""),
+	);
+	const handleRefreshContext = chatId
+		? () =>
+				refreshContextMutation.mutate(undefined, {
+					onSuccess: () => toast.success("Context refreshed."),
+					onError: () => toast.error("Failed to refresh context."),
+				})
+		: undefined;
+	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
+	const editAttachments = useFileAttachments(organizationId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
+	const {
+		setAttachments: setEditAttachments,
+		setPreviewUrls: setEditPreviewUrls,
+		setUploadStates: setEditUploadStates,
+		resetAttachments: resetEditAttachments,
+	} = editAttachments;
+	const wasEditingRef = useRef(isEditing);
+	const modeAttachments = isEditing ? editAttachments : composeAttachments;
+	const {
+		attachments,
+		textContents,
+		uploadStates,
+		previewUrls,
+		handleAttach,
+		handleRemoveAttachment,
+	} = modeAttachments;
+
+	// Edit attachments are scoped to the chat being edited, not the compose
+	// draft. Clear them when navigation changes the chat scope.
+	const editScopeRef = useRef({ organizationId, chatId });
+
+	useEffect(() => {
+		const previous = editScopeRef.current;
+		const scopeChanged =
+			previous.organizationId !== organizationId || previous.chatId !== chatId;
+		editScopeRef.current = { organizationId, chatId };
+		if (scopeChanged) {
+			resetEditAttachments();
+		}
+	}, [organizationId, chatId, resetEditAttachments]);
+
+	// Pre-populate the edit bucket from existing file blocks only
+	// while explicitly editing a message.
+	useEffect(() => {
+		if (!isEditing) {
+			return;
+		}
+		if (!editingFileBlocks || editingFileBlocks.length === 0) {
+			setEditAttachments([]);
+			setEditUploadStates(new Map());
+			setEditPreviewUrls(new Map());
+			return;
+		}
+		const fileBlocks = editingFileBlocks.filter(
+			(b): b is TypesGen.ChatFilePart => b.type === "file",
+		);
+		const files = fileBlocks.map((block, i) => {
+			const mt = block.media_type;
+			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
+			// Empty File used as a Map key only, its content is never
+			// read because the existing file_id is reused at send time.
+			return new File([], `attachment-${i}.${ext}`, { type: mt });
+		});
+		setEditAttachments(files);
+		setEditPreviewUrls(
+			new Map(
+				files.map((f, i) => [f, getChatFileURL(fileBlocks[i].file_id ?? "")]),
+			),
+		);
+		const newUploadStates = new Map<File, UploadState>();
+		for (const [i, file] of files.entries()) {
+			const block = fileBlocks[i];
+			if (block.file_id) {
+				newUploadStates.set(file, {
+					status: "uploaded",
+					fileId: block.file_id,
+				});
+			}
+		}
+		setEditUploadStates(newUploadStates);
+	}, [
+		isEditing,
+		editingFileBlocks,
+		setEditAttachments,
+		setEditPreviewUrls,
+		setEditUploadStates,
+	]);
+
+	// Exiting edit mode should only clear the edit bucket. Compose draft
+	// attachments must survive canceling or completing an edit.
+	useEffect(() => {
+		if (wasEditingRef.current && !isEditing) {
+			resetEditAttachments();
+		}
+		wasEditingRef.current = isEditing;
+	}, [isEditing, resetEditAttachments]);
+
+	const isStreaming =
+		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
+
+	const inputElement = (
+		<AgentChatInput
+			onSend={(message) => {
+				void (async () => {
+					const hasActiveUploads = attachments.some((file) =>
+						isUploadInProgress(uploadStates.get(file)),
+					);
+					if (hasActiveUploads) {
+						toast.warning("Wait for file uploads to finish before sending.");
+						return;
+					}
+					// Collect uploaded attachment metadata for the optimistic
+					// transcript builder while keeping the server payload
+					// shape unchanged downstream.
+					const pendingAttachments: PendingAttachment[] = [];
+					let skippedErrors = 0;
+					for (const file of attachments) {
+						const state = uploadStates.get(file);
+						if (state?.status === "error") {
+							skippedErrors++;
+							continue;
+						}
+						if (state?.status === "uploaded" && state.fileId) {
+							pendingAttachments.push({
+								fileId: state.fileId,
+								mediaType: file.type || "application/octet-stream",
+							});
+						}
+					}
+					if (skippedErrors > 0) {
+						toast.warning(
+							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
+					const attachmentArg =
+						pendingAttachments.length > 0 ? pendingAttachments : undefined;
+					try {
+						await onSend(message, attachmentArg);
+					} catch {
+						// Attachments preserved for retry on failure.
+						return;
+					}
+					if (isEditing) {
+						editAttachments.resetAttachments();
+					} else {
+						composeAttachments.resetAttachments();
+					}
+				})();
+			}}
+			attachments={attachments}
+			onAttach={handleAttach}
+			onRemoveAttachment={handleRemoveAttachment}
+			uploadStates={uploadStates}
+			previewUrls={previewUrls}
+			textContents={textContents}
+			inputRef={inputRef}
+			initialValue={initialValue}
+			initialEditorState={initialEditorState}
+			remountKey={remountKey}
+			onContentChange={onContentChange}
+			queuedMessages={queuedMessages}
+			onDeleteQueuedMessage={onDeleteQueuedMessage}
+			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			isEditingHistoryMessage={isEditing}
+			onCancelHistoryEdit={onCancelHistoryEdit}
+			userPromptHistory={userPromptHistory}
+			isDisabled={isInputDisabled}
+			isReadOnly={isReadOnly}
+			isLoading={isSendPending}
+			isStreaming={isStreaming}
+			onInterrupt={onInterrupt}
+			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
+			contextUsage={latestContextUsage}
+			onRefreshContext={handleRefreshContext}
+			isRefreshingContext={refreshContextMutation.isPending}
+			hasModelOptions={hasModelOptions}
+			selectedModel={selectedModel}
+			onModelChange={onModelChange}
+			modelOptions={modelOptions}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			reasoningEffort={reasoningEffort}
+			onReasoningEffortChange={onReasoningEffortChange}
+			planModeEnabled={planModeEnabled}
+			onPlanModeToggle={onPlanModeToggle}
+			isModelCatalogLoading={isModelCatalogLoading}
+			workspaceOptions={workspaceOptions}
+			chatOrganizationId={organizationId}
+			selectedWorkspaceId={selectedWorkspaceId}
+			onWorkspaceChange={onWorkspaceChange}
+			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}
+			mcpServers={mcpServers}
+			selectedMCPServerIds={selectedMCPServerIds}
+			onMCPSelectionChange={onMCPSelectionChange}
+			onMCPAuthComplete={onMCPAuthComplete}
+			workspaceMCPServers={workspaceMCPServers}
+			disabledWorkspaceMCPServers={chat.disabled_workspace_mcp_servers}
+			onDisabledWorkspaceMCPServersChange={onDisabledWorkspaceMCPServersChange}
+			workspaceSkills={workspaceSkills}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			chatId={chatId}
+			sshCommand={sshCommand}
+			attachedWorkspace={attachedWorkspace}
+			folder={folder}
+			canConfigureAgentSetup={canConfigureAgentSetup}
+			providerCount={providerCount}
+			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
+			// Commands act on the whole chat, so they only make sense
+			// for new sends: hide them while editing a history message.
+			slashCommands={isEditing ? undefined : CHAT_SLASH_COMMANDS}
+		/>
+	);
+
+	if (!modelSelectorHelp) {
+		return inputElement;
+	}
+
+	return (
+		<div>
+			{inputElement}
+			<div className="px-3 pt-1 text-2xs text-content-secondary">
+				{modelSelectorHelp}
+			</div>
+		</div>
+	);
+};

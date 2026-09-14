@@ -1,0 +1,14 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin apt.releases.hashicorp.com
+Pin-Priority: 1
+
+# Packer for creating virtual machine disk images
+Package: packer
+Pin: origin apt.releases.hashicorp.com
+Pin-Priority: 500
+
+# Terraform for managing infrastructure
+Package: terraform
+Pin: origin apt.releases.hashicorp.com
+Pin-Priority: 500

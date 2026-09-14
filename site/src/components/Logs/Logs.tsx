@@ -1,0 +1,45 @@
+import { cn } from "cn";
+import dayjs from "dayjs";
+import type { FC } from "react";
+import { type Line, LogLine, LogLinePrefix } from "./LogLine";
+
+export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
+
+interface LogsProps {
+	lines: Line[];
+	hideTimestamps?: boolean;
+	className?: string;
+}
+
+export const Logs: FC<LogsProps> = ({
+	hideTimestamps,
+	lines,
+	className = "",
+}) => {
+	return (
+		<div
+			className={cn(
+				"logs-container",
+				"min-h-40 py-2 rounded-lg overflow-x-auto bg-surface-primary",
+				"not-last:border-0",
+				"not-last:border-solid",
+				"not-last:border-b-border",
+				"not-last:rounded-none",
+				className,
+			)}
+		>
+			<div className="min-w-fit">
+				{lines.map((line) => (
+					<LogLine key={line.id} level={line.level}>
+						{!hideTimestamps && (
+							<LogLinePrefix>
+								{dayjs(line.time).format("HH:mm:ss.SSS")}
+							</LogLinePrefix>
+						)}
+						<span>{line.output}</span>
+					</LogLine>
+				))}
+			</div>
+		</div>
+	);
+};

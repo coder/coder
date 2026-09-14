@@ -1,0 +1,1 @@
+DROP TABLE template_version_variables;

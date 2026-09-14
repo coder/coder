@@ -1,0 +1,20 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder logs [flags] <workspace>
+
+  View logs for a workspace
+
+  View logs for a workspace
+
+OPTIONS:
+  -n, --build-number int (default: 0)
+          Only show logs for a specific build number. Defaults to 0, which maps
+          to the most recent build (build numbers start at 1). Negative values
+          are treated as offsets—for example, -1 refers to the previous build.
+
+  -f, --follow bool (default: false)
+          Follow logs as they are emitted.
+
+———
+Run `coder --help` for a list of global options.

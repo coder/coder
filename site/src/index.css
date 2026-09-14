@@ -1,0 +1,845 @@
+/*
+	To enable opacity in colors, please use the new HSL format.
+	Related issue: https://github.com/shadcn-ui/ui/issues/805#issuecomment-1616021820
+*/
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@plugin "@tailwindcss/typography";
+
+/* Preserve Tailwind CSS v3's default ring color and width. */
+@theme {
+	--default-ring-color: rgb(59 130 246 / 0.5);
+	--default-ring-width: 3px;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+/* Preserve Tailwind CSS v3 hover behavior on all pointer types. */
+@custom-variant hover (&:hover);
+
+@source "../node_modules/streamdown";
+
+@theme inline {
+	--font-sans: "Geist Variable", system-ui, sans-serif;
+	/* `monospace, monospace` resets the font-size to 16px with the fallback. */
+	--font-mono: "Geist Mono Variable", monospace, monospace;
+
+	--size-icon-lg: 1.5rem;
+	--size-icon-sm: 1.125rem;
+	--size-icon-xs: 0.875rem;
+
+	--text-2xs: 0.625rem;
+	--text-2xs--line-height: 0.875rem;
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1rem;
+	--text-xs--font-weight: 500;
+	--text-sm: 0.875rem;
+	--text-sm--line-height: 1.5rem;
+	--text-sm--font-weight: 500;
+	--text-base: 1rem;
+	--text-base--line-height: 1.5rem;
+	--text-base--font-weight: 400;
+	--text-3xl: 2rem;
+	--text-3xl--line-height: 2.5rem;
+
+	--radius-lg: var(--radius);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-xs: calc(var(--radius) - 6px);
+
+	--color-content-primary: hsl(var(--content-primary));
+	--color-content-secondary: hsl(var(--content-secondary));
+	--color-content-disabled: hsl(var(--content-disabled));
+	--color-content-invert: hsl(var(--content-invert));
+	--color-content-success: hsl(var(--content-success));
+	--color-content-link: hsl(var(--content-link));
+	--color-content-destructive: hsl(var(--content-destructive));
+	--color-content-warning: hsl(var(--content-warning));
+
+	--color-surface-primary: hsl(var(--surface-primary));
+	--color-surface-secondary: hsl(var(--surface-secondary));
+	--color-surface-tertiary: hsl(var(--surface-tertiary));
+	--color-surface-quaternary: hsl(var(--surface-quaternary));
+	--color-surface-invert-primary: hsl(var(--surface-invert-primary));
+	--color-surface-invert-secondary: hsl(var(--surface-invert-secondary));
+	--color-surface-destructive: hsl(var(--surface-destructive));
+	--color-surface-green: hsl(var(--surface-green));
+	--color-surface-grey: hsl(var(--surface-grey));
+	--color-surface-orange: hsl(var(--surface-orange));
+	--color-surface-sky: hsl(var(--surface-sky));
+	--color-surface-red: hsl(var(--surface-red));
+	--color-surface-purple: hsl(var(--surface-purple));
+	--color-surface-magenta: hsl(var(--surface-magenta));
+	--color-surface-git-added: hsl(var(--surface-git-added));
+	--color-surface-git-deleted: hsl(var(--surface-git-deleted));
+	--color-surface-git-merged: hsl(var(--surface-git-merged));
+
+	--color-border: hsl(var(--border-default));
+	--color-border-warning: hsl(var(--border-warning));
+	--color-border-green: hsl(var(--border-green));
+	--color-border-pending: hsl(var(--border-sky));
+	--color-border-destructive: hsl(var(--border-destructive));
+	--color-border-success: hsl(var(--border-success));
+	--color-border-secondary: hsl(var(--border-secondary));
+	--color-border-purple: hsl(var(--border-purple));
+	--color-border-magenta: hsl(var(--border-magenta));
+
+	--color-overlay: hsla(var(--overlay-default));
+	--color-input: hsl(var(--input));
+	--color-ring: hsl(var(--ring));
+
+	--color-highlight-purple: hsl(var(--highlight-purple));
+	--color-highlight-green: hsl(var(--highlight-green));
+	--color-highlight-orange: hsl(var(--highlight-orange));
+	--color-highlight-grey: hsl(var(--highlight-grey));
+	--color-highlight-sky: hsl(var(--highlight-sky));
+	--color-highlight-red: hsl(var(--highlight-red));
+	--color-highlight-magenta: hsl(var(--highlight-magenta));
+
+	--color-syntax-key: hsl(var(--syntax-key));
+	--color-syntax-string: hsl(var(--syntax-string));
+	--color-syntax-number: hsl(var(--syntax-number));
+	--color-syntax-boolean: hsl(var(--syntax-boolean));
+
+	--color-git-added: hsl(var(--git-added));
+	--color-git-deleted: hsl(var(--git-deleted));
+	--color-git-modified: hsl(var(--git-modified));
+	--color-git-merged: hsl(var(--git-merged));
+	--color-git-added-bright: hsl(var(--git-added-bright));
+	--color-git-deleted-bright: hsl(var(--git-deleted-bright));
+	--color-git-merged-bright: hsl(var(--git-merged-bright));
+
+	@keyframes loading {
+		0% {
+			opacity: 0.85;
+		}
+		25% {
+			opacity: 0.7;
+		}
+		50% {
+			opacity: 0.4;
+		}
+		75% {
+			opacity: 0.3;
+		}
+		100% {
+			opacity: 0.2;
+		}
+	}
+
+	@keyframes caret-scan {
+		0% {
+			left: 0%;
+		}
+		100% {
+			left: 100%;
+		}
+	}
+
+	@keyframes zip-right {
+		0% {
+			left: 0%;
+			width: 0%;
+		}
+		30% {
+			left: 0%;
+			width: 40%;
+		}
+		100% {
+			left: 100%;
+			width: 0%;
+		}
+	}
+
+	/* Matches MUI LinearProgress bar1/bar2 indeterminate keyframes; two
+		staggered bars are required so one is visible while the other resets. */
+	@keyframes bar-indeterminate {
+		0% {
+			left: -35%;
+			right: 100%;
+		}
+		60% {
+			left: 100%;
+			right: -90%;
+		}
+		100% {
+			left: 100%;
+			right: -90%;
+		}
+	}
+
+	@keyframes bar-indeterminate-2 {
+		0% {
+			left: -200%;
+			right: 100%;
+		}
+		60% {
+			left: 107%;
+			right: -8%;
+		}
+		100% {
+			left: 107%;
+			right: -8%;
+		}
+	}
+
+	--animate-loading: loading 2s ease-in-out infinite alternate;
+	--animate-caret-scan: caret-scan 3s ease-in-out infinite;
+	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
+	--animate-zip-right: zip-right 1s cubic-bezier(0.4, 0, 0.2, 1);
+	--animate-bar-indeterminate: bar-indeterminate 2.1s
+		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s
+		cubic-bezier(0.165, 0.84, 0.44, 1) 1.15s infinite;
+}
+
+@font-face {
+	font-family: "seti";
+	src: url("/seti.woff") format("woff");
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
+/*
+  Tailwind CSS v4 emits zero-specificity logical-end spacing. Preserve the v3
+  sibling selectors so existing margins, hidden children, and direction match.
+*/
+@utility space-x-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-space-x-reverse: 0;
+		margin-right: calc(--spacing(--value(number)) * var(--tw-space-x-reverse));
+		margin-left: calc(
+			--spacing(--value(number)) *
+			calc(1 - var(--tw-space-x-reverse))
+		);
+	}
+}
+
+@utility space-y-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-space-y-reverse: 0;
+		margin-top: calc(
+			--spacing(--value(number)) *
+			calc(1 - var(--tw-space-y-reverse))
+		);
+		margin-bottom: calc(--spacing(--value(number)) * var(--tw-space-y-reverse));
+	}
+}
+
+@utility divide-y {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-divide-y-reverse: 0;
+		border-top-width: calc(1px * calc(1 - var(--tw-divide-y-reverse)));
+		border-bottom-width: calc(1px * var(--tw-divide-y-reverse));
+	}
+}
+
+@utility divide-solid {
+	& > :not([hidden]) ~ :not([hidden]) {
+		border-style: solid;
+	}
+}
+
+@utility divide-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		border-color: --value(--color-*);
+	}
+}
+
+/*
+  Preserve the Tailwind CSS v3 Preflight defaults that the existing interface
+  relies on.
+*/
+@layer base {
+	*,
+	::after,
+	::before,
+	::backdrop,
+	::file-selector-button {
+		border-color: var(--color-gray-200, currentcolor);
+	}
+
+	button:not(:disabled),
+	[role="button"]:not(:disabled) {
+		cursor: pointer;
+	}
+
+	button,
+	select {
+		text-transform: none;
+	}
+
+	input,
+	select,
+	textarea {
+		background-color: revert-layer;
+	}
+
+	button,
+	input:where([type="button"], [type="reset"], [type="submit"]) {
+		background-color: transparent;
+		background-image: none;
+	}
+
+	input::placeholder,
+	textarea::placeholder {
+		color: #9ca3af;
+	}
+
+	th,
+	td {
+		padding: revert-layer;
+	}
+
+	dialog {
+		margin: revert-layer;
+	}
+
+	[type="search"] {
+		-webkit-appearance: textfield;
+		outline-offset: -2px;
+	}
+
+	::-webkit-date-and-time-value {
+		min-height: revert-layer;
+		text-align: revert-layer;
+	}
+
+	::-webkit-datetime-edit {
+		display: revert-layer;
+	}
+
+	::-webkit-datetime-edit-fields-wrapper {
+		padding: revert-layer;
+	}
+
+	::-webkit-datetime-edit,
+	::-webkit-datetime-edit-year-field,
+	::-webkit-datetime-edit-month-field,
+	::-webkit-datetime-edit-day-field,
+	::-webkit-datetime-edit-hour-field,
+	::-webkit-datetime-edit-minute-field,
+	::-webkit-datetime-edit-second-field,
+	::-webkit-datetime-edit-millisecond-field,
+	::-webkit-datetime-edit-meridiem-field {
+		padding-block: revert-layer;
+	}
+
+	::-webkit-calendar-picker-indicator {
+		line-height: revert-layer;
+	}
+}
+
+@utility mobile-full-width-dropdown {
+	@media (max-width: 767px) {
+		/*
+			Full-width mobile dropdowns. We set custom properties on
+			`document.documentElement` from the chat input container so
+			dropdown positions track the actual input box, not hardcoded
+			offsets. Radix popover wrappers are fixed-positioned, so
+			bottom offsets are measured from the layout viewport. The
+			above-composer max-height also accounts for the visual
+			viewport offset so soft-keyboard viewport panning on mobile
+			keeps dropdowns inside the visible area:
+
+			- `--mobile-dropdown-bottom`: distance from the layout
+			  viewport bottom to the composer's bottom edge. Used by the
+			  `-bottom` variant; the dropdown's bottom edge sits at the
+			  composer's bottom edge.
+			- `--mobile-dropdown-left` and `--mobile-dropdown-width`:
+			  composer-aligned horizontal geometry for full-width mobile
+			  dropdowns.
+			- `--mobile-dropdown-above-composer-bottom`: distance from
+			  the layout viewport bottom to a point just above the
+			  composer's top edge, clamped to stay above the software
+			  keyboard when the keyboard covers the composer.
+			- `--mobile-dropdown-above-composer-max-height`: maximum
+			  height the `-above-composer` variant can grow to without
+			  extending past the visible viewport top.
+		*/
+		[data-radix-popper-content-wrapper]:has(> &) {
+			position: fixed !important;
+			left: var(--mobile-dropdown-left, 1rem) !important;
+			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
+			min-width: 0 !important;
+			transform: none !important;
+			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			top: auto !important;
+		}
+		width: 100% !important;
+		min-width: 0 !important;
+		max-width: none !important;
+	}
+}
+
+@utility mobile-full-width-dropdown-top {
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
+			bottom: auto !important;
+			top: var(--mobile-dropdown-top, 3.5rem) !important;
+		}
+	}
+}
+
+@utility mobile-full-width-dropdown-top-below-header {
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
+			bottom: auto !important;
+			top: 5rem !important;
+		}
+	}
+}
+
+@utility mobile-full-width-dropdown-above-composer {
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
+			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
+			top: auto !important;
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+			) !important;
+			overflow: hidden !important;
+		}
+		max-height: var(
+			--mobile-dropdown-above-composer-max-height,
+			calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+		) !important;
+		overflow: hidden !important;
+		display: flex !important;
+		flex-direction: column !important;
+		/* min-height: 0 on both flex children lets the list shrink below its
+			content and scroll inside the capped column instead of overflowing. */
+		& > [cmdk-root] {
+			flex: 1 1 0% !important;
+			min-height: 0 !important;
+		}
+		& > [cmdk-root] > [cmdk-list] {
+			flex: 1 1 0% !important;
+			min-height: 0 !important;
+		}
+		& > [cmdk-root] > [cmdk-list] {
+			max-height: none !important;
+		}
+		& .mobile-full-width-dropdown-scroll-area {
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
+		}
+	}
+}
+
+@utility mobile-full-width-dropdown-scroll-area {
+	@media (max-width: 767px) {
+		.mobile-full-width-dropdown-above-composer & {
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
+		}
+	}
+}
+
+@utility text-xs-mono {
+	@apply text-xs font-mono font-medium;
+}
+
+@layer base {
+	:root,
+	.light {
+		--content-primary: 240 10% 4%;
+		--content-secondary: 240 5% 34%;
+		--content-link: 221 83% 53%;
+		--content-invert: 0 0% 98%;
+		--content-disabled: 240 5% 65%;
+		--content-success: 142 72% 29%;
+		--content-warning: 27 96% 61%;
+		--content-destructive: 0 84% 60%;
+		--surface-primary: 0 0% 100%;
+		--surface-secondary: 240 5% 96%;
+		--surface-tertiary: 240 6% 90%;
+		--surface-quaternary: 240 5% 84%;
+		--surface-invert-primary: 240 4% 16%;
+		--surface-invert-secondary: 240 5% 26%;
+		--surface-destructive: 0 93% 94%;
+		--surface-green: 141 79% 85%;
+		--surface-grey: 240 5% 96%;
+		--surface-orange: 34 100% 92%;
+		--surface-sky: 191, 67%, 89%;
+		--surface-red: 0 93% 94%;
+		--surface-purple: 259, 100%, 95%;
+		--surface-magenta: 289 100% 98%;
+		/*
+		  Brand supergraphic used as a decorative background on premium upsell surfaces.
+		*/
+		--supergraphic-url: url("/supergraphic/supergraphic-light.webp");
+		--border-purple: 255 92% 76%;
+		--border-default: 240 6% 90%;
+		--border-success: 142 76% 36%;
+		--border-sky: 203 90% 40%;
+		--border-green: 138 82% 82%;
+		--border-magenta: 295, 68%, 46%;
+		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-destructive: 0 84% 60%;
+		--border-secondary: 240 5% 65%;
+		--overlay-default: 240 5% 84% / 80%;
+		--radius: 0.5rem;
+		--highlight-purple: 271, 61%, 35%;
+		--highlight-green: 143 64% 24%;
+		--highlight-orange: 30 100% 32%;
+		--highlight-sky: 195, 61%, 22%;
+		--highlight-red: 0 74% 42%;
+		--highlight-magenta: 295, 68%, 40%;
+		--syntax-key: 211 95% 33%;
+		--syntax-string: 0 77% 36%;
+		--syntax-number: 158 88% 28%;
+		--syntax-boolean: 240 100% 50%;
+		--git-added: 142 72% 29%;
+		--git-deleted: 0 74% 42%;
+		--git-modified: 17 88% 40%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 142 72% 29%;
+		--git-deleted-bright: 0 74% 42%;
+		--git-merged-bright: 272 72% 47%;
+		--surface-git-added: 141 84% 93%;
+		--surface-git-deleted: 0 93% 94%;
+		--surface-git-merged: 269 100% 95%;
+		--border: 240 5.9% 90%;
+		--input: 240 5.9% 90%;
+		--ring: 240 10% 3.9%;
+		/*
+		  shadcn-compatible aliases consumed by streamdown and
+		  internal components (e.g. shimmer). These names are
+		  intentionally generic so they match shadcn conventions.
+		  Do NOT rename without updating every consumer.
+		*/
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
+		--avatar-lg: 2.5rem;
+		--avatar-default: 2rem;
+		--avatar-sm: 1.5rem;
+	}
+	.dark {
+		--content-primary: 0 0% 100%;
+		--content-secondary: 240 5% 65%;
+		--content-link: 213 94% 68%;
+		--content-invert: 240 10% 4%;
+		--content-disabled: 240 5% 26%;
+		--content-success: 142 76% 36%;
+		--content-warning: 31 97% 72%;
+		--content-destructive: 0 91% 71%;
+		--surface-primary: 240 10% 4%;
+		--surface-secondary: 240 6% 10%;
+		--surface-tertiary: 240 4% 16%;
+		--surface-quaternary: 240 5% 26%;
+		--surface-invert-primary: 240 6% 90%;
+		--surface-invert-secondary: 240 5% 65%;
+		--surface-destructive: 0 75% 15%;
+		--surface-green: 145 80% 10%;
+		--surface-grey: 240 6% 10%;
+		--surface-orange: 13 81% 15%;
+		--surface-sky: 196, 67%, 12%;
+		--surface-red: 0 75% 15%;
+		--surface-purple: 268, 68%, 17%;
+		--surface-magenta: 291, 74%, 15%;
+		--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
+		--border-purple: 255 92% 76%;
+		--border-default: 240 4% 16%;
+		--border-success: 142 76% 36%;
+		--border-magenta: 292, 100%, 78%;
+		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-destructive: 0 91% 71%;
+		--border-sky: 194 90% 62%;
+		--border-green: 143 77% 87%;
+		--border-secondary: 240 5% 26%;
+		--overlay-default: 240 10% 4% / 80%;
+		--highlight-purple: 269, 100%, 74%;
+		--highlight-green: 141 79% 85%;
+		--highlight-orange: 31 100% 70%;
+		--highlight-sky: 188, 75%, 80%;
+		--highlight-red: 0 91% 71%;
+		--highlight-magenta: 292, 100%, 78%;
+		--syntax-key: 201 98% 80%;
+		--syntax-string: 18 47% 64%;
+		--syntax-number: 100 28% 73%;
+		--syntax-boolean: 207 61% 59%;
+		--git-added: 142 77% 73%;
+		--git-deleted: 0 94% 82%;
+		--git-modified: 31 97% 72%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 142 71% 45%;
+		--git-deleted-bright: 0 91% 71%;
+		--git-merged-bright: 270 95% 75%;
+		--surface-git-added: 145 80% 10%;
+		--surface-git-deleted: 0 75% 15%;
+		--surface-git-merged: 274 87% 21%;
+		--border: 240 3.7% 15.9%;
+		--input: 240 3.7% 15.9%;
+		--ring: 240 4.9% 83.9%;
+		/* shadcn-compatible aliases – see :root block for details. */
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
+	}
+	/*
+		Colorblind-friendly variants. ThemeProvider applies these classes
+		alongside the base mode class (`dark` or `light`), so unchanged
+		variables cascade from the base mode and each block only overrides
+		the semantic colors that shift for colorblind accessibility.
+
+		Palette rationale:
+		- dark-protan-deuter / light-protan-deuter: shift the red/green
+		  success+error axis onto sky-blue (success) + vermilion/orange
+		  (destructive). Warning shifts to fuchsia so it does not collide
+		  with destructive states on the orange axis.
+		- dark-tritan / light-tritan: keep destructive states on the
+		  red/orange axis and shift `success` (and the green-tinted
+		  diff/git surfaces) onto sky-blue. This matches GitHub
+		  Primer's tritanopia preset, where diff additions render in
+		  blue rather than green so the success+destructive pair stays
+		  consistent with the protan-deuter palette and with other
+		  tritan-aware tools. Warning still moves from amber to
+		  fuchsia because amber and sky-blue blur together under
+		  tritanopia.
+	*/
+	.light-protan-deuter {
+		--content-success: 199 89% 48%;
+		--content-warning: 322 81% 43%;
+		--content-destructive: 24 95% 53%;
+		--surface-destructive: 34 100% 92%;
+		--surface-green: 201 94% 86%;
+		--surface-orange: 289 100% 98%;
+		--surface-red: 34 100% 92%;
+		--border-success: 199 89% 48%;
+		--border-green: 201 94% 86%;
+		--border-warning: 322 81% 60%;
+		--border-destructive: 24 95% 53%;
+		--highlight-green: 201 94% 36%;
+		--highlight-orange: 322 81% 43%;
+		--highlight-red: 24 95% 42%;
+		--syntax-string: 24 95% 42%;
+		--syntax-number: 199 89% 38%;
+		--git-added: 199 89% 48%;
+		--git-deleted: 24 95% 53%;
+		--git-modified: 271 91% 45%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--surface-git-added: 204 94% 94%;
+		--surface-git-deleted: 33 100% 93%;
+	}
+	.dark-protan-deuter {
+		--content-success: 199 82% 67%;
+		--content-warning: 322 81% 67%;
+		--content-destructive: 27 96% 67%;
+		--surface-destructive: 17 75% 15%;
+		--surface-green: 201 80% 14%;
+		--surface-orange: 322 70% 15%;
+		--surface-red: 17 75% 15%;
+		--border-success: 199 82% 67%;
+		--border-warning: 322 81% 67%;
+		--border-destructive: 27 96% 67%;
+		--border-green: 201 94% 86%;
+		--highlight-green: 201 94% 86%;
+		--highlight-orange: 322 81% 67%;
+		--highlight-red: 27 96% 67%;
+		--git-added: 199 82% 67%;
+		--git-deleted: 27 96% 67%;
+		--git-modified: 271 91% 65%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--surface-git-added: 201 80% 14%;
+		--surface-git-deleted: 17 75% 15%;
+	}
+	.light-tritan {
+		--content-success: 199 89% 48%;
+		--content-warning: 322 81% 43%;
+		--surface-green: 201 94% 86%;
+		--surface-orange: 289 100% 98%;
+		--border-success: 199 89% 48%;
+		--border-green: 201 94% 86%;
+		--border-warning: 322 81% 60%;
+		--highlight-green: 201 94% 36%;
+		--highlight-orange: 322 81% 43%;
+		--highlight-magenta: 322, 81%, 43%;
+		--syntax-boolean: 322 81% 43%;
+		--syntax-number: 199 89% 38%;
+		--git-added: 199 89% 48%;
+		--git-modified: 322 81% 43%;
+		--git-added-bright: 199 89% 48%;
+		--surface-git-added: 204 94% 94%;
+	}
+	.dark-tritan {
+		--content-success: 199 82% 67%;
+		--content-warning: 322 81% 67%;
+		--surface-green: 201 80% 14%;
+		--surface-orange: 322 70% 15%;
+		--surface-magenta: 322 70% 15%;
+		--border-success: 199 82% 67%;
+		--border-green: 201 94% 86%;
+		--border-magenta: 322 81% 72%;
+		--border-warning: 322 81% 67%;
+		--highlight-green: 201 94% 86%;
+		--highlight-orange: 322 81% 67%;
+		--highlight-magenta: 322 81% 72%;
+		--syntax-boolean: 322 81% 67%;
+		--git-added: 199 82% 67%;
+		--git-modified: 322 81% 72%;
+		--git-added-bright: 199 89% 48%;
+		--surface-git-added: 201 80% 14%;
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+
+	html,
+	body,
+	:is(#root, #storybook-root) {
+		@apply h-full;
+	}
+
+	body {
+		@apply bg-surface-primary text-content-primary font-sans antialiased;
+	}
+
+	button,
+	input {
+		@apply font-sans;
+	}
+
+	input:-webkit-autofill,
+	input:-webkit-autofill:hover,
+	input:-webkit-autofill:focus,
+	input:-webkit-autofill:active {
+		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+		-webkit-text-fill-color: hsl(var(--content-primary)) !important;
+		caret-color: hsl(var(--content-primary));
+	}
+
+	::placeholder {
+		@apply text-content-secondary;
+	}
+
+	fieldset {
+		@apply border-none p-0 m-0 w-full;
+	}
+
+	/* Global scrollbar color baseline: surface-quaternary thumb on
+	transparent track. scrollbar-color is inherited, so this cascades
+	to all scroll containers. We intentionally do NOT set
+	scrollbar-width globally because any non-auto value opts out of
+	overlay scrollbars on macOS/Chromium, causing a permanent gutter
+	on every container (even when content does not overflow). */
+	:root {
+		scrollbar-color: hsl(var(--surface-quaternary)) transparent;
+	}
+
+	/* Prevent layout shift when modals open by maintaining scrollbar width.
+	scrollbar-gutter: stable reserves space for the scrollbar so Radix's
+	scroll-bar compensation (margin-right/padding-right) is unnecessary
+	and causes double spacing. We zero it out with !important to win
+	over Radix's injected !important styles. The @supports guard ensures
+	we only do this on browsers that actually support scrollbar-gutter.
+
+	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
+	https://github.com/radix-ui/primitives/issues/3251
+	*/
+	@supports (scrollbar-gutter: stable) {
+		html {
+			scrollbar-gutter: stable;
+		}
+
+		html body[data-scroll-locked] {
+			--removed-body-scroll-bar-size: 0 !important;
+			margin-right: 0 !important;
+			overflow-y: scroll !important;
+		}
+	}
+
+	h1 {
+		margin-block: 0.67em;
+	}
+
+	h2 {
+		margin-block: 0.83em;
+		font-size: 1.5em;
+		font-weight: bold;
+	}
+
+	h3,
+	p {
+		margin-block: 1em;
+	}
+
+	h4 {
+		margin-block: 1.33em;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* Remove Tailwind CSS v4's competing zero-specificity spacing declarations. */
+@layer utilities {
+	:where(.space-y-0 > :not(:last-child)),
+	:where(.space-y-0\.5 > :not(:last-child)),
+	:where(.space-y-1 > :not(:last-child)),
+	:where(.space-y-1\.5 > :not(:last-child)),
+	:where(.space-y-2 > :not(:last-child)),
+	:where(.space-y-3 > :not(:last-child)),
+	:where(.space-y-4 > :not(:last-child)),
+	:where(.space-y-5 > :not(:last-child)),
+	:where(.space-y-6 > :not(:last-child)) {
+		margin-block-start: revert-layer;
+		margin-block-end: revert-layer;
+	}
+
+	:where(.space-x-2 > :not(:last-child)),
+	:where(.space-x-4 > :not(:last-child)) {
+		margin-inline-start: revert-layer;
+		margin-inline-end: revert-layer;
+	}
+
+	:where(.divide-y > :not(:last-child)) {
+		border-top-width: revert-layer;
+		border-bottom-width: revert-layer;
+		border-top-style: revert-layer;
+		border-bottom-style: revert-layer;
+	}
+
+	:where(.divide-solid > :not(:last-child)) {
+		--tw-border-style: revert-layer;
+		border-style: revert-layer;
+	}
+
+	:where(.divide-border > :not(:last-child)),
+	:where(.hover\:divide-surface-tertiary:hover > :not(:last-child)) {
+		border-color: revert-layer;
+	}
+
+	@media (width >= 40rem) {
+		:where(.sm\:space-x-0 > :not(:last-child)),
+		:where(.sm\:space-x-2 > :not(:last-child)) {
+			margin-inline-start: revert-layer;
+			margin-inline-end: revert-layer;
+		}
+	}
+}

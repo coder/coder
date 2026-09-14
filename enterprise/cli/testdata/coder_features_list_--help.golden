@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder features list [flags]
+
+  Aliases: ls
+
+OPTIONS:
+  -c, --column [name|entitlement|enabled|limit|actual] (default: name,entitlement,enabled,limit,actual)
+          Specify columns to filter in the table.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

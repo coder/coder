@@ -1,0 +1,8 @@
+{"type":"text","level":3,"timestamp":1749557820014,"text":"@devcontainers/cli 0.75.0. Node.js v20.16.0. linux 6.8.0-60-generic x64."}
+{"type":"start","level":2,"timestamp":1749557820014,"text":"Run: git rev-parse --show-cdup"}
+{"type":"stop","level":2,"timestamp":1749557820023,"text":"Run: git rev-parse --show-cdup","startTimestamp":1749557820014}
+{"type":"start","level":2,"timestamp":1749557820023,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/home/coder/coder --filter label=devcontainer.config_file=/home/coder/coder/.devcontainer/devcontainer.json"}
+{"type":"stop","level":2,"timestamp":1749557820039,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/home/coder/coder --filter label=devcontainer.config_file=/home/coder/coder/.devcontainer/devcontainer.json","startTimestamp":1749557820023}
+{"type":"start","level":2,"timestamp":1749557820039,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/home/coder/coder"}
+{"type":"stop","level":2,"timestamp":1749557820054,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/home/coder/coder","startTimestamp":1749557820039}
+{"mergedConfiguration":{"customizations":{"coder":[{"displayApps":{"vscode":true,"web_terminal":true}},{"displayApps":{"vscode_insiders":true,"web_terminal":false}}]}}}

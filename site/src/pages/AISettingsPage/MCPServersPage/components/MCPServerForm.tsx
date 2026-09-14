@@ -1,0 +1,164 @@
+import { useFormik } from "formik";
+import { type FC, type ReactNode, useState } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
+import { MCPServerFormFields } from "./MCPServerFormFields";
+import { MCPServerFormHeader } from "./MCPServerFormHeader";
+import { MCPServerSharingDialog } from "./MCPServerSharingDialog";
+import {
+	buildCreateMCPServerConfigRequest,
+	buildInitialMCPServerFormValues,
+	buildUpdateMCPServerConfigRequest,
+	canSubmitMCPServerForm,
+	type MCPServerFormValues,
+} from "./mcpServerFormLogic";
+
+type MCPServerFormCreateProps = {
+	server?: undefined;
+	// Create-only callers cannot open the server list, so the back link and
+	// cancel action are omitted rather than pointing at a denied page.
+	listPath?: string;
+	isSaving: boolean;
+	isDeleting?: false;
+	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
+	canShareServer?: false;
+	onCreateServer: (
+		req: TypesGen.CreateMCPServerConfigRequest,
+	) => Promise<unknown>;
+	onUpdateServer?: undefined;
+	onDeleteServer?: undefined;
+	onToggleEnabled?: undefined;
+	onCancel?: () => void;
+};
+
+type MCPServerFormEditProps = {
+	server: TypesGen.MCPServerConfig;
+	listPath: string;
+	isSaving: boolean;
+	isDeleting: boolean;
+	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
+	canShareServer?: boolean;
+	onCreateServer?: undefined;
+	onUpdateServer?: (
+		serverId: string,
+		req: TypesGen.UpdateMCPServerConfigRequest,
+	) => Promise<unknown>;
+	onDeleteServer?: (serverId: string) => Promise<void>;
+	onToggleEnabled?: (enabled: boolean) => void;
+	onCancel: () => void;
+};
+
+type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
+
+export const MCPServerForm: FC<MCPServerFormProps> = ({
+	server,
+	listPath,
+	isSaving,
+	isDeleting = false,
+	canSelectUserOIDC,
+	organizationPicker,
+	canShareServer = false,
+	onCreateServer,
+	onUpdateServer,
+	onDeleteServer,
+	onToggleEnabled,
+	onCancel,
+}) => {
+	const isEditing = server !== undefined;
+
+	const [showDetails, setShowDetails] = useState(false);
+	const [showAuth, setShowAuth] = useState(false);
+	const [showBehavior, setShowBehavior] = useState(false);
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const [sharingOpen, setSharingOpen] = useState(false);
+
+	const form = useFormik<MCPServerFormValues>({
+		initialValues: buildInitialMCPServerFormValues(server),
+		onSubmit: async (values) => {
+			if (isSaving) return;
+			if (server && onUpdateServer) {
+				await onUpdateServer(
+					server.id,
+					buildUpdateMCPServerConfigRequest(values),
+				);
+			} else if (onCreateServer) {
+				const created = await onCreateServer(
+					buildCreateMCPServerConfigRequest(values),
+				);
+				if (created === true) {
+					form.resetForm();
+				}
+			}
+		},
+	});
+
+	const isDisabled = isSaving || isDeleting;
+	const areFieldsDisabled =
+		isDisabled || (isEditing && onUpdateServer === undefined);
+	// Editing requires a change before submitting, matching the provider form.
+	const canSubmit =
+		canSubmitMCPServerForm(form.values, areFieldsDisabled) &&
+		(!isEditing || form.dirty);
+	const unsavedChanges = useUnsavedChangesPrompt(
+		form.dirty && !form.isSubmitting,
+	);
+	const title = isEditing
+		? form.values.displayName || "Edit server"
+		: "Add server";
+
+	return (
+		<>
+			<MCPServerFormHeader
+				server={server}
+				title={title}
+				iconUrl={form.values.iconURL}
+				listPath={listPath}
+				isEditing={isEditing}
+				isDisabled={isDisabled}
+				onRequestDelete={
+					onDeleteServer ? () => setConfirmingDelete(true) : undefined
+				}
+				onShareServer={canShareServer ? () => setSharingOpen(true) : undefined}
+				onToggleEnabled={onToggleEnabled}
+			/>
+			<div className="flex flex-col gap-6 pt-6">
+				<MCPServerFormFields
+					form={form}
+					isSaving={isSaving}
+					isDisabled={areFieldsDisabled}
+					canSubmit={canSubmit}
+					isEditing={isEditing}
+					canSelectUserOIDC={canSelectUserOIDC}
+					organizationPicker={organizationPicker}
+					onCancel={onCancel}
+					showDetails={showDetails}
+					setShowDetails={setShowDetails}
+					showAuth={showAuth}
+					setShowAuth={setShowAuth}
+					showBehavior={showBehavior}
+					setShowBehavior={setShowBehavior}
+				/>
+			</div>
+			{server && canShareServer && (
+				<MCPServerSharingDialog
+					open={sharingOpen}
+					onOpenChange={setSharingOpen}
+					organizationId={server.organization_id}
+					serverId={server.id}
+					serverName={server.display_name || server.slug}
+				/>
+			)}
+			<MCPServerFormDialogs
+				server={server}
+				confirmingDelete={confirmingDelete}
+				setConfirmingDelete={setConfirmingDelete}
+				onDeleteServer={onDeleteServer}
+				isDeleting={isDeleting}
+				unsavedChanges={unsavedChanges}
+			/>
+		</>
+	);
+};

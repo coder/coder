@@ -1,0 +1,39 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "Chats Auto-Archived",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View chats",
+        "url": "http://test.com/agents?archived=archived"
+      }
+    ],
+    "labels": {},
+    "data": {
+      "archived_chats": [
+        {
+          "last_activity_humanized": "3 months ago",
+          "title": "Onboarding kickoff"
+        },
+        {
+          "last_activity_humanized": "4 months ago",
+          "title": "Quarterly planning draft"
+        }
+      ],
+      "auto_archive_days": "90",
+      "retention_days": "30"
+    },
+    "targets": null
+  },
+  "title": "Chats auto-archived after 90 days of inactivity",
+  "title_markdown": "Chats auto-archived after 90 days of inactivity",
+  "body": "The following chats were automatically archived:\n\n\"Onboarding kickoff\" (last active 3 months ago)\n\"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Agents page within 30 days, after which they will be permanently deleted.",
+  "body_markdown": "The following chats were automatically archived:\n\n* \"Onboarding kickoff\" (last active 3 months ago)\n* \"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Agents page within 30 days, after which they will be permanently deleted."
+}

@@ -1,0 +1,14 @@
+coder:
+  workspaceProxy: true
+
+  image:
+    tag: latest
+
+  env:
+    - name: CODER_PRIMARY_ACCESS_URL
+      value: "https://dev.coder.com"
+    - name: CODER_PROXY_SESSION_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: coder-workspace-proxy-session-token
+          key: token

@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations roles show [flags] [role_names ...]
+
+  Show role(s)
+
+OPTIONS:
+  -c, --column [name|display name|organization id|site permissions|organization permissions|user permissions] (default: name,display name,site permissions,organization permissions,user permissions)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

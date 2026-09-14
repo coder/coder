@@ -1,0 +1,1633 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MonitorDotIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
+import {
+	MockChatContextClean,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
+import {
+	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
+import { createMockFile } from "#/testHelpers/files";
+import {
+	withDashboardProvider,
+	withProxyProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
+import {
+	AgentChatInput,
+	type AgentContextUsage,
+	type UploadState,
+} from "./AgentChatInput";
+import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
+
+const defaultModelID = "model-config-1";
+
+const defaultModelOptions = [
+	{
+		id: defaultModelID,
+		provider: "openai",
+		model: "gpt-4o",
+		displayName: "GPT-4o",
+	},
+] as const;
+
+const meta: Meta<typeof AgentChatInput> = {
+	title: "pages/AgentsPage/AgentChatInput",
+	component: AgentChatInput,
+	decorators: [withDashboardProvider, withProxyProvider()],
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+		],
+	},
+	args: {
+		onSend: fn(),
+		onContentChange: fn(),
+		onModelChange: fn(),
+		initialValue: "",
+		isDisabled: false,
+		isLoading: false,
+		selectedModel: defaultModelOptions[0].id,
+		modelOptions: [...defaultModelOptions],
+		modelSelectorPlaceholder: "Select model",
+		hasModelOptions: true,
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof AgentChatInput>;
+
+const promptHistory = [
+	"Most recent prompt",
+	"Middle prompt",
+	"Oldest prompt",
+] as const;
+
+const getEditor = (canvasElement: HTMLElement) =>
+	within(canvasElement).getByTestId("chat-message-input");
+
+export const Default: Story = {};
+
+export const PromptHistoryCycling: Story = {
+	args: {
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+	},
+};
+
+export const PromptHistoryCyclingExitsOnTyping: Story = {
+	args: {
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+		await userEvent.keyboard("!");
+	},
+};
+
+export const NoPromptHistoryUpArrowIsNoOp: Story = {
+	args: {
+		userPromptHistory: [],
+	},
+};
+
+export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
+	args: {
+		isEditingHistoryMessage: true,
+		userPromptHistory: promptHistory,
+	},
+};
+
+export const PromptHistorySuppressedWhileReadOnly: Story = {
+	args: {
+		isDisabled: true,
+		isReadOnly: true,
+		userPromptHistory: promptHistory,
+	},
+};
+
+export const PromptHistorySuppressedWhileLoading: Story = {
+	args: {
+		isLoading: true,
+		userPromptHistory: promptHistory,
+	},
+};
+
+export const DisablesSendUntilInput: Story = {};
+
+export const SendsAndClearsInput: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Lexical editor to initialize and render the
+		// initial value text into the DOM before interacting.
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => {
+			expect(sendButton).toBeEnabled();
+		});
+
+		await userEvent.click(sendButton);
+
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
+export const EnterSendsByDefault: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
+export const ModifierEnterSendsWhenRequired: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockUserPreferenceSettings,
+					agent_chat_send_shortcut: "modifier_enter",
+				},
+			},
+		],
+	},
+	args: {
+		onSend: fn(),
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onSend).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(editor.querySelectorAll("br").length).toBeGreaterThan(0);
+		});
+
+		await userEvent.keyboard("{Control>}{Enter}{/Control}");
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
+/**
+ * CODAGT-210: On mobile viewports, Enter must insert a newline rather
+ * than submit the message, because Shift+Enter is cumbersome on
+ * on-screen keyboards. Users submit via the send button instead.
+ */
+export const MobileEnterInsertsNewline: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Line one",
+	},
+	play: async ({ canvasElement, args }) => {
+		const originalMatchMedia = window.matchMedia;
+		window.matchMedia = (query: string) =>
+			({
+				matches: query === "(max-width: 639px)",
+				media: query,
+				onchange: null,
+				addEventListener: () => undefined,
+				removeEventListener: () => undefined,
+				dispatchEvent: () => true,
+				addListener: () => undefined,
+				removeListener: () => undefined,
+			}) as MediaQueryList;
+
+		try {
+			const canvas = within(canvasElement);
+			const editor = canvas.getByTestId("chat-message-input");
+			await waitFor(() => {
+				expect(editor.textContent).toBe("Line one");
+			});
+
+			await userEvent.click(editor);
+			await userEvent.keyboard("{Enter}");
+
+			expect(args.onSend).not.toHaveBeenCalled();
+		} finally {
+			window.matchMedia = originalMatchMedia;
+		}
+	},
+};
+
+export const ReadOnlyInput: Story = {
+	args: {
+		isDisabled: true,
+		isReadOnly: true,
+		initialValue: "Should not send",
+	},
+};
+
+export const DisabledSendAllowsTyping: Story = {
+	args: {
+		isDisabled: true,
+		initialValue: "Draft while models load",
+	},
+};
+
+export const NoModelOptions: Story = {
+	args: {
+		isDisabled: false,
+		hasModelOptions: false,
+		initialValue: "Model required",
+	},
+};
+
+export const AIGatewayDisabledShowsSetupNotice: Story = {
+	args: {
+		// canConfigureAgentSetup: false and providerCount/modelCount left
+		// undefined simulates the model-catalog query still loading, which
+		// used to make an admin briefly see the wrong copy before this was
+		// fixed to short-circuit on aiGatewayDisabled directly.
+		canConfigureAgentSetup: false,
+		aiGatewayDisabled: true,
+	},
+};
+
+export const LoadingSpinner: Story = {
+	args: {
+		isDisabled: true,
+		isLoading: true,
+		initialValue: "Sending...",
+	},
+};
+
+export const LoadingDisablesSend: Story = {
+	args: {
+		isDisabled: false,
+		isLoading: true,
+		initialValue: "Another message",
+	},
+};
+
+export const Streaming: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: false,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingInterruptPending: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: true,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+};
+
+const longContent = Array.from(
+	{ length: 60 },
+	(_, i) =>
+		`Line ${i + 1}: This is a long line of text used to test overflow and scrollability of the chat input editor.`,
+).join("\n");
+
+export const LongContentScrollable: Story = {
+	args: {
+		initialValue: longContent,
+	},
+};
+
+// Tiny 1x1 transparent PNG as data URI for attachment previews.
+const TINY_PNG =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+export const WithAttachments: Story = {
+	args: (() => {
+		const file1 = createMockFile("screenshot.png", "image/png");
+		const file2 = createMockFile("diagram.jpg", "image/jpeg");
+		const attachments = [file1, file2];
+		return {
+			attachments,
+			uploadStates: new Map<File, UploadState>([
+				[file1, { status: "uploaded", fileId: "f1" }],
+				[file2, { status: "uploaded", fileId: "f2" }],
+			]),
+			previewUrls: new Map<File, string>([
+				[file1, TINY_PNG],
+				[file2, TINY_PNG],
+			]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Here are the images",
+		};
+	})(),
+};
+
+export const WithUploadingAttachment: Story = {
+	args: (() => {
+		const file = createMockFile("uploading.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Waiting for upload",
+		};
+	})(),
+};
+
+export const UploadingDisablesSend: Story = {
+	args: (() => {
+		const file = createMockFile("uploading.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Message with uploading image",
+		};
+	})(),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		// Send should be disabled while an upload is still in progress,
+		// even though the editor has text content.
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		expect(sendButton).toBeDisabled();
+		// Enter key should not trigger send while uploading.
+		const editor = canvas.getByRole("textbox");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onSend).not.toHaveBeenCalled();
+	},
+};
+
+export const WithAttachmentError: Story = {
+	args: (() => {
+		const file = createMockFile("broken.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "error", error: "Upload failed: server error" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Upload had an error",
+		};
+	})(),
+};
+
+/** File reference chip rendered inline with text in the editor. */
+export const WithFileReference: Story = {
+	render: function WithFileReferenceRender(args) {
+		const ref = useRef<ChatMessageInputRef>(null);
+
+		useEffect(() => {
+			const handle = ref.current;
+			if (!handle) return;
+			handle.addFileReference({
+				fileName: "site/src/components/Button.tsx",
+				startLine: 42,
+				endLine: 42,
+				content: "export const Button = ...",
+			});
+		}, []);
+
+		return <AgentChatInput {...args} inputRef={ref} />;
+	},
+	args: {
+		initialValue: "Can you refactor ",
+	},
+};
+
+/** Multiple file reference chips rendered inline with text. */
+export const WithMultipleFileReferences: Story = {
+	render: function WithMultipleFileReferencesRender(args) {
+		const ref = useRef<ChatMessageInputRef>(null);
+
+		useEffect(() => {
+			const handle = ref.current;
+			if (!handle) return;
+			handle.addFileReference({
+				fileName: "api/handler.go",
+				startLine: 1,
+				endLine: 50,
+				content: "...",
+			});
+			handle.insertText(" and ");
+			handle.addFileReference({
+				fileName: "api/handler_test.go",
+				startLine: 10,
+				endLine: 30,
+				content: "...",
+			});
+		}, []);
+
+		return <AgentChatInput {...args} inputRef={ref} />;
+	},
+	args: {
+		initialValue: "Compare ",
+	},
+};
+
+export const AttachmentsOnly: Story = {
+	args: (() => {
+		const file = createMockFile("photo.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "f-only" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "",
+		};
+	})(),
+};
+
+const LARGE_PASTE_MARKER = "__PASTE_MARKER_TEST__";
+
+const largePasteText = Array.from({ length: 12 }, (_, i) =>
+	i === 6 ? LARGE_PASTE_MARKER : `line ${i + 1} of pasted content`,
+).join("\n");
+
+function dispatchPasteWithText(element: HTMLElement, text: string): void {
+	const dt = new DataTransfer();
+	dt.setData("text/plain", text);
+	const event = new ClipboardEvent("paste", {
+		bubbles: true,
+		cancelable: true,
+	});
+	Object.defineProperty(event, "clipboardData", {
+		value: dt,
+		writable: false,
+	});
+	element.dispatchEvent(event);
+}
+
+function getPasteTarget(container: HTMLElement): HTMLElement {
+	const element = container.querySelector(
+		'[data-testid="chat-message-input"]',
+	) as HTMLElement;
+	if (element?.getAttribute("contenteditable") === "true") {
+		return element;
+	}
+
+	const contentEditable = element?.querySelector(
+		'[contenteditable="true"]',
+	) as HTMLElement;
+	return contentEditable ?? element;
+}
+
+export const LargePasteCreatesAttachmentPreview: Story = {
+	args: {
+		attachments: [],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		pixel: { exclude: true },
+	},
+	play: async ({ canvasElement, args }) => {
+		const target = getPasteTarget(canvasElement);
+		await waitFor(() => {
+			expect(target.getAttribute("contenteditable")).toBe("true");
+		});
+		target.focus();
+
+		dispatchPasteWithText(target, largePasteText);
+
+		await waitFor(() => {
+			expect(args.onAttach).toHaveBeenCalledTimes(1);
+		});
+
+		const callArgs = (args.onAttach as ReturnType<typeof fn>).mock.calls[0];
+		const files = callArgs[0] as File[];
+		expect(files).toHaveLength(1);
+		expect(files[0].type).toBe("text/plain");
+		expect(files[0].name).toMatch(
+			/^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$/,
+		);
+		expect(target.textContent).not.toContain(LARGE_PASTE_MARKER);
+	},
+};
+
+export const CtrlShiftVBypassesAttachmentCollapse: Story = {
+	args: {
+		attachments: [],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		pixel: { exclude: true },
+	},
+	play: async ({ canvasElement, args }) => {
+		const target = getPasteTarget(canvasElement);
+		await waitFor(() => {
+			expect(target.getAttribute("contenteditable")).toBe("true");
+		});
+		target.focus();
+
+		const keyDown = new KeyboardEvent("keydown", {
+			key: "v",
+			code: "KeyV",
+			shiftKey: true,
+			ctrlKey: true,
+			metaKey: false,
+			bubbles: true,
+			cancelable: true,
+		});
+		target.dispatchEvent(keyDown);
+		dispatchPasteWithText(target, largePasteText);
+
+		await waitFor(() => {
+			expect(target.textContent).toContain(LARGE_PASTE_MARKER);
+		});
+
+		expect(args.onAttach).not.toHaveBeenCalled();
+	},
+};
+
+// ── MCP server fixtures ────────────────────────────────────────
+
+const now = "2026-03-19T12:00:00.000Z";
+
+const buildMCPServer = (
+	overrides: Partial<TypesGen.MCPServerConfig> &
+		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
+): TypesGen.MCPServerConfig => ({
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
+});
+
+const sentryMCP = buildMCPServer({
+	id: "mcp-sentry",
+	display_name: "Sentry",
+	slug: "sentry",
+	icon_url: "/icon/widgets.svg",
+	availability: "force_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
+
+const linearMCP = buildMCPServer({
+	id: "mcp-linear",
+	display_name: "Linear",
+	slug: "linear",
+	availability: "default_on",
+	auth_type: "api_key",
+	enabled: true,
+});
+
+const githubMCP = buildMCPServer({
+	id: "mcp-github",
+	display_name: "GitHub",
+	slug: "github",
+	icon_url: "/icon/github.svg",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: false,
+	enabled: true,
+});
+
+const githubMCPConnected = { ...githubMCP, auth_connected: true };
+
+const notionMCPConnected = buildMCPServer({
+	id: "mcp-notion",
+	display_name: "Notion",
+	slug: "notion",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
+
+const mcpDefaults = {
+	chatOrganizationId: "org-1",
+	onMCPSelectionChange: fn(),
+	onMCPAuthComplete: fn(),
+};
+
+const dispatchMCPOAuthComplete = (
+	serverID: string,
+	source: MessageEventSource | null = null,
+) => {
+	window.dispatchEvent(
+		new MessageEvent("message", {
+			data: { type: "mcp-oauth2-complete", serverID },
+			origin: location.origin,
+			source,
+		}),
+	);
+};
+
+// Requires window.open mocked to return a Window; the completion
+// message's source must be that same mocked popup to correlate.
+const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	await userEvent.click(await body.findByRole("button", { name: "Auth" }));
+};
+
+// ── MCP stories ────────────────────────────────────────────────
+
+/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
+export const WithMCPServers: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+	},
+};
+
+/** MCP server needing OAuth — shows Auth button instead of toggle. */
+export const WithMCPNeedingAuth: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, githubMCP],
+		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(body.getByRole("button", { name: "Auth" }));
+		expect(window.open).toHaveBeenCalledWith(
+			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"_blank",
+			"width=900,height=600",
+		);
+		// The popup was blocked (window.open returned null), so the flow
+		// must not enter the connecting state that disables Auth buttons.
+		expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+	},
+};
+
+export const MCPAutoEnablesAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		expect(window.open).toHaveBeenCalledWith(
+			`/api/v2/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
+			"_blank",
+			"width=900,height=600",
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
+				linearMCP.id,
+				githubMCP.id,
+			]);
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+	},
+};
+
+// The coderd callback page posts the completion message and then closes
+// the popup, so the close poll can observe the closed popup before the
+// queued message is dispatched. An iframe contentWindow stands in for
+// the popup: it is a real Window whose closed becomes true on removal.
+export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [],
+	},
+	play: async ({ args, canvasElement }) => {
+		const doc = canvasElement.ownerDocument;
+		const iframe = doc.createElement("iframe");
+		doc.body.appendChild(iframe);
+		const popup = iframe.contentWindow;
+		if (!popup) {
+			throw new Error("iframe contentWindow unavailable");
+		}
+		spyOn(window, "open").mockReturnValue(popup);
+
+		await startMCPOAuthFlow(canvasElement);
+		iframe.remove();
+		expect(popup.closed).toBe(true);
+		// Wait for the close poll to clear the connecting state before
+		// delivering the completion message.
+		const body = within(doc.body);
+		await waitFor(
+			() => {
+				expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+			},
+			{ timeout: 2_000 },
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, popup);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([githubMCP.id]);
+		});
+	},
+};
+
+export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	play: async ({ args }) => {
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(linearMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+/** No MCP servers active — shows only "MCP" label with chevron. */
+export const WithMCPNoneActive: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			{
+				...sentryMCP,
+				availability: "default_off",
+				auth_connected: false,
+			},
+			{
+				...linearMCP,
+				availability: "default_off",
+				auth_type: "oauth2",
+				auth_connected: false,
+			},
+		],
+		selectedMCPServerIds: [],
+	},
+};
+
+/** Plus menu open showing attach, MCP servers, and workspace placeholder. */
+export const PlusMenuOpen: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+/** Plus menu with Coder MCP rows and workspace MCP toggles, one turned off. */
+export const WithWorkspaceMCPServers: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, githubMCPConnected.id],
+		workspaceMCPServers: [
+			{ name: "filesystem", toolCount: 11 },
+			{ name: "postgres", toolCount: 3 },
+		],
+		disabledWorkspaceMCPServers: ["postgres"],
+		onDisabledWorkspaceMCPServersChange: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+export const MCPDisconnectControls: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP, notionMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+export const MCPDisconnectCancel: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		expect(await body.findByText("Disconnect GitHub?")).toBeInTheDocument();
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPDisconnectConfirm: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledTimes(1);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
+			githubMCPConnected.id,
+		);
+	},
+};
+
+export const MCPDisconnectRevocationWarning: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: false,
+			token_revocation_error:
+				"The OAuth provider rejected the revocation request.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await body.findByText(
+			"The OAuth provider rejected the revocation request.",
+		);
+	},
+};
+
+export const MCPDisconnectError: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
+			new Error("disconnect failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalled(),
+		);
+		expect(body.getByText("Disconnect GitHub?")).toBeInTheDocument();
+	},
+};
+
+export const PlanFirstMenuItem: Story = {
+	args: {
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+	},
+};
+
+export const PlanningIndicator: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
+		chromatic: { viewports: [720] },
+	},
+};
+
+const narrowPlanningContextUsage: AgentContextUsage = {
+	usedTokens: 100_000,
+	contextLimitTokens: 200_000,
+};
+
+const narrowPlanningModelOptions = [
+	{
+		id: "long-model-name",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5-long-name",
+		displayName: "Claude Sonnet 4.5 Extended Thinking",
+	},
+] as const;
+
+export const PlanningIndicatorNarrow: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+		contextUsage: narrowPlanningContextUsage,
+		selectedModel: narrowPlanningModelOptions[0].id,
+		modelOptions: [...narrowPlanningModelOptions],
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const DisablePlanModeFromBadge: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dismiss = canvas.getByRole("button", {
+			name: "Disable plan mode",
+		});
+		await userEvent.click(dismiss);
+		expect(args.onPlanModeToggle).toHaveBeenCalledTimes(1);
+		expect(args.onPlanModeToggle).toHaveBeenCalledWith(false);
+	},
+};
+
+export const PlanningIndicatorWithoutToggle: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: undefined,
+	},
+};
+
+export const PlanFirstCheckedState: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+	},
+};
+
+export const DetailPageWorkspacePicker: Story = {
+	args: {
+		workspaceOptions: [
+			{
+				id: "ws-detail",
+				name: "agents-workspace",
+				owner_name: "mike",
+				organization_id: "org-1",
+			},
+		],
+		selectedWorkspaceId: "ws-detail",
+		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-detail",
+			name: "agents-workspace",
+			route: "/@mike/agents-workspace",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getAllByText("agents-workspace")).toHaveLength(1);
+		const removeWorkspaceButton = canvas.getByRole("button", {
+			name: "Remove workspace agents-workspace",
+		});
+		expect(removeWorkspaceButton).toBeVisible();
+		await userEvent.click(removeWorkspaceButton);
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+
+		const moreOptionsButton = canvas.getByRole("button", {
+			name: "More options",
+		});
+		await userEvent.click(moreOptionsButton);
+		await waitFor(() => {
+			const plusMenuId = moreOptionsButton.getAttribute("aria-controls");
+			if (!plusMenuId) {
+				throw new Error("Expected More options to control a menu dialog.");
+			}
+
+			const plusMenu = canvasElement.ownerDocument.getElementById(plusMenuId);
+			if (!(plusMenu instanceof HTMLElement)) {
+				throw new Error("Expected More options menu dialog to render.");
+			}
+
+			expect(within(plusMenu).getByText("Attach workspace")).toBeVisible();
+		});
+	},
+};
+
+export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
+	args: {
+		isDisabled: true,
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "chat-detail",
+		selectedWorkspaceId: MockWorkspace.id,
+		onWorkspaceChange: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const workspaceMenuButton = canvas.getByRole("button", {
+			name: `${MockWorkspace.name} workspace menu`,
+		});
+
+		expect(
+			canvas.queryByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).not.toBeInTheDocument();
+		expect(workspaceMenuButton).toBeVisible();
+		expect(workspaceMenuButton).toBeEnabled();
+		await userEvent.click(workspaceMenuButton);
+		let detachWorkspaceItem: HTMLElement | null = null;
+		await waitFor(() => {
+			const menuId = workspaceMenuButton.getAttribute("aria-controls");
+			if (!menuId) {
+				throw new Error("Expected workspace pill to control a menu.");
+			}
+
+			const menu = canvasElement.ownerDocument.getElementById(menuId);
+			if (!(menu instanceof HTMLElement)) {
+				throw new Error("Expected workspace menu to render.");
+			}
+
+			detachWorkspaceItem = within(menu).getByRole("menuitem", {
+				name: "Detach workspace",
+			});
+			expect(detachWorkspaceItem).toBeVisible();
+		});
+		if (!detachWorkspaceItem) {
+			throw new Error("Expected detach workspace menu item to render.");
+		}
+
+		await userEvent.click(detachWorkspaceItem);
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+	},
+};
+
+export const UncheckSelectedWorkspaceFromPicker: Story = {
+	args: {
+		isDisabled: true,
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "chat-detail",
+		workspaceOptions: [
+			{
+				id: MockWorkspace.id,
+				name: MockWorkspace.name,
+				owner_name: MockWorkspace.owner_name,
+				organization_id: MockWorkspace.organization_id,
+			},
+		],
+		selectedWorkspaceId: MockWorkspace.id,
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		const moreOptionsButton = canvas.getByRole("button", {
+			name: "More options",
+		});
+		expect(moreOptionsButton).toBeEnabled();
+		await userEvent.click(moreOptionsButton);
+
+		const attachWorkspaceButton = (
+			await body.findByText("Attach workspace")
+		).closest("button");
+		if (!(attachWorkspaceButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected Attach workspace to be a button.");
+		}
+		expect(attachWorkspaceButton).toBeEnabled();
+		await userEvent.click(attachWorkspaceButton);
+
+		const workspaceMatches = await body.findAllByText(MockWorkspace.name);
+		const selectedWorkspaceOption = workspaceMatches.at(-1);
+		if (!(selectedWorkspaceOption instanceof HTMLElement)) {
+			throw new Error("Expected workspace option to render.");
+		}
+		await userEvent.click(selectedWorkspaceOption);
+
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+	},
+};
+
+const confluenceMCP = buildMCPServer({
+	id: "mcp-confluence",
+	display_name: "Confluence Cloud",
+	slug: "confluence",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogMCP = buildMCPServer({
+	id: "mcp-datadog",
+	display_name: "Datadog Monitoring",
+	slug: "datadog",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const pagerdutyMCP = buildMCPServer({
+	id: "mcp-pagerduty",
+	display_name: "PagerDuty",
+	slug: "pagerduty",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+// Wide badges that cannot fit force into +N overflow.
+const confluenceWideMCP = buildMCPServer({
+	id: "mcp-confluence-wide",
+	display_name: "Confluence Cloud Enterprise Wiki",
+	slug: "confluence-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogWideMCP = buildMCPServer({
+	id: "mcp-datadog-wide",
+	display_name: "Datadog Infrastructure Monitoring",
+	slug: "datadog-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
+export const OverflowBadges: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			confluenceMCP,
+			datadogMCP,
+			pagerdutyMCP,
+		],
+		selectedMCPServerIds: [
+			sentryMCP.id,
+			linearMCP.id,
+			githubMCPConnected.id,
+			confluenceMCP.id,
+			datadogMCP.id,
+			pagerdutyMCP.id,
+		],
+		workspaceOptions: [
+			{
+				id: "ws-1",
+				name: "my-long-workspace-name",
+				owner_name: "admin",
+				organization_id: "org-1",
+			},
+		],
+		selectedWorkspaceId: "ws-1",
+		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			route: "/@admin/my-long-workspace-name",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+		workspace: {
+			...MockWorkspace,
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			owner_name: "admin",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "overflow-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Wait for the overflow hook to measure and show the pill.
+		const pill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await userEvent.click(pill);
+		// The popover renders via a Radix portal outside the canvas.
+		await within(document.body).findByRole("dialog");
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Context-usage indicator stories
+// ---------------------------------------------------------------------------
+
+const baseContextUsage: AgentContextUsage = {
+	usedTokens: 45_000,
+	contextLimitTokens: 128_000,
+	inputTokens: 30_000,
+	outputTokens: 10_000,
+	cacheReadTokens: 3_000,
+	cacheCreationTokens: 2_000,
+	compressionThreshold: 90,
+};
+
+/** Shows the context-usage ring and token summary tooltip. */
+export const WithContextUsage: Story = {
+	args: {
+		contextUsage: baseContextUsage,
+	},
+};
+
+/** Tooltip lists the chat's pinned context resources. */
+export const WithContextFiles: Story = {
+	args: {
+		contextUsage: {
+			...baseContextUsage,
+			context: MockChatContextClean,
+		},
+	},
+};
+
+/** Context at 95%+ shows the ring in destructive (red) tone. */
+export const ContextNearLimit: Story = {
+	args: {
+		contextUsage: {
+			usedTokens: 124_000,
+			contextLimitTokens: 128_000,
+			inputTokens: 100_000,
+			outputTokens: 20_000,
+			cacheReadTokens: 4_000,
+			compressionThreshold: 90,
+		},
+	},
+};
+
+/** Long workspace name at iPhone SE width collapses into +N overflow. */
+export const LongWorkspaceNameMobile: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+			route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+		workspace: {
+			...MockWorkspace,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "test-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Too narrow minimum width: collapse into overflow popover.
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(overflowPill).toBeVisible();
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(
+				"my-super-extremely-long-workspace-name-that-overflows",
+			),
+		).toBeInTheDocument();
+		// The workspace stays an interactive pill inside the popover.
+		const pillTrigger = within(popover).getByRole("button", {
+			name: /workspace menu/,
+		});
+		// Focus (touch tap) must not surface status tooltip on mobile.
+		pillTrigger.focus();
+		for (const el of within(document.body).queryAllByText(
+			"Workspace running",
+		)) {
+			expect(el).not.toBeVisible();
+		}
+		await userEvent.click(pillTrigger);
+		// The menu fades in from opacity 0; retry instead of racing the
+		// entrance animation.
+		const menuItem = await within(document.body).findByRole("menuitem", {
+			name: /View Workspace/,
+		});
+		await waitFor(() => {
+			expect(menuItem).toBeVisible();
+		});
+		// One outside click must dismiss both the menu and the popover.
+		await userEvent.click(getEditor(canvasElement));
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).toBeNull();
+			expect(within(document.body).queryByRole("dialog")).toBeNull();
+		});
+		// The toolbar row should not cause horizontal overflow.
+		const toolbar = overflowPill.closest(
+			".flex.items-center.justify-between",
+		) as HTMLElement;
+		if (toolbar?.parentElement) {
+			expect(toolbar.scrollWidth).toBeLessThanOrEqual(
+				toolbar.parentElement.clientWidth,
+			);
+		}
+	},
+};
+
+/**
+ * A short model name sizes the trigger to its content.
+ */
+export const ShortModelNameHasNoDeadSpace: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-short",
+		modelOptions: [
+			{
+				id: "model-short",
+				provider: "openai",
+				model: "fable-5",
+				displayName: "Fable 5",
+			},
+		],
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "short-model-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+/**
+ * With no MCP badges competing for space, long model and workspace
+ * names expand to their full width: no truncation and no fixed cap.
+ */
+export const LongLabelsExpandWithoutMCPs: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		workspace: {
+			...MockWorkspace,
+			name: "my-workspace-name-that-should-not-clamp",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "long-labels-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+};
+
+/**
+ * When badges overflow into +N, they release their layout space so
+ * the model label expands to full width.
+ */
+export const ModelExpandsWhileBadgesOverflow: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		mcpServers: [confluenceWideMCP, datadogWideMCP],
+		selectedMCPServerIds: [confluenceWideMCP.id, datadogWideMCP.id],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await userEvent.click(overflowPill);
+		// The popover renders via a Radix portal outside the canvas.
+		await within(document.body).findByRole("dialog");
+	},
+};
+
+/**
+ * Opening the +N popover auto-focuses its first badge; the status
+ * tooltip stays suppressed (md and up).
+ */
+export const OverflowPopoverSuppressesStatusTooltip: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			// Wide enough to collapse into the +N popover at tablet width.
+			name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
+			route: `/@${MockWorkspace.owner_name}/attached`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace stopped",
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(overflowPill).toBeVisible();
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(/an-extremely-long-attached-workspace/),
+		).toBeInTheDocument();
+		// Auto-focus lands on the badge; the status tooltip stays hidden.
+		for (const el of within(document.body).queryAllByText(
+			"Workspace stopped",
+		)) {
+			expect(el).not.toBeVisible();
+		}
+	},
+};

@@ -1,0 +1,54 @@
+import { type FC, type JSX, useState } from "react";
+import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { ResourceCard } from "./ResourceCard";
+
+const countAgents = (resource: WorkspaceResource) => {
+	return resource.agents ? resource.agents.length : 0;
+};
+
+interface ResourcesProps {
+	resources: WorkspaceResource[];
+	agentRow: (agent: WorkspaceAgent, numberOfAgents: number) => JSX.Element;
+}
+
+export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
+	const [shouldDisplayHideResources, setShouldDisplayHideResources] =
+		useState(false);
+	const displayResources = shouldDisplayHideResources
+		? resources
+		: resources
+				.filter((resource) => !resource.hide)
+				// Display the resources with agents first
+				.sort((a, b) => countAgents(b) - countAgents(a));
+	const hasHideResources = resources.some((r) => r.hide);
+
+	return (
+		<div className="flex flex-col bg-surface-primary">
+			{displayResources.map((resource) => (
+				<ResourceCard
+					key={resource.id}
+					resource={resource}
+					agentRow={(agent) => agentRow(agent, countAgents(resource))}
+				/>
+			))}
+			{hasHideResources && (
+				<div className="flex items-center justify-center mt-4">
+					<Button
+						variant="outline"
+						className="rounded-full w-full max-w-[260px]"
+						size="sm"
+						onClick={() => setShouldDisplayHideResources((v) => !v)}
+					>
+						{shouldDisplayHideResources ? "Hide" : "Show hidden"} resources
+						<ChevronDownIcon
+							open={shouldDisplayHideResources}
+							className="ml-2"
+						/>
+					</Button>
+				</div>
+			)}
+		</div>
+	);
+};

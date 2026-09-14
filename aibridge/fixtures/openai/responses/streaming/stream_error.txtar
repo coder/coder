@@ -1,0 +1,20 @@
+-- request --
+{
+  "input": "hello_stream_error",
+  "model": "gpt-6.7",
+  "stream": true
+}
+
+-- streaming --
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_123","object":"response","status":"in_progress","error":null,"output":[]},"sequence_number":1}
+
+event: response.in_progress
+data: {"type":"response.in_progress","response":{"id":"resp_123","object":"response","status":"in_progress","error":null,"output":[]},"sequence_number":2}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","item_id":"msg_123","output_index":0,"content_index":0,"delta":"Hello","sequence_number":3}
+
+event: error
+data: {"type":"error","code":"ERR_SOMETHING","message":"Something went wrong","param":null,"sequence_number":4}
+

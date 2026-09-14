@@ -1,0 +1,28 @@
+# This file controls what docker/BuildKit may send to the daemon when
+# the build context is the repository root. Today only the dogfood
+# base images at dogfood/coder/ubuntu-{22,26}.04/Dockerfile.base use the
+# repo root as context; other docker builds in this repo
+# (scripts/Dockerfile, scripts/Dockerfile.base, scripts/ironbank/Dockerfile)
+# cd into a temporary directory and have their own contexts.
+#
+# We use an allowlist so the context stays small and predictable, and
+# new top-level files added to the repo do not silently inflate every
+# dogfood image build (depot.dev uploads the context over the network).
+
+# Exclude everything by default; only the paths that the dogfood
+# Dockerfiles actually consume are re-included below. Re-including a
+# file under a directory requires re-including the directory itself.
+**
+
+# Re-allow paths the dogfood Dockerfile.base files consume.
+!dogfood
+!dogfood/coder
+!dogfood/coder/ubuntu-22.04
+!dogfood/coder/ubuntu-22.04/Dockerfile.base
+!dogfood/coder/ubuntu-22.04/configure-chrome-flags.sh
+!dogfood/coder/ubuntu-22.04/files
+!dogfood/coder/ubuntu-22.04/files/**
+!dogfood/coder/ubuntu-26.04
+!dogfood/coder/ubuntu-26.04/Dockerfile.base
+!dogfood/coder/ubuntu-26.04/files
+!dogfood/coder/ubuntu-26.04/files/**

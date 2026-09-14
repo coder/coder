@@ -1,0 +1,231 @@
+package templatebuilder_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/templatebuilder"
+)
+
+// allBaseIDs is the set of base template IDs expected in the catalog.
+var allBaseIDs = []string{
+	"aws-linux",
+	"aws-windows",
+	"azure-linux",
+	"digitalocean-linux",
+	"docker",
+	"gcp-linux",
+	"gcp-windows",
+	"kubernetes",
+	"quickstart",
+	"scratch",
+}
+
+func TestBaseTemplateOS(t *testing.T) {
+	t.Parallel()
+
+	linuxBases := []string{
+		"aws-linux", "azure-linux", "digitalocean-linux",
+		"docker", "gcp-linux", "kubernetes", "quickstart", "scratch",
+	}
+	for _, id := range linuxBases {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, templatebuilder.BaseOSLinux, templatebuilder.BaseTemplateOS(id))
+		})
+	}
+
+	windowsBases := []string{"aws-windows", "gcp-windows"}
+	for _, id := range windowsBases {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, templatebuilder.BaseOSWindows, templatebuilder.BaseTemplateOS(id))
+		})
+	}
+
+	t.Run("UnknownReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, templatebuilder.BaseOS(""), templatebuilder.BaseTemplateOS("unknown-template"))
+	})
+}
+
+func TestBaseTemplateIDs(t *testing.T) {
+	t.Parallel()
+
+	ids := templatebuilder.BaseTemplateIDs()
+	require.Len(t, ids, len(allBaseIDs))
+	for _, id := range allBaseIDs {
+		require.Contains(t, ids, id)
+	}
+}
+
+func TestDefaultBaseRenderContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Docker", func(t *testing.T) {
+		t.Parallel()
+		rc := templatebuilder.DefaultBaseRenderContext("docker")
+		require.Equal(t, "codercom/example-base:ubuntu", rc.ContainerImage)
+		require.Nil(t, rc.ImageOptions)
+	})
+
+	t.Run("Kubernetes", func(t *testing.T) {
+		t.Parallel()
+		rc := templatebuilder.DefaultBaseRenderContext("kubernetes")
+		require.Equal(t, "codercom/example-base:ubuntu", rc.ContainerImage)
+		require.Nil(t, rc.ImageOptions)
+	})
+
+	t.Run("VMBasesHaveNoContainerImage", func(t *testing.T) {
+		t.Parallel()
+		vmBases := []string{
+			"aws-linux", "aws-windows", "azure-linux", "azure-windows",
+			"digitalocean-linux", "gcp-linux", "gcp-windows", "scratch",
+		}
+		for _, id := range vmBases {
+			rc := templatebuilder.DefaultBaseRenderContext(id)
+			require.Empty(t, rc.ContainerImage, "base %q should have no container image", id)
+		}
+	})
+
+	t.Run("Unknown", func(t *testing.T) {
+		t.Parallel()
+		rc := templatebuilder.DefaultBaseRenderContext("unknown")
+		require.Empty(t, rc.ContainerImage)
+	})
+
+	t.Run("AllBaseTemplatesHaveDefaults", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			rc := templatebuilder.DefaultBaseRenderContext(id)
+			_ = rc
+		}
+	})
+}
+
+func TestBaseTemplateFS(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KnownTemplate", func(t *testing.T) {
+		t.Parallel()
+		fsys, err := templatebuilder.BaseTemplateFS("docker")
+		require.NoError(t, err)
+		require.NotNil(t, fsys)
+	})
+
+	t.Run("UnknownTemplate", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.BaseTemplateFS("nonexistent")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unknown base template")
+	})
+}
+
+func TestBaseReadme(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KnownBasesHaveReadme", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			readme := templatebuilder.BaseReadme(id)
+			require.NotEmpty(t, readme, "base %q should have a README", id)
+		}
+	})
+
+	t.Run("UnknownReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, templatebuilder.BaseReadme("nonexistent"))
+	})
+}
+
+func TestBasePrerequisites(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KnownBasesHavePrerequisites", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			prereqs := templatebuilder.BasePrerequisites(id)
+			require.NotEmpty(t, prereqs, "base %q should have prerequisites", id)
+			require.Contains(t, prereqs, "## Prerequisites",
+				"base %q prerequisites should contain the heading", id)
+		}
+	})
+
+	t.Run("AWSLinuxIncludesPermissions", func(t *testing.T) {
+		t.Parallel()
+		prereqs := templatebuilder.BasePrerequisites("aws-linux")
+		require.Contains(t, prereqs, "## Required permissions / policy",
+			"AWS Linux prerequisites should include the permissions section")
+	})
+
+	t.Run("UnknownReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, templatebuilder.BasePrerequisites("nonexistent"))
+	})
+}
+
+// TestBaseIncludedModules asserts the derived catalog-module list per base. The
+// values are derived from each base's rendered main.tf.tmpl, so this locks in
+// which module blocks each base bundles.
+func TestBaseIncludedModules(t *testing.T) {
+	t.Parallel()
+
+	// Quickstart renders a single `module "git-clone"` block.
+	require.Equal(t, []string{"git-clone"}, templatebuilder.BaseIncludedModules("quickstart"))
+
+	// The docker base bundles no module blocks of its own.
+	require.Empty(t, templatebuilder.BaseIncludedModules("docker"))
+
+	// Bases that render only non-catalog module blocks (e.g. the azure_region
+	// helper) bundle no catalog modules, so nothing is reserved.
+	require.Empty(t, templatebuilder.BaseIncludedModules("azure-linux"))
+
+	// Unknown IDs derive nothing.
+	require.Nil(t, templatebuilder.BaseIncludedModules("some-unknown-id"))
+}
+
+// TestBaseAgents checks the accessors and that each base's declared agents
+// match the coder_agent resources it renders.
+func TestBaseAgents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Accessors", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t,
+			[]templatebuilder.BaseAgent{{Name: "dev", Default: true}},
+			templatebuilder.BaseAgents("aws-linux"))
+		require.Equal(t, "dev", templatebuilder.BaseDefaultAgentName("aws-linux"))
+		require.Equal(t, "main", templatebuilder.BaseDefaultAgentName("docker"))
+		require.Empty(t, templatebuilder.BaseAgents("some-unknown-id"))
+		require.Equal(t, "", templatebuilder.BaseDefaultAgentName("some-unknown-id"))
+	})
+
+	t.Run("MatchRenderedTemplate", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			t.Run(id, func(t *testing.T) {
+				t.Parallel()
+				rendered, err := templatebuilder.RenderBaseTemplate(
+					id, "main.tf.tmpl", testRenderContext(id))
+				require.NoError(t, err)
+
+				extracted, err := templatebuilder.ExtractAgentResourceNames(rendered)
+				require.NoError(t, err)
+				renderedNames := make([]string, 0, len(extracted))
+				for _, a := range extracted {
+					renderedNames = append(renderedNames, a.Name)
+				}
+
+				declared := templatebuilder.BaseAgents(id)
+				declaredNames := make([]string, 0, len(declared))
+				for _, a := range declared {
+					declaredNames = append(declaredNames, a.Name)
+				}
+
+				require.ElementsMatch(t, renderedNames, declaredNames,
+					"base %q base.json agents must match its rendered coder_agent resources", id)
+			})
+		}
+	})
+}

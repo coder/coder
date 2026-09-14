@@ -1,0 +1,13 @@
+apiVersion: v2
+name: libcoder
+description: Coder library chart
+home: https://github.com/coder/coder
+
+type: library
+version: "0.1.0"
+appVersion: "0.1.0"
+
+maintainers:
+  - name: Coder Technologies, Inc.
+    email: support@coder.com
+    url: https://coder.com/contact

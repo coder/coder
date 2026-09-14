@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS webpush_subscriptions_user_id_endpoint_idx;

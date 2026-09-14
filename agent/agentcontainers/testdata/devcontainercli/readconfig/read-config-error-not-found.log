@@ -1,0 +1,2 @@
+{"type":"text","level":3,"timestamp":1749557935646,"text":"@devcontainers/cli 0.75.0. Node.js v20.16.0. linux 6.8.0-60-generic x64."}
+{"type":"text","level":2,"timestamp":1749557935646,"text":"Error: Dev container config (/home/coder/.devcontainer/devcontainer.json) not found.\n    at v7 (/usr/local/nvm/versions/node/v20.16.0/lib/node_modules/@devcontainers/cli/dist/spec-node/devContainersSpecCLI.js:668:6918)\n    at async /usr/local/nvm/versions/node/v20.16.0/lib/node_modules/@devcontainers/cli/dist/spec-node/devContainersSpecCLI.js:484:1188"}

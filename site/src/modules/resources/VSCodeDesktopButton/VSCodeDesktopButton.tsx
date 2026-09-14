@@ -1,0 +1,186 @@
+import { type FC, useId, useLayoutEffect, useRef, useState } from "react";
+import { API } from "#/api/api";
+import type { DisplayApp } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { getVSCodeHref } from "#/modules/apps/apps";
+import { AgentButton } from "../AgentButton";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
+
+interface VSCodeDesktopButtonProps {
+	userName: string;
+	workspaceName: string;
+	agentName?: string;
+	folderPath?: string;
+	displayApps: readonly DisplayApp[];
+}
+
+type VSCodeVariant = "vscode" | "vscode-insiders";
+
+const VARIANT_KEY = "vscode-variant";
+
+const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
+	return value === "vscode" || value === "vscode-insiders";
+};
+
+export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
+	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
+	const [variant, setVariant] = useState<VSCodeVariant>(() => {
+		const previousVariant = localStorage.getItem(VARIANT_KEY);
+		return isVSCodeVariant(previousVariant) ? previousVariant : "vscode";
+	});
+	const menuAnchorRef = useRef<HTMLDivElement>(null);
+	const menuContentId = useId();
+	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
+
+	useLayoutEffect(() => {
+		if (isVariantMenuOpen) {
+			setMenuWidth(menuAnchorRef.current?.clientWidth);
+		}
+	}, [isVariantMenuOpen]);
+
+	const selectVariant = (nextVariant: VSCodeVariant) => {
+		localStorage.setItem(VARIANT_KEY, nextVariant);
+		setVariant(nextVariant);
+	};
+
+	const includesVSCodeDesktop = props.displayApps.includes("vscode");
+	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
+
+	return includesVSCodeDesktop && includesVSCodeInsiders ? (
+		<div ref={menuAnchorRef} className="inline-flex items-center gap-1">
+			{variant === "vscode" ? (
+				<VSCodeButton {...props} />
+			) : (
+				<VSCodeInsidersButton {...props} />
+			)}
+
+			<DropdownMenu
+				open={isVariantMenuOpen}
+				onOpenChange={setIsVariantMenuOpen}
+			>
+				<DropdownMenuTrigger asChild>
+					<AgentButton
+						aria-controls={isVariantMenuOpen ? menuContentId : undefined}
+						aria-label="select VSCode variant"
+						size="icon-lg"
+					>
+						<ChevronDownIcon open={isVariantMenuOpen} />
+					</AgentButton>
+				</DropdownMenuTrigger>
+
+				<DropdownMenuContent
+					id={menuContentId}
+					align="end"
+					collisionPadding={16}
+					style={{ width: menuWidth }}
+				>
+					<DropdownMenuItem
+						onClick={() => {
+							selectVariant("vscode");
+						}}
+					>
+						<ExternalImage src="/icon/code.svg" alt="" className="size-3" />
+						{DisplayAppNameMap.vscode}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						onClick={() => {
+							selectVariant("vscode-insiders");
+						}}
+					>
+						<ExternalImage
+							src="/icon/code-insiders.svg"
+							alt=""
+							className="size-3"
+						/>
+						{DisplayAppNameMap.vscode_insiders}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</div>
+	) : includesVSCodeDesktop ? (
+		<VSCodeButton {...props} />
+	) : (
+		<VSCodeInsidersButton {...props} />
+	);
+};
+
+const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
+	userName,
+	workspaceName,
+	agentName,
+	folderPath,
+}) => {
+	const [loading, setLoading] = useState(false);
+
+	return (
+		<AgentButton
+			disabled={loading}
+			onClick={() => {
+				setLoading(true);
+				API.getApiKey()
+					.then(({ key }) => {
+						location.href = getVSCodeHref("vscode", {
+							owner: userName,
+							workspace: workspaceName,
+							token: key,
+							agent: agentName,
+							folder: folderPath,
+						});
+					})
+					.catch((ex) => {
+						console.error(ex);
+					})
+					.finally(() => {
+						setLoading(false);
+					});
+			}}
+		>
+			<ExternalImage src="/icon/code.svg" alt="" />
+			{DisplayAppNameMap.vscode}
+		</AgentButton>
+	);
+};
+
+const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
+	userName,
+	workspaceName,
+	agentName,
+	folderPath,
+}) => {
+	const [loading, setLoading] = useState(false);
+
+	return (
+		<AgentButton
+			disabled={loading}
+			onClick={() => {
+				setLoading(true);
+				API.getApiKey()
+					.then(({ key }) => {
+						location.href = getVSCodeHref("vscode-insiders", {
+							owner: userName,
+							workspace: workspaceName,
+							token: key,
+							agent: agentName,
+							folder: folderPath,
+						});
+					})
+					.catch((ex) => {
+						console.error(ex);
+					})
+					.finally(() => {
+						setLoading(false);
+					});
+			}}
+		>
+			<ExternalImage src="/icon/code-insiders.svg" alt="" />
+			{DisplayAppNameMap.vscode_insiders}
+		</AgentButton>
+	);
+};

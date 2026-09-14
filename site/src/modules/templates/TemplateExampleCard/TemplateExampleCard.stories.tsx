@@ -1,0 +1,41 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	MockTemplateExample,
+	MockTemplateExample2,
+} from "#/testHelpers/entities";
+import { TemplateExampleCard } from "./TemplateExampleCard";
+
+const meta: Meta<typeof TemplateExampleCard> = {
+	title: "modules/templates/TemplateExampleCard",
+	component: TemplateExampleCard,
+	args: {
+		example: MockTemplateExample,
+		templateBuilderEnabled: true,
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof TemplateExampleCard>;
+
+export const Example: Story = {};
+
+export const ByTag: Story = {
+	args: {
+		activeTag: "cloud",
+	},
+};
+
+export const LotsOfTags: Story = {
+	args: {
+		example: {
+			...MockTemplateExample2,
+			tags: ["omg", "so many tags", "look at all these", "so cool"],
+		},
+	},
+};
+
+export const TemplateBuilderDisabled: Story = {
+	args: {
+		templateBuilderEnabled: false,
+	},
+};

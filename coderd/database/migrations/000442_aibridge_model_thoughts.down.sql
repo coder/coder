@@ -1,0 +1,3 @@
+DROP INDEX idx_aibridge_model_thoughts_interception_id;
+
+DROP TABLE aibridge_model_thoughts;

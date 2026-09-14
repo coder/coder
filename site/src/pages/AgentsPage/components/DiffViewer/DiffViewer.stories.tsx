@@ -1,0 +1,500 @@
+import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
+import { FileDiff } from "@pierre/diffs/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type FC, useState } from "react";
+import { fn, userEvent, waitFor, within } from "storybook/test";
+import type { DiffStyle } from "../DiffViewer/DiffViewer";
+import { DiffViewer } from "../DiffViewer/DiffViewer";
+import { parseDiffString } from "../DiffViewer/parseDiff";
+import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
+import { generateLargeDiff } from "./testHelpers";
+
+// biome-ignore format: raw diff string must preserve exact whitespace
+const sampleDiff = [
+"diff --git a/src/main.ts b/src/main.ts",
+"index abc1234..def5678 100644",
+"--- a/src/main.ts",
+"+++ b/src/main.ts",
+"@@ -1,5 +1,7 @@",
+" import { start } from \"./server\";",
+"+import { logger } from \"./logger\";",
+"",
+" const port = 3000;",
+"+logger.info(\"Starting server...\");",
+" start(port);",
+"diff --git a/src/server.ts b/src/server.ts",
+"index 1111111..2222222 100644",
+"--- a/src/server.ts",
+"+++ b/src/server.ts",
+"@@ -10,3 +10,5 @@",
+"   app.listen(port, () => {",
+"     console.log(\"Listening on port \" + port);",
+"   });",
+"+",
+"+  return app;",
+" }",
+].join("\n");
+const parsedFiles = parseDiffString(sampleDiff);
+const firstFileName = parsedFiles[0]?.name ?? "";
+
+const meta: Meta<typeof DiffViewer> = {
+	title: "pages/AgentsPage/DiffViewer",
+	component: DiffViewer,
+	args: {
+		parsedFiles,
+		diffStyle: "unified" satisfies DiffStyle,
+		onLineNumberClick: fn(),
+		onLineSelected: fn(),
+		onScrollToFileComplete: fn(),
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 500, width: 700 }}>
+				<Story />
+			</div>
+		),
+	],
+};
+export default meta;
+type Story = StoryObj<typeof DiffViewer>;
+
+export const Default: Story = {};
+
+export const SplitView: Story = {
+	args: {
+		diffStyle: "split",
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		parsedFiles: [],
+		isLoading: true,
+	},
+};
+
+export const ErrorState: Story = {
+	name: "Error",
+	args: {
+		parsedFiles: [],
+		error: new Error("Failed to fetch diff"),
+	},
+};
+
+export const Empty: Story = {
+	args: {
+		parsedFiles: [],
+		emptyMessage: "No file changes to display.",
+	},
+};
+
+export const WithSelectedLines: Story = {
+	args: {
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === firstFileName) {
+				return { start: 2, end: 4, side: "additions" };
+			}
+			return null;
+		},
+	},
+};
+
+// Diff with two non-adjacent hunks in one file, producing a
+// mid-file separator that should remain visible even though
+// leading separators are hidden.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const multiHunkDiff = [
+"diff --git a/src/app.ts b/src/app.ts",
+"index aaa1111..bbb2222 100644",
+"--- a/src/app.ts",
+"+++ b/src/app.ts",
+"@@ -3,4 +3,5 @@",
+" import { db } from \"./db\";",
+" import { logger } from \"./logger\";",
+"+import { metrics } from \"./metrics\";",
+" ",
+" const app = express();",
+"@@ -20,3 +21,4 @@",
+" app.listen(port, () => {",
+"   console.log(\"Listening on port \" + port);",
+"+  metrics.record(\"server.start\");",
+" });",
+].join("\n");
+const multiHunkFiles = parseDiffString(multiHunkDiff);
+
+export const WithMidFileSeparator: Story = {
+	args: {
+		parsedFiles: multiHunkFiles,
+	},
+};
+
+export const WithAnnotation: Story = {
+	args: {
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === firstFileName) {
+				return { start: 2, end: 4, side: "additions" };
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === firstFileName) {
+				return [
+					{
+						lineNumber: 4,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+};
+
+// Diff with a change block (both deletions and additions) for
+// testing cross-side selection in split view.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const changeDiff = [
+"diff --git a/src/config.ts b/src/config.ts",
+"index abc1234..def5678 100644",
+"--- a/src/config.ts",
+"+++ b/src/config.ts",
+"@@ -1,5 +1,5 @@",
+" const config = {",
+"-  port: 3000,",
+"-  host: \"localhost\",",
+"+  port: 8080,",
+"+  host: \"0.0.0.0\",",
+"   debug: false,",
+" };",
+].join("\n");
+const changeFiles = parseDiffString(changeDiff);
+const changeFileName = changeFiles[0]?.name ?? "";
+
+// Regression test: in split view, selecting from one side to the
+// other can produce a range where start === end numerically but
+// the sides differ (e.g. deletions line 2 → additions line 2).
+// Previously this was incorrectly treated as a single-line click
+// and the annotation was never shown.
+export const CrossSideAnnotation: Story = {
+	args: {
+		parsedFiles: changeFiles,
+		diffStyle: "split",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === changeFileName) {
+				return {
+					start: 2,
+					end: 2,
+					side: "deletions",
+					endSide: "additions",
+				};
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === changeFileName) {
+				return [
+					{
+						lineNumber: 2,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+};
+
+// Same regression scenario in unified view to ensure the
+// annotation also renders when diffStyle is "unified".
+export const CrossSideAnnotationUnified: Story = {
+	args: {
+		...CrossSideAnnotation.args,
+		diffStyle: "unified",
+	},
+};
+
+// -------------------------------------------------------------------
+// Edge-case stories
+// -------------------------------------------------------------------
+
+// Play function shared by all annotation edge-case stories.
+// Diff where deletion and addition line numbers are wildly
+// different (hunk header: @@ -508,4 +218,4 @@). Deletion
+// lines are 509-510, addition lines are 219-220.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const mismatchedLinesDiff = [
+"diff --git a/src/big.ts b/src/big.ts",
+"index abc1234..def5678 100644",
+"--- a/src/big.ts",
+"+++ b/src/big.ts",
+"@@ -508,6 +218,6 @@ function process() {",
+"   return result;",
+"-  const old1 = true;",
+"-  const old2 = false;",
+"+  const new1 = true;",
+"+  const new2 = false;",
+"   cleanup();",
+" }",
+].join("\n");
+const mismatchedFiles = parseDiffString(mismatchedLinesDiff);
+const mismatchedFileName = mismatchedFiles[0]?.name ?? "";
+
+// Cross-side selection where deletion line 509 maps to addition
+// line 219. The old code would Math.min/max these into a
+// nonsensical 290-line range.
+export const CrossSideMismatchedLineNumbers: Story = {
+	args: {
+		parsedFiles: mismatchedFiles,
+		diffStyle: "split",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === mismatchedFileName) {
+				return {
+					start: 509,
+					end: 219,
+					side: "deletions",
+					endSide: "additions",
+				};
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === mismatchedFileName) {
+				return [
+					{
+						lineNumber: 219,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+};
+
+// Same mismatched-line-number scenario in unified view.
+export const CrossSideMismatchedLineNumbersUnified: Story = {
+	args: {
+		...CrossSideMismatchedLineNumbers.args,
+		diffStyle: "unified",
+	},
+};
+
+// Backward same-side selection (start > end). The user clicks
+// line 9 then shift-clicks line 5 on the additions side.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const backwardSelectionDiff = [
+"diff --git a/src/utils.ts b/src/utils.ts",
+"index abc1234..def5678 100644",
+"--- a/src/utils.ts",
+"+++ b/src/utils.ts",
+"@@ -3,4 +3,9 @@",
+" import { foo } from \"./foo\";",
+" import { bar } from \"./bar\";",
+"+import { baz } from \"./baz\";",
+"+import { qux } from \"./qux\";",
+"+import { quux } from \"./quux\";",
+"+import { corge } from \"./corge\";",
+"+import { grault } from \"./grault\";",
+" ",
+" export function main() {",
+].join("\n");
+const backwardFiles = parseDiffString(backwardSelectionDiff);
+const backwardFileName = backwardFiles[0]?.name ?? "";
+
+// Backward selection: start=9 > end=5 on the same side.
+// The annotation should appear at line 5 (the end point).
+export const BackwardSameSideSelection: Story = {
+	args: {
+		parsedFiles: backwardFiles,
+		diffStyle: "unified",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === backwardFileName) {
+				return { start: 9, end: 5, side: "additions" };
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === backwardFileName) {
+				return [
+					{
+						lineNumber: 5,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+};
+
+// Cross-side selection going additions -> deletions (the
+// reverse of the typical del -> add direction).
+export const CrossSideAdditionsToDeletions: Story = {
+	args: {
+		parsedFiles: changeFiles,
+		diffStyle: "split",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === changeFileName) {
+				return {
+					start: 2,
+					end: 3,
+					side: "additions",
+					endSide: "deletions",
+				};
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === changeFileName) {
+				return [
+					{
+						lineNumber: 3,
+						side: "deletions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+};
+
+// Rename diff with long file paths to verify that:
+// 1. The arrow between old and new names is vertically centered
+// 2. The stat-count pills remain visible (not clipped)
+// 3. File names truncate with ellipsis
+// biome-ignore format: raw diff string must preserve exact whitespace
+const renameDiff = [
+"diff --git a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
+"similarity index 95%",
+"rename from site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
+"rename to site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
+"index abc1234..def5678 100644",
+"--- a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
+"+++ b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
+"@@ -1,3 +1,3 @@",
+" export function DefaultLimitSection() {",
+"-  return null;",
+"+  return <div />;",
+" }",
+].join("\n");
+const renameFiles = parseDiffString(renameDiff);
+
+export const RenameWithLongPaths: Story = {
+	args: {
+		parsedFiles: renameFiles,
+	},
+};
+
+export const LargeDiff: Story = {
+	args: {
+		parsedFiles: parseDiffString(generateLargeDiff(40, 60)),
+		isExpanded: true,
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 800, width: 900 }}>
+				<Story />
+			</div>
+		),
+	],
+};
+
+// In production, before content-derived keys, the second render could hit
+// the worker-pool AST cached for the first body and throw "deletionLine and
+// additionLine are null". The storybook worker timing cannot reproduce that
+// collision window, so this story smoke-tests the re-render path instead:
+// the second body renders and no error box appears.
+const reparseFirstBody = [
+	"--- a/src/hot.ts",
+	"+++ b/src/hot.ts",
+	"@@ -1,2 +1,2 @@",
+	" export const keep = true;",
+	"-const v = 1;",
+	"+const v = 2;",
+].join("\n");
+const reparseSecondBody = [
+	"--- a/src/hot.ts",
+	"+++ b/src/hot.ts",
+	"@@ -1,2 +1,5 @@",
+	" export const keep = true;",
+	"-const v = 1;",
+	"+const v = 3;",
+	"+const a = 1;",
+	"+const b = 2;",
+	"+const c = 3;",
+].join("\n");
+
+// FileDiff renders hunks synchronously enough for play tests; CodeView
+// virtualizes and never paints lines in this environment.
+const ReparseSamePath: FC = () => {
+	const [body, setBody] = useState(reparseFirstBody);
+	const file = parseDiffString(body)[0];
+	return (
+		<div style={{ height: 400, width: 600 }}>
+			<button type="button" onClick={() => setBody(reparseSecondBody)}>
+				next body
+			</button>
+			{file && (
+				<FileDiff
+					fileDiff={file}
+					options={{
+						diffStyle: "unified",
+						theme: "github-dark-high-contrast",
+						themeType: "dark",
+					}}
+				/>
+			)}
+		</div>
+	);
+};
+
+/**
+ * Resolve once a given diff body has rendered inside the shadow root that
+ * Pixel's DOM-idle check cannot observe.
+ */
+const waitForDiffBody = (canvasElement: HTMLElement, text: string) =>
+	waitFor(() => {
+		const rendered = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).some((host) => host.shadowRoot?.textContent?.includes(text));
+		if (!rendered) {
+			throw new Error(`Diff body has not rendered yet: ${text}`);
+		}
+	});
+
+export const ReparseSamePathAfterEdit: StoryObj = {
+	render: () => <ReparseSamePath />,
+	play: async ({ canvasElement }) => {
+		// The regression is a reparse: the first parse must commit before the
+		// swap, or body 2 renders as a fresh parse and the bug is not exercised.
+		await waitForDiffBody(canvasElement, "const v = 2");
+
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "next body" }),
+		);
+
+		// Shadow-root renders are invisible to the stability wait, so wait for
+		// the reparsed body.
+		await waitForDiffBody(canvasElement, "const v = 3");
+	},
+};

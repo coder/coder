@@ -1,0 +1,176 @@
+import { cn } from "cn";
+import { CheckIcon } from "lucide-react";
+import type React from "react";
+import { createContext, useContext, useState } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import {
+	Command,
+	CommandEmpty,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
+import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+
+type ComboboxContextProps = {
+	open: boolean;
+	setOpen: (open: boolean) => void;
+	value: string | undefined;
+	onValueChange: ((value: string | undefined) => void) | undefined;
+};
+
+const ComboboxContext = createContext<ComboboxContextProps | null>(null);
+
+function useCombobox() {
+	const context = useContext(ComboboxContext);
+	if (!context) {
+		throw new Error("useCombobox must be used within a <Combobox />");
+	}
+	return context;
+}
+
+interface ComboboxProps extends React.ComponentProps<typeof Popover> {
+	value?: string;
+	onValueChange?: (value: string | undefined) => void;
+}
+
+export const Combobox = ({
+	children,
+	open: controlledOpen,
+	onOpenChange: controlledOnOpenChange,
+	value,
+	onValueChange,
+	...props
+}: ComboboxProps) => {
+	const [internalOpen, setInternalOpen] = useState(false);
+
+	// Use controlled state if provided, otherwise use internal state
+	const open = controlledOpen ?? internalOpen;
+	const setOpen = controlledOnOpenChange ?? setInternalOpen;
+
+	return (
+		<ComboboxContext.Provider value={{ open, setOpen, value, onValueChange }}>
+			<Popover open={open} onOpenChange={setOpen} {...props}>
+				{children}
+			</Popover>
+		</ComboboxContext.Provider>
+	);
+};
+
+export const ComboboxTrigger = PopoverTrigger;
+
+interface ComboboxButtonProps extends React.ComponentPropsWithRef<"button"> {
+	width?: number;
+	selectedOption?: SelectFilterOption;
+	placeholder?: string;
+}
+
+export const ComboboxButton = ({
+	children,
+	className,
+	width,
+	selectedOption,
+	placeholder,
+	ref,
+	...props
+}: ComboboxButtonProps) => {
+	return (
+		<Button
+			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
+			style={{ flexBasis: width }}
+			variant="outline"
+			ref={ref}
+			{...props}
+		>
+			{selectedOption?.startIcon}
+			<span className="text-left block overflow-hidden text-ellipsis grow">
+				{selectedOption?.label ?? placeholder}
+			</span>
+			<ChevronDownIcon className="size-icon-sm" />
+		</Button>
+	);
+};
+
+type ComboboxContentProps = React.ComponentPropsWithRef<
+	typeof PopoverContent
+> & {
+	shouldFilter?: boolean;
+};
+
+export const ComboboxContent = ({
+	children,
+	className,
+	ref,
+	shouldFilter,
+	...props
+}: ComboboxContentProps) => {
+	return (
+		<PopoverContent
+			ref={ref}
+			className={cn(
+				"flex w-auto flex-col overflow-y-hidden border-border-default text-sm",
+				className,
+			)}
+			{...props}
+		>
+			<Command shouldFilter={shouldFilter} className="min-h-0 flex-1">
+				{children}
+			</Command>
+		</PopoverContent>
+	);
+};
+
+export const ComboboxInput = CommandInput;
+
+export const ComboboxList: React.FC<
+	React.ComponentPropsWithRef<typeof CommandList>
+> = ({ className, ...props }) => {
+	return (
+		<CommandList
+			className={cn("max-h-none min-h-0 flex-1 p-2", className)}
+			{...props}
+		/>
+	);
+};
+
+export const ComboboxItem = ({
+	children,
+	className,
+	onSelect,
+	value,
+	...props
+}: React.ComponentPropsWithRef<typeof CommandItem>) => {
+	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
+	const isSelected = value === selectedValue;
+
+	return (
+		<CommandItem
+			value={value}
+			className={className}
+			onSelect={(itemValue) => {
+				setOpen(false);
+				// Toggle behavior: selecting the same value deselects it.
+				const newValue = itemValue === selectedValue ? undefined : itemValue;
+				onValueChange?.(newValue);
+				onSelect?.(itemValue);
+			}}
+			{...props}
+		>
+			{children}
+			<CheckIcon
+				className={cn(
+					"ml-2 size-4 min-w-0 shrink-0",
+					isSelected ? "opacity-100" : "opacity-0",
+				)}
+			/>
+		</CommandItem>
+	);
+};
+
+export const ComboboxEmpty = CommandEmpty;

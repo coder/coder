@@ -1,0 +1,25 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.dev (expand)" [label = "coder_agent.dev", shape = "box"]
+		"[root] data.coder_parameter.instance_type (expand)" [label = "data.coder_parameter.instance_type", shape = "box"]
+		"[root] data.coder_workspace_preset.development (expand)" [label = "data.coder_workspace_preset.development", shape = "box"]
+		"[root] data.coder_workspace_preset.production (expand)" [label = "data.coder_workspace_preset.production", shape = "box"]
+		"[root] null_resource.dev (expand)" [label = "null_resource.dev", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
+		"[root] coder_agent.dev (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_parameter.instance_type (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_workspace_preset.development (expand)" -> "[root] data.coder_parameter.instance_type (expand)"
+		"[root] data.coder_workspace_preset.production (expand)" -> "[root] data.coder_parameter.instance_type (expand)"
+		"[root] null_resource.dev (expand)" -> "[root] coder_agent.dev (expand)"
+		"[root] null_resource.dev (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.dev (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_workspace_preset.development (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_workspace_preset.production (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.dev (expand)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
+	}
+}

@@ -1,0 +1,2 @@
+-- You cannot safely remove values from enums https://www.postgresql.org/docs/current/datatype-enum.html
+-- You cannot create a new type and do a rename because objects depend on this type now.

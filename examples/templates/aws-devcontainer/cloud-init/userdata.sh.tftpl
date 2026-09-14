@@ -1,0 +1,37 @@
+#!/bin/bash
+# Install Docker
+if ! command -v docker &> /dev/null
+then
+	echo "Docker not found, installing..."
+	curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh 2>&1 >/dev/null
+	usermod -aG docker ${linux_user}
+	newgrp docker
+else
+	echo "Docker is already installed."
+fi
+
+# Set up Docker credentials
+mkdir -p "/home/${linux_user}/.docker"
+
+if [ -n "${docker_config_json_base64}" ]; then
+	# Write the Docker config JSON to disk if it is provided.
+	printf "%s" "${docker_config_json_base64}" | base64 -d | tee "/home/${linux_user}/.docker/config.json"
+else
+	# Assume that we're going to use the instance IAM role to pull from the cache repo if we need to.
+	# Set up the ecr credential helper.
+	apt-get update -y && apt-get install -y amazon-ecr-credential-helper
+	mkdir -p .docker
+	printf '{"credsStore": "ecr-login"}' | tee "/home/${linux_user}/.docker/config.json"
+fi
+chown -R ${linux_user}:${linux_user} "/home/${linux_user}/.docker"
+
+# Start envbuilder
+sudo -u coder docker run \
+	--rm \
+	--net=host \
+	-h ${hostname} \
+	-v /home/${linux_user}/envbuilder:/workspaces \
+	%{ for key, value in environment ~}
+	-e ${key}="${value}" \
+	%{ endfor ~}
+	${builder_image}

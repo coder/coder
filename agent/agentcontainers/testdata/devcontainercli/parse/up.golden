@@ -1,0 +1,64 @@
+@devcontainers/cli 0.75.0. Node.js v23.9.0. darwin 24.4.0 arm64.
+Resolving Feature dependencies for 'ghcr.io/devcontainers/features/docker-in-docker:2'...
+Soft-dependency 'ghcr.io/devcontainers/features/common-utils' is not required.  Removing from installation order...
+Files to omit: ''
+Run: docker buildx build --load --build-context dev_containers_feature_content_source=/var/folders/1y/cm8mblxd7_x9cljwl_jvfprh0000gn/T/devcontainercli/container-features/0.75.0-1744102171193 --build-arg _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/devcontainers/javascript-node:1-18-bullseye --build-arg _DEV_CONTAINERS_IMAGE_USER=root --build-arg _DEV_CONTAINERS_FEATURE_CONTENT_SOURCE=dev_container_feature_content_temp --target dev_containers_target_stage -f /var/folders/1y/cm8mblxd7_x9cljwl_jvfprh0000gn/T/devcontainercli/container-features/0.75.0-1744102171193/Dockerfile.extended -t vsc-devcontainers-template-starter-81d8f17e32abef6d434cbb5a37fe05e5c8a6f8ccede47a61197f002dcbf60566-features /var/folders/1y/cm8mblxd7_x9cljwl_jvfprh0000gn/T/devcontainercli/empty-folder
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.extended
+#1 transferring dockerfile: 3.09kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.4
+#2 DONE 1.3s
+#3 docker-image://docker.io/docker/dockerfile:1.4@sha256:9ba7531bd80fb0a858632727cf7a112fbfd19b17e94c4e84ced81e24ef1a0dbc
+#3 CACHED
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [internal] load metadata for mcr.microsoft.com/devcontainers/javascript-node:1-18-bullseye
+#5 DONE 0.0s
+
+#6 [context dev_containers_feature_content_source] load .dockerignore
+#6 transferring dev_containers_feature_content_source: 2B done
+#6 DONE 0.0s
+
+#7 [dev_containers_feature_content_normalize 1/3] FROM mcr.microsoft.com/devcontainers/javascript-node:1-18-bullseye
+#7 DONE 0.0s
+
+#8 [context dev_containers_feature_content_source] load from client
+#8 transferring dev_containers_feature_content_source: 82.11kB 0.0s done
+#8 DONE 0.0s
+
+#9 [dev_containers_feature_content_normalize 2/3] COPY --from=dev_containers_feature_content_source devcontainer-features.builtin.env /tmp/build-features/
+#9 CACHED
+
+#10 [dev_containers_target_stage 2/5] RUN mkdir -p /tmp/dev-container-features
+#10 CACHED
+
+#11 [dev_containers_target_stage 3/5] COPY --from=dev_containers_feature_content_normalize /tmp/build-features/ /tmp/dev-container-features
+#11 CACHED
+
+#12 [dev_containers_target_stage 4/5] RUN echo "_CONTAINER_USER_HOME=$( (command -v getent >/dev/null 2>&1 && getent passwd 'root' || grep -E '^root|^[^:]*:[^:]*:root:' /etc/passwd || true) | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && echo "_REMOTE_USER_HOME=$( (command -v getent >/dev/null 2>&1 && getent passwd 'node' || grep -E '^node|^[^:]*:[^:]*:node:' /etc/passwd || true) | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
+#12 CACHED
+
+#13 [dev_containers_feature_content_normalize 3/3] RUN chmod -R 0755 /tmp/build-features/
+#13 CACHED
+
+#14 [dev_containers_target_stage 5/5] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=docker-in-docker_0,target=/tmp/build-features-src/docker-in-docker_0     cp -ar /tmp/build-features-src/docker-in-docker_0 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/docker-in-docker_0  && cd /tmp/dev-container-features/docker-in-docker_0  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/docker-in-docker_0
+#14 CACHED
+
+#15 exporting to image
+#15 exporting layers done
+#15 writing image sha256:275dc193c905d448ef3945e3fc86220cc315fe0cb41013988d6ff9f8d6ef2357 done
+#15 naming to docker.io/library/vsc-devcontainers-template-starter-81d8f17e32abef6d434cbb5a37fe05e5c8a6f8ccede47a61197f002dcbf60566-features done
+#15 DONE 0.0s
+Run: docker buildx build --load --build-context dev_containers_feature_content_source=/var/folders/1y/cm8mblxd7_x9cljwl_jvfprh0000gn/T/devcontainercli/container-features/0.75.0-1744102171193 --build-arg _DEV_CONTAINERS_BASE_IMAGE=mcr.microsoft.com/devcontainers/javascript-node:1-18-bullseye --build-arg _DEV_CONTAINERS_IMAGE_USER=root --build-arg _DEV_CONTAINERS_FEATURE_CONTENT_SOURCE=dev_container_feature_content_temp --target dev_containers_target_stage -f /var/folders/1y/cm8mblxd7_x9cljwl_jvfprh0000gn/T/devcontainercli/container-features/0.75.0-1744102171193/Dockerfile.extended -t vsc-devcontainers-template-starter-81d8f17e32abef6d434cbb5a37fe05e5c8a6f8ccede47a61197f002dcbf60566-features /var/folders/1y/cm8mblxd7_x9cljwl_jvfprh0000gn/T/devcontainercli/empty-folder
+Run: docker run --sig-proxy=false -a STDOUT -a STDERR --mount type=bind,source=/code/devcontainers-template-starter,target=/workspaces/devcontainers-template-starter,consistency=cached --mount type=volume,src=dind-var-lib-docker-0pctifo8bbg3pd06g3j5s9ae8j7lp5qfcd67m25kuahurel7v7jm,dst=/var/lib/docker -l devcontainer.local_folder=/code/devcontainers-template-starter -l devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json --privileged --entrypoint /bin/sh vsc-devcontainers-template-starter-81d8f17e32abef6d434cbb5a37fe05e5c8a6f8ccede47a61197f002dcbf60566-features -c echo Container started
+Container started
+Not setting dockerd DNS manually.
+[1mRunning the postCreateCommand from devcontainer.json...[0m
+added 1 package in 784ms
+{"outcome":"success","containerId":"bc72db8d0c4c4e941bd9ffc341aee64a18d3397fd45b87cd93d4746150967ba8","remoteUser":"node","remoteWorkspaceFolder":"/workspaces/devcontainers-template-starter"}

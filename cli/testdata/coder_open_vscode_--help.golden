@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder open vscode [flags] <workspace> [<directory in workspace>]
+
+  Open a workspace in VS Code Desktop
+
+OPTIONS:
+      --generate-token bool, $CODER_OPEN_VSCODE_GENERATE_TOKEN
+          Generate an auth token and include it in the vscode:// URI. This is
+          for automagical configuration of VS Code Desktop and not needed if
+          already configured. This flag does not need to be specified when
+          running this command on a local machine unless automatic open fails.
+
+———
+Run `coder --help` for a list of global options.

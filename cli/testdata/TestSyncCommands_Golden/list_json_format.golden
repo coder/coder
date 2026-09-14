@@ -1,0 +1,7 @@
+[
+  {
+    "unit_name": "my-unit",
+    "status": "started",
+    "is_ready": true
+  }
+]

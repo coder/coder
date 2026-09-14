@@ -1,0 +1,1057 @@
+terraform {
+  required_providers {
+    coder = {
+      source  = "coder/coder"
+      version = ">= 2.13.0"
+    }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 4.0"
+    }
+  }
+}
+
+// This module is a terraform no-op. It contains 5mb worth of files to test
+// Coder's behavior dealing with larger modules. This is included to test
+// protobuf message size limits and the performance of module loading.
+//
+// In reality, modules might have accidental bloat from non-terraform files such
+// as images & documentation.
+module "large-5mb-module" {
+  source = "git::https://github.com/coder/large-module.git"
+}
+
+locals {
+  // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
+  // Kyle for help.
+  docker_host = {
+    ""              = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
+    "us-pittsburgh" = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
+    // For legacy reasons, this host is labelled `eu-helsinki` but it's
+    // actually in Germany now.
+    "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
+    "ap-sydney"   = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
+  }
+
+  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
+  repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
+  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+
+  // Derive a stable per-workspace hour and minute from the workspace ID
+  // so that cache cleanup crons don't all hit the filesystem at once.
+  cache_cleanup_hour   = parseint(substr(data.coder_workspace.me.id, 0, 2), 16) % 24
+  cache_cleanup_minute = parseint(substr(data.coder_workspace.me.id, 2, 2), 16) % 60
+}
+
+data "coder_workspace_preset" "pittsburgh" {
+  name        = "Pittsburgh"
+  default     = true
+  description = "Development workspace hosted in United States with 2 prebuild instances"
+  icon        = "/emojis/1f1fa-1f1f8.png"
+  parameters = {
+    (data.coder_parameter.region.name)        = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
+  }
+  prebuilds {
+    instances = 2
+  }
+}
+
+data "coder_workspace_preset" "cpt" {
+  name        = "Cape Town"
+  description = "Development workspace hosted in South Africa with 1 prebuild instance"
+  icon        = "/emojis/1f1ff-1f1e6.png"
+  parameters = {
+    (data.coder_parameter.region.name)        = "za-cpt"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
+  }
+  prebuilds {
+    instances = 1
+  }
+}
+
+data "coder_workspace_preset" "falkenstein" {
+  name        = "Falkenstein"
+  description = "Development workspace hosted in Europe with 1 prebuild instance"
+  icon        = "/emojis/1f1ea-1f1fa.png"
+  parameters = {
+    (data.coder_parameter.region.name)        = "eu-helsinki"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
+  }
+  prebuilds {
+    instances = 1
+  }
+}
+
+data "coder_workspace_preset" "sydney" {
+  name        = "Sydney"
+  description = "Development workspace hosted in Australia with 1 prebuild instance"
+  icon        = "/emojis/1f1e6-1f1fa.png"
+  parameters = {
+    (data.coder_parameter.region.name)        = "ap-sydney"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
+  }
+  prebuilds {
+    instances = 1
+  }
+}
+
+locals {
+  image_tags = {
+    // Older style option values, where the option value was just supposed to
+    // be the exact name of the image on Docker hub. In practice, this is rather
+    // restrictive because the image_type parameter is immutable.
+    "codercom/oss-dogfood:latest" = "codercom/oss-dogfood:latest"
+
+    "ubuntu-latest" = "codercom/oss-dogfood:26.04"
+  }
+}
+
+data "coder_parameter" "repo_base_dir" {
+  type        = "string"
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
+  mutable     = true
+}
+
+data "coder_parameter" "image_type" {
+  type        = "string"
+  name        = "Coder Image"
+  default     = "ubuntu-latest"
+  description = "The Docker image used to run your workspace."
+  mutable     = true
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Ubuntu 26.04"
+    value = "ubuntu-latest"
+  }
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Ubuntu 22.04 (Legacy)"
+    value = "codercom/oss-dogfood:latest"
+  }
+}
+
+locals {
+  default_regions = {
+    // keys should match group names
+    "north-america" : "us-pittsburgh"
+    "europe" : "eu-helsinki"
+    "australia" : "ap-sydney"
+    "africa" : "za-cpt"
+  }
+
+  user_groups = data.coder_workspace_owner.me.groups
+  user_region = coalescelist([
+    for g in local.user_groups :
+    local.default_regions[g] if contains(keys(local.default_regions), g)
+  ], ["us-pittsburgh"])[0]
+}
+
+data "coder_parameter" "region" {
+  type    = "string"
+  name    = "Region"
+  icon    = "/emojis/1f30e.png"
+  default = local.user_region
+  option {
+    icon  = "/emojis/1f1fa-1f1f8.png"
+    name  = "Pittsburgh"
+    value = "us-pittsburgh"
+  }
+  option {
+    icon = "/emojis/1f1e9-1f1ea.png"
+    name = "Falkenstein"
+    // For legacy reasons, this host is labelled `eu-helsinki` but it's
+    // actually in Germany now.
+    value = "eu-helsinki"
+  }
+  option {
+    icon  = "/emojis/1f1e6-1f1fa.png"
+    name  = "Sydney"
+    value = "ap-sydney"
+  }
+  option {
+    icon  = "/emojis/1f1ff-1f1e6.png"
+    name  = "Cape Town"
+    value = "za-cpt"
+  }
+}
+
+data "coder_parameter" "devcontainer_autostart" {
+  type        = "bool"
+  name        = "Automatically start devcontainer for coder/coder"
+  default     = false
+  description = "If enabled, a devcontainer will be automatically started for the [coder/coder](https://github.com/coder/coder) repository."
+  mutable     = true
+}
+
+data "coder_parameter" "enable_kvm" {
+  type        = "bool"
+  name        = "Expose /dev/kvm to the workspace"
+  default     = false
+  description = "If enabled, the host's /dev/kvm device is mapped into the workspace container to allow hardware-accelerated VMs. Only works when the underlying host exposes /dev/kvm; leave disabled otherwise."
+  mutable     = true
+}
+
+# dogfood/main.tf injects this value from a GH Actions secret;
+# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
+# Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
+variable "anthropic_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the Anthropic API, if AI Gateway is disabled."
+  default     = ""
+  sensitive   = true
+}
+
+variable "openai_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the OpenAI API, if AI Gateway is disabled."
+  default     = ""
+  sensitive   = true
+}
+
+provider "docker" {
+  host = lookup(local.docker_host, data.coder_parameter.region.value)
+}
+
+provider "coder" {}
+
+data "coder_external_auth" "github" {
+  id = "github"
+}
+
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+data "coder_workspace_tags" "tags" {
+  tags = {
+    "cluster" : "dogfood-v2"
+    "env" : "gke"
+  }
+}
+
+data "coder_workspace_tags" "prebuild" {
+  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+  tags = {
+    "is_prebuild" = "true"
+  }
+}
+
+data "coder_parameter" "ide_choices" {
+  type        = "list(string)"
+  name        = "Select IDEs"
+  form_type   = "multi-select"
+  mutable     = true
+  description = "Choose one or more IDEs to enable in your workspace"
+  default     = jsonencode(["vscode", "code-server", "cursor"])
+  option {
+    name  = "VS Code Desktop"
+    value = "vscode"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "code-server"
+    value = "code-server"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "VS Code Web"
+    value = "vscode-web"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "JetBrains IDEs"
+    value = "jetbrains"
+    icon  = "/icon/jetbrains.svg"
+  }
+  option {
+    name  = "Cursor"
+    value = "cursor"
+    icon  = "/icon/cursor.svg"
+  }
+  option {
+    name  = "Windsurf"
+    value = "windsurf"
+    icon  = "/icon/windsurf.svg"
+  }
+  option {
+    name  = "Zed"
+    value = "zed"
+    icon  = "/icon/zed.svg"
+  }
+}
+
+module "slackme" {
+  count            = data.coder_workspace.me.start_count
+  source           = "dev.registry.coder.com/coder/slackme/coder"
+  version          = "1.0.33"
+  agent_id         = coder_agent.dev.id
+  auth_provider_id = "slack"
+}
+
+module "dotfiles" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/dotfiles/coder"
+  version  = "1.4.2"
+  agent_id = coder_agent.dev.id
+}
+
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/git-config/coder"
+  version  = "1.0.34"
+  agent_id = coder_agent.dev.id
+  # If you prefer to commit with a different email, this allows you to do so.
+  allow_email_change = true
+}
+
+module "git-clone" {
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/git-clone/coder"
+  version           = "1.3.0"
+  agent_id          = coder_agent.dev.id
+  url               = "https://github.com/coder/coder"
+  base_dir          = local.repo_base_dir
+  post_clone_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+    coder exp sync start git-clone
+    coder exp sync complete git-clone
+  EOT
+}
+
+module "personalize" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/personalize/coder"
+  version  = "1.0.33"
+  agent_id = coder_agent.dev.id
+}
+
+module "mux" {
+  count                = data.coder_workspace.me.start_count
+  source               = "registry.coder.com/coder/mux/coder"
+  version              = "2.0.0"
+  agent_id             = coder_agent.dev.id
+  subdomain            = true
+  display_name         = "Mux"
+  add_project          = local.repo_dir
+  install_version      = "next"
+  package_manager      = "bun"
+  restart_on_kill      = true
+  max_restart_attempts = 10
+}
+
+module "code-server" {
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
+  source                  = "dev.registry.coder.com/coder/code-server/coder"
+  version                 = "1.5.2"
+  agent_id                = coder_agent.dev.id
+  folder                  = local.repo_dir
+  auto_install_extensions = true
+  group                   = "Web Editors"
+}
+
+module "vscode-web" {
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
+  source                  = "dev.registry.coder.com/coder/vscode-web/coder"
+  version                 = "1.6.2"
+  agent_id                = coder_agent.dev.id
+  folder                  = local.repo_dir
+  extensions              = ["github.copilot"]
+  auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
+  accept_license          = true
+  group                   = "Web Editors"
+}
+
+module "jetbrains" {
+  count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
+  source        = "dev.registry.coder.com/coder/jetbrains/coder"
+  version       = "1.4.0"
+  agent_id      = coder_agent.dev.id
+  agent_name    = "dev"
+  folder        = local.repo_dir
+  major_version = "latest"
+  tooltip       = "You need to [install JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) to use this app."
+}
+
+module "copyparty" {
+  count          = data.coder_workspace.me.start_count
+  source         = "dev.registry.coder.com/djarbz/copyparty/coder"
+  version        = "1.0.2"
+  agent_id       = coder_agent.dev.id
+  subdomain      = true
+  pinned_version = "v1.20.23"
+  arguments = [
+    # copyparty listens on all interfaces by default; the agent proxies localhost.
+    "-i", "127.0.0.1",
+    # Serve the home directory at the web root with all permissions.
+    "-v", "/home/coder:/:A",
+  ]
+}
+
+module "coder-login" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/coder-login/coder"
+  version  = "1.1.1"
+  agent_id = coder_agent.dev.id
+}
+
+module "cursor" {
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
+  source   = "dev.registry.coder.com/coder/cursor/coder"
+  version  = "1.4.1"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "windsurf" {
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
+  source   = "dev.registry.coder.com/coder/windsurf/coder"
+  version  = "1.3.2"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "zed" {
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
+  source     = "dev.registry.coder.com/coder/zed/coder"
+  version    = "1.1.5"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
+  folder     = local.repo_dir
+}
+
+module "devcontainers-cli" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  version  = ">= 1.0.0"
+  agent_id = coder_agent.dev.id
+}
+
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.dev.id
+}
+
+resource "coder_agent" "dev" {
+  arch = "amd64"
+  os   = "linux"
+  dir  = local.repo_dir
+  env = merge(
+    {
+      OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+      # `mise oci build` bakes `ENV MISE_CONFIG_DIR=/etc/mise` into
+      # the image layer above Dockerfile.base, so mise treats
+      # /etc/mise as the user config dir and never reads
+      # ~/.config/mise/conf.d/*, silently dropping the trust file
+      # the install-deps coder_script below seeds. `[oci.env]` in
+      # mise.toml would be the natural place for this, but mise's
+      # internal env bake currently wins on MISE_* key collisions
+      # (non-MISE keys flow through). Move this back to `[oci.env]`
+      # once upstream mise fixes that.
+      MISE_CONFIG_DIR : "/home/coder/.config/mise",
+      # Keep user-installed mise tools on the persistent home volume.
+      # The image still exposes baked tools from /opt/mise/data via
+      # MISE_SHARED_INSTALL_DIRS, but /opt itself is image-resident
+      # and is recreated with the container on workspace restart.
+      MISE_DATA_DIR : "/home/coder/.local/share/mise",
+    },
+    {
+      ANTHROPIC_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/anthropic",
+      ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
+      OPENAI_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/openai/v1",
+      OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
+    }
+  )
+  startup_script_behavior = "blocking"
+
+  display_apps {
+    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode")
+    vscode_insiders = false
+  }
+
+  # The following metadata blocks are optional. They are used to display
+  # information about your workspace in the dashboard. You can remove them
+  # if you don't want to display any information.
+  metadata {
+    display_name = "CPU Usage"
+    key          = "cpu_usage"
+    order        = 0
+    script       = "coder stat cpu"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    key          = "ram_usage"
+    order        = 1
+    script       = "coder stat mem"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "/home Usage"
+    key          = "home_usage"
+    order        = 2
+    script       = "sudo du -sh /home/coder | awk '{print $1}'"
+    interval     = 3600 # 1h to avoid thrashing disk
+    timeout      = 60   # Longer than this is likely problematic
+  }
+
+  metadata {
+    display_name = "/var/lib/docker Usage"
+    key          = "var_lib_docker_usage"
+    order        = 3
+    script       = "sudo du -sh /var/lib/docker 2>/dev/null | awk '{print $1}'"
+    interval     = 3600 # 1h to avoid thrashing disk
+    timeout      = 60   # Longer than this is likely problematic
+  }
+
+  metadata {
+    display_name = "Word of the Day"
+    key          = "word"
+    order        = 4
+    script       = <<EOT
+      #!/usr/bin/env bash
+      curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
+    EOT
+    interval     = 86400
+    timeout      = 5
+  }
+
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = 80
+    }
+    volume {
+      enabled   = true
+      threshold = 90
+      path      = "/home/coder"
+    }
+    volume {
+      enabled   = true
+      threshold = 90
+      path      = "/var/lib/docker"
+    }
+  }
+
+  startup_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+    # Allow other scripts to wait for agent startup.
+    function cleanup() {
+      coder exp sync complete agent-startup
+      # Some folks will also use this for their personalize scripts.
+      touch /tmp/.coder-startup-script.done
+    }
+    trap cleanup EXIT
+    coder exp sync start agent-startup
+
+    # Authenticate GitHub CLI. `gh api user` is used instead of `gh auth
+    # status` because the latter exits non-zero when a stale token exists
+    # in ~/.config/gh/hosts.yml, even when a valid GITHUB_TOKEN is already
+    # present in the environment and gh commands work fine.
+    if ! gh api user --jq .login >/dev/null 2>&1; then
+      echo "Logging into GitHub CLI…"
+      if ! coder external-auth access-token github | gh auth login --hostname github.com --with-token; then
+        echo "GitHub CLI authentication failed; gh commands may not work."
+      fi
+    else
+      echo "GitHub CLI already has working credentials."
+    fi
+    # Configure Mux GitHub owner login for browser access (skip if
+    # already set). See: https://mux.coder.com/config/server-access
+    if [ ! -f ~/.mux/config.json ] || ! jq -e '.serverAuthGithubOwner' ~/.mux/config.json >/dev/null 2>&1; then
+      GH_USER=$(gh api user --jq .login 2>/dev/null || true)
+      if [ -n "$GH_USER" ]; then
+        mkdir -p ~/.mux
+        if [ -f ~/.mux/config.json ]; then
+          jq --arg owner "$GH_USER" '. + {serverAuthGithubOwner: $owner}' ~/.mux/config.json > /tmp/mux-config.json && mv /tmp/mux-config.json ~/.mux/config.json
+        else
+          jq -n --arg owner "$GH_USER" '{serverAuthGithubOwner: $owner}' > ~/.mux/config.json
+        fi
+        echo "Configured Mux GitHub owner login: $GH_USER"
+      fi
+    fi
+
+    # Increase the shutdown timeout of the docker service for improved cleanup.
+    # The 240 was picked as it's lower than the 300 seconds we set for the
+    # container shutdown grace period.
+    sudo sh -c 'jq ". += {\"shutdown-timeout\": 240}" /etc/docker/daemon.json > /tmp/daemon.json.new && mv /tmp/daemon.json.new /etc/docker/daemon.json'
+    # Start Docker service
+    sudo service docker start
+  EOT
+
+  shutdown_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+
+    # Clean up the Go build cache to prevent the home volume from
+    # accumulating waste and growing too large.
+    go clean -cache
+
+    # Clean up the coder build directory as this can get quite large
+    rm -rf "${local.repo_dir}/build"
+
+    # Clean up the unused resources to keep storage usage low.
+    #
+    # WARNING! This will remove:
+    #   - all stopped containers
+    #   - all networks not used by at least one container
+    #   - all images without at least one container associated to them
+    #   - all build cache
+    docker system prune -a -f
+
+    # Remove dangling named volumes that are older than KEEP_DAYS. Using
+    # 30 here as a conservative default (vacation, holidays, etc.).
+    KEEP_DAYS=30
+    docker volume ls -qf dangling=true \
+      | xargs -r docker volume inspect \
+      | jq -r --argjson days "$KEEP_DAYS" '.[] | select(.CreatedAt != null) | ((now - (.CreatedAt | fromdateiso8601)) / 86400 | floor) as $a | select($a >= $days) | "\($a)\t\(.Name)"' \
+      | while IFS=$'\t' read -r age name; do
+      echo "Removing volume $name ($age d)"
+      docker volume rm "$name" >/dev/null
+    done
+
+    # Stop the Docker service to prevent errors during workspace destroy.
+    sudo service docker stop
+  EOT
+}
+
+resource "coder_script" "install-deps" {
+  agent_id           = coder_agent.dev.id
+  display_name       = "Installing Dependencies"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    trap 'coder exp sync complete install-deps' EXIT
+
+    # Ensure /opt/mise is writable by coder before any login shell
+    # or other script touches mise. `mise oci build` emits its tar
+    # layers in deterministic mode with hardcoded uid=0/gid=0 (see
+    # mise's src/oci/layer.rs), and `prefix_parents` walks the full
+    # mount_point chain, so the final image stamps /opt, /opt/mise,
+    # and /opt/mise/data as root:root regardless of what the base
+    # Dockerfile sets. Without this chown mise warns `migrate:
+    # failed create_dir_all: /opt/mise/data/migrations` and skips
+    # its state writes. /opt/mise is image-resident (not on the
+    # home volume), so this runs every workspace start. Runs
+    # before the git-clone sync barrier so early shells never
+    # observe the unwritable state.
+    sudo chown -R coder:coder /opt/mise
+
+    coder exp sync want install-deps git-clone
+    coder exp sync start install-deps
+
+    # Seed a user-owned mise trust config on the persistent home
+    # volume. The image ships /etc/mise/conf.d/00-coder-trust.toml as
+    # a fallback, but mise's `trusted_config_paths` setting doesn't
+    # merge across config layers, so anything the user adds to their
+    # own file would otherwise replace the system fallback. Writing
+    # this file once (if-absent) seeds the defaults under
+    # ~/.config/mise/conf.d/ where the user can edit it and the edits
+    # survive workspace restart.
+    TRUST_FILE="$HOME/.config/mise/conf.d/00-coder-trust.toml"
+    if [ ! -f "$TRUST_FILE" ]; then
+      mkdir -p "$(dirname "$TRUST_FILE")"
+      cat > "$TRUST_FILE" <<'TRUST'
+    # mise trust paths for the dogfood workspace. Edit to add your own
+    # paths; this file lives on the persistent home volume so changes
+    # survive workspace restart. The install-deps coder_script only
+    # writes this file when it's absent.
+    [settings]
+    trusted_config_paths = [
+      "${local.repo_dir}",
+      "/etc/mise",
+    ]
+    TRUST
+    fi
+
+    # Install playwright dependencies
+    # We want to use the playwright version from site/package.json
+    cd "${local.repo_dir}" && make clean
+    cd "${local.repo_dir}/site" && pnpm install
+
+    # Two playwright installs: site/'s @playwright/test and
+    # @playwright/mcp@0.0.75 bundle different playwright-core versions
+    # with different chromium revisions, and both are used at runtime
+    # (site tests + the claude-code/codex MCP servers below).
+    cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
+    npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
+
+    # Keep this version pinned because the dashboard is embeddable only while
+    # it omits X-Frame-Options and CSP headers. This is not a documented
+    # contract, so verify those headers before updating.
+    npm install -g agent-browser@0.33.2
+    agent-browser install
+
+    # Keep the agent skill aligned with the installed CLI version.
+    skill_src="$(npm root -g)/agent-browser/skills/agent-browser"
+    for skill_dir in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
+      mkdir -p "$skill_dir"
+      rm -rf "$skill_dir/agent-browser"
+      cp -r "$skill_src" "$skill_dir/agent-browser"
+    done
+
+    agent-browser dashboard start
+  EOT
+}
+
+resource "coder_script" "go-cache-cleanup-cron" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Go Build Cache Cleanup Cron"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f9f9.png" // 🧹
+  cron         = "0 ${local.cache_cleanup_minute} ${local.cache_cleanup_hour} * * *"
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cache_dir=$(go env GOCACHE)
+    echo "Cleaning Go build cache entries not used in the last 2 days..."
+    before=$(du -s "$cache_dir" 2>/dev/null | awk '{print $1}')
+    find "$cache_dir" -type f -mtime +2 -delete
+    find "$cache_dir" -type d -empty -delete
+    after=$(du -s "$cache_dir" 2>/dev/null | awk '{print $1}')
+    freed=$(( (before - after) / 1024 ))
+    echo "Freed $${freed}MB from Go build cache."
+  EOT
+}
+
+resource "coder_devcontainer" "coder" {
+  count            = data.coder_parameter.devcontainer_autostart.value ? data.coder_workspace.me.start_count : 0
+  agent_id         = coder_agent.dev.id
+  workspace_folder = local.repo_dir
+}
+
+# Add a cost so we get some quota usage in dogfood.cdr.dev
+resource "coder_metadata" "home_volume" {
+  resource_id = docker_volume.home_volume.id
+  daily_cost  = 1
+}
+
+resource "docker_volume" "home_volume" {
+  name = "coder-${data.coder_workspace.me.id}-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "coder_metadata" "homebrew_volume" {
+  resource_id = docker_volume.homebrew_volume.id
+  hide        = true # Hide it as it only backs Homebrew state.
+}
+
+resource "docker_volume" "homebrew_volume" {
+  name = "coder-${data.coder_workspace.me.id}-homebrew"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "coder_metadata" "docker_volume" {
+  resource_id = docker_volume.docker_volume.id
+  hide        = true # Hide it as it is not useful to see in the UI.
+}
+
+resource "docker_volume" "docker_volume" {
+  name = "coder-${data.coder_workspace.me.id}-docker"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
+data "docker_registry_image" "dogfood" {
+  name = local.image_tags[data.coder_parameter.image_type.value]
+}
+
+resource "docker_image" "dogfood" {
+  name = "${local.image_tags[data.coder_parameter.image_type.value]}@${data.docker_registry_image.dogfood.sha256_digest}"
+  # CI rebuilds and pushes when any baked-in input changes, so the
+  # digest captures every effective change on its own.
+  pull_triggers = [
+    data.docker_registry_image.dogfood.sha256_digest,
+  ]
+  keep_locally = true
+}
+
+resource "docker_container" "workspace" {
+  lifecycle {
+    // Ignore changes that would invalidate prebuilds
+    ignore_changes = [
+      name,
+      hostname,
+      labels,
+      env,
+      entrypoint
+    ]
+  }
+  count = data.coder_workspace.me.start_count
+  image = docker_image.dogfood.name
+  name  = local.container_name
+  # Hostname makes the shell more user friendly: coder@my-workspace:~$
+  hostname = data.coder_workspace.me.name
+  # Use the docker gateway if the access URL is 127.0.0.1
+  entrypoint = ["sh", "-c", coder_agent.dev.init_script]
+  # CPU limits are unnecessary since Docker will load balance automatically
+  memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
+  runtime = "sysbox-runc"
+  restart = "unless-stopped"
+
+  # Ensure the workspace is given time to:
+  # - Execute shutdown scripts
+  # - Stop the in workspace Docker daemon
+  # - Stop the container, especially when using devcontainers,
+  #   deleting the overlay filesystem can take a while.
+  destroy_grace_seconds = 300
+  stop_timeout          = 300
+  stop_signal           = "SIGINT"
+
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
+    "USE_CAP_NET_ADMIN=true",
+    "CODER_PROC_PRIO_MGMT=1",
+    "CODER_PROC_OOM_SCORE=10",
+    "CODER_PROC_NICE_SCORE=1",
+    "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
+    "CODER_AGENT_EXP_MCP_CONFIG_FILES=~/.mcp.json,.mcp.json",
+  ]
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
+  volumes {
+    container_path = "/home/coder/"
+    volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+  # Homebrew is baked into this path. A Docker named volume copies the
+  # image contents on first mount, then persists user-installed formulae.
+  volumes {
+    container_path = "/home/linuxbrew/"
+    volume_name    = docker_volume.homebrew_volume.name
+    read_only      = false
+  }
+  volumes {
+    container_path = "/var/lib/docker/"
+    volume_name    = docker_volume.docker_volume.name
+    read_only      = false
+  }
+  capabilities {
+    add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
+  }
+  # Gated behind a parameter because mapping /dev/kvm fails container creation
+  # on hosts that do not expose it.
+  dynamic "devices" {
+    for_each = data.coder_parameter.enable_kvm.value ? [1] : []
+    content {
+      host_path      = "/dev/kvm"
+      container_path = "/dev/kvm"
+    }
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "coder_metadata" "container_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = docker_container.workspace[0].id
+  item {
+    key   = "memory"
+    value = docker_container.workspace[0].memory
+  }
+  item {
+    key   = "runtime"
+    value = docker_container.workspace[0].runtime
+  }
+  item {
+    key   = "region"
+    value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
+  }
+}
+
+resource "coder_script" "boundary_config_setup" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Boundary Setup Configuration"
+  run_on_start = true
+
+  script = <<-EOF
+    #!/bin/sh
+
+    trap 'coder exp sync complete boundary-config-setup' EXIT
+    coder exp sync start boundary-config-setup
+
+    mkdir -p ~/.config/coder_boundary
+    echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
+    chmod 600 ~/.config/coder_boundary/config.yaml
+  EOF
+}
+
+module "claude-code" {
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/claude-code/coder"
+  version           = "5.4.1"
+  enable_ai_gateway = true
+  anthropic_api_key = ""
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
+  mcp               = <<-EOF
+    {
+      "mcpServers": {
+        "playwright": {
+          "command": "npx",
+          "args": ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
+        }
+      }
+    }
+  EOF
+}
+
+resource "coder_app" "claude" {
+  agent_id     = coder_agent.dev.id
+  slug         = "claude"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s claude claude
+  EOT
+}
+
+module "codex" {
+  source            = "dev.registry.coder.com/coder-labs/codex/coder"
+  version           = "5.3.2"
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
+  enable_ai_gateway = true
+  openai_api_key    = ""
+  mcp               = <<-EOT
+    [mcp_servers.playwright]
+    command = "npx"
+    args = ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
+    type = "stdio"
+  EOT
+}
+
+resource "coder_app" "codex" {
+  agent_id     = coder_agent.dev.id
+  slug         = "codex"
+  display_name = "Codex"
+  icon         = "/icon/openai-codex.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s codex codex
+  EOT
+}
+
+# Live view of agent browser sessions, served by the dashboard that
+# install-deps starts. The dashboard has no authentication, so restrict
+# it to the workspace owner. "preview" is reserved for apps that need
+# the iframe navigation toolbar.
+resource "coder_app" "agent_browser" {
+  agent_id     = coder_agent.dev.id
+  slug         = "agent-browser"
+  display_name = "Agent Browser"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f310.png" // 🌐
+  url          = "http://localhost:4848"
+  share        = "owner"
+  subdomain    = true
+  open_in      = "tab"
+  healthcheck {
+    url       = "http://localhost:4848/"
+    interval  = 5
+    threshold = 6
+  }
+}

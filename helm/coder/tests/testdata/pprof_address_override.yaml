@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+  env:
+    - name: CODER_PPROF_ADDRESS
+      value: "127.0.0.1:6060"
+    - name: CODER_PPROF_ENABLE
+      value: "true"

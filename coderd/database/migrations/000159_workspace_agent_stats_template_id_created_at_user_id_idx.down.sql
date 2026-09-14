@@ -1,0 +1,1 @@
+DROP INDEX workspace_agent_stats_template_id_created_at_user_id_idx;

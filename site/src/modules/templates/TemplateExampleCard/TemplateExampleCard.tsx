@@ -1,0 +1,81 @@
+import { cn } from "cn";
+import type { FC, HTMLAttributes } from "react";
+import { Link as RouterLink } from "react-router";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Link } from "#/components/Link/Link";
+
+type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
+	example: TemplateExample;
+	activeTag?: string;
+	templateBuilderEnabled?: boolean;
+};
+
+export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
+	example,
+	activeTag,
+	templateBuilderEnabled,
+	className,
+	...divProps
+}) => {
+	const useTemplateLink = templateBuilderEnabled
+		? `/templates/new/builder?base=${example.id}`
+		: `/templates/new?exampleId=${example.id}`;
+
+	return (
+		<div
+			className={cn(
+				"flex w-[320px] flex-col rounded-md border border-solid border-border p-6 text-left text-inherit",
+				className,
+			)}
+			{...divProps}
+		>
+			<div className="mb-6 flex items-center justify-between">
+				<div className="size-8 shrink-0 pt-1">
+					<ExternalImage
+						src={example.icon}
+						className="w-full h-full object-contain"
+					/>
+				</div>
+
+				<div className="flex flex-wrap justify-end gap-2">
+					{example.tags.map((tag) => (
+						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
+							<Badge
+								variant={activeTag === tag ? "info" : "default"}
+								className="cursor-pointer no-underline hover:border-content-primary"
+							>
+								{tag}
+							</Badge>
+						</RouterLink>
+					))}
+				</div>
+			</div>
+
+			<div>
+				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
+				<span className="block text-xs font-normal leading-[1.6] text-content-secondary">
+					{example.description}{" "}
+					<Link
+						size="sm"
+						className="inline-block mt-1 p-0"
+						asChild
+						showExternalIcon={false}
+					>
+						<RouterLink to={`/starter-templates/${example.id}`}>
+							Read more
+						</RouterLink>
+					</Link>
+				</span>
+			</div>
+
+			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
+				<Button asChild className="w-full">
+					<RouterLink to={useTemplateLink}>Use template</RouterLink>
+				</Button>
+			</div>
+		</div>
+	);
+};
