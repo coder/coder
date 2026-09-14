@@ -3,14 +3,18 @@ import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockEditingChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
 import {
+	beginQueuedMessageEdit,
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
+	trackQueuedEditTarget,
 } from "./chatQueueReconciliation";
 import { createChatStore } from "./chatStore";
 
@@ -429,5 +433,87 @@ describe("submitEdit", () => {
 		expect(onError).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "boom" }),
 		);
+	});
+});
+
+describe("beginQueuedMessageEdit", () => {
+	const apiError = (status: number) => ({
+		...mockApiError({ message: "request failed" }),
+		status,
+	});
+
+	it("begins the edit of a row not under edit", async () => {
+		const beginEdit = vi.fn().mockResolvedValue({});
+		await expect(
+			beginQueuedMessageEdit({ ...MockChatQueuedMessage, id: 5 }, beginEdit),
+		).resolves.toEqual({ status: "editing" });
+		expect(beginEdit).toHaveBeenCalledWith(5);
+	});
+
+	it("skips the request for a row already under edit", async () => {
+		const beginEdit = vi.fn().mockResolvedValue({});
+		await expect(
+			beginQueuedMessageEdit(MockEditingChatQueuedMessage, beginEdit),
+		).resolves.toEqual({ status: "editing" });
+		expect(beginEdit).not.toHaveBeenCalled();
+	});
+
+	it("reports already_sent on a 404", async () => {
+		const beginEdit = vi.fn().mockRejectedValue(apiError(404));
+		await expect(
+			beginQueuedMessageEdit(MockChatQueuedMessage, beginEdit),
+		).resolves.toEqual({ status: "already_sent" });
+	});
+
+	it("reports other failures with the error", async () => {
+		const error = apiError(500);
+		const beginEdit = vi.fn().mockRejectedValue(error);
+		await expect(
+			beginQueuedMessageEdit(MockChatQueuedMessage, beginEdit),
+		).resolves.toEqual({ status: "failed", error });
+	});
+});
+
+describe("trackQueuedEditTarget", () => {
+	const row = { ...MockChatQueuedMessage, id: 5 };
+	const rowUnderEdit = { ...MockEditingChatQueuedMessage, id: 5 };
+
+	it("tracks nothing while no queued row is being edited", () => {
+		expect(trackQueuedEditTarget(null, undefined, 5)).toEqual({
+			seenID: null,
+			lost: false,
+		});
+	});
+
+	it("does not treat a row as lost before a snapshot showed it under edit", () => {
+		expect(trackQueuedEditTarget(5, row, null)).toEqual({
+			seenID: null,
+			lost: false,
+		});
+	});
+
+	it("remembers the row once a snapshot shows it under edit", () => {
+		expect(trackQueuedEditTarget(5, rowUnderEdit, null)).toEqual({
+			seenID: 5,
+			lost: false,
+		});
+	});
+
+	it("reports the row lost when it is no longer under edit after being seen", () => {
+		expect(trackQueuedEditTarget(5, row, 5)).toEqual({ seenID: 5, lost: true });
+	});
+
+	it("reports the row lost when it left the queue", () => {
+		expect(trackQueuedEditTarget(5, undefined, null)).toEqual({
+			seenID: null,
+			lost: true,
+		});
+	});
+
+	it("does not carry a previous target's sighting over to a new target", () => {
+		expect(trackQueuedEditTarget(6, { ...row, id: 6 }, 5)).toEqual({
+			seenID: 5,
+			lost: false,
+		});
 	});
 });

@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
+import { describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { getQueuedMessageInfo } from "./QueuedMessagesList";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import {
+	MockChatQueuedMessage,
+	MockEditingChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
+import { getQueuedMessageInfo, QueuedMessagesList } from "./QueuedMessagesList";
 
 const buildMessage = (
 	content: ChatQueuedMessage["content"],
@@ -144,5 +151,108 @@ describe("getQueuedMessageInfo", () => {
 			attachmentCount: 2,
 			hookNotices: [],
 		});
+	});
+});
+
+describe("QueuedMessagesList", () => {
+	const renderList = (
+		messages: readonly ChatQueuedMessage[],
+		handlers: Partial<
+			Pick<
+				ComponentProps<typeof QueuedMessagesList>,
+				"onDelete" | "onPromote" | "onEdit" | "onEndEdit" | "chatPaused"
+			>
+		> = {},
+	) => {
+		const onDelete = vi.fn();
+		const onPromote = vi.fn();
+		const onEdit = vi.fn();
+		const onEndEdit = vi.fn();
+		render(
+			<TooltipProvider>
+				<QueuedMessagesList
+					messages={messages}
+					onDelete={onDelete}
+					onPromote={onPromote}
+					onEdit={onEdit}
+					onEndEdit={onEndEdit}
+					{...handlers}
+				/>
+			</TooltipProvider>,
+		);
+		return { onDelete, onPromote, onEdit, onEndEdit };
+	};
+
+	it("calls onEdit with the row id", async () => {
+		const user = userEvent.setup();
+		const { onEdit, onEndEdit } = renderList([
+			{ ...MockChatQueuedMessage, id: 7 },
+		]);
+
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+
+		expect(onEdit).toHaveBeenCalledWith(7);
+		expect(onEndEdit).not.toHaveBeenCalled();
+	});
+
+	it("calls onEndEdit and onEdit with the head id while paused", async () => {
+		const user = userEvent.setup();
+		const { onEdit, onEndEdit } = renderList(
+			[
+				{ ...MockEditingChatQueuedMessage, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ chatPaused: true },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Resume" }));
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+
+		expect(onEndEdit).toHaveBeenCalledWith(9);
+		expect(onEdit).toHaveBeenCalledWith(9);
+	});
+
+	it("keeps Send now and Remove on a row under edit", async () => {
+		const user = userEvent.setup();
+		const { onPromote, onDelete } = renderList([
+			{ ...MockEditingChatQueuedMessage, id: 9 },
+			{ ...MockChatQueuedMessage, id: 10 },
+		]);
+
+		await user.click(screen.getAllByRole("button", { name: "Send now" })[0]);
+		expect(onPromote).toHaveBeenCalledWith(9);
+
+		await user.click(
+			screen.getAllByRole("button", { name: "Remove from queue" })[0],
+		);
+		expect(onDelete).toHaveBeenCalledWith(10);
+	});
+
+	it("keeps the row visible while onEdit is pending and after it fails", async () => {
+		const user = userEvent.setup();
+		let rejectEdit: ((error: Error) => void) | undefined;
+		const onEdit = vi.fn(
+			() =>
+				new Promise<void>((_, reject) => {
+					rejectEdit = reject;
+				}),
+		);
+		const { onPromote } = renderList([{ ...MockChatQueuedMessage, id: 7 }], {
+			onEdit,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+		expect(onEdit).toHaveBeenCalledWith(7);
+		// Other actions are disabled while the begin-edit request is in flight.
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).not.toHaveBeenCalled();
+
+		if (!rejectEdit) {
+			throw new Error("onEdit was not invoked");
+		}
+		rejectEdit(new Error("begin failed"));
+
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).toHaveBeenCalledWith(7);
 	});
 });
