@@ -48,10 +48,10 @@ func TestNewRuleScope(t *testing.T) {
 	toggles := map[string]map[string]string{
 		"Coder.OneSentencePerLine": {"*.md": "NO", "docs/.style/*.md": "YES"},
 	}
-	sectionStyles := map[string][]string{"": {"Coder"}, "docs/.style/style-guide/**": nil}
+	sectionStyles := map[string][]string{"*.md": {"Coder"}, "docs/.style/style-guide/**": nil}
 	scoped := newRule("OneSentencePerLine", "extends: existence\nlevel: warning\n", sectionStyles, toggles)
-	if !scoped.scoped {
-		t.Error("rule disabled in a section should be marked scoped")
+	if scoped.defaultOn {
+		t.Error("rule disabled in the catch-all section should not be on by default")
 	}
 	if len(scoped.enabledIn) != 1 || scoped.enabledIn[0] != "docs/.style/*.md" {
 		t.Errorf("enabledIn = %v, want [docs/.style/*.md]", scoped.enabledIn)
@@ -61,8 +61,8 @@ func TestNewRuleScope(t *testing.T) {
 	}
 
 	global := newRule("BrandNames", "level: error\n", sectionStyles, toggles)
-	if global.scoped {
-		t.Error("rule with no toggle should not be scoped")
+	if !global.defaultOn {
+		t.Error("rule with no toggle should be on by default")
 	}
 	if len(global.disabledIn) != 1 || global.disabledIn[0] != "docs/.style/style-guide/**" {
 		t.Errorf("disabledIn = %v, want [docs/.style/style-guide/**]", global.disabledIn)
@@ -197,7 +197,7 @@ func TestParseAnnotations(t *testing.T) {
 func TestCheckCatchesFalseClaims(t *testing.T) {
 	t.Parallel()
 
-	rules := []valeRule{{name: "BrandNames", severity: "error"}}
+	rules := []valeRule{{name: "BrandNames", severity: "error", defaultOn: true}}
 	annotations := map[string][]annotation{
 		"voice-and-tone.md": {
 			{file: "voice-and-tone.md", line: 10, text: "*Enforced by `Coder.FirstPersonSingular`.*"},
@@ -232,7 +232,7 @@ func TestCheckCatchesFalseClaims(t *testing.T) {
 func TestCheckCatchesTableDrift(t *testing.T) {
 	t.Parallel()
 
-	rules := []valeRule{{name: "BrandNames", severity: "error"}}
+	rules := []valeRule{{name: "BrandNames", severity: "error", defaultOn: true}}
 	annotations := map[string][]annotation{
 		"voice-and-tone.md": {{file: "voice-and-tone.md", line: 10, text: "*Enforced by `Coder.BrandNames`.*"}},
 	}
@@ -265,7 +265,7 @@ func TestCheckCatchesTableDrift(t *testing.T) {
 
 	t.Run("rule with no style guide section", func(t *testing.T) {
 		t.Parallel()
-		extra := []valeRule{rules[0], {name: "Orphan", severity: "warning"}}
+		extra := []valeRule{rules[0], {name: "Orphan", severity: "warning", defaultOn: true}}
 		landing := checksTable("`Coder.BrandNames`", "`error`", "`docs/**`") +
 			checksTable("`Coder.Orphan`", "`warning`", "`docs/**`") +
 			coverageTable(map[string][4]int{"voice-and-tone.md": {1, 1, 0, 0}})
@@ -372,11 +372,10 @@ Reference detail, not a rule.
 func TestCheckScopeCell(t *testing.T) {
 	t.Parallel()
 
-	global := valeRule{name: "BrandNames", severity: "error", disabledIn: []string{"docs/.style/style-guide/**"}}
+	global := valeRule{name: "BrandNames", severity: "error", defaultOn: true, disabledIn: []string{"docs/.style/style-guide/**"}}
 	scoped := valeRule{
 		name:      "OneSentencePerLine",
 		severity:  "warning",
-		scoped:    true,
 		enabledIn: []string{"docs/.style/*.md", "docs/.style/styles/Coder/*.md"},
 	}
 
@@ -384,18 +383,24 @@ func TestCheckScopeCell(t *testing.T) {
 		name string
 		rule valeRule
 		cell string
-		want string
+		want bool
 	}{
 		{
-			name: "global rule names every configured path",
+			name: "global rule names the disable as an exception",
 			rule: global,
 			cell: "`docs/**` except `docs/.style/style-guide/**`",
 		},
 		{
-			name: "global rule omits the disabled path",
+			name: "global rule omits the disable",
 			rule: global,
 			cell: "`docs/**`",
-			want: "omits `docs/.style/style-guide/**`",
+			want: true,
+		},
+		{
+			name: "global rule inverts the polarity",
+			rule: global,
+			cell: "`docs/**` and `docs/.style/style-guide/**`",
+			want: true,
 		},
 		{
 			name: "scoped rule names both enabling globs",
@@ -405,27 +410,21 @@ func TestCheckScopeCell(t *testing.T) {
 		{
 			name: "scoped rule over-claims the whole docs tree",
 			rule: scoped,
-			cell: "`docs/**`, `docs/.style/*.md` and `docs/.style/styles/Coder/*.md`",
-			want: "claims `docs/**`",
+			cell: "`docs/**`",
+			want: true,
 		},
 		{
 			name: "scoped rule omits an enabling glob",
 			rule: scoped,
 			cell: "`docs/.style/*.md` only",
-			want: "omits `docs/.style/styles/Coder/*.md`",
+			want: true,
 		},
 	}
 
 	for _, tc := range cases {
 		findings := checkScopeCell("README.md", 1, tc.cell, tc.rule)
-		if tc.want == "" {
-			if len(findings) != 0 {
-				t.Errorf("%s: unexpected findings %v", tc.name, findings)
-			}
-			continue
-		}
-		if !containsMsg(findings, tc.want) {
-			t.Errorf("%s: findings = %v, want one containing %q", tc.name, findings, tc.want)
+		if got := len(findings) > 0; got != tc.want {
+			t.Errorf("%s: findings = %v, want a finding: %v", tc.name, findings, tc.want)
 		}
 	}
 }
@@ -445,7 +444,7 @@ func TestLoadRulesSkipsDemoRules(t *testing.T) {
 		}
 	}
 
-	rules, err := loadRules(dir, map[string][]string{"": {"Coder"}}, nil)
+	rules, err := loadRules(dir, map[string][]string{"*.md": {"Coder"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -488,9 +487,12 @@ func TestSubpagesDiscoversAnnotatedPages(t *testing.T) {
 		}
 	}
 
-	pages, sources, err := subpages(dir)
+	pages, annotations, sources, err := subpages(dir, "")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(annotations["word-choice.md"]) != 1 {
+		t.Errorf("annotations = %v, want the page's one footer", annotations["word-choice.md"])
 	}
 	if len(pages) != 1 || pages[0] != "word-choice.md" {
 		t.Fatalf("subpages() = %v, want only the annotated page", pages)
@@ -527,5 +529,51 @@ func TestCheckChecksTableReportsUnknownRule(t *testing.T) {
 	landing := checksTable("`Coder.NotARule`", "`error`", "`docs/**`")
 	if !containsMsg(checkChecksTable(landing, nil), "no rule file under") {
 		t.Error("a table row for a nonexistent rule was not reported")
+	}
+}
+
+// TestCheckClaimsCountsPlannedAnnotations drives a planned annotation through
+// the reconciler, so the planned column of the coverage table is exercised end
+// to end rather than only in the classifier.
+func TestCheckClaimsCountsPlannedAnnotations(t *testing.T) {
+	t.Parallel()
+
+	rules := []valeRule{{name: "BrandNames", severity: "error", defaultOn: true}}
+	annotations := map[string][]annotation{
+		"voice-and-tone.md": {
+			{file: "voice-and-tone.md", line: 10, text: "*Enforced by `Coder.BrandNames`.*"},
+			{file: "voice-and-tone.md", line: 20, text: "*Enforced by `Coder.LearnMore` (planned).*"},
+			{file: "voice-and-tone.md", line: 30, text: "*Documentation-only. No Vale rule.*"},
+		},
+	}
+	landing := checksTable("`Coder.BrandNames`", "`error`", "`docs/**`") +
+		coverageTable(map[string][4]int{"voice-and-tone.md": {3, 1, 1, 1}})
+
+	if findings := checkClaims(testPages, []string{"Coder"}, rules, annotations, landing); len(findings) != 0 {
+		t.Fatalf("checkClaims() = %v, want no findings for a table that matches", findings)
+	}
+
+	drifted := checksTable("`Coder.BrandNames`", "`error`", "`docs/**`") +
+		coverageTable(map[string][4]int{"voice-and-tone.md": {3, 1, 0, 2}})
+	if !containsMsg(checkClaims(testPages, []string{"Coder"}, rules, annotations, drifted), "annotations give") {
+		t.Error("a planned annotation counted as documentation-only was not reported")
+	}
+}
+
+// TestRunReconcilesTheRepository exercises the whole wiring, from .vale.ini and
+// the rule files through page discovery to the landing page tables, against the
+// real style guide. It is the test that fails if the repository and the
+// checker disagree.
+//
+//nolint:paralleltest // t.Chdir cannot be used in a parallel test.
+func TestRunReconcilesTheRepository(t *testing.T) {
+	t.Chdir("../..")
+
+	findings, err := run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range findings {
+		t.Errorf("%s:%d: %s", f.file, f.line, f.msg)
 	}
 }

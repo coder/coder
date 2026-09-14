@@ -27,9 +27,12 @@ honest about.
   pattern requires.
 - **Checks-table drift.** A severity that disagrees with the rule file's
   `level:`, a row for a rule that doesn't exist, a missing row for a rule that
-  does, or a scope cell that disagrees with `.vale.ini`, in either direction: a
-  cell that omits a configured path under-claims the rule, and a cell that names
-  a path the config never sets over-claims it.
+  does, or a scope cell that doesn't read the way `.vale.ini` configures the
+  rule. The scope check compares the rendered text, not the set of paths, so a
+  cell that says "and" where the config says "except" is caught along with a
+  cell that omits or invents a path.
+- **A rule cited as enforcement while `.vale.ini` leaves it off.** A rule file
+  can exist and still run nowhere.
 - **Coverage-table drift.** A per-section or total count that disagrees with the
   annotations.
 - **A rule heading with no footer.** A `##` or `###` heading that states a rule
@@ -74,8 +77,9 @@ after a scoping sub-heading isn't flagged. A heading is also exempt when it is
 the `Learn more` navigation section, or when it carries a note that opens with
 `Out of scope` or `Not a rule`, which is how a section that organizes a page
 without stating a rule declares itself. Headings deeper than `###` are detail
-inside a section, not rules. A Markdown file with no footers at all, such as
-`editor-setup.md`, isn't a rule section and isn't scanned.
+inside a section, not rules. A Markdown file that has no footers and no
+coverage row, such as `editor-setup.md`, isn't a rule section and isn't
+scanned.
 
 - **Documentation-only**: the annotation declares the section
   `Documentation-only`. This wins over everything else, so a section that only
@@ -98,5 +102,6 @@ whole, such as a rule with no style guide section or a missing coverage row.
 Any finding exits 1.
 
 The set of style guide sections comes from the directory, not from a list in
-the source, so a new subpage is validated as soon as it carries its first
-enforcement footer.
+the source. A Markdown file is a rule section when it carries at least one
+enforcement footer, or when the coverage table gives it a row, so a new subpage
+is validated as soon as either is true.

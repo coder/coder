@@ -18,7 +18,6 @@ package main
 import (
 	"cmp"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,17 +41,28 @@ const (
 	globalScope = "docs/**"
 )
 
-// subpages returns the style guide rule sections, discovered from disk rather
-// than from a hand-maintained list: a new subpage is validated the day it
-// lands. A Markdown file counts as a rule section when it carries at least one
-// enforcement footer, which excludes the landing page and pages such as
-// editor-setup.md that document tooling rather than rules.
-func subpages(dir string) ([]string, map[string]string, error) {
+// subpages returns the style guide rule sections with their parsed footers,
+// discovered from disk rather than from a hand-maintained list, so a new
+// subpage is validated the day it lands.
+//
+// A Markdown file counts as a rule section when it carries at least one
+// enforcement footer, or when the landing page's coverage table gives it a row.
+// The second condition matters for a page that is all documentation-only rules
+// and has not been annotated yet: adding its coverage row brings it under the
+// footer check instead of leaving it invisible. Pages that are neither, such as
+// editor-setup.md, document tooling rather than rules and are not scanned.
+func subpages(dir, landing string) ([]string, map[string][]annotation, map[string]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	covered := map[string]bool{}
+	for _, page := range coverageRows(landing) {
+		covered[page] = true
+	}
+
 	var pages []string
+	annotations := map[string][]annotation{}
 	sources := map[string]string{}
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || e.Name() == landingPage {
@@ -60,16 +70,39 @@ func subpages(dir string) ([]string, map[string]string, error) {
 		}
 		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		if len(parseAnnotations(e.Name(), string(b))) == 0 {
+		found := parseAnnotations(e.Name(), string(b))
+		if len(found) == 0 && !covered[e.Name()] {
 			continue
 		}
 		pages = append(pages, e.Name())
+		annotations[e.Name()] = found
 		sources[e.Name()] = string(b)
 	}
 	slices.Sort(pages)
-	return pages, sources, nil
+	return pages, annotations, sources, nil
+}
+
+// coverageRows returns the section files the coverage table links.
+func coverageRows(landing string) []string {
+	var pages []string
+	for _, line := range unfenced(landing) {
+		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
+			continue
+		}
+		cells := tableCells(line)
+		if len(cells) < 5 {
+			continue
+		}
+		if _, ok := fourInts(cells[1:5]); !ok {
+			continue
+		}
+		if page, ok := linkedPage(cells[0]); ok {
+			pages = append(pages, page)
+		}
+	}
+	return pages
 }
 
 // annotationStart matches the opening of a rule section's enforcement
@@ -98,9 +131,6 @@ var headingLine = regexp.MustCompile(`^(#{1,6}) +(.*)$`)
 // disclaimer on a section that organizes a page without stating a rule.
 var nonRuleNote = regexp.MustCompile(`^\*(Out of scope|Not a rule)`)
 
-// scopeGlob matches a backticked path or glob in a scope cell.
-var scopeGlob = regexp.MustCompile("`([A-Za-z0-9_./*-]*[/*][A-Za-z0-9_./*-]*)`")
-
 // learnMoreHeading is the navigation section every subpage ends with.
 const learnMoreHeading = "Learn more"
 
@@ -108,15 +138,16 @@ const learnMoreHeading = "Learn more"
 type valeRule struct {
 	name     string // for example "BrandNames"
 	severity string // the rule file's level: field
-	// enabledIn lists the .vale.ini section globs that set the rule to YES.
-	// Empty means the rule is active everywhere BasedOnStyles applies.
+	// defaultOn is true when the catch-all section leaves the rule enabled,
+	// so the rule runs everywhere except the sections that turn it off.
+	defaultOn bool
+	// enabledIn lists the section globs that turn the rule on where the
+	// catch-all section left it off.
 	enabledIn []string
-	// disabledIn lists the section globs whose empty BasedOnStyles loads no
-	// style at all, so no Coder rule runs under those paths.
+	// disabledIn lists the section globs that turn the rule off, either with
+	// an explicit NO or with an empty BasedOnStyles that loads no style at
+	// all.
 	disabledIn []string
-	// scoped is true when any .vale.ini section sets the rule to NO, so the
-	// rule runs only in the sections that re-enable it.
-	scoped bool
 }
 
 // class is how a rule section's annotation is counted on the coverage table.
@@ -173,21 +204,19 @@ func run() ([]finding, error) {
 		return nil, err
 	}
 
-	pages, sources, err := subpages(styleGuide)
-	if err != nil {
-		return nil, err
-	}
-
-	annotations := map[string][]annotation{}
-	var findings []finding
-	for _, page := range pages {
-		annotations[page] = parseAnnotations(page, sources[page])
-		findings = append(findings, checkFooterCoverage(page, sources[page])...)
-	}
-
 	landing, err := os.ReadFile(filepath.Join(styleGuide, landingPage))
 	if err != nil {
 		return nil, err
+	}
+
+	pages, annotations, sources, err := subpages(styleGuide, string(landing))
+	if err != nil {
+		return nil, err
+	}
+
+	var findings []finding
+	for _, page := range pages {
+		findings = append(findings, checkFooterCoverage(page, sources[page])...)
 	}
 
 	return append(findings, checkClaims(pages, styles, rules, annotations, string(landing))...), nil
@@ -257,7 +286,7 @@ func unfenced(src string) []string {
 	out := make([]string, len(lines))
 	fenced := false
 	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
 			fenced = !fenced
 			continue
 		}
@@ -346,27 +375,94 @@ func newRule(name, yaml string, sectionStyles map[string][]string, toggles map[s
 			break
 		}
 	}
+	r.defaultOn = true
 	for section, value := range toggles[coderPackage+"."+name] {
 		switch {
+		case isDefaultSection(section) && value == "NO":
+			r.defaultOn = false
 		case value == "NO":
-			r.scoped = true
-		case section != "" && value == "YES":
+			r.disabledIn = append(r.disabledIn, section)
+		case !isDefaultSection(section) && value == "YES":
 			r.enabledIn = append(r.enabledIn, section)
 		}
 	}
 	for section, loaded := range sectionStyles {
-		if section == "" || len(loaded) > 0 {
+		if isDefaultSection(section) || len(loaded) > 0 {
 			continue
 		}
 		r.disabledIn = append(r.disabledIn, section)
 	}
 	slices.Sort(r.enabledIn)
 	slices.Sort(r.disabledIn)
+	r.enabledIn = slices.Compact(r.enabledIn)
+	r.disabledIn = slices.Compact(r.disabledIn)
 	return r
+}
+
+// isDefaultSection reports whether a .vale.ini section is the catch-all that
+// sets a rule's default state, rather than a path-scoped override.
+func isDefaultSection(section string) bool {
+	return section == "" || section == "*.md" || section == "*"
+}
+
+// active reports whether .vale.ini leaves the rule running anywhere. A rule
+// that is off by default and re-enabled nowhere checks no file, so an
+// annotation must not cite it as enforcement.
+func (r valeRule) active() bool {
+	return r.defaultOn || len(r.enabledIn) > 0
+}
+
+// scopeText renders the scope the configuration gives a rule, in the form the
+// "Checks that run today" table uses. Comparing the cell against this string
+// catches a cell that names the right paths with the wrong polarity, which a
+// set comparison cannot see.
+func (r valeRule) scopeText() string {
+	quote := func(globs []string) string {
+		var out []string
+		for _, g := range globs {
+			out = append(out, "`"+g+"`")
+		}
+		return strings.Join(out, " and ")
+	}
+	if !r.defaultOn {
+		if overlaps := r.disabledOverlaps(); len(overlaps) > 0 {
+			return quote(r.enabledIn) + " except " + quote(overlaps) + ", and nowhere else"
+		}
+		return quote(r.enabledIn) + " only"
+	}
+	if len(r.disabledIn) == 0 {
+		return "`" + globalScope + "`"
+	}
+	return "`" + globalScope + "` except " + quote(r.disabledIn)
+}
+
+// disabledOverlaps returns the disabling globs that fall inside a glob the rule
+// is enabled in, so the scope text mentions a disable only where the rule would
+// otherwise run. A glob ending in `*.md` covers one directory, so a disable in a
+// subdirectory does not overlap it; only a `**` glob reaches down the tree.
+func (r valeRule) disabledOverlaps() []string {
+	var out []string
+	for _, d := range r.disabledIn {
+		for _, e := range r.enabledIn {
+			if !strings.Contains(e, "**") {
+				continue
+			}
+			prefix, _, _ := strings.Cut(e, "**")
+			if strings.HasPrefix(d, prefix) {
+				out = append(out, d)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // parseAnnotations extracts every rule section footer from a subpage. Footers
 // shown as examples inside a fenced code block are not annotations.
+//
+// A footer runs from its opening asterisk to the next line ending in one. On
+// the opening line a second asterisk means the footer both opens and closes
+// there, which is how a one-line footer such as *Enforced by X.* terminates.
 func parseAnnotations(file, src string) []annotation {
 	var out []annotation
 	lines := unfenced(src)
@@ -418,7 +514,14 @@ func activeCitations(text string) (active, planned []string) {
 			// it ("`X` (planned)"). Scoping to the neighboring text keeps
 			// mixed annotations that cite one active and one planned checker
 			// classified correctly on both halves.
-			window := strings.ToLower(sentence[start:loc[0]] + sentence[loc[1]:end])
+			// A marker that closes the previous citation's parenthetical
+			// belongs to that citation, not to this one, so the backward
+			// window starts after the last closing parenthesis.
+			before := sentence[start:loc[0]]
+			if end := strings.LastIndex(before, ")"); end >= 0 {
+				before = before[end+1:]
+			}
+			window := strings.ToLower(before + sentence[loc[1]:end])
 			if strings.Contains(window, "planned") {
 				planned = append(planned, name)
 				continue
@@ -493,8 +596,10 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 	var findings []finding
 
 	ruleNames := map[string]bool{}
+	enabled := map[string]bool{}
 	for _, r := range rules {
 		ruleNames[r.name] = true
+		enabled[r.name] = r.active()
 	}
 	loadedStyle := map[string]bool{}
 	for _, s := range styles {
@@ -508,8 +613,8 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 		var total, tool, planned, docOnly int
 		for _, a := range annotations[page] {
 			total++
-			class := classify(a.text, ruleNames)
-			switch class {
+			cls := classify(a.text, ruleNames)
+			switch cls {
 			case classTool:
 				tool++
 			case classPlanned:
@@ -535,11 +640,18 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 						})
 						continue
 					}
+					if !enabled[rule] {
+						findings = append(findings, finding{
+							a.file, a.line,
+							fmt.Sprintf("claims `%s` enforces this rule, but %s leaves it off everywhere. Mark the citation (planned), or enable the rule.", c, valeConfig),
+						})
+						continue
+					}
 					// Only the section that owns a rule marks it cited. A
 					// documentation-only section may cross-reference a rule
 					// another section owns, and that reference must not stand
 					// in for the owning section if the owner is ever removed.
-					if class != classDocumentationOnly {
+					if cls != classDocumentationOnly {
 						cited[rule] = true
 					}
 					continue
@@ -600,7 +712,7 @@ func checkChecksTable(landing string, rules []valeRule) []finding {
 		if rule == nil {
 			findings = append(findings, finding{
 				path, i + 1,
-				fmt.Sprintf("table lists `%s.%s`, which has no rule file under %s", coderPackage, name, rulesDir),
+				fmt.Sprintf("table lists `%s.%s`, which has no rule file under %s. Add the rule file, or remove the row.", coderPackage, name, rulesDir),
 			})
 			continue
 		}
@@ -624,46 +736,23 @@ func checkChecksTable(landing string, rules []valeRule) []finding {
 	return findings
 }
 
-// checkScopeCell compares the paths a scope cell names against the paths
-// .vale.ini actually configures, in both directions: a cell that omits a glob
-// under-claims the rule's reach, and a cell that names a path the config never
-// mentions over-claims it.
+// checkScopeCell compares a scope cell against the scope the configuration
+// gives the rule. The comparison is on the rendered text, not on the set of
+// paths, so a cell that says "and" where .vale.ini says "except" is caught.
 func checkScopeCell(path string, line int, cell string, rule valeRule) []finding {
-	want := map[string]bool{}
-	if rule.scoped {
-		for _, g := range rule.enabledIn {
-			want[g] = true
-		}
-	} else {
-		want[globalScope] = true
-		for _, g := range rule.disabledIn {
-			want[g] = true
-		}
+	want := rule.scopeText()
+	if normalizeScope(cell) == normalizeScope(want) {
+		return nil
 	}
+	return []finding{{
+		path, line,
+		fmt.Sprintf("scope for `%s.%s` reads %q but %s gives it %q", coderPackage, rule.name, strings.TrimSpace(cell), valeConfig, want),
+	}}
+}
 
-	got := map[string]bool{}
-	for _, m := range scopeGlob.FindAllStringSubmatch(cell, -1) {
-		got[m[1]] = true
-	}
-
-	var findings []finding
-	for _, g := range slices.Sorted(maps.Keys(want)) {
-		if !got[g] {
-			findings = append(findings, finding{
-				path, line,
-				fmt.Sprintf("scope for `%s.%s` omits `%s`, which %s configures for it", coderPackage, rule.name, g, valeConfig),
-			})
-		}
-	}
-	for _, g := range slices.Sorted(maps.Keys(got)) {
-		if !want[g] {
-			findings = append(findings, finding{
-				path, line,
-				fmt.Sprintf("scope for `%s.%s` claims `%s`, which %s does not configure for it", coderPackage, rule.name, g, valeConfig),
-			})
-		}
-	}
-	return findings
+// normalizeScope collapses the whitespace a Markdown table adds for alignment.
+func normalizeScope(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // checkCoverageTable validates the per-section counts and the total row.
