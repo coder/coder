@@ -23,17 +23,17 @@ which templates developers can use. For example:
 
 Roles determine which actions users can take within the platform.
 
-|                                                                 | Auditor | User Admin | Template Admin | Owner |
-|-----------------------------------------------------------------|---------|------------|----------------|-------|
-| Add and remove Users                                            |         | ✅          |                | ✅     |
-| Manage groups (premium)                                         |         | ✅          |                | ✅     |
-| Change User roles                                               |         |            |                | ✅     |
-| Manage **ALL** Templates                                        |         |            | ✅              | ✅     |
-| View **ALL** Workspaces                                         |         |            | ✅              | ✅     |
-| Update and delete **ALL** Workspaces                            |         |            |                | ✅     |
-| Run [external provisioners](../provisioners/index.md)           |         |            | ✅              | ✅     |
-| Execute and use **ALL** Workspaces                              |         |            |                | ✅     |
-| View all user operation [Audit Logs](../security/audit-logs.md) | ✅       |            |                | ✅     |
+|                                                                          | Auditor | User Admin | Template Admin | Owner |
+|--------------------------------------------------------------------------|---------|------------|----------------|-------|
+| Add and remove Users                                                     |         | ✅          |                | ✅     |
+| Manage groups (premium)                                                  |         | ✅          |                | ✅     |
+| Change User roles                                                        |         |            |                | ✅     |
+| Manage **ALL** Templates                                                 |         |            | ✅              | ✅     |
+| View **ALL** Workspaces                                                  |         |            | ✅              | ✅     |
+| Update and delete **ALL** Workspaces                                     |         |            |                | ✅     |
+| Run [external provisioners](../../install/operate/provisioners/index.md) |         |            | ✅              | ✅     |
+| Execute and use **ALL** Workspaces                                       |         |            |                | ✅     |
+| View all user operation [Audit Logs](../security/audit-logs.md)          | ✅       |            |                | ✅     |
 
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
@@ -91,7 +91,7 @@ Note that these permissions only apply to the scope of an
 A malicious Template Admin could write a template that executes commands on the
 host (or `coder server` container), which potentially escalates their privileges
 or shuts down the control plane. To avoid this, run
-[external provisioners](../provisioners/index.md).
+[external provisioners](../../install/operate/provisioners/index.md).
 
 In low-trust environments, we do not recommend giving users direct access to
 edit templates. Instead, use
