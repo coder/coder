@@ -12,7 +12,10 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { useRegisterComposer } from "../context/ComposerContext";
+import {
+	type AttachOptions,
+	useRegisterComposer,
+} from "../context/ComposerContext";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -442,10 +445,21 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 	} = modeAttachments;
+	// Files attached by right-panel tools that asked to hear back once the
+	// message carrying them is sent.
+	const sentCallbacksRef = useRef(new WeakMap<File, () => void>());
+	const attachFromTool = (files: File[], options?: AttachOptions) => {
+		if (options?.onSent) {
+			for (const file of files) {
+				sentCallbacksRef.current.set(file, options.onSent);
+			}
+		}
+		handleAttach(files);
+	};
 	// Mirror the composer's own gating so tools cannot add to the draft
 	// while the user-visible input is disabled or read-only.
 	useRegisterComposer(
-		isInputDisabled || isReadOnly ? null : { attach: handleAttach },
+		isInputDisabled || isReadOnly ? null : { attach: attachFromTool },
 	);
 
 	// Edit attachments are scoped to the chat being edited, not the compose
@@ -562,6 +576,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					} catch {
 						// Attachments preserved for retry on failure.
 						return;
+					}
+					for (const file of attachments) {
+						sentCallbacksRef.current.get(file)?.();
+						sentCallbacksRef.current.delete(file);
 					}
 					if (isEditing) {
 						editAttachments.resetAttachments();

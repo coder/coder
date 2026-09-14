@@ -3,12 +3,13 @@ import {
 	MessageSquarePlusIcon,
 	NetworkIcon,
 } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatAnnotations } from "#/annotator/formatAnnotations";
 import {
 	type AnnotationSubmission,
 	annotatorQueryParam,
+	type HighlightItem,
 } from "#/annotator/protocol";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -33,6 +34,9 @@ export const PortPreviewPanel: FC<{
 	// Shows the annotate control. Requires the chat-ui-annotations
 	// experiment so the app proxy injects the overlay.
 	canAnnotate?: boolean;
+	// Drives the shimmer over annotated elements: on while the agent works
+	// on a sent annotation message, flashing done when it stops.
+	isAgentWorking?: boolean;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
 	workspace,
@@ -40,6 +44,7 @@ export const PortPreviewPanel: FC<{
 	host,
 	tab,
 	canAnnotate = false,
+	isAgentWorking = false,
 	annotatorReadyTimeoutMs,
 }) => {
 	const url = portForwardURL(
@@ -58,6 +63,13 @@ export const PortPreviewPanel: FC<{
 	// inside the app keeps the overlay; a full navigation drops it until
 	// the user presses Annotate again.
 	const [overlayRequests, setOverlayRequests] = useState(0);
+	// Selectors from the last sent annotation message, highlighted in the
+	// preview until the agent's turn ends. `started` guards against the
+	// send resolving before the chat reports the turn as running.
+	const [workingOn, setWorkingOn] = useState<{
+		items: HighlightItem[];
+		started: boolean;
+	}>();
 
 	// Annotations are attached rather than sent: the frame is a third-party
 	// app that could forge a submission, so the user reviews the draft and
@@ -66,11 +78,18 @@ export const PortPreviewPanel: FC<{
 		if (!composer) {
 			return;
 		}
-		composer.attach([
-			new File([formatAnnotations(submission)], annotationsFileName, {
-				type: "text/markdown",
-			}),
-		]);
+		const items = submission.annotations.map(({ id, element }) => ({
+			id,
+			selector: element.selector,
+		}));
+		composer.attach(
+			[
+				new File([formatAnnotations(submission)], annotationsFileName, {
+					type: "text/markdown",
+				}),
+			],
+			{ onSent: () => setWorkingOn({ items, started: false }) },
+		);
 		const count = submission.annotations.length;
 		toast.success(
 			`Attached ${count} UI annotation${count === 1 ? "" : "s"} to your message.`,
@@ -88,6 +107,25 @@ export const PortPreviewPanel: FC<{
 		readyTimeoutMs: annotatorReadyTimeoutMs,
 		onSubmit: handleSubmit,
 	});
+
+	// The overlay owns the drawing; this only tells it what to show. Runs
+	// again when the overlay reloads so a pending shimmer is restored.
+	useEffect(() => {
+		if (!workingOn || !bridge.ready) {
+			return;
+		}
+		if (isAgentWorking) {
+			bridge.highlight(workingOn.items, "pending");
+			if (!workingOn.started) {
+				setWorkingOn({ ...workingOn, started: true });
+			}
+			return;
+		}
+		if (workingOn.started) {
+			bridge.highlight(workingOn.items, "done");
+			setWorkingOn(undefined);
+		}
+	}, [workingOn, isAgentWorking, bridge.ready, bridge.highlight]);
 
 	const handleAnnotateClick = () => {
 		if (!bridge.ready) {

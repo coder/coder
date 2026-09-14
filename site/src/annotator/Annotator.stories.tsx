@@ -3,13 +3,17 @@ import { type FC, useEffect, useState } from "react";
 import { userEvent, within } from "storybook/test";
 import { formatAnnotations } from "./formatAnnotations";
 import { annotatorHostId, mountAnnotator } from "./mountAnnotator";
+import type { HighlightState } from "./protocol";
 
 /**
  * Stand-in for a customer app rendered inside the port preview. The
  * annotator is mounted into this document exactly as the injected script
  * would do it, minus the postMessage bridge.
  */
-const DemoPage: FC<{ picking: boolean }> = ({ picking }) => {
+const DemoPage: FC<{
+	picking: boolean;
+	highlight?: HighlightState;
+}> = ({ picking, highlight }) => {
 	const [output, setOutput] = useState<string>();
 
 	useEffect(() => {
@@ -18,8 +22,17 @@ const DemoPage: FC<{ picking: boolean }> = ({ picking }) => {
 			onSubmit: (submission) => setOutput(formatAnnotations(submission)),
 		});
 		handle.setPicking(picking);
+		if (highlight) {
+			handle.setHighlights(
+				[
+					{ id: "1", selector: '[data-testid="save-button"]' },
+					{ id: "2", selector: "h1" },
+				],
+				highlight,
+			);
+		}
 		return () => handle.destroy();
-	}, [picking]);
+	}, [picking, highlight]);
 
 	return (
 		<main className="min-h-[520px] bg-white p-8 font-sans text-neutral-900">
@@ -121,4 +134,12 @@ export const WithPinsAndOutput: Story = {
 			await userEvent.click(send);
 		}
 	},
+};
+
+export const AgentWorking: Story = {
+	args: { highlight: "pending" },
+};
+
+export const AgentDone: Story = {
+	args: { highlight: "done" },
 };

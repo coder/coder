@@ -47,6 +47,12 @@ function bootstrap() {
 				case "coder-annotator:clear":
 					annotator.clear();
 					break;
+				case "coder-annotator:highlight":
+					annotator.setHighlights(event.data.items, event.data.state);
+					break;
+				case "coder-annotator:clear-highlights":
+					annotator.setHighlights([], "pending");
+					break;
 			}
 		});
 

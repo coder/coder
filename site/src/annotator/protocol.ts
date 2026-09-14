@@ -50,9 +50,24 @@ export type AnnotatorToHostMessage =
 	| { type: "coder-annotator:state"; picking: boolean; count: number }
 	| ({ type: "coder-annotator:submit" } & AnnotationSubmission);
 
+export type HighlightState = "pending" | "done";
+
+export interface HighlightItem {
+	id: string;
+	selector: string;
+}
+
 export type HostToAnnotatorMessage =
 	| { type: "coder-annotator:set-picking"; picking: boolean }
-	| { type: "coder-annotator:clear" };
+	| { type: "coder-annotator:clear" }
+	// Marks previously annotated elements while the agent works on them
+	// (pending) or briefly after it finishes (done).
+	| {
+			type: "coder-annotator:highlight";
+			items: HighlightItem[];
+			state: HighlightState;
+	  }
+	| { type: "coder-annotator:clear-highlights" };
 
 const messagePrefix = "coder-annotator:";
 
@@ -209,7 +224,15 @@ export function isHostToAnnotatorMessage(
 		case "coder-annotator:set-picking":
 			return "picking" in value && typeof value.picking === "boolean";
 		case "coder-annotator:clear":
+		case "coder-annotator:clear-highlights":
 			return true;
+		case "coder-annotator:highlight":
+			return (
+				"items" in value &&
+				Array.isArray(value.items) &&
+				"state" in value &&
+				(value.state === "pending" || value.state === "done")
+			);
 		default:
 			return false;
 	}

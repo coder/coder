@@ -8,9 +8,14 @@ import {
 	useState,
 } from "react";
 
+export interface AttachOptions {
+	// Called once the message carrying these files has been sent.
+	onSent?: () => void;
+}
+
 interface ComposerHandle {
 	// Attaches files to the draft; the user still reviews and sends.
-	attach: (files: File[]) => void;
+	attach: (files: File[], options?: AttachOptions) => void;
 }
 
 interface ComposerContextValue {
@@ -34,7 +39,7 @@ export const ComposerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 	const handleRef = useRef<ComposerHandle | null>(null);
 	const [registered, setRegistered] = useState(false);
 	const [stableHandle] = useState<ComposerHandle>(() => ({
-		attach: (files) => handleRef.current?.attach(files),
+		attach: (files, options) => handleRef.current?.attach(files, options),
 	}));
 
 	const register = (handle: ComposerHandle | null) => {

@@ -1,6 +1,8 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import {
 	type AnnotationSubmission,
+	type HighlightItem,
+	type HighlightState,
 	type HostToAnnotatorMessage,
 	parseAnnotatorToHostMessage,
 } from "#/annotator/protocol";
@@ -29,6 +31,8 @@ interface AnnotatorBridge {
 	count: number;
 	setPicking: (picking: boolean) => void;
 	clear: () => void;
+	highlight: (items: HighlightItem[], state: HighlightState) => void;
+	clearHighlights: () => void;
 }
 
 /**
@@ -142,5 +146,8 @@ export function useAnnotatorBridge({
 			post({ type: "coder-annotator:set-picking", picking: next });
 		},
 		clear: () => post({ type: "coder-annotator:clear" }),
+		highlight: (items, state) =>
+			post({ type: "coder-annotator:highlight", items, state }),
+		clearHighlights: () => post({ type: "coder-annotator:clear-highlights" }),
 	};
 }

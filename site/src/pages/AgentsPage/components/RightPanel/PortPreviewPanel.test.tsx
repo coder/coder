@@ -1,10 +1,11 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
+import type { AttachOptions } from "../../context/ComposerContext";
 import {
 	ComposerProvider,
 	useRegisterComposer,
@@ -39,7 +40,7 @@ function readFileText(file: File): Promise<string> {
 }
 
 function renderPanel(onAttach = vi.fn(), readyTimeoutMs?: number) {
-	renderComponent(
+	const view = renderComponent(
 		<ComposerProvider>
 			<Composer onAttach={onAttach} />
 			<PortPreviewPanel
@@ -52,6 +53,21 @@ function renderPanel(onAttach = vi.fn(), readyTimeoutMs?: number) {
 			/>
 		</ComposerProvider>,
 	);
+	const setAgentWorking = (isAgentWorking: boolean) =>
+		view.rerender(
+			<ComposerProvider>
+				<Composer onAttach={onAttach} />
+				<PortPreviewPanel
+					workspace={MockWorkspace}
+					agent={MockWorkspaceAgent}
+					host="*.apps.example.com"
+					tab={tab}
+					canAnnotate
+					isAgentWorking={isAgentWorking}
+					annotatorReadyTimeoutMs={readyTimeoutMs}
+				/>
+			</ComposerProvider>,
+		);
 	// Requesting the overlay remounts the iframe, so always look it up fresh.
 	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
 	const frameOrigin = new URL(frame().src).origin;
@@ -64,7 +80,7 @@ function renderPanel(onAttach = vi.fn(), readyTimeoutMs?: number) {
 			}),
 		);
 	};
-	return { frame, frameOrigin, receive, onAttach };
+	return { frame, frameOrigin, receive, onAttach, setAgentWorking };
 }
 
 const submission: AnnotatorToHostMessage = {
@@ -123,7 +139,7 @@ describe("PortPreviewPanel annotations", () => {
 		expect(files[0].name).toBe(annotationsFileName);
 		expect(files[0].type).toBe("text/markdown");
 		const text = await readFileText(files[0]);
-		expect(text).toContain("## 1. Make this red");
+		expect(text).toContain("> Make this red");
 		expect(text).toContain("`#save`");
 	});
 
@@ -182,6 +198,45 @@ describe("PortPreviewPanel annotations", () => {
 			expect(
 				screen.getByRole("button", { name: "Annotate elements" }),
 			).toBeEnabled(),
+		);
+	});
+
+	it("shimmers annotated elements while the agent works on them", async () => {
+		const { frame, frameOrigin, receive, onAttach, setAgentWorking } =
+			renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		const postMessage = vi.spyOn(
+			frame().contentWindow as Window,
+			"postMessage",
+		);
+
+		const [, options] = onAttach.mock.calls[0] as [File[], AttachOptions];
+		act(() => options.onSent?.());
+		expect(postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "coder-annotator:highlight" }),
+			frameOrigin,
+		);
+
+		setAgentWorking(true);
+		expect(postMessage).toHaveBeenCalledWith(
+			{
+				type: "coder-annotator:highlight",
+				items: [{ id: "a", selector: "#save" }],
+				state: "pending",
+			},
+			frameOrigin,
+		);
+
+		setAgentWorking(false);
+		expect(postMessage).toHaveBeenLastCalledWith(
+			{
+				type: "coder-annotator:highlight",
+				items: [{ id: "a", selector: "#save" }],
+				state: "done",
+			},
+			frameOrigin,
 		);
 	});
 });

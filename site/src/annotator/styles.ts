@@ -162,6 +162,49 @@ textarea:focus-visible {
 	background: var(--surface-invert-secondary);
 }
 
+.shimmer {
+	position: fixed;
+	z-index: 2147483645;
+	pointer-events: none;
+	border-radius: 4px;
+	border: 1px solid hsl(213 94% 68% / 0.6);
+	background: linear-gradient(
+		100deg,
+		hsl(213 94% 68% / 0.08) 20%,
+		hsl(213 94% 68% / 0.28) 50%,
+		hsl(213 94% 68% / 0.08) 80%
+	);
+	background-size: 250% 100%;
+	animation: coder-shimmer 1.6s ease-in-out infinite;
+}
+
+.shimmer.done {
+	animation: coder-done 1.2s ease-out forwards;
+	background: hsl(142 71% 45% / 0.18);
+	border-color: hsl(142 71% 45% / 0.9);
+}
+
+@keyframes coder-shimmer {
+	0% {
+		background-position: 100% 0;
+	}
+	100% {
+		background-position: -100% 0;
+	}
+}
+
+@keyframes coder-done {
+	0% {
+		opacity: 1;
+	}
+	70% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
 .popup {
 	position: fixed;
 	z-index: 2147483647;
