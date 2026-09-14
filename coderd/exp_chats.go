@@ -3145,7 +3145,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
 // @Param request body codersdk.EditChatQueuedMessageRequest true "Edit chat queued message request"
