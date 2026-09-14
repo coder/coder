@@ -384,19 +384,27 @@ export const ContextUsageIndicator: FC<{
 		hasResourceIssues ? "Some context resources failed to load." : "",
 	].filter((note) => note !== "");
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
-	const ariaLabel = hasPercent
-		? `${usage?.estimated ? "Estimated context usage" : "Context usage"} ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
-		: statusNote !== ""
-			? `Context usage.${statusNote}`
+	let ariaLabel = "Context usage";
+	if (hasPercent) {
+		const label = usage?.estimated
+			? "Estimated context usage"
 			: "Context usage";
+		ariaLabel = `${label} ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`;
+	} else if (statusNote !== "") {
+		ariaLabel = `Context usage.${statusNote}`;
+	}
+
+	let usageLabel = "Context usage will appear after sending a message.";
+	if (hasPercent) {
+		const prefix = usage?.estimated ? "Estimated: " : "";
+		usageLabel = `${prefix}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`;
+	} else if (hasReportedUsage) {
+		usageLabel = "Context usage unavailable";
+	}
 
 	const panelContent = (
 		<div className="text-xs text-content-primary">
-			{hasPercent
-				? `${usage?.estimated ? "Estimated: " : ""}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-				: hasReportedUsage
-					? "Context usage unavailable"
-					: "Context usage will appear after sending a message."}
+			{usageLabel}
 			{hasPercent && usage?.estimated && (
 				<div className="mt-1 max-w-64 text-content-secondary">
 					Based on the compacted summary only, excluding other prompt content
