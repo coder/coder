@@ -20,7 +20,7 @@ A token created without an explicit scope uses `coder:all`, which grants the ful
 To create and revoke tokens, refer to [Sessions & API Tokens](../admin/users/sessions-tokens.md).
 
 This page lists every scope a token can request.
-Coder rejects any other scope name as internal.
+Coder rejects any other scope name with a `400` response.
 
 ## Built-in scopes
 
@@ -98,7 +98,7 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `api_key`
 
-| Scope            | Allows                                         |
+| Scope            | Description                                    |
 |------------------|------------------------------------------------|
 | `api_key:*`      | Every action listed for `api_key`.             |
 | `api_key:create` | Create an api key.                             |
@@ -108,14 +108,14 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `chat_model_config`
 
-| Scope                     | Allows                                                |
+| Scope                     | Description                                           |
 |---------------------------|-------------------------------------------------------|
 | `chat_model_config:read`  | Read chat model configs.                              |
 | `chat_model_config:share` | Share a chat model config with other users or groups. |
 
 ### `file`
 
-| Scope         | Allows                          |
+| Scope         | Description                     |
 |---------------|---------------------------------|
 | `file:*`      | Every action listed for `file`. |
 | `file:create` | Create a file.                  |
@@ -123,7 +123,7 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `organization`
 
-| Scope                 | Allows                                  |
+| Scope                 | Description                             |
 |-----------------------|-----------------------------------------|
 | `organization:*`      | Every action listed for `organization`. |
 | `organization:delete` | Delete an organization.                 |
@@ -132,7 +132,7 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `template`
 
-| Scope             | Allows                                                                                            |
+| Scope             | Description                                                                                       |
 |-------------------|---------------------------------------------------------------------------------------------------|
 | `template:*`      | Every action listed for `template`.                                                               |
 | `template:create` | Create a template.                                                                                |
@@ -143,7 +143,7 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `user`
 
-| Scope                  | Allows                                                     |
+| Scope                  | Description                                                |
 |------------------------|------------------------------------------------------------|
 | `user:*`               | Every action listed for `user`.                            |
 | `user:read`            | Read user data.                                            |
@@ -152,7 +152,7 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `user_secret`
 
-| Scope                | Allows                                 |
+| Scope                | Description                            |
 |----------------------|----------------------------------------|
 | `user_secret:*`      | Every action listed for `user_secret`. |
 | `user_secret:create` | Create a user secret.                  |
@@ -162,7 +162,7 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `user_skill`
 
-| Scope               | Allows                                  |
+| Scope               | Description                             |
 |---------------------|-----------------------------------------|
 | `user_skill:*`      | Every action listed for `user_skill`.   |
 | `user_skill:create` | Create a user skill.                    |
@@ -172,7 +172,7 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `workspace`
 
-| Scope                           | Allows                                                         |
+| Scope                           | Description                                                    |
 |---------------------------------|----------------------------------------------------------------|
 | `workspace:*`                   | Every action listed for `workspace`.                           |
 | `workspace:application_connect` | Connect to workspace apps via browser.                         |

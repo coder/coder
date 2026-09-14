@@ -116,6 +116,16 @@ func IsExternalScope(name ScopeName) bool {
 	return false
 }
 
+// ScopeAliases returns the backward-compatibility aliases and their canonical
+// scope names. The returned map is a copy and may be modified by the caller.
+func ScopeAliases() map[ScopeName]ScopeName {
+	aliases := make(map[ScopeName]ScopeName, len(scopeAliases))
+	for alias, canonical := range scopeAliases {
+		aliases[alias] = canonical
+	}
+	return aliases
+}
+
 // CanonicalScopeName maps the backward-compatibility aliases IsExternalScope
 // accepts onto the names the api_key_scope enum stores. Any other name is
 // returned unchanged.

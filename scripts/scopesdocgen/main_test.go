@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/scripts/docgenenv"
 )
@@ -19,6 +21,7 @@ func TestSentence(t *testing.T) {
 		{"keeps existing period", "delete a template.", "Delete a template."},
 		{"restores leading acronym", "ssh into a given workspace", "SSH into a given workspace."},
 		{"restores multi-case acronym", "api key details", "API key details."},
+		{"capitalizes a multibyte rune", "éclair", "Éclair."},
 		{"leaves inner words alone", "read api key details", "Read api key details."},
 		{"empty stays empty", "", ""},
 	}
@@ -71,6 +74,57 @@ func TestRenderCoversEveryPublicScope(t *testing.T) {
 			t.Errorf("generated page is missing scope %q", name)
 		}
 	}
+
+	for alias, canonical := range rbac.ScopeAliases() {
+		if !strings.Contains(page, "| `"+string(alias)+"` | `"+string(canonical)+"` |") {
+			t.Errorf("generated page is missing alias %q", alias)
+		}
+	}
+
+	for _, scope := range exampleScopes {
+		if !contains(rbac.ExternalScopeNames(), string(scope)) {
+			t.Errorf("example scope %q is not public", scope)
+		}
+	}
+
+	builtin := section(page, "## Built-in scopes", "## Composite scopes")
+	for _, name := range []rbac.ScopeName{rbac.ScopeAll, rbac.ScopeApplicationConnect} {
+		if !strings.Contains(builtin, "`"+string(name)+"`") {
+			t.Errorf("built-in section is missing scope %q", name)
+		}
+	}
+}
+
+func TestActionDescription(t *testing.T) {
+	t.Parallel()
+
+	_, err := actionDescription("missing_resource", "read")
+	require.Error(t, err)
+
+	_, err = actionDescription("workspace", "missing_action")
+	require.Error(t, err)
+}
+
+func contains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func section(page, start, end string) string {
+	startIndex := strings.Index(page, start)
+	if startIndex == -1 {
+		return ""
+	}
+	page = page[startIndex:]
+	endIndex := strings.Index(page, end)
+	if endIndex == -1 {
+		return page
+	}
+	return page[:endIndex]
 }
 
 func equal(got, want []string) bool {
