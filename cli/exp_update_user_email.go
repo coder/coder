@@ -51,7 +51,7 @@ func (r *RootCmd) updateUserEmail() *serpent.Command {
 			_, _ = fmt.Fprintf(inv.Stdout,
 				"This will update the email address for the account currently using %q to %q.\n"+
 					"All Coder sessions and API tokens for that user will be revoked.\n"+
-					"If the user logs in with an external identity provider, it may overwrite the email when the user next signs in.\n",
+					"If the user logs in with an external identity provider, it may overwrite the new email when the user next signs in.\n",
 				oldEmail, newEmail,
 			)
 
