@@ -3255,11 +3255,11 @@ export interface ChatQueuedMessage {
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
 	/**
-	 * HeldAt is set while the owner edits the message. A held message
-	 * and every message behind it wait until the hold is released; a
-	 * turn that ends at a held message pauses the chat.
+	 * EditingSince is set while the owner edits the message. A message
+	 * under edit and every message behind it wait until the edit ends; a
+	 * turn that ends at a message under edit pauses the chat.
 	 */
-	readonly held_at?: string;
+	readonly editing_since?: string;
 }
 
 // From codersdk/chats.go
@@ -4982,11 +4982,11 @@ export interface EditChatQueuedMessageRequest {
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
 	/**
-	 * Held sets or clears the hold. A chat has at most one held message;
-	 * holding another moves the hold. Releasing the head of a paused
-	 * chat sends it.
+	 * Editing begins (true) or ends (false) an edit of the message. A
+	 * chat has at most one message under edit; beginning another ends the
+	 * first. Ending the edit of a paused chat's head sends it.
 	 */
-	readonly held?: boolean;
+	readonly editing?: boolean;
 }
 
 // From codersdk/externalauth.go

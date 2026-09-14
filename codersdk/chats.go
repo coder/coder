@@ -1691,10 +1691,10 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	// HeldAt is set while the owner edits the message. A held message
-	// and every message behind it wait until the hold is released; a
-	// turn that ends at a held message pauses the chat.
-	HeldAt *time.Time `json:"held_at,omitempty" format:"date-time"`
+	// EditingSince is set while the owner edits the message. A message
+	// under edit and every message behind it wait until the edit ends; a
+	// turn that ends at a message under edit pauses the chat.
+	EditingSince *time.Time `json:"editing_since,omitempty" format:"date-time"`
 }
 
 // EditChatQueuedMessageRequest edits a queued message. Omitted fields
@@ -1705,10 +1705,10 @@ type EditChatQueuedMessageRequest struct {
 	// ModelConfigID and ReasoningEffort apply only together with Content.
 	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
-	// Held sets or clears the hold. A chat has at most one held message;
-	// holding another moves the hold. Releasing the head of a paused
-	// chat sends it.
-	Held *bool `json:"held,omitempty"`
+	// Editing begins (true) or ends (false) an edit of the message. A
+	// chat has at most one message under edit; beginning another ends the
+	// first. Ending the edit of a paused chat's head sends it.
+	Editing *bool `json:"editing,omitempty"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -3181,7 +3181,7 @@ func (c *Client) EditChatMessage(
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// EditChatQueuedMessage edits a queued message's content or hold.
+// EditChatQueuedMessage edits a queued message's content or edit marker.
 func (c *Client) EditChatQueuedMessage(
 	ctx context.Context,
 	chatID uuid.UUID,

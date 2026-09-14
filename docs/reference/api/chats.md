@@ -2415,7 +2415,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
-      "held_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
@@ -2688,7 +2688,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
-    "held_at": "2019-08-24T14:15:22Z",
+    "editing_since": "2019-08-24T14:15:22Z",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
   },
@@ -3024,7 +3024,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}
       "type": "text"
     }
   ],
-  "held": true,
+  "editing": true,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "reasoning_effort": "string"
 }
@@ -3561,7 +3561,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           }
         ],
         "created_at": "2019-08-24T14:15:22Z",
-        "held_at": "2019-08-24T14:15:22Z",
+        "editing_since": "2019-08-24T14:15:22Z",
         "id": 0,
         "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
       }
@@ -3674,7 +3674,7 @@ Status Code **200**
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»» held_at`                       | string(date-time)                                                                | false    |              | Held at is set while the owner edits the message. A held message and every message behind it wait until the hold is released; a turn that ends at a held message pauses the chat.                                                                                                                                                                                                                          |
+| `»» editing_since`                 | string(date-time)                                                                | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat.                                                                                                                                                                                                               |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» retry`                          | [codersdk.ChatStreamRetry](schemas.md#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |

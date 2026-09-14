@@ -2811,7 +2811,7 @@ WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC;
 
 -- name: CountChatQueuedMessages :one
--- Counts every queued row, held or not.
+-- Counts every queued row, under edit or not.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
@@ -2838,11 +2838,10 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
--- name: UpdateChatQueuedMessageHeld :one
--- Sets or clears held_at on one row. An already-held row keeps its
--- held_at.
+-- name: UpdateChatQueuedMessageEditing :one
+-- Sets or clears editing_since on one row; an existing value is kept.
 UPDATE chat_queued_messages
-SET held_at = CASE WHEN @held::boolean THEN COALESCE(held_at, NOW()) ELSE NULL END
+SET editing_since = CASE WHEN @editing::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid
 RETURNING *;
 

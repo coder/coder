@@ -927,7 +927,7 @@ func matrixCases() []transitionCaseSpec {
 		reconcileInvalidStateCase(chatstate.StateE0, queueShapeDefault),
 		reconcileInvalidStateCase(chatstate.StateE1, queueShapeMulti),
 	}
-	return append(cases, heldQueueMatrixCases()...)
+	return append(cases, editingQueueMatrixCases()...)
 }
 
 func setArchivedCase(from, want chatstate.ExecutionState, wantStatus database.ChatStatus) transitionCaseSpec {

@@ -1577,12 +1577,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().ReorderChatQueuedMessageToHead(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
-	s.Run("UpdateChatQueuedMessageHeld", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpdateChatQueuedMessageEditing", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{ChatID: chat.ID})
-		arg := database.UpdateChatQueuedMessageHeldParams{ChatID: chat.ID, ID: qm.ID, Held: true}
+		arg := database.UpdateChatQueuedMessageEditingParams{ChatID: chat.ID, ID: qm.ID, Editing: true}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatQueuedMessageHeld(gomock.Any(), arg).Return(qm, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatQueuedMessageEditing(gomock.Any(), arg).Return(qm, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(qm)
 	}))
 	s.Run("UpdateChatQueuedMessageContent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

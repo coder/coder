@@ -5369,11 +5369,11 @@ func (m queryMetricsStore) UpdateChatQueuedMessageContent(ctx context.Context, a
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatQueuedMessageHeld(ctx context.Context, arg database.UpdateChatQueuedMessageHeldParams) (database.ChatQueuedMessage, error) {
+func (m queryMetricsStore) UpdateChatQueuedMessageEditing(ctx context.Context, arg database.UpdateChatQueuedMessageEditingParams) (database.ChatQueuedMessage, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpdateChatQueuedMessageHeld(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageHeld").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageHeld").Inc()
+	r0, r1 := m.s.UpdateChatQueuedMessageEditing(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageEditing").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageEditing").Inc()
 	return r0, r1
 }
 
