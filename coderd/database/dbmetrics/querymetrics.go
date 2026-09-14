@@ -5265,6 +5265,14 @@ func (m queryMetricsStore) UpdateChatDebugStep(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatDisabledWorkspaceMCPServersByID(ctx context.Context, arg database.UpdateChatDisabledWorkspaceMCPServersByIDParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatDisabledWorkspaceMCPServersByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatDisabledWorkspaceMCPServersByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatDisabledWorkspaceMCPServersByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatExecutionState(ctx, arg)

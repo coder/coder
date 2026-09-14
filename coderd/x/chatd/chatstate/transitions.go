@@ -32,10 +32,13 @@ type CreateChatInput struct {
 	Mode              database.NullChatMode
 	PlanMode          database.NullChatPlanMode
 	MCPServerIDs      []uuid.UUID
-	Labels            pqtype.NullRawMessage
-	DynamicTools      pqtype.NullRawMessage
-	ClientType        database.ChatClientType
-	InitialMessages   []Message
+	// DisabledWorkspaceMCPServers lists workspace .mcp.json server names
+	// whose tools are excluded from the chat.
+	DisabledWorkspaceMCPServers []string
+	Labels                      pqtype.NullRawMessage
+	DynamicTools                pqtype.NullRawMessage
+	ClientType                  database.ChatClientType
+	InitialMessages             []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
 }
@@ -106,23 +109,24 @@ func insertChat(
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
-			ID:                chatID,
-			OrganizationID:    input.OrganizationID,
-			OwnerID:           input.OwnerID,
-			WorkspaceID:       input.WorkspaceID,
-			BuildID:           input.BuildID,
-			AgentID:           input.AgentID,
-			ParentChatID:      input.ParentChatID,
-			RootChatID:        input.RootChatID,
-			LastModelConfigID: input.LastModelConfigID,
-			Title:             input.Title,
-			Mode:              input.Mode,
-			PlanMode:          input.PlanMode,
-			Status:            database.ChatStatusRunning,
-			MCPServerIDs:      input.MCPServerIDs,
-			Labels:            input.Labels,
-			DynamicTools:      input.DynamicTools,
-			ClientType:        input.ClientType,
+			ID:                          chatID,
+			OrganizationID:              input.OrganizationID,
+			OwnerID:                     input.OwnerID,
+			WorkspaceID:                 input.WorkspaceID,
+			BuildID:                     input.BuildID,
+			AgentID:                     input.AgentID,
+			ParentChatID:                input.ParentChatID,
+			RootChatID:                  input.RootChatID,
+			LastModelConfigID:           input.LastModelConfigID,
+			Title:                       input.Title,
+			Mode:                        input.Mode,
+			PlanMode:                    input.PlanMode,
+			Status:                      database.ChatStatusRunning,
+			MCPServerIDs:                input.MCPServerIDs,
+			DisabledWorkspaceMCPServers: input.DisabledWorkspaceMCPServers,
+			Labels:                      input.Labels,
+			DynamicTools:                input.DynamicTools,
+			ClientType:                  input.ClientType,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

@@ -128,11 +128,14 @@ type Chat struct {
 	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
 	Archived   bool            `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
-	Shared       bool               `json:"shared"`
-	PinOrder     int32              `json:"pin_order"`
-	MCPServerIDs []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
-	Labels       map[string]string  `json:"labels"`
-	Files        []ChatFileMetadata `json:"files,omitempty"`
+	Shared       bool        `json:"shared"`
+	PinOrder     int32       `json:"pin_order"`
+	MCPServerIDs []uuid.UUID `json:"mcp_server_ids" format:"uuid"`
+	// DisabledWorkspaceMCPServers lists workspace .mcp.json server names
+	// whose tools are excluded from this chat.
+	DisabledWorkspaceMCPServers []string           `json:"disabled_workspace_mcp_servers" typescript:"-"` // TODO: drop typescript:"-" upstack.
+	Labels                      map[string]string  `json:"labels"`
+	Files                       []ChatFileMetadata `json:"files,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
@@ -599,6 +602,13 @@ type UpdateChatRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	// MCPServerIDs replaces the chat's Coder-managed MCP server selection.
+	// Force On servers are always kept. nil: no change.
+	MCPServerIDs *[]uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
+	// DisabledWorkspaceMCPServers replaces the set of workspace .mcp.json
+	// server names whose tools are excluded from this chat.
+	// nil: no change, empty slice: enable all workspace servers.
+	DisabledWorkspaceMCPServers *[]string `json:"disabled_workspace_mcp_servers,omitempty"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message
@@ -626,10 +636,14 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart  `json:"content"`
-	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	Content       []ChatInputPart `json:"content"`
+	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	// MCPServerIDs, when set, replaces the chat's MCP server selection
+	// before the turn runs.
+	//
+	// Deprecated: use UpdateChatRequest.MCPServerIDs.
+	MCPServerIDs *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
+	BusyBehavior ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -647,6 +661,8 @@ type EditChatMessageRequest struct {
 	// MCPServerIDs, when set, replaces the chat's MCP server selection
 	// before the replacement turn runs. When nil the current selection
 	// is preserved.
+	//
+	// Deprecated: use UpdateChatRequest.MCPServerIDs.
 	MCPServerIDs *[]uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 

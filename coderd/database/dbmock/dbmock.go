@@ -9984,6 +9984,21 @@ func (mr *MockStoreMockRecorder) UpdateChatDebugStep(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatDebugStep", reflect.TypeOf((*MockStore)(nil).UpdateChatDebugStep), ctx, arg)
 }
 
+// UpdateChatDisabledWorkspaceMCPServersByID mocks base method.
+func (m *MockStore) UpdateChatDisabledWorkspaceMCPServersByID(ctx context.Context, arg database.UpdateChatDisabledWorkspaceMCPServersByIDParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatDisabledWorkspaceMCPServersByID", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatDisabledWorkspaceMCPServersByID indicates an expected call of UpdateChatDisabledWorkspaceMCPServersByID.
+func (mr *MockStoreMockRecorder) UpdateChatDisabledWorkspaceMCPServersByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatDisabledWorkspaceMCPServersByID", reflect.TypeOf((*MockStore)(nil).UpdateChatDisabledWorkspaceMCPServersByID), ctx, arg)
+}
+
 // UpdateChatExecutionState mocks base method.
 func (m *MockStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
 	m.ctrl.T.Helper()

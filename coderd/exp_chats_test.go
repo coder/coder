@@ -1867,6 +1867,18 @@ func TestChats_ForceOnMCPServerEnforced(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, chatResult.MCPServerIDs, forced.ID,
 		"force_on MCP server must survive a tampered mcp_server_ids update")
+
+	// Updating the chat's selection with an emptied list must not
+	// remove the forced server either.
+	err = memberClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+		MCPServerIDs: &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	chatResult, err = memberClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Contains(t, chatResult.MCPServerIDs, forced.ID,
+		"force_on MCP server must survive a tampered chat update")
 }
 
 func TestPostChats_ClientType(t *testing.T) {
@@ -7096,6 +7108,119 @@ func TestPatchChat(t *testing.T) {
 				ResourceID:   chat.ID,
 				UserID:       firstUser.UserID,
 			}))
+		})
+	})
+
+	t.Run("DisabledWorkspaceMCPServers", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("SetKeepClear", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "disable workspace mcp servers")
+			require.Empty(t, chat.DisabledWorkspaceMCPServers)
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				DisabledWorkspaceMCPServers: ptr.Ref([]string{"linear", "github", "github"}),
+			})
+			require.NoError(t, err)
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, []string{"github", "linear"}, updated.DisabledWorkspaceMCPServers)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("renamed"),
+			})
+			require.NoError(t, err)
+			updated = getChat(ctx, t, client, chat.ID)
+			require.Equal(t, []string{"github", "linear"}, updated.DisabledWorkspaceMCPServers)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				DisabledWorkspaceMCPServers: ptr.Ref([]string{}),
+			})
+			require.NoError(t, err)
+			updated = getChat(ctx, t, client, chat.ID)
+			require.Empty(t, updated.DisabledWorkspaceMCPServers)
+		})
+
+		t.Run("RejectsEmptyName", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "invalid workspace mcp server name")
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				DisabledWorkspaceMCPServers: ptr.Ref([]string{"github", ""}),
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid disabled_workspace_mcp_servers.", sdkErr.Message)
+		})
+	})
+
+	t.Run("MCPServerIDs", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("SetKeepClear", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+			orgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+				OrganizationID: firstUser.OrganizationID,
+				Enabled:        true,
+			})
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "select mcp servers")
+			require.Empty(t, chat.MCPServerIDs)
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				MCPServerIDs: &[]uuid.UUID{orgConfig.ID, orgConfig.ID},
+			})
+			require.NoError(t, err)
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, []uuid.UUID{orgConfig.ID}, updated.MCPServerIDs)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("renamed"),
+			})
+			require.NoError(t, err)
+			updated = getChat(ctx, t, client, chat.ID)
+			require.Equal(t, []uuid.UUID{orgConfig.ID}, updated.MCPServerIDs)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				MCPServerIDs: &[]uuid.UUID{},
+			})
+			require.NoError(t, err)
+			updated = getChat(ctx, t, client, chat.ID)
+			require.Empty(t, updated.MCPServerIDs)
+		})
+
+		t.Run("InvalidRejected", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "invalid mcp server")
+			unknownID := uuid.New()
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				MCPServerIDs: &[]uuid.UUID{unknownID},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+			require.Equal(t, "Invalid IDs: "+unknownID.String(), sdkErr.Detail)
+			require.Empty(t, getChat(ctx, t, client, chat.ID).MCPServerIDs)
 		})
 	})
 

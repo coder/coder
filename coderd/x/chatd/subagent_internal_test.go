@@ -2419,6 +2419,7 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 	mcpCfg := insertInternalMCPServerConfig(
 		t, db, org.ID, user.ID, "snapshot-"+uuid.NewString(), false,
 	)
+	parentChat.DisabledWorkspaceMCPServers = []string{"github"}
 
 	child, err := server.createChildSubagentChatWithOptions(
 		ctx,
@@ -2438,6 +2439,7 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{mcpCfg.ID}, childChat.MCPServerIDs)
+	require.Equal(t, []string{"github"}, childChat.DisabledWorkspaceMCPServers)
 }
 
 func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {

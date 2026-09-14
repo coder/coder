@@ -447,6 +447,9 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
+	infos = slices.DeleteFunc(infos, func(info workspacesdk.MCPToolInfo) bool {
+		return slices.Contains(chat.DisabledWorkspaceMCPServers, info.ServerName)
+	})
 	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
 }
 
@@ -1276,6 +1279,12 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 		return database.Chat{}, xerrors.Errorf("update chat mcp server ids: %w", err)
 	}
 	return updated, nil
+}
+
+// UpdateChatMCPServerIDs replaces the chat's MCP server selection outside
+// of a message send with the same explore-snapshot and Force On rules.
+func (p *Server) UpdateChatMCPServerIDs(ctx context.Context, chat database.Chat, ids []uuid.UUID) (database.Chat, error) {
+	return p.applyRequestedMCPServerIDs(ctx, p.db, chat, &ids)
 }
 
 // CreateChat creates a chat with its initial history through

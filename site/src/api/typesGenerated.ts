@@ -3802,6 +3802,12 @@ export interface CreateAIProviderRequest {
 export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
+	/**
+	 * MCPServerIDs, when set, replaces the chat's MCP server selection
+	 * before the turn runs.
+	 *
+	 * @deprecated use UpdateChatRequest.MCPServerIDs.
+	 */
 	readonly mcp_server_ids?: string[];
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
@@ -4935,6 +4941,8 @@ export interface EditChatMessageRequest {
 	 * MCPServerIDs, when set, replaces the chat's MCP server selection
 	 * before the replacement turn runs. When nil the current selection
 	 * is preserved.
+	 *
+	 * @deprecated use UpdateChatRequest.MCPServerIDs.
 	 */
 	readonly mcp_server_ids?: string[];
 }
@@ -9717,6 +9725,17 @@ export interface UpdateChatRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	/**
+	 * MCPServerIDs replaces the chat's Coder-managed MCP server selection.
+	 * Force On servers are always kept. nil: no change.
+	 */
+	readonly mcp_server_ids?: string[];
+	/**
+	 * DisabledWorkspaceMCPServers replaces the set of workspace .mcp.json
+	 * server names whose tools are excluded from this chat.
+	 * nil: no change, empty slice: enable all workspace servers.
+	 */
+	readonly disabled_workspace_mcp_servers?: string[];
 }
 
 // From codersdk/chats.go

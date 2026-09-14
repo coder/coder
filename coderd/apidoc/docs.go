@@ -19383,6 +19383,13 @@ const docTemplate = `{
                 "diff_status": {
                     "$ref": "#/definitions/codersdk.ChatDiffStatus"
                 },
+                "disabled_workspace_mcp_servers": {
+                    "description": "DisabledWorkspaceMCPServers lists workspace .mcp.json server names\nwhose tools are excluded from this chat.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "files": {
                     "type": "array",
                     "items": {
@@ -21555,6 +21562,7 @@ const docTemplate = `{
                     }
                 },
                 "mcp_server_ids": {
+                    "description": "MCPServerIDs, when set, replaces the chat's MCP server selection\nbefore the turn runs.\n\nDeprecated: use UpdateChatRequest.MCPServerIDs.",
                     "type": "array",
                     "items": {
                         "type": "string",
@@ -23226,7 +23234,7 @@ const docTemplate = `{
                     }
                 },
                 "mcp_server_ids": {
-                    "description": "MCPServerIDs, when set, replaces the chat's MCP server selection\nbefore the replacement turn runs. When nil the current selection\nis preserved.",
+                    "description": "MCPServerIDs, when set, replaces the chat's MCP server selection\nbefore the replacement turn runs. When nil the current selection\nis preserved.\n\nDeprecated: use UpdateChatRequest.MCPServerIDs.",
                     "type": "array",
                     "items": {
                         "type": "string",
@@ -29269,10 +29277,25 @@ const docTemplate = `{
                 "archived": {
                     "type": "boolean"
                 },
+                "disabled_workspace_mcp_servers": {
+                    "description": "DisabledWorkspaceMCPServers replaces the set of workspace .mcp.json\nserver names whose tools are excluded from this chat.\nnil: no change, empty slice: enable all workspace servers.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "labels": {
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    }
+                },
+                "mcp_server_ids": {
+                    "description": "MCPServerIDs replaces the chat's Coder-managed MCP server selection.\nForce On servers are always kept. nil: no change.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "pin_order": {

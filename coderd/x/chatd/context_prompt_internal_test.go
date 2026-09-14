@@ -854,4 +854,33 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, tools)
 	})
+
+	t.Run("DisabledServerIsExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				mcpServerResource(t, "github", &agentproto.MCPServerBody{
+					ServerName: "github",
+					Tools: []*agentproto.MCPTool{
+						{Name: "create_issue", Description: "Create an issue"},
+						{Name: "search", Description: "Search code"},
+					},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+				mcpServerResource(t, "linear", &agentproto.MCPServerBody{
+					ServerName: "linear",
+					Tools:      []*agentproto.MCPTool{{Name: "list_issues", Description: "List issues"}},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		server := newPinServer(t, db)
+
+		chat := database.Chat{ID: chatID, DisabledWorkspaceMCPServers: []string{"github"}}
+		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), chat, getConn)
+		require.NoError(t, err)
+		require.Len(t, tools, 1)
+		require.Equal(t, "linear__list_issues", tools[0].Info().Name)
+	})
 }

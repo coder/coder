@@ -1247,6 +1247,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
+	disabledWorkspaceMCPServers := slices.Clone(parent.DisabledWorkspaceMCPServers)
+	if disabledWorkspaceMCPServers == nil {
+		disabledWorkspaceMCPServers = []string{}
+	}
 
 	labelsJSON, err := json.Marshal(database.StringMap{})
 	if err != nil {
@@ -1343,18 +1347,19 @@ func (p *Server) createChildSubagentChatWithOptions(
 		publisher = dbpubsub.NewInMemory()
 	}
 	result, err := chatstate.CreateChatWithID(ctx, p.db, publisher, childChatID, chatstate.CreateChatInput{
-		OrganizationID:    parent.OrganizationID,
-		OwnerID:           parent.OwnerID,
-		WorkspaceID:       parent.WorkspaceID,
-		BuildID:           parent.BuildID,
-		AgentID:           parent.AgentID,
-		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
-		LastModelConfigID: modelConfigID,
-		Title:             title,
-		Mode:              opts.chatMode,
-		PlanMode:          childPlanMode,
-		MCPServerIDs:      mcpServerIDs,
+		OrganizationID:              parent.OrganizationID,
+		OwnerID:                     parent.OwnerID,
+		WorkspaceID:                 parent.WorkspaceID,
+		BuildID:                     parent.BuildID,
+		AgentID:                     parent.AgentID,
+		ParentChatID:                uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:                  uuid.NullUUID{UUID: rootChatID, Valid: true},
+		LastModelConfigID:           modelConfigID,
+		Title:                       title,
+		Mode:                        opts.chatMode,
+		PlanMode:                    childPlanMode,
+		MCPServerIDs:                mcpServerIDs,
+		DisabledWorkspaceMCPServers: disabledWorkspaceMCPServers,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,

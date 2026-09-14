@@ -1828,29 +1828,34 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
+	disabledWorkspaceMCPServers := c.DisabledWorkspaceMCPServers
+	if disabledWorkspaceMCPServers == nil {
+		disabledWorkspaceMCPServers = []string{}
+	}
 	labels := map[string]string(c.Labels)
 	if labels == nil {
 		labels = map[string]string{}
 	}
 	lastError := decodeChatLastError(c.LastError)
 	chat := codersdk.Chat{
-		ID:                c.ID,
-		OrganizationID:    c.OrganizationID,
-		OwnerID:           c.OwnerID,
-		OwnerUsername:     c.OwnerUsername,
-		OwnerName:         c.OwnerName,
-		LastModelConfigID: c.LastModelConfigID,
-		Title:             c.Title,
-		Status:            codersdk.ChatStatus(c.Status),
-		Archived:          c.Archived,
-		Shared:            len(c.UserACL) > 0 || len(c.GroupACL) > 0,
-		PinOrder:          c.PinOrder,
-		CreatedAt:         c.CreatedAt,
-		UpdatedAt:         c.UpdatedAt,
-		MCPServerIDs:      mcpServerIDs,
-		Labels:            labels,
-		ClientType:        codersdk.ChatClientType(c.ClientType),
-		LastError:         lastError,
+		ID:                          c.ID,
+		OrganizationID:              c.OrganizationID,
+		OwnerID:                     c.OwnerID,
+		OwnerUsername:               c.OwnerUsername,
+		OwnerName:                   c.OwnerName,
+		LastModelConfigID:           c.LastModelConfigID,
+		Title:                       c.Title,
+		Status:                      codersdk.ChatStatus(c.Status),
+		Archived:                    c.Archived,
+		Shared:                      len(c.UserACL) > 0 || len(c.GroupACL) > 0,
+		PinOrder:                    c.PinOrder,
+		CreatedAt:                   c.CreatedAt,
+		UpdatedAt:                   c.UpdatedAt,
+		MCPServerIDs:                mcpServerIDs,
+		DisabledWorkspaceMCPServers: disabledWorkspaceMCPServers,
+		Labels:                      labels,
+		ClientType:                  codersdk.ChatClientType(c.ClientType),
+		LastError:                   lastError,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String

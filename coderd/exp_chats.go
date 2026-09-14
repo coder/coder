@@ -2263,6 +2263,42 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		planModeUpdate = &resolvedPlanMode
 	}
 
+	var disabledWorkspaceMCPServers []string
+	if req.DisabledWorkspaceMCPServers != nil {
+		names := *req.DisabledWorkspaceMCPServers
+		if len(names) > 100 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid disabled_workspace_mcp_servers.",
+				Validations: []codersdk.ValidationError{{
+					Field:  "disabled_workspace_mcp_servers",
+					Detail: "Must contain at most 100 entries.",
+				}},
+			})
+			return
+		}
+		for _, name := range names {
+			if name == "" || len(name) > 256 {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid disabled_workspace_mcp_servers.",
+					Validations: []codersdk.ValidationError{{
+						Field:  "disabled_workspace_mcp_servers",
+						Detail: "Each server name must be between 1 and 256 bytes.",
+					}},
+				})
+				return
+			}
+		}
+		disabledWorkspaceMCPServers = slices.Clone(names)
+		slices.Sort(disabledWorkspaceMCPServers)
+		disabledWorkspaceMCPServers = slices.Compact(disabledWorkspaceMCPServers)
+	}
+
+	mcpServerIDs, mcpStatus, mcpResp := api.normalizeRequestedChatMCPServerIDs(ctx, chat, req.MCPServerIDs)
+	if mcpResp != nil {
+		httpapi.Write(ctx, rw, mcpStatus, *mcpResp)
+		return
+	}
+
 	if req.Title != nil {
 		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
 		if handled {
@@ -2488,6 +2524,37 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to update chat plan mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
+	if req.DisabledWorkspaceMCPServers != nil {
+		updatedChat, err := api.Database.UpdateChatDisabledWorkspaceMCPServersByID(ctx, database.UpdateChatDisabledWorkspaceMCPServersByIDParams{
+			ID:                          chat.ID,
+			DisabledWorkspaceMCPServers: disabledWorkspaceMCPServers,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat workspace MCP servers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
+	if mcpServerIDs != nil {
+		updatedChat, err := api.chatDaemon.UpdateChatMCPServerIDs(ctx, chat, *mcpServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat MCP servers.",
 				Detail:  err.Error(),
 			})
 			return
