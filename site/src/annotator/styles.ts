@@ -1,20 +1,32 @@
+// Mirrors the dashboard's dark theme tokens from site/src/index.css. The
+// overlay renders inside a shadow root in a third-party page, so it cannot
+// consume Tailwind or the theme CSS variables directly.
 export const annotatorStyles = /* css */ `
 :host {
 	all: initial;
-	--bg: #18181b;
-	--bg-raised: #27272a;
-	--fg: #fafafa;
-	--fg-muted: #a1a1aa;
-	--border: #3f3f46;
-	--accent: #8b5cf6;
-	--accent-fg: #ffffff;
-	--danger: #ef4444;
-	--radius: 8px;
-	--shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-	font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-	font-size: 13px;
-	line-height: 1.4;
-	color: var(--fg);
+	--content-primary: hsl(0 0% 100%);
+	--content-secondary: hsl(240 5% 65%);
+	--content-disabled: hsl(240 5% 26%);
+	--content-invert: hsl(240 10% 4%);
+	--content-link: hsl(213 94% 68%);
+	--content-destructive: hsl(0 91% 71%);
+	--surface-primary: hsl(240 10% 4%);
+	--surface-secondary: hsl(240 6% 10%);
+	--surface-tertiary: hsl(240 4% 16%);
+	--surface-invert-primary: hsl(240 6% 90%);
+	--surface-invert-secondary: hsl(240 5% 65%);
+	--surface-destructive: hsl(0 75% 15%);
+	--border-default: hsl(240 4% 16%);
+	--border-destructive: hsl(0 91% 71%);
+	--radius-lg: 0.5rem;
+	--radius-md: 0.375rem;
+	--font-sans: "Geist Variable", system-ui, sans-serif;
+	--font-mono: "Geist Mono Variable", ui-monospace, monospace;
+	font-family: var(--font-sans);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 500;
+	color: var(--content-primary);
 }
 
 * {
@@ -33,8 +45,8 @@ button {
 
 button:focus-visible,
 textarea:focus-visible {
-	outline: 2px solid var(--accent);
-	outline-offset: 1px;
+	outline: none;
+	box-shadow: 0 0 0 2px var(--content-link);
 }
 
 .toolbar {
@@ -46,41 +58,42 @@ textarea:focus-visible {
 	align-items: center;
 	gap: 4px;
 	padding: 4px;
-	background: var(--bg);
-	border: 1px solid var(--border);
-	border-radius: 999px;
-	box-shadow: var(--shadow);
+	background: var(--surface-primary);
+	border: 1px solid var(--border-default);
+	border-radius: var(--radius-lg);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .toolbar-button {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
-	height: 28px;
-	padding: 0 10px;
-	border-radius: 999px;
-	color: var(--fg-muted);
+	gap: 4px;
+	height: 32px;
+	padding: 0 8px;
+	border-radius: var(--radius-md);
+	color: var(--content-secondary);
 	white-space: nowrap;
+	transition: color 150ms, background-color 150ms;
 }
 
 .toolbar-button:hover {
-	background: var(--bg-raised);
-	color: var(--fg);
+	color: var(--content-primary);
 }
 
 .toolbar-button[aria-pressed="true"] {
-	background: var(--accent);
-	color: var(--accent-fg);
+	background: var(--surface-tertiary);
+	color: var(--content-primary);
 }
 
 .toolbar-button[disabled] {
-	opacity: 0.5;
-	cursor: not-allowed;
+	color: var(--content-disabled);
+	pointer-events: none;
 }
 
 .toolbar-button svg {
-	width: 14px;
-	height: 14px;
+	width: 1.125rem;
+	height: 1.125rem;
+	padding: 2px;
 	flex: none;
 }
 
@@ -88,41 +101,40 @@ textarea:focus-visible {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 18px;
-	height: 18px;
-	padding: 0 5px;
+	min-width: 16px;
+	height: 16px;
+	padding: 0 4px;
 	border-radius: 999px;
-	background: var(--bg-raised);
-	color: var(--fg);
-	font-size: 11px;
+	background: var(--surface-invert-primary);
+	color: var(--content-invert);
+	font-size: 0.625rem;
+	line-height: 0.875rem;
 	font-weight: 600;
-}
-
-.toolbar-button[aria-pressed="true"] .count {
-	background: rgba(255, 255, 255, 0.25);
 }
 
 .highlight {
 	position: fixed;
 	z-index: 2147483646;
 	pointer-events: none;
-	border: 2px solid var(--accent);
-	background: rgba(139, 92, 246, 0.12);
+	border: 1px solid var(--content-link);
+	background: hsl(213 94% 68% / 0.12);
 	border-radius: 2px;
 	display: none;
 }
 
 .highlight-label {
 	position: absolute;
-	left: -2px;
+	left: -1px;
 	bottom: 100%;
 	transform: translateY(-4px);
-	padding: 2px 6px;
-	border-radius: 4px;
-	background: var(--accent);
-	color: var(--accent-fg);
-	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-	font-size: 11px;
+	padding: 1px 6px;
+	border-radius: var(--radius-md);
+	background: var(--surface-primary);
+	border: 1px solid var(--border-default);
+	color: var(--content-secondary);
+	font-family: var(--font-mono);
+	font-size: 0.625rem;
+	line-height: 0.875rem;
 	white-space: nowrap;
 	max-width: 60vw;
 	overflow: hidden;
@@ -135,39 +147,41 @@ textarea:focus-visible {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
-	height: 22px;
+	width: 20px;
+	height: 20px;
 	border-radius: 999px;
-	background: var(--accent);
-	color: var(--accent-fg);
-	font-size: 11px;
-	font-weight: 700;
-	box-shadow: var(--shadow);
+	background: var(--surface-invert-primary);
+	color: var(--content-invert);
+	font-size: 0.625rem;
+	font-weight: 600;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 	transform: translate(-50%, -50%);
 }
 
 .pin:hover {
-	filter: brightness(1.15);
+	background: var(--surface-invert-secondary);
 }
 
 .popup {
 	position: fixed;
 	z-index: 2147483647;
 	width: 320px;
-	padding: 10px;
+	padding: 12px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	background: var(--bg);
-	border: 1px solid var(--border);
-	border-radius: var(--radius);
-	box-shadow: var(--shadow);
+	background: var(--surface-primary);
+	border: 1px solid var(--border-default);
+	border-radius: var(--radius-lg);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .popup-target {
-	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-	font-size: 11px;
-	color: var(--fg-muted);
+	font-family: var(--font-mono);
+	font-size: 0.625rem;
+	line-height: 0.875rem;
+	font-weight: 400;
+	color: var(--content-secondary);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -175,24 +189,27 @@ textarea:focus-visible {
 
 .popup textarea {
 	font: inherit;
+	font-weight: 400;
+	font-size: 0.8125rem;
+	line-height: 1.4;
 	width: 100%;
 	min-height: 64px;
 	resize: vertical;
-	padding: 6px 8px;
-	border-radius: 6px;
-	border: 1px solid var(--border);
-	background: var(--bg-raised);
-	color: var(--fg);
+	padding: 8px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-default);
+	background: var(--surface-secondary);
+	color: var(--content-primary);
 }
 
 .popup textarea::placeholder {
-	color: var(--fg-muted);
+	color: var(--content-secondary);
 }
 
 .popup-actions {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 }
 
 .popup-actions .spacer {
@@ -200,29 +217,44 @@ textarea:focus-visible {
 }
 
 .button {
-	height: 26px;
-	padding: 0 10px;
-	border-radius: 6px;
-	background: var(--bg-raised);
-	color: var(--fg);
+	height: 32px;
+	padding: 0 8px;
+	min-width: 64px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-default);
+	background: transparent;
+	color: var(--content-primary);
+	transition: background-color 150ms;
 }
 
 .button:hover {
-	filter: brightness(1.15);
+	background: var(--surface-secondary);
 }
 
 .button.primary {
-	background: var(--accent);
-	color: var(--accent-fg);
+	border-color: transparent;
+	background: var(--surface-invert-primary);
+	color: var(--content-invert);
+	font-weight: 600;
+}
+
+.button.primary:hover {
+	background: var(--surface-invert-secondary);
 }
 
 .button.danger {
-	color: var(--danger);
+	border-color: var(--border-destructive);
+	background: var(--surface-destructive);
+	font-weight: 600;
+}
+
+.button.danger:hover {
+	background: transparent;
 }
 
 .hint {
-	color: var(--fg-muted);
-	font-size: 11px;
+	color: var(--content-secondary);
+	font-weight: 400;
 }
 `;
 
