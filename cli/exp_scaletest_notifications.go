@@ -496,6 +496,35 @@ func triggerNotifications(
 	}
 	logger.Info(ctx, "test template uploaded", slog.F("file_id", file.ID))
 
+	// Track every template we create so any left behind by a partial failure can
+	// be cleaned up when this function returns. Template names are deterministic
+	// and organization-scoped, so an orphaned template collides on the next run
+	// and aborts it before any load is generated; best-effort cleanup keeps
+	// repeated runs working. On the normal path every template is deleted below
+	// (that deletion is the notification trigger), leaving nothing to clean up.
+	pendingCleanup := make(map[uuid.UUID]string, deletionCount)
+	defer func() {
+		if len(pendingCleanup) == 0 {
+			return
+		}
+		// Use a fresh context so cleanup still runs when the run ended because its
+		// context was canceled (for example on interrupt).
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		leaked := make([]string, 0, len(pendingCleanup))
+		for id, name := range pendingCleanup {
+			if err := client.DeleteTemplate(cleanupCtx, id); err != nil {
+				leaked = append(leaked, fmt.Sprintf("%s (%s)", name, id))
+				continue
+			}
+			logger.Info(ctx, "cleaned up leftover scaletest template", slog.F("template_id", id), slog.F("name", name))
+		}
+		if len(leaked) > 0 {
+			logger.Error(ctx, "failed to clean up scaletest templates; delete them manually to avoid name collisions on the next run",
+				slog.F("templates", leaked))
+		}
+	}()
+
 	// Create every template before deleting any so the deletions, which are what
 	// enqueue the notifications, happen back to back.
 	templateIDs := make([]uuid.UUID, 0, deletionCount)
@@ -510,8 +539,9 @@ func triggerNotifications(
 			return
 		}
 
+		templateName := fmt.Sprintf("scaletest-test-template-%d", i)
 		testTemplate, err := client.CreateTemplate(ctx, orgID, codersdk.CreateTemplateRequest{
-			Name:        fmt.Sprintf("scaletest-test-template-%d", i),
+			Name:        templateName,
 			Description: "scaletest-test-template",
 			VersionID:   version.ID,
 		})
@@ -520,6 +550,7 @@ func triggerNotifications(
 			return
 		}
 		templateIDs = append(templateIDs, testTemplate.ID)
+		pendingCleanup[testTemplate.ID] = templateName
 	}
 	logger.Info(ctx, "test templates created", slog.F("count", len(templateIDs)))
 
@@ -538,6 +569,9 @@ func triggerNotifications(
 			logger.Error(ctx, "delete test template", slog.Error(err), slog.F("template_id", templateID))
 			return
 		}
+		// This template is gone, so the deferred cleanup must not try to delete
+		// it again.
+		delete(pendingCleanup, templateID)
 		triggers.deleteTimes[templateID] = deleteStart
 		logger.Info(ctx, "test template deleted", slog.F("template_id", templateID))
 	}
