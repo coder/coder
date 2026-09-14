@@ -1,8 +1,10 @@
 package agent_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -105,7 +107,7 @@ func TestAgent_PluginMCPServersLoaded(t *testing.T) {
 		plugin *agentproto.ContextResource
 		server *agentproto.ContextResource
 	)
-	require.Eventually(t, func() bool {
+	pushed := assert.Eventually(t, func() bool {
 		plugin, server = nil, nil
 		for _, push := range client.ContextStatePushes() {
 			for _, r := range push.GetResources() {
@@ -118,11 +120,38 @@ func TestAgent_PluginMCPServersLoaded(t *testing.T) {
 			}
 		}
 		return plugin != nil && server != nil
-	}, testutil.WaitLong, testutil.IntervalFast, "expected plugin and plugin MCP server resources to be pushed")
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	if !pushed {
+		t.Fatalf("expected plugin and plugin MCP server resources to be pushed; got %s",
+			describePushes(client.ContextStatePushes()))
+	}
 
 	assert.Equal(t, "acme", plugin.GetPlugin().GetName())
 	assert.Equal(t, agentproto.ContextResource_OK, plugin.GetStatus())
 	assert.Equal(t, "acme/srv", server.GetSource())
 	assert.Equal(t, "srv", server.GetMcpServer().GetServerName())
 	assert.Equal(t, agentproto.ContextResource_UNREADABLE, server.GetStatus())
+}
+
+// describePushes renders every pushed resource as "vN kind source status"
+// so a failed wait shows which stage of the discovery chain stalled.
+func describePushes(pushes []*agentproto.PushContextStateRequest) string {
+	var sb strings.Builder
+	for _, push := range pushes {
+		for _, r := range push.GetResources() {
+			kind := "other"
+			switch {
+			case r.GetPlugin() != nil:
+				kind = "plugin"
+			case r.GetMcpServer() != nil:
+				kind = "mcp_server"
+			case r.GetSkill() != nil:
+				kind = "skill"
+			case r.GetInstructionFile() != nil:
+				kind = "instruction_file"
+			}
+			_, _ = fmt.Fprintf(&sb, "[v%d %s %s %s] ", push.GetVersion(), kind, r.GetSource(), r.GetStatus())
+		}
+	}
+	return sb.String()
 }

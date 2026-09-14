@@ -245,9 +245,9 @@ func canonicalExisting(path string) (string, error) {
 	if err == nil {
 		return resolved, nil
 	}
-	if errors.Is(err, fs.ErrNotExist) {
-		return "", err
-	}
+	// The failure is reported as a not-found error on those drives too,
+	// so the path itself decides: missing or a symlink means the error
+	// stands, anything else falls back to the cleaned path.
 	info, lerr := os.Lstat(path)
 	if lerr != nil || info.Mode()&os.ModeSymlink != 0 {
 		return "", err
