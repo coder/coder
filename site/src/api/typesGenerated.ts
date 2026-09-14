@@ -1931,6 +1931,11 @@ export interface Chat {
 	readonly shared: boolean;
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
+	/**
+	 * DisabledWorkspaceMCPServers lists workspace .mcp.json server names
+	 * whose tools are excluded from this chat.
+	 */
+	readonly disabled_workspace_mcp_servers: readonly string[];
 	readonly labels: Record<string, string>;
 	readonly files?: readonly ChatFileMetadata[];
 	/**

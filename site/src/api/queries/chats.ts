@@ -9,6 +9,7 @@ import {
 	API,
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
+	type UpdateChatRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
@@ -1049,24 +1050,37 @@ type UpdateChatWorkspaceVariables = {
 	workspaceId: string | null;
 };
 
-type UpdateChatPlanModeVariables = {
+/**
+ * Chat fields that PATCH /chats/{chat} accepts under the same name, so
+ * one request patch doubles as the optimistic cache patch. A present
+ * `plan_mode: undefined` clears plan mode.
+ */
+type ChatSettingsPatch = Pick<
+	TypesGen.UpdateChatRequest,
+	"plan_mode" | "mcp_server_ids" | "disabled_workspace_mcp_servers"
+>;
+
+type UpdateChatSettingsVariables = {
 	chatId: string;
-	planMode?: TypesGen.ChatPlanMode;
+	settings: ChatSettingsPatch;
 };
 
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
-const toChatPlanModePayload = (
-	planMode: TypesGen.ChatPlanMode | undefined,
-): ChatPlanModeOrClear => {
+const toUpdateChatRequest = (
+	settings: ChatSettingsPatch,
+): UpdateChatRequestWithClearablePlanMode => ({
+	...settings,
 	// The API expects an empty string on the wire to clear plan mode.
-	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
-};
+	...("plan_mode" in settings
+		? { plan_mode: settings.plan_mode ?? CLEAR_PLAN_MODE_WIRE_VALUE }
+		: {}),
+});
 
 export const planModeFieldsForCreateMessage = (
 	clearPlanMode: boolean,
 ): { readonly plan_mode?: ChatPlanModeOrClear } =>
-	clearPlanMode ? { plan_mode: toChatPlanModePayload(undefined) } : {};
+	clearPlanMode ? { plan_mode: CLEAR_PLAN_MODE_WIRE_VALUE } : {};
 
 export const CHAT_SOURCE_ORDER = [
 	...ChatListSources,
@@ -1342,12 +1356,10 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const updateChatPlanMode = (queryClient: QueryClient) => ({
-	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-		API.experimental.updateChat(chatId, {
-			plan_mode: toChatPlanModePayload(planMode),
-		}),
-	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
+export const updateChatSettings = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, settings }: UpdateChatSettingsVariables) =>
+		API.experimental.updateChat(chatId, toUpdateChatRequest(settings)),
+	onMutate: async ({ chatId, settings }: UpdateChatSettingsVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
@@ -1355,20 +1367,20 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+				chat.id === chatId ? { ...chat, ...settings } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
-				plan_mode: planMode,
+				...settings,
 			});
 		}
 		return { previousChat };
 	},
 	onError: (
 		_error: unknown,
-		{ chatId }: UpdateChatPlanModeVariables,
+		{ chatId, settings }: UpdateChatSettingsVariables,
 		context:
 			| {
 					previousChat?: TypesGen.Chat;
@@ -1380,17 +1392,27 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		if (!previousChat) {
 			return;
 		}
+		const previousSettings = Object.fromEntries(
+			Object.keys(settings).map((key) => [
+				key,
+				previousChat[key as keyof ChatSettingsPatch],
+			]),
+		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId
-					? {
-							...chat,
-							plan_mode: previousChat.plan_mode,
-						}
-					: chat,
+				chat.id === chatId ? { ...chat, ...previousSettings } : chat,
 			),
 		);
-		patchChatEntity(queryClient, chatId, () => previousChat);
+		patchChatEntity(queryClient, chatId, (chat) =>
+			chat ? { ...chat, ...previousSettings } : chat,
+		);
+	},
+	onSettled: (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatSettingsVariables,
+	) => {
+		void invalidateChatEntity(queryClient, chatId);
 	},
 });
 

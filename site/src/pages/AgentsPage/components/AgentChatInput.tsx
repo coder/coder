@@ -8,6 +8,7 @@ import {
 	MonitorIcon,
 	PaperclipIcon,
 	PencilIcon,
+	PlugIcon,
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
@@ -50,7 +51,6 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
@@ -90,6 +90,7 @@ import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
+import { MCPServerToggleRow } from "./MCPServerToggleRow";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -186,6 +187,10 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	// Workspace .mcp.json servers with a per-chat on/off switch.
+	workspaceMCPServers?: readonly WorkspaceMCPServer[];
+	disabledWorkspaceMCPServers?: readonly string[];
+	onDisabledWorkspaceMCPServersChange?: (names: string[]) => void;
 	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -203,6 +208,15 @@ interface AgentChatInputProps {
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
+}
+
+/**
+ * An MCP server declared in the workspace's `.mcp.json`, keyed by its
+ * `mcpServers` name. `toolCount` counts the tools discovered on pin.
+ */
+export interface WorkspaceMCPServer {
+	name: string;
+	toolCount: number;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -409,6 +423,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspaceMCPServers,
+	disabledWorkspaceMCPServers,
+	onDisabledWorkspaceMCPServersChange,
 	workspaceSkills,
 	workspace,
 	workspaceAgent,
@@ -556,6 +573,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				selectedMCPServerIds.filter((id) => id !== serverId),
 			);
 		}
+	};
+
+	const handleWorkspaceMcpToggle = (name: string, checked: boolean) => {
+		if (!onDisabledWorkspaceMCPServersChange) return;
+		const current = disabledWorkspaceMCPServers ?? [];
+		onDisabledWorkspaceMCPServersChange(
+			checked ? current.filter((n) => n !== name) : [...current, name],
+		);
 	};
 
 	const handleMcpDisconnectConfirm = () => {
@@ -1377,70 +1402,98 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														!server.auth_connected;
 													const isConnecting = mcpConnectingId === server.id;
 													return (
-														<div
+														<MCPServerToggleRow
 															key={server.id}
-															className="flex items-center gap-1.5 px-1 py-1.5"
-														>
-															{server.icon_url ? (
-																<ExternalImage
-																	src={server.icon_url}
-																	alt=""
-																	className="size-3.5 shrink-0 rounded-sm"
-																/>
-															) : (
-																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-															)}
-															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-																{server.display_name}
-															</span>
-															{needsAuth ? (
-																<Button
-																	variant="outline"
-																	size="sm"
-																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => connectMCPServer(server.id)}
-																	disabled={
-																		isDisabled || mcpConnectingId !== null
-																	}
-																>
-																	{isConnecting ? (
-																		<Spinner loading className="h-2.5 w-2.5" />
-																	) : null}
-																	Auth
-																</Button>
-															) : (
-																<>
-																	{server.auth_type === "oauth2" && (
-																		<Button
-																			variant="subtle"
-																			size="icon"
-																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
-																			onClick={() => {
-																				setPlusMenuOpen(false);
-																				setMcpDisconnectTarget(server);
-																			}}
-																			disabled={isDisabled}
-																			aria-label={`Disconnect ${server.display_name}`}
-																		>
-																			<UnlinkIcon />
-																		</Button>
-																	)}
-																	<Switch
-																		size="sm"
-																		checked={isSelected}
-																		onCheckedChange={(checked) =>
-																			handleMcpToggle(server.id, checked)
-																		}
-																		disabled={isDisabled || isForceOn}
-																		aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+															icon={
+																server.icon_url ? (
+																	<ExternalImage
+																		src={server.icon_url}
+																		alt=""
+																		className="size-3.5 shrink-0 rounded-sm"
 																	/>
-																</>
+																) : (
+																	<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+																)
+															}
+															label={server.display_name}
+															checked={isSelected}
+															onCheckedChange={(checked) =>
+																handleMcpToggle(server.id, checked)
+															}
+															locked={isForceOn}
+															disabled={isDisabled}
+															action={
+																needsAuth ? (
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																		onClick={() => connectMCPServer(server.id)}
+																		disabled={
+																			isDisabled || mcpConnectingId !== null
+																		}
+																	>
+																		{isConnecting ? (
+																			<Spinner
+																				loading
+																				className="h-2.5 w-2.5"
+																			/>
+																		) : null}
+																		Auth
+																	</Button>
+																) : undefined
+															}
+														>
+															{server.auth_type === "oauth2" && !needsAuth && (
+																<Button
+																	variant="subtle"
+																	size="icon"
+																	className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
+																	onClick={() => {
+																		setPlusMenuOpen(false);
+																		setMcpDisconnectTarget(server);
+																	}}
+																	disabled={isDisabled}
+																	aria-label={`Disconnect ${server.display_name}`}
+																>
+																	<UnlinkIcon />
+																</Button>
 															)}
-														</div>
+														</MCPServerToggleRow>
 													);
 												})}
 											</>
 										)}
+										{workspaceMCPServers &&
+											workspaceMCPServers.length > 0 &&
+											onDisabledWorkspaceMCPServersChange && (
+												<>
+													<Separator className="my-1" />
+													{workspaceMCPServers.map((server) => (
+														<MCPServerToggleRow
+															key={server.name}
+															icon={
+																<PlugIcon className="size-3.5 shrink-0 text-content-secondary" />
+															}
+															label={server.name}
+															checked={
+																!disabledWorkspaceMCPServers?.includes(
+																	server.name,
+																)
+															}
+															onCheckedChange={(checked) =>
+																handleWorkspaceMcpToggle(server.name, checked)
+															}
+															disabled={isDisabled}
+														>
+															<span className="shrink-0 text-[10px] text-content-secondary">
+																{server.toolCount}{" "}
+																{server.toolCount === 1 ? "tool" : "tools"}
+															</span>
+														</MCPServerToggleRow>
+													))}
+												</>
+											)}
 									</>
 								)}
 							</PopoverContent>

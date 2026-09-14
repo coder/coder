@@ -187,6 +187,7 @@ interface AgentChatPageViewProps {
 	selectedMCPServerIds: readonly string[];
 	onMCPSelectionChange: (ids: string[]) => void;
 	onMCPAuthComplete: (serverId: string) => void;
+	onDisabledWorkspaceMCPServersChange: (names: string[]) => void;
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
@@ -329,6 +330,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	onDisabledWorkspaceMCPServersChange,
 	desktopChatId,
 }) => {
 	const queryClient = useQueryClient();
@@ -991,6 +993,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										selectedMCPServerIds={selectedMCPServerIds}
 										onMCPSelectionChange={onMCPSelectionChange}
 										onMCPAuthComplete={onMCPAuthComplete}
+										onDisabledWorkspaceMCPServersChange={
+											onDisabledWorkspaceMCPServersChange
+										}
 										workspace={workspace}
 										workspaceAgent={workspaceAgent}
 										sshCommand={sshCommand}

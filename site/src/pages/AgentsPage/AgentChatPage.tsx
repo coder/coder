@@ -33,7 +33,7 @@ import {
 	patchChatEntity,
 	planModeFieldsForCreateMessage,
 	promoteChatQueuedMessage,
-	updateChatPlanMode,
+	updateChatSettings,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
@@ -84,11 +84,7 @@ import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWat
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
-import {
-	getDefaultMCPSelection,
-	getSavedMCPSelection,
-	saveMCPSelection,
-} from "./components/MCPServerPicker";
+import { saveMCPSelection } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
@@ -207,27 +203,12 @@ const AgentChatPage: FC = () => {
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
 	});
-	const isDefaultChatOrganization = organizations.some(
-		(organization) =>
-			organization.id === chatOrganizationId && organization.is_default,
-	);
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
 	const debugLoggingEnabled = Boolean(
 		userDebugLoggingQuery.data?.debug_logging_enabled,
 	);
 
-	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
-	const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<
-		string[] | null
-	>(null);
-
-	const handleMCPSelectionChange = (ids: string[]) => {
-		setSelectedMCPServerIds(ids);
-		if (chatOrganizationId) {
-			saveMCPSelection(chatOrganizationId, ids);
-		}
-	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
 		void mcpServersQuery.refetch();
@@ -268,30 +249,6 @@ const AgentChatPage: FC = () => {
 	const isViewerNotOwner =
 		chat !== undefined && currentUser.id !== chat.owner_id;
 	const planModeEnabled = chat?.plan_mode === "plan";
-
-	// Initialize MCP selection from chat record or defaults.
-	const effectiveMCPServerIds = (() => {
-		if (selectedMCPServerIds !== null) {
-			return selectedMCPServerIds;
-		}
-		// If the chat has MCP server IDs recorded (even empty, meaning
-		// the user deliberately opted out), use those.
-		if (chat?.mcp_server_ids) {
-			return chat.mcp_server_ids;
-		}
-		const saved = chatOrganizationId
-			? getSavedMCPSelection(
-					chatOrganizationId,
-					mcpServers,
-					isDefaultChatOrganization,
-				)
-			: null;
-		if (saved !== null) {
-			return saved;
-		}
-		// Otherwise, compute defaults from server availability.
-		return getDefaultMCPSelection(mcpServers);
-	})();
 
 	// Flatten paginated messages into chronological order.
 	// Pages arrive newest-first per page, and pages[0] is the
@@ -369,15 +326,15 @@ const AgentChatPage: FC = () => {
 		},
 	});
 
-	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
+	const updateChatSettingsBase = updateChatSettings(queryClient);
 	const {
-		isPending: isUpdateChatPlanModePending,
-		mutate: updateChatPlanModeMutate,
+		isPending: isUpdateChatSettingsPending,
+		mutate: updateChatSettingsMutate,
 	} = useMutation({
-		...updateChatPlanModeBase,
+		...updateChatSettingsBase,
 		onError: (error, variables, context) => {
-			updateChatPlanModeBase.onError(error, variables, context);
-			toast.error(getErrorMessage(error, "Failed to update plan mode."));
+			updateChatSettingsBase.onError(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to update chat settings."));
 		},
 	});
 	const setCachedChatPlanMode = (
@@ -529,7 +486,7 @@ const AgentChatPage: FC = () => {
 		isCompactPending ||
 		isClearPending;
 	const isChatSettingsPending =
-		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
+		isUpdateChatSettingsPending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
@@ -542,9 +499,26 @@ const AgentChatPage: FC = () => {
 		if (enabled === planModeEnabled) {
 			return;
 		}
-		updateChatPlanModeMutate({
+		updateChatSettingsMutate({
 			chatId: agentId,
-			planMode: enabled ? "plan" : undefined,
+			settings: { plan_mode: enabled ? "plan" : undefined },
+		});
+	};
+
+	const handleMCPSelectionChange = (ids: string[]) => {
+		updateChatSettingsMutate({
+			chatId: agentId,
+			settings: { mcp_server_ids: ids },
+		});
+		if (chatOrganizationId) {
+			saveMCPSelection(chatOrganizationId, ids);
+		}
+	};
+
+	const handleDisabledWorkspaceMCPServersChange = (names: string[]) => {
+		updateChatSettingsMutate({
+			chatId: agentId,
+			settings: { disabled_workspace_mcp_servers: names },
 		});
 	};
 
@@ -734,7 +708,14 @@ const AgentChatPage: FC = () => {
 			attachments,
 			useComposerContent,
 		});
-		if (!hasContent || isSubmissionPending || !hasModelOptions) {
+		// A send during a pending settings PATCH would run the turn with the
+		// previous settings, so refuse it until the PATCH settles.
+		if (
+			!hasContent ||
+			isSubmissionPending ||
+			isChatSettingsPending ||
+			!hasModelOptions
+		) {
 			return;
 		}
 
@@ -823,7 +804,6 @@ const AgentChatPage: FC = () => {
 				reasoning_effort: isEditReasoningEffortDirtyRef.current
 					? effectiveReasoningEffort
 					: undefined,
-				mcp_server_ids: [...effectiveMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -870,7 +850,6 @@ const AgentChatPage: FC = () => {
 			content,
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids: [...effectiveMCPServerIds],
 			...planModeFieldsForCreateMessage(clearPlanMode),
 		};
 		clearChatErrorReason(agentId);
@@ -1100,9 +1079,12 @@ const AgentChatPage: FC = () => {
 					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
-					selectedMCPServerIds={effectiveMCPServerIds}
+					selectedMCPServerIds={chat?.mcp_server_ids}
 					onMCPSelectionChange={handleMCPSelectionChange}
 					onMCPAuthComplete={handleMCPAuthComplete}
+					onDisabledWorkspaceMCPServersChange={
+						handleDisabledWorkspaceMCPServersChange
+					}
 				/>
 			)}
 		</>

@@ -27,6 +27,7 @@ import {
 	type ChatMessageInputRef,
 	isUploadInProgress,
 	type UploadState,
+	type WorkspaceMCPServer,
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
@@ -94,6 +95,19 @@ export const workspaceSkillsFromChat = (
 	}
 	return [...skills.values()];
 };
+
+export const workspaceMCPServersFromChat = (
+	chat: TypesGen.Chat | undefined,
+): WorkspaceMCPServer[] =>
+	(chat?.context?.resources ?? [])
+		.filter(
+			(resource) => resource.kind === "mcp_server" && resource.status === "ok",
+		)
+		.map((resource) => ({
+			name: resource.source,
+			toolCount: resource.tools?.length ?? 0,
+		}))
+		.sort((a, b) => a.name.localeCompare(b.name));
 
 interface ChatPageTimelineProps {
 	organizationId: string | undefined;
@@ -300,6 +314,7 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	onDisabledWorkspaceMCPServersChange?: (names: string[]) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading?: boolean;
 	workspace?: TypesGen.Workspace;
@@ -348,6 +363,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	onDisabledWorkspaceMCPServersChange,
 	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	workspace,
@@ -363,6 +379,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const planModeEnabled = chat.plan_mode === "plan";
 	const selectedWorkspaceId = chat.workspace_id ?? null;
 	const workspaceSkills = workspaceSkillsFromChat(chat);
+	const workspaceMCPServers = workspaceMCPServersFromChat(chat);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -609,6 +626,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			workspaceMCPServers={workspaceMCPServers}
+			disabledWorkspaceMCPServers={chat.disabled_workspace_mcp_servers}
+			onDisabledWorkspaceMCPServersChange={onDisabledWorkspaceMCPServersChange}
 			workspaceSkills={workspaceSkills}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}

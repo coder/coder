@@ -199,6 +199,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
+		onDisabledWorkspaceMCPServersChange: fn(),
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,

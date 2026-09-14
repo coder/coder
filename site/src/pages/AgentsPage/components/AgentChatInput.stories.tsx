@@ -882,6 +882,25 @@ export const PlusMenuOpen: Story = {
 	},
 };
 
+/** Plus menu with Coder MCP rows and workspace MCP toggles, one turned off. */
+export const WithWorkspaceMCPServers: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, githubMCPConnected.id],
+		workspaceMCPServers: [
+			{ name: "filesystem", toolCount: 11 },
+			{ name: "postgres", toolCount: 3 },
+		],
+		disabledWorkspaceMCPServers: ["postgres"],
+		onDisabledWorkspaceMCPServersChange: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
 export const MCPDisconnectControls: Story = {
 	args: {
 		...mcpDefaults,

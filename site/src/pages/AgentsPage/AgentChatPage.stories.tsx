@@ -188,6 +188,7 @@ const baseChatFields = {
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
+	disabled_workspace_mcp_servers: [],
 	labels: {},
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
@@ -3352,28 +3353,15 @@ export const RemoveLastMCPServer: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const sendSpy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockResolvedValue({ queued: false });
+		const updateSpy = spyOn(API.experimental, "updateChat").mockResolvedValue();
 
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Remove MCP Server" }),
 		);
-		const editor = await canvas.findByTestId("chat-message-input");
-		await userEvent.click(editor);
-		await userEvent.type(editor, "Send without MCP tools");
-		await userEvent.keyboard("{Enter}");
 
 		await waitFor(() => {
-			expect(sendSpy).toHaveBeenCalledTimes(1);
+			expect(updateSpy).toHaveBeenCalledWith(CHAT_ID, { mcp_server_ids: [] });
 		});
-		expect(sendSpy).toHaveBeenCalledWith(
-			CHAT_ID,
-			expect.objectContaining({
-				mcp_server_ids: [],
-			}),
-		);
 	},
 };
 
@@ -3385,8 +3373,8 @@ const mcpEditableUserMessage: TypesGen.ChatMessage = {
 };
 
 /**
- * An MCP server toggled on while editing a message must ride along in
- * the edit request.
+ * An MCP server toggled on while editing a message persists through the
+ * chat settings PATCH; the edit request no longer carries the selection.
  */
 export const EditAppliesMCPServerSelection: Story = {
 	parameters: {
@@ -3397,6 +3385,7 @@ export const EditAppliesMCPServerSelection: Story = {
 				title: "Edit applies MCP selection",
 				status: "waiting",
 				mcp_server_ids: [],
+				disabled_workspace_mcp_servers: [],
 			},
 			{
 				messages: [mcpEditableUserMessage],
@@ -3415,6 +3404,7 @@ export const EditAppliesMCPServerSelection: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
+		const updateSpy = spyOn(API.experimental, "updateChat").mockResolvedValue();
 		const editSpy = spyOn(
 			API.experimental,
 			"editChatMessage",
@@ -3431,6 +3421,11 @@ export const EditAppliesMCPServerSelection: Story = {
 				name: `Enable ${MockMCPServerConfig.display_name}`,
 			}),
 		);
+		await waitFor(() => {
+			expect(updateSpy).toHaveBeenCalledWith(CHAT_ID, {
+				mcp_server_ids: [MockMCPServerConfig.id],
+			});
+		});
 		// Close the plus menu via its trigger; Escape would exit edit mode.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(
@@ -3440,13 +3435,7 @@ export const EditAppliesMCPServerSelection: Story = {
 		await waitFor(() => {
 			expect(editSpy).toHaveBeenCalledTimes(1);
 		});
-		expect(editSpy).toHaveBeenCalledWith(
-			CHAT_ID,
-			5,
-			expect.objectContaining({
-				mcp_server_ids: [MockMCPServerConfig.id],
-			}),
-		);
+		expect(editSpy.mock.calls[0]?.[2]).not.toHaveProperty("mcp_server_ids");
 	},
 };
 

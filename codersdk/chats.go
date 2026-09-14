@@ -133,7 +133,7 @@ type Chat struct {
 	MCPServerIDs []uuid.UUID `json:"mcp_server_ids" format:"uuid"`
 	// DisabledWorkspaceMCPServers lists workspace .mcp.json server names
 	// whose tools are excluded from this chat.
-	DisabledWorkspaceMCPServers []string           `json:"disabled_workspace_mcp_servers" typescript:"-"` // TODO: drop typescript:"-" upstack.
+	DisabledWorkspaceMCPServers []string           `json:"disabled_workspace_mcp_servers"`
 	Labels                      map[string]string  `json:"labels"`
 	Files                       []ChatFileMetadata `json:"files,omitempty"`
 	// HasUnread is true when assistant messages exist beyond

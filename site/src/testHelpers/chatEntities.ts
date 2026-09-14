@@ -28,6 +28,7 @@ export const MockChat: Chat = {
 	shared: false,
 	pin_order: 0,
 	mcp_server_ids: [],
+	disabled_workspace_mcp_servers: [],
 	labels: {},
 	has_unread: false,
 	client_type: "ui",

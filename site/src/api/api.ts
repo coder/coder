@@ -3159,7 +3159,7 @@ export type CreateChatMessageRequestWithClearablePlanMode = Omit<
 	readonly plan_mode?: ChatPlanModeOrClear;
 };
 
-type UpdateChatRequestWithClearablePlanMode = Omit<
+export type UpdateChatRequestWithClearablePlanMode = Omit<
 	TypesGen.UpdateChatRequest,
 	"plan_mode"
 > & {

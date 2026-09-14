@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { workspaceSkillsFromChat } from "./ChatPageContent";
+import {
+	workspaceMCPServersFromChat,
+	workspaceSkillsFromChat,
+} from "./ChatPageContent";
 
 const skillResource = (
 	name: string,
@@ -91,5 +94,36 @@ describe("workspaceSkillsFromChat", () => {
 			resources: [instructionResource()],
 		});
 		expect(workspaceSkillsFromChat(chat)).toEqual([]);
+	});
+});
+
+const mcpServerResource = (
+	source: string,
+	toolNames: string[],
+	status: TypesGen.ChatContextResource["status"] = "ok",
+): TypesGen.ChatContextResource => ({
+	source,
+	kind: "mcp_server",
+	size_bytes: 32,
+	status,
+	tools: toolNames.map((name) => ({ name, description: "" })),
+});
+
+describe("workspaceMCPServersFromChat", () => {
+	it("lists ok mcp_server resources sorted by name with tool counts", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [
+				instructionResource(),
+				mcpServerResource("linear", ["list_issues"]),
+				mcpServerResource("github", ["create_issue", "search"]),
+				mcpServerResource("broken", [], "invalid"),
+			],
+		});
+		expect(workspaceMCPServersFromChat(undefined)).toEqual([]);
+		expect(workspaceMCPServersFromChat(chat)).toEqual([
+			{ name: "github", toolCount: 2 },
+			{ name: "linear", toolCount: 1 },
+		]);
 	});
 });

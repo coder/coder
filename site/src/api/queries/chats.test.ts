@@ -112,7 +112,7 @@ import {
 	unpinChat,
 	updateChatModel,
 	updateChatModelACL,
-	updateChatPlanMode,
+	updateChatSettings,
 	updateChatTitle,
 	updateChatWorkspace,
 	updateChildInParentCache,
@@ -194,6 +194,7 @@ const makeChat = (
 	owner_username: "owner",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
+	disabled_workspace_mcp_servers: [],
 	labels: {},
 	title: `Chat ${id}`,
 	status: "running",
@@ -612,47 +613,108 @@ describe("planModeFieldsForCreateMessage", () => {
 	});
 });
 
-describe("updateChatPlanMode", () => {
-	it("sends plan to enable and an empty string to clear", async () => {
-		const queryClient = createTestQueryClient();
-		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
-		const mutation = updateChatPlanMode(queryClient);
-
-		await mutation.mutationFn({ chatId: "chat-1", planMode: "plan" });
-		await mutation.mutationFn({ chatId: "chat-1", planMode: undefined });
-
-		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
-			plan_mode: "plan",
-		});
-		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
-			plan_mode: "",
-		});
-	});
-
+describe("updateChatSettings optimistic update", () => {
 	it("invalidates the chat list on error without a detail cache", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
 
-		const mutation = updateChatPlanMode(queryClient);
-		const context = await mutation.onMutate({
-			chatId,
-			planMode: "plan",
-		});
+		const mutation = updateChatSettings(queryClient);
+		const variables = { chatId, settings: { plan_mode: "plan" as const } };
+		const context = await mutation.onMutate(variables);
 
 		expect(context?.previousChat).toBeUndefined();
 		expect(readInfiniteChats(queryClient)?.[0].plan_mode).toBe("plan");
 
-		mutation.onError(
-			new Error("server error"),
-			{ chatId, planMode: "plan" },
-			context,
-		);
+		mutation.onError(new Error("server error"), variables, context);
 
 		expect(
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
+	});
+
+	it("sends an empty string to clear plan mode", async () => {
+		const mutation = updateChatSettings(createTestQueryClient());
+		await mutation.mutationFn({
+			chatId: "chat-1",
+			settings: { plan_mode: undefined },
+		});
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+			plan_mode: "",
+		});
+	});
+
+	it("patches caches, sends the PATCH, and rolls back only touched fields", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const chat = { ...makeChat(chatId), plan_mode: "plan" as const };
+		queryClient.setQueryData(chatEntityKey(chatId), chat);
+		seedInfiniteChats(queryClient, [chat]);
+
+		const mutation = updateChatSettings(queryClient);
+		const variables = {
+			chatId,
+			settings: {
+				mcp_server_ids: ["server-1"],
+				disabled_workspace_mcp_servers: ["github"],
+			},
+		};
+
+		await mutation.mutationFn(variables);
+		expect(API.experimental.updateChat).toHaveBeenCalledWith(
+			chatId,
+			variables.settings,
+		);
+
+		const context = await mutation.onMutate(variables);
+		const cached = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		expect(cached?.mcp_server_ids).toEqual(["server-1"]);
+		expect(cached?.disabled_workspace_mcp_servers).toEqual(["github"]);
+		expect(readInfiniteChats(queryClient)?.[0].mcp_server_ids).toEqual([
+			"server-1",
+		]);
+
+		// A concurrent update to an untouched field must survive the rollback.
+		patchChatEntity(queryClient, chatId, (cached) =>
+			cached ? { ...cached, title: "Renamed while pending" } : cached,
+		);
+
+		mutation.onError(new Error("server error"), variables, context);
+		const rolledBack = readInfiniteChats(queryClient)?.[0];
+		expect(rolledBack?.mcp_server_ids).toEqual([]);
+		expect(rolledBack?.disabled_workspace_mcp_servers).toEqual([]);
+		expect(rolledBack?.plan_mode).toBe("plan");
+		const rolledBackEntity = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		expect(rolledBackEntity?.mcp_server_ids).toEqual([]);
+		expect(rolledBackEntity?.disabled_workspace_mcp_servers).toEqual([]);
+		expect(rolledBackEntity?.title).toBe("Renamed while pending");
+	});
+
+	it("invalidates the chat detail on settled without returning a promise", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const invalidateSpy = vi
+			.spyOn(queryClient, "invalidateQueries")
+			.mockReturnValue(new Promise<void>(() => {}));
+
+		const mutation = updateChatSettings(queryClient);
+		const result = mutation.onSettled(undefined, undefined, {
+			chatId,
+			settings: { plan_mode: "plan" },
+		});
+
+		expect(result).toBeUndefined();
+		expect(invalidateSpy).toHaveBeenCalledTimes(1);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: chatEntityKey(chatId),
+			exact: true,
+		});
+		invalidateSpy.mockRestore();
 	});
 });
 
