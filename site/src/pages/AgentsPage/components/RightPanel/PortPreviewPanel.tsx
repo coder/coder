@@ -10,6 +10,7 @@ import {
 	type AnnotationSubmission,
 	annotatorQueryParam,
 } from "#/annotator/protocol";
+import { getErrorMessage } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -19,11 +20,9 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
-import { useComposerAttachments } from "../../context/ComposerAttachmentsContext";
+import { useComposer } from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
-
-export const annotationsFileName = "ui-annotations.md";
 
 export const PortPreviewPanel: FC<{
 	workspace: Workspace;
@@ -44,7 +43,7 @@ export const PortPreviewPanel: FC<{
 	);
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const composer = useComposerAttachments();
+	const composer = useComposer();
 	// The proxy injects the overlay only on the request that carries the
 	// marker param, so each request reloads the frame. Client-side routing
 	// inside the app keeps the overlay; a full navigation drops it until
@@ -52,18 +51,16 @@ export const PortPreviewPanel: FC<{
 	const [overlayRequests, setOverlayRequests] = useState(0);
 
 	const handleSubmit = (submission: AnnotationSubmission) => {
-		const file = new File(
-			[formatAnnotations(submission)],
-			annotationsFileName,
-			{
-				type: "text/markdown",
-			},
-		);
-		composer.attach([file]);
-		const count = submission.annotations.length;
-		toast.success(
-			`Attached ${count} UI annotation${count === 1 ? "" : "s"} to your message.`,
-		);
+		if (!composer) {
+			return;
+		}
+		void (async () => {
+			try {
+				await composer.send(formatAnnotations(submission));
+			} catch (error) {
+				toast.error(getErrorMessage(error, "Failed to send UI annotations."));
+			}
+		})();
 	};
 
 	const frameUrl = unavailableMessage
@@ -84,7 +81,7 @@ export const PortPreviewPanel: FC<{
 	};
 
 	const showAnnotate =
-		canAnnotate && composer.canAttach && frameUrl !== undefined;
+		canAnnotate && composer !== undefined && frameUrl !== undefined;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -122,7 +119,7 @@ export const PortPreviewPanel: FC<{
 						<TooltipContent side="bottom">
 							{bridge.picking
 								? "Click elements in the preview to annotate them"
-								: "Annotate elements in the preview and attach them to your message"}
+								: "Annotate elements in the preview and send them to the agent"}
 						</TooltipContent>
 					</Tooltip>
 				)}

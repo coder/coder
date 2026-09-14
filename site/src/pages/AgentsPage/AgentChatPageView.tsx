@@ -57,7 +57,7 @@ import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTa
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
-import { ComposerAttachmentsProvider } from "./context/ComposerAttachmentsContext";
+import { ComposerProvider } from "./context/ComposerContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import { parsePullRequestUrl } from "./utils/pullRequest";
@@ -847,7 +847,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
-					<ComposerAttachmentsProvider>
+					<ComposerProvider>
 						<div
 							className={cn(
 								"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
@@ -1043,7 +1043,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								/>
 							</RightPanel>
 						</div>
-					</ComposerAttachmentsProvider>
+					</ComposerProvider>
 				</DesktopPanelContext>
 			</ChatWorkspaceContext>
 		</TerminalClientSessionContext>

@@ -3,9 +3,9 @@ import type { FC } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
-	ComposerAttachmentsProvider,
-	useRegisterComposerAttachments,
-} from "../../context/ComposerAttachmentsContext";
+	ComposerProvider,
+	useRegisterComposer,
+} from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -103,15 +103,15 @@ export const InvalidWildcardHost: Story = {
 };
 
 const Composer: FC = () => {
-	useRegisterComposerAttachments(() => undefined);
+	useRegisterComposer({ send: () => undefined });
 	return null;
 };
 
 const withComposer: Decorator = (Story) => (
-	<ComposerAttachmentsProvider>
+	<ComposerProvider>
 		<Composer />
 		<Story />
-	</ComposerAttachmentsProvider>
+	</ComposerProvider>
 );
 
 export const CanAnnotate: Story = {
