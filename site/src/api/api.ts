@@ -3281,6 +3281,47 @@ class ExperimentalApiMethods {
 		await this.axios.delete(`/api/experimental/chats/projects/${projectId}`);
 	};
 
+	getChatProjectMemories = async (
+		projectId: string,
+	): Promise<TypesGen.ChatProjectMemory[]> => {
+		const response = await this.axios.get<TypesGen.ChatProjectMemory[]>(
+			`/api/experimental/chats/projects/${projectId}/memories`,
+		);
+		return response.data;
+	};
+
+	createChatProjectMemory = async (
+		projectId: string,
+		req: TypesGen.CreateChatProjectMemoryRequest,
+	): Promise<TypesGen.ChatProjectMemory> => {
+		const response = await this.axios.post<TypesGen.ChatProjectMemory>(
+			`/api/experimental/chats/projects/${projectId}/memories`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatProjectMemory = async (
+		projectId: string,
+		memoryId: string,
+		req: TypesGen.UpdateChatProjectMemoryRequest,
+	): Promise<TypesGen.ChatProjectMemory> => {
+		const response = await this.axios.patch<TypesGen.ChatProjectMemory>(
+			`/api/experimental/chats/projects/${projectId}/memories/${memoryId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProjectMemory = async (
+		projectId: string,
+		memoryId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/chats/projects/${projectId}/memories/${memoryId}`,
+		);
+	};
+
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}`,

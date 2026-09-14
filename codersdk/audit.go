@@ -56,6 +56,7 @@ const (
 	ResourceTypeUserAIBudgetOverride    ResourceType = "user_ai_budget_override"
 	ResourceTypeChat                    ResourceType = "chat"
 	ResourceTypeChatProject             ResourceType = "chat_project"
+	ResourceTypeChatProjectMemory       ResourceType = "chat_project_memory"
 	ResourceTypeMCPServerConfig         ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig         ResourceType = "chat_model_config"
 	ResourceTypeUserSecret              ResourceType = "user_secret"
@@ -138,6 +139,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat"
 	case ResourceTypeChatProject:
 		return "chat project"
+	case ResourceTypeChatProjectMemory:
+		return "chat project memory"
 	case ResourceTypeMCPServerConfig:
 		return "mcp server config"
 	case ResourceTypeChatModelConfig:
