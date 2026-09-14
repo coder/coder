@@ -246,6 +246,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/ai/spend/export/focus": {
+            "get": {
+                "description": "Returns AI Gateway usage and cost for the organization as a FOCUS v1.2-shaped CSV or Parquet document, rolled up into hourly fixed-width time buckets by default, or at raw, unrolled per-response, per-token-type granularity, or a different rollup width, when the granularity query parameter is set.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC, exactly as for the existing /export endpoint (see its own description for defaults and validation).\nThe optional format query parameter selects \"csv\" (default) or \"parquet\".\nThe optional granularity query parameter, in seconds, selects the row grain: 0 requests raw, unrolled per-response grain; a positive value (default 3600, i.e. hourly) rolls responses up into fixed-width UTC time buckets of that many seconds, up to a maximum of 86400 (one day).\nThis endpoint is experimental: it lives under /api/experimental and is gated behind the \"focus-export\" experiment (CODER_EXPERIMENTS=focus-export), off by default. Its FOCUS column set and semantics may still change.\nRequires organization-level administrator permissions.",
+                "produces": [
+                    "text/csv",
+                    "application/vnd.apache.parquet"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Export organization AI spend in FOCUS format",
+                "operationId": "export-organization-ai-focus",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "csv",
+                            "parquet"
+                        ],
+                        "type": "string",
+                        "description": "Export format",
+                        "name": "format",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Rollup bucket width in seconds. 0 for raw, unrolled per-response grain. Defaults to 3600 (hourly)",
+                        "name": "granularity",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -23336,7 +23403,8 @@ const docTemplate = `{
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "focus-export"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
@@ -23345,6 +23413,7 @@ const docTemplate = `{
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
+                "ExperimentFOCUSExport": "Enables the experimental FOCUS-format AI Gateway spend export endpoint.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
@@ -23368,7 +23437,8 @@ const docTemplate = `{
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables the experimental FOCUS-format AI Gateway spend export endpoint."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23384,7 +23454,8 @@ const docTemplate = `{
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentFOCUSExport"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

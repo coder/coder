@@ -722,6 +722,40 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
+	// Returns raw AI Gateway usage joined for FOCUS-format export over
+	// [period_start, period_end), scoped to @organization_id through the token
+	// usage's effective group, the only tenant-isolation signal that exists for
+	// aibridge data today. A token usage row with a NULL effective_group_id has
+	// no organization signal at all and is excluded here, same trade-off
+	// ExportOrganizationAISpend already accepts. One row per token usage
+	// (priced provider response); the caller fans this out into one FOCUS row
+	// per non-zero token type. Used when the export is requested at raw,
+	// unrolled granularity (granularity_seconds <= 0).
+	GetOrganizationAIFOCUSUsage(ctx context.Context, arg GetOrganizationAIFOCUSUsageParams) ([]GetOrganizationAIFOCUSUsageRow, error)
+	// Same source, joins, and tenant-scoping as GetOrganizationAIFOCUSUsage, but
+	// rolled up into fixed-width time buckets of @granularity_seconds seconds,
+	// anchored to the UNIX epoch in UTC (e.g. 3600 produces buckets aligned to
+	// the top of each UTC hour). Only used when granularity_seconds > 0; the
+	// caller is responsible for routing to the raw query otherwise, and for
+	// bounding granularity_seconds to at most one day (see
+	// focus.MaxGranularitySeconds). That bound does not, by itself, keep a
+	// bucket within one calendar month: the last bucket of every month still
+	// straddles the month boundary at any granularity. Callers derive the FOCUS
+	// BillingPeriodStart/End from each row's bucket_start, never from a
+	// bucket's exclusive end, to avoid attributing a bucket's spend to the
+	// wrong (later) month.
+	// Every column the FOCUS Row still needs to report distinctly is part of the
+	// GROUP BY key, so a bucket only ever merges rows that would otherwise be
+	// identical FOCUS rows except for quantity; nothing is summed across a
+	// dimension the export still promises to preserve. The three response-level
+	// identifiers (interception, session, provider response) have no single
+	// well-defined value once more than one distinct value is merged into a
+	// bucket; each is returned alongside a COUNT(DISTINCT ...) so the caller can
+	// treat the *_min value as authoritative only when its matching
+	// *_distinct_count equals 1, and drop it otherwise rather than reporting an
+	// arbitrary pick. row_count tells the caller how many raw token-usage rows a
+	// bucket represents.
+	GetOrganizationAIFOCUSUsageRollup(ctx context.Context, arg GetOrganizationAIFOCUSUsageRollupParams) ([]GetOrganizationAIFOCUSUsageRollupRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that

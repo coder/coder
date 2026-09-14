@@ -7115,6 +7115,39 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Returns([]database.ExportOrganizationAISpendRow{row1, row2})
 	}))
 
+	s.Run("GetOrganizationAIFOCUSUsage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row1 := testutil.Fake(s.T(), faker, database.GetOrganizationAIFOCUSUsageRow{OrganizationID: org.ID})
+		row2 := testutil.Fake(s.T(), faker, database.GetOrganizationAIFOCUSUsageRow{OrganizationID: org.ID})
+		arg := database.GetOrganizationAIFOCUSUsageParams{
+			OrganizationID: org.ID,
+			PeriodStart:    time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:      time.Now().UTC(),
+		}
+		dbm.EXPECT().GetOrganizationAIFOCUSUsage(gomock.Any(), arg).
+			Return([]database.GetOrganizationAIFOCUSUsageRow{row1, row2}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(row1, policy.ActionRead, row2, policy.ActionRead).
+			Returns([]database.GetOrganizationAIFOCUSUsageRow{row1, row2})
+	}))
+
+	s.Run("GetOrganizationAIFOCUSUsageRollup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row1 := testutil.Fake(s.T(), faker, database.GetOrganizationAIFOCUSUsageRollupRow{OrganizationID: org.ID})
+		row2 := testutil.Fake(s.T(), faker, database.GetOrganizationAIFOCUSUsageRollupRow{OrganizationID: org.ID})
+		arg := database.GetOrganizationAIFOCUSUsageRollupParams{
+			GranularitySeconds: 3600,
+			OrganizationID:     org.ID,
+			PeriodStart:        time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:          time.Now().UTC(),
+		}
+		dbm.EXPECT().GetOrganizationAIFOCUSUsageRollup(gomock.Any(), arg).
+			Return([]database.GetOrganizationAIFOCUSUsageRollupRow{row1, row2}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(row1, policy.ActionRead, row2, policy.ActionRead).
+			Returns([]database.GetOrganizationAIFOCUSUsageRollupRow{row1, row2})
+	}))
+
 	s.Run("GetGroupAIBudget", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		b := testutil.Fake(s.T(), faker, database.GroupAIBudget{GroupID: g.ID})
