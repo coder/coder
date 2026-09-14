@@ -476,13 +476,13 @@ func TestQueueUpdateEditingSinceUpdatesQueueVersion(t *testing.T) {
 
 	bumped, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	released, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+	ended, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
 		ChatID:  created.Chat.ID,
 		ID:      queued.ID,
 		Editing: false,
 	})
 	require.NoError(t, err)
-	require.False(t, released.EditingSince.Valid)
+	require.False(t, ended.EditingSince.Valid)
 	after, err = f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, bumped.SnapshotVersion, after.QueueVersion,
