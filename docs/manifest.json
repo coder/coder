@@ -1146,6 +1146,12 @@
 							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
 							"path": "./ai-coder/agent-relay/cursor.md",
 							"state": ["early access"]
+						},
+						{
+							"title": "Agent Relay for Claude Code",
+							"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
+							"path": "./ai-coder/agent-relay/claude-code.md",
+							"state": ["early access"]
 						}
 					]
 				},
@@ -1326,7 +1332,7 @@
 								},
 								{
 									"title": "Provider Configuration",
-									"description": "Learn how AI Gateway stores, seeds, and reloads LLM provider configuration for your deployment.",
+									"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
 									"path": "./ai-coder/ai-gateway/providers.md",
 									"state": ["premium"]
 								},

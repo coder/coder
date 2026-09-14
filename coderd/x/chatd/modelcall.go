@@ -161,10 +161,8 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 
 	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
-			ChatID:   spec.chat.ID,
-			OwnerID:  spec.chat.OwnerID,
-			Provider: out.resolvedProvider,
-			Model:    out.resolvedModel,
+			ChatID:  spec.chat.ID,
+			OwnerID: spec.chat.OwnerID,
 		}))
 	}
 	out.model = model

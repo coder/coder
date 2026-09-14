@@ -42,7 +42,7 @@ func TestNegotiateScope(t *testing.T) {
 		appScope    sql.NullString
 		want        string
 		wantErr     error
-		wantErrText string
+		wantBareErr bool
 	}{
 		{
 			name:      "UnknownRequestedScopeRejected",
@@ -154,10 +154,11 @@ func TestNegotiateScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
-			name:      "AllowlistFilteringToEmptyRejected",
-			requested: nil,
-			appScope:  sql.NullString{String: "openid profile email", Valid: true},
-			wantErr:   errNoGrantableScope,
+			name:        "AllowlistFilteringToEmptyRejected",
+			requested:   nil,
+			appScope:    sql.NullString{String: "openid profile email", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
 		},
 		{
 			name:      "RegisteredNonCatalogScopeRejected",
@@ -170,7 +171,7 @@ func TestNegotiateScope(t *testing.T) {
 			requested:   nil,
 			appScope:    sql.NullString{String: "   ", Valid: true},
 			wantErr:     errNoGrantableScope,
-			wantErrText: `"   "`,
+			wantBareErr: true,
 		},
 		{
 			name:      "LegacyAllAliasCanonicalized",
@@ -227,9 +228,9 @@ func TestNegotiateScope(t *testing.T) {
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
 				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
 					"the rejection reason must appear once, not doubled by the wrap")
-				if test.wantErrText != "" {
-					assert.Contains(t, err.Error(), test.wantErrText,
-						"the rejection must name the value the app owner has to change")
+				if test.wantBareErr {
+					assert.Equal(t, test.wantErr.Error(), err.Error(),
+						"the rejection must not name the app's unvalidated registered scope")
 				}
 				return
 			}
@@ -255,13 +256,32 @@ func requirePersistableScope(t *testing.T, scope string) {
 	}
 }
 
-// Rejection reasons for the package's black-box tests, which cannot reach the
-// sentinels.
+// Rejection reasons from authorize.go for the package's black-box tests, which
+// cannot reach the sentinels.
 var (
-	ReasonUnknownScope     = errUnknownScope.Error()
-	ReasonNoGrantableScope = errNoGrantableScope.Error()
-	ReasonScopeNotAllowed  = errScopeNotAllowed.Error()
+	ReasonUnknownScope        = errUnknownScope.Error()
+	ReasonNoGrantableScope    = errNoGrantableScope.Error()
+	ReasonScopeNotAllowed     = errScopeNotAllowed.Error()
+	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
 )
+
+// MaxErrorDescription is the description bound, for the same tests.
+const MaxErrorDescription = maxErrorDescription
+
+// TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
+// contents. app.Scope is unvalidated registration metadata read on every
+// authorization and redemption, so collecting duplicates and dropping them
+// afterwards would size the slice by the input rather than by the catalog.
+func TestGrantableScopesNotSizedByInput(t *testing.T) {
+	t.Parallel()
+
+	repeated := grantableScopes(strings.Repeat("coder:all ", 4096))
+	assert.Equal(t, []string{"coder:all"}, repeated)
+	assert.Less(t, cap(repeated), 8, "a repeated name must collapse as it is read")
+
+	assert.Empty(t, grantableScopes(strings.Repeat(" ", 4096)),
+		"a value naming no scope grants nothing")
+}
 
 func TestNoScopeAllowlist(t *testing.T) {
 	t.Parallel()
@@ -366,6 +386,27 @@ func TestHashOAuth2State(t *testing.T) {
 	})
 }
 
+func TestCapErrorDescription(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShortDescriptionUnchanged", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "unknown or unsupported scope", capErrorDescription("unknown or unsupported scope"))
+	})
+
+	t.Run("BoundIsInclusive", func(t *testing.T) {
+		t.Parallel()
+		atBound := strings.Repeat("x", maxErrorDescription)
+		assert.Equal(t, atBound, capErrorDescription(atBound))
+	})
+
+	t.Run("LongerDescriptionTruncated", func(t *testing.T) {
+		t.Parallel()
+		got := capErrorDescription(strings.Repeat("x", maxErrorDescription+1))
+		assert.Equal(t, strings.Repeat("x", maxErrorDescription)+" (truncated)", got)
+	})
+}
+
 func TestSanitizeErrorDescription(t *testing.T) {
 	t.Parallel()
 
@@ -380,13 +421,13 @@ func TestSanitizeErrorDescription(t *testing.T) {
 			want:        "Only response_type=code is supported",
 		},
 		{
-			// What negotiateScope's %q produces for a well-behaved scope name.
+			// §5.2 excludes the double quote.
 			name:        "QuotedScopeBecomesApostrophes",
 			description: `"openid": unknown or unsupported scope`,
 			want:        "'openid': unknown or unsupported scope",
 		},
 		{
-			// %q escapes a quote inside the value; the backslash goes with it.
+			// §5.2 excludes the backslash too.
 			name:        "EscapedQuoteLosesItsBackslash",
 			description: `"\"><img>": unknown or unsupported scope`,
 			want:        "''><img>': unknown or unsupported scope",
@@ -473,6 +514,10 @@ func TestConsentScopes(t *testing.T) {
 	}
 }
 
+func appWithCallback(callback string) database.OAuth2ProviderApp {
+	return database.OAuth2ProviderApp{CallbackURL: callback}
+}
+
 // TestNewAuthorizeResponse covers the two preconditions the constructor exists
 // to run together, and which of them is the server's fault.
 func TestNewAuthorizeResponse(t *testing.T) {
@@ -487,7 +532,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {registered},
 			"state":        {"abc123"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -500,7 +545,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, registered)
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback(registered))
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -514,7 +559,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"https://elsewhere.example/cb"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		// The client's mistake, so it joins the parser's other errors rather
 		// than becoming a server fault.
@@ -531,7 +576,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"javascript:alert(1)"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		require.NoError(t, err, "the app registered a usable callback; the client did not send one")
 		require.NotEmpty(t, p.Errors)
@@ -542,7 +587,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, "javascript:alert(1)")
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback("javascript:alert(1)"))
 
 		require.Error(t, err)
 		require.Empty(t, p.Errors, "the registration is rejected before any parameter is read")
@@ -553,11 +598,31 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, "http://a b")
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback("http://a b"))
 
 		require.Error(t, err, "a registration that does not parse is the same class as one this server rejects")
 		require.Empty(t, p.Errors)
 		require.False(t, response.canRedirect())
+	})
+
+	// RFC 8252 §7.3: the port of a loopback redirect URI is not compared, and
+	// the response goes to the port the client presented.
+	t.Run("LoopbackPortDiffersIsADestination", func(t *testing.T) {
+		t.Parallel()
+
+		const presented = "http://127.0.0.1:53219/callback"
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {presented},
+			"state":        {"abc123"},
+		}, appWithCallback("http://127.0.0.1/callback"))
+
+		require.NoError(t, err)
+		require.Empty(t, p.Errors)
+		require.True(t, response.canRedirect())
+		require.Equal(t, presented, response.callbackURL())
+		errorURL := response.errorURL(codersdk.OAuth2ErrorCodeAccessDenied, "denied")
+		require.Equal(t, "127.0.0.1:53219", errorURL.Host, "error redirects must keep the presented port")
 	})
 }
 
@@ -690,4 +755,66 @@ func TestCarveOutDelivery(t *testing.T) {
 			require.Equal(t, tc.deliver, failure.redirect.canRedirect())
 		})
 	}
+}
+
+func TestRegisteredRedirectURIs(t *testing.T) {
+	t.Parallel()
+
+	strs := func(t *testing.T, app database.OAuth2ProviderApp) []string {
+		t.Helper()
+		primary, alternates, err := registeredRedirectURIs(app)
+		require.NoError(t, err)
+		out := []string{primary.String()}
+		for _, u := range alternates {
+			out = append(out, u.String())
+		}
+		return out
+	}
+
+	t.Run("AdminAppHasOnlyTheCallback", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL:  "https://app.example.com/callback",
+			RedirectUris: []string{},
+		})
+		require.Equal(t, []string{"https://app.example.com/callback"}, got)
+	})
+
+	t.Run("PrimaryFirstAndDeduplicated", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL: "cursor://anysphere.cursor-mcp/oauth/callback",
+			RedirectUris: []string{
+				"cursor://anysphere.cursor-mcp/oauth/callback",
+				"https://www.cursor.com/agents/mcp/oauth/callback",
+			},
+		})
+		require.Equal(t, []string{
+			"cursor://anysphere.cursor-mcp/oauth/callback",
+			"https://www.cursor.com/agents/mcp/oauth/callback",
+		}, got)
+	})
+
+	// An admin edit rewrites CallbackURL without touching RedirectUris.
+	t.Run("EditedCallbackIsIncluded", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL:  "https://new.example.com/callback",
+			RedirectUris: []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		})
+		require.Equal(t, []string{
+			"https://new.example.com/callback",
+			"https://a.example.com/cb",
+			"https://b.example.com/cb",
+		}, got)
+	})
+
+	t.Run("UnparsableEntryIsAnError", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := registeredRedirectURIs(database.OAuth2ProviderApp{
+			CallbackURL:  "https://app.example.com/callback",
+			RedirectUris: []string{"http://a b"},
+		})
+		require.Error(t, err)
+	})
 }

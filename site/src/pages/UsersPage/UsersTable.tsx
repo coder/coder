@@ -1,21 +1,10 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import { Link } from "react-router";
 import type { GroupsByUserId } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
-import { PremiumBadge } from "#/components/Badge/PresetBadges";
-import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -31,30 +20,21 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import type { UserAdminAction } from "#/modules/users/UserActionDialogs";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import {
 	GroupsHelpPopover,
 	RolesHelpPopover,
 } from "#/modules/users/UserHelpPopovers";
+import { UserMoreActions } from "#/modules/users/UserMoreActions";
 import { UserRoleCell } from "#/modules/users/UserRoleCell";
 
 dayjs.extend(relativeTime);
 
 export type UsersTableProps = {
-	// State
 	isLoading: boolean;
 	users: readonly TypesGen.User[] | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
-
-	// Actions
-	onEditUserRoles: (user: TypesGen.User) => void;
-	isUpdatingUserRoles?: boolean;
-	onResetUserPassword: (user: TypesGen.User) => void;
-	onSuspendUser: (user: TypesGen.User) => void;
-	onActivateUser: (user: TypesGen.User) => void;
-	onDeleteUser: (user: TypesGen.User) => void;
-
-	// Permissions
 	/**
 	 * Used to disable the UI of actions that users cannot perform on themselves,
 	 * like delete.
@@ -64,11 +44,12 @@ export type UsersTableProps = {
 	canViewActivity?: boolean;
 	/** User roles cannot be edited if OIDC Role Sync is enabled. */
 	oidcRoleSyncEnabled?: boolean;
+	onAction: (action: UserAdminAction) => void;
 };
 
 export const UsersTable: React.FC<UsersTableProps> = (props) => {
 	return (
-		<Table data-testid="users-table">
+		<Table data-testid="users-table" aria-label="Users">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-max">User</TableHead>
@@ -99,18 +80,11 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	isLoading,
 	users,
 	groupsByUserId,
-
-	onEditUserRoles,
-	isUpdatingUserRoles,
-	onResetUserPassword,
-	onSuspendUser,
-	onActivateUser,
-	onDeleteUser,
-
 	me,
 	canEditUsers,
 	canViewActivity,
 	oidcRoleSyncEnabled,
+	onAction,
 }) => {
 	if (isLoading) {
 		return <UsersTableSkeleton canEditUsers={canEditUsers} />;
@@ -120,7 +94,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 		return <TableEmpty message="No users found" />;
 	}
 
-	return users?.map((user) => (
+	return users.map((user) => (
 		<TableRow key={user.id} data-testid={`user-${user.id}`}>
 			<TableCell>
 				<AvatarData
@@ -147,82 +121,16 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 			</TableCell>
 
 			{canEditUsers && (
-				<TableCell>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-								<EllipsisVerticalIcon aria-hidden="true" />
-								<span className="sr-only">Open menu</span>
-							</Button>
-						</DropdownMenuTrigger>
-
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem asChild>
-								<Link
-									to={`/workspaces?filter=${encodeURIComponent(`owner:${user.username}`)}`}
-								>
-									View workspaces
-								</Link>
-							</DropdownMenuItem>
-
-							{canViewActivity && (
-								<DropdownMenuItem asChild disabled={!canViewActivity}>
-									<Link
-										to={`/audit?filter=${encodeURIComponent(`username:${user.username}`)}`}
-									>
-										View activity {!canViewActivity && <PremiumBadge />}
-									</Link>
-								</DropdownMenuItem>
-							)}
-
-							<DropdownMenuItem asChild>
-								<Link to={user.username}>Edit</Link>
-							</DropdownMenuItem>
-
-							<DropdownMenuItem
-								disabled={
-									isUpdatingUserRoles ||
-									(user.login_type === "oidc" && oidcRoleSyncEnabled)
-								}
-								onClick={() => onEditUserRoles(user)}
-							>
-								Edit roles
-							</DropdownMenuItem>
-
-							{user.status !== "suspended" && (
-								<DropdownMenuItem
-									disabled={user.login_type !== "password"}
-									onClick={() => onResetUserPassword(user)}
-								>
-									Reset password&hellip;
-								</DropdownMenuItem>
-							)}
-
-							{user.status === "active" || user.status === "dormant" ? (
-								<DropdownMenuItem
-									data-testid="suspend-button"
-									onClick={() => onSuspendUser(user)}
-								>
-									Suspend&hellip;
-								</DropdownMenuItem>
-							) : (
-								<DropdownMenuItem onClick={() => onActivateUser(user)}>
-									Activate&hellip;
-								</DropdownMenuItem>
-							)}
-
-							<DropdownMenuSeparator />
-
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={() => onDeleteUser(user)}
-								disabled={user.id === me}
-							>
-								<TrashIcon className="size-icon-xs" />
-								Delete&hellip;
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+				<TableCell className="w-px whitespace-nowrap text-right">
+					<div className="flex justify-end">
+						<UserMoreActions
+							user={user}
+							me={me}
+							canViewActivity={canViewActivity}
+							oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+							onAction={onAction}
+						/>
+					</div>
 				</TableCell>
 			)}
 		</TableRow>
@@ -256,8 +164,10 @@ const UsersTableSkeleton: React.FC<UsersTableSkeletonProps> = ({
 				</TableCell>
 
 				{canEditUsers && (
-					<TableCell>
-						<Skeleton variant="text" width="25%" />
+					<TableCell className="w-px whitespace-nowrap text-right">
+						<div className="flex justify-end">
+							<Skeleton variant="text" width="25%" />
+						</div>
 					</TableCell>
 				)}
 			</TableRowSkeleton>

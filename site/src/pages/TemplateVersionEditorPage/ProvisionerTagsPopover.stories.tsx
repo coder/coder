@@ -34,7 +34,7 @@ export const OnTagsChange: Story = {
 	args: {
 		tags: {},
 	},
-	render: (args) => {
+	render: function OnTagsChangeRender(args) {
 		const [tags, setTags] = useState(args.tags);
 		return <ProvisionerTagsPopover tags={tags} onTagsChange={fn(setTags)} />;
 	},

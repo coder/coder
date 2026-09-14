@@ -177,33 +177,39 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 
 	if (sharingSettingsQuery.isLoading) {
 		return (
-			<TableBody>
-				<TableLoader />
-			</TableBody>
+			<Table>
+				<TableBody>
+					<TableLoader />
+				</TableBody>
+			</Table>
 		);
 	}
 
 	if (!sharingSettingsQuery.data) {
 		return (
-			<TableBody>
-				<TableRow>
-					<TableCell colSpan={999}>
-						<ErrorAlert error={sharingSettingsQuery.error} />
-					</TableCell>
-				</TableRow>
-			</TableBody>
+			<Table>
+				<TableBody>
+					<TableRow>
+						<TableCell colSpan={999}>
+							<ErrorAlert error={sharingSettingsQuery.error} />
+						</TableCell>
+					</TableRow>
+				</TableBody>
+			</Table>
 		);
 	}
 
 	if (sharingSettingsQuery.data.sharing_disabled) {
 		return (
-			<TableBody>
-				<TableEmpty
-					message="This workspace cannot be shared"
-					description="Workspace sharing has been disabled for this organization."
-					isCompact={isCompact}
-				/>
-			</TableBody>
+			<Table>
+				<TableBody>
+					<TableEmpty
+						message="This workspace cannot be shared"
+						description="Workspace sharing has been disabled for this organization."
+						isCompact={isCompact}
+					/>
+				</TableBody>
+			</Table>
 		);
 	}
 

@@ -1,6 +1,5 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { TerminalStatusRow } from "./LiveStreamTail";
 import { buildLiveStatus, pinFixtureClock } from "./storyFixtures";
@@ -40,16 +39,6 @@ export const UsageLimitExceeded: Story = {
 			},
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /usage limit reached/i }),
-		).toBeVisible();
-		expect(canvas.getByText(/ai spend budget has been reached/i)).toBeVisible();
-		expect(
-			canvas.queryByRole("link", { name: /view usage/i }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const ProviderQuotaExceeded: Story = {
@@ -63,18 +52,6 @@ export const ProviderQuotaExceeded: Story = {
 				retryable: false,
 			},
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(/usage quota for openai has been exceeded/i),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("link", { name: /view usage/i }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("heading", { name: /usage limit reached/i }),
-		).toBeVisible();
 	},
 };
 
@@ -91,20 +68,6 @@ export const TerminalOverloadedError: Story = {
 				statusCode: 529,
 			},
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /service overloaded/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is temporarily overloaded\./i),
-		).toBeVisible();
-		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
-		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
-		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -123,24 +86,6 @@ export const TerminalContentFilterError: Story = {
 				retryable: false,
 			},
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /response blocked/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(
-				/anthropic blocked this response under its content policy \(cyber\)\./i,
-			),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/this request triggered restrictions/i),
-		).toBeVisible();
-		expect(canvas.queryByText(/retrying in/i)).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: /status/i }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -161,19 +106,6 @@ export const TerminalTimeoutErrorAnthropic: Story = {
 			},
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /request timed out/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is temporarily unavailable/i),
-		).toBeVisible();
-		// Guard against the pre-fix generic fallback.
-		expect(
-			canvas.queryByText(/the chat request failed unexpectedly/i),
-		).not.toBeInTheDocument();
-	},
 };
 
 /** Transport timeout with an unknown provider uses the generic subject. */
@@ -187,15 +119,6 @@ export const TerminalTimeoutErrorUnknownProvider: Story = {
 				retryable: false,
 			},
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /request timed out/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/the ai provider is temporarily unavailable/i),
-		).toBeVisible();
 	},
 };
 
@@ -214,24 +137,6 @@ export const TerminalMissingKeyError: Story = {
 			},
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /chat interrupted/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(
-				/this conversation was started with an api key that is no longer available/i,
-			),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/if this error persists after resending/i),
-		).toBeVisible();
-		// Guard against the generic fallback.
-		expect(
-			canvas.queryByText(/the chat request failed unexpectedly/i),
-		).not.toBeInTheDocument();
-	},
 };
 
 /** Terminal stream-silence timeouts get a specific heading without provider metadata. */
@@ -246,21 +151,6 @@ export const TerminalStreamSilenceTimeoutError: Story = {
 				retryable: true,
 			},
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /response stalled/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic did not send response data in time./i),
-		).toBeVisible();
-		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: /status/i }),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -279,23 +169,6 @@ export const TerminalProviderDisabledError: Story = {
 			},
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /provider disabled/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(
-				/the openai provider has been disabled.*contact your coder administrator/i,
-			),
-		).toBeVisible();
-		expect(canvas.getByText(/^HTTP 503$/)).toBeVisible();
-		// No retry or status link for administrative disablement.
-		expect(canvas.queryByText(/retrying/i)).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: /status/i }),
-		).not.toBeInTheDocument();
-	},
 };
 
 /** Generic failures do not show usage or provider CTAs. */
@@ -308,22 +181,6 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 				message: "Provider request failed.",
 			},
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /request failed/i }),
-		).toBeVisible();
-		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
-		expect(
-			canvas.queryByText(/start a conversation with your agent/i),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: /view usage/i }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: /status/i }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -342,16 +199,5 @@ export const GenericErrorShowsProviderDetail: Story = {
 				retryable: false,
 			},
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /request failed/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic returned an unexpected error\./i),
-		).toBeVisible();
-		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
-		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };

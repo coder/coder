@@ -420,7 +420,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	onScrollToFileComplete,
 }) => {
 	const theme = useTheme();
-	const codeViewRef = useRef<CodeViewHandle<string>>(null);
+	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
 	const isDark = theme.palette.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 

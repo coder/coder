@@ -524,11 +524,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														(disablePinnedReordering ? (
 															<div className="flex flex-col gap-0.5">
 																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
+																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
 															</div>
 														) : (
@@ -582,11 +578,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
 														<div className="flex flex-col gap-0.5">
 															{sharedWithYouChats.map((chat) => (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
+																<ChatTreeNode key={chat.id} chat={chat} />
 															))}
 														</div>
 													)}
@@ -607,11 +599,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
 																{section.chats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
+																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
 															</div>
 														)}

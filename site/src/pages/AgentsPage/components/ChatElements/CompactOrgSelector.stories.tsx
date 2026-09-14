@@ -66,10 +66,3 @@ export const NoSelection: Story = {
 		value: null,
 	},
 };
-
-export const SingleOption: Story = {
-	args: {
-		options: [mockOrgs[0]],
-		value: mockOrgs[0],
-	},
-};

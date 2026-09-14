@@ -16,15 +16,6 @@ const (
 	KindCompaction RunKind = "compaction"
 )
 
-// AllRunKinds contains every RunKind value. Update this when
-// adding new constants above.
-var AllRunKinds = []RunKind{
-	KindChatTurn,
-	KindTitleGeneration,
-	KindQuickgen,
-	KindCompaction,
-}
-
 // Status identifies lifecycle state shared by runs and steps.
 type Status string
 
@@ -62,15 +53,6 @@ func (s Status) Priority() int {
 	}
 }
 
-// AllStatuses contains every Status value. Update this when
-// adding new constants above.
-var AllStatuses = []Status{
-	StatusInProgress,
-	StatusCompleted,
-	StatusError,
-	StatusInterrupted,
-}
-
 // Operation identifies the model operation a step performed.
 type Operation string
 
@@ -81,13 +63,6 @@ const (
 	OperationGenerate Operation = "generate"
 )
 
-// AllOperations contains every Operation value. Update this when
-// adding new constants above.
-var AllOperations = []Operation{
-	OperationStream,
-	OperationGenerate,
-}
-
 // RunContext carries identity and metadata for a debug run.
 type RunContext struct {
 	RunID               uuid.UUID
@@ -97,39 +72,33 @@ type RunContext struct {
 	ModelConfigID       uuid.UUID // Zero means not set.
 	TriggerMessageID    int64     // Zero means not set.
 	HistoryTipMessageID int64     // Zero means not set.
-	Kind                RunKind
 	Provider            string
 	Model               string
 }
 
 // StepContext carries identity and metadata for a debug step.
 type StepContext struct {
-	StepID              uuid.UUID
-	RunID               uuid.UUID
-	ChatID              uuid.UUID
-	StepNumber          int32
-	Operation           Operation
-	HistoryTipMessageID int64 // Zero means not set.
+	StepID uuid.UUID
+	RunID  uuid.UUID
+	ChatID uuid.UUID
 }
 
 // Attempt captures a single HTTP round trip made during a step.
 type Attempt struct {
-	Number              int               `json:"number"`
-	Status              string            `json:"status,omitempty"`
-	Method              string            `json:"method,omitempty"`
-	URL                 string            `json:"url,omitempty"`
-	Path                string            `json:"path,omitempty"`
-	StartedAt           string            `json:"started_at,omitempty"`
-	FinishedAt          string            `json:"finished_at,omitempty"`
-	RequestHeaders      map[string]string `json:"request_headers,omitempty"`
-	RequestBody         []byte            `json:"request_body,omitempty"`
-	ResponseStatus      int               `json:"response_status,omitempty"`
-	ResponseHeaders     map[string]string `json:"response_headers,omitempty"`
-	ResponseBody        []byte            `json:"response_body,omitempty"`
-	Error               string            `json:"error,omitempty"`
-	DurationMs          int64             `json:"duration_ms"`
-	RetryClassification string            `json:"retry_classification,omitempty"`
-	RetryDelayMs        int64             `json:"retry_delay_ms,omitempty"`
+	Number          int               `json:"number"`
+	Status          string            `json:"status,omitempty"`
+	Method          string            `json:"method,omitempty"`
+	URL             string            `json:"url,omitempty"`
+	Path            string            `json:"path,omitempty"`
+	StartedAt       string            `json:"started_at,omitempty"`
+	FinishedAt      string            `json:"finished_at,omitempty"`
+	RequestHeaders  map[string]string `json:"request_headers,omitempty"`
+	RequestBody     []byte            `json:"request_body,omitempty"`
+	ResponseStatus  int               `json:"response_status,omitempty"`
+	ResponseHeaders map[string]string `json:"response_headers,omitempty"`
+	ResponseBody    []byte            `json:"response_body,omitempty"`
+	Error           string            `json:"error,omitempty"`
+	DurationMs      int64             `json:"duration_ms"`
 }
 
 // EventKind identifies the type of pubsub debug event.

@@ -33,7 +33,6 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 			ModelConfigID:       uuid.New(),
 			TriggerMessageID:    41,
 			HistoryTipMessageID: 42,
-			Kind:                chatdebug.KindChatTurn,
 			Provider:            "fake-provider",
 			Model:               "fake-model",
 		})
@@ -46,7 +45,6 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
 		chatID := uuid.New()
-		reportedErr := make(chan error, 1)
 
 		db.EXPECT().InsertChatDebugRun(
 			gomock.Any(),
@@ -57,17 +55,9 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		compactionCtx, finish := startCompactionDebugRun(ctx, CompactionOptions{
 			DebugSvc: svc,
 			ChatID:   chatID,
-			OnError: func(err error) {
-				reportedErr <- err
-			},
 		})
 		require.Same(t, ctx, compactionCtx)
 		finish(nil)
-		select {
-		case err := <-reportedErr:
-			t.Fatalf("unexpected OnError callback: %v", err)
-		default:
-		}
 	})
 
 	t.Run("FinalizeRunAggregatesSummary", func(t *testing.T) {
@@ -130,7 +120,6 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
 		chatID := uuid.New()
-		reportedErr := make(chan error, 1)
 		runID := uuid.New()
 
 		db.EXPECT().InsertChatDebugRun(
@@ -150,17 +139,9 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		compactionCtx, finish := startCompactionDebugRun(ctx, CompactionOptions{
 			DebugSvc: svc,
 			ChatID:   chatID,
-			OnError: func(err error) {
-				reportedErr <- err
-			},
 		})
 		require.NotSame(t, ctx, compactionCtx)
 		finish(nil)
-		select {
-		case err := <-reportedErr:
-			t.Fatalf("unexpected OnError callback: %v", err)
-		default:
-		}
 	})
 }
 
@@ -210,7 +191,6 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 		ModelConfigID:       uuid.New(),
 		TriggerMessageID:    1,
 		HistoryTipMessageID: 2,
-		Kind:                chatdebug.KindChatTurn,
 		Provider:            "fake",
 		Model:               "fake-model",
 	})

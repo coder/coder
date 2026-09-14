@@ -83,13 +83,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
 	const shouldMountTerminal = Boolean(isHot) || isWarm;
 	const hasSignaledReadyRef = useRef(false);
-	const signalReady = useEffectEvent(() => {
+	const signalReady = () => {
 		if (hasSignaledReadyRef.current) {
 			return;
 		}
 		hasSignaledReadyRef.current = true;
 		onReady?.();
-	});
+	};
 	const handleStatusChange = (status: ConnectionStatus) => {
 		setConnectionStatus(status);
 		// A dropped connection produces no output, so signal readiness to surface

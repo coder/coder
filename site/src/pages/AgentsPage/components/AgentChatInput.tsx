@@ -22,16 +22,14 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import type {
-	AgentChatSendShortcut,
-	ChatQueuedMessage,
-} from "#/api/typesGenerated";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -58,6 +56,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/modules/aiModels/ModelSelector";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -65,7 +68,7 @@ import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
-	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	getAgentChatSendShortcut,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 import {
@@ -79,7 +82,6 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -102,9 +104,9 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
-	sendShortcut?: AgentChatSendShortcut;
 	placeholder?: string;
 	isDisabled: boolean;
+	isReadOnly?: boolean;
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
@@ -360,9 +362,9 @@ const ToolBadge: FC<{
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
-	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	placeholder = "Type a message...",
 	isDisabled,
+	isReadOnly = false,
 	isLoading,
 	inputRef,
 	initialValue,
@@ -421,7 +423,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const preferencesQuery = useQuery(preferenceSettings());
+	const sendShortcut = getAgentChatSendShortcut(
+		preferencesQuery.data?.agent_chat_send_shortcut,
+		preferencesQuery.isLoading,
+	);
 	const [chatFullWidth] = useChatFullWidth();
+	const { organizations } = useDashboard();
+	const chatOrganization = organizations.find(
+		(organization) => organization.id === chatOrganizationId,
+	);
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup
@@ -903,6 +914,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
+		!isReadOnly &&
 		!isLoading &&
 		hasModelOptions &&
 		hasSendableContent &&
@@ -917,6 +929,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!hasUploadedAttachments &&
 			!hasFileReferences &&
 			!isDisabled &&
+			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
@@ -929,6 +942,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (
 			(!text && !hasUploadedAttachments && !hasFileReferences) ||
 			isDisabled ||
+			isReadOnly ||
 			isLoading ||
 			hasActiveUploads ||
 			!hasModelOptions
@@ -996,7 +1010,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isDisabled || isLoading;
+			isEditingHistoryMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1094,6 +1108,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin
 							providerCount={providerCount ?? 0}
 							modelCount={modelCount ?? 0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
@@ -1102,6 +1117,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
@@ -1169,7 +1185,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					sendShortcut={sendShortcut}
-					disabled={isDisabled || isLoading}
+					disabled={isReadOnly || isLoading}
 					hasWorkspace={hasSkillsWorkspace}
 					workspaceSkills={workspaceSkills}
 					autoFocus

@@ -25,6 +25,8 @@ type RoleSelectorDialogProps = {
 	onCancel: () => void;
 	onUpdateRoles: (roles: string[]) => Promise<void>;
 	isUpdatingRoles: boolean;
+	loading?: boolean;
+	error?: unknown;
 };
 
 type ThingWithRoles = {
@@ -41,6 +43,8 @@ export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
 	onCancel,
 	onUpdateRoles,
 	isUpdatingRoles,
+	loading,
+	error,
 }) => {
 	if (!user) {
 		return null;
@@ -54,17 +58,30 @@ export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
 			onCancel={onCancel}
 			onUpdateRoles={onUpdateRoles}
 			isUpdatingRoles={isUpdatingRoles}
+			loading={Boolean(loading)}
+			error={error}
 		/>
 	);
 };
 
-const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
+const ActiveRoleSelectorDialog: React.FC<{
+	user: ThingWithRoles;
+	availableRoles: AssignableRoles[];
+	additionalImpliedRoles: AssignableRoles[];
+	onCancel: () => void;
+	onUpdateRoles: (roles: string[]) => Promise<void>;
+	isUpdatingRoles: boolean;
+	loading: boolean;
+	error?: unknown;
+}> = ({
 	user,
 	availableRoles,
 	additionalImpliedRoles,
 	onCancel,
 	onUpdateRoles,
 	isUpdatingRoles,
+	loading,
+	error,
 }) => {
 	const [selectedRoles, setSelectedRoles] = useState<Set<string>>(
 		() => new Set(getRoleNames(user.roles)),
@@ -102,6 +119,8 @@ const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 				</DialogHeader>
 				<RoleSelector
 					hideLabel
+					loading={loading}
+					error={error}
 					availableRoles={availableRoles}
 					additionalImpliedRoles={impliedRoles}
 					selectedRoles={selectedRoles}
@@ -112,6 +131,7 @@ const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 						onCancel={onCancel}
 						onConfirm={() => onUpdateRoles([...selectedRoles])}
 						confirmLoading={isUpdatingRoles}
+						confirmDisabled={loading || Boolean(error)}
 					/>
 				</DialogFooter>
 			</DialogContent>

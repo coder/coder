@@ -149,7 +149,7 @@ export const WorkspaceTerminal = ({
 		onError?.(error);
 	});
 
-	const getTerminalDimensions = useCallback(
+	const getTerminalDimensions = useEffectEvent(
 		(terminal: Terminal): { height: number; width: number } | null => {
 			if (terminal.rows <= 0 || terminal.cols <= 0) {
 				reportTerminalError(
@@ -165,7 +165,6 @@ export const WorkspaceTerminal = ({
 				width: terminal.cols,
 			};
 		},
-		[],
 	);
 
 	const refit = useCallback(() => {
@@ -586,7 +585,6 @@ export const WorkspaceTerminal = ({
 		containerName,
 		containerUser,
 		errorMessage,
-		getTerminalDimensions,
 		initialCommand,
 		loading,
 		operatingSystem,

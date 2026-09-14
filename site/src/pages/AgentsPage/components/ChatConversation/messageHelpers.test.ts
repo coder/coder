@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	buildDisplayMessages,
+	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 } from "./messageHelpers";
 import {
@@ -553,5 +557,97 @@ describe("buildDisplayMessages", () => {
 		]);
 
 		expect(result.map((entry) => entry.message.id)).toEqual([1, 2, 3]);
+	});
+});
+
+describe("deriveEvictedFileIds", () => {
+	const fileMessage = (messageID: number, ...fileIds: string[]) =>
+		entry({
+			messageID,
+			role: "user",
+			content: fileIds.map((fileId) => ({
+				type: "file",
+				media_type: "text/plain",
+				file_id: fileId,
+			})),
+			parsedOverrides: {},
+		});
+	const recordingMessage = (
+		messageID: number,
+		recordingFileId: string,
+		thumbnailFileId: string,
+	) =>
+		entry({
+			messageID,
+			content: [
+				{
+					type: "tool-result",
+					tool_name: "wait_agent",
+					result: {
+						thumbnail_file_id: thumbnailFileId,
+						recording_file_id: recordingFileId,
+					},
+				},
+			],
+			parsedOverrides: {},
+		});
+	const chatFiles = (...fileIds: string[]) =>
+		fileIds.map((id) => ({ ...MockChatFileMetadata, id }));
+
+	it("reports files referenced before the newest linked file as evicted", () => {
+		const evicted = deriveEvictedFileIds(
+			[fileMessage(1, "a"), fileMessage(2, "b", "c"), fileMessage(3, "d")],
+			chatFiles("c", "d"),
+		);
+
+		expect([...evicted]).toEqual(["a", "b"]);
+	});
+
+	it("presumes files referenced after the newest linked file are present", () => {
+		const evicted = deriveEvictedFileIds(
+			[fileMessage(1, "a"), fileMessage(2, "b"), fileMessage(3, "c")],
+			chatFiles("a", "b"),
+		);
+
+		expect(evicted.size).toBe(0);
+	});
+
+	it("reports nothing when the chat record has no files", () => {
+		expect(deriveEvictedFileIds([fileMessage(1, "a")], undefined).size).toBe(0);
+		expect(deriveEvictedFileIds([fileMessage(1, "a")], []).size).toBe(0);
+	});
+
+	it("ignores inline attachments without a file id", () => {
+		const inline = entry({
+			messageID: 1,
+			role: "user",
+			content: [{ type: "file", media_type: "text/plain", data: "aGk=" }],
+			parsedOverrides: {},
+		});
+
+		const evicted = deriveEvictedFileIds(
+			[inline, fileMessage(2, "a"), fileMessage(3, "b")],
+			chatFiles("b"),
+		);
+
+		expect([...evicted]).toEqual(["a"]);
+	});
+
+	it("orders a recording before its thumbnail", () => {
+		const evicted = deriveEvictedFileIds(
+			[recordingMessage(1, "rec-1", "thumb-1"), fileMessage(2, "a")],
+			chatFiles("thumb-1", "a"),
+		);
+
+		expect([...evicted]).toEqual(["rec-1"]);
+	});
+
+	it("reports an evicted recording and thumbnail", () => {
+		const evicted = deriveEvictedFileIds(
+			[recordingMessage(1, "rec-1", "thumb-1"), fileMessage(2, "a")],
+			chatFiles("a"),
+		);
+
+		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
 	});
 });

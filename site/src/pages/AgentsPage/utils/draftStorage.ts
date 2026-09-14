@@ -7,6 +7,25 @@
  * and handled transparently on read.
  */
 
+/** @internal Exported for testing. */
+export const draftInputStorageKeyPrefix = "agents.draft-input.";
+
+/**
+ * Read the persisted plain-text draft for a given chat ID.
+ * Returns the text portion of the draft (stripping Lexical JSON
+ * wrapper if present) for backward compatibility.
+ */
+export function getPersistedDraftInputValue(
+	chatID: string | undefined,
+): string {
+	if (!chatID) {
+		return "";
+	}
+	return parseStoredDraft(
+		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
+	).text;
+}
+
 export interface ParsedDraft {
 	/** Plain text content for inputValueRef / send-button checks. */
 	text: string;

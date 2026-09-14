@@ -1,4 +1,6 @@
-# Installing Coder
+---
+title: Install Coder in your infrastructure
+---
 
 A single CLI (`coder`) is used for both the control plane and the client.
 

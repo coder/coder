@@ -4,7 +4,7 @@ allowlist:
   - method=GET domain=*.typicode.com
 
   # Coder Dogfood Deployment
-  - domain=dev.coder.com
+  - domain=dogfood.cdr.dev
 
   # Domain used in coder workspaces
   - method=POST domain=http-intake.logs.datadoghq.com

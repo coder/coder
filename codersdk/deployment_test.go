@@ -87,20 +87,6 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
-		// We don't want these to be configurable via YAML because they are secrets.
-		// However, we do want to allow them to be shown in documentation.
-		"AI Gateway OpenAI Key": {
-			yaml: true,
-		},
-		"AI Gateway Anthropic Key": {
-			yaml: true,
-		},
-		"AI Gateway Bedrock Access Key": {
-			yaml: true,
-		},
-		"AI Gateway Bedrock Access Key Secret": {
-			yaml: true,
-		},
 	}
 
 	set := (&codersdk.DeploymentValues{}).Options()
@@ -621,7 +607,7 @@ func TestAIGatewayCompatibilityAliases(t *testing.T) {
 		aliases = append(aliases, alias{old: opt, new: newOpt})
 	}
 	// Update this count when adding or removing aibridge alias options.
-	require.Len(t, aliases, 34, "unexpected number of aibridge alias options")
+	require.Len(t, aliases, 24, "unexpected number of aibridge alias options")
 
 	sampleVal := func(opt serpent.Option) any {
 		switch opt.Value.Type() {

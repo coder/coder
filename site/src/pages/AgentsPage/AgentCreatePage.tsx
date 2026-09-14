@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createChat } from "#/api/queries/chats";
-import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
@@ -17,7 +16,6 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
-import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
 
@@ -29,7 +27,6 @@ const AgentCreatePage: FC = () => {
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-	const preferencesQuery = useQuery(preferenceSettings());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
@@ -108,10 +105,6 @@ const AgentCreatePage: FC = () => {
 			</AgentPageHeader>
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
-				sendShortcut={getAgentChatSendShortcut(
-					preferencesQuery.data?.agent_chat_send_shortcut,
-					preferencesQuery.isLoading,
-				)}
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
 				canCreateChat={permissions.createChat}

@@ -264,3 +264,51 @@ export const buildDisplayMessages = (
 	flushReadFileEntries();
 	return grouped;
 };
+
+const NO_FILE_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * Chat files a message part references, in the order the server linked
+ * them. A wait_agent result stores its recording before its thumbnail.
+ */
+const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
+	switch (part.type) {
+		case "file":
+			return part.file_id ? [part.file_id] : [];
+		case "tool-result":
+			return [
+				part.result?.recording_file_id,
+				part.result?.thumbnail_file_id,
+			].filter((fileId): fileId is string => Boolean(fileId));
+		default:
+			return [];
+	}
+};
+
+/**
+ * Eviction removes a chat's oldest attachments first, and the chat record
+ * lists the attachments that remain. An attachment referenced before the
+ * newest remaining one but absent from the record has been evicted. Later
+ * references are newer than the record, so a message that lands before the
+ * next chat refetch is never mistaken for an evicted one.
+ */
+export const deriveEvictedFileIds = (
+	entries: readonly ParsedMessageEntry[],
+	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
+): ReadonlySet<string> => {
+	if (!chatFiles) {
+		return NO_FILE_IDS;
+	}
+	const linkedFileIds = new Set(chatFiles.map((file) => file.id));
+	const referencedFileIds = entries.flatMap(({ message }) =>
+		(message.content ?? []).flatMap(partFileIds),
+	);
+	const newestLinkedIndex = referencedFileIds.findLastIndex((fileId) =>
+		linkedFileIds.has(fileId),
+	);
+	return new Set(
+		referencedFileIds
+			.slice(0, Math.max(newestLinkedIndex, 0))
+			.filter((fileId) => !linkedFileIds.has(fileId)),
+	);
+};

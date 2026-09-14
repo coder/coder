@@ -36,6 +36,9 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 		{"ForceCompletionsOnKnownModel", responsesModel, &forceCompletions, "/chat/completions"},
 		{"ForceResponsesOnKnownModel", responsesModel, &forceResponses, "/responses"},
 		{"ForceCompletionsOnUnknownModel", nonResponsesModel, &forceCompletions, "/chat/completions"},
+		// GPT-6 Astra postdates the SDK's known-model list.
+		{"DefaultGPT6Astra", "gpt-6-astra", nil, "/responses"},
+		{"ForceCompletionsOnGPT6Astra", "gpt-6-astra", &forceCompletions, "/chat/completions"},
 	}
 
 	for _, tc := range cases {

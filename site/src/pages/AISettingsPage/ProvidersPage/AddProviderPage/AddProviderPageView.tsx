@@ -8,9 +8,9 @@ import { createAIProviderMutation } from "#/api/queries/aiProviders";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import type { AddableProvider } from "../components/addableProviderTypes";
 import { ProviderForm } from "../components/ProviderForm";
-import { getProviderIcon } from "../components/ProviderIcon";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
 
 interface AddProviderPageViewProps {

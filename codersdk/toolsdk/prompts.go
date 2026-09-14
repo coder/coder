@@ -55,8 +55,12 @@ var AgentsDelegate = Prompt{
 			Required:    true,
 		},
 		{
+			Name:        "organization_id",
+			Description: "Organization UUID.",
+		},
+		{
 			Name:        "model_config_id",
-			Description: "Optional model config UUID for the chat. When omitted, a model is picked from " + ToolNameListChatModelConfigs + ".",
+			Description: "Optional model config UUID for the chat. When omitted, the server uses an applicable personal override or the organization's default model.",
 		},
 	},
 	Render: func(args map[string]string) (string, error) {
@@ -64,12 +68,20 @@ var AgentsDelegate = Prompt{
 		if err != nil {
 			return "", err
 		}
-		var createStep string
-		if modelConfigID := strings.TrimSpace(args["model_config_id"]); modelConfigID != "" {
-			createStep = fmt.Sprintf("1. Call %s with the task above as the prompt and model_config_id %q.", ToolNameCreateChat, modelConfigID)
-		} else {
-			createStep = fmt.Sprintf("1. Call %s with the task above as the prompt. To pick a specific model, call %s first and pass its ID as model_config_id.", ToolNameCreateChat, ToolNameListChatModelConfigs)
+		createStep := fmt.Sprintf("1. Call %s with the task above as the prompt", ToolNameCreateChat)
+		organizationID := strings.TrimSpace(args["organization_id"])
+		if organizationID != "" {
+			createStep += fmt.Sprintf(" and organization_id %q", organizationID)
 		}
+		if modelConfigID := strings.TrimSpace(args["model_config_id"]); modelConfigID != "" {
+			createStep += fmt.Sprintf(" and model_config_id %q.", modelConfigID)
+		} else {
+			createStep += fmt.Sprintf(". Omit model_config_id to let the server use an applicable personal override or the organization's default model. Only call %s if you want to select a specific model; pass the selected organization's ID to that tool.", ToolNameListChatModelConfigs)
+		}
+		if organizationID == "" {
+			createStep += fmt.Sprintf(" Organization selection defaults only when you belong to exactly one organization. Otherwise, use %s to obtain organization IDs and details, select the intended organization with the user, and pass organization_id to chat creation and any model discovery call. A model config ID does not select an organization. If discovery is unavailable, ask the user for the organization ID.", ToolNameListOrganizations)
+		}
+
 		return fmt.Sprintf(`Delegate the following task to a Coder Agent and see it through to completion.
 
 <task>

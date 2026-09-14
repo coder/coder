@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
-import type { ModelSelectorOption } from "../components/ChatElements";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	asNumber,
 	asString,
@@ -320,6 +320,27 @@ export const getProviderForModelOption = (
 	modelOptions.find((option) => option.id === selectedModel)?.provider;
 
 export { formatProviderLabel } from "#/utils/aiProviders";
+
+export function resolveCompactionThreshold(
+	modelID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
+): number | undefined {
+	if (!modelID || !Array.isArray(models)) {
+		return undefined;
+	}
+	const model = models.find((model) => model.id === modelID);
+	if (!model) {
+		return undefined;
+	}
+	const userOverride = userThresholds?.find(
+		(threshold) => threshold.model_config_id === modelID,
+	);
+	if (userOverride) {
+		return userOverride.threshold_percent;
+	}
+	return model.compression_threshold;
+}
 
 export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
