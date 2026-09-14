@@ -65,8 +65,17 @@ The markdownlint and emdash checks do fail the build.
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
 Every heading that states a rule of its own carries one, including a sub-heading that adds a rule to its parent.
-Headings that only group sub-rules don't, and neither do example and navigation headings.
 Only `##` and `###` headings state rules; anything deeper is detail inside one.
+
+Five kinds of heading carry no footer, and none of them are counted:
+
+- Headings that only group sub-rules, like [Commas](./capitalization-and-punctuation.md#commas).
+- Sub-headings that scope or qualify the parent rule instead of adding one, like [Exceptions](./capitalization-and-punctuation.md#exceptions) under No gerund-leading headings.
+  The parent rule's footer covers them.
+- Reference sections that give writers vocabulary rather than a rule, like [Personas the Coder docs serve](./audience-and-scope.md#personas-the-coder-docs-serve).
+- Example headings inside a sample document.
+- Navigation headings, like Learn more.
+
 [Color contrast](./accessibility-and-inclusion.md#color-contrast) carries an out-of-scope note rather than an enforcement footer, because the docs site theme owns it, so it isn't a rule of this guide and isn't counted.
 
 Classify a counted section from its footer, in this order:
