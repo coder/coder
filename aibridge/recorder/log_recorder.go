@@ -29,8 +29,8 @@ func NewLogRecorder(logger slog.Logger, wrapped Recorder) *LogRecorder {
 }
 
 // WithLogging returns a [Decorator] which wraps a [Recorder] in a
-// [LogRecorder], for composition by [Chain].
-func WithLogging(logger slog.Logger) Decorator {
+// [LogRecorder], for composition by [ChainMiddleware].
+func WithLogging(logger slog.Logger) Middleware {
 	return func(next Recorder) Recorder {
 		return NewLogRecorder(logger, next)
 	}

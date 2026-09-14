@@ -43,10 +43,10 @@ func NewTraceRecorder(tracer trace.Tracer, wrapped Recorder) *TraceRecorder {
 }
 
 // WithTracing returns a [Decorator] which wraps a [Recorder] in a
-// [TraceRecorder], for composition by [Chain]. As [TraceRecorder] documents, it
+// [TraceRecorder], for composition by [ChainMiddleware]. As [TraceRecorder] documents, it
 // belongs last in a chain, immediately above the recorder whose work its spans
 // measure.
-func WithTracing(tracer trace.Tracer) Decorator {
+func WithTracing(tracer trace.Tracer) Middleware {
 	return func(next Recorder) Recorder {
 		return NewTraceRecorder(tracer, next)
 	}
