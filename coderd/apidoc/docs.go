@@ -246,6 +246,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/users/email": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user email",
+                "operationId": "update-user-email-experimental",
+                "parameters": [
+                    {
+                        "description": "Update email request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -19263,6 +19299,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "oauth2_provider": {
+                    "description": "OAuth2Provider reports whether the OAuth 2.1 authorization server is\nenabled. The dashboard uses it to show or hide OAuth2 navigation.",
+                    "type": "boolean"
+                },
                 "provisioner_api_version": {
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
@@ -25161,6 +25201,9 @@ const docTemplate = `{
             "properties": {
                 "github": {
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.OAuth2ProviderConfig"
                 }
             }
         },
@@ -25334,6 +25377,14 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
                 }
             }
         },
@@ -29704,6 +29755,23 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateUserEmailRequest": {
+            "type": "object",
+            "required": [
+                "new_email",
+                "old_email"
+            ],
+            "properties": {
+                "new_email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "old_email": {
+                    "type": "string",
+                    "format": "email"
                 }
             }
         },

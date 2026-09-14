@@ -5801,6 +5801,14 @@ func (m queryMetricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UU
 	return r0
 }
 
+func (m queryMetricsStore) UpdateUserEmail(ctx context.Context, arg database.UpdateUserEmailParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserEmail(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserEmail").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserEmail").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateUserGithubComUserID(ctx context.Context, arg database.UpdateUserGithubComUserIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateUserGithubComUserID(ctx, arg)
