@@ -45,9 +45,9 @@ func (t Transition) String() string { return string(t) }
 // automation rows that fail the queue promotion guard, which adds the
 // outputs where that guard empties or shrinks the queue.
 //
-// A held queue head (held_at) is not promoted by FinishTurn from R1,
-// FinishInterruption from I1, or SendMessage from E1; from R1 and I1
-// the chat lands in P instead.
+// A paused queue head (see queuePaused) is not promoted by FinishTurn
+// from R1, FinishInterruption from I1, or SendMessage from E1; from R1
+// and I1 the chat lands in P instead.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.

@@ -28,7 +28,7 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 		status        database.ChatStatus
 		archived      bool
 		queueNonEmpty bool
-		headHeld      bool
+		paused        bool
 		exists        bool
 		want          ExecutionState
 	}{
@@ -45,9 +45,9 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 		{name: "XW", status: database.ChatStatusWaiting, archived: true, exists: true, want: StateXW},
 		{name: "XE0", status: database.ChatStatusError, archived: true, exists: true, want: StateXE0},
 		{name: "XE1", status: database.ChatStatusError, archived: true, queueNonEmpty: true, exists: true, want: StateXE1},
-		{name: "P", status: database.ChatStatusPaused, queueNonEmpty: true, headHeld: true, exists: true, want: StateP},
+		{name: "P", status: database.ChatStatusPaused, queueNonEmpty: true, paused: true, exists: true, want: StateP},
 		// A held head changes nothing outside paused.
-		{name: "R1HeldHead", status: database.ChatStatusRunning, queueNonEmpty: true, headHeld: true, exists: true, want: StateR1},
+		{name: "R1Paused", status: database.ChatStatusRunning, queueNonEmpty: true, paused: true, exists: true, want: StateR1},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -57,7 +57,7 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 			if tc.exists {
 				chat = chatWithStatus(tc.status, tc.archived)
 			}
-			queue := QueueState{HasRows: tc.queueNonEmpty, HeadHeld: tc.headHeld}
+			queue := QueueState{HasRows: tc.queueNonEmpty, Paused: tc.paused}
 			require.Equal(t, tc.want, ClassifyExecutionState(chat, queue, tc.exists))
 		})
 	}
@@ -74,7 +74,7 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		status        database.ChatStatus
 		archived      bool
 		queueNonEmpty bool
-		headHeld      bool
+		paused        bool
 	}{
 		// Legacy statuses (pending/completed) are invalid.
 		{name: "LegacyPending", status: "pending"},
@@ -82,13 +82,13 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 
 		// Waiting never has rows.
 		{name: "WaitingWithQueue", status: database.ChatStatusWaiting, queueNonEmpty: true},
-		{name: "WaitingWithHeldHead", status: database.ChatStatusWaiting, queueNonEmpty: true, headHeld: true},
+		{name: "WaitingPaused", status: database.ChatStatusWaiting, queueNonEmpty: true, paused: true},
 		{name: "WaitingArchivedWithQueue", status: database.ChatStatusWaiting, archived: true, queueNonEmpty: true},
 
-		// Paused requires a held head and is never archived.
+		// Paused requires a pause condition and is never archived.
 		{name: "PausedNoRows", status: database.ChatStatusPaused},
-		{name: "PausedUnheldHead", status: database.ChatStatusPaused, queueNonEmpty: true},
-		{name: "PausedArchived", status: database.ChatStatusPaused, archived: true, queueNonEmpty: true, headHeld: true},
+		{name: "PausedWithoutCondition", status: database.ChatStatusPaused, queueNonEmpty: true},
+		{name: "PausedArchived", status: database.ChatStatusPaused, archived: true, queueNonEmpty: true, paused: true},
 
 		// Archived busy statuses are invalid.
 		{name: "ArchivedRunning", status: database.ChatStatusRunning, archived: true},
@@ -99,7 +99,7 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			queue := QueueState{HasRows: tc.queueNonEmpty, HeadHeld: tc.headHeld}
+			queue := QueueState{HasRows: tc.queueNonEmpty, Paused: tc.paused}
 			got := ClassifyExecutionState(chatWithStatus(tc.status, tc.archived), queue, true)
 			require.Equal(t, StateInvalid, got)
 		})
@@ -125,11 +125,11 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 	for _, status := range allStatuses {
 		for _, archived := range []bool{false, true} {
 			for _, queueNonEmpty := range []bool{false, true} {
-				for _, headHeld := range []bool{false, true} {
-					if headHeld && !queueNonEmpty {
+				for _, paused := range []bool{false, true} {
+					if paused && !queueNonEmpty {
 						continue // no head to hold
 					}
-					queue := QueueState{HasRows: queueNonEmpty, HeadHeld: headHeld}
+					queue := QueueState{HasRows: queueNonEmpty, Paused: paused}
 					got := ClassifyExecutionState(chatWithStatus(status, archived), queue, true)
 					if got != StateInvalid {
 						validStates[got] = struct{}{}
