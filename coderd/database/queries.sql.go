@@ -7310,7 +7310,7 @@ WITH to_archive AS (
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < $1::timestamptz
       -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action')
+      AND c.status NOT IN ('running', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < $1::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
@@ -7810,9 +7810,9 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats_expanded
 WHERE agent_id = $1::uuid
     AND archived = false
-    -- Active statuses only: waiting, running, requires_action.
+    -- Active statuses only: waiting, paused, running, requires_action.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'paused', 'running', 'requires_action')
 ORDER BY updated_at DESC
 `
 
@@ -7907,7 +7907,8 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < $1::timestamptz
 ORDER BY chats_expanded.created_at ASC
@@ -10375,22 +10376,20 @@ WHERE
         AND updated_at < $1::timestamptz)
     OR (status = 'waiting'::chat_status
         AND updated_at < $1::timestamptz
-        AND COALESCE((
-            SELECT cqm.held_at IS NULL FROM chat_queued_messages cqm
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
             WHERE cqm.chat_id = chats_expanded.id
-            ORDER BY cqm.position ASC, cqm.id ASC
-            LIMIT 1
-        ), false))
+        ))
 `
 
 // Find chats that appear stuck and need recovery:
 //  1. Running chats whose heartbeat has expired (worker crash).
 //  2. requires_action chats past the timeout threshold (client
 //     disappeared).
-//  3. Waiting chats with a promotable queue head and stale updated_at
+//  3. Waiting chats with a non-empty queue and stale updated_at
 //     (deferred-promote stranding when the worker dies before its
-//     post-cancel cleanup runs). A waiting chat whose head is held is
-//     paused for the owner's edit, not stranded.
+//     post-cancel cleanup runs). Paused chats hold their queue on
+//     purpose and are not stranded.
 func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getStaleChats, staleThreshold)
 	if err != nil {
@@ -11373,7 +11372,7 @@ UPDATE chats
 SET context_dirty_since = $1
 WHERE agent_id = $2::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'paused', 'running', 'requires_action')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM $3
     AND context_dirty_since IS NULL

@@ -37,12 +37,11 @@ const (
 	StateA0 ExecutionState = "A0"
 	// StateA1: requires_action, non-empty queue, not archived.
 	StateA1 ExecutionState = "A1"
-	// StateP: waiting, non-empty queue whose head is held, not
-	// archived. The last turn ended while the owner was editing the
-	// head, so the chat paused instead of promoting it. Idle to the
-	// worker like W; a send queues instead of running. Left by
-	// releasing the head, sending it now, deleting it, or editing
-	// history.
+	// StateP: paused, non-empty queue whose head is held, not archived.
+	// Turn boundaries leave a held head queued instead of promoting it,
+	// so the queue is not drained. Not runnable; a send queues instead
+	// of running. Left by releasing the head, sending it now, deleting
+	// it, or editing history.
 	StateP ExecutionState = "P"
 	// StateXW: archived waiting, empty queue.
 	StateXW ExecutionState = "XW"
@@ -85,8 +84,8 @@ var AllExecutionStates = []ExecutionState{
 // IsRunnable returns true for the execution states that the chat
 // worker is allowed to acquire and drive forward: R0, R1, I0, I1,
 // A0, and A1. Requires-action states need worker ownership for
-// timeout processing. Other states are idle (W, P, E*, XW, XE*),
-// absent (N), or invalid.
+// timeout processing. Other states are not runnable: idle (W, E*, XW,
+// XE*), paused (P), absent (N), or invalid.
 func (s ExecutionState) IsRunnable() bool {
 	switch s {
 	case StateR0, StateR1, StateI0, StateI1, StateA0, StateA1:
@@ -144,7 +143,7 @@ func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) E
 	switch {
 	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queueNonEmpty:
 		return StateW
-	case chat.Status == database.ChatStatusWaiting && !chat.Archived && queueNonEmpty && queue.HeadHeld:
+	case chat.Status == database.ChatStatusPaused && !chat.Archived && queueNonEmpty && queue.HeadHeld:
 		return StateP
 	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queueNonEmpty:
 		return StateXW

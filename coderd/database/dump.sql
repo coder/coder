@@ -387,7 +387,8 @@ CREATE TYPE chat_status AS ENUM (
     'running',
     'error',
     'requires_action',
-    'interrupting'
+    'interrupting',
+    'paused'
 );
 
 CREATE TYPE connection_status AS ENUM (
