@@ -4705,14 +4705,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                   |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `chat_id`         | string                                                        | false    |              |                                                                                                                               |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                               |
-| `created_at`      | string                                                        | false    |              |                                                                                                                               |
-| `held_at`         | string                                                        | false    |              | Held at is set while the owner edits the message. A held message and every message behind it wait until the hold is released. |
-| `id`              | integer                                                       | false    |              |                                                                                                                               |
-| `model_config_id` | string                                                        | false    |              |                                                                                                                               |
+| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                                                                       |
+|-------------------|---------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`         | string                                                        | false    |              |                                                                                                                                                                                   |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                   |
+| `created_at`      | string                                                        | false    |              |                                                                                                                                                                                   |
+| `held_at`         | string                                                        | false    |              | Held at is set while the owner edits the message. A held message and every message behind it wait until the hold is released; a turn that ends at a held message pauses the chat. |
+| `id`              | integer                                                       | false    |              |                                                                                                                                                                                   |
+| `model_config_id` | string                                                        | false    |              |                                                                                                                                                                                   |
 
 ## codersdk.ChatRetentionDaysResponse
 

@@ -39,6 +39,6 @@ func TestLoadQueueState(t *testing.T) {
 	setHeld(first, true)
 	queue, err = chatstate.LoadQueueState(ctx, f.DB, chatID)
 	require.NoError(t, err)
-	require.Equal(t, chatstate.QueueState{HasRows: true, HeadHeld: true}, queue, "held head")
+	require.Equal(t, chatstate.QueueState{HasRows: true, Paused: true}, queue, "held head")
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID), "a held head does not change a busy state")
 }
