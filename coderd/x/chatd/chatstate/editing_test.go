@@ -12,8 +12,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Scenario tests for queued-message edits. The matrix cases cover each cell;
-// these cover multi-step flows.
+// Scenario tests for queued-message edits (multi-step flows the matrix
+// cells do not cover) and the two queries the feature changed.
 
 func setEditing(t *testing.T, f *testFixture, m *chatstate.ChatMachine, id int64, editing bool) chatstate.EditQueuedMessageResult {
 	t.Helper()
@@ -39,7 +39,7 @@ func finishTurn(t *testing.T, f *testFixture, m *chatstate.ChatMachine) chatstat
 
 // TestEditing_WhileRunning: five rows, row 3 under edit. Rows 1 and 2
 // promote at their turn boundaries; the third boundary pauses the chat;
-// releasing row 3 resumes it.
+// ending row 3's edit resumes with row 3.
 func TestEditing_WhileRunning(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -61,71 +61,14 @@ func TestEditing_WhileRunning(t *testing.T) {
 	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[2:], queuedIDsByPosition(ctx, t, f, chatID))
 
-	// FinishTurn is not admitted from P.
-	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
-
-	// Releasing the head resumes with row 3.
+	// Ending the edit resumes with row 3.
 	setEditing(t, f, m, ids[2], false)
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
 }
 
-// TestEditing_InterruptionPauses: a head under edit pauses the chat at the end
-// of an interruption too.
-func TestEditing_InterruptionPauses(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	chatID := createTestChat(t, f).Chat.ID
-	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
-
-	queued := sendInterruptMessage(t, f, m, "interrupting").QueuedMessage
-	setEditing(t, f, m, queued.ID, true)
-	require.Equal(t, chatstate.StateI1, f.classify(ctx, t, chatID))
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{})
-		return err
-	}))
-	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
-}
-
-// TestEditing_MovesBetweenRows: row 2 under edit, begin editing row 1.
-// The marker moves in one transition; from P, moving it off the head
-// is refused.
-func TestEditing_MovesBetweenRows(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	chatID := createTestChat(t, f).Chat.ID
-	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
-
-	first := sendQueuedMessage(t, f, m, "one").QueuedMessage.ID
-	second := sendQueuedMessage(t, f, m, "two").QueuedMessage.ID
-	setEditing(t, f, m, second, true)
-	moved := setEditing(t, f, m, first, true)
-	require.True(t, moved.QueuedMessage.EditingSince.Valid)
-	require.False(t, requireQueuedMessageByID(ctx, t, f, chatID, second).EditingSince.Valid, "previous edit ended")
-	again := setEditing(t, f, m, first, true)
-	require.Equal(t, moved.QueuedMessage.EditingSince.Time, again.QueuedMessage.EditingSince.Time, "re-beginning is a no-op")
-
-	finishTurn(t, f, m)
-	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
-	editing := true
-	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{QueuedMessageID: second, Editing: &editing})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrPausedQueuedHeadUnderEdit)
-	require.True(t, requireQueuedMessageByID(ctx, t, f, chatID, first).EditingSince.Valid, "the head keeps its edit")
-}
-
 // TestEditing_ContentEditKeepsOverridesUnlessGiven: a content-only edit
-// preserves the row's model and effort; an edit with overrides replaces
-// them.
+// keeps the row's model and effort; an edit with overrides replaces them.
 func TestEditing_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -155,16 +98,14 @@ func TestEditing_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 	})
 	require.Equal(t, database.ChatReasoningEffortHigh, res.QueuedMessage.ReasoningEffort.ChatReasoningEffort)
 
-	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{QueuedMessageID: queued.ID})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed, "neither content nor editing is an error")
+	res = edit(chatstate.EditQueuedMessageInput{QueuedMessageID: queued.ID, Content: userMessageContent(t, "edited once more")})
+	assertQueuedMessageText(t, res.QueuedMessage, "edited once more")
+	require.Equal(t, database.ChatReasoningEffortHigh, res.QueuedMessage.ReasoningEffort.ChatReasoningEffort, "a content-only edit keeps the override")
 }
 
-// TestEditing_StaleChatsIgnoresPaused: GetStaleChats reports waiting with
-// rows, not P.
-func TestEditing_StaleChatsIgnoresPaused(t *testing.T) {
+// TestGetStaleChats_ExcludesPaused: GetStaleChats reports waiting with
+// rows, not paused.
+func TestGetStaleChats_ExcludesPaused(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -202,9 +143,9 @@ func TestEditing_StaleChatsIgnoresPaused(t *testing.T) {
 	require.True(t, contains(stale), "waiting with rows is reported")
 }
 
-// TestEditing_QueueListingFollowsProcessingOrder: the listing follows
+// TestGetChatQueuedMessages_OrdersByPosition: the listing follows
 // position, which "send now" on a later row changes.
-func TestEditing_QueueListingFollowsProcessingOrder(t *testing.T) {
+func TestGetChatQueuedMessages_OrdersByPosition(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
