@@ -32,6 +32,9 @@ type ManifestAPI struct {
 	DerpForceWebSockets       bool
 	DisableUserSecretFilePath bool
 	WorkspaceID               uuid.UUID
+	// Experiments decides whether the manifest advertises Agent Plugins
+	// support to the agent.
+	Experiments codersdk.Experiments
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -156,6 +159,8 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
+
+		AgentPluginsEnabled: a.Experiments.Enabled(codersdk.ExperimentAgentPlugins),
 	}, nil
 }
 
