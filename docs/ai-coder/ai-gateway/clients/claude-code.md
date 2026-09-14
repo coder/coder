@@ -18,6 +18,24 @@ export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
 
+<details>
+<summary>Make it persistent</summary>
+
+Merge the following into `~/.claude/settings.json`, preserving your existing settings:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://coder.example.com/api/v2/ai-gateway/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "YOUR_CODER_API_TOKEN"
+  }
+}
+```
+
+Replace `https://coder.example.com` with your Coder deployment URL and `YOUR_CODER_API_TOKEN` with your Coder API token.
+
+</details>
+
 ## BYOK (Personal API Key)
 
 ```sh
