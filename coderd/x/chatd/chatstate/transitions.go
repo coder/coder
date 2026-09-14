@@ -448,8 +448,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateI0, StateI1:
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Paused for the owner's edit of the head: queue behind it, keep
-	// waiting. Nothing to interrupt.
+	// Paused: queue behind the held head regardless of busy behavior.
 	case StateP:
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
@@ -494,8 +493,7 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 		return SendMessageResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
 	if head.HeldAt.Valid {
-		// The owner is editing the head; nothing is promoted past it.
-		// The new message queues behind and the chat stays in error.
+		// Held head: append to tail, no promotion, stay in error.
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 	}
 	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
@@ -823,9 +821,8 @@ type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
 }
 
-// DeleteQueuedMessage removes a single queued user message. From P,
-// deleting the held head resumes the chat: the row behind it, if any,
-// is promoted and the chat runs; otherwise the chat is idle (W).
+// DeleteQueuedMessage removes a single queued user message. Deleting
+// the held head from P promotes the next row, or lands in W.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
 	if err != nil {
@@ -865,16 +862,13 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 // leave the corresponding column untouched.
 type EditQueuedMessageInput struct {
 	QueuedMessageID int64
-	// Content, when non-nil, replaces the row's content. The caller has
-	// already converted it the same way as [EditMessageInput.Content].
+	// Content is already converted like [EditMessageInput.Content].
 	Content json.RawMessage
-	// ModelConfigIDOverride and ReasoningEffortOverride replace the row's
-	// per-message overrides when Valid. They are only applied together
-	// with Content.
+	// ModelConfigIDOverride and ReasoningEffortOverride apply only
+	// together with Content.
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
-	// Held, when non-nil, sets or clears the row's hold.
-	Held *bool
+	Held                    *bool
 }
 
 // EditQueuedMessageResult is returned by [Tx.EditQueuedMessage].
@@ -882,18 +876,10 @@ type EditQueuedMessageResult struct {
 	QueuedMessage database.ChatQueuedMessage
 }
 
-// EditQueuedMessage rewrites a queued row's content and/or its hold.
-//
-// A chat has at most one held row. Holding a row while another is held
-// moves the hold in the same transition. The hold is consulted only at
-// turn boundaries (FinishTurn, FinishInterruption, SendMessage from
-// E1), which do not promote a held head; from R1 and I1 the chat then
-// pauses (P) instead of promoting.
-//
-// From P, releasing the head resumes the chat: the row is promoted and
-// the chat runs. Holding any other row is refused with
-// [ErrPausedHeadMustResume]: the paused head leaves the queue only by
-// an explicit resume, send, or delete, never as a side effect.
+// EditQueuedMessage rewrites a queued row's content and/or hold.
+// Holding a row while another is held moves the hold. Releasing the
+// held head from P promotes it; holding a different row from P is
+// refused with [ErrPausedHeadMustResume].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
 	if err != nil {
@@ -940,8 +926,7 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 	}
 	if input.Held != nil {
 		if *input.Held && !row.HeldAt.Valid {
-			// Move the hold: clear the previous holder before setting
-			// this one so the one-held-row index is never violated.
+			// Clear the previous holder before setting this one.
 			if err := tx.releaseOtherHold(row.ID); err != nil {
 				return EditQueuedMessageResult{}, err
 			}
@@ -984,9 +969,8 @@ func (tx *Tx) releaseOtherHold(exceptID int64) error {
 	return nil
 }
 
-// resumeIfHeadPromotable is how a transition leaves P. After the held
-// head was released or deleted, the head (if any) is promotable: pop it
-// into history and run. With no rows left the chat goes idle (W).
+// resumeIfHeadPromotable leaves P after the held head was released or
+// deleted: promotes the new head, or lands in W when no rows remain.
 func (tx *Tx) resumeIfHeadPromotable(chat database.Chat) error {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1016,9 +1000,7 @@ func (tx *Tx) resumeIfHeadPromotable(chat database.Chat) error {
 // promoteQueuedRow pops target out of the queue into active history and
 // sets the chat running with last_error cleared. Every outstanding tool
 // call is closed first (not just dynamic ones) so the LLM history stays
-// valid. Used when the chat is not mid generation: PromoteQueuedMessage
-// from E1/A1/P, and the P exits of EditQueuedMessage and
-// DeleteQueuedMessage.
+// valid.
 func (tx *Tx) promoteQueuedRow(chat database.Chat, target database.ChatQueuedMessage) (database.ChatMessage, []database.ChatMessage, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {
@@ -1072,8 +1054,7 @@ type PromoteQueuedMessageResult struct {
 
 // PromoteQueuedMessage promotes the target queued message to the
 // queue head; from E1/A1/P it also pops it into active history. The
-// target's hold is cleared first, so "send now" on a held row releases
-// it, and on a row behind a held row goes around the hold.
+// target's hold, if any, is cleared first.
 func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
 	if err != nil {
@@ -1591,8 +1572,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 		}, nil
 	}
 
-	// I1: promote queue head into history, unless the owner is editing
-	// it, in which case the chat pauses (P) with the queue intact.
+	// I1: promote queue head into history, or pause (P) on a held head.
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
@@ -1676,8 +1656,7 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		}
 		return FinishTurnResult{Chat: updated}, nil
 	}
-	// R1: promote queue head into history, unless the owner is editing
-	// it, in which case the chat pauses (P) with the queue intact.
+	// R1: promote queue head into history, or pause (P) on a held head.
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("get queue head: %w", err)

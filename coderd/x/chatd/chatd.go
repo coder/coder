@@ -1487,23 +1487,13 @@ func (p *Server) SendMessage(
 			return SendMessageResult{}, err
 		}
 		// Check queue capacity before dispatch; the transaction
-		// rechecks it under lock. From W and E0 the send inserts into
-		// history directly and never touches the queue, even when held
-		// rows fill it (E0 with rows means the head is held).
-		queue, err := chatstate.LoadQueueState(ctx, p.db, opts.ChatID)
+		// rechecks it under lock.
+		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
-			return SendMessageResult{}, err
+			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
-		switch chatstate.ClassifyExecutionState(chat, queue, true) {
-		case chatstate.StateW, chatstate.StateE0:
-		default:
-			queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
-			if err != nil {
-				return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
-			}
-			if queuedCount >= chatstate.MaxQueueSize {
-				return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
-			}
+		if queuedCount >= chatstate.MaxQueueSize {
+			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
@@ -2107,8 +2097,7 @@ func (p *Server) setChatFamilyArchived(
 
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
-// consumers. Deleting the held head of a paused chat resumes it; the
-// sidebar watch event covers that status change.
+// consumers; a status change publishes the sidebar watch event.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -2145,9 +2134,8 @@ func (p *Server) DeleteQueued(
 	return nil
 }
 
-// chatIfStatusChanged reloads the chat inside the transaction and
-// reports whether its status differs from before, so the caller can
-// publish the sidebar watch event with the committed values.
+// chatIfStatusChanged reloads the chat and reports whether its status
+// differs from before.
 func chatIfStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
 	after, err := store.GetChatByID(ctx, before.ID)
 	if err != nil {
@@ -2157,29 +2145,20 @@ func chatIfStatusChanged(ctx context.Context, store database.Store, before datab
 }
 
 // EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
-// values leave the corresponding attribute untouched.
+// values leave the corresponding attribute untouched; ModelConfigID and
+// ReasoningEffort apply only together with Content.
 type EditQueuedMessageOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
-	// Content, when non-empty, replaces the queued content. It goes
-	// through the same user_prompt_submit hook as a new send so the
-	// stored row matches what a fresh send would have queued.
-	Content []codersdk.ChatMessagePart
-	// ModelConfigID, when non-zero, overrides the row's model. It is
-	// only applied together with Content.
-	ModelConfigID uuid.UUID
-	// ReasoningEffort, when non-nil and non-empty, overrides the row's
-	// reasoning effort. It is only applied together with Content.
+	Content         []codersdk.ChatMessagePart
+	ModelConfigID   uuid.UUID
 	ReasoningEffort *string
-	// Held, when non-nil, sets or clears the row's hold.
-	Held *bool
+	Held            *bool
 }
 
 // EditQueuedMessage rewrites a queued row's content and/or hold through
-// the chatstate.EditQueuedMessage transition. Holding a row pauses the
-// queue at that row until the owner saves or cancels; releasing the
-// head of a paused chat resumes it. Stream side effects are handled by
-// chat:update consumers; a resume also publishes the sidebar watch
+// the chatstate state machine. Stream side effects are handled by
+// chat:update consumers; a status change publishes the sidebar watch
 // event.
 func (p *Server) EditQueuedMessage(
 	ctx context.Context,

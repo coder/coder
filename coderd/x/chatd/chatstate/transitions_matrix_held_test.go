@@ -17,10 +17,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Matrix cases for queue holds. A hold is consulted only at turn
-// boundaries, so the only new state is P (waiting with a held head) and
-// the only changed cells are the boundary transitions that can land
-// there, EditQueuedMessage on the states that have rows, and P's own
+// Matrix cases for queue holds: the boundary transitions that can land
+// in P, EditQueuedMessage on the states that have rows, and P's own
 // row. The harness asserts the post-state and the snapshot bump; the
 // cases below add only the fact that distinguishes each cell.
 
@@ -31,9 +29,8 @@ const (
 	scenarioRefused  scenario = "refused"
 )
 
-// holdQueuedMessage sets held_at directly. Seeding bypasses the state
-// machine on purpose; the transition under test is what must go
-// through it.
+// holdQueuedMessage sets held_at directly, bypassing the state machine,
+// so the transition under test is the only one exercised.
 func holdQueuedMessage(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, id int64) {
 	t.Helper()
 	_, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
@@ -94,8 +91,8 @@ func seedHeldHead(t *testing.T, f *testFixture, from chatstate.ExecutionState, e
 	return seeded
 }
 
-// seedPaused seeds P: a held head with extra unheld rows behind it, on
-// a chat whose turn has finished.
+// seedPaused seeds P: a held head with extra unheld rows behind it,
+// after FinishTurn.
 func seedPaused(t *testing.T, f *testFixture, extra int) seededChat {
 	t.Helper()
 	seeded := seedHeldHead(t, f, chatstate.StateR1, extra)
@@ -135,7 +132,7 @@ func applyHeldEdit(idx int, held bool) applierFn {
 }
 
 // heldCase is the shared shape of every hold case: seed, apply, then
-// check the queue ids left and which row is held.
+// check the remaining queue ids and which row is held.
 func heldCase(tr chatstate.Transition, from, want chatstate.ExecutionState, sc scenario, seed func(*testing.T, *testFixture) seededChat, apply applierFn, wantQueue func(seeded seededChat) []int64, wantHeldIdx int) transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: tr,
@@ -193,9 +190,8 @@ func heldQueueMatrixCases() []transitionCaseSpec {
 		// P: a history edit clears the queue.
 		heldCase(chatstate.TransitionEditMessage, chatstate.StateP, chatstate.StateR0, scenarioHeldHead, seedP(1), applyEditMessage, noRows, -1),
 	}
-	// Edit on the states that have rows: hold the head (already held
-	// by the seed, so this is the idempotent re-hold) and the state does
-	// not change.
+	// Edit on the states that have rows: re-hold the already-held head;
+	// the state does not change.
 	for _, from := range []chatstate.ExecutionState{chatstate.StateE1, chatstate.StateR1, chatstate.StateI1, chatstate.StateA1} {
 		cases = append(cases,
 			heldCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioHeldHead, seedHeld(from, 1), applyHeldEdit(0, true), allRows, 0),
@@ -218,8 +214,8 @@ func heldQueueMatrixCases() []transitionCaseSpec {
 	return cases
 }
 
-// sendBehindHeldCase: a queued send lands behind the held head and
-// nothing is promoted, so the state does not change.
+// sendBehindHeldCase: a queued send lands behind the held head; the
+// state does not change.
 func sendBehindHeldCase(from chatstate.ExecutionState, seed func(*testing.T, *testFixture) seededChat) transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionSendMessage,

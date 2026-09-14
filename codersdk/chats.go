@@ -90,9 +90,8 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
-	// ChatStatusPaused: the last turn ended with a held queued message at
-	// the head. The queue is not drained until the hold is released, the
-	// message is sent now, or it is deleted. A send queues behind it.
+	// ChatStatusPaused: the turn ended at a held queued message. The
+	// queue waits until it is released, sent now, or deleted.
 	ChatStatusPaused ChatStatus = "paused"
 )
 
@@ -1689,28 +1688,22 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	// HeldAt is set while the owner is editing the message. A held
-	// message and every message queued behind it are not processed
-	// until the hold is released; messages ahead of it still are. A
-	// waiting chat whose first queued message is held is paused for
-	// that edit rather than idle: a send to it is queued.
+	// HeldAt is set while the owner edits the message. A held message
+	// and every message behind it wait until the hold is released.
 	HeldAt *time.Time `json:"held_at,omitempty" format:"date-time"`
 }
 
 // EditChatQueuedMessageRequest edits a queued message. Omitted fields
 // are left unchanged; a request with no fields is rejected.
 type EditChatQueuedMessageRequest struct {
-	// Content, when present, replaces the queued content. An empty
-	// array is rejected.
+	// Content replaces the queued content. An empty array is rejected.
 	Content []ChatInputPart `json:"content,omitempty"`
-	// ModelConfigID and ReasoningEffort override the message's model and
-	// effort. They are only applied together with Content.
+	// ModelConfigID and ReasoningEffort apply only together with Content.
 	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
-	// Held sets or clears the hold. A chat has at most one held
-	// message; holding another moves the hold. While held, the message
-	// and every message queued behind it wait; messages ahead of it
-	// still run. Releasing the hold on an idle chat sends the message.
+	// Held sets or clears the hold. A chat has at most one held message;
+	// holding another moves the hold. Releasing the head of a paused
+	// chat sends it.
 	Held *bool `json:"held,omitempty"`
 }
 

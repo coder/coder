@@ -3255,11 +3255,8 @@ export interface ChatQueuedMessage {
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
 	/**
-	 * HeldAt is set while the owner is editing the message. A held
-	 * message and every message queued behind it are not processed
-	 * until the hold is released; messages ahead of it still are. A
-	 * waiting chat whose first queued message is held is paused for
-	 * that edit rather than idle: a send to it is queued.
+	 * HeldAt is set while the owner edits the message. A held message
+	 * and every message behind it wait until the hold is released.
 	 */
 	readonly held_at?: string;
 }
@@ -4992,21 +4989,18 @@ export interface EditChatMessageResponse {
  */
 export interface EditChatQueuedMessageRequest {
 	/**
-	 * Content, when present, replaces the queued content. An empty
-	 * array is rejected.
+	 * Content replaces the queued content. An empty array is rejected.
 	 */
 	readonly content?: readonly ChatInputPart[];
 	/**
-	 * ModelConfigID and ReasoningEffort override the message's model and
-	 * effort. They are only applied together with Content.
+	 * ModelConfigID and ReasoningEffort apply only together with Content.
 	 */
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
 	/**
-	 * Held sets or clears the hold. A chat has at most one held
-	 * message; holding another moves the hold. While held, the message
-	 * and every message queued behind it wait; messages ahead of it
-	 * still run. Releasing the hold on an idle chat sends the message.
+	 * Held sets or clears the hold. A chat has at most one held message;
+	 * holding another moves the hold. Releasing the head of a paused
+	 * chat sends it.
 	 */
 	readonly held?: boolean;
 }
