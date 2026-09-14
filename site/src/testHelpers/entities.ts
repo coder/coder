@@ -78,6 +78,26 @@ export const MockChatProjectMemory: TypesGen.ChatProjectMemory = {
 	updated_at: "2026-09-02T12:00:00Z",
 };
 
+export const MockChatUserMemory: TypesGen.ChatUserMemory = {
+	id: "chat-user-memory-preferred-editor",
+	organization_id: MockDefaultOrganization.id,
+	user_id: "user-owner-id",
+	name: "preferred-editor",
+	description: "The user prefers concise editor instructions.",
+	body: "Use concise editor instructions and include the changed files.",
+	created_by_username: "owner",
+	created_at: "2026-09-01T12:00:00Z",
+	updated_at: "2026-09-02T12:00:00Z",
+};
+
+export const MockChatUserMemory2: TypesGen.ChatUserMemory = {
+	...MockChatUserMemory,
+	id: "chat-user-memory-release-process",
+	name: "release-process",
+	description: "Releases require a changelog update.",
+	body: "Update the changelog and publish the release notes before releasing.",
+};
+
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [

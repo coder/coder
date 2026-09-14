@@ -4,7 +4,7 @@ import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { ProjectMemorySection } from "./components/ProjectMemorySection";
+import { MemorySection } from "./components/MemorySection";
 import { buildAgentChatPath } from "./utils/navigation";
 
 type AgentProjectPageViewProps = {
@@ -87,7 +87,7 @@ export const AgentProjectPageView: FC<AgentProjectPageViewProps> = ({
 					))
 				)}
 			</div>
-			<ProjectMemorySection projectId={project.id} />
+			<MemorySection scope={{ kind: "project", projectId: project.id }} />
 		</div>
 	);
 };

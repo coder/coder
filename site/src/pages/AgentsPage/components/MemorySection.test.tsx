@@ -5,10 +5,15 @@ import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it } from "vitest";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
-import { MockChatProject, MockChatProjectMemory } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockChatProjectMemory,
+	MockChatUserMemory,
+	MockDefaultOrganization,
+} from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import { ProjectMemorySection } from "./ProjectMemorySection";
+import { MemorySection } from "./MemorySection";
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	const queryClient = createTestQueryClient();
@@ -21,8 +26,8 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 
 afterEach(() => server.resetHandlers());
 
-describe("ProjectMemorySection", () => {
-	it("creates a memory with a POST request", async () => {
+describe("MemorySection", () => {
+	it("creates a project memory with a POST request", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
 		server.use(
@@ -40,7 +45,9 @@ describe("ProjectMemorySection", () => {
 
 		render(
 			<Wrapper>
-				<ProjectMemorySection projectId={MockChatProject.id} />
+				<MemorySection
+					scope={{ kind: "project", projectId: MockChatProject.id }}
+				/>
 			</Wrapper>,
 		);
 
@@ -59,7 +66,45 @@ describe("ProjectMemorySection", () => {
 		});
 	});
 
-	it("prefills the edit dialog with the selected memory", async () => {
+	it("creates a personal memory with the selected organization", async () => {
+		const user = userEvent.setup();
+		let requestBody: unknown;
+		server.use(
+			http.get("/api/experimental/chats/memories", () => HttpResponse.json([])),
+			http.post("/api/experimental/chats/memories", async ({ request }) => {
+				requestBody = await request.json();
+				return HttpResponse.json(MockChatUserMemory, { status: 201 });
+			}),
+		);
+
+		render(
+			<Wrapper>
+				<MemorySection
+					scope={{
+						kind: "personal",
+						organizationId: MockDefaultOrganization.id,
+					}}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Add memory" }));
+		await user.type(screen.getByLabelText("Name"), "durable-fact");
+		await user.type(screen.getByLabelText("Description"), "A durable fact");
+		await user.type(screen.getByLabelText("Body"), "Personal memory body");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(requestBody).toEqual({
+				organization_id: MockDefaultOrganization.id,
+				name: "durable-fact",
+				description: "A durable fact",
+				body: "Personal memory body",
+			});
+		});
+	});
+
+	it("prefills the edit dialog with the selected project memory", async () => {
 		const user = userEvent.setup();
 		server.use(
 			http.get("/api/experimental/chats/projects/:projectId/memories", () =>
@@ -69,7 +114,9 @@ describe("ProjectMemorySection", () => {
 
 		render(
 			<Wrapper>
-				<ProjectMemorySection projectId={MockChatProject.id} />
+				<MemorySection
+					scope={{ kind: "project", projectId: MockChatProject.id }}
+				/>
 			</Wrapper>,
 		);
 
@@ -110,7 +157,9 @@ describe("ProjectMemorySection", () => {
 
 		render(
 			<Wrapper>
-				<ProjectMemorySection projectId={MockChatProject.id} />
+				<MemorySection
+					scope={{ kind: "project", projectId: MockChatProject.id }}
+				/>
 			</Wrapper>,
 		);
 
@@ -148,7 +197,9 @@ describe("ProjectMemorySection", () => {
 
 		render(
 			<Wrapper>
-				<ProjectMemorySection projectId={MockChatProject.id} />
+				<MemorySection
+					scope={{ kind: "project", projectId: MockChatProject.id }}
+				/>
 			</Wrapper>,
 		);
 
@@ -172,7 +223,7 @@ describe("ProjectMemorySection", () => {
 		});
 	});
 
-	it("deletes a memory after confirmation", async () => {
+	it("deletes a project memory after confirmation", async () => {
 		const user = userEvent.setup();
 		let deletedMemoryID: string | undefined;
 		let deletedMemoryURL: string | undefined;
@@ -189,11 +240,12 @@ describe("ProjectMemorySection", () => {
 
 		render(
 			<Wrapper>
-				<ProjectMemorySection projectId={MockChatProject.id} />
+				<MemorySection
+					scope={{ kind: "project", projectId: MockChatProject.id }}
+				/>
 			</Wrapper>,
 		);
 
-		// The body and actions only render after expanding the row.
 		await user.click(
 			await screen.findByRole("button", {
 				name: new RegExp(MockChatProjectMemory.name),

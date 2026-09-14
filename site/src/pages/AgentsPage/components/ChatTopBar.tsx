@@ -111,6 +111,11 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		enabled: experiments.includes("chat-projects") && Boolean(chat?.project_id),
 	});
 	const isRootChat = chat !== undefined && parentChatID === undefined;
+	const showPersonalMemoryAction = Boolean(
+		experiments.includes("chat-projects") &&
+			isRootChat &&
+			chat?.project_id === undefined,
+	);
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
 	if (chat !== undefined && isRootChat) {
 		chatAuthorizationChecks.canShareChat = {
@@ -323,6 +328,21 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
 							/>
+							{showPersonalMemoryAction && (
+								<>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem asChild>
+										<Link
+											to={{
+												pathname: "/agents/settings/memory",
+												search: location.search,
+											}}
+										>
+											Memory
+										</Link>
+									</DropdownMenuItem>
+								</>
+							)}
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}
