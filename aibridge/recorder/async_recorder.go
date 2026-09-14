@@ -84,7 +84,7 @@ func (a *AsyncRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageR
 		}
 	}()
 
-	return nil // Caller is not interested in error.
+	return nil
 }
 
 func (a *AsyncRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
