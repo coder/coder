@@ -96,6 +96,12 @@ var citation = regexp.MustCompile("`(Coder\\.[A-Za-z]+|Google\\.[A-Za-z]+|alex\\
 // severityCell matches the severity column of a "Checks that run today" row.
 var severityCell = regexp.MustCompile("`(error|warning|suggestion)`")
 
+// documentationOnly matches an annotation that declares its section
+// documentation-only. The match is case-sensitive: a lowercase mention such as
+// "the content between headings rule is documentation-only" qualifies part of a
+// section, not the section itself.
+var documentationOnly = regexp.MustCompile(`(^|[^\p{L}])Documentation-only`)
+
 // valeRule is a rule file under docs/.style/styles/Coder/.
 type valeRule struct {
 	name     string // for example "BrandNames"
@@ -350,7 +356,15 @@ func isTool(c string) bool {
 }
 
 // classify buckets an annotation for the coverage table.
+//
+// The coverage table counts rule sections, not linter rule names. An
+// annotation that declares its section documentation-only stays
+// documentation-only even when it cross-references a rule that another
+// section owns, so a single rule is never counted under two sections.
 func classify(text string, ruleNames map[string]bool) class {
+	if documentationOnly.MatchString(text) {
+		return classDocumentationOnly
+	}
 	active, planned := activeCitations(text)
 	for _, c := range active {
 		switch {

@@ -57,12 +57,17 @@ isn't understood; mark each one.
 
 ## Counting
 
-Each annotation is classified once for the coverage table:
+Each annotation is classified once for the coverage table, so the table counts
+rule sections rather than linter rule names:
 
+- **Documentation-only**: the annotation declares the section
+  `Documentation-only`. This wins over everything else, so a section that only
+  cross-references a rule another section owns counts under that other section
+  and no rule is counted twice. The match is case-sensitive; a lowercase
+  "documentation-only" describes part of a section, not the section.
 - **Tool-checked**: cites an existing Coder rule, `markdownlint`, an `MD###`
   rule, or `scripts/check_emdash.sh` as active.
 - **Planned**: cites only planned checkers.
-- **Documentation-only**: everything else.
 
 ## Usage
 

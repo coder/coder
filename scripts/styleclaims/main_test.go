@@ -132,6 +132,14 @@ func TestClassify(t *testing.T) {
 		{"*Adapted from ASD-STE100 Issue 9, rule 5.2. Documentation-only. No Vale rule.*", classDocumentationOnly},
 		// A rule cited as active that does not exist is not tool coverage.
 		{"*Enforced by `Coder.FirstPersonSingular`.*", classDocumentationOnly},
+		// A documentation-only section that cross-references a rule another
+		// section owns stays documentation-only, so the rule is counted once.
+		{"*Documentation-only. No Vale rule for the general principle; `Coder.BrandNames` enforces one case.*", classDocumentationOnly},
+		// A documentation-only section that names a planned rule is still
+		// documentation-only.
+		{"*Documentation-only. Planned Vale rule `Coder.Idioms`.*", classDocumentationOnly},
+		// A lowercase mention qualifies part of a section, not the section.
+		{"*Enforced by `markdownlint` rule `MD001`. The nested rule is documentation-only.*", classTool},
 	}
 	for _, tc := range cases {
 		if got := classify(tc.text, rules); got != tc.want {
