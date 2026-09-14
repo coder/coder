@@ -278,6 +278,7 @@ const MCPGroupBadge: FC<{
 			<PopoverContent side="top" align="start" className="w-56 p-1">
 				<MCPServerToggleList
 					{...mcpServerList}
+					servers={servers}
 					onDisconnect={(server) => {
 						setOpen(false);
 						mcpServerList.onDisconnect(server);
