@@ -2,32 +2,30 @@ package tailnet
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
-
-type coordinateeAuthFunc func(context.Context, *proto.CoordinateRequest) error
-
-func (f coordinateeAuthFunc) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
-	return f(ctx, req)
-}
 
 func TestConnIOHandleRequestRejectsBeforeMutation(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	bindings := make(chan binding, 1)
+	var logbuf strings.Builder
 	c := &connIO{
 		id:       uuid.New(),
 		coordCtx: ctx,
 		peerCtx:  ctx,
-		logger:   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger:   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(sloghuman.Sink(&logbuf)),
 		bindings: bindings,
 		auth:     agpl.SingleTailnetCoordinateeAuth{},
 	}
@@ -39,6 +37,7 @@ func TestConnIOHandleRequestRejectsBeforeMutation(t *testing.T) {
 		ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{nil},
 	})
 	require.EqualError(t, err, "ready_for_handshake entry is required")
+	require.Contains(t, logbuf.String(), "invalid coordinate request")
 	select {
 	case binding := <-bindings:
 		t.Fatalf("unexpected binding: %+v", binding)
@@ -59,7 +58,7 @@ func TestConnIORecvLoopPanicAfterAuthorization(t *testing.T) {
 	peerID := uuid.New()
 	destinationID := uuid.New()
 	c := newConnIO(ctx, ctx, logger, bindings, make(chan tunnel, 1), rfhs,
-		requests, responses, peerID, t.Name(), coordinateeAuthFunc(func(context.Context, *proto.CoordinateRequest) error {
+		requests, responses, peerID, t.Name(), agpltest.CoordinateeAuthFunc(func(context.Context, *proto.CoordinateRequest) error {
 			authorized <- struct{}{}
 			return nil
 		}))

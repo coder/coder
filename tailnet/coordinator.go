@@ -294,6 +294,10 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 	}
 	if req.Disconnect != nil {
 		c.removePeerLocked(p.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "graceful disconnect", "")
+		// The peer and its response channel are gone, so nothing else in this
+		// request can be delivered. Matches the enterprise coordinator, which
+		// stops processing a request once it sees Disconnect.
+		return nil
 	}
 	if rfhs := req.ReadyForHandshake; rfhs != nil {
 		err := c.handleReadyForHandshakeLocked(pr, rfhs)
@@ -484,6 +488,13 @@ func (c *core) removePeerLocked(id uuid.UUID, kind proto.CoordinateResponse_Peer
 		return
 	}
 	c.updateTunnelPeersLocked(id, nil, kind, reason)
+	if _, ok := c.peers[id]; !ok {
+		// A tunnel peer with a full response buffer gets removed during the
+		// fan-out above, and removing it fans out to us in turn. When that
+		// nested call already closed and deleted this peer, p is stale and
+		// closing p.resps again would panic. Nothing is left to do.
+		return
+	}
 	c.tunnels.removeAll(id)
 	if closeErr != "" {
 		select {

@@ -29,6 +29,7 @@ func TestMapperPanic(t *testing.T) {
 		mappings:   make(chan []mapping),
 		heartbeats: &heartbeats{self: coordinatorID},
 		// A nil sent map forces a panic after the mapping has been selected.
+		sent: nil,
 	}
 	go m.run()
 	require.NoError(t, agpl.SendCtx(ctx, m.mappings, []mapping{{

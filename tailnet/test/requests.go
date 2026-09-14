@@ -10,14 +10,9 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
-type coordinateeAuthFunc func(context.Context, *proto.CoordinateRequest) error
-
-func (f coordinateeAuthFunc) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
-	return f(ctx, req)
-}
-
-// InvalidCoordinateRequestTest checks that malformed requests are rejected before
-// authorization and leave other connections usable.
+// InvalidCoordinateRequestTest checks that malformed requests are rejected
+// before authorization and that a valid node bundled with a malformed entry
+// is not published to tunnel peers.
 func InvalidCoordinateRequestTest(ctx context.Context, t *testing.T, coordinator tailnet.CoordinatorV2) {
 	const (
 		baselineDERP  = 31001
@@ -52,9 +47,12 @@ func InvalidCoordinateRequestTest(ctx context.Context, t *testing.T, coordinator
 			verifyNoMutation: true,
 		},
 	} {
+		// The cases share the caller's ctx and coordinator, so they run
+		// sequentially. Parallel subtests would pause until the caller
+		// returns and, under -parallel=1, could resume after that ctx has
+		// already expired.
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var auth tailnet.CoordinateeAuth = coordinateeAuthFunc(func(context.Context, *proto.CoordinateRequest) error {
+			var auth tailnet.CoordinateeAuth = CoordinateeAuthFunc(func(context.Context, *proto.CoordinateRequest) error {
 				panic("authorization must not see malformed requests")
 			})
 			if tc.verifyNoMutation {
@@ -85,7 +83,7 @@ func InvalidCoordinateRequestTest(ctx context.Context, t *testing.T, coordinator
 // CoordinateRequestPanicTest checks that a failed connection is withdrawn while
 // other connections continue exchanging updates.
 func CoordinateRequestPanicTest(ctx context.Context, t *testing.T, coordinator tailnet.CoordinatorV2) {
-	broken := NewPeer(ctx, t, coordinator, "broken", WithAuth(coordinateeAuthFunc(func(_ context.Context, req *proto.CoordinateRequest) error {
+	broken := NewPeer(ctx, t, coordinator, "broken", WithAuth(CoordinateeAuthFunc(func(_ context.Context, req *proto.CoordinateRequest) error {
 		if req.Disconnect != nil {
 			panic("private panic detail")
 		}

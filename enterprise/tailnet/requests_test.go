@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestPGCoordinatorInvalidRequests(t *testing.T) {
+func TestPGCoordinator_InvalidRequests(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	store, ps := dbtestutil.NewDB(t)
@@ -22,7 +22,7 @@ func TestPGCoordinatorInvalidRequests(t *testing.T) {
 	test.InvalidCoordinateRequestTest(ctx, t, coordinator)
 }
 
-func TestPGCoordinatorRequestPanic(t *testing.T) {
+func TestPGCoordinator_RequestPanic(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	store, ps := dbtestutil.NewDB(t)

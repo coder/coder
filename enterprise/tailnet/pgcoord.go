@@ -745,7 +745,7 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 func (m *mapper) run() {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			m.logger.Error(m.ctx, "panic mapping peer responses",
+			m.logger.Error(m.ctx, "panic mapping peer responses (recovered)",
 				slog.F("panic", recovered),
 				slog.F("stack", string(debug.Stack())),
 			)

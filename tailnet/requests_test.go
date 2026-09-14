@@ -32,7 +32,7 @@ func TestCoordinateeAuthNilNode(t *testing.T) {
 	}
 }
 
-func TestCoordinatorInvalidRequests(t *testing.T) {
+func TestCoordinator_InvalidRequests(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	coordinator := tailnet.NewCoordinator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
@@ -40,10 +40,61 @@ func TestCoordinatorInvalidRequests(t *testing.T) {
 	test.InvalidCoordinateRequestTest(ctx, t, coordinator)
 }
 
-func TestCoordinatorRequestPanic(t *testing.T) {
+func TestCoordinator_RequestPanic(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	coordinator := tailnet.NewCoordinator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
 	t.Cleanup(func() { require.NoError(t, coordinator.Close()) })
 	test.CoordinateRequestPanicTest(ctx, t, coordinator)
+}
+
+func TestValidateCoordinateRequest(t *testing.T) {
+	t.Parallel()
+	validRFH := &proto.CoordinateRequest_ReadyForHandshake{Id: tailnet.UUIDToByteSlice(uuid.New())}
+	for _, tc := range []struct {
+		name string
+		req  *proto.CoordinateRequest
+		err  string // empty means the request is accepted
+	}{
+		{name: "NilRequest", err: "coordinate request is required"},
+		{name: "EmptyRequest", req: &proto.CoordinateRequest{}},
+		{
+			name: "NilNode",
+			req:  &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{}},
+			err:  "update_self node is required",
+		},
+		{
+			name: "EmptyNode",
+			req:  &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{}}},
+		},
+		{name: "NilReadyForHandshake", req: &proto.CoordinateRequest{ReadyForHandshake: nil}},
+		{
+			name: "EmptyReadyForHandshake",
+			req:  &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{}},
+		},
+		{
+			name: "ValidReadyForHandshake",
+			req:  &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{validRFH}},
+		},
+		{
+			name: "NilReadyForHandshakeEntry",
+			req:  &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{nil}},
+			err:  "ready_for_handshake entry is required",
+		},
+		{
+			name: "NilReadyForHandshakeAfterValid",
+			req:  &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{validRFH, nil}},
+			err:  "ready_for_handshake entry is required",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := tailnet.ValidateCoordinateRequest(tc.req)
+			if tc.err == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.err)
+		})
+	}
 }
