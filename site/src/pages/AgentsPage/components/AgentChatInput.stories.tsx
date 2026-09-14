@@ -657,6 +657,16 @@ const notionMCPConnected = buildMCPServer({
 	enabled: true,
 });
 
+const slackMCPAlwaysOnNeedingAuth = buildMCPServer({
+	id: "mcp-slack",
+	display_name: "Slack",
+	slug: "slack",
+	availability: "force_on",
+	auth_type: "oauth2",
+	auth_connected: false,
+	enabled: true,
+});
+
 const mcpDefaults = {
 	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
@@ -718,6 +728,19 @@ export const MCPGroupDisabled: Story = {
 	args: {
 		...WithMCPServers.args,
 		isDisabled: true,
+	},
+	play: MCPGroupPopoverOpen.play,
+};
+
+export const MCPGroupAlwaysOnNeedingAuth: Story = {
+	args: {
+		...WithMCPServers.args,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			slackMCPAlwaysOnNeedingAuth,
+		],
 	},
 	play: MCPGroupPopoverOpen.play,
 };

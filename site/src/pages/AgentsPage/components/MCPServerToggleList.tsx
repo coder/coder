@@ -46,19 +46,25 @@ export const MCPServerToggleList: FC<MCPServerToggleListProps> = ({
 					<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 						{server.display_name}
 					</span>
+					{isForceOn && (
+						<LockIcon className="size-3 shrink-0 text-content-secondary" />
+					)}
 					{needsAuth ? (
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-6 shrink-0 px-2 text-[10px] leading-none"
-							onClick={() => onConnect(server.id)}
-							disabled={isDisabled || connectingServerId !== null}
-						>
-							{isConnecting ? (
-								<Spinner loading className="h-2.5 w-2.5" />
-							) : null}
-							Auth
-						</Button>
+						<>
+							{isForceOn && <span className="sr-only">Always on</span>}
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-6 shrink-0 px-2 text-[10px] leading-none"
+								onClick={() => onConnect(server.id)}
+								disabled={isDisabled || connectingServerId !== null}
+							>
+								{isConnecting ? (
+									<Spinner loading className="h-2.5 w-2.5" />
+								) : null}
+								Auth
+							</Button>
+						</>
 					) : (
 						<>
 							{server.auth_type === "oauth2" && (
@@ -72,9 +78,6 @@ export const MCPServerToggleList: FC<MCPServerToggleListProps> = ({
 								>
 									<UnlinkIcon />
 								</Button>
-							)}
-							{isForceOn && (
-								<LockIcon className="size-3 shrink-0 text-content-secondary" />
 							)}
 							<Switch
 								size="sm"
