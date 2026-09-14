@@ -2,6 +2,8 @@ import {
 	MessageScroller,
 	useMessageScroller,
 } from "@shadcn/react/message-scroller";
+import { useAtom, useSetAtom } from "jotai";
+import { RESET } from "jotai/utils";
 import {
 	type FC,
 	useEffect,
@@ -83,6 +85,7 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import { lastModelConfigIDAtom, rightPanelOpenAtom } from "./atoms";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
@@ -133,11 +136,6 @@ import {
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
-
-/** localStorage key controlling whether the right panel is visible. */
-export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
@@ -863,9 +861,9 @@ const AgentChatPage: FC = () => {
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
-		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	});
+	const [sidebarPanelPreference, setSidebarPanelPreference] =
+		useAtom(rightPanelOpenAtom);
+	const setLastModelConfigID = useSetAtom(lastModelConfigIDAtom);
 	// Below the lg breakpoint, chat and the right panel are mutually
 	// exclusive, so a panel left open on a wide window would hide chat
 	// as soon as the window narrows. Suppression hides the panel while
@@ -889,7 +887,6 @@ const AgentChatPage: FC = () => {
 	const handleSetShowSidebarPanel = (next: boolean) => {
 		setPanelSuppressedOnNarrow(false);
 		setSidebarPanelPreference(next);
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
 
 	const chatQuery = useQuery({
@@ -1794,10 +1791,7 @@ const AgentChatPage: FC = () => {
 			});
 			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					editSelectedModelConfigID,
-				);
+				setLastModelConfigID(editSelectedModelConfigID);
 			}
 			return;
 		}
@@ -1902,9 +1896,9 @@ const AgentChatPage: FC = () => {
 			}
 		}
 		if (selectedModelConfigID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
+			setLastModelConfigID(selectedModelConfigID);
 		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
+			setLastModelConfigID(RESET);
 		}
 		if (planModeSwitch !== undefined) {
 			setCachedChatPlanMode(

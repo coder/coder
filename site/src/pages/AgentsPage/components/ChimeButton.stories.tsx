@@ -15,10 +15,8 @@ export const ToggleState: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button");
-		const initialText = button.querySelector("svg")?.classList.toString();
+		const initialLabel = button.getAttribute("aria-label");
 		await userEvent.click(button);
-		const updatedText = button.querySelector("svg")?.classList.toString();
-		// The icon class should change after clicking.
-		expect(initialText).not.toBe(updatedText);
+		expect(button.getAttribute("aria-label")).not.toBe(initialLabel);
 	},
 };

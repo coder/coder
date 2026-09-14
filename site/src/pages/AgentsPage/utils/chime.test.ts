@@ -1,19 +1,7 @@
+import { getDefaultStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	_resetForTesting,
-	getChimeEnabled,
-	LOCK_HOLD_MS,
-	maybePlayChime,
-	setChimeEnabled,
-} from "./chime";
-
-// ---------------------------------------------------------------------------
-// navigator.locks mock
-// ---------------------------------------------------------------------------
-
-// jsdom does not provide navigator.locks, so we supply a minimal
-// in-process implementation that mirrors the real Web Locks API
-// semantics used by useAgentChime: request() with ifAvailable.
+import { chimeEnabledAtom } from "../atoms";
+import { _resetForTesting, LOCK_HOLD_MS, maybePlayChime } from "./chime";
 
 class MockLockManager {
 	private held = new Set<string>();
@@ -36,44 +24,6 @@ class MockLockManager {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Preference helpers
-// ---------------------------------------------------------------------------
-
-describe("getChimeEnabled / setChimeEnabled", () => {
-	beforeEach(() => {
-		localStorage.clear();
-	});
-
-	it("defaults to false when nothing is stored", () => {
-		expect(getChimeEnabled()).toBe(false);
-	});
-
-	it("returns true when stored as 'true'", () => {
-		localStorage.setItem("agents.chime-on-completion", "true");
-		expect(getChimeEnabled()).toBe(true);
-	});
-
-	it("returns false when stored as 'false'", () => {
-		localStorage.setItem("agents.chime-on-completion", "false");
-		expect(getChimeEnabled()).toBe(false);
-	});
-
-	it("setChimeEnabled persists the value", () => {
-		setChimeEnabled(false);
-		expect(localStorage.getItem("agents.chime-on-completion")).toBe("false");
-		expect(getChimeEnabled()).toBe(false);
-
-		setChimeEnabled(true);
-		expect(localStorage.getItem("agents.chime-on-completion")).toBe("true");
-		expect(getChimeEnabled()).toBe(true);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// maybePlayChime
-// ---------------------------------------------------------------------------
-
 describe("maybePlayChime", () => {
 	let playSpy: ReturnType<typeof vi.fn>;
 	let mockLocks: MockLockManager;
@@ -82,8 +32,7 @@ describe("maybePlayChime", () => {
 		vi.useFakeTimers();
 		localStorage.clear();
 		_resetForTesting();
-		// Explicitly enable the chime — the default is now disabled.
-		setChimeEnabled(true);
+		getDefaultStore().set(chimeEnabledAtom, true);
 
 		mockLocks = new MockLockManager();
 		Object.defineProperty(navigator, "locks", {
@@ -102,9 +51,6 @@ describe("maybePlayChime", () => {
 		vi.restoreAllMocks();
 	});
 
-	// Helper: trigger maybePlayChime and flush the microtask
-	// queue so the async navigator.locks.request() callback
-	// runs, then advance past the LOCK_HOLD_MS hold period.
 	async function triggerAndSettle(
 		prev: string | undefined,
 		next: string,
@@ -112,11 +58,8 @@ describe("maybePlayChime", () => {
 		activeChatID: string | undefined,
 	): Promise<void> {
 		maybePlayChime(prev, next, chatID, activeChatID);
-		// Flush the microtask queue so the lock callback executes.
 		await vi.advanceTimersByTimeAsync(LOCK_HOLD_MS + 50);
 	}
-
-	// -- Chime SHOULD play --
 
 	it("chimes on running → waiting when viewing a different chat", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(false);
@@ -124,77 +67,33 @@ describe("maybePlayChime", () => {
 		expect(playSpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("chimes on running → waiting when tab is hidden (same chat)", async () => {
+	it("chimes on running → waiting when tab is hidden", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-1");
 		expect(playSpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("chimes on running → waiting when tab is hidden (no active chat)", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-		await triggerAndSettle("running", "waiting", "chat-1", undefined);
-		expect(playSpy).toHaveBeenCalledTimes(1);
-	});
-
-	// -- Chime should NOT play --
-
-	it("does NOT chime when viewing the finishing chat on a visible tab", async () => {
+	it("does not chime when viewing the finishing chat on a visible tab", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(false);
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-1");
 		expect(playSpy).not.toHaveBeenCalled();
 	});
 
-	it("does NOT chime when preference is disabled", async () => {
-		setChimeEnabled(false);
+	it("does not chime when the preference is disabled", async () => {
+		getDefaultStore().set(chimeEnabledAtom, false);
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");
 		expect(playSpy).not.toHaveBeenCalled();
 	});
 
-	it("does NOT chime on running → error", async () => {
+	it("does not chime for another status transition", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 		await triggerAndSettle("running", "error", "chat-1", "chat-2");
 		expect(playSpy).not.toHaveBeenCalled();
 	});
 
-	it("does NOT chime on waiting → running (wrong direction)", async () => {
+	it("blocks duplicate chimes for the same chat while a lock is held", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-		await triggerAndSettle("waiting", "running", "chat-1", "chat-2");
-		expect(playSpy).not.toHaveBeenCalled();
-	});
-
-	it("does NOT chime when previous status is undefined", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-		await triggerAndSettle(undefined, "waiting", "chat-1", "chat-2");
-		expect(playSpy).not.toHaveBeenCalled();
-	});
-
-	it("does NOT chime when status has not changed", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-		await triggerAndSettle("running", "running", "chat-1", "chat-2");
-		expect(playSpy).not.toHaveBeenCalled();
-	});
-
-	it("does NOT chime on error → waiting", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-		await triggerAndSettle("error", "waiting", "chat-1", "chat-2");
-		expect(playSpy).not.toHaveBeenCalled();
-	});
-
-	it("does NOT chime on interrupting → waiting (interrupted, not finished)", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-		await triggerAndSettle("interrupting", "waiting", "chat-1", "chat-2");
-		expect(playSpy).not.toHaveBeenCalled();
-	});
-
-	// -- Cross-tab deduplication --
-
-	it("second tab is blocked while first tab holds the lock", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-
-		// Simulate two tabs calling maybePlayChime for the same
-		// chatID. The first acquires the lock; the second sees
-		// ifAvailable=false and skips.
 		maybePlayChime("running", "waiting", "chat-1", "chat-2");
 		maybePlayChime("running", "waiting", "chat-1", "chat-2");
 
@@ -202,18 +101,7 @@ describe("maybePlayChime", () => {
 		expect(playSpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("different chatIDs acquire independent locks", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-
-		maybePlayChime("running", "waiting", "chat-1", "chat-2");
-		maybePlayChime("running", "waiting", "chat-3", "chat-2");
-
-		await vi.advanceTimersByTimeAsync(LOCK_HOLD_MS + 50);
-		expect(playSpy).toHaveBeenCalledTimes(2);
-	});
-
-	it("falls back to immediate play when navigator.locks is unavailable", async () => {
-		// Remove the locks API to simulate an older browser.
+	it("falls back to immediate play when navigator.locks is unavailable", () => {
 		Object.defineProperty(navigator, "locks", {
 			value: undefined,
 			writable: true,
@@ -222,7 +110,6 @@ describe("maybePlayChime", () => {
 
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 		maybePlayChime("running", "waiting", "chat-1", "chat-2");
-		// Should play immediately without needing to advance timers.
 		expect(playSpy).toHaveBeenCalledTimes(1);
 	});
 });

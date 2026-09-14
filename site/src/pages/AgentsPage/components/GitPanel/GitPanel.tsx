@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtom } from "jotai";
 import {
 	CheckIcon,
 	ChevronDownIcon,
@@ -31,13 +32,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { diffStyleAtom } from "../../atoms";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
-import {
-	type DiffStyle,
-	loadDiffStyle,
-	saveDiffStyle,
-} from "../DiffViewer/DiffViewer";
+import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
@@ -197,10 +195,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 		}
 	}, [view, showRemoteTab, localRepos]);
 
-	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
+	const [diffStyle, setDiffStyle] = useAtom(diffStyleAtom);
 
 	const handleDiffStyleChange = (style: DiffStyle) => {
-		saveDiffStyle(style);
 		setDiffStyle(style);
 	};
 

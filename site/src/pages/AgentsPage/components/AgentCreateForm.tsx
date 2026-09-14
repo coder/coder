@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { lastModelConfigIDAtom } from "../atoms";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
@@ -52,7 +54,6 @@ export const emptyInputStorageKey = "agents.empty-input";
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 export type CreateChatOptions = {
 	message: string;
@@ -165,9 +166,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		submitDraft,
 		resetDraft,
 	} = useEmptyStateDraft();
-	const [initialLastModelConfigID] = useState(() => {
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
-	});
+	const lastModelConfigID = useAtomValue(lastModelConfigIDAtom);
+	const [initialLastModelConfigID] = useState(() => lastModelConfigID ?? "");
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
