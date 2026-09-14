@@ -953,7 +953,7 @@ func matrixCases() []transitionCaseSpec {
 		finishStaleQueueCase(chatstate.TransitionFinishTurn, chatstate.StateR1),
 		finishStaleQueueCase(chatstate.TransitionFinishInterruption, chatstate.StateI1),
 	}
-	return append(cases, heldQueueMatrixCases()...)
+	return append(cases, editingQueueMatrixCases()...)
 }
 
 func setArchivedCase(from, want chatstate.ExecutionState, wantStatus database.ChatStatus) transitionCaseSpec {

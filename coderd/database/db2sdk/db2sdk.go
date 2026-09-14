@@ -1735,7 +1735,7 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		CreatedAt:     message.CreatedAt,
 		AutomationID:  nullUUIDPtr(message.AutomationID),
 		InputID:       nullUUIDPtr(message.InputID),
-		HeldAt:        nullTimePtr(message.HeldAt),
+		EditingSince:  nullTimePtr(message.EditingSince),
 	}
 }
 
