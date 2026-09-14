@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"fmt"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -10,9 +9,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// oauth2ProviderDisabledWithAppsMessage is logged at startup when the
-// provider is off but applications are still registered.
-const oauth2ProviderDisabledWithAppsMessage = "The OAuth2 provider is disabled but %d OAuth2 application(s) are registered. Existing applications, secrets and user authorizations are preserved but cannot be used until the provider is enabled. Set CODER_OAUTH2_PROVIDER_ENABLE=true to enable it."
+const oauth2ProviderDisabledWithAppsMessage = "The OAuth2 provider is disabled but OAuth2 applications are registered. Existing applications, secrets and user authorizations are preserved but cannot be used until the provider is enabled. Set CODER_OAUTH2_PROVIDER_ENABLE=true to enable it."
 
 // LogOAuth2ProviderState logs whether the OAuth2 provider is enabled so
 // every start leaves one line recording the value of
@@ -20,12 +17,12 @@ const oauth2ProviderDisabledWithAppsMessage = "The OAuth2 provider is disabled b
 // if applications are still registered. Errors are logged and startup
 // continues.
 func LogOAuth2ProviderState(ctx context.Context, logger slog.Logger, db database.Store, cfg codersdk.OAuth2ProviderConfig) {
-	flag := slog.F("flag", "CODER_OAUTH2_PROVIDER_ENABLE")
+	flagField := slog.F("flag", "CODER_OAUTH2_PROVIDER_ENABLE")
 	if cfg.Enable.Value() {
-		logger.Info(ctx, "oauth2 provider enabled", flag)
+		logger.Info(ctx, "oauth2 provider enabled", flagField)
 		return
 	}
-	logger.Info(ctx, "oauth2 provider disabled", flag)
+	logger.Info(ctx, "oauth2 provider disabled", flagField)
 
 	//nolint:gocritic // Startup-only read; no user actor is present.
 	apps, err := db.GetOAuth2ProviderApps(dbauthz.AsSystemRestricted(ctx))
@@ -36,5 +33,5 @@ func LogOAuth2ProviderState(ctx context.Context, logger slog.Logger, db database
 	if len(apps) == 0 {
 		return
 	}
-	logger.Warn(ctx, fmt.Sprintf(oauth2ProviderDisabledWithAppsMessage, len(apps)))
+	logger.Warn(ctx, oauth2ProviderDisabledWithAppsMessage, flagField, slog.F("count", len(apps)))
 }

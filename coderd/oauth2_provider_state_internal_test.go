@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,13 +18,18 @@ import (
 func TestLogOAuth2ProviderState(t *testing.T) {
 	t.Parallel()
 
+	flagField := slog.F("flag", "CODER_OAUTH2_PROVIDER_ENABLE")
+	queryErr := xerrors.New("boom")
+
 	for _, tc := range []struct {
 		name     string
 		enabled  bool
 		apps     []database.OAuth2ProviderApp
 		queryErr error
 		wantInfo string
-		wantWarn []string
+		// wantWarn lists the expected warn entries in order. Only the
+		// message and fields are compared.
+		wantWarn []slog.SinkEntry
 	}{
 		{
 			name:     "Enabled",
@@ -40,13 +44,19 @@ func TestLogOAuth2ProviderState(t *testing.T) {
 			name:     "DisabledWithApps",
 			apps:     []database.OAuth2ProviderApp{{}, {}},
 			wantInfo: "oauth2 provider disabled",
-			wantWarn: []string{fmt.Sprintf(oauth2ProviderDisabledWithAppsMessage, 2)},
+			wantWarn: []slog.SinkEntry{{
+				Message: oauth2ProviderDisabledWithAppsMessage,
+				Fields:  slog.M(flagField, slog.F("count", 2)),
+			}},
 		},
 		{
 			name:     "DisabledQueryError",
-			queryErr: xerrors.New("boom"),
+			queryErr: queryErr,
 			wantInfo: "oauth2 provider disabled",
-			wantWarn: []string{"oauth2 provider: list registered applications"},
+			wantWarn: []slog.SinkEntry{{
+				Message: "oauth2 provider: list registered applications",
+				Fields:  slog.M(slog.Error(queryErr)),
+			}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -64,20 +74,24 @@ func TestLogOAuth2ProviderState(t *testing.T) {
 			cfg := codersdk.OAuth2ProviderConfig{Enable: serpent.Bool(tc.enabled)}
 			LogOAuth2ProviderState(ctx, sink.Logger(), db, cfg)
 
-			require.Equal(t, []string{tc.wantInfo}, loggedMessages(sink, slog.LevelInfo),
-				"exactly one info line per start")
-			require.Equal(t, tc.wantWarn, loggedMessages(sink, slog.LevelWarn))
+			infos := loggedEntries(sink, slog.LevelInfo)
+			require.Len(t, infos, 1, "exactly one info line per start")
+			require.Equal(t, tc.wantInfo, infos[0].Message)
+			require.Equal(t, slog.M(flagField), infos[0].Fields,
+				"the info line must record which flag controls the provider")
+
+			warns := loggedEntries(sink, slog.LevelWarn)
+			require.Len(t, warns, len(tc.wantWarn))
+			for i, want := range tc.wantWarn {
+				require.Equal(t, want.Message, warns[i].Message)
+				require.Equal(t, want.Fields, warns[i].Fields)
+			}
 		})
 	}
 }
 
-// loggedMessages returns the messages captured at exactly the given level,
-// in the order they were logged. It returns nil when nothing was logged so
-// it compares equal to an unset expectation.
-func loggedMessages(sink *testutil.FakeSink, level slog.Level) []string {
-	var messages []string
-	for _, e := range sink.Entries(func(e slog.SinkEntry) bool { return e.Level == level }) {
-		messages = append(messages, e.Message)
-	}
-	return messages
+// loggedEntries returns the entries captured at exactly the given level, in
+// the order they were logged.
+func loggedEntries(sink *testutil.FakeSink, level slog.Level) []slog.SinkEntry {
+	return sink.Entries(func(e slog.SinkEntry) bool { return e.Level == level })
 }
