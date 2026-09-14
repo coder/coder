@@ -135,13 +135,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/coder/coder/v2/bridge/metrics"
+	"github.com/coder/coder/v2/bridge/other"
+	"github.com/coder/coder/v2/db"
 )
 
-func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
+func NewMetrics(reg prometheus.Registerer, store db.Store) *metrics.Metrics {
+	other.NewMetrics(store)
 	return metrics.NewMetrics(reg)
 }
 `)
 	writeGoFile(t, root, "bridge/metrics", "metrics.go", "package metrics\n")
+	writeGoFile(t, root, "bridge/other", "metrics.go", "package other\n")
 
 	var index prefixIndex
 	inRoot(t, root, func() {
@@ -155,6 +159,9 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	want := []string{"coder_ai_gateway_"}
 	if got := index["bridge/metrics"]; !slices.Equal(got, want) {
 		t.Errorf("index[\"bridge/metrics\"] = %v, want %v (prefix did not follow the forwarder)", got, want)
+	}
+	if got := index["bridge/other"]; len(got) != 0 {
+		t.Errorf("index[\"bridge/other\"] = %v, want no prefix for a forwarded non-registerer", got)
 	}
 }
 
