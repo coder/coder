@@ -59,7 +59,6 @@ func insertHookResultMessages(
 		} else {
 			messages.Messages = append(messages.Messages, rows...)
 		}
-		messages.VisibleIndexes = visibleMessageIndexes(messages.Messages)
 	}
 	return messages, nil
 }
