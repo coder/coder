@@ -1104,13 +1104,22 @@ var (
 	ErrNothingToClear = xerrors.New("nothing to clear")
 	// ErrChatGoalInvalidMutation indicates a malformed goal mutation request.
 	ErrChatGoalInvalidMutation = xerrors.New("invalid chat goal mutation")
+	// ErrChatGoalNotFound indicates the requested goal does not match the
+	// current goal.
+	ErrChatGoalNotFound = xerrors.New("chat goal not found")
 	// ErrChatGoalNotRoot indicates goal mutation was attempted on a child chat.
 	ErrChatGoalNotRoot = xerrors.New("chat goal mutations require a root chat")
 	// ErrChatGoalBusy indicates a message-bound goal mutation cannot be queued.
 	ErrChatGoalBusy = xerrors.New("chat is busy")
-	// ErrChatGoalPlanMode indicates a goal set was rejected because plan mode is on.
-	// Plan-mode turns exclude goal completion behavior, so an active goal set
-	// alongside plan mode could never complete or resume.
+	// ErrChatGoalResumeBusy indicates a resume was rejected because the
+	// chat is busy or has queued input.
+	ErrChatGoalResumeBusy = xerrors.New("cannot resume goal while chat is busy")
+	// ErrChatGoalResumePlanMode indicates a resume was rejected because
+	// plan mode is on.
+	ErrChatGoalResumePlanMode = xerrors.New("cannot resume goal while plan mode is on")
+	// ErrChatGoalPlanMode indicates a goal set was rejected because plan
+	// mode is on. Plan-mode turns exclude goal completion behavior, so an
+	// active goal set alongside plan mode could never complete or resume.
 	ErrChatGoalPlanMode = xerrors.New("cannot set a goal while plan mode is on")
 )
 
@@ -1237,6 +1246,151 @@ func (*ChatGoalMutationError) Is(target error) bool {
 	return target == ErrChatGoalInvalidMutation
 }
 
+const defaultUserCompletionSummary = "Marked complete by user."
+
+// ApplyGoalMutationOptions controls a goal mutation sent without a
+// chat message.
+type ApplyGoalMutationOptions struct {
+	ChatID    uuid.UUID
+	CreatedBy uuid.UUID
+	Mutation  codersdk.ChatGoalUpdateRequest
+}
+
+// ApplyGoalMutationResult contains the current goal state after a mutation.
+type ApplyGoalMutationResult struct {
+	Goal *database.ChatGoal
+}
+
+// ApplyGoalMutation applies a goal lifecycle mutation without sending a
+// chat message. Completing a running goal requests interruption so the
+// active turn can drain partial output and stop. Resuming a paused goal
+// starts a turn on the idle chat via a hidden kick message; resume is
+// rejected while the chat is busy, has queued input, or plan mode is on
+// so an active goal never lands on a chat that is not working.
+//
+//nolint:staticcheck // Keep receiver naming consistent within this file.
+func (p *Server) ApplyGoalMutation(ctx context.Context, opts ApplyGoalMutationOptions) (ApplyGoalMutationResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return ApplyGoalMutationResult{}, xerrors.New("chat_id is required")
+	}
+	mutation, err := normalizeMetadataGoalMutation(opts.Mutation)
+	if err != nil {
+		return ApplyGoalMutationResult{}, err
+	}
+	var result ApplyGoalMutationResult
+	var eventChat database.Chat
+	var publishStatusChange bool
+	machine := p.newChatMachine(opts.ChatID)
+	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		publishStatusChange = false
+		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		if !isRootChat(lockedChat) {
+			return ErrChatGoalNotRoot
+		}
+		if mutation.Action == codersdk.ChatGoalMutationActionResume {
+			if err := validateGoalResumeAdmission(ctx, store, lockedChat); err != nil {
+				return err
+			}
+		}
+		goal, err := applyGoalMutation(ctx, store, lockedChat.ID, 0, opts.CreatedBy, mutation)
+		if err != nil {
+			return err
+		}
+		eventChat = lockedChat
+		switch {
+		case mutation.Action == codersdk.ChatGoalMutationActionComplete &&
+			(lockedChat.Status == database.ChatStatusRunning || lockedChat.Status == database.ChatStatusRequiresAction):
+			if _, err := tx.Interrupt(chatstate.InterruptInput{Reason: "Chat goal marked complete by user"}); err != nil {
+				return xerrors.Errorf("interrupt completed chat goal run: %w", err)
+			}
+			latest, err := store.GetChatByID(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("reload chat after goal mutation interruption: %w", err)
+			}
+			eventChat = latest
+			publishStatusChange = true
+		case mutation.Action == codersdk.ChatGoalMutationActionResume:
+			// Start a turn in the same transaction so the goal never
+			// commits as active on an idle chat. A kick insert failure
+			// rolls back the resume.
+			if err := sendGoalResumeKick(ctx, tx, store, lockedChat, goal.ID); err != nil {
+				return err
+			}
+			latest, err := store.GetChatByID(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("reload chat after goal resume kick: %w", err)
+			}
+			eventChat = latest
+			publishStatusChange = true
+		}
+		result.Goal = goal
+		return nil
+	})
+	if updateErr != nil {
+		return ApplyGoalMutationResult{}, updateErr
+	}
+	if result.Goal != nil {
+		p.publishChatGoalChange(eventChat)
+	}
+	if publishStatusChange {
+		p.publishChatPubsubEvent(eventChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	return result, nil
+}
+
+// validateGoalResumeAdmission rejects a goal resume unless the chat is
+// idle with no queued input and plan mode is off. Queued input wins over
+// the goal because queue promotion starts its own turn.
+func validateGoalResumeAdmission(ctx context.Context, store database.Store, chat database.Chat) error {
+	if chat.PlanMode.Valid && chat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
+		return ErrChatGoalResumePlanMode
+	}
+	queued, err := store.CountChatQueuedMessages(ctx, chat.ID)
+	if err != nil {
+		return xerrors.Errorf("count queued messages: %w", err)
+	}
+	switch chatstate.ClassifyExecutionState(chat, queued > 0, true) {
+	case chatstate.StateW, chatstate.StateE0:
+	default:
+		return ErrChatGoalResumeBusy
+	}
+	return nil
+}
+
+// sendGoalResumeKick inserts the hidden user message that starts the
+// resumed goal's turn. The chat is idle (W/E0), so SendMessage inserts
+// directly into history and the chat lands in running for the worker
+// pool to pick up.
+func sendGoalResumeKick(
+	ctx context.Context,
+	tx *chatstate.Tx,
+	store database.Store,
+	chat database.Chat,
+	goalID uuid.UUID,
+) error {
+	modelConfigID, err := resolveSendMessageModelConfigID(ctx, store, chat, uuid.Nil)
+	if err != nil {
+		return err
+	}
+	message, err := goalResumeKickMessage(goalID, modelConfigID, chat.OwnerID)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.SendMessage(chatstate.SendMessageInput{
+		Message:      message,
+		BusyBehavior: chatstate.BusyBehaviorQueue,
+	}); err != nil {
+		return xerrors.Errorf("send goal resume kick: %w", err)
+	}
+	return nil
+}
+
 func isRootChat(chat database.Chat) bool {
 	return !chat.ParentChatID.Valid
 }
@@ -1268,6 +1422,16 @@ func validateGoalObjectiveLength(objective string) error {
 		return &ChatGoalMutationError{Message: fmt.Sprintf(
 			"goal objective must be at most %d bytes",
 			codersdk.MaxChatGoalObjectiveBytes,
+		)}
+	}
+	return nil
+}
+
+func validateGoalCompletionSummaryLength(summary string) error {
+	if len(summary) > codersdk.MaxChatGoalCompletionSummaryBytes {
+		return &ChatGoalMutationError{Message: fmt.Sprintf(
+			"goal completion_summary must be at most %d bytes",
+			codersdk.MaxChatGoalCompletionSummaryBytes,
 		)}
 	}
 	return nil
@@ -1327,6 +1491,57 @@ func applyGoalObjectiveOverride(mutation *codersdk.ChatGoalMutation, result *cha
 	return &updated, nil
 }
 
+func normalizeMetadataGoalMutation(req codersdk.ChatGoalUpdateRequest) (codersdk.ChatGoalMutation, error) {
+	normalized := codersdk.ChatGoalMutation{
+		Action:            codersdk.ChatGoalMutationAction(req.Action),
+		GoalID:            req.GoalID,
+		CompletionSummary: req.CompletionSummary,
+	}
+	if normalized.CompletionSummary != nil {
+		summary := strings.TrimSpace(*normalized.CompletionSummary)
+		normalized.CompletionSummary = &summary
+	}
+
+	switch normalized.Action {
+	case codersdk.ChatGoalMutationActionClear,
+		codersdk.ChatGoalMutationActionPause,
+		codersdk.ChatGoalMutationActionResume:
+		if normalized.GoalID == nil || *normalized.GoalID == uuid.Nil {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "goal_id is required"}
+		}
+		if normalized.CompletionSummary != nil {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "completion_summary is only allowed when completing a goal"}
+		}
+	case codersdk.ChatGoalMutationActionComplete:
+		if normalized.GoalID == nil || *normalized.GoalID == uuid.Nil {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "goal_id is required"}
+		}
+		if normalized.CompletionSummary == nil || *normalized.CompletionSummary == "" {
+			summary := defaultUserCompletionSummary
+			normalized.CompletionSummary = &summary
+		}
+		if err := validateGoalCompletionSummaryLength(*normalized.CompletionSummary); err != nil {
+			return codersdk.ChatGoalMutation{}, err
+		}
+	case codersdk.ChatGoalMutationActionSet:
+		return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "set goal mutations must be sent with a chat message"}
+	default:
+		return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "unsupported goal_mutation action"}
+	}
+	return normalized, nil
+}
+
+func requireCurrentChatGoal(ctx context.Context, db database.Store, rootChatID uuid.UUID, expectedID *uuid.UUID) (database.ChatGoal, error) {
+	current, err := currentChatGoal(ctx, db, rootChatID)
+	if err != nil {
+		return database.ChatGoal{}, err
+	}
+	if current == nil || current.ID != *expectedID {
+		return database.ChatGoal{}, ErrChatGoalNotFound
+	}
+	return *current, nil
+}
+
 func applyGoalMutation(
 	ctx context.Context,
 	tx database.Store,
@@ -1353,9 +1568,89 @@ func applyGoalMutation(
 			return nil, xerrors.Errorf("insert active chat goal: %w", err)
 		}
 		return &goal, nil
+	case codersdk.ChatGoalMutationActionClear:
+		// Only the current goal may be cleared. Without this check a
+		// stale goal ID could clear a historical completed goal after a
+		// newer goal became current.
+		_, err := requireCurrentChatGoal(ctx, tx, rootChatID, mutation.GoalID)
+		if err != nil {
+			return nil, err
+		}
+		goal, err := tx.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("clear chat goal", err)
+		}
+		return &goal, nil
+	case codersdk.ChatGoalMutationActionPause:
+		current, err := requireCurrentChatGoal(ctx, tx, rootChatID, mutation.GoalID)
+		if err != nil {
+			return nil, err
+		}
+		if current.Status != database.ChatGoalStatusActive {
+			return nil, &ChatGoalMutationError{Message: "current goal is not active"}
+		}
+		goal, err := tx.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("pause chat goal", err)
+		}
+		return &goal, nil
+	case codersdk.ChatGoalMutationActionResume:
+		current, err := requireCurrentChatGoal(ctx, tx, rootChatID, mutation.GoalID)
+		if err != nil {
+			return nil, err
+		}
+		if current.Status != database.ChatGoalStatusPaused {
+			return nil, &ChatGoalMutationError{Message: "current goal is not paused"}
+		}
+		goal, err := tx.ResumeChatGoalByID(ctx, database.ResumeChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("resume chat goal", err)
+		}
+		return &goal, nil
+	case codersdk.ChatGoalMutationActionComplete:
+		current, err := requireCurrentChatGoal(ctx, tx, rootChatID, mutation.GoalID)
+		if err != nil {
+			return nil, err
+		}
+		if current.Status != database.ChatGoalStatusActive {
+			return nil, &ChatGoalMutationError{Message: "current goal is not active"}
+		}
+		goal, err := tx.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+			CompletionSummary: sql.NullString{
+				String: *mutation.CompletionSummary,
+				Valid:  true,
+			},
+			CompletedByUserID: uuid.NullUUID{
+				UUID:  createdBy,
+				Valid: createdBy != uuid.Nil,
+			},
+			CompletedByAgent: false,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("complete chat goal", err)
+		}
+		return &goal, nil
 	default:
 		return nil, &ChatGoalMutationError{Message: "unsupported goal_mutation action"}
 	}
+}
+
+func goalMutationUpdateError(action string, err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrChatGoalNotFound
+	}
+	return xerrors.Errorf("%s: %w", action, err)
 }
 
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
