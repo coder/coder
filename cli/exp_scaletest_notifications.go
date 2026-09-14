@@ -141,9 +141,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			dialBarrier.Add(int(userCount))
 			templateAdminWatchBarrier.Add(int(templateAdminCount))
 
-			triggerTimes := map[uuid.UUID]chan time.Time{
-				notificationsLib.TemplateTemplateDeleted: make(chan time.Time, 1),
-			}
+			triggerCh := make(chan notificationTriggers, 1)
 
 			smtpHTTPTransport := &http.Transport{
 				MaxConnsPerHost:     512,
@@ -200,7 +198,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				dialBarrier,
 				dialTimeout,
 				int(templateDeletionCount),
-				triggerTimes,
+				triggerCh,
 			)
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
@@ -241,7 +239,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			res := th.Results()
 
-			if err := computeNotificationLatencies(ctx, logger, triggerTimes, res, metrics); err != nil {
+			if err := computeNotificationLatencies(ctx, logger, triggerCh, res, metrics); err != nil {
 				return xerrors.Errorf("compute notification latencies: %w", err)
 			}
 
@@ -342,28 +340,52 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	return cmd
 }
 
+// notificationTriggers records when the notification-producing actions happened
+// so latency can be correlated per notification instead of against the batch.
+type notificationTriggers struct {
+	// deleteTimes maps each deleted template's ID to when its deletion was
+	// initiated. A TemplateTemplateDeleted notification carries the template ID
+	// in its targets, so each receipt is paired with its own deletion.
+	deleteTimes map[uuid.UUID]time.Time
+	// batchStart is captured just before the first deletion and is the fallback
+	// trigger reference for receipts that can't be correlated by target, notably
+	// SMTP, whose summaries carry no targets.
+	batchStart time.Time
+}
+
+// triggerTimeFor returns the trigger time to measure a receipt against. It
+// prefers the delete time of a template referenced by the notification's targets
+// (exact per-notification correlation) and falls back to the batch start when no
+// target matches.
+func (t notificationTriggers) triggerTimeFor(targets []uuid.UUID) (time.Time, bool) {
+	for _, target := range targets {
+		if deleteTime, ok := t.deleteTimes[target]; ok {
+			return deleteTime, true
+		}
+	}
+	if !t.batchStart.IsZero() {
+		return t.batchStart, true
+	}
+	return time.Time{}, false
+}
+
 func computeNotificationLatencies(
 	ctx context.Context,
 	logger slog.Logger,
-	expectedNotifications map[uuid.UUID]chan time.Time,
+	triggerCh <-chan notificationTriggers,
 	results harness.Results,
 	metrics *notifications.Metrics,
 ) error {
-	triggerTimes := make(map[uuid.UUID]time.Time)
-	for notificationID, triggerTimeChan := range expectedNotifications {
-		select {
-		case triggerTime := <-triggerTimeChan:
-			triggerTimes[notificationID] = triggerTime
-			logger.Info(ctx, "received trigger time",
-				slog.F("notification_id", notificationID),
-				slog.F("trigger_time", triggerTime))
-		default:
-			logger.Warn(ctx, "no trigger time received for notification",
-				slog.F("notification_id", notificationID))
-		}
+	var triggers notificationTriggers
+	select {
+	case triggers = <-triggerCh:
+		logger.Info(ctx, "received trigger times",
+			slog.F("deletions", len(triggers.deleteTimes)),
+			slog.F("batch_start", triggers.batchStart))
+	default:
 	}
 
-	if len(triggerTimes) == 0 {
+	if len(triggers.deleteTimes) == 0 && triggers.batchStart.IsZero() {
 		logger.Warn(ctx, "no trigger times available, skipping latency computation")
 		return nil
 	}
@@ -380,17 +402,17 @@ func computeNotificationLatencies(
 			continue
 		}
 
-		// Process websocket notifications. A notification type may be received
-		// more than once (one per template deletion), so record a latency sample
-		// for every receipt.
-		if wsReceiptTimes, ok := runResult.Metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time); ok {
-			for notificationID, receiptTimes := range wsReceiptTimes {
-				triggerTime, ok := triggerTimes[notificationID]
-				if !ok {
-					continue
-				}
-				for _, receiptTime := range receiptTimes {
-					latency := receiptTime.Sub(triggerTime)
+		// Websocket notifications carry the deleted template's ID in their
+		// targets, so each receipt is measured against that template's own
+		// deletion rather than against the batch as a whole.
+		if wsReceipts, ok := runResult.Metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]notifications.ReceivedNotification); ok {
+			for notificationID, receipts := range wsReceipts {
+				for _, receipt := range receipts {
+					triggerTime, ok := triggers.triggerTimeFor(receipt.Targets)
+					if !ok {
+						continue
+					}
+					latency := receipt.ReceiptTime.Sub(triggerTime)
 					metrics.RecordLatency(latency, notificationID.String(), notifications.NotificationTypeWebsocket)
 					totalLatencies++
 					logger.Debug(ctx, "computed websocket latency",
@@ -401,15 +423,12 @@ func computeNotificationLatencies(
 			}
 		}
 
-		// Process SMTP notifications.
-		if smtpReceiptTimes, ok := runResult.Metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time); ok {
+		// SMTP summaries carry no targets, so every receipt is measured against
+		// the batch start.
+		if smtpReceiptTimes, ok := runResult.Metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time); ok && !triggers.batchStart.IsZero() {
 			for notificationID, receiptTimes := range smtpReceiptTimes {
-				triggerTime, ok := triggerTimes[notificationID]
-				if !ok {
-					continue
-				}
 				for _, receiptTime := range receiptTimes {
-					latency := receiptTime.Sub(triggerTime)
+					latency := receiptTime.Sub(triggers.batchStart)
 					metrics.RecordLatency(latency, notificationID.String(), notifications.NotificationTypeSMTP)
 					totalLatencies++
 					logger.Debug(ctx, "computed SMTP latency",
@@ -440,7 +459,7 @@ func triggerNotifications(
 	dialBarrier *sync.WaitGroup,
 	dialTimeout time.Duration,
 	deletionCount int,
-	expectedNotifications map[uuid.UUID]chan time.Time,
+	triggerCh chan<- notificationTriggers,
 ) {
 	logger.Info(ctx, "waiting for all users to connect")
 
@@ -504,22 +523,26 @@ func triggerNotifications(
 	}
 	logger.Info(ctx, "test templates created", slog.F("count", len(templateIDs)))
 
-	// Each deletion notifies every template admin. Record a single trigger time
-	// for the batch just before the first deletion; every delivered notification
-	// is measured against this batch start, yielding one latency sample per
-	// received notification.
-	triggerTime := time.Now()
+	// Delete every template, recording when each deletion was initiated. Each
+	// TemplateTemplateDeleted notification carries its template ID in the
+	// notification targets, so downstream every receipt is paired with the exact
+	// deletion that produced it. batchStart is the fallback reference for receipts
+	// that can't be correlated by target (SMTP).
+	triggers := notificationTriggers{
+		deleteTimes: make(map[uuid.UUID]time.Time, len(templateIDs)),
+		batchStart:  time.Now(),
+	}
 	for _, templateID := range templateIDs {
+		deleteStart := time.Now()
 		if err := client.DeleteTemplate(ctx, templateID); err != nil {
 			logger.Error(ctx, "delete test template", slog.Error(err), slog.F("template_id", templateID))
 			return
 		}
+		triggers.deleteTimes[templateID] = deleteStart
 		logger.Info(ctx, "test template deleted", slog.F("template_id", templateID))
 	}
 
-	// Record expected notification trigger time.
-	expectedNotifications[notificationsLib.TemplateTemplateDeleted] <- triggerTime
-	close(expectedNotifications[notificationsLib.TemplateTemplateDeleted])
+	triggerCh <- triggers
 }
 
 type notificationReuseUser struct {

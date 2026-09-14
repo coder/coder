@@ -149,7 +149,7 @@ func TestRun(t *testing.T) {
 
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time)
+		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]notifications.ReceivedNotification)
 
 		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
 		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
@@ -314,7 +314,7 @@ func TestRunWithSMTP(t *testing.T) {
 	// Verify that notifications were received via both websocket and SMTP
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time)
+		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]notifications.ReceivedNotification)
 		smtpReceiptTimes := metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time)
 
 		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)

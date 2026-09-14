@@ -30,26 +30,38 @@ type Runner struct {
 	client *codersdk.Client
 	cfg    Config
 
-	// websocketReceiptTimes stores the receipt times for websocket notifications,
-	// keyed by notification template ID. A type may be received more than once
-	// (for example one TemplateTemplateDeleted per template deletion), so every
-	// receipt is recorded to produce one latency sample per notification.
-	websocketReceiptTimes   map[uuid.UUID][]time.Time
+	// websocketReceiptTimes stores the received websocket notifications keyed by
+	// notification template ID. A type may be received more than once (for
+	// example one TemplateTemplateDeleted per template deletion), so every
+	// receipt is recorded. Each entry keeps the notification's targets so a
+	// receipt can be correlated to the specific action that triggered it.
+	websocketReceiptTimes   map[uuid.UUID][]ReceivedNotification
 	websocketReceiptTimesMu sync.RWMutex
 
 	// smtpReceiptTimes stores the receipt times for SMTP notifications, keyed by
-	// notification template ID.
+	// notification template ID. SMTP summaries carry no per-message ID or
+	// targets, and the SMTP watcher dedupes by type, so in practice each slice
+	// holds a single entry regardless of --template-deletion-count.
 	smtpReceiptTimes   map[uuid.UUID][]time.Time
 	smtpReceiptTimesMu sync.RWMutex
 
 	clock quartz.Clock
 }
 
+// ReceivedNotification records when a notification arrived and the target
+// entities it referenced. For TemplateTemplateDeleted the targets include the
+// deleted template's ID, which lets latency be measured against that specific
+// template's deletion rather than against the batch as a whole.
+type ReceivedNotification struct {
+	ReceiptTime time.Time
+	Targets     []uuid.UUID
+}
+
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client:                client,
 		cfg:                   cfg,
-		websocketReceiptTimes: make(map[uuid.UUID][]time.Time),
+		websocketReceiptTimes: make(map[uuid.UUID][]ReceivedNotification),
 		smtpReceiptTimes:      make(map[uuid.UUID][]time.Time),
 		clock:                 quartz.NewReal(),
 	}
@@ -286,10 +298,14 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 
 		receiptTime := time.Now()
 		receivedCounts[templateID]++
-		// Record every receipt so each delivered notification produces a latency
-		// sample; a single type may arrive multiple times (one per deletion).
+		// Record every receipt (with its targets) so each delivered notification
+		// produces a latency sample and can be correlated to the specific
+		// triggering action; a single type may arrive multiple times.
 		r.websocketReceiptTimesMu.Lock()
-		r.websocketReceiptTimes[templateID] = append(r.websocketReceiptTimes[templateID], receiptTime)
+		r.websocketReceiptTimes[templateID] = append(r.websocketReceiptTimes[templateID], ReceivedNotification{
+			ReceiptTime: receiptTime,
+			Targets:     notif.Notification.Targets,
+		})
 		r.websocketReceiptTimesMu.Unlock()
 
 		logger.Info(ctx, "received expected notification",
