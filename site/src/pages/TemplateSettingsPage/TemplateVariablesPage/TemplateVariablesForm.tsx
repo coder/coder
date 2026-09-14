@@ -21,7 +21,7 @@ import {
 	TemplateVariableField,
 } from "./TemplateVariableField";
 
-export interface TemplateVariablesForm {
+interface TemplateVariablesFormProps {
 	templateVersion: TemplateVersion;
 	templateVariables: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;
@@ -31,7 +31,7 @@ export interface TemplateVariablesForm {
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<CreateTemplateVersionRequest>;
 }
-export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
+export const TemplateVariablesForm: FC<TemplateVariablesFormProps> = ({
 	templateVersion,
 	templateVariables,
 	onSubmit,
