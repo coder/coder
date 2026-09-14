@@ -129,6 +129,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 			[]skillspkg.Skill{{Name: "review", Description: "Personal"}},
 			[]skillspkg.Skill{{Name: "review", Description: "Organization"}},
 			[]skillspkg.Skill{{Name: "review", Description: "Workspace"}},
+			nil,
 		)
 		idx := chattool.FormatResolvedSkillIndex(resolved)
 		assert.Contains(t, idx, "- personal/review: Personal\n- org/review: Organization\n- workspace/review: Workspace\n")
@@ -146,6 +147,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 				{Name: "over-limit", Description: atLimit + "界tail"},
 				{Name: "short", Description: "Short description"},
 			},
+			nil,
 			nil,
 			nil,
 		))

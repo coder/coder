@@ -175,12 +175,18 @@ func TestMergeSkills(t *testing.T) {
 			Alias: alias,
 		}
 	}
+	pluginResolved := func(alias, pluginName, name, description string) skills.ResolvedSkill {
+		return skills.ResolvedSkill{
+			Skill: skills.Skill{Name: name, Description: description, Source: skills.SourcePlugin, PluginName: pluginName},
+			Alias: alias,
+		}
+	}
 	shared := []skills.Skill{{Name: "shared", Description: "Shared"}}
 
 	for _, tc := range []struct {
-		name                              string
-		personal, organization, workspace []skills.Skill
-		want                              []skills.ResolvedSkill
+		name                                      string
+		personal, organization, workspace, plugin []skills.Skill
+		want                                      []skills.ResolvedSkill
 	}{
 		{
 			name:         "NonCollidingSkillsUseBareAliasesSortedByName",
@@ -232,6 +238,50 @@ func TestMergeSkills(t *testing.T) {
 			},
 		},
 		{
+			name:   "PluginOnlyUsesBareAlias",
+			plugin: []skills.Skill{{Name: "deploy", Description: "Deploy", PluginName: "acme-tools"}},
+			want: []skills.ResolvedSkill{
+				pluginResolved("deploy", "acme-tools", "deploy", "Deploy"),
+			},
+		},
+		{
+			name:   "PluginWithoutNameIsDropped",
+			plugin: []skills.Skill{{Name: "deploy"}},
+			want:   []skills.ResolvedSkill{},
+		},
+		{
+			name: "PluginsSharingASkillNameAreQualifiedInPluginNameOrder",
+			plugin: []skills.Skill{
+				{Name: "deploy", PluginName: "zeta"},
+				{Name: "deploy", Description: "First", PluginName: "alpha"},
+				{Name: "deploy", Description: "Duplicate", PluginName: "alpha"},
+			},
+			want: []skills.ResolvedSkill{
+				pluginResolved("plugin/alpha/deploy", "alpha", "deploy", "First"),
+				pluginResolved("plugin/zeta/deploy", "zeta", "deploy", ""),
+			},
+		},
+		{
+			name:         "AllSourcesAndAPluginNamedWorkspaceCollide",
+			personal:     shared,
+			organization: shared,
+			workspace:    shared,
+			plugin:       []skills.Skill{{Name: "shared", Description: "Shared", PluginName: "workspace"}},
+			want: []skills.ResolvedSkill{
+				resolved("personal/shared", skills.SourcePersonal, "shared", "Shared"),
+				resolved("org/shared", skills.SourceOrganization, "shared", "Shared"),
+				resolved("workspace/shared", skills.SourceWorkspace, "shared", "Shared"),
+				pluginResolved("plugin/workspace/shared", "workspace", "shared", "Shared"),
+			},
+		},
+		{
+			name:      "PluginNameIsClearedOnOtherSources",
+			workspace: []skills.Skill{{Name: "review", PluginName: "stray"}},
+			want: []skills.ResolvedSkill{
+				resolved("review", skills.SourceWorkspace, "review", ""),
+			},
+		},
+		{
 			name: "DuplicatesWithinSourceKeepFirst",
 			personal: []skills.Skill{
 				{Name: "duplicate-skill", Description: "First"},
@@ -244,7 +294,7 @@ func TestMergeSkills(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, skills.MergeSkills(tc.personal, tc.organization, tc.workspace))
+			require.Equal(t, tc.want, skills.MergeSkills(tc.personal, tc.organization, tc.workspace, tc.plugin))
 		})
 	}
 }
@@ -257,6 +307,7 @@ func TestLookup(t *testing.T) {
 		append([]skills.Skill{{Name: "personal-skill"}}, shared...),
 		append([]skills.Skill{{Name: "org-skill"}}, shared...),
 		[]skills.Skill{{Name: "workspace-skill"}},
+		[]skills.Skill{{Name: "plugin-skill", PluginName: "acme"}, {Name: "shared", PluginName: "acme"}},
 	)
 
 	for _, tc := range []struct {
@@ -264,6 +315,7 @@ func TestLookup(t *testing.T) {
 		resolved        []skills.ResolvedSkill
 		lookup          string
 		wantSource      skills.Source
+		wantPluginName  string
 		wantName        string
 		wantErr         error
 		wantErrContains []string
@@ -273,12 +325,14 @@ func TestLookup(t *testing.T) {
 		{name: "QualifiedOrganizationWithoutCollision", resolved: merged, lookup: "org/org-skill", wantSource: skills.SourceOrganization, wantName: "org-skill"},
 		{name: "QualifiedWorkspaceWithoutCollision", resolved: merged, lookup: "workspace/workspace-skill", wantSource: skills.SourceWorkspace, wantName: "workspace-skill"},
 		{name: "QualifiedOrganizationOnCollision", resolved: merged, lookup: "org/shared", wantSource: skills.SourceOrganization, wantName: "shared"},
+		{name: "BarePluginNameWithoutCollision", resolved: merged, lookup: "plugin-skill", wantSource: skills.SourcePlugin, wantPluginName: "acme", wantName: "plugin-skill"},
+		{name: "QualifiedPluginOnCollision", resolved: merged, lookup: "plugin/acme/shared", wantSource: skills.SourcePlugin, wantPluginName: "acme", wantName: "shared"},
 		{
 			name:            "BareNameOnCollisionIsAmbiguous",
 			resolved:        merged,
 			lookup:          "shared",
 			wantErr:         skills.ErrSkillAmbiguous,
-			wantErrContains: []string{"personal/shared", "org/shared"},
+			wantErrContains: []string{"personal/shared", "org/shared", "plugin/acme/shared"},
 		},
 		{
 			name: "BareNameFallsBackToSingleQualifiedAliasMatch",
@@ -306,6 +360,7 @@ func TestLookup(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.wantSource, got.Source)
+			require.Equal(t, tc.wantPluginName, got.PluginName)
 			require.Equal(t, tc.wantName, got.Name)
 		})
 	}

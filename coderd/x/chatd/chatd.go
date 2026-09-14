@@ -2723,6 +2723,7 @@ func mergeTurnSkills(
 		personalSkills,
 		organizationSkills,
 		workspaceSkillsForResolution(workspaceSkills),
+		nil,
 	)
 }
 
