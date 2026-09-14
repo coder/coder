@@ -2,6 +2,8 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -1210,6 +1212,164 @@ func TestNotifyCreatedUser(t *testing.T) {
 		})
 		require.Len(t, userAdminNotifiedAboutMember, 1)
 	})
+}
+
+func TestUpdateUserEmailExperimental(t *testing.T) {
+	t.Parallel()
+
+	// Share one server because these assertions do not require isolated state.
+	auditor := audit.NewMock()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Auditor: auditor})
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Only built-in deployment owners may use the endpoint.
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+	_, authTarget := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	auditor.ResetLogs()
+
+	err := userAdminClient.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+		OldEmail: authTarget.Email,
+		NewEmail: fmt.Sprintf("new-%s@example.com", uuid.NewString()),
+	})
+	var apiErr *codersdk.Error
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	unchanged, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), authTarget.ID)
+	require.NoError(t, err)
+	require.Equal(t, authTarget.Email, unchanged.Email)
+	logs := auditor.AuditLogs()
+	require.Len(t, logs, 1)
+	require.Equal(t, int32(http.StatusNotFound), logs[0].StatusCode)
+	require.JSONEq(t, `{}`, string(logs[0].AdditionalFields))
+
+	// Owners cannot update their own email.
+	ownerUser, err := client.User(ctx, owner.UserID.String())
+	require.NoError(t, err)
+	err = client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+		OldEmail: ownerUser.Email,
+		NewEmail: fmt.Sprintf("self-%s@example.com", uuid.NewString()),
+	})
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+
+	// Invalid inputs do not change user state.
+	_, validTarget := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	for _, req := range []codersdk.UpdateUserEmailRequest{
+		{OldEmail: " " + validTarget.Email, NewEmail: "new@example.com"},
+		{OldEmail: validTarget.Email, NewEmail: validTarget.Email},
+		{OldEmail: strings.ToUpper(validTarget.Email), NewEmail: validTarget.Email},
+	} {
+		err := client.UpdateUserEmail(ctx, req)
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	}
+
+	// The old email must exist and the new email must be available.
+	_, conflictTarget := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	_, existingUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	err = client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+		OldEmail: fmt.Sprintf("missing-%s@example.com", uuid.NewString()),
+		NewEmail: fmt.Sprintf("new-%s@example.com", uuid.NewString()),
+	})
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+	err = client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+		OldEmail: conflictTarget.Email,
+		NewEmail: strings.ToUpper(existingUser.Email),
+	})
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+
+	// Login type, status, and the target's owner role do not prevent updates.
+	for _, tc := range []struct {
+		name      string
+		loginType database.LoginType
+		role      rbac.RoleIdentifier
+		status    database.UserStatus
+	}{
+		{name: "OIDC", loginType: database.LoginTypeOIDC},
+		{name: "GitHub", loginType: database.LoginTypeGithub},
+		{name: "Dormant", status: database.UserStatusDormant},
+		{name: "Suspended", status: database.UserStatusSuspended},
+		{name: "Owner", role: rbac.RoleOwner()},
+	} {
+		roles := []rbac.RoleIdentifier{}
+		if tc.role.Name != "" {
+			roles = append(roles, tc.role)
+		}
+		_, variant := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, roles...)
+		if tc.loginType != "" {
+			variantUpdated, err := db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+				UserID:       variant.ID,
+				NewLoginType: tc.loginType,
+			})
+			require.NoError(t, err)
+			variant.LoginType = codersdk.LoginType(variantUpdated.LoginType)
+		}
+		if tc.status != "" {
+			_, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+				ID:         variant.ID,
+				Status:     tc.status,
+				UpdatedAt:  dbtime.Now(),
+				UserIsSeen: false,
+			})
+			require.NoError(t, err)
+		}
+		newVariantEmail := fmt.Sprintf("variant-%s@example.com", uuid.NewString())
+		err := client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+			OldEmail: variant.Email,
+			NewEmail: newVariantEmail,
+		})
+		require.NoError(t, err, "variant %s should succeed", tc.name)
+	}
+
+	// The API clears OTP state, revokes tokens, and records the audit event.
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	oldEmail := member.Email
+	newEmail := fmt.Sprintf("Updated-%s@example.com", uuid.NewString())
+	oldToken := memberClient.SessionToken()
+	extraToken, err := client.CreateToken(ctx, member.ID.String(), codersdk.CreateTokenRequest{})
+	require.NoError(t, err)
+	err = db.UpdateUserHashedOneTimePasscode(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedOneTimePasscodeParams{
+		ID:                       member.ID,
+		HashedOneTimePasscode:    []byte("hashed-passcode"),
+		OneTimePasscodeExpiresAt: sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+	auditor.ResetLogs()
+
+	err = client.UpdateUserEmail(ctx, codersdk.UpdateUserEmailRequest{
+		OldEmail: oldEmail,
+		NewEmail: newEmail,
+	})
+	require.NoError(t, err)
+
+	sideEffectsUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.ID)
+	require.NoError(t, err)
+	require.Nil(t, sideEffectsUser.HashedOneTimePasscode)
+	require.False(t, sideEffectsUser.OneTimePasscodeExpiresAt.Valid)
+
+	for _, token := range []string{oldToken, extraToken.Key} {
+		revokedClient := codersdk.New(client.URL, codersdk.WithSessionToken(token))
+		_, err := revokedClient.User(ctx, codersdk.Me)
+		require.Error(t, err)
+	}
+	_, err = client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+
+	logs = auditor.AuditLogs()
+	require.Len(t, logs, 1)
+	require.Equal(t, owner.UserID, logs[0].UserID)
+	require.Equal(t, member.ID, logs[0].ResourceID)
+	require.Equal(t, database.AuditActionWrite, logs[0].Action)
+	require.Equal(t, int32(http.StatusNoContent), logs[0].StatusCode)
+	var fields map[string]string
+	require.NoError(t, json.Unmarshal(logs[0].AdditionalFields, &fields))
+	require.Equal(t, oldEmail, fields["old_email"])
+	require.Equal(t, newEmail, fields["new_email"])
 }
 
 func TestUpdateUserProfile(t *testing.T) {

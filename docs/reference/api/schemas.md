@@ -15876,6 +15876,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `model_config_id`  | string                                                                           | false    |              |             |
 | `reasoning_effort` | string                                                                           | false    |              |             |
 
+## codersdk.UpdateUserEmailRequest
+
+```json
+{
+  "new_email": "user@example.com",
+  "old_email": "user@example.com"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `new_email` | string | true     |              |             |
+| `old_email` | string | true     |              |             |
+
 ## codersdk.UpdateUserNotificationPreferences
 
 ```json

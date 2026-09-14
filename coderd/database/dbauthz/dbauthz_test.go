@@ -3159,6 +3159,13 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateUserDeletedByID(gomock.Any(), u.ID).Return(nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionDelete).Returns()
 	}))
+	s.Run("UpdateUserEmail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserEmailParams{OldEmail: u.Email, NewEmail: "new@example.com", UpdatedAt: u.UpdatedAt}
+		dbm.EXPECT().GetUserByEmailOrUsername(gomock.Any(), database.GetUserByEmailOrUsernameParams{Email: u.Email}).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserEmail(gomock.Any(), arg).Return(u, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdate).Returns(u)
+	}))
 	s.Run("UpdateUserGithubComUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.UpdateUserGithubComUserIDParams{ID: u.ID}
