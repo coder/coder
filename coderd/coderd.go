@@ -1327,6 +1327,11 @@ func New(options *Options) *API {
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
 
+		r.Route("/users/email", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Put("/", api.putUserEmailExperimental)
+		})
+
 		// NOTE(DanielleMaywood):
 		r.Route("/users/{user}/skills", func(r chi.Router) {
 			r.Use(

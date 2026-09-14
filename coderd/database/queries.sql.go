@@ -31815,6 +31815,54 @@ func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
+const updateUserEmail = `-- name: UpdateUserEmail :one
+UPDATE
+	users
+SET
+	email = $1,
+	updated_at = $2,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
+WHERE
+	LOWER(email) = LOWER($3)
+	AND deleted = false
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+`
+
+type UpdateUserEmailParams struct {
+	NewEmail  string    `db:"new_email" json:"new_email"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	OldEmail  string    `db:"old_email" json:"old_email"`
+}
+
+func (q *sqlQuerier) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserEmail, arg.NewEmail, arg.UpdatedAt, arg.OldEmail)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+		&i.Name,
+		&i.GithubComUserID,
+		&i.HashedOneTimePasscode,
+		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
+		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
+	)
+	return i, err
+}
+
 const updateUserGithubComUserID = `-- name: UpdateUserGithubComUserID :exec
 UPDATE
 	users

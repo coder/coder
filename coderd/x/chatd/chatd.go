@@ -447,7 +447,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
+	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
 }
 
 type turnWorkspaceContext struct {
@@ -977,8 +977,8 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			}
 			// Surface the dial timeout sentinel only when the
 			// parent context is still alive. If the parent was
-			// canceled (e.g. ErrInterrupted), its error must
-			// propagate unchanged so the chatloop can detect it.
+			// canceled, its error must propagate unchanged so
+			// the runner can recognize cancellation.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
 				return nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
@@ -4660,7 +4660,7 @@ const (
 	// Subagent summaries reuse the final report instead of generating
 	// text, so their work timeout only covers two database round trips.
 	subagentReportSummaryTimeout = 15 * time.Second
-	// Bound the extracted report snippet near the 1-3 sentence
+	// Bound the extracted report snippet near the headline of the
 	// generated summaries that root chats get, so subagent and parent
 	// summary panels read the same.
 	subagentReportSummaryMaxRunes     = 300
