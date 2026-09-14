@@ -74,7 +74,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionCreate, OrganizationID: project.OrganizationID})
 	defer commit()
 	memory, err := chattool.InsertProjectMemory(ctx, api.Database, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, SourceChatID: uuid.NullUUID{}, CreatedBy: apiKey.UserID})
-	if errors.Is(err, chattool.ErrProjectMemoryLimit) {
+	if errors.Is(err, chattool.ErrMemoryLimit) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat project memory limit reached."})
 		return
 	}
@@ -215,15 +215,15 @@ type normalizedChatProjectMemory struct {
 
 func validateChatProjectMemory(name, description, body string) (normalizedChatProjectMemory, *codersdk.Response) {
 	name = strings.ToLower(strings.TrimSpace(name))
-	description = chattool.NormalizeProjectMemoryText(description)
-	body = chattool.NormalizeProjectMemoryText(body)
-	if err := chattool.ValidateProjectMemoryName(name); err != nil {
+	description = chattool.NormalizeMemoryText(description)
+	body = chattool.NormalizeMemoryText(body)
+	if err := chattool.ValidateMemoryName(name); err != nil {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: err.Error()}
 	}
-	if description == "" || utf8.RuneCountInString(description) > chattool.MaxProjectMemoryDescriptionChars {
+	if description == "" || utf8.RuneCountInString(description) > chattool.MaxMemoryDescriptionChars {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "description must be at most 150 characters."}
 	}
-	if body == "" || len(body) > chattool.MaxProjectMemoryBodyBytes {
+	if body == "" || len(body) > chattool.MaxMemoryBodyBytes {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "body must be at most 8192 bytes."}
 	}
 	return normalizedChatProjectMemory{Name: name, Description: description, Body: body}, nil
