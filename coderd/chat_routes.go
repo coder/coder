@@ -146,6 +146,12 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			})
 			r.Get("/", api.getChat)
 			r.Patch("/", api.patchChat)
+			r.Group(func(r chi.Router) {
+				// Goals use the exact experiment list everywhere (handlers,
+				// chatd, UI), so the route gate must not dev-bypass it.
+				r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentChatGoals))
+				r.Patch("/goal", api.patchChatGoal)
+			})
 			r.Get("/cost", api.getChatCost)
 			r.Get("/messages", api.getChatMessages)
 			r.Post("/messages", api.postChatMessages)
