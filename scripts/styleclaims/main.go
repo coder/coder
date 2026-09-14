@@ -408,16 +408,20 @@ func check(styles []string, rules []valeRule, annotations map[string][]annotatio
 				}
 				if style == coderPackage {
 					if !ruleNames[rule] {
-						findings = append(findings, finding{a.file, a.line,
-							fmt.Sprintf("claims `%s` enforces this rule, but %s/%s.yml does not exist. Mark the citation (planned).", c, rulesDir, rule)})
+						findings = append(findings, finding{
+							a.file, a.line,
+							fmt.Sprintf("claims `%s` enforces this rule, but %s/%s.yml does not exist. Mark the citation (planned).", c, rulesDir, rule),
+						})
 						continue
 					}
 					cited[rule] = true
 					continue
 				}
 				if !loadedStyle[style] {
-					findings = append(findings, finding{a.file, a.line,
-						fmt.Sprintf("claims `%s` enforces this rule, but %s does not load the %s style. Mark the citation (planned).", c, valeConfig, style)})
+					findings = append(findings, finding{
+						a.file, a.line,
+						fmt.Sprintf("claims `%s` enforces this rule, but %s does not load the %s style. Mark the citation (planned).", c, valeConfig, style),
+					})
 				}
 			}
 		}
@@ -426,8 +430,10 @@ func check(styles []string, rules []valeRule, annotations map[string][]annotatio
 
 	for _, r := range rules {
 		if !cited[r.name] {
-			findings = append(findings, finding{filepath.Join(styleGuide, landingPage), 0,
-				fmt.Sprintf("rule `%s.%s` is enabled but no style guide section cites it as active. Add the section, or remove the rule.", coderPackage, r.name)})
+			findings = append(findings, finding{
+				filepath.Join(styleGuide, landingPage), 0,
+				fmt.Sprintf("rule `%s.%s` is enabled but no style guide section cites it as active. Add the section, or remove the rule.", coderPackage, r.name),
+			})
 		}
 	}
 
@@ -465,30 +471,40 @@ func checkChecksTable(landing string, rules []valeRule) []finding {
 			}
 		}
 		if rule == nil {
-			findings = append(findings, finding{path, i + 1,
-				fmt.Sprintf("table lists `%s.%s`, which has no rule file under %s", coderPackage, name, rulesDir)})
+			findings = append(findings, finding{
+				path, i + 1,
+				fmt.Sprintf("table lists `%s.%s`, which has no rule file under %s", coderPackage, name, rulesDir),
+			})
 			continue
 		}
 		if m := severityCell.FindStringSubmatch(cells[2]); len(m) < 2 || m[1] != rule.severity {
-			findings = append(findings, finding{path, i + 1,
-				fmt.Sprintf("severity for `%s.%s` is %q in the table but %q in the rule file", coderPackage, name, strings.TrimSpace(cells[2]), rule.severity)})
+			findings = append(findings, finding{
+				path, i + 1,
+				fmt.Sprintf("severity for `%s.%s` is %q in the table but %q in the rule file", coderPackage, name, strings.TrimSpace(cells[2]), rule.severity),
+			})
 		}
 		for _, glob := range rule.enabledIn {
 			if !strings.Contains(cells[3], glob) {
-				findings = append(findings, finding{path, i + 1,
-					fmt.Sprintf("scope for `%s.%s` omits %q, where %s enables it", coderPackage, name, glob, valeConfig)})
+				findings = append(findings, finding{
+					path, i + 1,
+					fmt.Sprintf("scope for `%s.%s` omits %q, where %s enables it", coderPackage, name, glob, valeConfig),
+				})
 			}
 		}
 		if !rule.scoped && !strings.Contains(cells[3], "docs/**") {
-			findings = append(findings, finding{path, i + 1,
-				fmt.Sprintf("scope for `%s.%s` should name `docs/**`; %s does not scope it to specific sections", coderPackage, name, valeConfig)})
+			findings = append(findings, finding{
+				path, i + 1,
+				fmt.Sprintf("scope for `%s.%s` should name `docs/**`; %s does not scope it to specific sections", coderPackage, name, valeConfig),
+			})
 		}
 	}
 
 	for _, r := range rules {
 		if !listed[r.name] {
-			findings = append(findings, finding{path, 0,
-				fmt.Sprintf("rule `%s.%s` is enabled but missing from the checks table", coderPackage, r.name)})
+			findings = append(findings, finding{
+				path, 0,
+				fmt.Sprintf("rule `%s.%s` is enabled but missing from the checks table", coderPackage, r.name),
+			})
 		}
 	}
 	return findings
@@ -520,8 +536,10 @@ func checkCoverageTable(landing string, counts map[string][4]int) []finding {
 		}
 		if strings.Contains(cells[0], "Total") {
 			if nums != wantTotal {
-				findings = append(findings, finding{path, i + 1,
-					fmt.Sprintf("total row is %v but the annotations sum to %v", nums, wantTotal)})
+				findings = append(findings, finding{
+					path, i + 1,
+					fmt.Sprintf("total row is %v but the annotations sum to %v", nums, wantTotal),
+				})
 			}
 			seen["**Total**"] = true
 			continue
@@ -537,8 +555,10 @@ func checkCoverageTable(landing string, counts map[string][4]int) []finding {
 		}
 		seen[page] = true
 		if nums != want {
-			findings = append(findings, finding{path, i + 1,
-				fmt.Sprintf("counts for %s are %v but the annotations give %v (rules, tool-checked, planned, documentation-only)", page, nums, want)})
+			findings = append(findings, finding{
+				path, i + 1,
+				fmt.Sprintf("counts for %s are %v but the annotations give %v (rules, tool-checked, planned, documentation-only)", page, nums, want),
+			})
 		}
 	}
 
