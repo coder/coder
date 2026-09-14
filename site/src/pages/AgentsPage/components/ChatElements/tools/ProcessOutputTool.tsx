@@ -85,9 +85,6 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	);
 
 	const isRunning = status === "running" || processRunning;
-	// A poll that times out while the process lives leaves a stale running
-	// snapshot, so the streaming cursor tracks the tool call status only.
-	const streaming = status === "running";
 	// A clean exit is the expected outcome of a check, so only
 	// failures earn a badge. The label verb carries the rest.
 	const isFailed = exitCode !== null && exitCode !== 0;
@@ -159,7 +156,6 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 					ariaLabel="Process output"
 					command={command}
 					className="mt-2"
-					streaming={streaming}
 				>
 					<pre
 						className={cn(
