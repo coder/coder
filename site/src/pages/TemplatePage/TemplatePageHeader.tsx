@@ -20,7 +20,7 @@ import type {
 	TemplateVersion,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { DeprecatedBadge } from "#/components/Badges/Badges";
+import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
@@ -106,29 +106,25 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 					</ShadcnButton>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					<DropdownMenuItem
-						onClick={() => navigate(`${templateLink}/settings`)}
-					>
-						<SettingsIcon className="size-icon-sm" />
-						Settings
+					<DropdownMenuItem asChild>
+						<RouterLink to={`${templateLink}/settings`}>
+							<SettingsIcon className="size-icon-sm" />
+							Settings
+						</RouterLink>
 					</DropdownMenuItem>
 
-					<DropdownMenuItem
-						onClick={() =>
-							navigate(`${templateLink}/versions/${templateVersion}/edit`)
-						}
-					>
-						<EditIcon />
-						Edit files
+					<DropdownMenuItem asChild>
+						<RouterLink to={`${templateLink}/versions/${templateVersion}/edit`}>
+							<EditIcon />
+							Edit files
+						</RouterLink>
 					</DropdownMenuItem>
 
-					<DropdownMenuItem
-						onClick={() =>
-							navigate(`/templates/new?fromTemplate=${templateId}`)
-						}
-					>
-						<CopyIcon className="size-icon-sm" />
-						Duplicate&hellip;
+					<DropdownMenuItem asChild>
+						<RouterLink to={`/templates/new?fromTemplate=${templateId}`}>
+							<CopyIcon className="size-icon-sm" />
+							Duplicate&hellip;
+						</RouterLink>
 					</DropdownMenuItem>
 
 					<DropdownMenuItem onClick={() => handleExport()}>

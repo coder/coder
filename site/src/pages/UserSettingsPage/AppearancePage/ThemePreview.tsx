@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { CSSProperties, FC } from "react";
 import { baseModeFor, type ConcreteThemeName } from "#/theme";
-import { cn } from "#/utils/cn";
 
 interface ThemePreviewProps {
 	theme: ConcreteThemeName;

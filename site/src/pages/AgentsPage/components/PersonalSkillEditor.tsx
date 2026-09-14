@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikErrors, useFormik } from "formik";
 import {
 	type ChangeEvent,
@@ -21,7 +22,6 @@ import {
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { formatKiB } from "#/utils/fileSize";
 import {
 	buildPersonalSkillMarkdown,

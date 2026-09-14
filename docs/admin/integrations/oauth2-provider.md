@@ -1,4 +1,6 @@
-# OAuth2 Provider (Experimental)
+---
+title: OAuth2 provider (Experimental)
+---
 
 > [!WARNING]
 > The OAuth2 provider functionality is currently **experimental and unstable**. This feature:
@@ -110,6 +112,10 @@ Disabling only blocks *new* self-registrations. Applications that already
 registered while it was enabled keep authorizing and exchanging tokens
 normally; disabling does not revoke or otherwise affect them.
 
+A registration may list several `redirect_uris`.
+A request may present any of them, and the code it receives can only be exchanged with that same URI.
+The first entry is the primary callback: it is what the web UI shows for the application, and what a request that omits `redirect_uri` is sent to.
+
 ## Integration Patterns
 
 ### Client Authentication Methods
@@ -127,15 +133,23 @@ Public clients suit native, mobile, and CLI applications that cannot keep a secr
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
-> A public client may use `http://` only with a loopback host
-> (`localhost`, `127.0.0.1`, `[::1]`). An `http://` redirect URI to any
-> other host is rejected, so use `https://` instead. A confidential
-> client has the same restriction but also accepts `.localhost`
-> subdomains over `http://`.
+> A public client may use `http://` only with a loopback host (`localhost`, `127.0.0.1`, `[::1]`).
+> An `http://` redirect URI to any other host is rejected, so use `https://` instead.
+> A confidential client has the same restriction but also accepts `.localhost` subdomains over `http://`.
+> Coder ignores the port of an `http://` redirect URI to one of those three loopback hosts, for public and confidential clients alike. RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime. Coder applies it to `localhost` too. A `.localhost` subdomain still requires an exact port match.
+> Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
 >
 > Which schemes a redirect URI may use is a separate restriction that
 > also differs by client type. See
 > [Callback URL schemes](#callback-url-schemes).
+
+A client's type is fixed when it registers.
+An RFC 7592 update that would move a client between public and confidential is rejected with `invalid_client_metadata`, since the client either holds a secret that would stop being required or has none and no way to be issued one.
+Switching between `client_secret_basic` and `client_secret_post` is allowed, because both are confidential.
+To change type, register a new client.
+
+Clients registered with `token_endpoint_auth_method: none` before Coder honored it are stored as confidential and still require their `client_secret`.
+Coder reports `client_secret_basic` for those clients so that what it reports matches what it enforces, and the mismatch clears the next time the client updates its registration using the value Coder reported.
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
@@ -253,6 +267,28 @@ confidential clients must include PKCE parameters:
      "$CODER_URL/oauth2/tokens"
    ```
 
+## Scopes
+
+An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
+
+Scope names come from the same vocabulary as [API key scopes](../users/sessions-tokens.md#api-key-scopes): individual `resource:action` names such as `workspace:ssh`, and `coder:` composites such as `coder:workspaces.access` that stand for a set of them. `coder:all` records an unrestricted grant.
+
+A client asks for a scope with the `scope` parameter on the authorization request, space separated:
+
+```txt
+https://coder.example.com/oauth2/authorize?
+  client_id=your-client-id&
+  response_type=code&
+  scope=coder:workspaces.access&
+  code_challenge=$CODE_CHALLENGE&
+  code_challenge_method=S256&
+  redirect_uri=https://yourapp.example.com/callback
+```
+
+An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
+
+The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
+
 ## Discovery Endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
@@ -366,14 +402,201 @@ Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
 
 ### "Invalid redirect_uri"
 
-Ensure the redirect URI in your request exactly matches the one registered for your application.
+Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
+The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
+Refer to the note under [Client Authentication Methods](#client-authentication-methods).
 
 ### "Invalid Callback URL" on the consent page
 
-If you see this error when authorizing, the registered callback URL uses a
-blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
-application's callback URL to a valid scheme (see
-[Callback URL schemes](#callback-url-schemes)).
+If you see this error when authorizing, the application's registered callback
+URL is not usable: either it does not parse as a URL, or it uses a blocked
+scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause answers
+`server_error` on `POST /oauth2/authorize`. Update the application's callback
+URL (see [Callback URL schemes](#callback-url-schemes)).
+
+The server log records the application ID and the stored value. The response
+does not, so a bad URL is never echoed back to a browser.
+
+### "invalid_scope" returned to your callback
+
+The authorization endpoint validates the `scope` parameter. When it cannot
+grant what was asked for, it redirects to your registered callback with
+`error=invalid_scope` rather than issuing a code. The `error_description`
+opens with the requested name that caused the rejection:
+
+- `unknown or unsupported scope`: this deployment does not offer that name to
+  OAuth2 clients. It may not exist, or it may exist and be internal-only, which
+  no version offers. Read the current list from `scopes_supported` in
+  `GET /.well-known/oauth-authorization-server`.
+- `scope requests permissions beyond this app's allowed scopes`: the name is
+  supported, but the application was registered with a narrower `scope`.
+  Request less, or re-register the application with a wider one.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the application's own registered `scope` names nothing this
+  deployment offers, so no request against it can succeed, including one
+  that omits `scope`. Re-register the application with supported scopes. This
+  description stands alone. Nothing validates a registered `scope`, so the
+  response never echoes it; the server log records the application ID.
+
+Omitting `scope` requests the application's registered scopes, or full access
+if it was registered without any.
+
+The negotiated scope is recorded on the authorization, shown on the consent
+page, and applied to the access token issued when the code is exchanged.
+
+The token endpoint validates a refresh request's `scope` too, and answers
+`invalid_scope` in the response body rather than by redirect. See
+["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a-refresh-that-names-a-scope).
+
+### "invalid_grant" for a scope the deployment cannot mint
+
+`POST /oauth2/tokens` mints the access token with the scope recorded on the
+authorization code, or on the refresh token when refreshing. If that stored
+scope names something this deployment cannot mint, the exchange answers HTTP
+400 with `error=invalid_grant` and an `error_description` naming the value.
+
+The usual cause is a grant made against a scope the deployment has since
+dropped. Authorize again to negotiate a scope it still supports; the stored
+scope is not something the client can change by requesting a different one.
+
+The exchange also re-checks the code's scope against the application's
+registered `scope`, which can change during the ten minutes a code stays valid.
+Two more descriptions can open the `error_description` here:
+
+- `scope is no longer allowed by this app's registered scopes`: the
+  registration narrowed after the code was issued and no longer covers the
+  code's scope. Authorize again to negotiate a scope within the new
+  registration.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the registration names nothing this deployment offers, so no
+  code against it can be redeemed. Re-register the application with supported
+  scopes. As on the authorize endpoint, the registered value stays out of the
+  response.
+
+A coverage comparison this deployment cannot decide answers HTTP 500 with
+`error=server_error` and `The requested scope could not be evaluated`; the
+scope that could not be compared is in the server logs, not the response.
+
+Only the application itself can change its registered `scope`, through
+[Dynamic Client Registration](#dynamic-client-registration). No administrator
+surface writes the column, and an application that holds its registration
+access token can widen its own allowlist again before redeeming a code, so
+treat this re-check as reflecting the registration at redemption time rather
+than as a constraint on the client.
+
+A refresh is not re-checked against the registration. That is a Coder policy
+choice: withdrawing scope from a session already running would break it
+mid-flight, so a narrowing takes effect at the next authorization. A refresh
+token keeps its granted scope until it expires, which can be up to the
+configured refresh lifetime; revoke the token to cut a live session.
+
+Codes issued before the upgrade that added scope columns carry `coder:all`,
+recorded as an unrestricted grant. For an application registered with a
+narrower `scope`, those codes are refused with `scope is no longer allowed by
+this app's registered scopes` until they expire, which takes at most ten
+minutes. Authorizing again issues a code within the current registration.
+
+### "invalid_scope" for a refresh that names a scope
+
+`POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh
+request names a `scope` the server will not grant. This is the token endpoint,
+not the authorization endpoint above: there is no redirect, and the error is in
+the response body.
+
+A refresh may name a `scope` of its own to give up authority. The narrowing
+applies to the access token that refresh mints, and to nothing else. The
+refresh token continues to represent the scope the user consented to, so the
+ceiling does not move and a later refresh may ask for a different part of the
+same grant, or omit `scope` to take the grant whole again.
+
+The request may name any scope the original grant confers **that also appears in
+`scopes_supported`**, including a single permission out of a composite scope, so
+a token granted `coder:workspaces.access` can refresh down to `workspace:read`
+for one call and to `workspace:ssh` for the next. Two descriptions can open the
+`error_description`, each opening with the requested name that caused it:
+
+- `scope requests permissions beyond the scope originally granted; a refresh
+  cannot widen a grant, so authorize again to obtain a broader one`: the name is
+  offered, but the resource owner never granted it.
+- `unknown or unsupported scope`: this deployment does not offer that name to
+  OAuth2 clients, either because it does not exist or because it is internal.
+
+A refused refresh mints nothing and leaves the refresh token usable, so a client
+that asked for too much can retry with less rather than re-authorizing.
+
+Only the resource owner lowers the ceiling, by revoking the token or authorizing
+again with less. This is also what OAuth 2.1 section 4.3.3 requires: a rotated
+refresh token carries the scope of the one presented.
+
+Narrowing a composite scope to the low-level names you can request may drop
+permissions that have no requestable name of their own. `coder:workspaces.create`
+confers `organization_member:read`, which a workspace build needs and which
+`scopes_supported` does not list, so a token narrowed to the fullest set a client
+can name will fail to create a workspace. Refresh without a `scope` to return to
+the composite.
+
+### "unsupported_response_type" returned to your callback
+
+Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
+`GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
+
+Any other value, including the `token` of the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+Earlier releases answered on Coder instead: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
+### "invalid_request" for `code_challenge_method`
+
+Coder supports the `S256` challenge method only.
+`plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what PKCE exists to prevent.
+Omitting the parameter is allowed and means `S256`.
+
+An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+### "invalid_request" for a rejected parameter
+
+Coder validates every authorization parameter before issuing a code, and reports all the failing fields together in one `error_description`.
+Each entry reads `field: reason`, and entries are separated by a semicolon and a space.
+Common causes are a `code_challenge` outside the 43 to 128 character unreserved set, and any parameter sent more than once.
+
+The rejection redirects to your registered callback with `error=invalid_request`, an `error_description` naming the fields, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+A description longer than 2048 characters is cut short and marked `(truncated)`.
+
+Parameters the endpoint does not read are ignored, as RFC 6749 Section 3.1 requires, so an OIDC `nonce` or a vendor extension does not fail the request.
+A misspelled parameter is ignored on the same rule, so what you see is the failure caused by the parameter you meant to send being absent.
+
+Two failures stay on Coder rather than reaching your callback, because in both cases the callback is not yet trustworthy:
+
+- A `redirect_uri` that does not parse, or that does not exactly match one of the redirect URIs registered for the application.
+  Redirecting to it would defeat the check that just rejected it, so Coder answers 400 (see ["Invalid redirect_uri"](#invalid-redirect_uri)).
+- A `client_id` sent more than once, or one that does not name the application the callback was matched against.
+  Coder cannot tell whose registration it is about to redirect to.
+
+Earlier releases answered on Coder for all of these: `GET` rendered an "Invalid Query Parameters" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
+### "invalid_request" from `POST /oauth2/tokens` for a repeated parameter
+
+The token endpoint ignores parameters it does not read, as RFC 6749 Section 3.2 requires, so an OIDC `nonce`, a `client_assertion`, or a vendor extension does not fail the exchange.
+A misspelled parameter is ignored on the same rule, so what you see is the failure caused by the parameter you meant to send being absent.
+
+A known parameter sent more than once is rejected with a 400 and a JSON body.
+The error is `invalid_request`, except for a repeated `grant_type`, which answers `unsupported_grant_type`.
+
+Earlier releases returned 400 `invalid_request` for any parameter the endpoint did not recognize.
+An integration that relied on that error to catch a misspelled optional parameter no longer receives it.
+
+### "invalid_target" for a rejected `resource`
+
+`resource` must be an absolute URI without a fragment (RFC 8707).
+A value that is not redirects to your registered callback with `error=invalid_target`, an `error_description` naming the field, and the `state` you sent.
+`POST /oauth2/token` already answered `invalid_target` for the same value.
+
+If anything else in the request also failed, the answer is `invalid_request` instead, naming every failing field.
+Correct them all before retrying: a retry that fixes only `resource` fails again.
 
 ### "PKCE verification failed"
 
@@ -410,27 +633,58 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
   custom URI schemes for native apps (`myapp://`) are permitted, and public
   clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
+- **No CORS on the authorization endpoint**: `/oauth2/authorize` is reached
+  only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
+  The token, registration, revocation, and metadata endpoints do allow
+  cross-origin requests so that browser-based clients can call them
 
 ## Limitations
 
 As an experimental feature, the current implementation has limitations:
 
-- No scope system - all tokens have full API access
+- A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
 - No client credentials grant support
-- Implicit grant (`response_type=token`) is not supported; OAuth 2.1
-  deprecated this flow due to token leakage risks, and requests return
-  `unsupported_response_type`
+- Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
+
+A `scope` on a refresh request was parsed and discarded in earlier versions, so a
+client sending one wider than its grant refreshed successfully. It is now
+enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
+refresh token is not consumed, so a client that drops the parameter or asks for
+less recovers without re-authorizing.
+
+Coder now enforces the `scope` an application declared for itself when it self-registered through [Dynamic Client Registration](#dynamic-client-registration).
+This affects only deployments that enabled Dynamic Client Registration and have an application that self-registered with a `scope`.
+Dynamic Client Registration is disabled by default, so if you never enabled it, nothing changes for you.
+Turning it back off does not clear the check: Coder validates the stored `scope` of an existing application whether or not registration is still allowed, so an application that self-registered before you turned the setting off is affected too.
+
+Earlier versions of Coder accepted any `scope` at registration without checking it, and every token for that application had full access.
+Coder now treats the registered `scope` as the list of scopes the application is allowed to request, as described under [Scopes](#scopes).
+Applications that self-registered without a `scope`, and applications created through the web UI or the management API, have no scope list and are not affected; they continue to receive full access.
+
+An affected application fails in the following ways:
+
+- A request for a scope name this deployment does not offer fails with `invalid_scope`.
+- If none of the registered names are offered, every authorization fails, even one that leaves `scope` out.
+- Authorization codes issued before the upgrade fail at the token endpoint with `invalid_grant` until they expire.
+
+For the full error details, refer to ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback) and ["invalid_grant" for a scope the deployment cannot mint](#invalid_grant-for-a-scope-the-deployment-cannot-mint).
+
+To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
+If that token is lost, register the application again.
+A Coder administrator cannot change an application's registered `scope` from the web UI or the management API; only the self-registration path writes that value.
 
 ## Standards Compliance
 
 This implementation follows established OAuth2 standards including
 [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
 [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
-[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12).
+[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
 Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
-authorization code grants, exact redirect URI string matching, rejection
-of the implicit grant, and CSRF protections on consent pages.
+authorization code grants, exact redirect URI string matching with the
+[RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) loopback port
+exception, rejection of the implicit grant, and CSRF protections on consent
+pages.
 
 ## Next Steps
 

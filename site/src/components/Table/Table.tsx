@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/table}
  */
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 
 type TableProps = React.ComponentPropsWithRef<"table"> & {
 	wrapperClassName?: string;

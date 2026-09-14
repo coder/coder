@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ArrowLeftIcon, Share2Icon } from "lucide-react";
 import { type FC, useId } from "react";
 import { Link } from "react-router";
@@ -11,7 +12,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
 
 const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {

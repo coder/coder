@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/xnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -499,11 +500,10 @@ func TestPubsubCluster(t *testing.T) {
 		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
 	})
 
-	// InvalidAuthRejected asserts the cluster route listener rejects
+	// ClusterAuthRequired asserts the cluster route listener rejects
 	// connections that do not present the configured ClusterAuthToken.
-	// We dial the route listener directly with the nats.go client, which
-	// surfaces a typed nats.ErrAuthorization for protocol-level -ERR
-	// 'Authorization Violation' responses.
+	// We dial the route listener directly with the nats.go client and
+	// require the rejection via requireAuthRejected.
 	t.Run("ClusterAuthRequired", func(t *testing.T) {
 		t.Parallel()
 
@@ -516,7 +516,7 @@ func TestPubsubCluster(t *testing.T) {
 			natsgo.RetryOnFailedConnect(false),
 			natsgo.Timeout(testutil.WaitShort),
 		)
-		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+		requireAuthRejected(t, err,
 			"route dial with wrong token must be rejected")
 
 		_, err = natsgo.Connect(routeURL,
@@ -524,7 +524,7 @@ func TestPubsubCluster(t *testing.T) {
 			natsgo.RetryOnFailedConnect(false),
 			natsgo.Timeout(testutil.WaitShort),
 		)
-		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+		requireAuthRejected(t, err,
 			"unauthenticated route dial must be rejected")
 	})
 
@@ -542,7 +542,7 @@ func TestPubsubCluster(t *testing.T) {
 			natsgo.RetryOnFailedConnect(false),
 			natsgo.Timeout(testutil.WaitShort),
 		)
-		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+		requireAuthRejected(t, err,
 			"unauthenticated client connect must be rejected")
 
 		nc, err := natsgo.Connect(clientURL,
@@ -643,6 +643,25 @@ func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 		_ = ps.Close()
 	})
 	return ps
+}
+
+// requireAuthRejected asserts that a connection attempt failed the server's
+// token authentication. The server writes -ERR 'Authorization Violation' and
+// closes the socket; when nats.go reads the protocol error in time it returns
+// natsgo.ErrAuthorization. The close can race the client's read, notably on
+// Windows, where the rejection surfaces as a connection reset (wsarecv)
+// instead of the parsed protocol error. Timeouts still fail because they mean
+// the server did not reject the connection.
+func requireAuthRejected(t *testing.T, err error, msg string) {
+	t.Helper()
+	require.Error(t, err, msg)
+	if xerrors.Is(err, natsgo.ErrAuthorization) {
+		return
+	}
+	require.False(t, xnet.IsTimeoutError(err),
+		"%s: connection attempt timed out instead of being rejected: %v", msg, err)
+	require.True(t, xnet.IsConnectionError(err),
+		"%s: expected an authorization or connection error, got: %v", msg, err)
 }
 
 func clusterRouteAddress(t *testing.T, ps *Pubsub) string {

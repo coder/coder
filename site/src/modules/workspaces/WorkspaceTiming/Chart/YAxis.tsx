@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { FC, HTMLProps } from "react";
-import { cn } from "#/utils/cn";
 
 export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return (

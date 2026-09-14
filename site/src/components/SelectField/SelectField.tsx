@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import { FormField } from "#/components/FormField/FormField";
 import {
@@ -6,7 +7,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
 
 type SelectFieldProps = {

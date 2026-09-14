@@ -26,6 +26,13 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
 {
   "bases": [
     {
+      "agents": [
+        {
+          "default": true,
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
       "description": "string",
       "icon": "string",
       "id": "string",
@@ -81,6 +88,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
   },
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -133,6 +141,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
   "icon": "string",
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -145,7 +154,8 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
   "provisioner_tags": {
     "property1": "string",
     "property2": "string"
-  }
+  },
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
 }
 ```
 
@@ -206,6 +216,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "max_port_share_level": "owner",
+    "module_cache_disabled_by_deployment": true,
     "name": "string",
     "organization_display_name": "string",
     "organization_icon": "string",

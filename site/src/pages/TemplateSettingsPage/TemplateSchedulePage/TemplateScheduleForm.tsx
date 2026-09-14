@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
@@ -25,7 +26,6 @@ import {
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
 import { Switch } from "#/components/Switch/Switch";
-import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	calculateAutostopRequirementDaysValue,
@@ -61,7 +61,7 @@ const FAILURE_CLEANUP_DEFAULT = 7 * MS_DAY_CONVERSION;
 const INACTIVITY_CLEANUP_DEFAULT = 180 * MS_DAY_CONVERSION;
 const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
 
-export interface TemplateScheduleForm {
+interface TemplateScheduleFormProps {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
@@ -72,7 +72,7 @@ export interface TemplateScheduleForm {
 	initialTouched?: FormikTouched<UpdateTemplateMeta>;
 }
 
-export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
+export const TemplateScheduleForm: FC<TemplateScheduleFormProps> = ({
 	template,
 	onSubmit,
 	onCancel,

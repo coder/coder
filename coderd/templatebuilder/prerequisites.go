@@ -1,6 +1,9 @@
 package templatebuilder
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 const (
 	// prerequisitesStartMarker delimits the beginning of the prerequisites
@@ -24,4 +27,19 @@ func ExtractPrerequisites(readme string) string {
 		return ""
 	}
 	return strings.TrimSpace(after[:endIdx])
+}
+
+// prerequisitesMarkerLine matches either prerequisites marker on its own
+// line, including the trailing newline and an optional following blank
+// line, so removing it does not leave an extra gap in the rendered README.
+var prerequisitesMarkerLine = regexp.MustCompile(
+	`(?m)^[ \t]*(?:` +
+		regexp.QuoteMeta(prerequisitesStartMarker) + `|` +
+		regexp.QuoteMeta(prerequisitesEndMarker) +
+		`)[ \t]*\n?\n?`)
+
+// Remove the prerequisites comment markers from a README body,
+// preserving the content between the markers.
+func StripPrerequisitesMarkers(readme string) string {
+	return prerequisitesMarkerLine.ReplaceAllString(readme, "")
 }

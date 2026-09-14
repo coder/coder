@@ -218,6 +218,8 @@ VERSION      := $(shell ./scripts/version.sh)
 
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
+# CI test jobs set this to "none": nothing reads the statement log there.
+TEST_POSTGRES_LOG_STATEMENT ?= all
 
 # Limit parallel Make jobs in pre-commit/pre-push. Defaults to
 # nproc/4 (min 2) since test, lint, and build targets have internal
@@ -883,6 +885,11 @@ lint/prose: docs/.style/.vale-synced
 # all commits.
 #
 # pre-push adds heavier checks: Go tests, JS tests, and site build.
+# Storybook tests are deliberately excluded: the vitest browser run
+# has repeatedly stalled or failed for developers running pre-push,
+# and PR #24703's serialization did not fix it. Storybook stays
+# covered by the storybook job in CI (storybook:build plus Pixel
+# snapshots) on every PR.
 # The pre-push hook is allowlisted, see scripts/githooks/pre-push.
 #
 # pre-commit uses two phases: gen+fmt first, then lint+build. This
@@ -954,20 +961,11 @@ pre-push:
 	start=$$(date +%s)
 	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
 	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
-	test -d site/node_modules/.cache/storybook || (cd site/ && pnpm exec node scripts/warmup-storybook-cache.mjs)
 	echo "test + build site:"
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
 		site/out/index.html
-	# Storybook tests run after Go tests and the site build to avoid
-	# CPU starvation. Rolldown's tokio workers in Vite's transform
-	# pipeline stall when competing with Go compilation and the
-	# production build, causing browser import() calls to hang
-	# indefinitely (vitest has no import-phase timeout).
-	echo "test storybook:"
-	$(MAKE) --no-print-directory MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
-		test-storybook
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push
@@ -1017,7 +1015,6 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
-	docs/install/releases/feature-stages.md \
 	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
@@ -1063,13 +1060,13 @@ coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-
 # snapshot joined with the editorial curation in
 # scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
 # same live-upstream-data reason as prices.json.
-site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
-.PHONY: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+.PHONY: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
 gen/aibridge-prices: \
 	coderd/aibridge/prices/data/prices.json \
-	site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+	site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 .PHONY: gen/aibridge-prices
 
 gen/golden-files: \
@@ -1116,7 +1113,6 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
-		docs/install/releases/feature-stages.md \
 		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
@@ -1349,17 +1345,6 @@ docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen _gen/bin/auditdocgen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		_gen/bin/auditdocgen --audit-doc-file="$$tmpfile" && \
-		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
-		pnpm exec markdown-table-formatter "$$tmpfile" && \
-		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
-
-docs/install/releases/feature-stages.md: \
-	node_modules/.installed \
-	scripts/release/docs_update_feature_stages.sh \
-	codersdk/deployment.go \
-	docs/manifest.json | _gen
-	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
-		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
@@ -1687,7 +1672,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
-		-c log_statement=all
+		-c log_statement=$(TEST_POSTGRES_LOG_STATEMENT)
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$$(date) - waiting for database to start"

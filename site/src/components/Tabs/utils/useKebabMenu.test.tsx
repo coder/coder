@@ -1,40 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { useKebabMenu } from "./useKebabMenu";
-
-type FakeResizeObserverInstance = {
-	simulateResize: (width: number) => void;
-};
-
-let resizeObserverInstances: FakeResizeObserverInstance[] = [];
-
-class MockResizeObserver {
-	private readonly callback: ResizeObserverCallback;
-
-	constructor(callback: ResizeObserverCallback) {
-		this.callback = callback;
-		const self = this;
-		resizeObserverInstances.push({
-			simulateResize(width: number) {
-				self.callback(
-					[{ contentRect: { width, height: 0 } } as ResizeObserverEntry],
-					self as unknown as ResizeObserver,
-				);
-			},
-		});
-	}
-
-	observe(_target: Element) {}
-	unobserve(_target: Element) {}
-	disconnect() {}
-}
-
-const getLastResizeObserver = (): FakeResizeObserverInstance => {
-	const instance = resizeObserverInstances[resizeObserverInstances.length - 1];
-	if (!instance) {
-		throw new Error("No ResizeObserver was constructed");
-	}
-	return instance;
-};
 
 const setElementOffsetWidth = (element: HTMLElement, width: number): void => {
 	Object.defineProperty(element, "offsetWidth", {
@@ -86,7 +52,7 @@ const TestHarness = ({ tabGap = 0 }: { tabGap?: number }) => {
 
 describe("useKebabMenu", () => {
 	beforeEach(() => {
-		resizeObserverInstances = [];
+		MockResizeObserver.reset();
 		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 	});
 
@@ -105,7 +71,7 @@ describe("useKebabMenu", () => {
 		setElementOffsetWidth(startup, 70);
 
 		await act(() => {
-			getLastResizeObserver().simulateResize(220);
+			MockResizeObserver.getLast().simulateResize(220);
 		});
 
 		expect(screen.getByTestId("visible-values")).toHaveTextContent(
@@ -123,7 +89,7 @@ describe("useKebabMenu", () => {
 		setElementOffsetWidth(startup, 70);
 
 		await act(() => {
-			getLastResizeObserver().simulateResize(220);
+			MockResizeObserver.getLast().simulateResize(220);
 		});
 
 		expect(screen.getByTestId("visible-values")).toHaveTextContent("all");

@@ -2,5 +2,11 @@
 	"id": "aws-linux",
 	"display_name": "AWS EC2 (Linux)",
 	"os": "linux",
-	"default_context": {}
+	"default_context": {},
+	"agents": [
+		{
+			"name": "dev",
+			"default": true
+		}
+	]
 }

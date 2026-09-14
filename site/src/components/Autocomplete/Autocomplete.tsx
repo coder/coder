@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon, XIcon } from "lucide-react";
 import {
 	type KeyboardEvent,
@@ -24,7 +25,6 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 interface AutocompleteProps<TOption> {
 	value: TOption | null;
@@ -344,6 +344,7 @@ export function Autocomplete<TOption>({
 											return (
 												<CommandItem
 													role="option"
+													aria-selected={index === highlightedIndex}
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}
 													value={optionValue}
@@ -373,7 +374,6 @@ export function Autocomplete<TOption>({
 					data-testid={testId}
 					aria-expanded={isOpen}
 					aria-haspopup="listbox"
-					aria-invalid={triggerAriaInvalid}
 					aria-describedby={triggerAriaDescribedBy}
 					disabled={disabled}
 					className={cn(

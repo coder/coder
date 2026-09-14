@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	EllipsisIcon,
 	FolderIcon,
@@ -18,7 +19,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { cn } from "#/utils/cn";
 import type { FileTree } from "#/utils/filetree";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 

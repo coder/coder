@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -22,9 +23,9 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/patternmatcher"
 )
 
-// SessionIDBaggageKey is the W3C baggage key clients use to propagate the
-// per-session correlation ID described in the connection-log RFC. The value is
-// a 16-byte identifier encoded as a 32-character hexadecimal string.
+// SessionIDBaggageKey is the W3C baggage key clients use to propagate their
+// per-session correlation ID. The value is a 16-byte identifier encoded as a
+// 32-character hexadecimal string.
 const SessionIDBaggageKey = "client_session_id"
 
 // DefaultRoutePatterns are the route patterns coderd and wsproxy trace. The
@@ -114,7 +115,7 @@ func sessionIDFromRequest(r *http.Request) string {
 func sessionIDFromHeaders(h http.Header) string {
 	ctx := propagation.Baggage{}.Extract(context.Background(), propagation.HeaderCarrier(h))
 	id := baggage.FromContext(ctx).Member(SessionIDBaggageKey).Value()
-	if !validSessionID(id) {
+	if !ValidSessionID(id) {
 		return ""
 	}
 	return id
@@ -127,18 +128,28 @@ func sessionIDFromHeaders(h http.Header) string {
 // set arbitrary baggage headers.
 func sessionIDFromQueryString(q url.Values) string {
 	id := q.Get(SessionIDBaggageKey)
-	if !validSessionID(id) {
+	if !ValidSessionID(id) {
 		return ""
 	}
 	return id
 }
 
-// validSessionID reports whether s is a 32-character lowercase hexadecimal
-// string (a 16-byte value), the encoding the RFC mandates for the session ID.
+// NewSessionID generates a new client session ID: 16 random bytes encoded as a
+// 32-character lowercase hexadecimal string, to match OpenTelemetry's identifiers.
+func NewSessionID() (string, error) {
+	var b [16]byte
+	if _, err := cryptorand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+// ValidSessionID reports whether s is a 32-character lowercase hexadecimal
+// string (a 16-byte value).
 // Only lowercase is accepted so that case-sensitive searches correlate
 // reliably. Validating also guards against logging arbitrary client-controlled
 // baggage values.
-func validSessionID(s string) bool {
+func ValidSessionID(s string) bool {
 	b, err := hex.DecodeString(s)
 	if err != nil || len(b) != 16 {
 		return false

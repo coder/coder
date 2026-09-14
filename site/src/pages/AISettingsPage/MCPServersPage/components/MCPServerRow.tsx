@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
 import { AUTH_TYPE_LABELS, AVAILABILITY_LABELS } from "./mcpServerFormLogic";
 

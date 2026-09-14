@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	CopyIcon,
@@ -26,8 +27,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import {
 	Tooltip,
 	TooltipContent,
@@ -46,7 +45,6 @@ import {
 	canShowPortForwarding,
 	usePortsData,
 } from "#/modules/resources/usePortsData";
-import { cn } from "#/utils/cn";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
@@ -335,11 +333,13 @@ const VSCodeMenuItem: FC<{
 			onSelect={handleClick}
 			disabled={isGeneratingKey || !isRunning}
 		>
-			{variant === "vscode" ? (
-				<VSCodeIcon className="size-3.5" />
-			) : (
-				<VSCodeInsidersIcon className="size-3.5" />
-			)}
+			<ExternalImage
+				src={
+					variant === "vscode" ? "/icon/code.svg" : "/icon/code-insiders.svg"
+				}
+				alt=""
+				className="size-3.5"
+			/>
 			{label}
 		</DropdownMenuItem>
 	);

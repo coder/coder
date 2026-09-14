@@ -3,7 +3,6 @@ package metricscache_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -308,28 +307,16 @@ func TestCache_DeploymentStats(t *testing.T) {
 		DeploymentStats: time.Minute,
 	}, false)
 
-	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
-		ID:                 []uuid.UUID{uuid.New()},
-		CreatedAt:          []time.Time{clock.Now()},
-		WorkspaceID:        []uuid.UUID{uuid.New()},
-		UserID:             []uuid.UUID{uuid.New()},
-		TemplateID:         []uuid.UUID{uuid.New()},
-		AgentID:            []uuid.UUID{uuid.New()},
-		ConnectionsByProto: json.RawMessage(`[{}]`),
-
-		RxPackets:                   []int64{0},
-		RxBytes:                     []int64{1},
-		TxPackets:                   []int64{0},
-		TxBytes:                     []int64{1},
-		ConnectionCount:             []int64{1},
-		SessionCountVSCode:          []int64{1},
-		SessionCountJetBrains:       []int64{0},
-		SessionCountReconnectingPTY: []int64{0},
-		SessionCountSSH:             []int64{0},
-		ConnectionMedianLatencyMS:   []float64{10},
-		Usage:                       []bool{false},
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 clock.Now(),
+		RxBytes:                   1,
+		TxBytes:                   1,
+		ConnectionCount:           1,
+		ConnectionMedianLatencyMS: 10,
+		// Names from the same family, one of them an alias, so the fixed
+		// deployment stats fields cover the app name folding.
+		SessionCounts: dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "cursor": 2, "zed": 3}),
 	})
-	require.NoError(t, err)
 
 	// Wait for both ticker functions to be created (template build times and deployment stats)
 	tickerTrap.MustWait(ctx).MustRelease(ctx)
@@ -339,5 +326,6 @@ func TestCache_DeploymentStats(t *testing.T) {
 
 	stat, ok := cache.DeploymentStats()
 	require.True(t, ok, "cache should be populated after refresh")
-	require.Equal(t, int64(1), stat.SessionCount.VSCode)
+	require.Equal(t, int64(3), stat.SessionCount.VSCode)
+	require.Equal(t, int64(3), stat.SessionCount.SSH)
 }

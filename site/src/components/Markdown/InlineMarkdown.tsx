@@ -46,7 +46,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 			]}
 			unwrapDisallowed
 			components={{
-				p: ({ children }) => <>{children}</>,
+				p: ({ children }) => children,
 
 				a: ({ href, children }) => {
 					const isExternal = href?.startsWith("http");

@@ -246,6 +246,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/users/email": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user email",
+                "operationId": "update-user-email-experimental",
+                "parameters": [
+                    {
+                        "description": "Update email request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -3885,6 +3921,31 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/deployment/user-secrets/capabilities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get user secrets capabilities",
+                "operationId": "get-user-secrets-capabilities",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSecretsCapabilities"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/derp-map": {
             "get": {
                 "tags": [
@@ -5781,6 +5842,12 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecretFull"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Public clients cannot have secrets",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -13242,6 +13309,18 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -13433,6 +13512,18 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -15509,7 +15600,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
                         "name": "q",
                         "in": "query"
                     },
@@ -16501,15 +16592,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -16528,11 +16617,42 @@ const docTemplate = `{
                         "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "Returns HTML authorization page"
+                    },
+                    "302": {
+                        "description": "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
+                    },
+                    "500": {
+                        "description": "HTML error page. The app's registered callback URL is not usable"
                     }
                 },
                 "security": [
@@ -16542,6 +16662,9 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -16557,15 +16680,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -16584,11 +16705,45 @@ const docTemplate = `{
                         "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "302": {
-                        "description": "Returns redirect with authorization code"
+                        "description": "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "500": {
+                        "description": "The app's registered callback URL is not usable",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 },
                 "security": [
@@ -16841,7 +16996,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/oauth2.Token"
+                            "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
                         }
                     },
                     "413": {
@@ -17319,65 +17474,15 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeAnthropicConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeBedrockConfig": {
-            "type": "object",
-            "properties": {
-                "access_key": {
-                    "type": "string"
-                },
-                "access_key_secret": {
-                    "type": "string"
-                },
-                "base_url": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "region": {
-                    "type": "string"
-                },
-                "small_fast_model": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
                 "allow_byok": {
                     "type": "boolean"
                 },
-                "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
-                        }
-                    ]
-                },
                 "api_dump_dir": {
                     "description": "APIDumpDir is the base directory under which each provider's\nrequest/response dumps are written, in a subdirectory named after\nthe provider. Empty disables dumping.",
                     "type": "string"
-                },
-                "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
-                        }
-                    ]
                 },
                 "budget_period": {
                     "type": "string"
@@ -17412,21 +17517,6 @@ const docTemplate = `{
                 "max_concurrency": {
                     "type": "integer"
                 },
-                "openai": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
-                        }
-                    ]
-                },
-                "providers": {
-                    "description": "Providers holds provider instances populated from ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e` + "`" + `\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIProviderConfig"
-                    }
-                },
                 "rate_limit": {
                     "type": "integer"
                 },
@@ -17459,17 +17549,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeOpenAIConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "type": "string"
-                },
-                "key": {
                     "type": "string"
                 }
             }
@@ -17990,32 +18069,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                }
-            }
-        },
-        "codersdk.AIProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL of the upstream provider API.",
-                    "type": "string"
-                },
-                "bedrock_model": {
-                    "type": "string"
-                },
-                "bedrock_region": {
-                    "type": "string"
-                },
-                "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
-                    "type": "string"
                 }
             }
         },
@@ -18909,6 +18962,9 @@ const docTemplate = `{
                 "application_name": {
                     "type": "string"
                 },
+                "codernauts_enabled": {
+                    "type": "boolean"
+                },
                 "docs_url": {
                     "type": "string"
                 },
@@ -19267,6 +19323,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "oauth2_provider": {
+                    "description": "OAuth2Provider reports whether the OAuth 2.1 authorization server is\nenabled. The dashboard uses it to show or hide OAuth2 navigation.",
+                    "type": "boolean"
+                },
                 "provisioner_api_version": {
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
@@ -19303,10 +19363,7 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_auto_pause",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -19317,10 +19374,7 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection",
-                "BuildReasonTaskAutoPause",
-                "BuildReasonTaskManualPause",
-                "BuildReasonTaskResume"
+                "BuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -22443,18 +22497,14 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
                 "CreateWorkspaceBuildReasonCLI",
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
-                "CreateWorkspaceBuildReasonJetbrainsConnection",
-                "CreateWorkspaceBuildReasonTaskManualPause",
-                "CreateWorkspaceBuildReasonTaskResume"
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -22496,8 +22546,7 @@ const docTemplate = `{
                         "cli",
                         "ssh_connection",
                         "vscode_connection",
-                        "jetbrains_connection",
-                        "task_manual_pause"
+                        "jetbrains_connection"
                     ],
                     "allOf": [
                         {
@@ -22945,6 +22994,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_user_secret_file_path": {
+                    "type": "boolean"
+                },
                 "disable_workspace_agent_context_sync": {
                     "type": "boolean"
                 },
@@ -22953,9 +23005,6 @@ const docTemplate = `{
                 },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
-                },
-                "enable_ai_tasks": {
-                    "type": "boolean"
                 },
                 "enable_authz_recording": {
                     "type": "boolean"
@@ -25172,6 +25221,9 @@ const docTemplate = `{
             "properties": {
                 "github": {
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.OAuth2ProviderConfig"
                 }
             }
         },
@@ -25348,6 +25400,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2ProviderConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.OAuth2ProviderGrantType": {
             "type": "string",
             "enum": [
@@ -25395,6 +25455,42 @@ const docTemplate = `{
                 "OAuth2TokenEndpointAuthMethodClientSecretBasic",
                 "OAuth2TokenEndpointAuthMethodClientSecretPost",
                 "OAuth2TokenEndpointAuthMethodNone"
+            ]
+        },
+        "codersdk.OAuth2TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "expiry": {
+                    "description": "Expiry is not part of RFC 6749 but is included for compatibility with\ngolang.org/x/oauth2.Token and clients that expect a timestamp.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "$ref": "#/definitions/codersdk.OAuth2TokenType"
+                }
+            }
+        },
+        "codersdk.OAuth2TokenType": {
+            "type": "string",
+            "enum": [
+                "Bearer",
+                "DPoP"
+            ],
+            "x-enum-varnames": [
+                "OAuth2TokenTypeBearer",
+                "OAuth2TokenTypeDPoP"
             ]
         },
         "codersdk.OAuthConversionResponse": {
@@ -26508,6 +26604,10 @@ const docTemplate = `{
                 "daemons": {
                     "description": "Daemons is the number of built-in terraform provisioners.",
                     "type": "integer"
+                },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the reuse of Terraform modules cached at\ntemplate import for every template in the deployment. Templates cannot\nopt back in.",
+                    "type": "boolean"
                 },
                 "force_cancel_interval": {
                     "type": "integer"
@@ -27887,7 +27987,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning.",
+                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning for this template. It is read-only while\nModuleCacheDisabledByDeployment is true.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -27906,6 +28006,10 @@ const docTemplate = `{
                 },
                 "max_port_share_level": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
+                "module_cache_disabled_by_deployment": {
+                    "description": "ModuleCacheDisabledByDeployment reports that the deployment disables the\nTerraform module cache for every template. Templates cannot opt back in,\nso the effective state is disabled regardless of DisableModuleCache.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -28075,6 +28179,12 @@ const docTemplate = `{
         "codersdk.TemplateBuilderBase": {
             "type": "object",
             "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderBaseAgent"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -28101,6 +28211,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateBuilderBaseAgent": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "description": "Default reports whether modules attach to this agent when they do not\nname one.",
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateBuilderBasesResponse": {
             "type": "object",
             "properties": {
@@ -28115,6 +28240,10 @@ const docTemplate = `{
         "codersdk.TemplateBuilderComposeModule": {
             "type": "object",
             "properties": {
+                "agent_name": {
+                    "description": "AgentName targets a base coder_agent by name. Empty uses the base default.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -28200,6 +28329,11 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "session_id": {
+                    "description": "SessionID is the wizard session this request belongs to, as reported to\nPOST /api/v2/templatebuilder/sessions. It is optional and used only to\nattribute a build failure to the session that produced it.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -29073,6 +29207,9 @@ const docTemplate = `{
                 "application_name": {
                     "type": "string"
                 },
+                "codernauts_enabled": {
+                    "type": "boolean"
+                },
                 "logo_url": {
                     "type": "string"
                 },
@@ -29512,7 +29649,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is recommended not to disable this.",
+                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is ignored while the deployment disables the module\ncache for all templates. It is recommended not to disable this.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -29641,6 +29778,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserEmailRequest": {
+            "type": "object",
+            "required": [
+                "new_email",
+                "old_email"
+            ],
+            "properties": {
+                "new_email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "old_email": {
+                    "type": "string",
+                    "format": "email"
+                }
+            }
+        },
         "codersdk.UpdateUserNotificationPreferences": {
             "type": "object",
             "properties": {
@@ -29677,9 +29831,6 @@ const docTemplate = `{
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
-                },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
                 },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
@@ -30367,9 +30518,6 @@ const docTemplate = `{
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
-                },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
@@ -30445,6 +30593,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UserSecretsCapabilities": {
+            "type": "object",
+            "properties": {
+                "file_path_delivery_enabled": {
+                    "description": "FilePathDeliveryEnabled reports whether Coder writes stored file paths\ninto workspaces. Stored paths are preserved either way.",
+                    "type": "boolean"
                 }
             }
         },
@@ -30693,10 +30850,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.SharedWorkspaceActor"
                     }
-                },
-                "task_id": {
-                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
-                    "type": "string"
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -31651,10 +31804,6 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "has_ai_task": {
-                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
-                    "type": "boolean"
                 },
                 "has_external_agent": {
                     "type": "boolean"
@@ -32933,31 +33082,6 @@ const docTemplate = `{
                 },
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
-                    "type": "string"
-                }
-            }
-        },
-        "oauth2.Token": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
-                    "type": "string"
-                },
-                "expires_in": {
-                    "description": "ExpiresIn is the OAuth2 wire format \"expires_in\" field,\nwhich specifies how many seconds later the token expires,\nrelative to an unknown time base approximately around \"now\".\nIt is the application's responsibility to populate\n` + "`" + `Expiry` + "`" + ` from ` + "`" + `ExpiresIn` + "`" + ` when required.",
-                    "type": "integer"
-                },
-                "expiry": {
-                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, [TokenSource] implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "description": "RefreshToken is a token that's used by the application\n(as opposed to the user) to refresh the access token\nif it expires.",
-                    "type": "string"
-                },
-                "token_type": {
-                    "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
                     "type": "string"
                 }
             }

@@ -42,5 +42,5 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 		);
 	}
 
-	return <>{children}</>;
+	return children;
 };

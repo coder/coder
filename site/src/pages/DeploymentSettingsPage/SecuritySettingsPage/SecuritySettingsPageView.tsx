@@ -1,10 +1,7 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import {
-	Badges,
-	DisabledBadge,
-	EnabledBadge,
-} from "#/components/Badges/Badges";
+import { BadgeGroup } from "#/components/Badge/Badge";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -68,9 +65,9 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 						className="items-center"
 					>
 						Browser-Only Connections{" "}
-						<Badges>
+						<BadgeGroup>
 							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-						</Badges>
+						</BadgeGroup>
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Block all workspace access via SSH, port forward, and other

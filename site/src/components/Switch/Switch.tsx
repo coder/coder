@@ -3,8 +3,8 @@
  * @see {@link https://ui.shadcn.com/docs/components/switch}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Switch as SwitchPrimitives } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 const switchVariants = cva(
 	`peer inline-flex shrink-0 cursor-pointer items-center rounded-full shadow-xs transition-colors

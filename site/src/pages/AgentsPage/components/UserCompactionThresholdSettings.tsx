@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
@@ -28,9 +29,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
-import { cn } from "#/utils/cn";
-import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
 
 interface UserCompactionThresholdSettingsProps {
 	models: readonly TypesGen.ChatModel[];
@@ -371,7 +371,12 @@ export const UserCompactionThresholdSettings: FC<
 												className="w-fit"
 												aria-label={`${providerLabel} ${modelName} in ${organizationName}`}
 											>
-												<ProviderIcon provider={provider} className="size-4" />
+												<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-surface-secondary">
+													<ProviderIcon
+														provider={provider}
+														className="size-3/5 text-content-secondary"
+													/>
+												</span>
 												{modelName}
 											</Badge>
 											{rowError && (

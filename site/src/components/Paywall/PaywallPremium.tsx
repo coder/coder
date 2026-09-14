@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
-import { cn } from "#/utils/cn";
 import {
 	PaywallCTALink,
 	PaywallFeature,

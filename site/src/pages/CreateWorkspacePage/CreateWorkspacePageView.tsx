@@ -15,7 +15,7 @@ import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { WorkspaceUserAutocomplete } from "#/components/Autocomplete/WorkspaceUserAutocomplete";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -466,6 +466,41 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
+
+					{template.use_classic_parameter_flow && (
+						<Alert
+							severity="warning"
+							prominent
+							actions={
+								canUpdateTemplate && (
+									<Button asChild size="sm">
+										<RouterLink
+											to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+										>
+											Open template settings
+										</RouterLink>
+									</Button>
+								)
+							}
+						>
+							<AlertTitle>This template uses deprecated parameters</AlertTitle>
+							<AlertDescription>
+								Some features like real-time validation and conditional
+								parameters won&apos;t work here until the template is switched
+								to dynamic parameters.{" "}
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									View docs
+									<span className="sr-only"> (opens in new tab)</span>
+								</Link>
+							</AlertDescription>
+						</Alert>
+					)}
 
 					{urlPresetError && (
 						<Alert severity="warning" dismissible>

@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 import { Button } from "#/components/Button/Button";
 import { useClickable } from "#/hooks/useClickable";
-import { cn } from "#/utils/cn";
 import { Spinner } from "../Spinner/Spinner";
 
 interface FileUploadProps {

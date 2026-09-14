@@ -5,6 +5,7 @@ package dbmetrics
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"time"
 
@@ -312,6 +313,14 @@ func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearChatDiffStatusPRParams) error {
+	start := time.Now()
+	r0 := m.s.ClearChatDiffStatusPR(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClearChatDiffStatusPR").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatDiffStatusPR").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
@@ -440,6 +449,14 @@ func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) erro
 	return r0
 }
 
+func (m queryMetricsStore) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (database.APIKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteAPIKeyByIDReturningRow(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAPIKeyByIDReturningRow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAPIKeyByIDReturningRow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAPIKeysByUserID(ctx, userID)
@@ -494,14 +511,6 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	m.queryLatencies.WithLabelValues("DeleteApplicationConnectAPIKeysByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteApplicationConnectAPIKeysByUserID").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg database.DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.DeleteCachedModuleFilesCreatedBetween(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteCachedModuleFilesCreatedBetween").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteCachedModuleFilesCreatedBetween").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
@@ -664,12 +673,12 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppByID(ctx context.Context, id u
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	start := time.Now()
-	r0 := m.s.DeleteOAuth2ProviderAppCodeByID(ctx, id)
+	r0, r1 := m.s.DeleteOAuth2ProviderAppCodeByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderAppCodeByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOAuth2ProviderAppCodeByID").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {
@@ -869,14 +878,6 @@ func (m queryMetricsStore) DeleteTailnetTunnel(ctx context.Context, arg database
 	r0, r1 := m.s.DeleteTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetTunnel").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteTailnetTunnel").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.DeleteTask(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteTask").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteTask").Inc()
 	return r0, r1
 }
 
@@ -1920,6 +1921,14 @@ func (m queryMetricsStore) GetChildChatsByParentIDs(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCodernautsEnabled(ctx)
+	m.queryLatencies.WithLabelValues("GetCodernautsEnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCodernautsEnabled").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
@@ -2008,17 +2017,17 @@ func (m queryMetricsStore) GetDeploymentID(ctx context.Context) (string, error) 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
+func (m queryMetricsStore) GetDeploymentWorkspaceAgentStats(ctx context.Context, arg time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetDeploymentWorkspaceAgentStats(ctx, createdAt)
+	r0, r1 := m.s.GetDeploymentWorkspaceAgentStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceAgentStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentWorkspaceAgentStats").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+func (m queryMetricsStore) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, arg time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetDeploymentWorkspaceAgentUsageStats(ctx, createdAt)
+	r0, r1 := m.s.GetDeploymentWorkspaceAgentUsageStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentWorkspaceAgentUsageStats").Inc()
 	return r0, r1
@@ -2960,38 +2969,6 @@ func (m queryMetricsStore) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTaskByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTaskByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetTaskByOwnerIDAndNameParams) (database.Task, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTaskByOwnerIDAndName(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetTaskByOwnerIDAndName").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskByOwnerIDAndName").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTaskByWorkspaceID(ctx, workspaceID)
-	m.queryLatencies.WithLabelValues("GetTaskByWorkspaceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskByWorkspaceID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTaskSnapshot(ctx, taskID)
-	m.queryLatencies.WithLabelValues("GetTaskSnapshot").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskSnapshot").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTelemetryItem(ctx, key)
@@ -3005,14 +2982,6 @@ func (m queryMetricsStore) GetTelemetryItems(ctx context.Context) ([]database.Te
 	r0, r1 := m.s.GetTelemetryItems(ctx)
 	m.queryLatencies.WithLabelValues("GetTelemetryItems").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTelemetryItems").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetTelemetryTaskEvents(ctx context.Context, createdAfter database.GetTelemetryTaskEventsParams) ([]database.GetTelemetryTaskEventsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTelemetryTaskEvents(ctx, createdAfter)
-	m.queryLatencies.WithLabelValues("GetTelemetryTaskEvents").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTelemetryTaskEvents").Inc()
 	return r0, r1
 }
 
@@ -3456,6 +3425,14 @@ func (m queryMetricsStore) GetUserSecretByUserIDAndName(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg database.GetUserSecretByUserIDAndNameForUpdateParams) (database.UserSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserSecretByUserIDAndNameForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSecretByUserIDAndNameForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserSecretsTelemetrySummary(ctx context.Context) (database.GetUserSecretsTelemetrySummaryRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSecretsTelemetrySummary(ctx)
@@ -3485,14 +3462,6 @@ func (m queryMetricsStore) GetUserStatusCounts(ctx context.Context, arg database
 	r0, r1 := m.s.GetUserStatusCounts(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserStatusCounts").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserStatusCounts").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserTaskNotificationAlertDismissed(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserTaskNotificationAlertDismissed").Inc()
 	return r0, r1
 }
 
@@ -3632,33 +3601,33 @@ func (m queryMetricsStore) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Contex
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
+func (m queryMetricsStore) GetWorkspaceAgentStats(ctx context.Context, arg time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentStats(ctx, createdAt)
+	r0, r1 := m.s.GetWorkspaceAgentStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentStats").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+func (m queryMetricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, arg time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentStatsAndLabels(ctx, createdAt)
+	r0, r1 := m.s.GetWorkspaceAgentStatsAndLabels(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStatsAndLabels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentStatsAndLabels").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
+func (m queryMetricsStore) GetWorkspaceAgentUsageStats(ctx context.Context, arg time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentUsageStats(ctx, createdAt)
+	r0, r1 := m.s.GetWorkspaceAgentUsageStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentUsageStats").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+func (m queryMetricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, arg time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
+	r0, r1 := m.s.GetWorkspaceAgentUsageStatsAndLabels(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStatsAndLabels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentUsageStatsAndLabels").Inc()
 	return r0, r1
@@ -4472,14 +4441,6 @@ func (m queryMetricsStore) InsertReplica(ctx context.Context, arg database.Inser
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertTask(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertTask").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTask").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertTelemetryItemIfNotExists(ctx, arg)
@@ -4880,14 +4841,6 @@ func (m queryMetricsStore) ListProvisionerKeysByOrganizationExcludeReserved(ctx 
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListTasks(ctx context.Context, arg database.ListTasksParams) ([]database.Task, error) {
-	start := time.Now()
-	r0, r1 := m.s.ListTasks(ctx, arg)
-	m.queryLatencies.WithLabelValues("ListTasks").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListTasks").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg database.ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListUsageEventCreatedAtsByTypeSince(ctx, arg)
@@ -5158,6 +5111,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentsByWorkspaceID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.SyncAgentChatsContextMCPResources(ctx, agentID)
+	m.queryLatencies.WithLabelValues("SyncAgentChatsContextMCPResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextMCPResources").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
@@ -5696,22 +5657,6 @@ func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Cont
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateTaskPrompt(ctx context.Context, arg database.UpdateTaskPromptParams) (database.TaskTable, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateTaskPrompt(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTaskPrompt").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTaskPrompt").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateTaskWorkspaceID(ctx context.Context, arg database.UpdateTaskWorkspaceIDParams) (database.TaskTable, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateTaskWorkspaceID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTaskWorkspaceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTaskWorkspaceID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateTemplateACLByID(ctx, arg)
@@ -5856,6 +5801,14 @@ func (m queryMetricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UU
 	return r0
 }
 
+func (m queryMetricsStore) UpdateUserEmail(ctx context.Context, arg database.UpdateUserEmailParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserEmail(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserEmail").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserEmail").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateUserGithubComUserID(ctx context.Context, arg database.UpdateUserGithubComUserIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateUserGithubComUserID(ctx, arg)
@@ -5973,14 +5926,6 @@ func (m queryMetricsStore) UpdateUserStatus(ctx context.Context, arg database.Up
 	r0, r1 := m.s.UpdateUserStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserStatus").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateUserTaskNotificationAlertDismissed(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserTaskNotificationAlertDismissed").Inc()
 	return r0, r1
 }
 
@@ -6456,6 +6401,14 @@ func (m queryMetricsStore) UpsertChatWorkspaceTTL(ctx context.Context, workspace
 	return r0
 }
 
+func (m queryMetricsStore) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	start := time.Now()
+	r0 := m.s.UpsertCodernautsEnabled(ctx, enabled)
+	m.queryLatencies.WithLabelValues("UpsertCodernautsEnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertCodernautsEnabled").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertDefaultProxy(ctx, arg)
@@ -6584,22 +6537,6 @@ func (m queryMetricsStore) UpsertTailnetTunnel(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpsertTaskSnapshot(ctx context.Context, arg database.UpsertTaskSnapshotParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertTaskSnapshot(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertTaskSnapshot").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertTaskSnapshot").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertTaskWorkspaceApp(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertTaskWorkspaceApp").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertTaskWorkspaceApp").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertTelemetryItem(ctx, arg)
@@ -6608,9 +6545,9 @@ func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database
 	return r0
 }
 
-func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
+func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context, arg json.RawMessage) error {
 	start := time.Now()
-	r0 := m.s.UpsertTemplateUsageStats(ctx)
+	r0 := m.s.UpsertTemplateUsageStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertTemplateUsageStats").Inc()
 	return r0

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { BanIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
@@ -9,7 +10,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 type TotalAgentHoursCardProps = {
 	feature?: Feature;

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	MockAuditorRole,
 	MockGroup,
@@ -18,7 +19,10 @@ const mockGroupsByUserId = new Map([
 const meta: Meta<typeof UsersTable> = {
 	title: "pages/UsersPage/UsersTable",
 	component: UsersTable,
-	args: {},
+	args: {
+		me: MockUserOwner.id,
+		onAction: fn(),
+	},
 };
 
 export default meta;
@@ -30,6 +34,14 @@ export const Example: Story = {
 		canEditUsers: false,
 		groupsByUserId: mockGroupsByUserId,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("table", { name: "Users" })).toBeVisible();
+		await expect(canvas.getByText(MockUserOwner.username)).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /open menu/i }),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const Editable: Story = {
@@ -39,6 +51,7 @@ export const Editable: Story = {
 			MockUserMember,
 			{
 				...MockUserOwner,
+				id: "john-doe",
 				username: "John Doe",
 				email: "john.doe@coder.com",
 				roles: [
@@ -51,6 +64,7 @@ export const Editable: Story = {
 			},
 			{
 				...MockUserOwner,
+				id: "roger-moore",
 				username: "Roger Moore",
 				email: "roger.moore@coder.com",
 				roles: [],
@@ -58,6 +72,7 @@ export const Editable: Story = {
 			},
 			{
 				...MockUserOwner,
+				id: "oidc-user",
 				username: "OIDC User",
 				email: "oidc.user@coder.com",
 				roles: [],
@@ -68,6 +83,18 @@ export const Editable: Story = {
 		canEditUsers: true,
 		canViewActivity: true,
 		groupsByUserId: mockGroupsByUserId,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const ownerRow = canvas.getByRole("row", {
+			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
+		});
+		await userEvent.click(
+			within(ownerRow).getByRole("button", { name: /open menu/i }),
+		);
+		const menu = within(document.body);
+		await menu.findByRole("menuitem", { name: "Edit" });
+		await menu.findByRole("menuitem", { name: "Edit roles" });
 	},
 };
 

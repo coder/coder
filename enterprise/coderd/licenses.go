@@ -173,6 +173,7 @@ func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 	rawLicense, err := api.trialer.Request(ctx, codersdk.LicensorTrialRequest{
 		DeploymentID: api.AGPL.DeploymentID,
 		Email:        req.Email,
+		Source:       codersdk.LicensorTrialSourceProduct,
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
 		PhoneNumber:  req.PhoneNumber,

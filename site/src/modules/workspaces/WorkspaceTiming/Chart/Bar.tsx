@@ -1,4 +1,4 @@
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 export type BarColors = {
 	stroke: string;
 	fill: string;

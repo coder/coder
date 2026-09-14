@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
@@ -14,7 +15,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];

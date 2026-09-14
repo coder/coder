@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { TriangleAlertIcon } from "lucide-react";
 import { Label, Slot } from "radix-ui";
 import {
@@ -24,7 +25,6 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
-import { cn } from "#/utils/cn";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,

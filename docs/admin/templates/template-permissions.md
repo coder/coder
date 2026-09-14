@@ -1,4 +1,6 @@
-# Permissions
+---
+title: Permissions
+---
 
 > [!NOTE]
 > Template permissions are a Premium feature.

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ListFilterIcon, SearchIcon, XIcon } from "lucide-react";
 import type {
 	ChangeEventHandler,
@@ -5,7 +6,6 @@ import type {
 	KeyboardEventHandler,
 	RefObject,
 } from "react";
-import { cn } from "#/utils/cn";
 
 export type SearchFilter = {
 	readonly key: string;

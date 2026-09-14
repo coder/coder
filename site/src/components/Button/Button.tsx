@@ -3,8 +3,8 @@
  * @see {@link https://ui.shadcn.com/docs/components/button}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Slot } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 // Be careful when changing the child styles from the button such as images
 // because they can override the styles from other components like Avatar.

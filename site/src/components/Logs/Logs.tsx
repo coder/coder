@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
 import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;

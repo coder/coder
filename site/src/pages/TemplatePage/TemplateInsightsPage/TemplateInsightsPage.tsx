@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleCheckIcon,
 	CircleXIcon,
@@ -28,10 +29,6 @@ import type {
 	UserActivityInsightsResponse,
 	UserLatencyInsightsResponse,
 } from "#/api/typesGenerated";
-import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DateRangePicker as DailyPicker,
@@ -55,8 +52,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
-
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {
 	addTime,
@@ -66,6 +61,7 @@ import {
 	subtractTime,
 } from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
+import { ActiveUserChart } from "./ActiveUserChart";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
@@ -285,8 +281,22 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
-				<PanelTitle>
-					<ActiveUsersTitle interval={interval} />
+				<PanelTitle className="flex items-center gap-2">
+					{interval === "day" ? "Daily" : "Weekly"} Active Users
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>
+								How do we calculate active users?
+							</HelpPopoverTitle>
+							<HelpPopoverText>
+								When a connection is initiated to a user&apos;s workspace they
+								are considered an active user. e.g. apps, web terminal, SSH.
+								This is for measuring user activity and has no connection to
+								license consumption.
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data}>
@@ -432,57 +442,55 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={validUsage}>
-				{
-					<div className="flex flex-col gap-6">
-						{(validUsage || []).map((usage, i) => {
-							const percentage = (usage.seconds / totalInSeconds) * 100;
-							const colorStop =
-								usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
-							return (
-								<div key={usage.slug} className="flex items-center gap-6">
-									<div className="flex items-center gap-2">
-										<div className="flex justify-center items-center size-5">
-											<ExternalImage
-												src={usage.icon}
-												alt=""
-												className="h-full w-full object-contain"
-											/>
-										</div>
-										<div className="text-sm font-medium w-[200px]">
-											{usage.display_name}
-										</div>
+				<div className="flex flex-col gap-6">
+					{(validUsage || []).map((usage, i) => {
+						const percentage = (usage.seconds / totalInSeconds) * 100;
+						const colorStop =
+							usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
+						return (
+							<div key={usage.slug} className="flex items-center gap-6">
+								<div className="flex items-center gap-2">
+									<div className="flex justify-center items-center size-5">
+										<ExternalImage
+											src={usage.icon}
+											alt=""
+											className="h-full w-full object-contain"
+										/>
 									</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
-												<div
-													className="absolute inset-y-0 left-0 rounded-full"
-													style={{
-														width: `${percentage}%`,
-														backgroundColor: `color-mix(in lch, var(--color-content-success), var(--color-content-warning) ${colorStop}%)`,
-													}}
-												/>
-											</div>
-										</TooltipTrigger>
-										<TooltipContent>
-											{Math.floor(percentage)}%
-											<TooltipArrow className="fill-border" />
-										</TooltipContent>
-									</Tooltip>
-									<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
-										{formatTime(usage.seconds)}
-										{usage.times_used > 0 && (
-											<span className="text-[12px] text-content-disabled">
-												Opened {usage.times_used.toLocaleString()}{" "}
-												{usage.times_used === 1 ? "time" : "times"}
-											</span>
-										)}
+									<div className="text-sm font-medium w-[200px]">
+										{usage.display_name}
 									</div>
 								</div>
-							);
-						})}
-					</div>
-				}
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
+											<div
+												className="absolute inset-y-0 left-0 rounded-full"
+												style={{
+													width: `${percentage}%`,
+													backgroundColor: `color-mix(in lch, var(--color-content-success), var(--color-content-warning) ${colorStop}%)`,
+												}}
+											/>
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										{Math.floor(percentage)}%
+										<TooltipArrow className="fill-border" />
+									</TooltipContent>
+								</Tooltip>
+								<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
+									{formatTime(usage.seconds)}
+									{usage.times_used > 0 && (
+										<span className="text-[12px] text-content-disabled">
+											Opened {usage.times_used.toLocaleString()}{" "}
+											{usage.times_used === 1 ? "time" : "times"}
+										</span>
+									)}
+								</div>
+							</div>
+						);
+					})}
+				</div>
 			</PanelContent>
 		</Panel>
 	);

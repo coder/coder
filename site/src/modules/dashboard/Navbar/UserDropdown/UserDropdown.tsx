@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC, JSX } from "react";
 import { useQuery } from "react-query";
@@ -12,7 +13,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
-import { cn } from "#/utils/cn";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
@@ -37,6 +37,7 @@ interface UserDropdownProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
+	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 	canViewLicenses: boolean;
 }
@@ -45,6 +46,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	buildInfo,
 	user,
 	supportLinks,
+	codernautsEnabled,
 	onSignOut,
 	canViewLicenses,
 }) => {
@@ -111,6 +113,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 						)
 					}
 					supportLinks={supportLinks}
+					codernautsEnabled={codernautsEnabled}
 					onSignOut={onSignOut}
 					trialCta={
 						<UserDropdownPremiumTrialCTA canViewLicenses={canViewLicenses} />

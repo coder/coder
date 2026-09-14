@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type React from "react";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
 
 type LinearProgressProps = React.ComponentProps<"div"> & {
 	value: number;

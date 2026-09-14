@@ -3,8 +3,11 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/modules/aiModels/ModelSelector";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
 

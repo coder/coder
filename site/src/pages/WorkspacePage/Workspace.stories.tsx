@@ -112,9 +112,9 @@ export const RunningWithChildAgent: Story = {
 export const RunningWithAppStatuses: Story = {
 	args: {
 		workspace: {
-			...Mocks.MockTaskWorkspace,
+			...Mocks.MockWorkspace,
 			latest_build: {
-				...Mocks.MockTaskWorkspace.latest_build,
+				...Mocks.MockWorkspace.latest_build,
 				resources: [
 					{
 						...Mocks.MockWorkspaceResource,

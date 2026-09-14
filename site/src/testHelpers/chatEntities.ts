@@ -2,6 +2,7 @@ import type {
 	Chat,
 	ChatContext,
 	ChatContextResource,
+	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
 	MCPServerConfig,
@@ -121,6 +122,16 @@ export const MockChatMessage: ChatMessage = {
 	created_at: MOCK_TIMESTAMP,
 	role: "user",
 	content: [{ type: "text", text: "Hello" }],
+};
+
+export const MockChatFileMetadata: ChatFileMetadata = {
+	id: "chat-file-1",
+	owner_id: MockUserOwner.id,
+	organization_id: "test-org-id",
+	name: "notes.txt",
+	mime_type: "text/plain",
+	size_bytes: 128,
+	created_at: MOCK_TIMESTAMP,
 };
 
 export const MockChatQueuedMessage: ChatQueuedMessage = {

@@ -42,7 +42,7 @@ func TestFormEndpointsBodyTooLarge(t *testing.T) {
 			name: "Tokens",
 			path: "/oauth2/tokens",
 			handler: func(db database.Store) http.Handler {
-				return oauth2provider.Tokens(db, codersdk.SessionLifetime{})
+				return oauth2provider.Tokens(db, codersdk.SessionLifetime{}, slogtest.Make(t, nil))
 			},
 		},
 		{

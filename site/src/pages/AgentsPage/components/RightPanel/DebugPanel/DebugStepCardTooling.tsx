@@ -1,7 +1,7 @@
+import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
-import { cn } from "#/utils/cn";
 import { CopyableCodeBlock, RoleBadge } from "./DebugPanelPrimitives";
 import {
 	clampContent,

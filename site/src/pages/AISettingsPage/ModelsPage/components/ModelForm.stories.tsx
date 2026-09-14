@@ -157,7 +157,10 @@ export const AddSetAsDefault: Story = {
 export const LeaveWithUnsavedChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		// Dirty the form through a plain input. The model identifier
+		// autocomplete only commits to Formik on blur, which races the
+		// leaving click and would skip the unsaved-changes blocker.
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);
@@ -514,9 +517,15 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Medium" }),
 		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Medium" })).toBeNull();
+		});
 
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Max" })).toBeNull();
+		});
 
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
@@ -544,6 +553,9 @@ export const ReasoningEffortValidationError: Story = {
 
 		await userEvent.click(defaultSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "High" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "High" })).toBeNull();
+		});
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 
@@ -577,11 +589,17 @@ export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
 		await userEvent.click(level);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 		await expect(budget).toBeDisabled();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Low" })).toBeNull();
+		});
 
 		await userEvent.click(level);
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Default" }),
 		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Default" })).toBeNull();
+		});
 		await expect(budget).toBeEnabled();
 
 		await userEvent.type(budget, "2048");

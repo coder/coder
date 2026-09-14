@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
@@ -9,7 +10,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 // Allocation sentinel for unlimited agent runtime hours

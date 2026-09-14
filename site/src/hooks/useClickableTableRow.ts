@@ -13,8 +13,9 @@
  * It might not make sense to test this hook until the underlying design
  * problems are fixed.
  */
+
+import { cn } from "cn";
 import type { HTMLAttributes, MouseEventHandler } from "react";
-import { cn } from "#/utils/cn";
 import {
 	type ClickableAriaRole,
 	type UseClickableResult,

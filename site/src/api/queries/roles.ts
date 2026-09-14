@@ -11,6 +11,9 @@ const getRoleQueryKey = (organizationId: string, roleName: string) => [
 
 export const rolesQueryKey = ["roles"];
 
+export const organizationRolesQueryKey = (organization: string) =>
+	["organization", organization, "roles"] as const;
+
 export const roles = () => {
 	return {
 		queryKey: rolesQueryKey,
@@ -20,9 +23,22 @@ export const roles = () => {
 
 export const organizationRoles = (organization: string) => {
 	return {
-		queryKey: ["organization", organization, "roles"],
+		queryKey: organizationRolesQueryKey(organization),
 		queryFn: () => API.getOrganizationRoles(organization),
 	};
+};
+
+const invalidateOrganizationRoles = async (
+	queryClient: QueryClient,
+	organization: string,
+	roleName: string,
+) => {
+	await queryClient.invalidateQueries({
+		queryKey: organizationRolesQueryKey(organization),
+	});
+	await queryClient.invalidateQueries({
+		queryKey: getRoleQueryKey(organization, roleName),
+	});
 };
 
 export const createOrganizationRole = (
@@ -33,9 +49,11 @@ export const createOrganizationRole = (
 		mutationFn: (request: Role) =>
 			API.createOrganizationRole(organization, request),
 		onSuccess: async (updatedRole: Role) =>
-			await queryClient.invalidateQueries({
-				queryKey: getRoleQueryKey(organization, updatedRole.name),
-			}),
+			await invalidateOrganizationRoles(
+				queryClient,
+				organization,
+				updatedRole.name,
+			),
 	};
 };
 
@@ -47,9 +65,11 @@ export const updateOrganizationRole = (
 		mutationFn: (request: Role) =>
 			API.updateOrganizationRole(organization, request),
 		onSuccess: async (updatedRole: Role) =>
-			await queryClient.invalidateQueries({
-				queryKey: getRoleQueryKey(organization, updatedRole.name),
-			}),
+			await invalidateOrganizationRoles(
+				queryClient,
+				organization,
+				updatedRole.name,
+			),
 	};
 };
 
@@ -61,8 +81,6 @@ export const deleteOrganizationRole = (
 		mutationFn: (roleName: string) =>
 			API.deleteOrganizationRole(organization, roleName),
 		onSuccess: async (_: unknown, roleName: string) =>
-			await queryClient.invalidateQueries({
-				queryKey: getRoleQueryKey(organization, roleName),
-			}),
+			await invalidateOrganizationRoles(queryClient, organization, roleName),
 	};
 };
