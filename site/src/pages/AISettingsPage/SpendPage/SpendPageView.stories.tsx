@@ -274,6 +274,15 @@ export const DrillInUserError: Story = {
 	},
 };
 
+export const DrillInUserRefetchError: Story = {
+	args: {
+		drillInUserId: MockAIGatewaySpendUser.id,
+		drillInUser: mockUserProfile,
+		drillInUserError: new Error("Profile refresh failed"),
+		summaryData: MockAIGatewaySpendUserSummary,
+	},
+};
+
 export const DrillInSummaryLoading: Story = {
 	args: {
 		drillInUserId: MockAIGatewaySpendUser.id,

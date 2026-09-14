@@ -3,6 +3,7 @@ import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
@@ -127,6 +128,16 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 	return (
 		<div className="space-y-6">
 			{header}
+			{error != null && (
+				<ErrorAlert
+					error={error}
+					actions={
+						<Button variant="outline" size="sm" type="button" onClick={onRetry}>
+							Retry
+						</Button>
+					}
+				/>
+			)}
 			<div className="flex items-center justify-between gap-4 rounded-lg bg-surface-secondary px-4 py-3">
 				<AvatarData
 					title={selectedUser.name || selectedUser.username}

@@ -113,15 +113,22 @@ it.each([
 	},
 );
 
-it("retries a failed user lookup", async () => {
-	const user = userEvent.setup();
-	const { props } = renderView({
-		drillInUserId: MockAIGatewaySpendUser.id,
-		drillInUserError: new Error("User not found"),
-	});
-	await user.click(screen.getByRole("button", { name: "Retry" }));
-	expect(props.onDrillInUserRetry).toHaveBeenCalledOnce();
-});
+it.each([
+	{ drillInUser: null, cached: false },
+	{ drillInUser: MockUserMember, cached: true },
+])(
+	"retries a failed user lookup with cached profile: $cached",
+	async ({ drillInUser }) => {
+		const user = userEvent.setup();
+		const { props } = renderView({
+			drillInUserId: MockAIGatewaySpendUser.id,
+			drillInUser,
+			drillInUserError: new Error("User not found"),
+		});
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(props.onDrillInUserRetry).toHaveBeenCalledOnce();
+	},
+);
 
 it("clears the selected user on Back", async () => {
 	const user = userEvent.setup();
