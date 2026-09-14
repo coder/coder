@@ -76,12 +76,11 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		queueNonEmpty bool
 		headHeld      bool
 	}{
-		// Legacy statuses (pending/paused/completed) are invalid for
-		// the new state machine.
+		// Legacy statuses (pending/completed) are invalid.
 		{name: "LegacyPending", status: "pending"},
 		{name: "LegacyCompleted", status: "completed"},
 
-		// Waiting never has rows; a held head does not change that.
+		// Waiting never has rows.
 		{name: "WaitingWithQueue", status: database.ChatStatusWaiting, queueNonEmpty: true},
 		{name: "WaitingWithHeldHead", status: database.ChatStatusWaiting, queueNonEmpty: true, headHeld: true},
 		{name: "WaitingArchivedWithQueue", status: database.ChatStatusWaiting, archived: true, queueNonEmpty: true},
