@@ -25,7 +25,8 @@ import (
 const (
 	scenarioEditingHead scenario = "editing_head"
 	scenarioMoveEdit    scenario = "move_edit"
-	scenarioRelease     scenario = "release"
+	scenarioEndEdit     scenario = "end_edit"
+	scenarioBehindEdit  scenario = "behind_edit"
 	scenarioRefused     scenario = "refused"
 )
 
@@ -131,6 +132,17 @@ func applyEditingEdit(idx int, editing bool) applierFn {
 	}
 }
 
+func applyPromoteQueuedMessageAt(idx int) applierFn {
+	return func(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+		t.Helper()
+		var err error
+		result.promoteQueuedMessage, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+			QueuedMessageID: seeded.queuedMessageIDs[idx],
+		})
+		return err
+	}
+}
+
 // editingCase is the shared shape of every editing case: seed, apply, then
 // check the remaining queue ids and which row is editing.
 func editingCase(tr chatstate.Transition, from, want chatstate.ExecutionState, sc scenario, seed func(*testing.T, *testFixture) seededChat, apply applierFn, wantQueue func(seeded seededChat) []int64, wantEditingIdx int) transitionCaseSpec {
@@ -158,6 +170,7 @@ func editingCase(tr chatstate.Transition, from, want chatstate.ExecutionState, s
 func allRows(s seededChat) []int64  { return s.queuedMessageIDs }
 func tailRows(s seededChat) []int64 { return append([]int64{}, s.queuedMessageIDs[1:]...) }
 func noRows(seededChat) []int64     { return []int64{} }
+func headOnly(s seededChat) []int64 { return s.queuedMessageIDs[:1] }
 
 // editingQueueMatrixCases enumerates every matrix cell that exists because
 // of queued-message edits.
@@ -172,30 +185,35 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		// Boundaries with a head under edit pause instead of promoting.
 		editingCase(chatstate.TransitionFinishTurn, chatstate.StateR1, chatstate.StateP, scenarioEditingHead, seedEditing(chatstate.StateR1, 0), applyFinishTurn, allRows, 0),
 		editingCase(chatstate.TransitionFinishInterruption, chatstate.StateI1, chatstate.StateP, scenarioEditingHead, seedEditing(chatstate.StateI1, 0), applyFinishInterruption, allRows, 0),
-		sendBehindEditingCase(chatstate.StateE1, seedEditing(chatstate.StateE1, 0)),
-		// P: a send queues behind the head under edit.
-		sendBehindEditingCase(chatstate.StateP, seedP(0)),
-		// P: content edit keeps the pause; releasing the head resumes.
+		// A send queues behind the head under edit whatever its busy behavior.
+		sendBehindEditingCase(chatstate.StateE1, seedEditing(chatstate.StateE1, 0), scenarioEditingHead, applySendMessageQueue),
+		sendBehindEditingCase(chatstate.StateE1, seedEditing(chatstate.StateE1, 0), scenarioInterrupt, applySendMessageInterrupt),
+		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioEditingHead, applySendMessageQueue),
+		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioInterrupt, applySendMessageInterrupt),
+		// P: content edit keeps the pause; ending the head's edit resumes.
 		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioEditingHead, seedP(0), applyContentEdit, allRows, 0),
-		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioRelease, seedP(0), applyEditingEdit(0, false), noRows, -1),
-		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioRelease, seedP(1), applyEditingEdit(0, false), tailRows, -1),
+		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEndEdit, seedP(0), applyEditingEdit(0, false), noRows, -1),
+		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEndEdit, seedP(1), applyEditingEdit(0, false), tailRows, -1),
 		// P: deleting the head resumes with the next row, or idles.
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateW, scenarioEditingHead, seedP(0), applyDeleteQueuedMessage, noRows, -1),
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEditingHead, seedP(1), applyDeleteQueuedMessage, noRows, -1),
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEditingHead, seedP(2), applyDeleteQueuedMessage,
 			func(s seededChat) []int64 { return append([]int64{}, s.queuedMessageIDs[2:]...) }, -1),
-		// P: send now on the head under edit, or on the row behind it.
+		// P: send now on the head under edit ends its edit and sends it; send
+		// now on the row behind it sends that row and leaves the head under edit.
 		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEditingHead, seedP(0), applyPromoteQueuedMessage, noRows, -1),
 		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEditingHead, seedP(1), applyPromoteQueuedMessage, tailRows, -1),
+		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioBehindEdit, seedP(1), applyPromoteQueuedMessageAt(1), headOnly, 0),
 		// P: a history edit clears the queue.
 		editingCase(chatstate.TransitionEditMessage, chatstate.StateP, chatstate.StateR0, scenarioEditingHead, seedP(1), applyEditMessage, noRows, -1),
 	}
-	// Edit on the states that have rows: re-begin the edit on the head;
-	// the state does not change.
+	// Busy states with rows: re-beginning the head's edit, moving the edit
+	// to another row, or ending it changes the marker but not the state.
 	for _, from := range []chatstate.ExecutionState{chatstate.StateE1, chatstate.StateR1, chatstate.StateI1, chatstate.StateA1} {
 		cases = append(cases,
 			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioEditingHead, seedEditing(from, 1), applyEditingEdit(0, true), allRows, 0),
 			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioMoveEdit, seedEditing(from, 1), applyEditingEdit(1, true), allRows, 1),
+			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioEndEdit, seedEditing(from, 1), applyEditingEdit(0, false), allRows, -1),
 		)
 	}
 	// P refuses to move the edit off its head.
@@ -214,16 +232,16 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 	return cases
 }
 
-// sendBehindEditingCase: a queued send lands behind the head under edit; the
+// sendBehindEditingCase: a send lands behind the head under edit; the
 // state does not change.
-func sendBehindEditingCase(from chatstate.ExecutionState, seed func(*testing.T, *testFixture) seededChat) transitionCaseSpec {
+func sendBehindEditingCase(from chatstate.ExecutionState, seed func(*testing.T, *testFixture) seededChat, sc scenario, apply applierFn) transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionSendMessage,
 		from:       from,
 		want:       from,
-		scenario:   scenarioEditingHead,
+		scenario:   sc,
 		seed:       func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat { return seed(t, f) },
-		apply:      applySendMessageQueue,
+		apply:      apply,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			require.NotNil(t, result.sendMessage.QueuedMessage)
 			require.Empty(t, result.sendMessage.InsertedMessages, "nothing is promoted past the head under edit")
