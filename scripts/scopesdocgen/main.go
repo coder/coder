@@ -9,6 +9,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -16,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
 	"github.com/coder/coder/v2/scripts/docgenenv"
 	"github.com/coder/flog"
@@ -26,20 +29,23 @@ import (
 // the single source of the title and description.
 var routeTitles = []string{"Reference", "API key scopes"}
 
+var exampleScopes = []rbac.ScopeName{
+	"coder:workspaces.access",
+	"template:read",
+}
+
 const intro = `A scope limits what an API key can do.
 A scoped key never exceeds the permissions of the user who created it: Coder checks the scope and the user's roles on every request, so a scope narrows access and never widens it.
 
 Pass ` + "`--scope`" + ` once per scope when you create a token:
 
-` + "```shell" + `
-coder tokens create --scope coder:workspaces.access --scope template:read
-` + "```" + `
+%s
 
 A token created without an explicit scope uses ` + "`coder:all`" + `, which grants the full permissions of its owner.
 To create and revoke tokens, refer to [Sessions & API Tokens](../admin/users/sessions-tokens.md).
 
 This page lists every scope a token can request.
-Coder rejects any other scope name as internal.
+Coder rejects any other scope name with a ` + "`400`" + ` response.
 
 `
 
@@ -70,10 +76,6 @@ const deprecatedSection = `## Deprecated scope names
 Coder still accepts the following names and stores each one as its canonical equivalent.
 Use the canonical name.
 
-| Deprecated name | Canonical name |
-|-----------------|----------------|
-| ` + "`all`" + ` | ` + "`coder:all`" + ` |
-| ` + "`application_connect`" + ` | ` + "`coder:application_connect`" + ` |
 `
 
 func main() {
@@ -107,7 +109,7 @@ func render(route docgenenv.Route) (string, error) {
 	// The front matter title renders as the page heading, so the body starts
 	// at the intro and its sections begin at level two.
 	_, _ = b.WriteString(docgenenv.GeneratedHeader(route))
-	_, _ = b.WriteString(intro)
+	_, _ = fmt.Fprintf(&b, intro, exampleCommand())
 
 	_, _ = b.WriteString(builtinSection)
 	if err := renderBuiltin(&b, builtin); err != nil {
@@ -120,9 +122,12 @@ func render(route docgenenv.Route) (string, error) {
 	}
 
 	_, _ = b.WriteString(lowLevelSection)
-	renderLowLevel(&b, lowLevel)
+	if err := renderLowLevel(&b, lowLevel); err != nil {
+		return "", err
+	}
 
 	_, _ = b.WriteString(deprecatedSection)
+	renderDeprecatedAliases(&b, rbac.ScopeAliases())
 
 	return strings.TrimRight(b.String(), "\n") + "\n", nil
 }
@@ -173,7 +178,7 @@ func renderComposite(b *strings.Builder, names []string) error {
 
 		_, _ = fmt.Fprintf(b, "### `%s`\n\n", name)
 		_, _ = b.WriteString("| Resource | Actions |\n|----------|---------|\n")
-		for _, resource := range sortedKeys(byResource) {
+		for _, resource := range slices.Sorted(maps.Keys(byResource)) {
 			actions := byResource[resource]
 			sort.Strings(actions)
 			_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", resource, codeList(actions))
@@ -183,7 +188,7 @@ func renderComposite(b *strings.Builder, names []string) error {
 	return nil
 }
 
-func renderLowLevel(b *strings.Builder, names []string) {
+func renderLowLevel(b *strings.Builder, names []string) error {
 	byResource := map[string][]string{}
 	for _, name := range names {
 		resource, _, ok := rbac.ParseResourceAction(name)
@@ -193,36 +198,41 @@ func renderLowLevel(b *strings.Builder, names []string) {
 		byResource[resource] = append(byResource[resource], name)
 	}
 
-	for _, resource := range sortedKeys(byResource) {
+	for _, resource := range slices.Sorted(maps.Keys(byResource)) {
 		_, _ = fmt.Fprintf(b, "### `%s`\n\n", resource)
-		_, _ = b.WriteString("| Scope | Allows |\n|-------|--------|\n")
+		_, _ = b.WriteString("| Scope | Description |\n|-------|-------------|\n")
 
 		scopes := byResource[resource]
 		sort.Strings(scopes)
 		for _, scope := range scopes {
 			_, action, _ := rbac.ParseResourceAction(scope)
-			_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", scope, actionDescription(resource, action))
+			description, err := actionDescription(resource, action)
+			if err != nil {
+				return xerrors.Errorf("describe low-level scope %q: %w", scope, err)
+			}
+			_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", scope, description)
 		}
 		_, _ = b.WriteString("\n")
 	}
+	return nil
 }
 
 // actionDescription returns the description the policy declares for an action
 // on a resource. The wildcard action has no policy entry of its own, so it is
 // described in terms of the resource it covers.
-func actionDescription(resource, action string) string {
+func actionDescription(resource, action string) (string, error) {
 	if action == policy.WildcardSymbol {
-		return fmt.Sprintf("Every action listed for `%s`.", resource)
+		return fmt.Sprintf("Every action listed for `%s`.", resource), nil
 	}
 	def, ok := policy.RBACPermissions[resource]
 	if !ok {
-		return ""
+		return "", xerrors.Errorf("resource %q has no policy definition", resource)
 	}
 	desc, ok := def.Actions[policy.Action(action)]
 	if !ok {
-		return ""
+		return "", xerrors.Errorf("resource %q has no description for action %q", resource, action)
 	}
-	return sentence(string(desc))
+	return sentence(string(desc)), nil
 }
 
 // acronyms restores the capitalization of terms that the policy descriptions
@@ -250,7 +260,7 @@ func sentence(s string) string {
 	if upper, ok := acronyms[strings.ToLower(first)]; ok {
 		first = upper
 	} else {
-		first = strings.ToUpper(first[:1]) + first[1:]
+		first = stringutil.Capitalize(first)
 	}
 	s = strings.TrimSpace(first + " " + rest)
 
@@ -269,11 +279,17 @@ func codeList(values []string) string {
 	return strings.Join(quoted, ", ")
 }
 
-func sortedKeys(m map[string][]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+func exampleCommand() string {
+	args := make([]string, len(exampleScopes))
+	for i, scope := range exampleScopes {
+		args[i] = "--scope " + string(scope)
 	}
-	sort.Strings(keys)
-	return keys
+	return "```shell\ncoder tokens create " + strings.Join(args, " ") + "\n```"
+}
+
+func renderDeprecatedAliases(b *strings.Builder, aliases map[rbac.ScopeName]rbac.ScopeName) {
+	_, _ = b.WriteString("| Deprecated name | Canonical name |\n|-----------------|----------------|\n")
+	for _, alias := range slices.Sorted(maps.Keys(aliases)) {
+		_, _ = fmt.Fprintf(b, "| `%s` | `%s` |\n", alias, aliases[alias])
+	}
 }
