@@ -163,7 +163,7 @@ func TestHold_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 }
 
 // TestHold_StaleChatsIgnoresPaused: GetStaleChats reports waiting with
-// a promotable head, not P.
+// rows (stranded), not P, which holds its rows on purpose.
 func TestHold_StaleChatsIgnoresPaused(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -185,11 +185,21 @@ func TestHold_StaleChatsIgnoresPaused(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, contains(stale), "paused is not stranded")
 
-	_, err = f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{ChatID: seeded.chatID, ID: seeded.queuedMessageIDs[0], Held: false})
+	// The same rows under `waiting` are the stranded shape.
+	chat, err := f.DB.GetChatByID(ctx, seeded.chatID)
+	require.NoError(t, err)
+	_, err = f.DB.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
+		ID:                       chat.ID,
+		Status:                   database.ChatStatusWaiting,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                chat.LastError,
+		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+	})
 	require.NoError(t, err)
 	stale, err = f.DB.GetStaleChats(sysCtx, threshold)
 	require.NoError(t, err)
-	require.True(t, contains(stale), "waiting with a promotable head is stranded")
+	require.True(t, contains(stale), "waiting with rows is stranded")
 }
 
 // TestHold_QueueListingFollowsProcessingOrder: the client-visible queue

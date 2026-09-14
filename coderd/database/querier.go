@@ -828,10 +828,10 @@ type sqlcQuerier interface {
 	//   1. Running chats whose heartbeat has expired (worker crash).
 	//   2. requires_action chats past the timeout threshold (client
 	//      disappeared).
-	//   3. Waiting chats with a promotable queue head and stale updated_at
+	//   3. Waiting chats with a non-empty queue and stale updated_at
 	//      (deferred-promote stranding when the worker dies before its
-	//      post-cancel cleanup runs). A waiting chat whose head is held is
-	//      paused for the owner's edit, not stranded.
+	//      post-cancel cleanup runs). Paused chats hold their queue on
+	//      purpose and are not stranded.
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)

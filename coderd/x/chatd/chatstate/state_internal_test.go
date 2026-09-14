@@ -45,8 +45,8 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 		{name: "XW", status: database.ChatStatusWaiting, archived: true, exists: true, want: StateXW},
 		{name: "XE0", status: database.ChatStatusError, archived: true, exists: true, want: StateXE0},
 		{name: "XE1", status: database.ChatStatusError, archived: true, queueNonEmpty: true, exists: true, want: StateXE1},
-		{name: "P", status: database.ChatStatusWaiting, queueNonEmpty: true, headHeld: true, exists: true, want: StateP},
-		// A held head changes nothing outside waiting.
+		{name: "P", status: database.ChatStatusPaused, queueNonEmpty: true, headHeld: true, exists: true, want: StateP},
+		// A held head changes nothing outside paused.
 		{name: "R1HeldHead", status: database.ChatStatusRunning, queueNonEmpty: true, headHeld: true, exists: true, want: StateR1},
 	}
 	for _, tc := range cases {
@@ -79,13 +79,17 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		// Legacy statuses (pending/paused/completed) are invalid for
 		// the new state machine.
 		{name: "LegacyPending", status: "pending"},
-		{name: "LegacyPaused", status: "paused"},
 		{name: "LegacyCompleted", status: "completed"},
 
-		// Waiting may only have rows when the head is held (P).
+		// Waiting never has rows; a held head does not change that.
 		{name: "WaitingWithQueue", status: database.ChatStatusWaiting, queueNonEmpty: true},
+		{name: "WaitingWithHeldHead", status: database.ChatStatusWaiting, queueNonEmpty: true, headHeld: true},
 		{name: "WaitingArchivedWithQueue", status: database.ChatStatusWaiting, archived: true, queueNonEmpty: true},
-		{name: "WaitingArchivedWithHeldHead", status: database.ChatStatusWaiting, archived: true, queueNonEmpty: true, headHeld: true},
+
+		// Paused requires a held head and is never archived.
+		{name: "PausedNoRows", status: database.ChatStatusPaused},
+		{name: "PausedUnheldHead", status: database.ChatStatusPaused, queueNonEmpty: true},
+		{name: "PausedArchived", status: database.ChatStatusPaused, archived: true, queueNonEmpty: true, headHeld: true},
 
 		// Archived busy statuses are invalid.
 		{name: "ArchivedRunning", status: database.ChatStatusRunning, archived: true},

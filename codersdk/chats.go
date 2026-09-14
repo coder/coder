@@ -92,6 +92,10 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
+	// ChatStatusPaused: the last turn ended with a held queued message at
+	// the head. The queue is not drained until the hold is released, the
+	// message is sent now, or it is deleted. A send queues behind it.
+	ChatStatusPaused ChatStatus = "paused"
 )
 
 // ChatClientType indicates whether a chat was created from the

@@ -4541,14 +4541,14 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 		// Subagent chats skip turn status labels and generated
 		// summaries, but a successful turn's final report doubles as
 		// the chat summary so subagents are not summary-less.
-		if status == database.ChatStatusWaiting {
+		if turnFinished(status) {
 			p.storeSubagentReportSummaryAsync(ctx, chat, logger)
 		}
 		return
 	}
 
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPaused:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
 		p.maybeGenerateChatSummaryAsync(ctx, logger, chat)
 
@@ -4622,7 +4622,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	runResult runChatResult,
 	logger slog.Logger,
 ) string {
-	if status != database.ChatStatusWaiting {
+	if !turnFinished(status) {
 		return fallbackTurnStatusLabel(status)
 	}
 

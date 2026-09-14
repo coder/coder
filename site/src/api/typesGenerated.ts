@@ -3362,6 +3362,7 @@ export interface ChatSourcePart {
 export type ChatStatus =
 	| "error"
 	| "interrupting"
+	| "paused"
 	| "requires_action"
 	| "running"
 	| "waiting";
@@ -3369,6 +3370,7 @@ export type ChatStatus =
 export const ChatStatuses: ChatStatus[] = [
 	"error",
 	"interrupting",
+	"paused",
 	"requires_action",
 	"running",
 	"waiting",

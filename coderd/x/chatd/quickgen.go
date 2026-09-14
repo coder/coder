@@ -1483,10 +1483,20 @@ func generateStructuredTurnStatusLabel(
 	return label, nil
 }
 
+// turnFinished reports whether status is the result of a turn that
+// completed normally: waiting (queue drained or empty) or paused (the
+// next queued message is held). Both get the end-of-turn label,
+// summary, and push; error and requires_action do not.
+func turnFinished(status database.ChatStatus) bool {
+	return status == database.ChatStatusWaiting || status == database.ChatStatusPaused
+}
+
 func turnStatusLabelStateContext(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "The turn finished and the chat is idle."
+	case database.ChatStatusPaused:
+		return "The turn finished and the chat is paused at a held queued message."
 	case database.ChatStatusRequiresAction:
 		return "The chat is waiting for user input or action."
 	case database.ChatStatusError:
@@ -1498,7 +1508,7 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 
 func fallbackTurnStatusLabel(status database.ChatStatus) string {
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPaused:
 		return "Finished latest turn"
 	case database.ChatStatusRequiresAction:
 		return "Waiting for user input"

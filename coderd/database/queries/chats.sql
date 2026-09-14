@@ -1642,7 +1642,7 @@ UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'paused', 'running', 'requires_action')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
@@ -1881,10 +1881,10 @@ FROM chats_expanded;
 --   1. Running chats whose heartbeat has expired (worker crash).
 --   2. requires_action chats past the timeout threshold (client
 --      disappeared).
---   3. Waiting chats with a promotable queue head and stale updated_at
+--   3. Waiting chats with a non-empty queue and stale updated_at
 --      (deferred-promote stranding when the worker dies before its
---      post-cancel cleanup runs). A waiting chat whose head is held is
---      paused for the owner's edit, not stranded.
+--      post-cancel cleanup runs). Paused chats hold their queue on
+--      purpose and are not stranded.
 SELECT
     *
 FROM
@@ -1896,12 +1896,10 @@ WHERE
         AND updated_at < @stale_threshold::timestamptz)
     OR (status = 'waiting'::chat_status
         AND updated_at < @stale_threshold::timestamptz
-        AND COALESCE((
-            SELECT cqm.held_at IS NULL FROM chat_queued_messages cqm
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
             WHERE cqm.chat_id = chats_expanded.id
-            ORDER BY cqm.position ASC, cqm.id ASC
-            LIMIT 1
-        ), false));
+        ));
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -2440,9 +2438,9 @@ SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, running, requires_action.
+    -- Active statuses only: waiting, paused, running, requires_action.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'paused', 'running', 'requires_action')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec
@@ -2553,7 +2551,8 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
 ORDER BY chats_expanded.created_at ASC
@@ -2958,7 +2957,7 @@ WITH to_archive AS (
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action')
+      AND c.status NOT IN ('running', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
