@@ -37,7 +37,7 @@ const (
 	StateA0 ExecutionState = "A0"
 	// StateA1: requires_action, non-empty queue, not archived.
 	StateA1 ExecutionState = "A1"
-	// StateP: paused, non-empty queue with a held head, not archived.
+	// StateP: paused, non-empty queue, not archived.
 	StateP ExecutionState = "P"
 	// StateXW: archived waiting, empty queue.
 	StateXW ExecutionState = "XW"
@@ -95,9 +95,15 @@ func (s ExecutionState) IsRunnable() bool {
 type QueueState struct {
 	// HasRows is the "1" queue sub-state.
 	HasRows bool
-	// HeadHeld is true when the head row has held_at set. Only paused
-	// requires it.
-	HeadHeld bool
+	// Paused is [queuePaused] of the head. Only P requires it.
+	Paused bool
+}
+
+// queuePaused reports whether a pause condition holds for the queue
+// head, so it must not be promoted. Each pause mechanism adds its
+// condition here.
+func queuePaused(head database.ChatQueuedMessage) bool {
+	return head.HeldAt.Valid
 }
 
 // LoadQueueState reads the queue head in the caller's transaction. An
@@ -110,7 +116,7 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 	if err != nil {
 		return QueueState{}, xerrors.Errorf("get queue head: %w", err)
 	}
-	return QueueState{HasRows: true, HeadHeld: head.HeldAt.Valid}, nil
+	return QueueState{HasRows: true, Paused: queuePaused(head)}, nil
 }
 
 // ClassifyExecutionState turns the chat row, queue state, and whether
@@ -125,8 +131,8 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 // The classifier is a single flat switch over the valid (status,
 // archived, queue) tuples in the chat execution state model. Anything
 // outside that set (archived busy states, waiting with a non-empty
-// queue, paused without a held head, future enum values) falls through
-// to [StateInvalid].
+// queue, paused without a pause condition, future enum values) falls
+// through to [StateInvalid].
 //
 //nolint:revive // exists is a simple classifier input.
 func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {
@@ -137,7 +143,7 @@ func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) E
 	switch {
 	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queueNonEmpty:
 		return StateW
-	case chat.Status == database.ChatStatusPaused && !chat.Archived && queueNonEmpty && queue.HeadHeld:
+	case chat.Status == database.ChatStatusPaused && !chat.Archived && queueNonEmpty && queue.Paused:
 		return StateP
 	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queueNonEmpty:
 		return StateXW
