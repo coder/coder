@@ -535,7 +535,7 @@ func triggerNotifications(
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		if err != nil {
-			logger.Error(ctx, "create test template version", slog.Error(err))
+			logger.Error(ctx, "create test template version", slog.Error(err), slog.F("index", i))
 			return
 		}
 
@@ -546,7 +546,7 @@ func triggerNotifications(
 			VersionID:   version.ID,
 		})
 		if err != nil {
-			logger.Error(ctx, "create test template", slog.Error(err))
+			logger.Error(ctx, "create test template", slog.Error(err), slog.F("index", i), slog.F("name", templateName))
 			return
 		}
 		templateIDs = append(templateIDs, testTemplate.ID)
