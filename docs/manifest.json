@@ -2457,6 +2457,12 @@
 					]
 				},
 				{
+					"title": "Experiments",
+					"description": "Reference for the experimental features a Coder deployment can enable, with the key each one uses.",
+					"path": "./reference/experiments.md",
+					"icon_path": "./images/icons/puzzle.svg"
+				},
+				{
 					"title": "Agent API",
 					"description": "Reference for the Coder Agent API used by workspace agents to communicate with the server.",
 					"path": "./reference/agent-api/index.md",

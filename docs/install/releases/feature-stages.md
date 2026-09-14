@@ -41,11 +41,15 @@ staging deployment.
 Use the [Coder CLI](../../install/cli.md) `--experiments` flag to enable early
 access features:
 
-- Enable all early access features:
+- Enable every experiment that is marked safe for general opt-in:
 
   ```sh
   coder server --experiments=*
   ```
+
+  The wildcard does not enable every experiment. Coder enables only the ones it
+  marks as safe, and no experiment currently carries that mark, so name the
+  experiments you want instead.
 
 - Enable multiple early access features:
 
@@ -55,6 +59,9 @@ access features:
 
 You can also use the `CODER_EXPERIMENTS`
 [environment variable](../../admin/setup/index.md).
+
+For every experiment a deployment can enable, and the key each one uses, refer
+to the [experiments reference](../../reference/experiments.md).
 
 You can opt-out of a feature after you've enabled it.
 

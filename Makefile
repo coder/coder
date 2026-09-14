@@ -74,6 +74,7 @@ endif
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/experiments.md \
 	docs/reference/cli/index.md \
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
@@ -159,6 +160,12 @@ _gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 _gen/bin/configdocgen: $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/configdocgen
+
+# experimentsdocgen reads the Experiment constants and their comments to
+# produce the experiments reference page.
+_gen/bin/experimentsdocgen: $(wildcard scripts/experimentsdocgen/*.go) $(wildcard scripts/docgenenv/*.go) $(wildcard codersdk/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/experimentsdocgen
 
 _gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) $(DBDUMP_INPUTS) | _gen
 	@mkdir -p _gen/bin
@@ -1016,6 +1023,7 @@ GEN_FILES := \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/experiments.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
@@ -1114,6 +1122,7 @@ gen/mark-fresh:
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		docs/admin/setup/configuration-reference.md \
+		docs/reference/experiments.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
@@ -1352,6 +1361,13 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) _gen/bin/configdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/configdocgen --out="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/reference/experiments.md: node_modules/.installed $(wildcard scripts/experimentsdocgen/*.go) $(wildcard codersdk/*.go) docs/manifest.json _gen/bin/experimentsdocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/experimentsdocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
