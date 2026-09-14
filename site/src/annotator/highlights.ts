@@ -14,7 +14,7 @@ const highlightGraceMs = 3000;
 // Matches the fade-out duration of `.shimmer.done` in styles.
 const doneFadeMs = 1300;
 
-export interface HighlightLayer {
+interface HighlightLayer {
 	set(items: HighlightItem[], state: HighlightState): void;
 	destroy(): void;
 }
