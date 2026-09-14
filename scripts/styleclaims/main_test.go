@@ -313,3 +313,51 @@ func assertSame(t *testing.T, label string, got, want []string) {
 		}
 	}
 }
+
+func TestCheckFooterCoverage(t *testing.T) {
+	t.Parallel()
+
+	src := `# Page
+
+## Grouping heading
+
+### Footered sub-rule
+
+*Documentation-only.
+No Vale rule.*
+
+## Rule without a footer
+
+Prose that states a rule.
+
+## Example inside a fence
+
+` + "```md\n## Not a real heading\n```" + `
+
+*Documentation-only.
+No Vale rule.*
+
+## Color contrast
+
+*Out of scope for this guide.
+Tracked by the docs site theme.*
+
+## Personas
+
+#### Perry the Platform Engineer
+
+Reference detail, not a rule.
+
+## Learn more
+
+- [Voice and tone](./voice-and-tone.md)
+`
+
+	findings := checkFooterCoverage("page.md", src)
+	if len(findings) != 1 {
+		t.Fatalf("checkFooterCoverage() = %v, want 1 finding", findings)
+	}
+	if !strings.Contains(findings[0].msg, "Rule without a footer") {
+		t.Errorf("finding = %q, want the unfootered rule heading", findings[0].msg)
+	}
+}

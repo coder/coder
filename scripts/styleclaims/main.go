@@ -102,6 +102,16 @@ var severityCell = regexp.MustCompile("`(error|warning|suggestion)`")
 // section, not the section itself.
 var documentationOnly = regexp.MustCompile(`(^|[^\p{L}])Documentation-only`)
 
+// headingLine matches a Markdown ATX heading outside a fenced block.
+var headingLine = regexp.MustCompile(`^(#{1,6}) +(.*)$`)
+
+// outOfScopeNote matches the footer form that hands a topic to an owner outside
+// this guide, so the topic is not one of the guide's rules.
+var outOfScopeNote = regexp.MustCompile(`^\*Out of scope`)
+
+// learnMoreHeading is the navigation section every subpage ends with.
+const learnMoreHeading = "Learn more"
+
 // valeRule is a rule file under docs/.style/styles/Coder/.
 type valeRule struct {
 	name     string // for example "BrandNames"
@@ -169,12 +179,14 @@ func run() ([]finding, error) {
 	}
 
 	annotations := map[string][]annotation{}
+	var findings []finding
 	for _, page := range subpages {
 		b, err := os.ReadFile(filepath.Join(styleGuide, page))
 		if err != nil {
 			return nil, err
 		}
 		annotations[page] = parseAnnotations(page, string(b))
+		findings = append(findings, checkFooterCoverage(page, string(b))...)
 	}
 
 	landing, err := os.ReadFile(filepath.Join(styleGuide, landingPage))
@@ -182,7 +194,68 @@ func run() ([]finding, error) {
 		return nil, err
 	}
 
-	return check(styles, rules, annotations, string(landing)), nil
+	return append(findings, check(styles, rules, annotations, string(landing))...), nil
+}
+
+// checkFooterCoverage reports a rule heading that carries no enforcement
+// footer. The coverage table counts footers, so without this a new rule could
+// drop out of the table silently. Only `##` and `###` headings state rules; a
+// deeper heading is detail inside a section. A heading is exempt when it only
+// groups sub-headings, when it is the navigation footer, or when it carries an
+// out-of-scope note naming an owner outside this guide.
+func checkFooterCoverage(page, src string) []finding {
+	type heading struct {
+		level  int
+		line   int
+		text   string
+		footer bool
+		child  bool
+		note   bool
+	}
+	var headings []heading
+	fenced := false
+	for i, line := range strings.Split(src, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			fenced = !fenced
+			continue
+		}
+		if fenced {
+			continue
+		}
+		if m := headingLine.FindStringSubmatch(line); m != nil {
+			level := len(m[1])
+			for j := len(headings) - 1; j >= 0; j-- {
+				if headings[j].level < level {
+					headings[j].child = true
+					break
+				}
+			}
+			headings = append(headings, heading{level: level, line: i + 1, text: strings.TrimSpace(m[2])})
+			continue
+		}
+		if len(headings) == 0 {
+			continue
+		}
+		last := &headings[len(headings)-1]
+		switch {
+		case annotationStart.MatchString(line):
+			last.footer = true
+		case outOfScopeNote.MatchString(line):
+			last.note = true
+		}
+	}
+
+	var findings []finding
+	for _, h := range headings {
+		if h.level < 2 || h.level > 3 || h.footer || h.child || h.note || h.text == learnMoreHeading {
+			continue
+		}
+		findings = append(findings, finding{
+			filepath.Join(styleGuide, page), h.line,
+			fmt.Sprintf("%q states a rule but carries no enforcement footer, so the coverage table can't count it", h.text),
+		})
+	}
+	return findings
 }
 
 // parseValeConfig returns the styles listed in BasedOnStyles and the per-rule

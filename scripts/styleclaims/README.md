@@ -31,6 +31,8 @@ honest about.
   the rule.
 - **Coverage-table drift.** A per-section or total count that disagrees with the
   annotations.
+- **A rule heading with no footer.** A `##` or `###` heading that states a rule
+  but carries no annotation, so the coverage table can't count it.
 
 ## The annotation format it relies on
 
@@ -62,6 +64,12 @@ rule sections rather than linter rule names. One annotation footer is one rule
 section: a heading without a footer, such as an example, a navigation heading, or
 the out-of-scope Color contrast section, isn't a rule of the guide and isn't
 counted.
+
+The checker also reports a `##` or `###` heading that states a rule but carries
+no footer, so a rule can't drop out of the table by never being annotated. A
+heading is exempt when it only groups sub-headings, when it is the `Learn more`
+navigation section, or when it carries an out-of-scope note. Headings deeper
+than `###` are detail inside a section, not rules.
 
 - **Documentation-only**: the annotation declares the section
   `Documentation-only`. This wins over everything else, so a section that only
