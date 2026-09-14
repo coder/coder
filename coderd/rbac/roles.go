@@ -1211,7 +1211,8 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
-		ResourceChatProject.Type: {policy.ActionUpdate, policy.ActionDelete},
+		ResourceChatUserMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+		ResourceChatProject.Type:    {policy.ActionUpdate, policy.ActionDelete},
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {

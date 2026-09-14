@@ -235,12 +235,12 @@ func TestExtractProjectMemories(t *testing.T) {
 	// expectClaim mirrors the claim and release that bracket every pass.
 	expectClaim := func(t *testing.T, db *dbmock.MockStore, chat database.Chat, cursor int64) {
 		t.Helper()
-		db.EXPECT().ClaimChatProjectMemoryExtraction(gomock.Any(), gomock.AssignableToTypeOf(database.ClaimChatProjectMemoryExtractionParams{})).
-			DoAndReturn(func(_ context.Context, arg database.ClaimChatProjectMemoryExtractionParams) (database.ChatProjectMemoryCursor, error) {
+		db.EXPECT().ClaimChatMemoryExtraction(gomock.Any(), gomock.AssignableToTypeOf(database.ClaimChatMemoryExtractionParams{})).
+			DoAndReturn(func(_ context.Context, arg database.ClaimChatMemoryExtractionParams) (database.ChatMemoryCursor, error) {
 				assert.Equal(t, chat.ID, arg.ChatID)
-				return database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: cursor, ClaimedUntil: sql.NullTime{Time: claimedUntil, Valid: true}}, nil
+				return database.ChatMemoryCursor{ChatID: chat.ID, HistoryVersion: cursor, ClaimedUntil: sql.NullTime{Time: claimedUntil, Valid: true}}, nil
 			})
-		db.EXPECT().ReleaseChatProjectMemoryExtraction(gomock.Any(), database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claimedUntil}).Return(nil)
+		db.EXPECT().ReleaseChatMemoryExtraction(gomock.Any(), database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claimedUntil}).Return(nil)
 	}
 	// expectInsertTx runs the transactional cap check against the same mock.
 	expectInsertTx := func(db *dbmock.MockStore) {
@@ -250,10 +250,10 @@ func TestExtractProjectMemories(t *testing.T) {
 		db.EXPECT().AcquireLock(gomock.Any(), gomock.Any()).Return(nil)
 	}
 	advanceCursor := func(db *dbmock.MockStore, chat database.Chat) *gomock.Call {
-		return db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
+		return db.EXPECT().UpsertChatMemoryCursor(gomock.Any(), database.UpsertChatMemoryCursorParams{
 			ChatID:         chat.ID,
 			HistoryVersion: chat.HistoryVersion,
-		}).Return(database.ChatProjectMemoryCursor{}, nil)
+		}).Return(database.ChatMemoryCursor{}, nil)
 	}
 
 	t.Run("SkipsWhenCursorCurrent", func(t *testing.T) {
@@ -274,7 +274,7 @@ func TestExtractProjectMemories(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chat := newChat()
-		db.EXPECT().ClaimChatProjectMemoryExtraction(gomock.Any(), gomock.Any()).Return(database.ChatProjectMemoryCursor{}, sql.ErrNoRows)
+		db.EXPECT().ClaimChatMemoryExtraction(gomock.Any(), gomock.Any()).Return(database.ChatMemoryCursor{}, sql.ErrNoRows)
 
 		newServer(t, db, nil).extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})

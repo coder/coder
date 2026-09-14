@@ -75,7 +75,7 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 	// owns a chat at a time; the owner drains any turns that completed
 	// while it was working, and a rival that fails to claim simply exits.
 	for range projectMemoryExtractionMaxDrains {
-		claim, err := p.db.ClaimChatProjectMemoryExtraction(ctx, database.ClaimChatProjectMemoryExtractionParams{
+		claim, err := p.db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{
 			ChatID:       chat.ID,
 			ClaimedUntil: p.clock.Now().Add(projectMemoryExtractionClaimTTL),
 		})
@@ -87,7 +87,7 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 			return
 		}
 		processed, more := p.extractProjectMemoriesOnce(ctx, logger, chat.ID, claim.HistoryVersion)
-		if err := p.db.ReleaseChatProjectMemoryExtraction(ctx, database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}); err != nil {
+		if err := p.db.ReleaseChatMemoryExtraction(ctx, database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}); err != nil {
 			logger.Debug(ctx, "failed to release project memory extraction claim", slog.F("chat_id", chat.ID), slog.Error(err))
 		}
 		if !processed || !more {
@@ -111,7 +111,7 @@ func (p *Server) extractProjectMemoriesOnce(ctx context.Context, logger slog.Log
 		return false, false
 	}
 	advance := func() bool {
-		if _, err := p.db.UpsertChatProjectMemoryCursor(ctx, database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
+		if _, err := p.db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
 			logger.Debug(ctx, "failed to advance project memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
 			return false
 		}

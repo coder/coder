@@ -19474,7 +19474,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 	})
 }
 
-func TestClaimChatProjectMemoryExtraction(t *testing.T) {
+func TestClaimChatMemoryExtraction(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -19499,35 +19499,35 @@ func TestClaimChatProjectMemoryExtraction(t *testing.T) {
 	now := dbtime.Now()
 
 	// The first claim creates the cursor at zero.
-	claim, err := db.ClaimChatProjectMemoryExtraction(ctx, database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
+	claim, err := db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
 	require.NoError(t, err)
 	require.Zero(t, claim.HistoryVersion)
 
 	// A rival cannot claim while the first claim is live.
-	_, err = db.ClaimChatProjectMemoryExtraction(ctx, database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
+	_, err = db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	// Advancing the cursor keeps the claim; a stale release is ignored.
-	_, err = db.UpsertChatProjectMemoryCursor(ctx, database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID, HistoryVersion: 7})
+	_, err = db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: 7})
 	require.NoError(t, err)
-	require.NoError(t, db.ReleaseChatProjectMemoryExtraction(ctx, database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Hour)}))
-	_, err = db.ClaimChatProjectMemoryExtraction(ctx, database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
+	require.NoError(t, db.ReleaseChatMemoryExtraction(ctx, database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Hour)}))
+	_, err = db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	// Releasing our own claim hands the chat, and the advanced cursor, to the
 	// next extractor. The cursor never regresses.
-	require.NoError(t, db.ReleaseChatProjectMemoryExtraction(ctx, database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}))
-	claim, err = db.ClaimChatProjectMemoryExtraction(ctx, database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
+	require.NoError(t, db.ReleaseChatMemoryExtraction(ctx, database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}))
+	claim, err = db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
 	require.NoError(t, err)
 	require.EqualValues(t, 7, claim.HistoryVersion)
-	cursor, err := db.UpsertChatProjectMemoryCursor(ctx, database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID, HistoryVersion: 5})
+	cursor, err := db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: 5})
 	require.NoError(t, err)
 	require.EqualValues(t, 7, cursor.HistoryVersion)
 
 	// An expired claim is reclaimable.
-	require.NoError(t, db.ReleaseChatProjectMemoryExtraction(ctx, database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}))
-	_, err = db.ClaimChatProjectMemoryExtraction(ctx, database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(-time.Minute)})
+	require.NoError(t, db.ReleaseChatMemoryExtraction(ctx, database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}))
+	_, err = db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(-time.Minute)})
 	require.NoError(t, err)
-	_, err = db.ClaimChatProjectMemoryExtraction(ctx, database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
+	_, err = db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
 	require.NoError(t, err)
 }

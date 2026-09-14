@@ -1445,6 +1445,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "ChatUserMemoryCRUD",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatUserMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
 			Name:     "ChatUsageCRU",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),

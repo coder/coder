@@ -871,6 +871,19 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(memory, policy.ActionDelete)
 	}))
+	s.Run("DeleteChatUserMemoryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.GetChatUserMemoryByIDRow{})
+		dbm.EXPECT().GetChatUserMemoryByID(gomock.Any(), memory.ChatUserMemory.ID).Return(memory, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatUserMemoryByID(gomock.Any(), memory.ChatUserMemory.ID).Return(nil).AnyTimes()
+		check.Args(memory.ChatUserMemory.ID).Asserts(memory, policy.ActionDelete)
+	}))
+	s.Run("DeleteChatUserMemoryByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.GetChatUserMemoryByNameRow{})
+		arg := database.DeleteChatUserMemoryByNameParams{UserID: memory.ChatUserMemory.UserID, OrganizationID: memory.ChatUserMemory.OrganizationID, Name: memory.ChatUserMemory.Name}
+		dbm.EXPECT().GetChatUserMemoryByName(gomock.Any(), database.GetChatUserMemoryByNameParams(arg)).Return(memory, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatUserMemoryByName(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(memory, policy.ActionDelete)
+	}))
 	s.Run("DeleteChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		args := database.DeleteChatQueuedMessageParams{ID: 123, ChatID: chat.ID}
@@ -1152,27 +1165,33 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatProjectMemoryByName(gomock.Any(), arg).Return(memory, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatProjectMemory.InOrg(arg.OrganizationID), policy.ActionCreate).Returns(memory)
 	}))
-	s.Run("ClaimChatProjectMemoryExtraction", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("ClaimChatMemoryExtraction", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID}
-		cursor := testutil.Fake(s.T(), faker, database.ChatProjectMemoryCursor{ChatID: chat.ID})
+		arg := database.ClaimChatMemoryExtractionParams{ChatID: chat.ID}
+		cursor := testutil.Fake(s.T(), faker, database.ChatMemoryCursor{ChatID: chat.ID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().ClaimChatProjectMemoryExtraction(gomock.Any(), arg).Return(cursor, nil).AnyTimes()
+		dbm.EXPECT().ClaimChatMemoryExtraction(gomock.Any(), arg).Return(cursor, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(cursor)
 	}))
-	s.Run("ReleaseChatProjectMemoryExtraction", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("ReleaseChatMemoryExtraction", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID}
+		arg := database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().ReleaseChatProjectMemoryExtraction(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().ReleaseChatMemoryExtraction(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate)
 	}))
-	s.Run("UpsertChatProjectMemoryCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpsertChatUserMemoryByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.UpsertChatUserMemoryByNameParams{})
+		memory := testutil.Fake(s.T(), faker, database.ChatUserMemory{OrganizationID: arg.OrganizationID, UserID: arg.UserID})
+		dbm.EXPECT().UpsertChatUserMemoryByName(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String()), policy.ActionCreate).Returns(memory)
+	}))
+	s.Run("UpsertChatMemoryCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID}
-		cursor := testutil.Fake(s.T(), faker, database.ChatProjectMemoryCursor{ChatID: chat.ID})
+		arg := database.UpsertChatMemoryCursorParams{ChatID: chat.ID}
+		cursor := testutil.Fake(s.T(), faker, database.ChatMemoryCursor{ChatID: chat.ID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), arg).Return(cursor, nil).AnyTimes()
+		dbm.EXPECT().UpsertChatMemoryCursor(gomock.Any(), arg).Return(cursor, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(cursor)
 	}))
 	s.Run("UpsertChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -1342,12 +1361,30 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectMemoryByName(gomock.Any(), arg).Return(memory, nil).AnyTimes()
 		check.Args(arg).Asserts(memory, policy.ActionRead).Returns(memory)
 	}))
-	s.Run("GetChatProjectMemoryCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetChatMemoryCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		cursor := testutil.Fake(s.T(), faker, database.ChatProjectMemoryCursor{ChatID: chat.ID})
+		cursor := testutil.Fake(s.T(), faker, database.ChatMemoryCursor{ChatID: chat.ID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(cursor, nil).AnyTimes()
+		dbm.EXPECT().GetChatMemoryCursor(gomock.Any(), chat.ID).Return(cursor, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(cursor)
+	}))
+	s.Run("GetChatUserMemoriesByUserAndOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.ChatUserMemory{})
+		arg := database.GetChatUserMemoriesByUserAndOrganizationParams{UserID: memory.UserID, OrganizationID: memory.OrganizationID}
+		rows := []database.GetChatUserMemoriesByUserAndOrganizationRow{{ChatUserMemory: memory}}
+		dbm.EXPECT().GetChatUserMemoriesByUserAndOrganization(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(memory, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatUserMemoryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.GetChatUserMemoryByIDRow{})
+		dbm.EXPECT().GetChatUserMemoryByID(gomock.Any(), memory.ChatUserMemory.ID).Return(memory, nil).AnyTimes()
+		check.Args(memory.ChatUserMemory.ID).Asserts(memory, policy.ActionRead).Returns(memory)
+	}))
+	s.Run("GetChatUserMemoryByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.GetChatUserMemoryByNameRow{})
+		arg := database.GetChatUserMemoryByNameParams{UserID: memory.ChatUserMemory.UserID, OrganizationID: memory.ChatUserMemory.OrganizationID, Name: memory.ChatUserMemory.Name}
+		dbm.EXPECT().GetChatUserMemoryByName(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).Asserts(memory, policy.ActionRead).Returns(memory)
 	}))
 	s.Run("GetChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		params := database.GetChatsParams{}
@@ -1546,6 +1583,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().InsertChatProjectMemory(gomock.Any(), arg).Return(memory, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatProjectMemory.InOrg(arg.OrganizationID), policy.ActionCreate).Returns(memory)
 	}))
+	s.Run("InsertChatUserMemory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertChatUserMemoryParams{})
+		memory := testutil.Fake(s.T(), faker, database.ChatUserMemory{OrganizationID: arg.OrganizationID, UserID: arg.UserID})
+		dbm.EXPECT().InsertChatUserMemory(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String()), policy.ActionCreate).Returns(memory)
+	}))
 	s.Run("InsertChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := testutil.Fake(s.T(), faker, database.InsertChatQueuedMessageParams{ChatID: chat.ID})
@@ -1651,6 +1694,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().CountChatQueuedMessages(gomock.Any(), chat.ID).Return(int64(3), nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(int64(3))
+	}))
+	s.Run("CountChatUserMemoriesByUserAndOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.CountChatUserMemoriesByUserAndOrganizationParams{})
+		dbm.EXPECT().CountChatUserMemoriesByUserAndOrganization(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String()), policy.ActionRead).Returns(int64(1))
 	}))
 	s.Run("GetChatQueuedMessageHead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1777,6 +1825,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectMemoryByID(gomock.Any(), arg.ID).Return(memory, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatProjectMemoryByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).Asserts(memory.ChatProjectMemory, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("UpdateChatUserMemoryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.GetChatUserMemoryByIDRow{})
+		arg := database.UpdateChatUserMemoryByIDParams{ID: memory.ChatUserMemory.ID}
+		updated := testutil.Fake(s.T(), faker, database.ChatUserMemory{ID: arg.ID})
+		dbm.EXPECT().GetChatUserMemoryByID(gomock.Any(), arg.ID).Return(memory, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatUserMemoryByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(memory.ChatUserMemory, policy.ActionUpdate).Returns(updated)
 	}))
 	s.Run("UpdateChatProjectBinding", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -3407,6 +3463,12 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserChatCustomPrompt(gomock.Any(), u.ID).Return("my custom prompt", nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("my custom prompt")
 	}))
+	s.Run("GetUserChatPersonalMemoryEnabled", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().GetUserChatPersonalMemoryEnabled(gomock.Any(), u.ID).Return("true", nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("true")
+	}))
 
 	s.Run("GetUserAIProviderKeyByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -3496,6 +3558,14 @@ func (s *MethodTestSuite) TestUser() {
 		arg := database.UpdateUserChatCustomPromptParams{UserID: u.ID, ChatCustomPrompt: uc.Value}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserChatCustomPrompt(gomock.Any(), arg).Return(uc, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
+	}))
+	s.Run("UpsertUserChatPersonalMemoryEnabled", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpsertUserChatPersonalMemoryEnabledParams{UserID: u.ID, Value: "true"}
+		uc := database.UserConfig{UserID: u.ID, Key: "chat_personal_memory_enabled", Value: arg.Value}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpsertUserChatPersonalMemoryEnabled(gomock.Any(), arg).Return(uc, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
 	s.Run("GetUserThinkingDisplayMode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
