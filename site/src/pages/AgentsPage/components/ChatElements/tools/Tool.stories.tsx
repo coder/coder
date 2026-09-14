@@ -551,10 +551,11 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 	},
 };
 
+/** A model_intent result replaces the command in the label. */
 export const ProcessOutputModelIntent: Story = {
 	args: {
 		name: "process_output",
-		status: "running",
+		status: "completed",
 		args: {
 			process_id: "process-123",
 			model_intent: "Waiting for the dev server to be ready",
