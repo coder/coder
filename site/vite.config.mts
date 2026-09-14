@@ -77,10 +77,11 @@ const annotatorDevServer = (): PluginOption => ({
 
 const coderHost = process.env.CODER_HOST || "http://localhost:3000";
 
-// Coder routes subdomain workspace apps by Host header, and every app
-// subdomain contains a "--" separator (port--agent--workspace--owner).
+// Coder routes subdomain workspace apps by Host header. App subdomains
+// always have four "--" separated parts (port--agent--workspace--owner),
+// which keeps dashed IPv6 hosts such as sslip.io names out of this path.
 const isWorkspaceAppHost = (host: string | undefined): boolean =>
-	(host ?? "").split(":")[0].includes("--");
+	(host ?? "").split(":")[0].split(".")[0].split("--").length >= 4;
 
 // Forwards requests for workspace app subdomains to coderd untouched,
 // Host header included, so port previews work when the wildcard access
@@ -281,7 +282,9 @@ export default defineConfig({
 						secure: process.env.NODE_ENV === "production",
 					},
 				},
-		allowedHosts: [".coder", ".dogfood.cdr.dev"],
+		// sslip.io gives wildcard DNS for a workspace IP, which is the
+		// only way to reach subdomain apps through Coder Desktop.
+		allowedHosts: [".coder", ".dogfood.cdr.dev", ".sslip.io"],
 	},
 	// Pre-bundle deps that Vite tends to discover late. Without this, Vite
 	// re-optimizes mid-session which returns 504 "Outdated Optimize Dep" for
