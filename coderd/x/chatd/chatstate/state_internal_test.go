@@ -46,7 +46,7 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 		{name: "XE0", status: database.ChatStatusError, archived: true, exists: true, want: StateXE0},
 		{name: "XE1", status: database.ChatStatusError, archived: true, queueNonEmpty: true, exists: true, want: StateXE1},
 		{name: "P", status: database.ChatStatusPaused, queueNonEmpty: true, paused: true, exists: true, want: StateP},
-		// A held head changes nothing outside paused.
+		// A head under edit changes nothing outside paused.
 		{name: "R1Paused", status: database.ChatStatusRunning, queueNonEmpty: true, paused: true, exists: true, want: StateR1},
 	}
 	for _, tc := range cases {
@@ -127,7 +127,7 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 			for _, queueNonEmpty := range []bool{false, true} {
 				for _, paused := range []bool{false, true} {
 					if paused && !queueNonEmpty {
-						continue // no head to hold
+						continue // no head to edit
 					}
 					queue := QueueState{HasRows: queueNonEmpty, Paused: paused}
 					got := ClassifyExecutionState(chatWithStatus(status, archived), queue, true)

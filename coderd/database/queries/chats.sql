@@ -3084,8 +3084,7 @@ WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC;
 
 -- name: CountChatQueuedMessages :one
--- Queue-length check used for the queue capacity limit. Held rows
--- count: a hold does not free capacity.
+-- Counts every queued row, under edit or not.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
@@ -3114,13 +3113,10 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
--- name: UpdateChatQueuedMessageHeld :one
--- Sets or clears held_at on one row. Setting is idempotent: an
--- already-held row keeps its original held_at. A chat has at most one
--- held row (chat_queued_messages_one_held_per_chat); callers that move
--- the hold clear the previous row first, in a separate statement.
+-- name: UpdateChatQueuedMessageEditing :one
+-- Sets or clears editing_since on one row; an existing value is kept.
 UPDATE chat_queued_messages
-SET held_at = CASE WHEN @held::boolean THEN COALESCE(held_at, NOW()) ELSE NULL END
+SET editing_since = CASE WHEN @editing::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid
 RETURNING *;
 

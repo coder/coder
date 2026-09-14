@@ -434,10 +434,10 @@ func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
 		"UPDATE of queued content bumps queue_version")
 }
 
-// TestQueueUpdateHeldAtUpdatesQueueVersion verifies that setting and
-// clearing held_at bumps queue_version, so open streams learn about a
-// hold through the regular queue_update event.
-func TestQueueUpdateHeldAtUpdatesQueueVersion(t *testing.T) {
+// TestQueueUpdateEditingSinceUpdatesQueueVersion verifies that setting and
+// clearing editing_since bumps queue_version, so open streams learn about a
+// edit marker through the regular queue_update event.
+func TestQueueUpdateEditingSinceUpdatesQueueVersion(t *testing.T) {
 	t.Parallel()
 	tf := newTriggerFixture(t)
 	f := tf.f
@@ -453,40 +453,40 @@ func TestQueueUpdateHeldAtUpdatesQueueVersion(t *testing.T) {
 
 	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	held, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
-		ChatID: created.Chat.ID,
-		ID:     queued.ID,
-		Held:   true,
+	editing, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+		ChatID:  created.Chat.ID,
+		ID:      queued.ID,
+		Editing: true,
 	})
 	require.NoError(t, err)
-	require.True(t, held.HeldAt.Valid)
+	require.True(t, editing.EditingSince.Valid)
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, bumped.SnapshotVersion, after.QueueVersion,
-		"setting held_at bumps queue_version")
+		"setting editing_since bumps queue_version")
 
-	// Holding again keeps the original timestamp.
-	heldAgain, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
-		ChatID: created.Chat.ID,
-		ID:     queued.ID,
-		Held:   true,
+	// Beginning again keeps the original timestamp.
+	editingAgain, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+		ChatID:  created.Chat.ID,
+		ID:      queued.ID,
+		Editing: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, held.HeldAt, heldAgain.HeldAt, "re-holding is idempotent")
+	require.Equal(t, editing.EditingSince, editingAgain.EditingSince, "re-beginning is idempotent")
 
 	bumped, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	released, err := f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
-		ChatID: created.Chat.ID,
-		ID:     queued.ID,
-		Held:   false,
+	released, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+		ChatID:  created.Chat.ID,
+		ID:      queued.ID,
+		Editing: false,
 	})
 	require.NoError(t, err)
-	require.False(t, released.HeldAt.Valid)
+	require.False(t, released.EditingSince.Valid)
 	after, err = f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, bumped.SnapshotVersion, after.QueueVersion,
-		"clearing held_at bumps queue_version")
+		"clearing editing_since bumps queue_version")
 }
 
 // TestQueueUpdatePositionUpdatesQueueVersion verifies that an UPDATE
