@@ -34,6 +34,9 @@ const (
 	SourcePersonal Source = "personal"
 	// SourceWorkspace identifies a filesystem-discovered workspace skill.
 	SourceWorkspace Source = "workspace"
+	// SourcePlugin identifies a skill from an Agent Plugin's skills/
+	// directory, keyed by (PluginName, Name).
+	SourcePlugin Source = "plugin"
 )
 
 var (
@@ -48,7 +51,8 @@ var (
 	ErrSkillDescriptionTooLarge = xerrors.New("skill description is too large")
 	// ErrSkillNotFound indicates that a skill lookup did not match any alias.
 	ErrSkillNotFound = xerrors.New("skill not found")
-	// ErrSkillAmbiguous indicates that a skill lookup matched multiple sources.
+	// ErrSkillAmbiguous indicates that a bare skill name matched more than
+	// one skill.
 	ErrSkillAmbiguous = xerrors.New("skill lookup is ambiguous")
 )
 
@@ -57,6 +61,20 @@ type Skill struct {
 	Name        string
 	Description string
 	Source      Source
+	// PluginName is the owning plugin name for SourcePlugin skills and
+	// empty otherwise.
+	PluginName string
+}
+
+// QualifiedAlias returns the stable source-qualified alias for the skill:
+// personal/<name>, workspace/<name>, or plugin/<plugin>/<name>. The plugin/
+// prefix keeps plugin names such as "personal" from colliding with other
+// sources.
+func (s Skill) QualifiedAlias() string {
+	if s.Source == SourcePlugin {
+		return string(SourcePlugin) + "/" + s.PluginName + "/" + s.Name
+	}
+	return string(s.Source) + "/" + s.Name
 }
 
 // ParsedSkill is a parsed skill with the Markdown body after frontmatter.
@@ -140,64 +158,63 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 	}, nil
 }
 
-// MergeSkills combines personal and workspace skills into a deterministic list
-// with aliases for chat tool display and lookup. Skill names must already be
-// valid kebab-case names because qualified aliases use / as a separator. If a
-// source contains duplicate names, the first skill for that source wins.
-func MergeSkills(personalSkills, workspaceSkills []Skill) []ResolvedSkill {
+// MergeSkills combines personal, workspace, and plugin skills into a
+// deterministic list with aliases for chat tool display and lookup. Skill
+// names must already be valid kebab-case names because qualified aliases use
+// / as a separator. A name held by one skill gets a bare alias. A name held
+// by several skills gets a qualified alias on every holder, ordered personal,
+// workspace, then plugins by plugin name. Duplicate names within personal,
+// workspace, or a single plugin keep the first skill. Source and PluginName
+// are set from the argument a skill is passed in; a plugin skill with an
+// empty PluginName is dropped.
+func MergeSkills(personalSkills, workspaceSkills, pluginSkills []Skill) []ResolvedSkill {
 	personalByName := skillsByName(personalSkills, SourcePersonal)
 	workspaceByName := skillsByName(workspaceSkills, SourceWorkspace)
+	pluginHoldersByName := pluginSkillsByName(pluginSkills)
 
-	names := make(map[string]struct{}, len(personalByName)+len(workspaceByName))
+	names := make(map[string]struct{}, len(personalByName)+len(workspaceByName)+len(pluginHoldersByName))
 	for name := range personalByName {
 		names[name] = struct{}{}
 	}
 	for name := range workspaceByName {
 		names[name] = struct{}{}
 	}
+	for name := range pluginHoldersByName {
+		names[name] = struct{}{}
+	}
 
-	resolved := make([]ResolvedSkill, 0, len(personalByName)+len(workspaceByName))
+	resolved := make([]ResolvedSkill, 0, len(names))
 	for _, name := range slices.Sorted(maps.Keys(names)) {
-		personal, hasPersonal := personalByName[name]
-		workspace, hasWorkspace := workspaceByName[name]
-		if hasPersonal && hasWorkspace {
-			resolved = append(resolved,
-				ResolvedSkill{
-					Skill: personal,
-					Alias: QualifiedAlias(SourcePersonal, name),
-				},
-				ResolvedSkill{
-					Skill: workspace,
-					Alias: QualifiedAlias(SourceWorkspace, name),
-				},
-			)
+		var holders []Skill
+		if personal, ok := personalByName[name]; ok {
+			holders = append(holders, personal)
+		}
+		if workspace, ok := workspaceByName[name]; ok {
+			holders = append(holders, workspace)
+		}
+		holders = append(holders, pluginHoldersByName[name]...)
+
+		if len(holders) == 1 {
+			resolved = append(resolved, ResolvedSkill{Skill: holders[0], Alias: name})
 			continue
 		}
-		if hasPersonal {
-			resolved = append(resolved, ResolvedSkill{
-				Skill: personal,
-				Alias: name,
-			})
-			continue
+		for _, holder := range holders {
+			resolved = append(resolved, ResolvedSkill{Skill: holder, Alias: holder.QualifiedAlias()})
 		}
-		resolved = append(resolved, ResolvedSkill{
-			Skill: workspace,
-			Alias: name,
-		})
 	}
 	return resolved
 }
 
 // Lookup finds a resolved skill by bare alias or qualified source alias. It
 // returns ErrSkillNotFound if no alias matches, or ErrSkillAmbiguous if a bare
-// name matches skills from multiple sources.
+// name matches more than one skill.
 func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
 	var (
 		bareNameMatch ResolvedSkill
 		matches       []string
 	)
 	for _, skill := range resolved {
-		qualifiedAlias := QualifiedAlias(skill.Source, skill.Name)
+		qualifiedAlias := skill.QualifiedAlias()
 		if lookup == skill.Alias || lookup == qualifiedAlias {
 			return skill, nil
 		}
@@ -221,11 +238,6 @@ func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
 	}
 }
 
-// QualifiedAlias returns the stable source-qualified alias for a skill name.
-func QualifiedAlias(source Source, name string) string {
-	return string(source) + "/" + name
-}
-
 func skillsByName(skills []Skill, source Source) map[string]Skill {
 	byName := make(map[string]Skill, len(skills))
 	for _, skill := range skills {
@@ -233,7 +245,38 @@ func skillsByName(skills []Skill, source Source) map[string]Skill {
 			continue
 		}
 		skill.Source = source
+		skill.PluginName = ""
 		byName[skill.Name] = skill
+	}
+	return byName
+}
+
+type pluginSkillKey struct {
+	pluginName string
+	name       string
+}
+
+// Skills with an empty PluginName are dropped because their qualified alias
+// would be plugin//<name>.
+func pluginSkillsByName(skills []Skill) map[string][]Skill {
+	seen := make(map[pluginSkillKey]struct{}, len(skills))
+	byName := make(map[string][]Skill)
+	for _, skill := range skills {
+		if skill.PluginName == "" {
+			continue
+		}
+		key := pluginSkillKey{pluginName: skill.PluginName, name: skill.Name}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		skill.Source = SourcePlugin
+		byName[skill.Name] = append(byName[skill.Name], skill)
+	}
+	for name := range byName {
+		slices.SortFunc(byName[name], func(a, b Skill) int {
+			return strings.Compare(a.PluginName, b.PluginName)
+		})
 	}
 	return byName
 }
