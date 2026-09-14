@@ -185,14 +185,13 @@ func TestIntegration(t *testing.T) {
 
 	logger := testutil.Logger(t)
 	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-centralized-key")})}
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, tracer)
-	require.NoError(t, err)
 
-	// Given: aibridged is started.
-	srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+	// Given: aibridged is started with its server-owned interception pool.
+	srv, err := aibridged.New(t.Context(), func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, tracer)
+	}, logger, tracer, nil, nil)
 	require.NoError(t, err, "create new aibridged")
+	require.NoError(t, srv.ReplaceProviders(ctx, providers))
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)
 	})
@@ -388,15 +387,12 @@ func TestIntegrationWithMetrics(t *testing.T) {
 	logger := testutil.Logger(t)
 	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-centralized-key")})}
 
-	// Create pool with metrics.
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, metrics, testTracer)
-	require.NoError(t, err)
-
-	// Given: aibridged is started.
-	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+	// Given: aibridged is started with its server-owned interception pool.
+	srv, err := aibridged.New(ctx, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, testTracer)
+	}, logger, testTracer, nil, metrics)
 	require.NoError(t, err, "create new aibridged")
+	require.NoError(t, srv.ReplaceProviders(ctx, providers))
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)
 	})
@@ -504,15 +500,12 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 		}, nil),
 	}
 
-	// Create pool with metrics.
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, metrics, testTracer)
-	require.NoError(t, err)
-
-	// Given: aibridged is started.
-	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+	// Given: aibridged is started with its server-owned interception pool.
+	srv, err := aibridged.New(ctx, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, testTracer)
+	}, logger, testTracer, nil, metrics)
 	require.NoError(t, err, "create new aibridged")
+	require.NoError(t, srv.ReplaceProviders(ctx, providers))
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)
 	})
@@ -602,13 +595,11 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-key")}),
 		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{BaseURL: mockAnthropic.URL, KeyPool: singleKeyPool(t, config.ProviderAnthropic, "test-key")}, nil),
 	}
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
-	require.NoError(t, err)
-
-	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+	srv, err := aibridged.New(ctx, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, testTracer)
+	}, logger, testTracer, nil, nil)
 	require.NoError(t, err, "create new aibridged")
+	require.NoError(t, srv.ReplaceProviders(ctx, providers))
 	t.Cleanup(func() { _ = srv.Shutdown(ctx) })
 
 	cases := []struct {

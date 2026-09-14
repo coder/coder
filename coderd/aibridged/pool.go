@@ -30,6 +30,7 @@ const (
 // Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
+	KeyPools() []*keypool.Pool
 	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
 	// ReplaceProviders swaps the providers used to construct future
 	// RequestBridge instances and clears the cache. Disabled providers
@@ -169,7 +170,7 @@ func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
 	return nil
 }
 
-// KeyPools returns the key pools of the current live providers.
+// KeyPools returns the non-nil key pools of the current providers.
 func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
 	providers := p.loadProviders()
 	pools := make([]*keypool.Pool, 0, len(providers))
