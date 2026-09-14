@@ -180,7 +180,7 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("enables an unselected MCP server from the group popover", async () => {
+	it("enables an unselected MCP server from the plus menu while the group is collapsed", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
@@ -192,11 +192,9 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("switch", {
-				name: "Enable Notion",
-			}),
+			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
 			mockSentryMCP.id,

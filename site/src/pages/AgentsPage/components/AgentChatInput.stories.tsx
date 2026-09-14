@@ -714,8 +714,12 @@ export const WithTwoMCPServers: Story = {
 	},
 };
 
+/** The pill lists only its active servers; Notion stays in the plus menu. */
 export const MCPGroupPopoverOpen: Story = {
-	args: WithMCPServers.args,
+	args: {
+		...WithMCPServers.args,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected, notionMCPConnected],
+	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
@@ -732,7 +736,7 @@ export const MCPGroupDisabled: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
-export const MCPGroupAlwaysOnNeedingAuth: Story = {
+export const PlusMenuAlwaysOnNeedingAuth: Story = {
 	args: {
 		...WithMCPServers.args,
 		mcpServers: [
@@ -742,7 +746,11 @@ export const MCPGroupAlwaysOnNeedingAuth: Story = {
 			slackMCPAlwaysOnNeedingAuth,
 		],
 	},
-	play: MCPGroupPopoverOpen.play,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
+	},
 };
 
 export const MCPGroupDisconnectDialog: Story = {
