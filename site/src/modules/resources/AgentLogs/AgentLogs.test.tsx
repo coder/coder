@@ -1,5 +1,6 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import type { Line } from "#/components/Logs/LogLine";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogLine";
 import { AgentLogs } from "./AgentLogs";
 import { MockSources } from "./mocks";
@@ -19,12 +20,19 @@ const makeLogs = (count: number): Line[] =>
 		time: "2024-03-14T11:31:04.090715Z",
 	}));
 
-const getInnerSizer = (container: HTMLElement): HTMLElement => {
+const getScrollContainer = (container: HTMLElement): HTMLElement => {
 	const outer = container.querySelector<HTMLElement>(
 		'div[style*="overflow: auto"]',
 	);
-	const inner = outer?.firstElementChild as HTMLElement | null;
-	if (!inner) {
+	if (!outer) {
+		throw new Error("react-window scroll container not found");
+	}
+	return outer;
+};
+
+const getInnerSizer = (container: HTMLElement): HTMLElement => {
+	const inner = getScrollContainer(container).firstElementChild;
+	if (!(inner instanceof HTMLElement)) {
 		throw new Error("react-window inner sizing element not found");
 	}
 	return inner;
@@ -82,5 +90,129 @@ describe("AgentLogs virtualized height", () => {
 		expect(
 			Number.parseFloat(getInnerSizer(container).style.height),
 		).toBeGreaterThan(ROW_COUNT * AGENT_LOG_LINE_HEIGHT);
+	});
+});
+
+describe("AgentLogs follow", () => {
+	const CLIENT_HEIGHT = 256;
+	const INITIAL_SCROLL_HEIGHT = 1000;
+	const GROWN_SCROLL_HEIGHT = 2000;
+	let scrollHeight = INITIAL_SCROLL_HEIGHT;
+
+	const baseProps = {
+		logs: makeLogs(50),
+		sources: MockSources,
+		overflowed: false,
+		showSourceIcons: false,
+		height: CLIENT_HEIGHT,
+		width: 600,
+	};
+
+	beforeEach(() => {
+		scrollHeight = INITIAL_SCROLL_HEIGHT;
+		MockResizeObserver.reset();
+		vi.stubGlobal("ResizeObserver", MockResizeObserver);
+		// jsdom performs no layout
+		vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(
+			() => scrollHeight,
+		);
+		vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(
+			CLIENT_HEIGHT,
+		);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	const getContentObserver = (inner: HTMLElement): MockResizeObserver => {
+		const observer = MockResizeObserver.instances.find((o) =>
+			o.observe.mock.calls.some(([target]) => target === inner),
+		);
+		if (!observer) {
+			throw new Error("no ResizeObserver observes the inner sizing element");
+		}
+		return observer;
+	};
+
+	it("stops following when the user scrolls up", () => {
+		const onFollowChange = vi.fn();
+		const { container } = render(
+			<AgentLogs {...baseProps} follow onFollowChange={onFollowChange} />,
+		);
+		const outer = getScrollContainer(container);
+		expect(outer.scrollTop).toBe(INITIAL_SCROLL_HEIGHT);
+
+		outer.scrollTop = 500;
+		fireEvent.scroll(outer);
+
+		expect(onFollowChange).toHaveBeenCalledWith(false);
+	});
+
+	it("resumes following when the user scrolls back to the bottom", () => {
+		const onFollowChange = vi.fn();
+		const { container } = render(
+			<AgentLogs
+				{...baseProps}
+				follow={false}
+				onFollowChange={onFollowChange}
+			/>,
+		);
+		const outer = getScrollContainer(container);
+
+		outer.scrollTop = 500;
+		fireEvent.scroll(outer);
+		expect(onFollowChange).not.toHaveBeenCalled();
+
+		outer.scrollTop = INITIAL_SCROLL_HEIGHT - CLIENT_HEIGHT;
+		fireEvent.scroll(outer);
+		expect(onFollowChange).toHaveBeenCalledWith(true);
+	});
+
+	it("keeps the newest line in view when content grows while following", () => {
+		const { container } = render(
+			<AgentLogs {...baseProps} follow onFollowChange={vi.fn()} />,
+		);
+		const outer = getScrollContainer(container);
+		const observer = getContentObserver(getInnerSizer(container));
+
+		scrollHeight = GROWN_SCROLL_HEIGHT;
+		observer.simulateResize(600, GROWN_SCROLL_HEIGHT);
+
+		expect(outer.scrollTop).toBe(GROWN_SCROLL_HEIGHT);
+	});
+
+	it("leaves the scroll position alone when content grows while not following", () => {
+		const { container } = render(
+			<AgentLogs {...baseProps} follow={false} onFollowChange={vi.fn()} />,
+		);
+		const outer = getScrollContainer(container);
+		const observer = getContentObserver(getInnerSizer(container));
+		outer.scrollTop = 300;
+
+		scrollHeight = GROWN_SCROLL_HEIGHT;
+		observer.simulateResize(600, GROWN_SCROLL_HEIGHT);
+
+		expect(outer.scrollTop).toBe(300);
+	});
+
+	it("scrolls to the bottom when follow is turned on", () => {
+		const onFollowChange = vi.fn();
+		const { container, rerender } = render(
+			<AgentLogs
+				{...baseProps}
+				follow={false}
+				onFollowChange={onFollowChange}
+			/>,
+		);
+		const outer = getScrollContainer(container);
+		outer.scrollTop = 300;
+
+		rerender(
+			<AgentLogs {...baseProps} follow onFollowChange={onFollowChange} />,
+		);
+
+		expect(outer.scrollTop).toBe(INITIAL_SCROLL_HEIGHT);
 	});
 });

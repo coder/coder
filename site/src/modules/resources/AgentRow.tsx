@@ -7,9 +7,8 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
-import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
 	AgentScriptTiming,
 	Template,
@@ -22,6 +21,7 @@ import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -35,6 +35,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Label } from "#/components/Label/Label";
 import type { Line } from "#/components/Logs/LogLine";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -64,7 +65,6 @@ import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentExternal } from "./AgentExternal";
 import { AgentLatency } from "./AgentLatency";
-import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
@@ -180,9 +180,8 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
-	const logListRef = useRef<List>(null);
-	const logListDivRef = useRef<HTMLDivElement>(null);
-	const [bottomOfLogs, setBottomOfLogs] = useState(true);
+	const [followLogs, setFollowLogs] = useState(true);
+	const followLogsId = useId();
 
 	useEffect(() => {
 		setShowLogs(
@@ -197,38 +196,6 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		hasScriptIssues,
 		hasStartupFeatures,
 	]);
-
-	// This is a layout effect to remove flicker when we're scrolling to the bottom.
-	useLayoutEffect(() => {
-		// If we're currently watching the bottom, we always want to stay at the bottom.
-		if (bottomOfLogs && logListRef.current) {
-			logListRef.current.scrollToItem(agentLogs.length - 1, "end");
-		}
-	}, [showLogs, agentLogs, bottomOfLogs]);
-
-	// This is a bit of a hack on the react-window API to get the scroll position.
-	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
-	// This makes it feel similar to a terminal that auto-scrolls downwards!
-	const handleLogScroll = (props: ListOnScrollProps) => {
-		if (
-			props.scrollOffset === 0 ||
-			props.scrollUpdateWasRequested ||
-			!logListDivRef.current
-		) {
-			return;
-		}
-		// The parent holds the height of the list!
-		const parent = logListDivRef.current.parentElement;
-		if (!parent) {
-			return;
-		}
-		// Use the parent's scrollHeight (not the inner div's) so that
-		// any padding on the scroll container is included in the
-		// calculation and doesn't inflate the "at bottom" zone.
-		const distanceFromBottom =
-			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
-		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
-	};
 
 	const devcontainers = useAgentContainers(agent);
 
@@ -703,6 +670,21 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 													"border-solid border-0 border-b border-l",
 												)}
 											>
+												<div className="flex items-center gap-1 pr-1">
+													<Checkbox
+														id={followLogsId}
+														checked={followLogs}
+														onCheckedChange={(checked) =>
+															setFollowLogs(checked === true)
+														}
+													/>
+													<Label
+														htmlFor={followLogsId}
+														className="text-xs text-content-secondary cursor-pointer whitespace-nowrap"
+													>
+														Follow
+													</Label>
+												</div>
 												<TooltipProvider>
 													<Tooltip>
 														<TooltipTrigger asChild>
@@ -745,11 +727,10 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 											<AutoSizer disableHeight>
 												{({ width }) => (
 													<AgentLogs
-														ref={logListRef}
-														innerRef={logListDivRef}
 														height={256}
 														width={width}
-														onScroll={handleLogScroll}
+														follow={followLogs}
+														onFollowChange={setFollowLogs}
 														logs={selectedLogLines}
 														sources={agent.log_sources}
 														overflowed={agent.logs_overflowed}
