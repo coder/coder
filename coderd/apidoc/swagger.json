@@ -19289,7 +19289,7 @@
 					"format": "date-time"
 				},
 				"held_at": {
-					"description": "HeldAt is set while the owner is editing the message. A held\nmessage and every message queued behind it are not processed\nuntil the hold is released; messages ahead of it still are. A\nwaiting chat whose first queued message is held is paused for\nthat edit rather than idle: a send to it is queued.",
+					"description": "HeldAt is set while the owner edits the message. A held message\nand every message behind it wait until the hold is released.",
 					"type": "string",
 					"format": "date-time"
 				},
@@ -21517,18 +21517,18 @@
 			"type": "object",
 			"properties": {
 				"content": {
-					"description": "Content, when present, replaces the queued content. An empty\narray is rejected.",
+					"description": "Content replaces the queued content. An empty array is rejected.",
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.ChatInputPart"
 					}
 				},
 				"held": {
-					"description": "Held sets or clears the hold. A chat has at most one held\nmessage; holding another moves the hold. While held, the message\nand every message queued behind it wait; messages ahead of it\nstill run. Releasing the hold on an idle chat sends the message.",
+					"description": "Held sets or clears the hold. A chat has at most one held message;\nholding another moves the hold. Releasing the head of a paused\nchat sends it.",
 					"type": "boolean"
 				},
 				"model_config_id": {
-					"description": "ModelConfigID and ReasoningEffort override the message's model and\neffort. They are only applied together with Content.",
+					"description": "ModelConfigID and ReasoningEffort apply only together with Content.",
 					"type": "string",
 					"format": "uuid"
 				},

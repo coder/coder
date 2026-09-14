@@ -1483,10 +1483,8 @@ func generateStructuredTurnStatusLabel(
 	return label, nil
 }
 
-// turnFinished reports whether status is the result of a turn that
-// completed normally: waiting (queue drained or empty) or paused (the
-// next queued message is held). Both get the end-of-turn label,
-// summary, and push; error and requires_action do not.
+// turnFinished reports whether a turn ended normally: waiting, or
+// paused at a held queued message.
 func turnFinished(status database.ChatStatus) bool {
 	return status == database.ChatStatusWaiting || status == database.ChatStatusPaused
 }

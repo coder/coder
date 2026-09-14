@@ -2999,9 +2999,8 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Deleting the held head of an idle chat starts the message behind
-	// it, which is LLM inference under the owner's credentials. Only the
-	// chat owner may do that; see postChatMessages for the rationale.
+	// Only the chat owner may delete queued messages. See
+	// postChatMessages for the security rationale.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may delete queued messages.",
@@ -3161,8 +3160,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Editing queued content changes what the model will be asked, and
-	// releasing a hold can start inference, so this needs update
+	// Releasing a hold can trigger LLM inference, requiring update
 	// permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
