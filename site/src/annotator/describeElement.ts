@@ -160,6 +160,33 @@ export function describeOpeningTag(element: Element): string {
 	return `<${parts.join(" ")}>`;
 }
 
+// Text inside form controls and editable regions is user state, not UI
+// copy, so it is never captured. Selected text is exempt because the user
+// highlighted it deliberately.
+const userContentSelector =
+	"input, textarea, select, [contenteditable]:not([contenteditable=false])";
+
+function visibleText(element: Element): string {
+	if (element.closest(userContentSelector)) {
+		return "";
+	}
+	const walker = element.ownerDocument.createTreeWalker(
+		element,
+		NodeFilter.SHOW_TEXT,
+		{
+			acceptNode: (node) =>
+				node.parentElement?.closest(userContentSelector)
+					? NodeFilter.FILTER_REJECT
+					: NodeFilter.FILTER_ACCEPT,
+		},
+	);
+	const parts: string[] = [];
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		parts.push(node.textContent ?? "");
+	}
+	return parts.join(" ");
+}
+
 /**
  * Captures everything an agent needs to locate the element in source:
  * selector, identifying attributes, visible text, an allowlisted opening
@@ -167,7 +194,7 @@ export function describeOpeningTag(element: Element): string {
  */
 export function describeElement(element: Element): AnnotatedElement {
 	const rect = element.getBoundingClientRect();
-	const text = truncate(element.textContent ?? "", maxTextLength);
+	const text = truncate(visibleText(element), maxTextLength);
 	const react = describeReactOwner(element);
 	const openingTag = describeOpeningTag(element);
 	const role = element.getAttribute("role") ?? undefined;

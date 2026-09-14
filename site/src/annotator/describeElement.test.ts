@@ -109,6 +109,21 @@ describe("describeElement", () => {
 	});
 });
 
+describe("describeElement text capture", () => {
+	it("skips text inside form controls and editable regions", () => {
+		const body = render(
+			'<section><h2>Profile</h2><textarea>my private notes</textarea><select><option>Jane Doe</option></select><div contenteditable="true">draft</div><p>Public copy</p></section>',
+		);
+		const section = body.querySelector("section");
+		if (!section) {
+			throw new Error("missing section");
+		}
+		expect(describeElement(section).text).toBe("Profile Public copy");
+		const textarea = body.querySelector("textarea");
+		expect(textarea && describeElement(textarea).text).toBeUndefined();
+	});
+});
+
 describe("describeOpeningTag", () => {
 	it("keeps only locating attributes and strips URL secrets", () => {
 		const body = render(
