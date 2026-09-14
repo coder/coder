@@ -642,8 +642,8 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 		// transaction, so the guard must stop at it at the latest.
 		return SendMessageResult{}, xerrors.Errorf("queued message %d is not promotable", queued.ID)
 	}
-	if head.HeldAt.Valid {
-		// Held head: append to tail, no promotion, stay in error.
+	if queuePaused(head) {
+		// Paused head: append to tail, no promotion, stay in error.
 		return SendMessageResult{QueuedMessage: &queued}, nil
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
@@ -997,8 +997,8 @@ type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
 }
 
-// DeleteQueuedMessage removes a single queued user message. Deleting
-// the held head from P promotes the next row, or lands in W.
+// DeleteQueuedMessage removes a single queued user message. From P the
+// chat resumes if no pause condition remains.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
 	if err != nil {
@@ -1024,8 +1024,8 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if rows == 0 {
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
-	if from == StateP && target.HeldAt.Valid {
-		if err := tx.resumeIfHeadPromotable(chat); err != nil {
+	if from == StateP {
+		if err := tx.resumeIfUnpaused(chat); err != nil {
 			return DeleteQueuedMessageResult{}, err
 		}
 	}
@@ -1054,8 +1054,8 @@ type EditQueuedMessageResult struct {
 
 // EditQueuedMessage rewrites a queued row's content and/or hold.
 // Holding a row while another is held moves the hold. Releasing the
-// held head from P promotes it; holding a different row from P is
-// refused with [ErrPausedHeadMustResume].
+// hold from P resumes the chat if no pause condition remains; holding a
+// different row from P is refused with [ErrPausedHeadMustResume].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
 	if err != nil {
@@ -1116,7 +1116,7 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 			return EditQueuedMessageResult{}, xerrors.Errorf("update queued held: %w", err)
 		}
 		if from == StateP && !*input.Held {
-			if err := tx.resumeIfHeadPromotable(chat); err != nil {
+			if err := tx.resumeIfUnpaused(chat); err != nil {
 				return EditQueuedMessageResult{}, err
 			}
 		}
@@ -1145,9 +1145,9 @@ func (tx *Tx) releaseOtherHold(exceptID int64) error {
 	return nil
 }
 
-// resumeIfHeadPromotable leaves P after the held head was released or
-// deleted: promotes the new head, or lands in W when no rows remain.
-func (tx *Tx) resumeIfHeadPromotable(chat database.Chat) error {
+// resumeIfUnpaused leaves P when no pause condition remains: promotes
+// the head, or lands in W when no rows remain.
+func (tx *Tx) resumeIfUnpaused(chat database.Chat) error {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err := tx.applyExecutionState(executionStateUpdate{
@@ -1166,7 +1166,7 @@ func (tx *Tx) resumeIfHeadPromotable(chat database.Chat) error {
 	if err != nil {
 		return xerrors.Errorf("get queue head: %w", err)
 	}
-	if head.HeldAt.Valid {
+	if queuePaused(head) {
 		return nil
 	}
 	_, _, err = tx.promoteQueuedRow(chat, head)
@@ -1842,8 +1842,8 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 		}, nil
 	}
 
-	// I1: promote queue head into history, or pause (P) on a held head.
-	if head.HeldAt.Valid {
+	// I1: promote queue head into history, or pause (P) on a paused head.
+	if queuePaused(head) {
 		if _, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusPaused,
 			Archived:                 false,
@@ -1933,8 +1933,8 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		}
 		return FinishTurnResult{Chat: updated}, nil
 	}
-	// R1: promote queue head into history, or pause (P) on a held head.
-	if head.HeldAt.Valid {
+	// R1: promote queue head into history, or pause (P) on a paused head.
+	if queuePaused(head) {
 		updated, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusPaused,
 			Archived:                 false,
