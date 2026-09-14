@@ -21,7 +21,7 @@ needs docs; this skill covers writing them well.
 >   [`docs/.style/style-guide/`](../../../docs/.style/style-guide/README.md).
 >   Open it and apply it as a checklist. Do not write from memory; most style
 >   churn in review comes from rules that already exist but were not applied.
->   Automated tooling checks 9 of the 71 rules in that guide, and Vale runs
+>   Automated tooling checks 8 of the 71 rules in that guide, and Vale runs
 >   advisory, so a clean lint run is not evidence that you applied it. Refer to
 >   [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > - **Agent-facing structure and research notes:**
@@ -194,7 +194,7 @@ the whole series as a single review.
 - [ ] Prose style guide opened and applied section by section, including the
       rules no linter checks.
 - [ ] `make lint/emdash`, markdownlint, and Vale pass. Treat this as a floor,
-      not as conformance: tooling covers 9 of the guide's 71 rules and Vale
+      not as conformance: tooling covers 8 of the guide's 71 rules and Vale
       never fails a build.
 - [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
 - [ ] Premium pages carry the title suffix and manifest state.
