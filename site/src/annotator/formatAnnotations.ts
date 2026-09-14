@@ -39,7 +39,7 @@ function formatAnnotation(annotation: Annotation, index: number): string {
 	lines.push(
 		`- Position: ${element.rect.width}x${element.rect.height} at (${element.rect.x}, ${element.rect.y})`,
 	);
-	lines.push("", "```html", element.html, "```");
+	lines.push(`- Tag: \`${element.openingTag}\``);
 	return lines.join("\n");
 }
 

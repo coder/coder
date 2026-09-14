@@ -20,7 +20,7 @@ const submission: AnnotationSubmission = {
 				role: "button",
 				ariaLabel: "Save changes",
 				text: "Save",
-				html: '<button class="btn secondary">Save</button>',
+				openingTag: '<button class="btn secondary">',
 				rect: { x: 860, y: 300, width: 120, height: 40 },
 				reactComponents: ["SaveButton", "SettingsForm"],
 				sourceLocation: "src/SettingsForm.tsx:42",
@@ -33,7 +33,7 @@ const submission: AnnotationSubmission = {
 				tag: "p",
 				selector: "main > p",
 				classes: [],
-				html: "<p>Hello</p>",
+				openingTag: "<p>",
 				rect: { x: 0, y: 0, width: 10, height: 10 },
 			},
 		},
@@ -61,19 +61,13 @@ describe("formatAnnotations", () => {
 			- Source: \`src/SettingsForm.tsx:42\`
 			- Classes: \`btn secondary\`
 			- Position: 120x40 at (860, 300)
-
-			\`\`\`html
-			<button class="btn secondary">Save</button>
-			\`\`\`
+			- Tag: \`<button class="btn secondary">\`
 
 			## 2. (no comment)
 
 			- Element: \`main > p\` (\`<p>\`)
 			- Position: 10x10 at (0, 0)
-
-			\`\`\`html
-			<p>Hello</p>
-			\`\`\`
+			- Tag: \`<p>\`
 			"
 		`);
 	});

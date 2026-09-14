@@ -82,7 +82,7 @@ const submission: AnnotatorToHostMessage = {
 				tag: "button",
 				selector: "#save",
 				classes: [],
-				html: '<button id="save">Save</button>',
+				openingTag: '<button id="save">',
 				rect: { x: 1, y: 2, width: 3, height: 4 },
 			},
 		},

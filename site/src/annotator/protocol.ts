@@ -20,7 +20,8 @@ export interface AnnotatedElement {
 	role?: string;
 	ariaLabel?: string;
 	text?: string;
-	html: string;
+	// Opening tag rebuilt from an attribute allowlist; never raw markup.
+	openingTag: string;
 	rect: { x: number; y: number; width: number; height: number };
 	reactComponents?: string[];
 	sourceLocation?: string;
@@ -114,7 +115,7 @@ function parseElement(value: unknown): AnnotatedElement | undefined {
 		role: optionalString(value.role),
 		ariaLabel: optionalString(value.ariaLabel),
 		text: optionalString(value.text),
-		html: requiredString(value.html),
+		openingTag: requiredString(value.openingTag),
 		rect: parseRect(value.rect),
 		reactComponents,
 		sourceLocation: optionalString(value.sourceLocation),

@@ -1,4 +1,8 @@
-import { buildSelector, describeElement } from "./describeElement";
+import {
+	buildSelector,
+	describeElement,
+	describeOpeningTag,
+} from "./describeElement";
 
 function render(html: string): HTMLElement {
 	document.body.innerHTML = html;
@@ -66,7 +70,9 @@ describe("describeElement", () => {
 			classes: ["btn", "primary"],
 			text: "Save now",
 		});
-		expect(described.html.startsWith("<button")).toBe(true);
+		expect(described.openingTag).toBe(
+			'<button role="button" aria-label="Save changes" class="btn primary" data-testid="save">',
+		);
 		expect(described.reactComponents).toBeUndefined();
 	});
 
@@ -100,5 +106,43 @@ describe("describeElement", () => {
 		const described = describeElement(span);
 		expect(described.reactComponents).toEqual(["SaveButton", "SettingsForm"]);
 		expect(described.sourceLocation).toBe("src/SettingsForm.tsx:42");
+	});
+});
+
+describe("describeOpeningTag", () => {
+	it("keeps only locating attributes and strips URL secrets", () => {
+		const body = render(
+			'<a id="x" class="link" href="/reset?token=abc#frag" data-user-id="42" data-testid="reset" onclick="steal()" style="color:red" title="Reset">go</a>',
+		);
+		const link = body.querySelector("a");
+		expect(link && describeOpeningTag(link)).toBe(
+			'<a id="x" class="link" href="/reset" data-testid="reset" title="Reset">',
+		);
+	});
+
+	it("never includes form values", () => {
+		const body = render(
+			'<form><input type="hidden" name="csrf" value="s3cret"><input type="text" name="email" value="jane@example.com" placeholder="Email" autocomplete="email"></form>',
+		);
+		const [hidden, email] = Array.from(body.querySelectorAll("input"));
+		expect(describeOpeningTag(hidden)).toBe(
+			'<input type="hidden" name="csrf">',
+		);
+		expect(describeOpeningTag(email)).toBe(
+			'<input type="text" name="email" placeholder="Email">',
+		);
+	});
+
+	it("escapes attribute values and truncates long ones", () => {
+		const body = render("<div></div>");
+		const div = body.querySelector("div");
+		if (!div) {
+			throw new Error("missing div");
+		}
+		div.setAttribute("aria-label", 'Say "hi" <now>');
+		div.setAttribute("class", "a".repeat(200));
+		const tag = describeOpeningTag(div);
+		expect(tag).toContain('aria-label="Say &quot;hi&quot; &lt;now>"');
+		expect(tag.length).toBeLessThan(200);
 	});
 });
