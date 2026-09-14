@@ -262,8 +262,9 @@ export const AppIcons: Story = {
 };
 
 const openResourcesSidebar = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: "Resources" }));
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Resources" }),
+	);
 };
 
 export const HiddenResources: Story = {
@@ -290,6 +291,18 @@ export const HiddenResources: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await openResourcesSidebar(canvasElement);
+	},
+};
+
+export const HiddenResourcesRevealed: Story = {
+	args: HiddenResources.args,
+	play: async ({ canvasElement }) => {
+		await openResourcesSidebar(canvasElement);
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: /show hidden resources/i,
+			}),
+		);
 	},
 };
 
