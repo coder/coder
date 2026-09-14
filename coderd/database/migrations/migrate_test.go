@@ -1190,6 +1190,277 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
+func TestMigration000593RemoveHasAITaskAndTaskBuildReasons(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 593
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID, userID, templateID, versionID, templateJobID, workspaceID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	buildIDs := []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', $3, $3, '{}')",
+			[]any{orgID, orgID.String(), now},
+		},
+		{
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', $4, $4)",
+			[]any{userID, userID.String(), userID.String() + "@test.com", now},
+		},
+		{
+			"INSERT INTO provisioner_jobs (id, created_at, updated_at, organization_id, initiator_id, provisioner, storage_method, file_id, type, input) VALUES ($1, $2, $2, $3, $4, 'echo', 'file', $1, 'template_version_import', '{}')",
+			[]any{templateJobID, now, orgID, userID},
+		},
+		{
+			"INSERT INTO template_versions (id, organization_id, name, readme, created_at, updated_at, job_id, created_by, has_ai_task) VALUES ($1, $2, 'v1', '', $3, $3, $4, $5, true)",
+			[]any{versionID, orgID, now, templateJobID, userID},
+		},
+		{
+			"INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by) VALUES ($1, $2, 'build-reasons', $3, $3, 'echo', $4, $5)",
+			[]any{templateID, orgID, now, versionID, userID},
+		},
+		{
+			"UPDATE template_versions SET template_id = $1 WHERE id = $2",
+			[]any{templateID, versionID},
+		},
+		{
+			"INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name) VALUES ($1, $2, $2, $3, $4, $5, 'build-reasons')",
+			[]any{workspaceID, now, userID, orgID, templateID},
+		},
+	}
+	for _, fixture := range fixtures {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+	for i, reason := range []string{"task_auto_pause", "task_manual_pause", "task_resume", "initiator", "autostop"} {
+		jobID := uuid.New()
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO provisioner_jobs (id, created_at, updated_at, organization_id, initiator_id, provisioner, storage_method, file_id, type, input) VALUES ($1, $2, $2, $3, $4, 'echo', 'file', $1, 'workspace_build', '{}')",
+			jobID, now, orgID, userID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, reason, has_ai_task) VALUES ($1, $2, $2, $3, $4, $5, 'start', $6, $7, $8, $9)",
+			buildIDs[i], now, workspaceID, versionID, i+1, userID, jobID, reason, i == 0)
+		require.NoError(t, err)
+	}
+	_, err = sqlDB.ExecContext(ctx,
+		"INSERT INTO workspace_build_orchestrations (id, created_at, updated_at, workspace_id, parent_build_id, child_transition, child_reason) VALUES ($1, $2, $2, $3, $4, 'start', 'task_auto_pause')",
+		uuid.New(), now, workspaceID, buildIDs[0])
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	var count int
+	var reasons pq.StringArray
+	const reasonsQuery = "SELECT array_agg(reason::text ORDER BY build_number) FROM workspace_builds WHERE workspace_id = $1"
+	wantReasons := pq.StringArray{"autostop", "initiator", "initiator", "initiator", "autostop"}
+	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery, workspaceID).Scan(&reasons))
+	require.Equal(t, wantReasons, reasons)
+	var childReason string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT child_reason FROM workspace_build_orchestrations WHERE workspace_id = $1", workspaceID).Scan(&childReason))
+	require.Equal(t, "autostop", childReason)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM template_version_with_user").Scan(&count))
+	require.Equal(t, 1, count)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_build_with_user").Scan(&count))
+	require.Equal(t, len(buildIDs), count)
+
+	downSQL, err := os.ReadFile("000593_remove_has_ai_task_and_task_build_reasons.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM template_versions WHERE has_ai_task IS FALSE").Scan(&count))
+	require.Equal(t, 1, count)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_builds WHERE has_ai_task IS FALSE").Scan(&count))
+	require.Equal(t, len(buildIDs), count)
+	// The original reasons cannot be recovered after remapping.
+	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery, workspaceID).Scan(&reasons))
+	require.Equal(t, wantReasons, reasons)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT child_reason FROM workspace_build_orchestrations WHERE workspace_id = $1", workspaceID).Scan(&childReason))
+	require.Equal(t, "autostop", childReason)
+
+	upSQL, err := os.ReadFile("000593_remove_has_ai_task_and_task_build_reasons.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+}
+
+func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	// The enum replacement rewrites workspace_builds, risking slow upgrades
+	// on large deployments.
+	const (
+		migrationVersion   = 593
+		workspaceCount     = 1_000
+		buildCount         = 100_000
+		buildsPerWorkspace = buildCount / workspaceCount
+		orchestrationCount = 5_000
+		taskReasonBuilds   = 3 * buildCount / 10
+	)
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	orgID := uuid.New()
+	userID := uuid.New()
+	templateID := uuid.New()
+	templateVersionID := uuid.New()
+	templateJobID := uuid.New()
+
+	// Deterministic IDs let the bulk inserts join rows generated by
+	// generate_series without round-tripping IDs through the test.
+	const (
+		workspaceIDPattern = "('a0000000-0000-4000-8000-' || lpad(%s::text, 12, '0'))::uuid"
+		jobIDPattern       = "('b0000000-0000-4000-8000-' || lpad(%s::text, 12, '0'))::uuid"
+		buildIDPattern     = "('c0000000-0000-4000-8000-' || lpad(%s::text, 12, '0'))::uuid"
+	)
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, $3, $4, $5, $6, '{}')`,
+			[]any{orgID, "timing-org", "Timing Org", "", now, now},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userID, "timinguser", "timing@example.com", []byte{}, now, now, "active", []byte("{}"), "password"},
+		},
+		{
+			`INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, file_id, type, input, tags) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+			[]any{templateJobID, now, now, now, now, "", orgID, userID, "terraform", "file", uuid.New(), "template_version_import", []byte("{}"), []byte("{}")},
+		},
+		{
+			`INSERT INTO template_versions (id, organization_id, name, readme, created_at, updated_at, job_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{templateVersionID, orgID, "v1.0", "", now, now, templateJobID, userID},
+		},
+		{
+			`INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{templateID, orgID, "timing-template", now, now, "terraform", templateVersionID, userID},
+		},
+		{
+			`UPDATE template_versions SET template_id = $1 WHERE id = $2`,
+			[]any{templateID, templateVersionID},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, last_used_at)
+				SELECT `+workspaceIDPattern+`, $1, $1, $2, $3, $4, 'timing-ws-' || g, $1
+				FROM generate_series(0, %d) AS g`, "g", workspaceCount-1),
+			[]any{now, userID, orgID, templateID},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, file_id, type, input, tags)
+				SELECT `+jobIDPattern+`, $1, $1, $1, $1, '', $2, $3, 'terraform', 'file', $4, 'workspace_build', '{}'::jsonb, '{}'::jsonb
+				FROM generate_series(0, %d) AS g`, "g", buildCount-1),
+			[]any{now, orgID, userID, uuid.New()},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, reason, has_ai_task)
+				SELECT `+buildIDPattern+`, $1, $1, `+fmt.Sprintf(workspaceIDPattern, "(g / %d)")+`, $2, (g %% %d) + 1,
+					CASE WHEN g %% 2 = 0 THEN 'start' ELSE 'stop' END::workspace_transition, $3, `+jobIDPattern+`,
+					CASE g %% 10
+						WHEN 0 THEN 'task_auto_pause'
+						WHEN 1 THEN 'task_manual_pause'
+						WHEN 2 THEN 'task_resume'
+						WHEN 3 THEN 'autostart'
+						WHEN 4 THEN 'autostop'
+						ELSE 'initiator'
+					END::build_reason,
+					CASE WHEN g %% 10 < 3 THEN true END
+				FROM generate_series(0, %d) AS g`, "g", buildsPerWorkspace, buildsPerWorkspace, "g", buildCount-1),
+			[]any{now, templateVersionID, userID},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO workspace_build_orchestrations (id, created_at, updated_at, workspace_id, parent_build_id, child_transition, child_reason)
+				SELECT ('e0000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, $1, $1, `+fmt.Sprintf(workspaceIDPattern, "(g * 20 / %d)")+`, `+fmt.Sprintf(buildIDPattern, "(g * 20)")+`, 'start',
+					CASE g %% 3
+						WHEN 0 THEN 'task_auto_pause'
+						WHEN 1 THEN 'task_resume'
+						ELSE 'initiator'
+					END::build_reason
+				FROM generate_series(0, %d) AS g`, buildsPerWorkspace, orchestrationCount-1),
+			[]any{now},
+		},
+	}
+	for i, fixture := range fixtures {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoErrorf(t, err, "fixture %d", i)
+	}
+
+	countByReason := func(table, column, reason string) int {
+		var n int
+		//nolint:gosec // Test-only query built from constant table/column names.
+		err := sqlDB.QueryRowContext(ctx, fmt.Sprintf("SELECT count(*) FROM %s WHERE %s::text = $1", table, column), reason).Scan(&n)
+		require.NoError(t, err)
+		return n
+	}
+	wantAutostop := countByReason("workspace_builds", "reason", "autostop") + countByReason("workspace_builds", "reason", "task_auto_pause")
+	wantInitiator := countByReason("workspace_builds", "reason", "initiator") + countByReason("workspace_builds", "reason", "task_manual_pause") + countByReason("workspace_builds", "reason", "task_resume")
+	wantChildAutostop := countByReason("workspace_build_orchestrations", "child_reason", "autostop") + countByReason("workspace_build_orchestrations", "child_reason", "task_auto_pause")
+	wantChildInitiator := countByReason("workspace_build_orchestrations", "child_reason", "initiator") + countByReason("workspace_build_orchestrations", "child_reason", "task_resume")
+
+	start := time.Now()
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	elapsed := time.Since(start)
+	t.Logf("migration %d over %d workspace builds (%d with task reasons) and %d orchestrations took %s", migrationVersion, buildCount, taskReasonBuilds, orchestrationCount, elapsed)
+	// Bound migration time to catch regressions that could prolong upgrade downtime.
+	require.Lessf(t, elapsed, 2*time.Minute, "migration %d took %s at %d workspace builds", migrationVersion, elapsed, buildCount)
+
+	var totalBuilds int
+	err = sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_builds").Scan(&totalBuilds)
+	require.NoError(t, err)
+	require.Equal(t, buildCount, totalBuilds)
+	require.Equal(t, wantAutostop, countByReason("workspace_builds", "reason", "autostop"))
+	require.Equal(t, wantInitiator, countByReason("workspace_builds", "reason", "initiator"))
+	require.Equal(t, wantChildAutostop, countByReason("workspace_build_orchestrations", "child_reason", "autostop"))
+	require.Equal(t, wantChildInitiator, countByReason("workspace_build_orchestrations", "child_reason", "initiator"))
+
+	var count int
+	err = sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'workspace_builds' AND column_name = 'has_ai_task'").Scan(&count)
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
 func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
 	t.Parallel()
 

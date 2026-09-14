@@ -99,28 +99,6 @@ func (b *PublishBuffer) Discard() {
 	b.disabled = true
 }
 
-// pending returns a snapshot of the buffered messages, primarily for
-// tests via [PublishBuffer.BufferedChannels]. The returned slice is a
-// copy and safe to inspect without holding the buffer lock.
-func (b *PublishBuffer) snapshotPending() []bufferedMessage {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	out := make([]bufferedMessage, len(b.pending))
-	copy(out, b.pending)
-	return out
-}
-
-// BufferedChannels returns just the channels of the pending messages
-// in order. Primarily useful for assertions in tests.
-func (b *PublishBuffer) BufferedChannels() []string {
-	pending := b.snapshotPending()
-	out := make([]string, len(pending))
-	for i, m := range pending {
-		out[i] = m.Channel
-	}
-	return out
-}
-
 // buildChatUpdateMessage produces the JSON payload for a
 // `chat:update:{chat_id}` message describing the post-transition
 // snapshot of chat.

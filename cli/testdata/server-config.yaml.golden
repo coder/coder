@@ -494,6 +494,11 @@ provisioning:
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
+  # Disable the reuse of Terraform modules cached at template import for all
+  # templates. Modules are re-downloaded on every workspace build. Individual
+  # templates cannot opt back in.
+  # (default: false, type: bool)
+  disableModuleCache: false
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.
@@ -809,11 +814,6 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
-# Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI
-# and its URLs are unavailable, the task RBAC permissions are stripped from
-# built-in roles, and the CLI task commands are hidden.
-# (default: false, type: bool)
-enableAITasks: false
 # Configure the background chat processing daemon.
 chat:
   # How many pending chats a worker should acquire per polling cycle.

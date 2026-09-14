@@ -27,7 +27,7 @@ export const VideoLightbox: FC<VideoLightboxProps> = ({
 						{RECORDING_UNAVAILABLE_TEXT}
 					</div>
 				) : (
-					// biome-ignore lint/a11y/useMediaCaption: Screen recordings do not have caption tracks.
+					// oxlint-disable-next-line jsx-a11y/media-has-caption -- Screen recordings do not have caption tracks.
 					<video
 						src={src}
 						controls
