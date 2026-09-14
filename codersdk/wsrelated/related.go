@@ -12,6 +12,8 @@
 // identifiers of its children.
 package wsrelated
 
+import "strings"
+
 // Config is the root of the selection tree. A zero value (nil branches) selects
 // nothing but the workspace itself. All selects everything.
 //
@@ -27,6 +29,22 @@ func (c *Config) ensureLatestBuild() *LatestBuild {
 		c.LatestBuild = &LatestBuild{}
 	}
 	return c.LatestBuild
+}
+
+// QueryParam encodes the selection as an include_related query parameter value:
+// a comma-separated list of the dotted path of each selected node that has no
+// selected descendants. Selecting a node implicitly selects its ancestors, so
+// only these frontier nodes are emitted, and Parse round-trips the result back
+// into an equal Config.
+func (c Config) QueryParam() string {
+	var paths []string
+	if c.Template {
+		paths = append(paths, "template")
+	}
+	if c.LatestBuild != nil {
+		paths = c.LatestBuild.appendPaths(paths, "latest_build")
+	}
+	return strings.Join(paths, ",")
 }
 
 type LatestBuild struct {
@@ -60,8 +78,34 @@ func (c *LatestBuild) AppStatuses() bool {
 		c.Resources.Agents.Apps.Statuses
 }
 
+// appendPaths appends the frontier paths under base, or base itself when this
+// node has no selected descendants.
+func (c *LatestBuild) appendPaths(paths []string, base string) []string {
+	before := len(paths)
+	if c.Job != nil {
+		paths = c.Job.appendPaths(paths, base+".job")
+	}
+	if c.Resources != nil {
+		paths = c.Resources.appendPaths(paths, base+".resources")
+	}
+	if c.TemplateVersion {
+		paths = append(paths, base+".template_version")
+	}
+	if len(paths) == before {
+		paths = append(paths, base)
+	}
+	return paths
+}
+
 type Job struct {
 	QueuePosition bool // latest_build.job.queue_position
+}
+
+func (c *Job) appendPaths(paths []string, base string) []string {
+	if c.QueuePosition {
+		return append(paths, base+".queue_position")
+	}
+	return append(paths, base)
 }
 
 type Resources struct {
@@ -74,6 +118,20 @@ func (c *Resources) ensureAgents() *Agents {
 		c.Agents = &Agents{}
 	}
 	return c.Agents
+}
+
+func (c *Resources) appendPaths(paths []string, base string) []string {
+	before := len(paths)
+	if c.Metadata {
+		paths = append(paths, base+".metadata")
+	}
+	if c.Agents != nil {
+		paths = c.Agents.appendPaths(paths, base+".agents")
+	}
+	if len(paths) == before {
+		paths = append(paths, base)
+	}
+	return paths
 }
 
 type Agents struct {
@@ -89,8 +147,32 @@ func (c *Agents) ensureApps() *Apps {
 	return c.Apps
 }
 
+func (c *Agents) appendPaths(paths []string, base string) []string {
+	before := len(paths)
+	if c.Apps != nil {
+		paths = c.Apps.appendPaths(paths, base+".apps")
+	}
+	if c.Scripts {
+		paths = append(paths, base+".scripts")
+	}
+	if c.LogSources {
+		paths = append(paths, base+".log_sources")
+	}
+	if len(paths) == before {
+		paths = append(paths, base)
+	}
+	return paths
+}
+
 type Apps struct {
 	Statuses bool // latest_build.resources.agents.apps.statuses
+}
+
+func (c *Apps) appendPaths(paths []string, base string) []string {
+	if c.Statuses {
+		return append(paths, base+".statuses")
+	}
+	return append(paths, base)
 }
 
 // All returns a selection that loads every related object. It reproduces the

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/wsrelated"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 func TestParse(t *testing.T) {
