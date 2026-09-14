@@ -33,14 +33,12 @@ import (
 )
 
 const (
-	maxListSessionsLimit      = 1000
-	maxListModelsLimit        = 1000
-	maxListClientsLimit       = 1000
-	maxListProvidersLimit     = 1000
-	defaultListSessionsLimit  = 100
-	defaultListModelsLimit    = 100
-	defaultListClientsLimit   = 100
-	defaultListProvidersLimit = 100
+	maxListSessionsLimit     = 1000
+	maxListModelsLimit       = 1000
+	maxListClientsLimit      = 1000
+	defaultListSessionsLimit = 100
+	defaultListModelsLimit   = 100
+	defaultListClientsLimit  = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow              = time.Second
@@ -98,7 +96,6 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 			r.Get("/sessions/{session_id}", api.aiBridgeGetSessionThreads)
 			r.Get("/models", api.aiBridgeListModels)
 			r.Get("/clients", api.aiBridgeListClients)
-			r.Get("/providers", api.aiBridgeListProviders)
 		})
 
 		// Apply the shared per-request data-plane middleware (per-replica
@@ -609,55 +606,43 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, clients)
 }
 
-// aiBridgeListProviders returns distinct AI Gateway provider names a user can
-// see on interceptions they are authorized to read.
+// aiBridgeListProviders returns the provider metadata used to filter AI
+// Gateway sessions by provider_name. It reads ai_providers rather than
+// scanning interceptions so the response stays cheap on large deployments,
+// and is authorized on interception read (see dbauthz), so session viewers
+// get labels and icons without access to provider configuration.
 //
 // @Summary List AI Gateway providers
-// @Description Alias: also available at /api/v2/aibridge/providers for backward compatibility.
 // @ID list-ai-gateway-providers
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
-// @Success 200 {array} string
+// @Success 200 {array} codersdk.AIBridgeProvider
 // @Router /api/v2/ai-gateway/providers [get]
 func (api *API) aiBridgeListProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	page, ok := coderd.ParsePagination(rw, r)
-	if !ok {
+	rows, err := api.Database.GetAIProviderFilterOptions(ctx)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
-
-	if page.Limit == 0 {
-		page.Limit = defaultListProvidersLimit
-	}
-
-	if page.Limit > maxListProvidersLimit || page.Limit < 1 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid pagination limit value.",
-			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListProvidersLimit),
-		})
-		return
-	}
-
-	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AIBridgeProviders(queryStr, page)
-
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid AI Gateway providers search query.",
-			Validations: errs,
-		})
-		return
-	}
-
-	providers, err := api.Database.ListAIBridgeProviders(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting AI Gateway providers.",
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	providers := make([]codersdk.AIBridgeProvider, 0, len(rows))
+	for _, row := range rows {
+		providers = append(providers, codersdk.AIBridgeProvider{
+			Name:        row.Name,
+			Type:        codersdk.AIProviderType(row.Type),
+			DisplayName: row.DisplayName.String,
+			Icon:        row.Icon,
+		})
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, providers)

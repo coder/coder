@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { API } from "#/api/api";
+import type { AIBridgeProvider } from "#/api/typesGenerated";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
@@ -9,15 +10,12 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
-import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
-import { getProviderDisplayName } from "../utils";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 
-const toFilterOption = (providerName: string): SelectFilterOption => ({
-	value: providerName,
-	label: getProviderDisplayName(providerName),
-	startIcon: (
-		<AIBridgeProviderIcon provider={providerName} className="size-icon-sm" />
-	),
+const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => ({
+	value: provider.name,
+	label: provider.display_name || provider.name,
+	startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
 });
 
 export const useProviderFilterMenu = ({
@@ -31,21 +29,14 @@ export const useProviderFilterMenu = ({
 			if (!value) {
 				return null;
 			}
-			const providers = await API.getAIBridgeProviders({
-				q: value,
-				limit: 1,
-			});
-			const firstProvider = providers.at(0);
-			if (firstProvider && firstProvider === value) {
-				return toFilterOption(firstProvider);
-			}
-			return null;
+			const providers = await API.getAIBridgeProviders();
+			const match = providers.find((p) => p.name === value);
+			return match ? toFilterOption(match) : null;
 		},
-		getOptions: async (query) => {
-			const providers = await API.getAIBridgeProviders({
-				q: query,
-				limit: 25,
-			});
+		// The provider list is small and useFilterMenu filters options
+		// client-side by label and value, so the query is not sent upstream.
+		getOptions: async () => {
+			const providers = await API.getAIBridgeProviders();
 			return providers.map(toFilterOption);
 		},
 		value,

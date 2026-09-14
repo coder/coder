@@ -316,6 +316,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/providers", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.aiBridgeListProviders)
+		})
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/ai-gateway/keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

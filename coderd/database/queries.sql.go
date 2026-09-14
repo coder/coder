@@ -660,6 +660,59 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIPr
 	return i, err
 }
 
+const getAIProviderFilterOptions = `-- name: GetAIProviderFilterOptions :many
+SELECT DISTINCT ON (name)
+    name,
+    type,
+    display_name,
+    icon
+FROM
+    ai_providers
+ORDER BY
+    name ASC,
+    deleted ASC,
+    updated_at DESC
+`
+
+type GetAIProviderFilterOptionsRow struct {
+	Name        string         `db:"name" json:"name"`
+	Type        AIProviderType `db:"type" json:"type"`
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Icon        string         `db:"icon" json:"icon"`
+}
+
+// Returns the display metadata AI Gateway session viewers need to filter
+// interceptions by provider_name. Soft-deleted and disabled rows are
+// included because interceptions keep referencing them. When a name has
+// been reused, the live row wins so current metadata is shown.
+func (q *sqlQuerier) GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderFilterOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIProviderFilterOptionsRow
+	for rows.Next() {
+		var i GetAIProviderFilterOptionsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Type,
+			&i.DisplayName,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
@@ -2014,62 +2067,6 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 			return nil, err
 		}
 		items = append(items, model)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAIBridgeProviders = `-- name: ListAIBridgeProviders :many
-SELECT
-	provider_name
-FROM
-	aibridge_interceptions
-WHERE
-	-- Remove inflight interceptions (ones which lack an ended_at value).
-	aibridge_interceptions.ended_at IS NOT NULL
-	AND aibridge_interceptions.provider_name != ''
-	-- Filter provider_name (prefix match, same as models and clients).
-	AND CASE
-		WHEN $1::text != '' THEN aibridge_interceptions.provider_name LIKE $1::text || '%'
-		ELSE true
-	END
-	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list providers
-	-- that are relevant to the user and what they are allowed to see.
-	-- Authorize Filter clause will be injected below in
-	-- ListAIBridgeProvidersAuthorized.
-	-- @authorize_filter
-GROUP BY
-	provider_name
-ORDER BY
-	provider_name ASC
-LIMIT COALESCE(NULLIF($3::integer, 0), 100)
-OFFSET $2
-`
-
-type ListAIBridgeProvidersParams struct {
-	ProviderName string `db:"provider_name" json:"provider_name"`
-	Offset       int32  `db:"offset_" json:"offset_"`
-	Limit        int32  `db:"limit_" json:"limit_"`
-}
-
-func (q *sqlQuerier) ListAIBridgeProviders(ctx context.Context, arg ListAIBridgeProvidersParams) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeProviders, arg.ProviderName, arg.Offset, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var provider_name string
-		if err := rows.Scan(&provider_name); err != nil {
-			return nil, err
-		}
-		items = append(items, provider_name)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

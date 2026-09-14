@@ -790,7 +790,6 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/providers": {
             "get": {
-                "description": "Alias: also available at /api/v2/aibridge/providers for backward compatibility.",
                 "produces": [
                     "application/json"
                 ],
@@ -805,7 +804,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "$ref": "#/definitions/codersdk.AIBridgeProvider"
                             }
                         }
                     }
@@ -17555,6 +17554,23 @@ const docTemplate = `{
             "properties": {
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeProvider": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
                 }
             }
         },

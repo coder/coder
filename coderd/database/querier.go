@@ -355,6 +355,11 @@ type sqlcQuerier interface {
 	// between validation and writing the model config reference.
 	GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
+	// Returns the display metadata AI Gateway session viewers need to filter
+	// interceptions by provider_name. Soft-deleted and disabled rows are
+	// included because interceptions keep referencing them. When a name has
+	// been reused, the live row wins so current metadata is shown.
+	GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
 	// Returns the provider IDs that have at least one provider-scoped key.
 	GetAIProviderKeyPresence(ctx context.Context, providerIds []uuid.UUID) ([]uuid.UUID, error)
@@ -1255,7 +1260,6 @@ type sqlcQuerier interface {
 	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
 	ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error)
 	ListAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams) ([]string, error)
-	ListAIBridgeProviders(ctx context.Context, arg ListAIBridgeProvidersParams) ([]string, error)
 	// Returns the individual Agent Firewall network calls made during an AI
 	// session, ordered chronologically. All protocols are included, unlike
 	// GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list

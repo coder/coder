@@ -88,25 +88,44 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/providers \
 
 `GET /api/v2/ai-gateway/providers`
 
-Alias: also available at /api/v2/aibridge/providers for backward compatibility.
-
 ### Example responses
 
 > 200 Response
 
 ```json
 [
-  "string"
+  {
+    "display_name": "string",
+    "icon": "string",
+    "name": "string",
+    "type": "openai"
+  }
 ]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema          |
-|--------|---------------------------------------------------------|-------------|-----------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+| Status | Meaning                                                 | Description | Schema                                                                    |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIBridgeProvider](schemas.md#codersdkaibridgeprovider) |
 
 <h3 id="list-ai-gateway-providers-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+|------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`   | array                                                        | false    |              |             |
+| `» display_name` | string                                                       | false    |              |             |
+| `» icon`         | string                                                       | false    |              |             |
+| `» name`         | string                                                       | false    |              |             |
+| `» type`         | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype) | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                                                                |
+|----------|---------------------------------------------------------------------------------------------------------|
+| `type`   | `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
