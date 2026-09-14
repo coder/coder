@@ -3160,7 +3160,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Releasing a hold can trigger LLM inference, requiring update
+	// Ending an edit can trigger LLM inference, requiring update
 	// permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
@@ -3197,10 +3197,10 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if req.Content == nil && req.Held == nil {
+	if req.Content == nil && req.Editing == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Nothing to edit.",
-			Detail:  "Provide content, held, or both.",
+			Detail:  "Provide content, editing, or both.",
 		})
 		return
 	}
@@ -3208,7 +3208,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 	opts := chatd.EditQueuedMessageOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedMessageID,
-		Held:            req.Held,
+		Editing:         req.Editing,
 	}
 	if req.Content != nil {
 		contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
@@ -3262,9 +3262,9 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, editErr):
 			// response already written
-		case errors.Is(editErr, chatstate.ErrPausedHeadMustResume):
+		case errors.Is(editErr, chatstate.ErrPausedQueuedHeadUnderEdit):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "The chat is paused for the held message. Resume, send, or remove it before editing another.",
+				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
 			})
 		case errors.Is(editErr, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{

@@ -5256,8 +5256,8 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-	// Set while the owner edits the row. The state machine does not promote a held head.
-	HeldAt sql.NullTime `db:"held_at" json:"held_at"`
+	// Set while the owner edits the row. The state machine does not promote a row under edit.
+	EditingSince sql.NullTime `db:"editing_since" json:"editing_since"`
 }
 
 type ChatTable struct {

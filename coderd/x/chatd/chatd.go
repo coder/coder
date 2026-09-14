@@ -2178,10 +2178,10 @@ type EditQueuedMessageOptions struct {
 	Content         []codersdk.ChatMessagePart
 	ModelConfigID   uuid.UUID
 	ReasoningEffort *string
-	Held            *bool
+	Editing         *bool
 }
 
-// EditQueuedMessage rewrites a queued row's content and/or hold through
+// EditQueuedMessage rewrites a queued row's content and/or edit marker through
 // the chatstate state machine. Stream side effects are handled by
 // chat:update consumers; a status change publishes the sidebar watch
 // event.
@@ -2195,8 +2195,8 @@ func (p *Server) EditQueuedMessage(
 	if opts.QueuedMessageID <= 0 {
 		return xerrors.New("queued_message_id is required")
 	}
-	if len(opts.Content) == 0 && opts.Held == nil {
-		return xerrors.New("content or held is required")
+	if len(opts.Content) == 0 && opts.Editing == nil {
+		return xerrors.New("content or editing is required")
 	}
 
 	contentParts := opts.Content
@@ -2238,7 +2238,7 @@ func (p *Server) EditQueuedMessage(
 
 	input := chatstate.EditQueuedMessageInput{
 		QueuedMessageID: opts.QueuedMessageID,
-		Held:            opts.Held,
+		Editing:         opts.Editing,
 	}
 	if len(contentParts) > 0 {
 		content, err := chatprompt.MarshalParts(contentParts)

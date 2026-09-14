@@ -7647,7 +7647,7 @@ func (q *querier) UpdateChatQueuedMessageContent(ctx context.Context, arg databa
 	return q.db.UpdateChatQueuedMessageContent(ctx, arg)
 }
 
-func (q *querier) UpdateChatQueuedMessageHeld(ctx context.Context, arg database.UpdateChatQueuedMessageHeldParams) (database.ChatQueuedMessage, error) {
+func (q *querier) UpdateChatQueuedMessageEditing(ctx context.Context, arg database.UpdateChatQueuedMessageEditingParams) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return database.ChatQueuedMessage{}, err
@@ -7655,7 +7655,7 @@ func (q *querier) UpdateChatQueuedMessageHeld(ctx context.Context, arg database.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
-	return q.db.UpdateChatQueuedMessageHeld(ctx, arg)
+	return q.db.UpdateChatQueuedMessageEditing(ctx, arg)
 }
 
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {

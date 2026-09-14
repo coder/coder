@@ -448,7 +448,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateI0, StateI1:
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Paused: queue behind the held head regardless of busy behavior.
+	// Paused: queue behind the head regardless of busy behavior.
 	case StateP:
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
@@ -868,7 +868,7 @@ type EditQueuedMessageInput struct {
 	// together with Content.
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
-	Held                    *bool
+	Editing                 *bool
 }
 
 // EditQueuedMessageResult is returned by [Tx.EditQueuedMessage].
@@ -876,19 +876,20 @@ type EditQueuedMessageResult struct {
 	QueuedMessage database.ChatQueuedMessage
 }
 
-// EditQueuedMessage rewrites a queued row's content and/or hold.
-// Holding a row while another is held moves the hold. Releasing the
-// hold from P resumes the chat if no pause condition remains; holding a
-// different row from P is refused with [ErrPausedHeadMustResume].
+// EditQueuedMessage rewrites a queued row's content and/or edit marker.
+// Beginning an edit on a row ends any other row's edit. Ending the edit
+// from P resumes the chat if no pause condition remains; beginning an
+// edit on a different row from P is refused with
+// [ErrPausedQueuedHeadUnderEdit].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
 	if err != nil {
 		return EditQueuedMessageResult{}, err
 	}
-	if input.Content == nil && input.Held == nil {
+	if input.Content == nil && input.Editing == nil {
 		return EditQueuedMessageResult{}, newTransitionError(
 			TransitionEditQueuedMessage, from,
-			"EditQueuedMessage requires content or held",
+			"EditQueuedMessage requires content or editing",
 		)
 	}
 	row, err := tx.store.GetChatQueuedMessageByID(tx.ctx, database.GetChatQueuedMessageByIDParams{
@@ -901,8 +902,8 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 	if err != nil {
 		return EditQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	if from == StateP && input.Held != nil && *input.Held && !row.HeldAt.Valid {
-		return EditQueuedMessageResult{}, ErrPausedHeadMustResume
+	if from == StateP && input.Editing != nil && *input.Editing && !row.EditingSince.Valid {
+		return EditQueuedMessageResult{}, ErrPausedQueuedHeadUnderEdit
 	}
 	if input.Content != nil {
 		modelConfig := row.ModelConfigID
@@ -924,22 +925,22 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 			return EditQueuedMessageResult{}, xerrors.Errorf("update queued content: %w", err)
 		}
 	}
-	if input.Held != nil {
-		if *input.Held && !row.HeldAt.Valid {
-			// Clear the previous holder before setting this one.
-			if err := tx.releaseOtherHold(row.ID); err != nil {
+	if input.Editing != nil {
+		if *input.Editing && !row.EditingSince.Valid {
+			// End the other row's edit before beginning this one.
+			if err := tx.endOtherEdit(row.ID); err != nil {
 				return EditQueuedMessageResult{}, err
 			}
 		}
-		row, err = tx.store.UpdateChatQueuedMessageHeld(tx.ctx, database.UpdateChatQueuedMessageHeldParams{
-			ID:     row.ID,
-			ChatID: tx.chatID,
-			Held:   *input.Held,
+		row, err = tx.store.UpdateChatQueuedMessageEditing(tx.ctx, database.UpdateChatQueuedMessageEditingParams{
+			ID:      row.ID,
+			ChatID:  tx.chatID,
+			Editing: *input.Editing,
 		})
 		if err != nil {
-			return EditQueuedMessageResult{}, xerrors.Errorf("update queued held: %w", err)
+			return EditQueuedMessageResult{}, xerrors.Errorf("update queued editing: %w", err)
 		}
-		if from == StateP && !*input.Held {
+		if from == StateP && !*input.Editing {
 			if err := tx.resumeIfUnpaused(chat); err != nil {
 				return EditQueuedMessageResult{}, err
 			}
@@ -948,22 +949,23 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 	return EditQueuedMessageResult{QueuedMessage: row}, nil
 }
 
-// releaseOtherHold clears the chat's held row if it is not exceptID.
-func (tx *Tx) releaseOtherHold(exceptID int64) error {
+// endOtherEdit clears editing_since on the chat's row under edit if it
+// is not exceptID.
+func (tx *Tx) endOtherEdit(exceptID int64) error {
 	queue, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
 	if err != nil {
 		return xerrors.Errorf("get queued messages: %w", err)
 	}
 	for _, other := range queue {
-		if !other.HeldAt.Valid || other.ID == exceptID {
+		if !other.EditingSince.Valid || other.ID == exceptID {
 			continue
 		}
-		if _, err := tx.store.UpdateChatQueuedMessageHeld(tx.ctx, database.UpdateChatQueuedMessageHeldParams{
-			ID:     other.ID,
-			ChatID: tx.chatID,
-			Held:   false,
+		if _, err := tx.store.UpdateChatQueuedMessageEditing(tx.ctx, database.UpdateChatQueuedMessageEditingParams{
+			ID:      other.ID,
+			ChatID:  tx.chatID,
+			Editing: false,
 		}); err != nil {
-			return xerrors.Errorf("release previous hold: %w", err)
+			return xerrors.Errorf("end previous edit: %w", err)
 		}
 	}
 	return nil
@@ -1054,7 +1056,7 @@ type PromoteQueuedMessageResult struct {
 
 // PromoteQueuedMessage promotes the target queued message to the
 // queue head; from E1/A1/P it also pops it into active history. The
-// target's hold, if any, is cleared first.
+// target's edit, if any, is ended first.
 func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
 	if err != nil {
@@ -1070,14 +1072,14 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	if target.HeldAt.Valid {
-		target, err = tx.store.UpdateChatQueuedMessageHeld(tx.ctx, database.UpdateChatQueuedMessageHeldParams{
-			ID:     target.ID,
-			ChatID: tx.chatID,
-			Held:   false,
+	if target.EditingSince.Valid {
+		target, err = tx.store.UpdateChatQueuedMessageEditing(tx.ctx, database.UpdateChatQueuedMessageEditingParams{
+			ID:      target.ID,
+			ChatID:  tx.chatID,
+			Editing: false,
 		})
 		if err != nil {
-			return PromoteQueuedMessageResult{}, xerrors.Errorf("release queued hold: %w", err)
+			return PromoteQueuedMessageResult{}, xerrors.Errorf("end queued edit: %w", err)
 		}
 	}
 	_, err = tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
