@@ -1,3 +1,4 @@
+import { useAtom } from "jotai";
 import {
 	ArrowLeftIcon,
 	BellIcon,
@@ -30,7 +31,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { chimeEnabledAtom } from "../atoms";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;
@@ -56,7 +57,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
-		useState(getChimeEnabled);
+		useAtom(chimeEnabledAtom);
 	const internalWebPush = useWebpushNotifications();
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;
@@ -90,9 +91,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 			onToggleChime();
 			return;
 		}
-		const next = !chimeEnabled;
-		setInternalChimeEnabled(next);
-		setChimeEnabled(next);
+		setInternalChimeEnabled(!chimeEnabled);
 	};
 
 	const handleNotificationToggle = async () => {

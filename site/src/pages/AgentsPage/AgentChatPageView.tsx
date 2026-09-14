@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtomValue } from "jotai";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import {
 	type FC,
@@ -29,6 +30,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
+import { chatFullWidthAtom } from "./atoms";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -60,7 +62,7 @@ import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
-import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { chatWidthClass } from "./utils/chatWidth";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -1145,7 +1147,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	onToggleSidebarCollapsed,
 	showRightPanel,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const chatFullWidth = useAtomValue(chatFullWidthAtom);
 	return (
 		<div
 			className={cn(

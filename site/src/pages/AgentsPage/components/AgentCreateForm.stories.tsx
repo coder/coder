@@ -490,7 +490,10 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
+		localStorage.setItem(
+			"agents.last-model-config-id",
+			JSON.stringify(claudeModelConfigID),
+		);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -1517,7 +1520,7 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 		localStorage.clear();
 		localStorage.setItem(
 			"agents.last-model-config-id",
-			organization2ModelConfig.id,
+			JSON.stringify(organization2ModelConfig.id),
 		);
 		mockPermittedOrganizations(
 			{

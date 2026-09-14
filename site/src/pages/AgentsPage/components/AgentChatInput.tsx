@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtomValue } from "jotai";
 import {
 	ArrowLeftIcon,
 	ArrowUpIcon,
@@ -60,7 +61,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { chatFullWidthAtom } from "../atoms";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -72,6 +73,7 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
+import { chatWidthClass } from "../utils/chatWidth";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
@@ -421,7 +423,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const chatFullWidth = useAtomValue(chatFullWidthAtom);
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup

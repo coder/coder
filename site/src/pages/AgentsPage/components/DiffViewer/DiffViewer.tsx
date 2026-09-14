@@ -54,7 +54,6 @@ interface DiffViewerProps {
 }
 
 export type DiffStyle = "unified" | "split";
-const DIFF_STYLE_KEY = "agents.diff-view-style";
 
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;
@@ -318,18 +317,6 @@ function DiffFileTree({
 			style={fileTreeStyle}
 		/>
 	);
-}
-
-export function loadDiffStyle(): DiffStyle {
-	const stored = localStorage.getItem(DIFF_STYLE_KEY);
-	if (stored === "split" || stored === "unified") {
-		return stored;
-	}
-	return "unified";
-}
-
-export function saveDiffStyle(style: DiffStyle): void {
-	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
 // The loading state mirrors the real diff layout: flat, full-width

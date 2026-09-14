@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtom } from "jotai";
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
@@ -6,9 +7,9 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { rightPanelWidthAtom } from "../../atoms";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
-const STORAGE_KEY = "agents.right-panel-width";
 const MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
@@ -40,18 +41,6 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 		getMaxWidth(),
 		Math.max(MIN_WIDTH, parent.clientWidth - getChatMinWidth(parent)),
 	);
-}
-
-function loadPersistedWidth(): number {
-	const stored = localStorage.getItem(STORAGE_KEY);
-	if (!stored) {
-		return DEFAULT_WIDTH;
-	}
-	const parsed = Number.parseInt(stored, 10);
-	if (Number.isNaN(parsed) || parsed < MIN_WIDTH || parsed > getMaxWidth()) {
-		return DEFAULT_WIDTH;
-	}
-	return parsed;
 }
 
 interface RightPanelProps {
@@ -86,7 +75,7 @@ function useResizableDrag({
 }: {
 	isExpanded: boolean;
 	width: number;
-	setWidth: React.Dispatch<React.SetStateAction<number>>;
+	setWidth: (update: number | ((prev: number) => number)) => void;
 	isOpen: boolean;
 	onSnapCommit: (snap: "normal" | "expanded" | "closed") => void;
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
@@ -204,7 +193,7 @@ export const RightPanel = ({
 	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
-	const [width, setWidth] = useState(loadPersistedWidth);
+	const [width, setWidth] = useAtom(rightPanelWidthAtom);
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Clamp width when the viewport or parent panel shrinks so the
@@ -259,10 +248,6 @@ export const RightPanel = ({
 		onToggleSidebarCollapsed,
 		getPanelMaxWidth: () => getSideBySideMaxWidth(panelRef.current),
 	});
-
-	useEffect(() => {
-		localStorage.setItem(STORAGE_KEY, String(width));
-	}, [width]);
 
 	useEffect(() => {
 		if (
