@@ -51,14 +51,15 @@ function renderPanel(onAttach = vi.fn()) {
 			/>
 		</ComposerAttachmentsProvider>,
 	);
-	const frame = screen.getByTitle<HTMLIFrameElement>("Preview :3000");
-	const frameOrigin = new URL(frame.src).origin;
+	// Requesting the overlay remounts the iframe, so always look it up fresh.
+	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
+	const frameOrigin = new URL(frame().src).origin;
 	const receive = (data: AnnotatorToHostMessage) => {
 		window.dispatchEvent(
 			new MessageEvent("message", {
 				data,
 				origin: frameOrigin,
-				source: frame.contentWindow,
+				source: frame().contentWindow,
 			}),
 		);
 	};
@@ -68,16 +69,17 @@ function renderPanel(onAttach = vi.fn()) {
 describe("PortPreviewPanel annotations", () => {
 	it("requests the overlay and starts picking once it is ready", async () => {
 		const { frame, frameOrigin, receive } = renderPanel();
-		expect(new URL(frame.src).searchParams.has("coder_annotate")).toBe(false);
+		expect(new URL(frame().src).searchParams.has("coder_annotate")).toBe(false);
 
 		await userEvent.click(
 			screen.getByRole("button", { name: "Annotate elements" }),
 		);
 
-		expect(new URL(frame.src).searchParams.get("coder_annotate")).toBe("1");
-		// jsdom swaps the iframe's window when src changes, so spy on the
-		// window that will receive the ready message.
-		const postMessage = vi.spyOn(frame.contentWindow as Window, "postMessage");
+		expect(new URL(frame().src).searchParams.get("coder_annotate")).toBe("1");
+		const postMessage = vi.spyOn(
+			frame().contentWindow as Window,
+			"postMessage",
+		);
 		expect(postMessage).not.toHaveBeenCalled();
 
 		receive({ type: "coder-annotator:ready" });
@@ -132,7 +134,7 @@ describe("PortPreviewPanel annotations", () => {
 					annotations: [],
 				},
 				origin: "https://evil.example.com",
-				source: frame.contentWindow,
+				source: frame().contentWindow,
 			}),
 		);
 		expect(onAttach).not.toHaveBeenCalled();

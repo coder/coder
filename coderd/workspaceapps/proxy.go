@@ -625,9 +625,6 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		}
 	}
 
-	if s.handleAnnotationParam(rw, r, appToken.AccessMethod) {
-		return
-	}
 	inject := s.annotationRequested(r, appToken.AccessMethod)
 
 	// Ensure path and query parameter correctness.

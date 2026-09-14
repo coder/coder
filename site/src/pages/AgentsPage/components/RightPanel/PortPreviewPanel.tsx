@@ -45,10 +45,11 @@ export const PortPreviewPanel: FC<{
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
 	const frameRef = useRef<HTMLIFrameElement>(null);
 	const composer = useComposerAttachments();
-	// Once the overlay is requested it stays injected for the life of the
-	// tab (the proxy remembers it in a host-only cookie); only picking mode
-	// toggles from here on.
-	const [overlayRequested, setOverlayRequested] = useState(false);
+	// The proxy injects the overlay only on the request that carries the
+	// marker param, so each request reloads the frame. Client-side routing
+	// inside the app keeps the overlay; a full navigation drops it until
+	// the user presses Annotate again.
+	const [overlayRequests, setOverlayRequests] = useState(0);
 
 	const handleSubmit = (submission: AnnotationSubmission) => {
 		const file = new File(
@@ -67,15 +68,18 @@ export const PortPreviewPanel: FC<{
 
 	const frameUrl = unavailableMessage
 		? undefined
-		: withAnnotatorParam(url, overlayRequested);
+		: withAnnotatorParam(url, overlayRequests > 0);
 	const bridge = useAnnotatorBridge({
 		frameRef,
+		frameKey: overlayRequests,
 		frameOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
 		onSubmit: handleSubmit,
 	});
 
 	const handleAnnotateClick = () => {
-		setOverlayRequested(true);
+		if (!bridge.ready) {
+			setOverlayRequests((count) => count + 1);
+		}
 		bridge.setPicking(!bridge.picking);
 	};
 
@@ -149,7 +153,12 @@ export const PortPreviewPanel: FC<{
 					{unavailableMessage}
 				</div>
 			) : (
-				<WorkspaceIframe ref={frameRef} src={frameUrl} title={tab.label} />
+				<WorkspaceIframe
+					key={overlayRequests}
+					ref={frameRef}
+					src={frameUrl}
+					title={tab.label}
+				/>
 			)}
 		</div>
 	);

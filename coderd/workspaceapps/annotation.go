@@ -19,37 +19,23 @@ func (s *Server) annotationsEnabled() bool {
 	return s.Experiments.Enabled(codersdk.ExperimentChatUIAnnotations)
 }
 
-func (s *Server) handleAnnotationParam(rw http.ResponseWriter, r *http.Request, accessMethod AccessMethod) (handled bool) {
-	if !s.annotationsEnabled() || accessMethod != AccessMethodSubdomain || !r.URL.Query().Has(AnnotationQueryParam) {
-		return false
-	}
-
-	value, maxAge := "", -1
-	if r.URL.Query().Get(AnnotationQueryParam) == "1" {
-		value, maxAge = "1", 0
-	}
-	http.SetCookie(rw, s.CookiesConfig.Apply(&http.Cookie{
-		Name:     codersdk.AppAnnotationCookie,
-		Value:    value,
-		Path:     "/",
-		MaxAge:   maxAge,
-		HttpOnly: true,
-	}))
-
-	redirectURL := originLocalURL(r.URL.Path)
-	query := r.URL.Query()
-	query.Del(AnnotationQueryParam)
-	redirectURL.RawQuery = query.Encode()
-	http.Redirect(rw, r, redirectURL.String(), http.StatusSeeOther)
-	return true
-}
-
+// annotationRequested reports whether the dashboard asked for the
+// annotation overlay on this request and removes the marker parameter so
+// the upstream app never sees it. Only the request carrying the parameter
+// is rewritten; client-side navigation inside the app keeps the injected
+// script, while a full navigation drops it until the dashboard asks again.
 func (s *Server) annotationRequested(r *http.Request, accessMethod AccessMethod) bool {
 	if !s.annotationsEnabled() || accessMethod != AccessMethodSubdomain {
 		return false
 	}
-	cookie, err := r.Cookie(codersdk.AppAnnotationCookie)
-	return err == nil && cookie.Value == "1"
+	query := r.URL.Query()
+	if !query.Has(AnnotationQueryParam) {
+		return false
+	}
+	requested := query.Get(AnnotationQueryParam) == "1"
+	query.Del(AnnotationQueryParam)
+	r.URL.RawQuery = query.Encode()
+	return requested
 }
 
 func injectAnnotationScript(resp *http.Response, scriptTag string) error {

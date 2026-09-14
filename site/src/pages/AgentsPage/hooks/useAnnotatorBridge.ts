@@ -7,6 +7,8 @@ import {
 
 interface UseAnnotatorBridgeOptions {
 	frameRef: RefObject<HTMLIFrameElement | null>;
+	// Changes whenever the iframe element is remounted so listeners rebind.
+	frameKey: number;
 	// Origin the iframe is expected to load from. Messages from any other
 	// origin or window are ignored.
 	frameOrigin: string | undefined;
@@ -28,6 +30,7 @@ interface AnnotatorBridge {
  */
 export function useAnnotatorBridge({
 	frameRef,
+	frameKey,
 	frameOrigin,
 	onSubmit,
 }: UseAnnotatorBridgeOptions): AnnotatorBridge {
@@ -96,7 +99,7 @@ export function useAnnotatorBridge({
 			window.removeEventListener("message", handler);
 			frame?.removeEventListener("load", onFrameLoad);
 		};
-	}, [frameRef, frameOrigin, onSubmit, post]);
+	}, [frameRef, frameKey, frameOrigin, onSubmit, post]);
 
 	return {
 		ready,

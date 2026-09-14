@@ -137,88 +137,61 @@ func TestAnnotationScriptTag(t *testing.T) {
 	}
 }
 
-func TestHandleAnnotationParam(t *testing.T) {
+func TestAnnotationRequested(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name         string
 		experiments  codersdk.Experiments
 		accessMethod AccessMethod
-		query        url.Values
-		handled      bool
-		cookieValue  string
-		cookieMaxAge int
-		location     string
+		rawQuery     string
+		want         bool
+		wantQuery    string
 	}{
 		{
-			name:         "SetsCookieAndRedirects",
+			name:         "Requested",
 			experiments:  codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
 			accessMethod: AccessMethodSubdomain,
-			query:        url.Values{AnnotationQueryParam: {"1"}, "keep": {"value"}},
-			handled:      true,
-			cookieValue:  "1",
-			cookieMaxAge: 0,
-			location:     "/preview?keep=value",
+			rawQuery:     AnnotationQueryParam + "=1&keep=value",
+			want:         true,
+			wantQuery:    "keep=value",
 		},
 		{
-			name:         "ClearsCookie",
+			name:         "Disabled",
 			experiments:  codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
 			accessMethod: AccessMethodSubdomain,
-			query:        url.Values{AnnotationQueryParam: {"0"}},
-			handled:      true,
-			cookieMaxAge: -1,
-			location:     "/preview",
+			rawQuery:     AnnotationQueryParam + "=0",
+			wantQuery:    "",
+		},
+		{
+			name:         "Absent",
+			experiments:  codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
+			accessMethod: AccessMethodSubdomain,
+			rawQuery:     "keep=value",
+			wantQuery:    "keep=value",
 		},
 		{
 			name:         "ExperimentDisabled",
 			accessMethod: AccessMethodSubdomain,
-			query:        url.Values{AnnotationQueryParam: {"1"}},
+			rawQuery:     AnnotationQueryParam + "=1",
+			wantQuery:    AnnotationQueryParam + "=1",
 		},
 		{
 			name:         "PathAccess",
 			experiments:  codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
 			accessMethod: AccessMethodPath,
-			query:        url.Values{AnnotationQueryParam: {"1"}},
+			rawQuery:     AnnotationQueryParam + "=1",
+			wantQuery:    AnnotationQueryParam + "=1",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			srv := &Server{ServerOptions: ServerOptions{Experiments: tc.experiments}}
-			req := httptest.NewRequest(http.MethodGet, "https://app.example.com/preview?"+tc.query.Encode(), nil)
-			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "https://app.example.com/preview?"+tc.rawQuery, nil)
 
-			require.Equal(t, tc.handled, srv.handleAnnotationParam(rec, req, tc.accessMethod))
-			if !tc.handled {
-				require.Equal(t, http.StatusOK, rec.Code)
-				return
-			}
-
-			res := rec.Result()
-			defer res.Body.Close()
-			require.Equal(t, http.StatusSeeOther, res.StatusCode)
-			require.Equal(t, tc.location, res.Header.Get("Location"))
-
-			cookies := res.Cookies()
-			require.Len(t, cookies, 1)
-			require.Equal(t, codersdk.AppAnnotationCookie, cookies[0].Name)
-			require.Equal(t, tc.cookieValue, cookies[0].Value)
-			require.Equal(t, tc.cookieMaxAge, cookies[0].MaxAge)
-			require.Equal(t, "/", cookies[0].Path)
-			require.Empty(t, cookies[0].Domain)
-			require.True(t, cookies[0].HttpOnly)
+			require.Equal(t, tc.want, srv.annotationRequested(req, tc.accessMethod))
+			require.Equal(t, tc.wantQuery, req.URL.RawQuery)
 		})
 	}
-}
-
-func TestAnnotationRequested(t *testing.T) {
-	t.Parallel()
-
-	srv := &Server{ServerOptions: ServerOptions{
-		Experiments: codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
-	}}
-	req := httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil)
-	req.AddCookie(&http.Cookie{Name: codersdk.AppAnnotationCookie, Value: "1"})
-	require.True(t, srv.annotationRequested(req, AccessMethodSubdomain))
-	require.False(t, srv.annotationRequested(req, AccessMethodPath))
 }
