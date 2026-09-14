@@ -66,6 +66,7 @@ Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
 Every heading that states a rule of its own carries one, including a sub-heading that adds a rule to its parent.
 Headings that only group sub-rules don't, and neither do example and navigation headings.
+Only `##` and `###` headings state rules; anything deeper is detail inside one.
 [Color contrast](./accessibility-and-inclusion.md#color-contrast) carries an out-of-scope note rather than an enforcement footer, because the docs site theme owns it, so it isn't a rule of this guide and isn't counted.
 
 Classify a counted section from its footer, in this order:
