@@ -14,12 +14,6 @@ You can install and run Coder using the official Docker images published on
 
 - 2 CPU cores and 4 GB memory free on your machine.
 
-> [!IMPORTANT]
-> This guide is for **Linux** hosts only. The `getent` and `--group-add`
-> Docker socket patterns used below are Linux-specific and do not translate
-> cleanly to macOS Docker runtimes. For macOS, install Coder using the
-> [standalone binary](./cli.md) instead.
-
 <div class="tabs">
 
 ## Install Coder via `docker compose`
@@ -41,6 +35,12 @@ which includes a PostgreSQL container and volume.
    ```sh
    getent group docker | cut -d: -f3
    ```
+
+	 or for Mac
+
+	```sh
+	docker compose exec coder stat -c "%g" /var/run/docker.sock
+	```
 
 1. Start Coder with `docker compose up`
 
