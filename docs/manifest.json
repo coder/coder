@@ -1326,7 +1326,7 @@
 								},
 								{
 									"title": "Provider Configuration",
-									"description": "Learn how AI Gateway stores, seeds, and reloads LLM provider configuration for your deployment.",
+									"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
 									"path": "./ai-coder/ai-gateway/providers.md",
 									"state": ["premium"]
 								},

@@ -245,3 +245,46 @@ func TestModelConfigProviderIdentity(t *testing.T) {
 		)
 	})
 }
+
+func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T) {
+	t.Parallel()
+
+	foreignCfg := uuid.New()
+	peCall := codersdk.ChatMessageToolCall("ws", "web_search", json.RawMessage(`{"query":"x"}`))
+	peCall.ProviderExecuted = true
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{peCall})
+	require.NoError(t, err)
+	userContent := func(s string) pqtype.NullRawMessage {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(s)})
+		require.NoError(t, err)
+		return content
+	}
+	rows := []database.ChatMessage{
+		{Role: database.ChatMessageRoleUser, Content: userContent("answered question"), ContentVersion: chatprompt.ContentVersionV1},
+		{Role: database.ChatMessageRoleAssistant, ModelConfigID: uuid.NullUUID{UUID: foreignCfg, Valid: true}, Content: assistantContent, ContentVersion: chatprompt.ContentVersionV1},
+		{Role: database.ChatMessageRoleUser, Content: userContent("pending"), ContentVersion: chatprompt.ContentVersionV1},
+	}
+
+	origin := func(id uuid.NullUUID) (string, bool) {
+		return "openai", id.Valid
+	}
+
+	// Segment first: only the truly unanswered tail is pending, and the
+	// foreign assistant row counts as preceding assistant context even
+	// though sanitization is about to drop it.
+	start := pendingUserSegmentStart(rows)
+	require.Equal(t, 2, start)
+
+	// The sanitizer drops the emptied foreign assistant row from the
+	// head; the answered user row stays in the head regardless, and the
+	// segment derived above is unaffected.
+	head, stats := stripForeignProviderExecutedToolRows(rows[:start], "anthropic", origin)
+	require.Equal(t, 1, stats.DroppedMessages)
+	require.Len(t, head, 1)
+	require.Equal(t, database.ChatMessageRoleUser, head[0].Role)
+
+	// Deriving the segment after sanitization would find no assistant
+	// row at all and therefore no pending segment.
+	sanitizedAll, _ := stripForeignProviderExecutedToolRows(rows, "anthropic", origin)
+	require.Equal(t, len(sanitizedAll), pendingUserSegmentStart(sanitizedAll))
+}

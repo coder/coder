@@ -222,7 +222,8 @@
 			"modelIdentifier": "deepseek/deepseek-v4-pro"
 		},
 		{
-			"modelIdentifier": "qwen/qwen3.8-max"
+			"modelIdentifier": "qwen/qwen3.8-max-0902",
+			"displayName": "Qwen3.8 Max"
 		},
 		{
 			"modelIdentifier": "qwen/qwen3-coder-next"

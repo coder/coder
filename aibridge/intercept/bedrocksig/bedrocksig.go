@@ -27,6 +27,17 @@ const SigningService = "bedrock-mantle"
 // header so AWS can recognize the traffic as Coder-associated Bedrock usage.
 const PRMUserAgent = "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24"
 
+// MantleConfig carries only what the OpenAI-shaped interceptors need to reach
+// Bedrock Mantle: the signing region and credentials, and the base URL that
+// BaseURLForModel rewrites per model. It deliberately excludes the InvokeModel
+// fields (Model, SmallFastModel, Protocol) that those interceptors never use;
+// the messages interceptor keeps the full messages.BedrockRuntime for those.
+type MantleConfig struct {
+	BaseURL string
+	Region  string
+	Creds   aws.CredentialsProvider
+}
+
 // AppendPRMUserAgent appends the Coder PRM attribution marker to the request's
 // User-Agent header.
 func AppendPRMUserAgent(req *http.Request) {

@@ -22,7 +22,7 @@ export const AgenticLoopTable: FC<AgenticLoopTableProps> = ({
 		>
 			<div className="flex items-center justify-between h-6">
 				<span className="pr-4">Tool calls</span>
-				<span>{toolCalls}</span>
+				<span data-testid="tool-calls-count">{toolCalls}</span>
 			</div>
 			<div className="flex items-center justify-between h-6">
 				<span className="pr-4">Duration</span>

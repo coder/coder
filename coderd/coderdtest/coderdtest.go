@@ -157,9 +157,8 @@ type Options struct {
 	OneTimePasscodeValidityPeriod time.Duration
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
-	IncludeProvisionerDaemon      bool
-	ChatdInstructionLookupTimeout time.Duration
-	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
+	IncludeProvisionerDaemon bool
+	ChatProviderAPIKeys      *chatprovider.ProviderAPIKeys
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker. Used in tests.
 	ChatWorkerDisabled          bool
@@ -627,7 +626,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
-			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
 			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
 			ChatWorkerDisabled:             options.ChatWorkerDisabled,
@@ -1863,10 +1861,6 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
-	// Tasks ship disabled. Tests exercise the enabled behavior by default so
-	// the Tasks suite keeps running; tests for the disabled path opt out
-	// explicitly via the mutators.
-	cfg.EnableAITasks = true
 	for _, fn := range mut {
 		fn(cfg)
 	}

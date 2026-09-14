@@ -5,15 +5,16 @@ import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-import { Response, Tool } from "../ChatElements";
-import { WebSearchSources } from "../ChatElements/tools";
+import { Response } from "../ChatElements/Response";
 import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";
 import {
 	getReadFileToolData,
 	ReadFileTool,
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { Tool } from "../ChatElements/tools/Tool";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,

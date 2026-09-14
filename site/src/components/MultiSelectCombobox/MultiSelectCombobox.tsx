@@ -440,10 +440,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		return undefined;
 	};
 
-	if (inputRef.current && inputProps?.id) {
-		inputRef.current.id = inputProps?.id;
-	}
-
 	const fixedOptions = selected.filter((s) => s.fixed);
 	const showIcons = arrayOptions?.some((it) => it.icon);
 

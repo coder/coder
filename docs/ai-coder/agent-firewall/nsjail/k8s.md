@@ -1,4 +1,6 @@
-# nsjail on Kubernetes
+---
+title: nsjail on Kubernetes
+---
 
 > [!NOTE]
 > Agent Firewall is part of [AI Governance](../../ai-governance.md), which is

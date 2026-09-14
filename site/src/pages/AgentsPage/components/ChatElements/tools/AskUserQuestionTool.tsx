@@ -389,11 +389,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	>(null);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (message: string) => {
-			if (!onSubmitAnswer) {
-				return;
-			}
-
-			await onSubmitAnswer(message);
+			await onSubmitAnswer?.(message);
 		},
 		onSuccess: (_data, message) => {
 			setSubmittedResponseText(message);

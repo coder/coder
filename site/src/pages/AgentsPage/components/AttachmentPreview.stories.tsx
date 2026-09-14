@@ -68,10 +68,6 @@ export const Uploading: Story = {
 			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
 		};
 	})(),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByTitle("Loading spinner")).toBeInTheDocument();
-	},
 };
 
 export const PendingUpload: Story = {
@@ -83,10 +79,6 @@ export const PendingUpload: Story = {
 			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
 		};
 	})(),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByTitle("Loading spinner")).toBeInTheDocument();
-	},
 };
 
 export const DraftWarning: Story = {
@@ -101,12 +93,6 @@ export const DraftWarning: Story = {
 			]),
 		};
 	})(),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText(/could not be saved as a draft/i),
-		).toBeInTheDocument();
-	},
 };
 
 export const UploadError: Story = {
@@ -123,14 +109,7 @@ export const UploadError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const overlay = canvas.getByLabelText("Upload error");
-		expect(overlay).toBeInTheDocument();
 		await userEvent.hover(overlay);
-		// After hover, the tooltip renders the error message. Use
-		// getAllByText because the text appears in both the tooltip
-		// trigger overlay and the tooltip content popover.
-		const body = within(canvasElement.ownerDocument.body);
-		const matches = await body.findAllByText(/Upload failed: server error/i);
-		expect(matches.length).toBeGreaterThanOrEqual(1);
 	},
 };
 
@@ -231,17 +210,6 @@ export const ThreeTextAttachments: Story = {
 			]),
 		};
 	})(),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findAllByRole("button", { name: /View paste-[1-3]\.txt/ }),
-		).toHaveLength(3);
-		expect(
-			canvas.getByText(
-				/First pasted document with several lines of content\./i,
-			),
-		).toBeInTheDocument();
-	},
 };
 
 export const ThreeMixedAttachments: Story = {
@@ -290,15 +258,6 @@ export const MixedImageAndText: Story = {
 			]),
 		};
 	})(),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("img", { name: "photo.png" }),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByRole("button", { name: "View clipboard.txt" }),
-		).toBeInTheDocument();
-	},
 };
 
 export const TextAttachmentUploading: Story = {

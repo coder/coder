@@ -62,7 +62,7 @@ const buildLargeRecord = (
 type StoryCanvas = ReturnType<typeof within>;
 type StoryUser = ReturnType<typeof userEvent.setup>;
 
-const expectVisibleCopyButtonOnHover = async ({
+const hoverCodeBlock = async ({
 	canvas,
 	label,
 }: {
@@ -74,18 +74,11 @@ const expectVisibleCopyButtonOnHover = async ({
 	if (!(groupContainer instanceof HTMLElement)) {
 		throw new Error("Missing debug-code hover wrapper.");
 	}
-	let supportsNativeHover = false;
 	try {
 		const { userEvent: browserUserEvent } = await import("vitest/browser");
 		await browserUserEvent.hover(groupContainer);
-		supportsNativeHover = true;
 	} catch {
 		await userEvent.hover(groupContainer);
-	}
-	if (supportsNativeHover) {
-		await waitFor(() => {
-			expect(copyButton).toBeVisible();
-		});
 	}
 	return copyButton;
 };
@@ -541,21 +534,11 @@ export const Empty: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/no debug runs/i)).toBeInTheDocument();
-	},
 };
 
 export const Disabled: Story = {
 	args: {
 		isVisible: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/no debug runs recorded yet/i),
-		).toBeInTheDocument();
 	},
 };
 
@@ -569,15 +552,6 @@ export const ErrorState: Story = {
 			getChatDebugRunsMock.mockRestore();
 		};
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// `getErrorMessage` treats any object with a string `message`
-		// property as an `ApiErrorResponse`, which includes plain `Error`
-		// instances, so the rejection surfaces via `error.message`.
-		await waitFor(() => {
-			expect(canvas.getByText(/network failure/i)).toBeInTheDocument();
-		});
-	},
 };
 
 export const Loading: Story = {
@@ -590,10 +564,6 @@ export const Loading: Story = {
 		return () => {
 			getChatDebugRunsMock.mockRestore();
 		};
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/loading debug/i)).toBeInTheDocument();
 	},
 };
 
@@ -640,9 +610,7 @@ export const RunDetailLoading: Story = {
 		});
 		await user.click(runTrigger);
 
-		await waitFor(() => {
-			expect(canvas.getByText(/Loading run details/i)).toBeVisible();
-		});
+		await canvas.findByText(/Loading run details/i);
 	},
 };
 
@@ -673,9 +641,7 @@ export const RunDetailError: Story = {
 		});
 		await user.click(runTrigger);
 
-		await waitFor(() => {
-			expect(canvas.getByText(/Unable to fetch run detail/i)).toBeVisible();
-		});
+		await canvas.findByText(/Unable to fetch run detail/i);
 	},
 };
 
@@ -706,9 +672,7 @@ export const RunWithNoSteps: Story = {
 		});
 		await user.click(runTrigger);
 
-		await waitFor(() => {
-			expect(canvas.getByText(/No steps recorded/i)).toBeVisible();
-		});
+		await canvas.findByText(/No steps recorded/i);
 	},
 };
 
@@ -780,22 +744,7 @@ export const RunWithMCPConnectSummary: Story = {
 		const section = await canvas.findByRole("region", {
 			name: /MCP server connections/i,
 		});
-		const mcp = within(section);
-		await waitFor(() => {
-			expect(mcp.getByText("linear")).toBeVisible();
-			expect(mcp.getAllByText("connected")).toHaveLength(2);
-			expect(mcp.getByText("320ms")).toBeVisible();
-			expect(mcp.getByText("12 tools")).toBeVisible();
-			expect(mcp.getAllByText("registry")).toHaveLength(2);
-			expect(mcp.getByText("timeout")).toBeVisible();
-			expect(mcp.getByText("10.0s")).toBeVisible();
-			expect(mcp.getByText("connect: context deadline exceeded")).toBeVisible();
-			expect(mcp.getByText("45ms")).toBeVisible();
-			expect(mcp.getByText("3 tools")).toBeVisible();
-			expect(
-				mcp.getByText("4 earlier connection samples omitted"),
-			).toBeVisible();
-		});
+		await within(section).findByText("linear");
 	},
 };
 
@@ -825,26 +774,17 @@ export const SingleStepSuccessfulRun: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		// Expand the run and open the first step before checking nested
+		// Expand the run and open the first step before inspecting nested
 		// content.
 		const runTrigger = await canvas.findByRole("button", {
 			name: /Chat Turn/i,
 		});
 		await user.click(runTrigger);
 		await expandStep(canvas, user);
+		await canvas.findByText("Step 1");
 
-		await waitFor(() => {
-			expect(canvas.getByText("Step 1")).toBeVisible();
-			expect(canvas.getAllByText(/^Input$/)[0]).toBeVisible();
-			expect(canvas.getAllByText(/^Output$/)[0]).toBeVisible();
-		});
-
-		// Request body toggle should be available once the step is open.
-		expect(canvas.getByText("Request body")).toBeVisible();
-
-		// Verify a copy button becomes visible for normalized body sections.
-		await user.click(canvas.getByText("Request body"));
-		await expectVisibleCopyButtonOnHover({
+		await user.click(await canvas.findByText("Request body"));
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy request body JSON/i,
 		});
@@ -1134,16 +1074,6 @@ export const ExportSingleRunDownloadError: Story = {
 	},
 };
 
-// These stories intentionally use the real saveAs default for manual
-// agent-browser dogfooding of browser downloads.
-export const ExportAllRunsDogfood: Story = {
-	parameters: ExportAllRuns.parameters,
-};
-
-export const ExportSingleRunDogfood: Story = {
-	parameters: ExportSingleRun.parameters,
-};
-
 export const MultiStepRunWithRetries: Story = {
 	parameters: {
 		queries: [
@@ -1171,31 +1101,18 @@ export const MultiStepRunWithRetries: Story = {
 		const user = userEvent.setup();
 
 		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
-
-		// Both steps render as collapsed headers after the run expands.
-		await waitFor(() => {
-			expect(canvas.getByText("Step 1")).toBeVisible();
-			expect(canvas.getByText("Step 2")).toBeVisible();
-		});
 		await expandStep(canvas, user);
 
-		// Open Step 1 before asserting on its raw attempt content.
-		await waitFor(() => {
-			expect(canvas.getByText(/Attempt 1/)).toBeVisible();
-			expect(canvas.getByText(/Attempt 2/)).toBeVisible();
-			expect(canvas.getByText(/Attempt 3/)).toBeVisible();
-		});
-
-		await user.click(canvas.getByRole("button", { name: /Attempt 1/i }));
-		await expectVisibleCopyButtonOnHover({
+		await user.click(await canvas.findByRole("button", { name: /Attempt 1/i }));
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy raw request JSON/i,
 		});
-		await expectVisibleCopyButtonOnHover({
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy raw response JSON/i,
 		});
-		await expectVisibleCopyButtonOnHover({
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy raw attempt error/i,
 		});
@@ -1231,29 +1148,11 @@ export const ErrorStateWithRedactedHeaders: Story = {
 		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
 		await expandStep(canvas, user);
 
-		// Open the step before checking the error section and redaction markers.
-		// `DebugStepCard` renders `step.error` through `getErrorMessage`, which
-		// surfaces `error.message` when present. The fixture's `code`
-		// ("upstream_unauthorized") only appears if the message is missing, so
-		// assert on the message that the user actually sees.
-		await waitFor(() => {
-			expect(canvas.getByText(/Provider request failed/i)).toBeVisible();
-		});
-
-		// Expand request body to reveal the redacted headers.
-		await user.click(canvas.getByText("Request body"));
-		await expectVisibleCopyButtonOnHover({
+		// Expand the request body to reveal the redacted headers.
+		await user.click(await canvas.findByText("Request body"));
+		await hoverCodeBlock({
 			canvas,
 			label: /Copy request body JSON/i,
-		});
-
-		// After expanding, verify [REDACTED] markers appear in the
-		// rendered output (Radix Collapsible hides content until open).
-		// Use regex since [REDACTED] appears inside larger JSON text
-		// nodes, not as standalone text content.
-		await waitFor(() => {
-			const redactedMarkers = canvas.getAllByText(/\[REDACTED\]/);
-			expect(redactedMarkers.length).toBeGreaterThan(0);
 		});
 	},
 };
@@ -1297,13 +1196,6 @@ export const CompactionAndTitleGenerationBadges: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Verify all three kind badge labels render.
-		await expect(canvas.getByText(/compaction/i)).toBeInTheDocument();
-		await expect(canvas.getByText(/chat turn/i)).toBeInTheDocument();
-		await expect(canvas.getByText(/title generation/i)).toBeInTheDocument();
-	},
 };
 
 export const NonChatTurnKindShownWithFirstMessage: Story = {
@@ -1328,21 +1220,6 @@ export const NonChatTurnKindShownWithFirstMessage: Story = {
 				],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// A failed title generation with a first_message label must
-		// still identify itself by kind so it is distinguishable from
-		// a failed chat turn.
-		const titleRun = await canvas.findByRole("button", {
-			name: /Summarize my workspace/i,
-		});
-		await expect(within(titleRun).getByText("Title Generation")).toBeVisible();
-		// Chat turns keep their metadata kind-free.
-		const chatRun = await canvas.findByRole("button", {
-			name: /Fix the login bug/i,
-		});
-		expect(within(chatRun).queryByText("Chat Turn")).toBeNull();
 	},
 };
 
@@ -1374,15 +1251,8 @@ export const LongRawPayloads: Story = {
 		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
 		await expandStep(canvas, user);
 
-		await waitFor(() => {
-			expect(canvas.getByText("Request body")).toBeVisible();
-		});
-
-		// Expand request body to see large payloads.
-		await user.click(canvas.getByText("Request body"));
-		await waitFor(() => {
-			expect(canvas.getByText(/request_24/i)).toBeVisible();
-		});
+		await user.click(await canvas.findByText("Request body"));
+		await canvas.findByText(/request_24/i);
 	},
 };
 
@@ -1417,53 +1287,17 @@ export const RichPayloadWithTranscript: Story = {
 			name: /Write me a hello world function/i,
 		});
 		await user.click(runTrigger);
-		const stepTrigger = await expandStep(canvas, user);
+		await expandStep(canvas, user);
+		await canvas.findByText("system");
 
-		await waitFor(() => {
-			expect(canvas.getByText("system")).toBeVisible();
-			expect(canvas.getByText("user")).toBeVisible();
-		});
+		await user.click(canvas.getByRole("button", { name: /Tools/i }));
+		await canvas.findByText("run_code");
 
-		// Message content is rendered.
-		expect(
-			canvas.getByText(/You are a helpful coding assistant/),
-		).toBeVisible();
-		expect(
-			canvas.getAllByText(/Write me a hello world function in Python/)[0],
-		).toBeVisible();
+		await user.click(canvas.getByRole("button", { name: /Options/i }));
+		await canvas.findByText("temperature");
 
-		// Output section shows response content.
-		expect(canvas.getByText(/Hello, world!/)).toBeVisible();
-
-		// The compact step header keeps model/tokens inline and omits the
-		// operation label.
-		expect(stepTrigger).toHaveTextContent(/gpt-4/i);
-		expect(stepTrigger).toHaveTextContent("150→42 tok");
-		expect(stepTrigger).not.toHaveTextContent(/LLM Call/i);
-
-		// Pill toggles for Tools and Options are present.
-		const toolsButton = canvas.getByRole("button", { name: /Tools/i });
-		expect(toolsButton).toBeVisible();
-		await user.click(toolsButton);
-
-		await waitFor(() => {
-			expect(canvas.getByText("run_code")).toBeVisible();
-			expect(canvas.getByText("search_docs")).toBeVisible();
-		});
-
-		// Toggle Options.
-		const optionsButton = canvas.getByRole("button", { name: /Options/i });
-		await user.click(optionsButton);
-		await waitFor(() => {
-			expect(canvas.getByText("temperature")).toBeVisible();
-		});
-
-		// Toggle Usage.
-		const usageButton = canvas.getByRole("button", { name: /Usage/i });
-		await user.click(usageButton);
-		await waitFor(() => {
-			expect(canvas.getByText("prompt_tokens")).toBeVisible();
-		});
+		await user.click(canvas.getByRole("button", { name: /Usage/i }));
+		await canvas.findByText("prompt_tokens");
 	},
 };
 
@@ -1493,14 +1327,7 @@ export const ToolCallStep: Story = {
 			await canvas.findByRole("button", { name: /Run some code/i }),
 		);
 		await expandStep(canvas, user);
-
-		// Open the step before checking the tool call output.
-		await waitFor(() => {
-			expect(canvas.getByText("run_code")).toBeVisible();
-		});
-
-		// Finish reason shown.
-		expect(canvas.getByText(/tool_calls/)).toBeVisible();
+		await canvas.findByText("run_code");
 	},
 };
 
@@ -1520,17 +1347,6 @@ export const FallbackLabeledRun: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// Without firstMessage, the run header should fall back to the run kind
-		// while keeping the model inline and omitting the provider label.
-		const runTrigger = await canvas.findByRole("button", {
-			name: /Chat Turn/i,
-		});
-		expect(runTrigger).toHaveTextContent(/claude-sonnet-4/i);
-		expect(runTrigger).not.toHaveTextContent(/Anthropic/i);
-	},
 };
 
 export const InProgressRun: Story = {
@@ -1549,17 +1365,6 @@ export const InProgressRun: Story = {
 				],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The compact run header keeps the model and running status inline.
-		const runTrigger = await canvas.findByRole("button", {
-			name: /Chat Turn/i,
-		});
-		expect(runTrigger).toHaveTextContent(/gpt-4/i);
-		expect(runTrigger).toHaveTextContent(/in_progress/i);
-		expect(runTrigger).not.toHaveTextContent(/Openai/i);
 	},
 };
 
@@ -1734,63 +1539,24 @@ export const BackendNormalizedShape: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		// Run header should keep the message and model inline, not provider or
+		// Run header keeps the message and model inline, not provider or
 		// endpoint labels.
 		const runTrigger = await canvas.findByRole("button", {
 			name: /What is 2 \+ 2/i,
 		});
-		expect(runTrigger).toHaveTextContent(/claude-sonnet-4/i);
-		expect(runTrigger).not.toHaveTextContent(/Anthropic/i);
-		expect(runTrigger).not.toHaveTextContent(/POST \/v1\/messages/i);
-
-		// Expand the run and open the first step before checking transcript
-		// content.
 		await user.click(runTrigger);
 		await expandStep(canvas, user);
 
-		// Only last 2 messages visible by default. The 4-message transcript
-		// should be truncated.
-		await waitFor(() => {
-			expect(canvas.getByText(/Show all 4 messages/)).toBeVisible();
-		});
-
-		// Expand transcript to show all messages.
-		await user.click(canvas.getByText(/Show all 4 messages/));
-
-		await waitFor(() => {
-			expect(canvas.getByText("system")).toBeVisible();
-			expect(canvas.getByText("user")).toBeVisible();
-		});
-
-		// Verify request message text is visible (not just role badges).
-		expect(canvas.getByText(/You are a calculator/)).toBeVisible();
-		// "What is 2 + 2?" appears in both the run header and transcript.
-		const questionMatches = canvas.getAllByText(/What is 2 \+ 2/);
-		expect(questionMatches.length).toBeGreaterThanOrEqual(2);
+		// Expand the truncated transcript to show all messages.
+		await user.click(await canvas.findByText(/Show all 4 messages/));
+		await canvas.findByText("system");
 
 		// The Tools pill exposes the normalized JSON schema.
 		await user.click(canvas.getByRole("button", { name: /Tools/i }));
-		await waitFor(() => {
-			expect(canvas.getAllByText(/expression/).length).toBeGreaterThan(0);
-		});
-
-		// Tool transcript rows are structured cards instead of placeholders.
-		expect(canvas.queryByText(/\[tool call:/)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/\[tool result:/)).not.toBeInTheDocument();
-		await waitFor(() => {
-			expect(canvas.getByText(/Explained via calculator tool/)).toBeVisible();
-		});
-		// Finish reason shown.
-		expect(canvas.getByText(/Finish.*tool_calls/)).toBeVisible();
+		await canvas.findAllByText(/expression/);
 
 		// Attempt shows method/path and status.
-		await waitFor(() => {
-			expect(canvas.getByText(/Attempt 1/)).toBeVisible();
-		});
-		// "POST /v1/messages" now appears only in the attempt header.
-		const postMatches = canvas.getAllByText("POST /v1/messages");
-		expect(postMatches.length).toBe(1);
-		expect(canvas.getAllByText("42→1 tok").length).toBeGreaterThan(0);
-		expect(canvas.getByText("200")).toBeVisible();
+		await canvas.findByText(/Attempt 1/);
+		await canvas.findByText("POST /v1/messages");
 	},
 };

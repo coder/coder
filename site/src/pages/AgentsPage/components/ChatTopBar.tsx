@@ -9,10 +9,12 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, Fragment, type ReactNode, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { type FC, useState } from "react";
+import { useQuery } from "react-query";
+import { Link, useLocation, useOutletContext } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -22,11 +24,15 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
+	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
+import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -36,34 +42,19 @@ interface SidebarPanelState {
 }
 
 type ChatSharingTopBarButtonProps = {
-	renderChatSharingContent: (open: boolean) => ReactNode;
+	chatId: string;
+	organizationId: string;
 };
 
 type ChatTopBarProps = {
-	chatTitle?: string;
-	parentChat?: TypesGen.Chat;
+	chat?: TypesGen.Chat;
+	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
-	onArchiveAgent: () => void;
-	onUnarchiveAgent: () => void;
-	onArchiveAndDeleteWorkspace: () => void;
-	onPinAgent?: () => void;
-	onUnpinAgent?: () => void;
-	onOpenRenameDialog?: () => void;
-	hasWorkspace?: boolean;
-	isArchived?: boolean;
-	isArchiving?: boolean;
-	isArchiveBlocked?: boolean;
-	isChildChat?: boolean;
-	isPinned?: boolean;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-	diffStatusData?: ChatDiffStatus;
-	isSharedChat?: boolean;
-	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
 
 const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
-	renderChatSharingContent,
+	chatId,
+	organizationId,
 }) => {
 	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
 	const [contentGeneration, setContentGeneration] = useState(0);
@@ -88,45 +79,86 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 					<Share2Icon className="size-4" />
 				</Button>
 			</PopoverTrigger>
-			<Fragment key={contentGeneration}>
-				{renderChatSharingContent(isChatSharingOpen)}
-			</Fragment>
+			<ChatSharingPopoverContent
+				key={contentGeneration}
+				chatId={chatId}
+				organizationId={organizationId}
+				open={isChatSharingOpen}
+			/>
 		</Popover>
 	);
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
-	chatTitle,
-	parentChat,
+	chat,
+	liveChatStatus,
 	panel,
-	onArchiveAgent,
-	onUnarchiveAgent,
-	onArchiveAndDeleteWorkspace,
-	onPinAgent,
-	onUnpinAgent,
-	onOpenRenameDialog,
-	hasWorkspace = false,
-	isArchived = false,
-	isArchiving = false,
-	isArchiveBlocked = false,
-	isChildChat = false,
-	isPinned = false,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
-	diffStatusData,
-	isSharedChat,
-	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
+	const parentChatID = getParentChatID(chat);
+	const parentChatQuery = useQuery({
+		...chatById(parentChatID ?? ""),
+		enabled: Boolean(parentChatID),
+	});
+	const parentChat = parentChatQuery.data;
+	const isRootChat = chat !== undefined && parentChatID === undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (chat !== undefined && isRootChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: {
+				resource_type: "chat",
+				owner_id: chat.owner_id,
+				organization_id: chat.organization_id,
+			},
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
+	});
+	const canShareChat =
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
+	const {
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		requestPinAgent,
+		requestUnpinAgent,
+		onOpenRenameDialog,
+		isArchiving = false,
+		archivingChatId,
+		activeChatChildren,
+	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
-	const prUrl = diffStatusData?.url;
-	const prState = diffStatusData?.pull_request_state;
-	const prDraft = diffStatusData?.pull_request_draft;
-	const prTitle = diffStatusData?.pull_request_title;
+	const chatTitle = chat?.title;
+	const isArchived = chat?.archived ?? false;
+	const isSharedChat = chat?.shared;
+	const hasWorkspace = Boolean(chat?.workspace_id);
+	const isArchivingThisChat = Boolean(
+		isArchiving &&
+			chat &&
+			(archivingChatId === undefined || archivingChatId === chat.id),
+	);
+	// The per-chat stream updates this before the global chat record catches up.
+	const isArchiveBlocked = chat
+		? !chatFamilyAllowsArchive(
+				liveChatStatus ?? chat.status,
+				activeChatChildren,
+			)
+		: false;
+	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
+	const diffStatus = chat?.diff_status;
+
+	const prUrl = diffStatus?.url;
+	const prState = diffStatus?.pull_request_state;
+	const prDraft = diffStatus?.pull_request_draft;
+	const prTitle = diffStatus?.pull_request_title;
 	const parsedPr = parsePullRequestUrl(prUrl);
-	const prNumberMatch =
-		diffStatusData?.pr_number?.toString() ?? parsedPr?.number;
+	const prNumberMatch = diffStatus?.pr_number?.toString() ?? parsedPr?.number;
 	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
 
 	return (
@@ -201,43 +233,71 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				{/* Actions menu sits inline with the title so it tracks the title's right edge.
 				   Suppressed when there is no chat to act on (loading and not-found views)
 				   and when the chat has no menu actions (archived child chats). */}
-				{!isEmbedded &&
-					chatTitle &&
-					chatHasMenuActions({ isArchived, isChildChat }) && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
-									aria-label="Open agent actions"
-								>
-									<EllipsisVerticalIcon className="size-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent
-								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+				{!isEmbedded && chat && chatTitle && chatHasMenuActions(chat) && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+								aria-label="Open agent actions"
 							>
-								<ChatActionsMenuItems
-									isArchived={isArchived}
-									isPinned={isPinned}
-									isChildChat={isChildChat}
-									hasWorkspace={hasWorkspace}
-									isArchiving={isArchiving}
-									isArchiveBlocked={isArchiveBlocked}
-									onPinAgent={onPinAgent}
-									onUnpinAgent={onUnpinAgent}
-									onArchiveAgent={onArchiveAgent}
-									onUnarchiveAgent={onUnarchiveAgent}
-									onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
-									onOpenRenameDialog={onOpenRenameDialog}
-									Item={DropdownMenuItem}
-									Separator={DropdownMenuSeparator}
-								/>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					)}
+								<EllipsisVerticalIcon className="size-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="start"
+							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						>
+							<ChatActionsMenuItems
+								chat={chat}
+								hasWorkspace={hasWorkspace}
+								isArchiving={isArchivingThisChat}
+								isArchiveBlocked={isArchiveBlocked}
+								onPinAgent={
+									showPinAction && !isArchived
+										? () => {
+												requestPinAgent?.(chat.id);
+											}
+										: undefined
+								}
+								onUnpinAgent={
+									showPinAction && !isArchived
+										? () => {
+												requestUnpinAgent?.(chat.id);
+											}
+										: undefined
+								}
+								onArchiveAgent={() => {
+									if (isArchived) {
+										return;
+									}
+									requestArchiveAgent?.(chat.id);
+								}}
+								onUnarchiveAgent={() => {
+									if (!isArchived) {
+										return;
+									}
+									requestUnarchiveAgent?.(chat.id);
+								}}
+								onArchiveAndDeleteWorkspace={() => {
+									const workspaceId = chat.workspace_id;
+									if (isArchived || !workspaceId) {
+										return;
+									}
+									requestArchiveAndDeleteWorkspace?.(chat.id, workspaceId);
+								}}
+								onOpenRenameDialog={
+									!isArchived && onOpenRenameDialog
+										? () => onOpenRenameDialog(chat)
+										: undefined
+								}
+								Item={DropdownMenuItem}
+								Separator={DropdownMenuSeparator}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
 			</div>
 			{/* PR link. On mobile: icon + number; on desktop: icon + title.
 			   Hidden on desktop when the sidebar panel is open
@@ -267,9 +327,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && renderChatSharingContent && (
+				{!isEmbedded && canShareChat && chat && (
 					<ChatSharingTopBarButton
-						renderChatSharingContent={renderChatSharingContent}
+						chatId={chat.id}
+						organizationId={chat.organization_id}
 					/>
 				)}
 				{!isEmbedded && (
