@@ -1981,6 +1981,7 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
+	ChatStatusPaused         ChatStatus = "paused"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -2024,7 +2025,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusRunning,
 		ChatStatusError,
 		ChatStatusRequiresAction,
-		ChatStatusInterrupting:
+		ChatStatusInterrupting,
+		ChatStatusPaused:
 		return true
 	}
 	return false
@@ -2037,6 +2039,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
+		ChatStatusPaused,
 	}
 }
 

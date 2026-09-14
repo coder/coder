@@ -406,7 +406,8 @@ CREATE TYPE chat_status AS ENUM (
     'running',
     'error',
     'requires_action',
-    'interrupting'
+    'interrupting',
+    'paused'
 );
 
 CREATE TYPE chat_title_source AS ENUM (
