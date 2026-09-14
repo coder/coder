@@ -9,8 +9,8 @@ import {
 } from "react";
 
 interface ComposerHandle {
-	// Sends a message as if the user had typed and submitted it.
-	send: (message: string) => Promise<void> | void;
+	// Attaches files to the draft; the user still reviews and sends.
+	attach: (files: File[]) => void;
 }
 
 interface ComposerContextValue {
@@ -24,9 +24,9 @@ const ComposerContext = createContext<ComposerContextValue>({
 });
 
 /**
- * Lets right-panel tools (port preview annotations, for example) submit
- * messages through the chat composer without threading callbacks through
- * the page tree. The composer registers its handle on mount.
+ * Lets right-panel tools (port preview annotations, for example) hand
+ * files to the chat composer without threading callbacks through the page
+ * tree. The composer registers its handle on mount.
  */
 export const ComposerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 	// The latest handle lives in a ref so consumers get one stable object
@@ -34,7 +34,7 @@ export const ComposerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 	const handleRef = useRef<ComposerHandle | null>(null);
 	const [registered, setRegistered] = useState(false);
 	const [stableHandle] = useState<ComposerHandle>(() => ({
-		send: (message) => handleRef.current?.send(message),
+		attach: (files) => handleRef.current?.attach(files),
 	}));
 
 	const register = (handle: ComposerHandle | null) => {
@@ -55,7 +55,7 @@ export const useComposer = () => useContext(ComposerContext).composer;
 
 /**
  * Registers the composer handle for the lifetime of the component. Call
- * from the component that owns message submission.
+ * from the component that owns attachment state.
  */
 export const useRegisterComposer = (handle: ComposerHandle | null) => {
 	const { register } = useContext(ComposerContext);

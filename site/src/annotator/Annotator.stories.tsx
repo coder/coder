@@ -115,7 +115,7 @@ export const WithPinsAndOutput: Story = {
 			"Rename to Account settings",
 		);
 		const send = host()?.shadowRoot?.querySelector<HTMLButtonElement>(
-			'[aria-label="Send annotations to the agent"]',
+			'[aria-label="Attach annotations to your chat message"]',
 		);
 		if (send) {
 			await userEvent.click(send);

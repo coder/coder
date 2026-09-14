@@ -103,7 +103,7 @@ export const InvalidWildcardHost: Story = {
 };
 
 const Composer: FC = () => {
-	useRegisterComposer({ send: () => undefined });
+	useRegisterComposer({ attach: () => undefined });
 	return null;
 };
 

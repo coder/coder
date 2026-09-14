@@ -107,10 +107,10 @@ export function mountAnnotator(
 	pickButton.append(countBadge);
 	const sendButton = el(doc, "button", "toolbar-button", {
 		type: "button",
-		"aria-label": "Send annotations to the agent",
-		title: "Send annotations to the agent as a chat message",
+		"aria-label": "Attach annotations to your chat message",
+		title: "Attach annotations to your chat message",
 	});
-	sendButton.innerHTML = `${sendIcon}<span>Send</span>`;
+	sendButton.innerHTML = `${sendIcon}<span>Attach</span>`;
 	const clearButton = el(doc, "button", "toolbar-button", {
 		type: "button",
 		"aria-label": "Clear annotations",

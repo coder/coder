@@ -10,7 +10,7 @@ import {
 	useRegisterComposer,
 } from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
-import { PortPreviewPanel } from "./PortPreviewPanel";
+import { annotationsFileName, PortPreviewPanel } from "./PortPreviewPanel";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -23,15 +23,25 @@ const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	protocol: "http",
 };
 
-const Composer: FC<{ onSend: (message: string) => void }> = ({ onSend }) => {
-	useRegisterComposer({ send: onSend });
+const Composer: FC<{ onAttach: (files: File[]) => void }> = ({ onAttach }) => {
+	useRegisterComposer({ attach: onAttach });
 	return null;
 };
 
-function renderPanel(onSend = vi.fn()) {
+// jsdom's Blob lacks text(); FileReader is the portable way to read it.
+function readFileText(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result));
+		reader.onerror = () => reject(reader.error);
+		reader.readAsText(file);
+	});
+}
+
+function renderPanel(onAttach = vi.fn()) {
 	renderComponent(
 		<ComposerProvider>
-			<Composer onSend={onSend} />
+			<Composer onAttach={onAttach} />
 			<PortPreviewPanel
 				workspace={MockWorkspace}
 				agent={MockWorkspaceAgent}
@@ -53,7 +63,7 @@ function renderPanel(onSend = vi.fn()) {
 			}),
 		);
 	};
-	return { frame, frameOrigin, receive, onSend };
+	return { frame, frameOrigin, receive, onAttach };
 }
 
 const submission: AnnotatorToHostMessage = {
@@ -100,28 +110,31 @@ describe("PortPreviewPanel annotations", () => {
 		);
 	});
 
-	it("sends submitted annotations as a chat message", async () => {
-		const { receive, onSend } = renderPanel();
+	it("attaches submitted annotations to the draft as markdown", async () => {
+		const { receive, onAttach } = renderPanel();
 		await requestOverlay();
 		receive({ type: "coder-annotator:ready" });
 		receive(submission);
 
-		expect(onSend).toHaveBeenCalledTimes(1);
-		const [message] = onSend.mock.calls[0];
-		expect(message).toContain("# UI annotations");
-		expect(message).toContain("## 1. Make this red");
-		expect(message).toContain("`#save`");
+		expect(onAttach).toHaveBeenCalledTimes(1);
+		const [files] = onAttach.mock.calls[0];
+		expect(files).toHaveLength(1);
+		expect(files[0].name).toBe(annotationsFileName);
+		expect(files[0].type).toBe("text/markdown");
+		const text = await readFileText(files[0]);
+		expect(text).toContain("## 1. Make this red");
+		expect(text).toContain("`#save`");
 	});
 
 	it("ignores the frame until the user requests the overlay", () => {
-		const { receive, onSend } = renderPanel();
+		const { receive, onAttach } = renderPanel();
 		receive({ type: "coder-annotator:ready" });
 		receive(submission);
-		expect(onSend).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
 	});
 
 	it("drops malformed submissions", async () => {
-		const { frame, frameOrigin, onSend } = renderPanel();
+		const { frame, frameOrigin, onAttach } = renderPanel();
 		await requestOverlay();
 		window.dispatchEvent(
 			new MessageEvent("message", {
@@ -130,11 +143,11 @@ describe("PortPreviewPanel annotations", () => {
 				source: frame().contentWindow,
 			}),
 		);
-		expect(onSend).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
 	});
 
 	it("ignores messages from other origins", async () => {
-		const { frame, onSend } = renderPanel();
+		const { frame, onAttach } = renderPanel();
 		await requestOverlay();
 		window.dispatchEvent(
 			new MessageEvent("message", {
@@ -143,6 +156,6 @@ describe("PortPreviewPanel annotations", () => {
 				source: frame().contentWindow,
 			}),
 		);
-		expect(onSend).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
 	});
 });

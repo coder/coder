@@ -10,7 +10,6 @@ import {
 	type AnnotationSubmission,
 	annotatorQueryParam,
 } from "#/annotator/protocol";
-import { getErrorMessage } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -23,6 +22,8 @@ import { portForwardURL } from "#/utils/portForward";
 import { useComposer } from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+
+export const annotationsFileName = "ui-annotations.md";
 
 export const PortPreviewPanel: FC<{
 	workspace: Workspace;
@@ -50,17 +51,22 @@ export const PortPreviewPanel: FC<{
 	// the user presses Annotate again.
 	const [overlayRequests, setOverlayRequests] = useState(0);
 
+	// Annotations are attached rather than sent: the frame is a third-party
+	// app that could forge a submission, so the user reviews the draft and
+	// presses send themselves.
 	const handleSubmit = (submission: AnnotationSubmission) => {
 		if (!composer) {
 			return;
 		}
-		void (async () => {
-			try {
-				await composer.send(formatAnnotations(submission));
-			} catch (error) {
-				toast.error(getErrorMessage(error, "Failed to send UI annotations."));
-			}
-		})();
+		composer.attach([
+			new File([formatAnnotations(submission)], annotationsFileName, {
+				type: "text/markdown",
+			}),
+		]);
+		const count = submission.annotations.length;
+		toast.success(
+			`Attached ${count} UI annotation${count === 1 ? "" : "s"} to your message.`,
+		);
 	};
 
 	const frameUrl = unavailableMessage
@@ -120,7 +126,7 @@ export const PortPreviewPanel: FC<{
 						<TooltipContent side="bottom">
 							{bridge.picking
 								? "Click elements in the preview to annotate them"
-								: "Annotate elements in the preview and send them to the agent"}
+								: "Annotate elements in the preview and attach them to your message"}
 						</TooltipContent>
 					</Tooltip>
 				)}
