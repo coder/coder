@@ -90,14 +90,17 @@ func (c Chat) ref() agenthooks.ChatRef {
 }
 
 type Message struct {
-	Source       string
-	Prompt       string
-	Parts        json.RawMessage
-	ToolUseID    string
-	ToolName     string
-	ToolInput    json.RawMessage
-	ToolResponse json.RawMessage
-	ToolError    string
+	Source string
+	Prompt string
+	Parts  json.RawMessage
+	// GoalObjective is set when a user_prompt_submit submission also
+	// sets a chat goal, so prompt policy observes the objective text.
+	GoalObjective string
+	ToolUseID     string
+	ToolName      string
+	ToolInput     json.RawMessage
+	ToolResponse  json.RawMessage
+	ToolError     string
 }
 
 func UserPromptMessage(parts []codersdk.ChatMessagePart) (Message, error) {
@@ -152,7 +155,7 @@ func (t *Trigger) Trigger(
 	case agenthooks.EventSessionStart:
 		data = agenthooks.SessionStartData{Source: msg.Source}
 	case agenthooks.EventUserPromptSubmit:
-		data = agenthooks.UserPromptSubmitData{Prompt: msg.Prompt, Parts: msg.Parts}
+		data = agenthooks.UserPromptSubmitData{Prompt: msg.Prompt, Parts: msg.Parts, GoalObjective: msg.GoalObjective}
 	case agenthooks.EventPreToolUse:
 		data = agenthooks.PreToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolInput: msg.ToolInput}
 	case agenthooks.EventPostToolUse:
