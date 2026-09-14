@@ -5,6 +5,7 @@ import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
@@ -1364,7 +1365,7 @@ const sampleMCPServers = [
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
-] satisfies readonly import("#/api/typesGenerated").MCPServerConfig[];
+] satisfies MCPServerConfig[];
 
 export const MCPToolRunning: Story = {
 	args: {

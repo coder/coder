@@ -1239,6 +1239,10 @@ type ProvisionerConfig struct {
 	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
+	// DisableModuleCache disables the reuse of Terraform modules cached at
+	// template import for every template in the deployment. Templates cannot
+	// opt back in.
+	DisableModuleCache serpent.Bool `json:"disable_module_cache" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -3214,6 +3218,16 @@ communicating directly.`,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Disable Terraform Module Cache",
+			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
+			Flag:        "provisioner-disable-module-cache",
+			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
+			Default:     "false",
+			Value:       &c.Provisioner.DisableModuleCache,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "disableModuleCache",
 		},
 		{
 			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
