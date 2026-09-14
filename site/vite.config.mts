@@ -1,6 +1,8 @@
+import { EventEmitter } from "node:events";
 import * as http from "node:http";
 import * as net from "node:net";
 import * as path from "node:path";
+import * as stream from "node:stream";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import tailwindcss from "@tailwindcss/vite";
@@ -120,10 +122,11 @@ const workspaceAppProxy = (): PluginOption => ({
 			});
 			req.pipe(upstream);
 		});
-		server.httpServer?.prependListener("upgrade", (req, socket, head) => {
-			if (!isWorkspaceAppHost(req.headers.host)) {
-				return;
-			}
+		const proxyUpgrade = (
+			req: http.IncomingMessage,
+			socket: stream.Duplex,
+			head: Buffer,
+		) => {
 			const upstream = net.connect({ host: target.hostname, port }, () => {
 				const headerLines = [];
 				for (let i = 0; i < req.rawHeaders.length; i += 2) {
@@ -141,7 +144,29 @@ const workspaceAppProxy = (): PluginOption => ({
 			};
 			upstream.on("error", close);
 			socket.on("error", close);
-		});
+		};
+		// Vite's HMR server claims every upgrade carrying the vite-hmr
+		// protocol, Host header or not, which would hijack HMR sockets of
+		// Vite apps running in a preview. Intercept the event before any
+		// listener sees it instead of adding one more listener.
+		const httpServer = server.httpServer;
+		if (httpServer) {
+			httpServer.emit = (event: string | symbol, ...args: unknown[]) => {
+				if (event === "upgrade") {
+					const [req, socket, head] = args;
+					if (
+						req instanceof http.IncomingMessage &&
+						socket instanceof stream.Duplex &&
+						Buffer.isBuffer(head) &&
+						isWorkspaceAppHost(req.headers.host)
+					) {
+						proxyUpgrade(req, socket, head);
+						return true;
+					}
+				}
+				return EventEmitter.prototype.emit.call(httpServer, event, ...args);
+			};
+		}
 	},
 });
 
