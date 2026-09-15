@@ -151,4 +151,33 @@ func TestBuildMCPServerResources(t *testing.T) {
 		require.Equal(t, "fs", got[1].Source)
 		require.Equal(t, StatusOK, got[1].Status)
 	})
+
+	t.Run("WorkspaceServerHidesCollidingPluginServer", func(t *testing.T) {
+		t.Parallel()
+		workspace := MCPServerStatus{Name: "github/search", Connected: true, Tools: []MCPTool{{Name: "query"}}}
+		plugin := MCPServerStatus{Name: "search", PluginName: "github", Connected: true, Tools: []MCPTool{{Name: "find"}}}
+		other := MCPServerStatus{Name: "fs", PluginName: "github", Connected: true, Tools: []MCPTool{{Name: "read"}}}
+
+		got := buildMCPServerResources([]MCPServerStatus{plugin, workspace, other})
+		require.Len(t, got, 2)
+		require.Equal(t, "github/fs", got[0].Source)
+		require.Empty(t, got[0].Error)
+		require.Equal(t, "github/search", got[1].Source)
+		require.Empty(t, got[1].PluginName)
+		require.Equal(t, StatusOK, got[1].Status)
+		require.Equal(t, `hides MCP server "search" of plugin "github", which has the same source`, got[1].Error)
+		require.Equal(t, "query", got[1].Tools[0].Name)
+
+		// The warning flips the workspace server's content hash.
+		alone := buildMCPServerResources([]MCPServerStatus{workspace})
+		require.NotEqual(t, alone[0].ContentHash, got[1].ContentHash)
+
+		// A failed workspace server keeps its error and gains the warning.
+		workspace.Connected = false
+		workspace.Err = "boom"
+		got = buildMCPServerResources([]MCPServerStatus{plugin, workspace})
+		require.Len(t, got, 1)
+		require.Equal(t, StatusUnreadable, got[0].Status)
+		require.Equal(t, `boom; hides MCP server "search" of plugin "github", which has the same source`, got[0].Error)
+	})
 }
