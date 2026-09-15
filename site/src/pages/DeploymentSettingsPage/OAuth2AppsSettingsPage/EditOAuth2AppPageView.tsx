@@ -228,98 +228,97 @@ export const EditOAuth2AppPageView: FC = () => {
 					/>
 				</div>
 
-				{canViewAppSecrets && isPublicClient && (
-					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
-						<h2 className="m-0 text-xl font-semibold">Client secrets</h2>
-						<Alert severity="info">
-							This is a public client. It authenticates with PKCE and has no
-							client secret; its type is fixed at registration. If you need a
-							confidential client instead, register a new application.
-						</Alert>
-					</div>
-				)}
-
-				{canViewAppSecrets && !isPublicClient && (
+				{canViewAppSecrets && (
 					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
 						<div className="flex flex-row gap-4 items-center justify-between">
 							<h2 className="m-0 text-xl font-semibold">Client secrets</h2>
-							<Button
-								disabled={postSecretMutation.isPending || isMutating}
-								type="button"
-								onClick={() => {
-									postSecretMutation.mutate(appId, {
-										onSuccess: (secret) => {
-											setFullNewSecret(secret);
-											toast.success(
-												"Successfully generated OAuth2 client secret.",
-											);
-										},
-										onError: (error) => {
-											toast.error(
-												getErrorMessage(
-													error,
-													"Failed to generate OAuth2 client secret.",
-												),
-												{ description: getErrorDetail(error) },
-											);
-										},
-									});
-								}}
-							>
-								<Spinner loading={postSecretMutation.isPending} />
-								Generate secret
-							</Button>
+							{!isPublicClient && (
+								<Button
+									disabled={postSecretMutation.isPending || isMutating}
+									type="button"
+									onClick={() => {
+										postSecretMutation.mutate(appId, {
+											onSuccess: (secret) => {
+												setFullNewSecret(secret);
+												toast.success(
+													"Successfully generated OAuth2 client secret.",
+												);
+											},
+											onError: (error) => {
+												toast.error(
+													getErrorMessage(
+														error,
+														"Failed to generate OAuth2 client secret.",
+													),
+													{ description: getErrorDetail(error) },
+												);
+											},
+										});
+									}}
+								>
+									<Spinner loading={postSecretMutation.isPending} />
+									Generate secret
+								</Button>
+							)}
 						</div>
 
-						<Table aria-label="OAuth2 client secrets">
-							<TableHeader>
-								<TableRow>
-									<TableHead className="w-[80%]">Secret</TableHead>
-									<TableHead className="w-[20%]">Last used</TableHead>
-									<TableHead className="w-[1%]" />
-								</TableRow>
-							</TableHeader>
-							<TableBody size="lg">
-								{secretsQuery.isLoading && <TableLoader />}
-								{!secretsQuery.isLoading &&
-									!secretsQuery.error &&
-									(!secretsQuery.data || secretsQuery.data.length === 0) && (
-										<TableEmpty message="No client secrets have been generated." />
-									)}
-								{!secretsQuery.isLoading &&
-									secretsQuery.data?.map((secret) => (
-										<OAuth2SecretRow
-											key={secret.id}
-											secret={secret}
-											isDeleting={deleteSecretMutation.isPending}
-											onDelete={(secretId) => {
-												deleteSecretMutation.mutate(
-													{ appId, secretId },
-													{
-														onSuccess: () => {
-															if (fullNewSecret?.id === secretId) {
-																setFullNewSecret(undefined);
-															}
-															toast.success(
-																"Successfully deleted an OAuth2 client secret.",
-															);
+						{isPublicClient ? (
+							<Alert severity="info">
+								This is a public client. It authenticates with PKCE and has no
+								client secret; its type is fixed at registration. If you need a
+								confidential client instead, register a new application.
+							</Alert>
+						) : (
+							<Table aria-label="OAuth2 client secrets">
+								<TableHeader>
+									<TableRow>
+										<TableHead className="w-[80%]">Secret</TableHead>
+										<TableHead className="w-[20%]">Last used</TableHead>
+										<TableHead className="w-[1%]" />
+									</TableRow>
+								</TableHeader>
+								<TableBody size="lg">
+									{secretsQuery.isLoading && <TableLoader />}
+									{!secretsQuery.isLoading &&
+										!secretsQuery.error &&
+										(!secretsQuery.data || secretsQuery.data.length === 0) && (
+											<TableEmpty message="No client secrets have been generated." />
+										)}
+									{!secretsQuery.isLoading &&
+										secretsQuery.data?.map((secret) => (
+											<OAuth2SecretRow
+												key={secret.id}
+												secret={secret}
+												isDeleting={deleteSecretMutation.isPending}
+												onDelete={(secretId) => {
+													deleteSecretMutation.mutate(
+														{ appId, secretId },
+														{
+															onSuccess: () => {
+																if (fullNewSecret?.id === secretId) {
+																	setFullNewSecret(undefined);
+																}
+																toast.success(
+																	"Successfully deleted an OAuth2 client secret.",
+																);
+															},
+															onError: (error) => {
+																toast.error(
+																	getErrorMessage(
+																		error,
+																		"Failed to delete OAuth2 client secret.",
+																	),
+																	{ description: getErrorDetail(error) },
+																);
+															},
 														},
-														onError: (error) => {
-															toast.error(
-																getErrorMessage(
-																	error,
-																	"Failed to delete OAuth2 client secret.",
-																),
-																{ description: getErrorDetail(error) },
-															);
-														},
-													},
-												);
-											}}
-										/>
-									))}
-							</TableBody>
-						</Table>
+													);
+												}}
+											/>
+										))}
+								</TableBody>
+							</Table>
+						)}
 					</div>
 				)}
 			</div>
