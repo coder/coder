@@ -299,6 +299,19 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "tool", id: "call-1" }]);
 	});
 
+	it("keeps the media flag on a tool-result block", () => {
+		const result = parseMessageContent([
+			{
+				type: "tool-result",
+				tool_name: "playwright__browser_take_screenshot",
+				tool_call_id: "call-1",
+				result: { data: "AAAA", mime_type: "image/png", text: "done" },
+				is_media: true,
+			},
+		]);
+		expect(result.toolResults[0].isMedia).toBe(true);
+	});
+
 	it("handles interleaved text and tool blocks in correct order", () => {
 		const result = parseMessageContent([
 			{ type: "text", text: "Starting..." },
