@@ -333,6 +333,10 @@ func TestServer(t *testing.T) {
 			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
+			// NATS pubsub is on by default and needs this replica's routable
+			// address; without it the server logs an error and falls back to
+			// PostgreSQL pubsub, which would count against the log budget.
+			"--cluster-host", "127.0.0.1",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		require.NoError(t, pty.Resize(20, 80))
