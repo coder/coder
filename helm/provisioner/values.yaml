@@ -121,6 +121,24 @@ coder:
   # This is an Enterprise feature. Contact sales@coder.com.
   replicaCount: 1
 
+  # coder.deploymentStrategy -- The deployment strategy to use for rolling updates.
+  # See: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+  deploymentStrategy:
+    # coder.deploymentStrategy.type -- The type of deployment strategy to use.
+    # Valid values are "Recreate" or "RollingUpdate" (default).
+    type: RollingUpdate
+    # coder.deploymentStrategy.rollingUpdate -- Configuration for rolling updates.
+    # Only applicable when type is "RollingUpdate".
+    rollingUpdate:
+      # coder.deploymentStrategy.rollingUpdate.maxSurge -- The maximum number of
+      # pods that can be scheduled above the desired number of pods.
+      # Can be an absolute number or a percentage of desired pods.
+      maxSurge: 25%
+      # coder.deploymentStrategy.rollingUpdate.maxUnavailable -- The maximum number
+      # of pods that can be unavailable during the update.
+      # Can be an absolute number or a percentage of desired pods.
+      maxUnavailable: 25%
+
   # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
   # for lifecycle events such as postStart and preStop events
   # See: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
