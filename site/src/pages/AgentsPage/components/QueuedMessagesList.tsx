@@ -5,8 +5,8 @@ import {
 	ImageIcon,
 	InfoIcon,
 	PencilIcon,
-	PlayIcon,
 	Trash2Icon,
+	XIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -26,7 +26,8 @@ interface QueuedMessagesListProps {
 	onEdit?: (id: number) => Promise<void> | void;
 	onEndEdit?: (id: number) => Promise<void> | void;
 	// While the chat is paused only the head, which is under edit, may be
-	// edited; the server refuses other rows.
+	// edited (the server refuses other rows), and cancelling its edit
+	// sends it.
 	chatPaused?: boolean;
 	className?: string;
 }
@@ -322,25 +323,27 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								{item.isUnderEdit && chatPaused && onEndEdit && (
+								{item.isUnderEdit && onEndEdit && (
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<Button
 												variant="subtle"
 												size="icon"
-												aria-label="Resume"
+												aria-label="Cancel edit"
 												disabled={isBusy}
 												onClick={() => void handleEndEdit(item.id)}
 												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 											>
 												{renderActionIcon(
 													"end_edit",
-													<PlayIcon className="size-3.5" />,
+													<XIcon className="size-3.5" />,
 												)}
 											</Button>
 										</TooltipTrigger>
 										<TooltipContent side="top">
-											Resume: end the edit and send this message
+											{chatPaused
+												? "Cancel edit and send this message as it is"
+												: "Cancel edit"}
 										</TooltipContent>
 									</Tooltip>
 								)}

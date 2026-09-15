@@ -157,8 +157,8 @@ export const ActionsWithoutEdit: Story = {
 };
 
 // A row under edit in the middle of a busy chat's queue: the row ahead of
-// it is still sent, the row under edit keeps Edit, Send now and Remove, and
-// the rows behind it wait.
+// it is still sent, the row under edit offers Cancel edit, Edit, Send now
+// and Remove, and the rows behind it wait.
 export const RowUnderEditWithWaitingTail: Story = {
 	args: {
 		messages: [
@@ -178,8 +178,8 @@ export const RowUnderEditWithWaitingTail: Story = {
 	},
 };
 
-// The chat is paused: the head is under edit and offers Resume, and the
-// row behind it offers no Edit.
+// The chat is paused: cancelling the head's edit sends it, and the row
+// behind it offers no Edit.
 export const PausedAtHead: Story = {
 	args: {
 		chatPaused: true,
@@ -194,7 +194,7 @@ export const PausedAtHead: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByRole("button", { name: "Resume" }));
+		await userEvent.hover(canvas.getByRole("button", { name: "Cancel edit" }));
 	},
 };
 
