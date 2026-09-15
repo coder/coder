@@ -894,6 +894,8 @@ The generation goroutine supports:
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
 
+<!-- TODO: document the workspace skill index (`<available-skills>`), the read_skill and read_skill_file tools, and how plugin skills (skill rows attributed to an Agent Plugin) are rendered with a `(plugin: <name>)` label and a `plugin/<plugin>/<name>` qualified alias. -->
+
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.

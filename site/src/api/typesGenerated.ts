@@ -2122,6 +2122,12 @@ export interface ChatContextResource {
 	readonly skill_name?: string;
 	readonly skill_description?: string;
 	/**
+	 * PluginName is the owning Agent Plugin's name. It is the manifest name
+	 * for the plugin kind and the attributing plugin for skill and
+	 * mcp_server kinds shipped inside a plugin; empty otherwise.
+	 */
+	readonly plugin_name?: string;
+	/**
 	 * Tools lists the tools exposed by an MCP server. Populated only for the
 	 * mcp_server kind; nil otherwise.
 	 */
@@ -2145,12 +2151,14 @@ export type ChatContextResourceKind =
 	| "instruction_file"
 	| "mcp_config"
 	| "mcp_server"
+	| "plugin"
 	| "skill";
 
 export const ChatContextResourceKinds: ChatContextResourceKind[] = [
 	"instruction_file",
 	"mcp_config",
 	"mcp_server",
+	"plugin",
 	"skill",
 ];
 
