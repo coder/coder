@@ -868,7 +868,7 @@ func TestCarryStopsOnValeRuleWording(t *testing.T) {
 	// The sentence gate and the carry stop must speak the same language: a
 	// clause that reasserts enforcement as "Vale rule `X`" stops a carried
 	// marker, exactly as "enforced by" does.
-	active, planned := activeCitations("*Planned Vale rules, `Coder.One`; Vale rule `Coder.Two` flags the plural.*")
+	active, planned := activeCitations("*Planned Vale rules, `Coder.One`, Vale rule `Coder.Two` flags the plural.*")
 	assertSame(t, "active", active, []string{"Coder.Two"})
 	assertSame(t, "planned", planned, []string{"Coder.One"})
 }
@@ -900,10 +900,25 @@ func TestParseFenceRejectsTabIndentation(t *testing.T) {
 func TestCheckCoverageAnchor(t *testing.T) {
 	t.Parallel()
 
-	if findings := checkCoverageAnchor("## What the tooling checks, and what it doesn't\n"); len(findings) != 0 {
-		t.Errorf("checkCoverageAnchor() = %v, want no findings when the heading is present", findings)
+	recipe := "\t@echo \"    Coverage: docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt\"\n"
+
+	if findings := checkCoverageAnchor(recipe, "## What the tooling checks, and what it doesn't\n"); len(findings) != 0 {
+		t.Errorf("checkCoverageAnchor() = %v, want no findings when the heading matches the recipe", findings)
 	}
-	if findings := checkCoverageAnchor("## Something else\n"); len(findings) != 1 {
+	if findings := checkCoverageAnchor(recipe, "## Something else\n"); len(findings) != 1 {
 		t.Errorf("checkCoverageAnchor() = %v, want a finding when the heading is gone", findings)
+	}
+	// Renaming the heading and the recipe together keeps the pointer honest.
+	renamed := "\t@echo \"docs/.style/style-guide/README.md#what-runs-today\"\n"
+	if findings := checkCoverageAnchor(renamed, "## What runs today\n"); len(findings) != 0 {
+		t.Errorf("checkCoverageAnchor() = %v, want no findings when both moved", findings)
+	}
+	if findings := checkCoverageAnchor("no pointer here\n", "## What the tooling checks, and what it doesn't\n"); len(findings) != 1 {
+		t.Errorf("checkCoverageAnchor() = %v, want a finding when the recipe lost the pointer", findings)
+	}
+	// A marker with nothing after it names no anchor, so it is not a pointer.
+	bare := "\t@echo \"docs/.style/style-guide/README.md#\"\n"
+	if findings := checkCoverageAnchor(bare, "## What the tooling checks, and what it doesn't\n"); len(findings) != 1 {
+		t.Errorf("checkCoverageAnchor() = %v, want a finding when the recipe names no anchor", findings)
 	}
 }

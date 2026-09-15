@@ -27,14 +27,11 @@ import (
 )
 
 const (
-	valeConfig = ".vale.ini"
-	// coverageAnchor is the landing page heading anchor that `make lint/prose`
-	// points authors at. The checker verifies it resolves, so the pointer
-	// cannot rot when the section is renamed.
-	coverageAnchor = "what-the-tooling-checks-and-what-it-doesnt"
-	rulesDir       = "docs/.style/styles/Coder"
-	styleGuide     = "docs/.style/style-guide"
-	landingPage    = "README.md"
+	valeConfig  = ".vale.ini"
+	makefile    = "Makefile"
+	rulesDir    = "docs/.style/styles/Coder"
+	styleGuide  = "docs/.style/style-guide"
+	landingPage = "README.md"
 	// demoPrefix marks the Demo*.yml files under rulesDir. Those are worked
 	// examples for rule authors, not enforced rules, so they carry no style
 	// guide section and must stay out of the rule set.
@@ -235,7 +232,12 @@ func run() ([]finding, error) {
 		return nil, err
 	}
 
-	findings := checkCoverageAnchor(string(landing))
+	recipes, err := os.ReadFile(makefile)
+	if err != nil {
+		return nil, err
+	}
+
+	findings := checkCoverageAnchor(string(recipes), string(landing))
 
 	pages, annotations, sources, err := subpages(styleGuide, string(landing))
 	if err != nil {
@@ -249,28 +251,58 @@ func run() ([]finding, error) {
 	return append(findings, checkClaims(pages, styles, rules, annotations, string(landing))...), nil
 }
 
-// checkCoverageAnchor reports a landing page that no longer carries the heading
-// `make lint/prose` sends authors to.
-func checkCoverageAnchor(landing string) []finding {
+// checkCoverageAnchor reports a mismatch between the landing page anchor the
+// `make lint/prose` recipe sends authors to and the headings the landing page
+// carries. The expected anchor is read from the recipe rather than duplicated
+// here, so renaming the section fails until the pointer moves with it.
+func checkCoverageAnchor(recipes, landing string) []finding {
+	want := makefileAnchor(recipes)
+	if want == "" {
+		return []finding{{
+			makefile, 0,
+			fmt.Sprintf("no `lint/prose` line points at %s/%s#; restore the coverage pointer.", styleGuide, landingPage),
+		}}
+	}
 	for _, line := range unfenced(landing) {
 		m := headingLine.FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
-		if anchor(m[2]) == coverageAnchor {
+		if anchor(m[2]) == want {
 			return nil
 		}
 	}
 	return []finding{{
 		filepath.Join(styleGuide, landingPage), 0,
-		fmt.Sprintf("no heading resolves to #%s, which `make lint/prose` points authors at. Restore the heading, or update the Makefile.", coverageAnchor),
+		fmt.Sprintf("no heading resolves to #%s, which the `lint/prose` recipe in %s points authors at. Restore the heading, or point the recipe at the new one.", want, makefile),
 	}}
 }
 
-// anchor renders the GitHub heading anchor for a heading's text.
+// makefileAnchor returns the landing page anchor the Makefile points at.
+func makefileAnchor(recipes string) string {
+	marker := styleGuide + "/" + landingPage + "#"
+	for line := range strings.SplitSeq(recipes, "\n") {
+		_, rest, ok := strings.Cut(line, marker)
+		if !ok {
+			continue
+		}
+		fields := strings.Fields(rest)
+		if len(fields) == 0 {
+			// A bare marker with no anchor after it points nowhere.
+			continue
+		}
+		return strings.Trim(fields[0], "\"'`")
+	}
+	return ""
+}
+
+// anchor renders a heading's anchor the way the landing page's own links spell
+// it: lowercase, spaces to hyphens, and every other character dropped. It is
+// not GitHub's full slug algorithm, only enough of it for the headings this
+// guide uses.
 func anchor(heading string) string {
 	var b []rune
-	for _, r := range strings.ToLower(heading) {
+	for _, r := range strings.ToLower(strings.TrimSpace(heading)) {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
 			b = append(b, r)
