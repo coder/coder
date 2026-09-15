@@ -109,47 +109,44 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 // TestClassifyExecutionState_RejectsAllUnlistedCombinations enumerates
 // every (status, archived, queue) tuple for an existing chat and
 // asserts that exactly the declared valid states classify out of
-// [StateInvalid], and that the queue's pause condition changes the
-// result only for the paused status. Missing chats are handled
-// separately via the N case in [TestClassifyExecutionState_Valid].
+// [StateInvalid]. Missing chats are handled separately via the N case
+// in [TestClassifyExecutionState_Valid].
 func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 	t.Parallel()
 	allStatuses := []database.ChatStatus{
 		database.ChatStatusWaiting,
-		database.ChatStatusPaused,
 		database.ChatStatusError,
 		database.ChatStatusRunning,
 		database.ChatStatusInterrupting,
 		database.ChatStatusRequiresAction,
+		database.ChatStatusPaused,
 		"pending", "completed",
 	}
-	validWithoutCondition := 0
-	pausedStates := 0
+	tuplesByState := map[ExecutionState]int{}
 	for _, status := range allStatuses {
 		for _, archived := range []bool{false, true} {
-			for _, queueNonEmpty := range []bool{false, true} {
-				chat := chatWithStatus(status, archived)
-				without := ClassifyExecutionState(chat, QueueState{HasRows: queueNonEmpty}, true)
-				with := ClassifyExecutionState(chat, QueueState{HasRows: queueNonEmpty, Paused: queueNonEmpty}, true)
-				if without != StateInvalid {
-					validWithoutCondition++
+			for _, hasRows := range []bool{false, true} {
+				for _, paused := range []bool{false, true} {
+					chat := chatWithStatus(status, archived)
+					queue := QueueState{HasRows: hasRows, Paused: paused}
+					tuplesByState[ClassifyExecutionState(chat, queue, true)]++
 				}
-				if status == database.ChatStatusPaused {
-					require.Equal(t, StateInvalid, without, "paused needs a pause condition (archived=%v rows=%v)", archived, queueNonEmpty)
-					if with == StateP {
-						pausedStates++
-					}
-					continue
-				}
-				require.Equal(t, without, with, "the pause condition must not change %s (archived=%v rows=%v)", status, archived, queueNonEmpty)
 			}
 		}
 	}
-	// Without a pause condition every valid state but P has exactly one
-	// tuple; with one, exactly one tuple is P.
-	wantValid := len(AllExecutionStates) - 3 // Exclude StateN, StateInvalid, StateP.
-	require.Equal(t, wantValid, validWithoutCondition, "valid existing-chat (status, archived, queue) tuples")
-	require.Equal(t, 1, pausedStates, "exactly one tuple classifies as P")
+	// Each valid state maps from one (status, archived, rows) tuple. Only
+	// P reads the pause condition, so every other state is reached with
+	// it both set and unset.
+	require.Zero(t, tuplesByState[StateN], "N requires a missing chat")
+	for _, state := range AllExecutionStates {
+		switch state {
+		case StateN, StateInvalid:
+		case StateP:
+			require.Equal(t, 1, tuplesByState[state], "%s", state)
+		default:
+			require.Equal(t, 2, tuplesByState[state], "%s", state)
+		}
+	}
 }
 
 // TestAllExecutionStates_Enumeration verifies AllExecutionStates
