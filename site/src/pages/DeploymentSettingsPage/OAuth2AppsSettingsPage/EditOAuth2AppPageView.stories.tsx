@@ -154,6 +154,45 @@ export const DeleteDialogOpen: Story = {
 	},
 };
 
+// A client registered through Dynamic Client Registration (RFC 7591) can hold a
+// name with spaces and a custom native-app callback scheme. The admin edit form
+// must accept these values so the app stays editable (ENG-3342).
+const dcrApp = {
+	...mockApp,
+	name: "VS Code Coder Extension",
+	callback_url: "vscode://coder.coder-remote/oauth/callback",
+};
+
+export const DynamicallyRegisteredValues: Story = {
+	parameters: {
+		queries: [
+			{ key: oauth2ProviderAppKey(appId), data: dcrApp },
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const nameField = await canvas.findByLabelText(/^name/i);
+		await expect(nameField).toHaveValue("VS Code Coder Extension");
+		await expect(canvas.getByLabelText(/callback url/i)).toHaveValue(
+			"vscode://coder.coder-remote/oauth/callback",
+		);
+
+		// Editing the DCR values must not trip client-side validation.
+		await userEvent.clear(nameField);
+		await userEvent.type(nameField, "Cursor (MCP)");
+		await expect(
+			canvas.queryByText(/special characters/i),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("button", { name: /update application/i }),
+		).toBeEnabled();
+	},
+};
+
 export const NoSecretPermissions: Story = {
 	parameters: {
 		permissions: {

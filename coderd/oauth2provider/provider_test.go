@@ -3,6 +3,7 @@ package oauth2provider_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,16 +37,16 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				},
 			},
 			{
-				name: "NameSpaces",
+				name: "NameTooLong",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo bar",
+					Name:        strings.Repeat("a", 65),
 					CallbackURL: "http://localhost:3000",
 				},
 			},
 			{
-				name: "NameTooLong",
+				name: "NameLeadingSpace",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "too loooooooooooooooooooooooooong",
+					Name:        " foo",
 					CallbackURL: "http://localhost:3000",
 				},
 			},
@@ -53,13 +54,6 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				name: "URLMissing",
 				req: codersdk.PostOAuth2ProviderAppRequest{
 					Name: "foo",
-				},
-			},
-			{
-				name: "URLLocalhostNoScheme",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "localhost:3000",
 				},
 			},
 			{
@@ -123,6 +117,35 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				require.Error(t, err)
 			})
 		}
+	})
+
+	t.Run("AcceptsDCRValues", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Values registered through Dynamic Client Registration (RFC 7591),
+		// such as a name with spaces and a custom native-app callback scheme,
+		// must be creatable and editable via the admin OAuth2 app settings.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "VS Code Coder Extension",
+			CallbackURL: "vscode://coder.coder-remote/oauth/callback",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "VS Code Coder Extension", app.Name)
+		require.Equal(t, "vscode://coder.coder-remote/oauth/callback", app.CallbackURL)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "Cursor (MCP)",
+			CallbackURL: "cursor://anysphere.cursor-mcp/oauth/callback",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Cursor (MCP)", updated.Name)
+		require.Equal(t, "cursor://anysphere.cursor-mcp/oauth/callback", updated.CallbackURL)
 	})
 
 	t.Run("DuplicateNames", func(t *testing.T) {

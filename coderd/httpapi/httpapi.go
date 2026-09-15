@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -49,11 +50,52 @@ func init() {
 		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	oauth2AppNameValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		return codersdk.OAuth2AppNameValid(str) == nil
+	}
+	err := Validate.RegisterValidation("oauth2_app_name", oauth2AppNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	// oauth2_callback_url accepts any redirect URI scheme that DCR accepts
+	// (RFC 7591), including custom native-app schemes such as vscode://, so
+	// that DCR-registered clients stay editable via the admin OAuth2 app
+	// settings. Dangerous schemes (javascript, data, file, ftp) and
+	// unsupported URNs are still rejected.
+	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		u, err := url.Parse(str)
+		if err != nil {
+			return false
+		}
+		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
+			return false
+		}
+		// http(s) callback URLs must include a host; custom native-app schemes
+		// (e.g. vscode://) may be opaque.
+		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
+			return false
+		}
+		return true
+	}
+	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
+	if err != nil {
+		panic(err)
 	}
 
 	displayNameValidator := func(fl validator.FieldLevel) bool {
@@ -81,7 +123,7 @@ func init() {
 		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
 	if err != nil {
 		panic(err)
 	}

@@ -16,7 +16,6 @@ import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import {
 	getFormHelpers,
 	iconValidator,
-	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
@@ -38,25 +37,52 @@ type OAuth2AppFormProps = {
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-const isHttpUrl = (value: string | undefined): boolean => {
+// Dangerous URL schemes that are never valid redirect targets. Mirrors the
+// backend's ValidateRedirectURIScheme (coderd/oauth2provider) so the admin
+// form accepts the same custom native-app schemes (e.g. vscode://) that DCR
+// clients register.
+const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
+
+const isValidCallbackURL = (value: string | undefined): boolean => {
 	if (!value) {
 		return false;
 	}
 	try {
 		const url = new URL(value);
-		return url.protocol === "http:" || url.protocol === "https:";
+		if (!url.protocol) {
+			return false;
+		}
+		if (url.protocol === "urn:") {
+			return value === "urn:ietf:wg:oauth:2.0:oob";
+		}
+		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol.toLowerCase())) {
+			return false;
+		}
+		// http(s) callback URLs must include a host; custom native-app schemes
+		// (e.g. vscode://) may be opaque.
+		if ((url.protocol === "http:" || url.protocol === "https:") && !url.host) {
+			return false;
+		}
+		return true;
 	} catch {
 		return false;
 	}
 };
 
+// Keep in sync with codersdk.OAuth2AppNameValid and the DCR client_name rules
+// so values registered through Dynamic Client Registration remain editable.
 const validationSchema = Yup.object({
-	name: nameValidator("Name"),
+	name: Yup.string()
+		.trim()
+		.required("Please enter a name.")
+		.max(64, "Name cannot be longer than 64 characters."),
 	callback_url: Yup.string()
 		.trim()
 		.required("Please enter a callback URL.")
-		.test("http-url", "Callback URL must be a valid URL.", (value) =>
-			isHttpUrl(value),
+		.test(
+			"valid-callback-url",
+			"Callback URL must be a valid URL and cannot use a dangerous scheme (e.g. javascript, data, file, ftp).",
+			(value) => isValidCallbackURL(value),
 		),
 	icon: iconValidator,
 });
