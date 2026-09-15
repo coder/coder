@@ -1,18 +1,16 @@
-import { cn } from "cn";
 import DOMPurify from "dompurify";
 import { TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useIsCodeFenceIncomplete } from "streamdown";
+import { getErrorMessage } from "#/api/errors";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useTheme } from "#/theme/context";
+import { generateUUID } from "#/utils/random";
 
 type RenderState =
 	| { status: "pending" }
 	| { status: "rendered"; svg: string }
 	| { status: "error"; message: string };
-
-const describeError = (error: unknown): string =>
-	error instanceof Error ? error.message : "Unknown error";
 
 interface MermaidDiagramProps {
 	source: string;
@@ -56,26 +54,19 @@ const renderDiagram = async (
 		securityLevel: "strict",
 		suppressErrorRendering: true,
 		theme: isDark ? "dark" : "neutral",
-		fontFamily: '"Geist Variable", system-ui, sans-serif',
+		// Emitted as font-family in the SVG's own stylesheet, so the
+		// diagram picks up the app font from its container.
+		fontFamily: "inherit",
 		htmlLabels: false,
 		flowchart: { htmlLabels: false },
 	});
-	const { svg } = await mermaid.render(
-		`mermaid-${crypto.randomUUID()}`,
-		source,
-	);
+	const { svg } = await mermaid.render(`mermaid-${generateUUID()}`, source);
 	return sanitizeDiagramSvg(svg);
 };
 
 /**
  * Renders a fenced ```mermaid block from chat markdown as an SVG
- * diagram. Rendering waits until the fence is closed so partially
- * streamed source never produces a flash of parse errors.
- *
- * Streamdown ships its own Mermaid block, but it is only reachable
- * through the default code component that Response replaces with the
- * diff viewer, and it is not exported on its own. Its inline pan-zoom
- * wrapper also cancels wheel events, which hijacks scrolling the chat.
+ * diagram once the fence is closed.
  */
 export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	const theme = useTheme();
@@ -98,7 +89,10 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 			},
 			(error: unknown) => {
 				if (!cancelled) {
-					setState({ status: "error", message: describeError(error) });
+					setState({
+						status: "error",
+						message: getErrorMessage(error, "Unknown error"),
+					});
 				}
 			},
 		);
@@ -129,17 +123,11 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 		);
 	}
 
-	const containerClassName =
-		"my-4 rounded-md border border-solid border-border-default bg-surface-primary";
-
 	if (state.status === "pending") {
 		return (
 			<div
 				role="status"
-				className={cn(
-					containerClassName,
-					"flex min-h-40 items-center justify-center gap-2 text-xs text-content-secondary",
-				)}
+				className="my-4 flex min-h-40 items-center justify-center gap-2 rounded-md border border-solid border-border-default bg-surface-primary text-xs text-content-secondary"
 			>
 				<Spinner loading size="sm" />
 				Rendering diagram
@@ -149,11 +137,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 
 	return (
 		<div
-			className={cn(
-				containerClassName,
-				"overflow-x-auto p-4",
-				"[&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full",
-			)}
+			className="my-4 overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary p-4 [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full"
 			// Output is sanitized by sanitizeDiagramSvg before it reaches
 			// React, so the only HTML here is Mermaid's own SVG markup.
 			dangerouslySetInnerHTML={{ __html: state.svg }}
