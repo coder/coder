@@ -1,4 +1,5 @@
 import { API } from "#/api/api";
+import type { UsagePeriod } from "#/api/typesGenerated";
 import { disabledRefetchOptions } from "./util";
 
 export const deploymentConfigQueryKey = ["deployment", "config"];
@@ -15,6 +16,18 @@ export const deploymentDAUs = () => {
 	return {
 		queryKey: ["deployment", "daus"],
 		queryFn: () => API.getDeploymentDAUs(),
+	};
+};
+
+const deploymentAgentTimeQueryKey = ["deployment", "agentTime"] as const;
+
+export const deploymentAgentTime = (usagePeriod?: UsagePeriod) => {
+	return {
+		queryKey: usagePeriod
+			? [...deploymentAgentTimeQueryKey, usagePeriod.start, usagePeriod.end]
+			: deploymentAgentTimeQueryKey,
+		queryFn: API.getDeploymentAgentTime,
+		staleTime: 5 * 60 * 1_000,
 	};
 };
 

@@ -398,6 +398,10 @@ export const handlers = [
 		return HttpResponse.json(M.MockAppearanceConfig);
 	}),
 
+	http.get("/api/v2/deployment/agent-time", () => {
+		return HttpResponse.json(M.MockDeploymentAgentTime);
+	}),
+
 	http.get("/api/v2/deployment/stats", () => {
 		return HttpResponse.json(M.MockDeploymentStats);
 	}),
