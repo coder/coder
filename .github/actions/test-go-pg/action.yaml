@@ -131,6 +131,13 @@ runs:
         if [[ ${RACE_DETECTION} == true ]]; then
           make test-race
         else
+          # The suite is CPU-bound and about a fifth of Go CPU is garbage
+          # collection. GOGC=200 trades roughly 2x peak heap per test binary
+          # (about 2GB for coderd) for ~15% less Go CPU. Linux runners have
+          # the memory for this; the macOS runners do not.
+          if [[ "${RUNNER_OS}" == "Linux" ]]; then
+            export GOGC=200
+          fi
           make test
         fi
 
