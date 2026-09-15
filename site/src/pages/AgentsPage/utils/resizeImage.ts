@@ -3,6 +3,8 @@
  * Plain TS (no React) so it can be used by any upload pipeline.
  */
 
+import { isRasterImageMediaType } from "./chatAttachments";
+
 // Formats we re-encode. GIFs are excluded so we don't flatten
 // animation; image/jpg is a non-IANA alias for image/jpeg some
 // OSes emit.
@@ -64,7 +66,7 @@ export async function resizeImageToMaxBytes(
 	file: File,
 	maxBytes: number,
 ): Promise<File | null> {
-	if (!file.type.startsWith("image/")) {
+	if (!isRasterImageMediaType(file.type)) {
 		return file;
 	}
 	// GIFs return as-is so we don't flatten animation.

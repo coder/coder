@@ -6165,7 +6165,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")

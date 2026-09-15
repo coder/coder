@@ -1970,6 +1970,7 @@ export type ChatAttachmentMediaType =
 	| "image/gif"
 	| "image/jpeg"
 	| "image/png"
+	| "image/svg+xml"
 	| "image/webp"
 	| "text/csv"
 	| "text/markdown"
@@ -1981,6 +1982,7 @@ export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
 	"image/gif",
 	"image/jpeg",
 	"image/png",
+	"image/svg+xml",
 	"image/webp",
 	"text/csv",
 	"text/markdown",

@@ -2227,6 +2227,7 @@ const docTemplate = `{
                     "image/jpeg",
                     "image/gif",
                     "image/webp",
+                    "image/svg+xml",
                     "text/plain",
                     "text/markdown",
                     "text/csv",

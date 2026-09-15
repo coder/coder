@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -3311,7 +3312,7 @@ func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
-				strings.HasPrefix(f.Mimetype, "image/") &&
+				chatfiles.IsRasterImageMediaType(f.Mimetype) &&
 				len(f.Data) >= imageCap {
 				err := xerrors.Errorf(
 					"image attachment %q is %d bytes; %s inline image limit is %d bytes",
