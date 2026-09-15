@@ -5,6 +5,7 @@ import type {
 	ChatProviderConfig,
 	OrganizationChatModelsResponse,
 } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -16,6 +17,7 @@ import {
 	formatProviderLabel,
 	getModelOptionsFromModels,
 	getModelSelectorPlaceholder,
+	getUnavailableModelNotice,
 	getUnsupportedProviderNames,
 	getUsableDefaultModelIDForOrganization,
 	hasConfiguredProviderConfigs,
@@ -1208,5 +1210,103 @@ describe("resolveCompactionThreshold", () => {
 
 	it("returns undefined when the model is not in the catalog", () => {
 		expect(resolveCompactionThreshold("missing", [], models)).toBe(undefined);
+	});
+});
+
+describe("getUnavailableModelNotice", () => {
+	const modelOptions = [
+		{
+			id: "config-1",
+			provider: "openai",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+		},
+	] as const;
+	const userFixableCatalog = createCatalog([
+		{
+			provider: "openai",
+			available: false,
+			unavailable_reason: "user_api_key_required",
+		},
+	]);
+	const adminFixableCatalog = createCatalog([
+		{
+			provider: "openai",
+			available: false,
+			unavailable_reason: "missing_api_key",
+		},
+	]);
+
+	it.each<{
+		name: string;
+		hasResolvedModelData: boolean;
+		storedModelRef: string | null | undefined;
+		modelOptions: readonly ModelSelectorOption[];
+		catalog: OrganizationChatModelsResponse | undefined;
+		expected: string | undefined;
+	}>([
+		{
+			name: "stays silent while model data is unresolved",
+			hasResolvedModelData: false,
+			storedModelRef: "missing-config",
+			modelOptions: [],
+			catalog: undefined,
+			expected: undefined,
+		},
+		{
+			name: "stays silent when the stored model is still available",
+			hasResolvedModelData: true,
+			storedModelRef: "config-1",
+			modelOptions,
+			catalog: userFixableCatalog,
+			expected: undefined,
+		},
+		{
+			name: "reports the replacement model for an unavailable historical model",
+			hasResolvedModelData: true,
+			storedModelRef: "missing-config",
+			modelOptions,
+			catalog: adminFixableCatalog,
+			expected:
+				"The model used by this chat is not available. A usable model is selected for new messages.",
+		},
+		{
+			name: "asks for an API key when no replacement model exists",
+			hasResolvedModelData: true,
+			storedModelRef: "missing-config",
+			modelOptions: [],
+			catalog: userFixableCatalog,
+			expected:
+				"The model used by this chat is not available. Add your API key in provider settings to enable models.",
+		},
+		{
+			name: "reports disabled generation when no provider is user-fixable",
+			hasResolvedModelData: true,
+			storedModelRef: "missing-config",
+			modelOptions: [],
+			catalog: adminFixableCatalog,
+			expected:
+				"The model used by this chat is not available. Generation is disabled because no usable model is available.",
+		},
+		{
+			name: "asks for an API key when no model is usable at all",
+			hasResolvedModelData: true,
+			storedModelRef: "",
+			modelOptions: [],
+			catalog: userFixableCatalog,
+			expected:
+				"No usable chat model is available. Add your API key in provider settings to enable models.",
+		},
+		{
+			name: "reports disabled generation when no model is usable at all",
+			hasResolvedModelData: true,
+			storedModelRef: undefined,
+			modelOptions: [],
+			catalog: adminFixableCatalog,
+			expected:
+				"No usable chat model is currently available. Generation is disabled.",
+		},
+	])("$name", ({ name: _name, expected, ...options }) => {
+		expect(getUnavailableModelNotice(options)).toBe(expected);
 	});
 });

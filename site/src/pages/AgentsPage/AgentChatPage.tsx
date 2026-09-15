@@ -102,6 +102,7 @@ import {
 import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
+	getUnavailableModelNotice,
 	getUnsupportedProviderNames,
 	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
@@ -466,21 +467,13 @@ const AgentChatPage: FC = () => {
 	const hasModelOptions = modelOptions.length > 0;
 	const hasResolvedModelData =
 		!isModelDataPending && Boolean(modelsQuery.data) && !modelsQuery.error;
-	const hasUnavailableHistoricalModel =
-		hasResolvedModelData &&
-		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
-	const unavailableModelNotice = hasUnavailableHistoricalModel
-		? hasModelOptions
-			? "The model used by this chat is not available. A usable model is selected for new messages."
-			: hasUserFixableModelProviders
-				? "The model used by this chat is not available. Add your API key in provider settings to enable models."
-				: "The model used by this chat is not available. Generation is disabled because no usable model is available."
-		: hasResolvedModelData && !hasModelOptions
-			? hasUserFixableModelProviders
-				? "No usable chat model is available. Add your API key in provider settings to enable models."
-				: "No usable chat model is currently available. Generation is disabled."
-			: undefined;
+	const unavailableModelNotice = getUnavailableModelNotice({
+		hasResolvedModelData,
+		storedModelRef: chatLastModelConfigID,
+		modelOptions,
+		catalog: modelCatalog,
+	});
 
 	const effectiveModelOption = modelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
