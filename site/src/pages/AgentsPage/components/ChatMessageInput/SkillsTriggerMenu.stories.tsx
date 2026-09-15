@@ -30,6 +30,13 @@ const compactCommandItem = createCommandMenuItem(COMPACT_SLASH_COMMAND);
 const mockWorkspaceSkillItems = mockWorkspaceSkills.map((skill) =>
 	createSkillMenuItem("workspace", skill),
 );
+const mockPluginSkillItems = [
+	createSkillMenuItem("workspace", {
+		name: "deploy",
+		description: "Deploy with the acme toolchain.",
+		pluginName: "acme",
+	}),
+];
 
 // Provides the composer-box element the menu anchors to, since the
 // menu is pinned above its anchor at the anchor's width.
@@ -83,6 +90,15 @@ export const PersonalOnly: Story = {};
 export const BothGroups: Story = {
 	args: {
 		workspaceSkills: mockWorkspaceSkillItems,
+		workspaceSkillsEnabled: true,
+	},
+};
+
+// Plugin skills sit in the workspace group with a plugin/<name>/<skill>
+// trigger and a plugin label.
+export const WithPluginSkill: Story = {
+	args: {
+		workspaceSkills: [...mockWorkspaceSkillItems, ...mockPluginSkillItems],
 		workspaceSkillsEnabled: true,
 	},
 };
