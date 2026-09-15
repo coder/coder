@@ -83,3 +83,41 @@ func TestIsValidTemplateParameterOption(t *testing.T) {
 		assert.False(t, isValidTemplateParameterOption(bp, tvp))
 	})
 }
+
+func TestWorkspaceBuildParametersForDryRun(t *testing.T) {
+	t.Parallel()
+
+	buildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: "mutable", Value: "new"},
+		{Name: "immutable_present", Value: "resolved"},
+	}
+	lastBuildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: "mutable", Value: "old"},
+		{Name: "immutable", Value: "repository"},
+		{Name: "immutable_present", Value: "previous"},
+		{Name: "ephemeral", Value: "old"},
+		{Name: "removed", Value: "old"},
+	}
+	templateVersionParameters := []codersdk.TemplateVersionParameter{
+		{Name: "mutable", Mutable: true},
+		{Name: "immutable", Mutable: false, Options: []codersdk.TemplateVersionParameterOption{{Value: "different"}}},
+		{Name: "immutable_present", Mutable: false},
+		{Name: "ephemeral", Mutable: true, Ephemeral: true},
+	}
+
+	dryRunParameters := workspaceBuildParametersForDryRun(
+		buildParameters,
+		lastBuildParameters,
+		templateVersionParameters,
+	)
+
+	assert.Equal(t, []codersdk.WorkspaceBuildParameter{
+		{Name: "mutable", Value: "new"},
+		{Name: "immutable_present", Value: "resolved"},
+		{Name: "immutable", Value: "repository"},
+	}, dryRunParameters)
+	assert.Equal(t, []codersdk.WorkspaceBuildParameter{
+		{Name: "mutable", Value: "new"},
+		{Name: "immutable_present", Value: "resolved"},
+	}, buildParameters, "must not mutate the workspace build parameters")
+}
