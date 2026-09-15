@@ -2457,6 +2457,12 @@
 					]
 				},
 				{
+					"title": "API key scopes",
+					"description": "Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.",
+					"path": "./reference/api-key-scopes.md",
+					"icon_path": "./images/icons/api.svg"
+				},
+				{
 					"title": "Agent API",
 					"description": "Reference for the Coder Agent API used by workspace agents to communicate with the server.",
 					"path": "./reference/agent-api/index.md",
