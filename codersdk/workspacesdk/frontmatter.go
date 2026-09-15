@@ -17,6 +17,38 @@ const MaxSkillMetaBytes = 64 * 1024
 // SkillNamePattern is the compiled pattern used to validate kebab-case skill names.
 var SkillNamePattern = regexp.MustCompile(SkillNameRegex)
 
+// MaxPluginNameLength is the maximum length in bytes of an Agent Plugin name.
+const MaxPluginNameLength = 64
+
+// ValidatePluginName checks name against the Agent Plugins manifest name
+// grammar: 1 to 64 characters from [a-z0-9.-], starting and ending with an
+// alphanumeric character, with no "--" or ".." runs.
+func ValidatePluginName(name string) error {
+	if name == "" {
+		return xerrors.New("plugin name is required")
+	}
+	if len(name) > MaxPluginNameLength {
+		return xerrors.Errorf("plugin name %q is %d bytes, maximum is %d", name, len(name), MaxPluginNameLength)
+	}
+	for i := range len(name) {
+		c := name[i]
+		isAlnum := (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+		if isAlnum {
+			continue
+		}
+		if c != '.' && c != '-' {
+			return xerrors.Errorf("plugin name %q contains invalid character %q", name, c)
+		}
+		if i == 0 || i == len(name)-1 {
+			return xerrors.Errorf("plugin name %q must start and end with a letter or digit", name)
+		}
+		if name[i-1] == c {
+			return xerrors.Errorf("plugin name %q must not contain %q", name, string([]byte{c, c}))
+		}
+	}
+	return nil
+}
+
 // markdownCommentRe strips HTML comments from skill file bodies so
 // they don't leak into the LLM prompt.
 var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)

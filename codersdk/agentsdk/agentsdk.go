@@ -135,6 +135,10 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// PluginsSupported reports that coderd accepts plugin context
+	// resources and has the agent-plugins experiment enabled. Older
+	// coderd versions leave it false.
+	PluginsSupported bool `json:"plugins_supported"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.
@@ -369,6 +373,20 @@ func (c *Client) ConnectRPC211WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC213WithRole returns a dRPC client to the Agent API v2.13, which
+// carries Agent Plugins resources in PushContextState and the
+// plugins_supported manifest flag. Pass role "agent" for workspace
+// agents to enable connection monitoring.
+func (c *Client) ConnectRPC213WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient213, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 13), role)
 	if err != nil {
 		return nil, nil, err
 	}

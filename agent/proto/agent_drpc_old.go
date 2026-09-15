@@ -105,3 +105,16 @@ type DRPCAgentClient210 interface {
 type DRPCAgentClient211 interface {
 	DRPCAgentClient210
 }
+
+// DRPCAgentClient212 is the Agent API at v2.12. It adds the
+// client_session_id to TelemetryEvent. No new RPCs.
+type DRPCAgentClient212 interface {
+	DRPCAgentClient211
+}
+
+// DRPCAgentClient213 is the Agent API at v2.13. It adds the plugin body
+// variant and plugin_name attribution to PushContextState resources and
+// the plugins_supported flag to Manifest. No new RPCs.
+type DRPCAgentClient213 interface {
+	DRPCAgentClient212
+}
