@@ -72,17 +72,19 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, string(result.ModulesTF), `coder_agent.dev[0].id`)
 	})
 
-	t.Run("ExplicitAgentName", func(t *testing.T) {
+	t.Run("AgentNameDefaultsToBaseAgent", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
 			BaseTemplateID: "docker",
 			RegistryURL:    "registry.coder.com",
 			Modules: []templatebuilder.ComposeModule{
-				{ID: "git-commit-signing", AgentName: "main"},
+				{ID: "zed"},
 			},
 		})
 		require.NoError(t, err)
-		require.Contains(t, string(result.ModulesTF), `coder_agent.main.id`)
+		modules := string(result.ModulesTF)
+		require.Contains(t, modules, `coder_agent.main.id`)
+		require.Contains(t, modules, `agent_name = "main"`)
 	})
 
 	t.Run("UnknownAgentName", func(t *testing.T) {
@@ -91,7 +93,7 @@ func TestCompose(t *testing.T) {
 			BaseTemplateID: "docker",
 			RegistryURL:    "registry.coder.com",
 			Modules: []templatebuilder.ComposeModule{
-				{ID: "git-commit-signing", AgentName: "nonexistent"},
+				{ID: "zed", Variables: map[string]string{"agent_name": "nonexistent"}},
 			},
 		})
 		require.Error(t, err)
