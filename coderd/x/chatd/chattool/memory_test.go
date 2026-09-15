@@ -70,7 +70,6 @@ func TestFormatMemoryGuidanceAndIndexForTool(t *testing.T) {
 	guidance := chattool.FormatMemoryGuidance(chattool.MemoryScope{Kind: chattool.MemoryScopeProject, Label: "platform"})
 	require.Contains(t, guidance, "<memory>")
 	require.Contains(t, guidance, `project "platform"`)
-	require.Contains(t, guidance, chattool.MemoryGuidance)
 	require.NotContains(t, guidance, "memory-")
 	personal := chattool.FormatMemoryGuidance(chattool.MemoryScope{Kind: chattool.MemoryScopePersonal})
 	require.Contains(t, personal, "Memory is personal to you")
@@ -78,6 +77,10 @@ func TestFormatMemoryGuidanceAndIndexForTool(t *testing.T) {
 	require.Contains(t, index, "Available memories (newest first):")
 	require.Contains(t, index, "more memories not shown.")
 	require.LessOrEqual(t, len(index), chattool.MaxMemoryIndexBytes)
+	require.Contains(t, guidance, "people on this project")
+	require.NotContains(t, guidance, "Do not save project details")
+	require.Contains(t, personal, "Do not save project details")
+	require.NotContains(t, personal, "people on this project")
 	require.Equal(t, "No memories saved yet.", chattool.FormatMemoryIndexForTool(nil))
 }
 

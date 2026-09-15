@@ -375,22 +375,39 @@ func normalizeMemoryInput(name, description, body string) (MemoryInput, error) {
 	return MemoryInput{Name: name, Description: description, Body: body}, nil
 }
 
-// MemoryGuidance tells the model what belongs in durable memory.
-const MemoryGuidance = "Save facts that will matter in future chats: who the people on this project are and how they like to work; " +
-	"corrections you received and approaches that were explicitly confirmed; ongoing work, deadlines, and decisions that cannot be derived from the code or git history; " +
-	"and where to find information outside the project, such as an issue tracker or dashboard.\n" +
-	"Save a memory as soon as durable information surfaces, without waiting to be asked. " +
-	"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
-	"Never save that something is unknown or undecided. " +
-	"When a question might be answered by a memory in the index, call read_memory before answering or asking the user. " +
-	"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
+// Guidance tells the model what belongs in durable memory for this scope.
+// Personal memory deliberately excludes project facts so that chats outside
+// a project do not accumulate people, decisions, and deadlines that belong
+// in a project's shared memory.
+func (s MemoryScope) Guidance() string {
+	switch s.Kind {
+	case MemoryScopePersonal:
+		return personalMemoryGuidance + "\n" + sharedMemoryGuidance
+	default:
+		return projectMemoryGuidance + "\n" + sharedMemoryGuidance
+	}
+}
+
+const (
+	projectMemoryGuidance = "Save facts that will matter in future chats: who the people on this project are and how they like to work; " +
+		"corrections you received and approaches that were explicitly confirmed; ongoing work, deadlines, and decisions that cannot be derived from the code or git history; " +
+		"and where to find information outside the project, such as an issue tracker or dashboard."
+	personalMemoryGuidance = "Save facts about how this user works that will matter in every future chat: preferences for tone, verbosity, and response format; " +
+		"tools, languages, and conventions they favor; and corrections they gave you or approaches they explicitly confirmed for their own workflow. " +
+		"Do not save project details: the people, decisions, deadlines, ongoing work, and external links of any project belong in that project's memory, not here."
+	sharedMemoryGuidance = "Save a memory as soon as durable information surfaces, without waiting to be asked. " +
+		"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
+		"Never save that something is unknown or undecided. " +
+		"When a question might be answered by a memory in the index, call read_memory before answering or asking the user. " +
+		"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
+)
 
 // FormatMemoryGuidance renders the stable durable-memory prompt block. It
 // carries no per-turn state so the system prompt prefix stays identical
 // across turns and remains cacheable; the live index is in the read tool's
 // description instead.
 func FormatMemoryGuidance(scope MemoryScope) string {
-	return "<memory>\n" + scope.Intro() + "\n" + MemoryGuidance + "\n</memory>"
+	return "<memory>\n" + scope.Intro() + "\n" + scope.Guidance() + "\n</memory>"
 }
 
 // FormatMemoryIndexForTool renders the compact memory index for read_memory.

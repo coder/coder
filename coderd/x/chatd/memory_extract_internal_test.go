@@ -392,6 +392,9 @@ func TestExtractMemories(t *testing.T) {
 
 		require.Contains(t, capturedPrompt, "new durable detail")
 		require.NotContains(t, capturedPrompt, "old detail")
+		// The extractor receives the guidance for the chat's scope.
+		require.Contains(t, capturedPrompt, "people on this project")
+		require.NotContains(t, capturedPrompt, "Do not save project details")
 		// Deletion is intentionally absent from the extraction schema.
 		require.NotContains(t, capturedPrompt, `"deletes"`)
 	})
