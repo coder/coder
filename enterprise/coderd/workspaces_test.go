@@ -3419,7 +3419,7 @@ type testWorkspaceTagsTerraformCase struct {
 // this is fine.
 // To improve speed, we pre-download the providers and set a custom Terraform
 // config file so that we only reference those
-// nolint:paralleltest // t.Setenv
+// nolint:paralleltest,tparallel // t.Setenv forbids t.Parallel on the parent; the subtests are parallel.
 func TestWorkspaceTagsTerraform(t *testing.T) {
 	coderProviderTemplate := `
 		terraform {
@@ -3566,13 +3566,21 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// Subtests may run in parallel even though the parent calls
+			// t.Setenv: the variable stays set for the parent's whole
+			// lifetime, and each subtest provisions with its own coderd,
+			// provisioner daemon, and plugin cache directory. Only the
+			// pre-downloaded provider mirror is shared, read-only.
+			t.Parallel()
 			t.Run("dynamic", func(t *testing.T) {
+				t.Parallel()
 				workspaceTagsTerraform(t, tc, true)
 			})
 
 			// classic uses tfparse for tags. This sub test can be
 			// removed when tf parse is removed.
 			t.Run("classic", func(t *testing.T) {
+				t.Parallel()
 				workspaceTagsTerraform(t, tc, false)
 			})
 		})
