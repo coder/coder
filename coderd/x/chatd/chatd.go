@@ -2108,8 +2108,8 @@ func (p *Server) DeleteQueued(
 	}
 
 	var (
-		after   database.Chat
-		resumed bool
+		after         database.Chat
+		statusChanged bool
 	)
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -2122,21 +2122,21 @@ func (p *Server) DeleteQueued(
 		}); err != nil {
 			return err
 		}
-		after, resumed, err = chatIfStatusChanged(ctx, store, before)
+		after, statusChanged, err = reloadChatStatusChanged(ctx, store, before)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	if resumed {
+	if statusChanged {
 		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 	return nil
 }
 
-// chatIfStatusChanged reloads the chat and reports whether its status
-// differs from before.
-func chatIfStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
+// reloadChatStatusChanged reloads the chat and reports whether its
+// status differs from before.
+func reloadChatStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
 	after, err := store.GetChatByID(ctx, before.ID)
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("reload chat: %w", err)
@@ -2230,8 +2230,8 @@ func (p *Server) EditQueuedMessage(
 	}
 
 	var (
-		after   database.Chat
-		resumed bool
+		after         database.Chat
+		statusChanged bool
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -2257,13 +2257,13 @@ func (p *Server) EditQueuedMessage(
 				return err
 			}
 		}
-		after, resumed, err = chatIfStatusChanged(ctx, store, lockedChat)
+		after, statusChanged, err = reloadChatStatusChanged(ctx, store, lockedChat)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	if resumed {
+	if statusChanged {
 		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 	return nil
