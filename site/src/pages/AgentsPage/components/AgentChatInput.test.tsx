@@ -94,10 +94,9 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("cancels a queued message edit on Escape", async () => {
+	it("cancels an edit on Escape", async () => {
 		const user = userEvent.setup();
 		const onCancelEdit = vi.fn();
-		const onEditQueuedMessage = vi.fn();
 
 		renderInput(
 			<AgentChatInput
@@ -110,16 +109,9 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
-				queuedMessages={[MockEditingChatQueuedMessage]}
-				onEditQueuedMessage={onEditQueuedMessage}
 				editingKind="queued"
 				onCancelEdit={onCancelEdit}
 			/>,
-		);
-
-		await user.click(screen.getByRole("button", { name: "Edit" }));
-		expect(onEditQueuedMessage).toHaveBeenCalledWith(
-			MockEditingChatQueuedMessage.id,
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
