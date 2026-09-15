@@ -199,6 +199,34 @@ export const FamilyTotals: Story = {
 	},
 };
 
+export const FamilyTotalsLight: Story = {
+	...FamilyTotals,
+	parameters: { themes: { themeOverride: "light" } },
+};
+
+export const FamilyTotalsLoading: Story = {
+	...Loading,
+	play: FamilyTotals.play,
+};
+
+export const FamilyTotalsEmpty: Story = {
+	...NoActiveConnections,
+	play: FamilyTotals.play,
+};
+
+export const OverflowScrolledAway: Story = {
+	...OverflowNarrow,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", { name: "+2 more" });
+		trigger.scrollIntoView({ behavior: "instant", inline: "center" });
+		await userEvent.click(trigger);
+		canvas
+			.getByRole("link", { name: "15" })
+			.scrollIntoView({ behavior: "instant", inline: "start" });
+	},
+};
+
 export const FamilyTotalsKeyboard: Story = {
 	play: ({ canvasElement }) => {
 		within(canvasElement)

@@ -8,6 +8,8 @@ import {
 	GitCompareArrowsIcon,
 	RocketIcon,
 	RotateCwIcon,
+	SquareTerminalIcon,
+	TerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
@@ -321,23 +323,64 @@ const ActiveConnections: FC<{
 							Active Connections
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent>
-						<div className="mb-2 font-semibold">Connections by family</div>
-						<dl className="m-0 grid grid-cols-[1fr_auto] gap-x-6 gap-y-1">
-							{Object.entries({
-								"VS Code": sessionCount?.vscode,
-								JetBrains: sessionCount?.jetbrains,
-								SSH: sessionCount?.ssh,
-								"Web Terminal": sessionCount?.reconnecting_pty,
-							}).map(([family, count]) => (
-								<div key={family} className="contents">
-									<dt>{family}</dt>
-									<dd className="m-0 text-right">{count ?? "-"}</dd>
+					<TooltipContent
+						side="top"
+						hideWhenDetached
+						className="w-72 p-4 font-sans font-normal shadow-md"
+					>
+						<HelpPopoverTitle>Connections by family</HelpPopoverTitle>
+						<dl className="m-0 grid gap-3 py-2 text-sm">
+							{[
+								{
+									name: "VS Code",
+									count: sessionCount?.vscode,
+									icon: (
+										<ExternalImage
+											src="/icon/code.svg"
+											alt=""
+											className="size-4"
+										/>
+									),
+								},
+								{
+									name: "JetBrains",
+									count: sessionCount?.jetbrains,
+									icon: (
+										<ExternalImage
+											src="/icon/jetbrains.svg"
+											alt=""
+											className="size-4"
+										/>
+									),
+								},
+								{
+									name: "SSH",
+									count: sessionCount?.ssh,
+									icon: <TerminalIcon className="size-4" />,
+								},
+								{
+									name: "Web Terminal",
+									count: sessionCount?.reconnecting_pty,
+									icon: <SquareTerminalIcon className="size-4" />,
+								},
+							].map(({ name, count, icon }) => (
+								<div
+									key={name}
+									className="flex items-center justify-between gap-4"
+								>
+									<dt className="flex items-center gap-3">
+										{icon}
+										{name}
+									</dt>
+									<dd className="m-0 font-mono font-medium tabular-nums text-content-primary">
+										{count ?? "-"}
+									</dd>
 								</div>
 							))}
 						</dl>
-						<p className="mb-0 text-content-secondary">
-							Unrecognized apps are not included in these families.
+						<p className="mb-0 mt-3 border-0 border-t border-solid border-border pt-3 text-xs leading-relaxed text-content-secondary">
+							Includes all apps in each family. Unrecognized apps are not
+							included.
 						</p>
 					</TooltipContent>
 				</Tooltip>
@@ -376,6 +419,7 @@ const ActiveConnections: FC<{
 						<PopoverContent
 							side="top"
 							aria-label="More active connections"
+							hideWhenDetached
 							className="p-3 text-xs"
 						>
 							<ul className="m-0 grid list-none gap-3 p-0">
