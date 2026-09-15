@@ -76,6 +76,35 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 		require.Equal(t, "bad_schema", info.Name)
 		require.Nil(t, info.Parameters)
 		require.Nil(t, info.Required)
+		full, ok := result[0].(fullSchemaTool)
+		require.True(t, ok)
+		require.Nil(t, full.FullInputSchema())
+	})
+
+	t.Run("SchemaKeptWhole", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		schema := `{"type":"object","properties":{"filter":{"$ref":"#/$defs/Filter"}},"required":["filter"],"additionalProperties":false,"$defs":{"Filter":{"type":"string"}}}`
+		tools := []codersdk.DynamicTool{
+			{
+				Name:        "ref_tool",
+				Description: "Schema with $defs",
+				InputSchema: json.RawMessage(schema),
+			},
+		}
+		result := dynamicToolsFromSDK(logger, tools)
+		require.Len(t, result, 1)
+
+		full, ok := result[0].(fullSchemaTool)
+		require.True(t, ok)
+		raw, err := json.Marshal(full.FullInputSchema())
+		require.NoError(t, err)
+		require.JSONEq(t, schema, string(raw))
+
+		// Info() keeps carrying the flattened pair.
+		info := result[0].Info()
+		require.Contains(t, info.Parameters, "filter")
+		require.Equal(t, []string{"filter"}, info.Required)
 	})
 
 	t.Run("MultipleTools", func(t *testing.T) {
