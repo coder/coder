@@ -132,3 +132,8 @@ docs/.audit/
 
 /release-action
 test-timings.tsv
+# Local-only FOCUS export dev/review artifacts (not part of the PR).
+/scripts/focusdevserver/
+/focus_export_review_prompt.md
+/focus_export_review_findings.md
+/focus_export_pr_description.md
