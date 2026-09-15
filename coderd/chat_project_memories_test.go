@@ -29,6 +29,7 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, project.ID, created.ProjectID)
 	require.Equal(t, firstUser.UserID, created.CreatedBy)
+	require.NotEmpty(t, created.CreatedByUsername)
 
 	memories, err := client.ListChatProjectMemories(ctx, project.ID)
 	require.NoError(t, err)
@@ -45,6 +46,7 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, updatedDescription, updated.Description)
+	require.Equal(t, created.CreatedByUsername, updated.CreatedByUsername)
 
 	_, err = client.CreateChatProjectMemory(ctx, project.ID, codersdk.CreateChatProjectMemoryRequest{
 		Name:        "release-process",

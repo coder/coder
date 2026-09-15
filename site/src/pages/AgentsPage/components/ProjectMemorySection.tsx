@@ -67,6 +67,9 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 					Add memory
 				</Button>
 			</div>
+			{deletingMemory && deleteMutation.error ? (
+				<ErrorAlert error={deleteMutation.error} className="mt-4" />
+			) : null}
 			{memories.length === 0 ? (
 				<p className="mt-6 text-sm text-content-secondary">
 					No memories yet. The agent saves them as it learns durable facts about
@@ -136,9 +139,7 @@ export const ProjectMemorySection: FC<ProjectMemorySectionProps> = ({
 				</ul>
 			)}
 			<ChatProjectMemoryDialog
-				// Remount per memory so the form state re-initializes from the
-				// selected memory instead of carrying over the previous one.
-				key={editingMemory?.id ?? "new"}
+				key={editingMemory?.id ?? (editingMemory === null ? "new" : "closed")}
 				open={editingMemory !== undefined}
 				memory={editingMemory}
 				onOpenChange={(open) => {

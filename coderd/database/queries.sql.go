@@ -7415,7 +7415,11 @@ INSERT INTO chat_project_memory_cursors (chat_id, history_version)
 VALUES ($1::uuid, $2::bigint)
 ON CONFLICT (chat_id) DO UPDATE
 SET
-    history_version = EXCLUDED.history_version,
+    -- Detached extractors can finish out of order, so never regress the cursor.
+    history_version = GREATEST(
+        chat_project_memory_cursors.history_version,
+        EXCLUDED.history_version
+    ),
     extracted_at = now()
 RETURNING chat_id, history_version, extracted_at
 `

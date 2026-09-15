@@ -92,6 +92,86 @@ describe("ProjectMemorySection", () => {
 		);
 	});
 
+	it("clears the draft after canceling memory creation", async () => {
+		const user = userEvent.setup();
+		let requestBody: unknown;
+		server.use(
+			http.get("/api/experimental/chats/projects/:projectId/memories", () =>
+				HttpResponse.json([]),
+			),
+			http.post(
+				"/api/experimental/chats/projects/:projectId/memories",
+				async ({ request }) => {
+					requestBody = await request.json();
+					return HttpResponse.json(MockChatProjectMemory, { status: 201 });
+				},
+			),
+		);
+
+		render(
+			<Wrapper>
+				<ProjectMemorySection projectId={MockChatProject.id} />
+			</Wrapper>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Add memory" }));
+		await user.type(screen.getByLabelText("Name"), "discarded-draft");
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		await user.click(screen.getByRole("button", { name: "Add memory" }));
+		await user.type(screen.getByLabelText("Name"), "durable-fact");
+		await user.type(screen.getByLabelText("Description"), "A durable fact");
+		await user.type(screen.getByLabelText("Body"), "Project memory body");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(requestBody).toEqual({
+				name: "durable-fact",
+				description: "A durable fact",
+				body: "Project memory body",
+			});
+		});
+	});
+
+	it("shows an error when deletion fails", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects/:projectId/memories", () =>
+				HttpResponse.json([MockChatProjectMemory]),
+			),
+			http.delete("*", () =>
+				HttpResponse.json(
+					{ message: "Failed to delete memory." },
+					{ status: 500 },
+				),
+			),
+		);
+
+		render(
+			<Wrapper>
+				<ProjectMemorySection projectId={MockChatProject.id} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: new RegExp(MockChatProjectMemory.name),
+				expanded: false,
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await user.type(
+			screen.getByLabelText("Name of the memory to delete"),
+			MockChatProjectMemory.name,
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(screen.getByRole("alert", { hidden: true })).toHaveTextContent(
+				"Failed to delete memory.",
+			);
+		});
+	});
+
 	it("deletes a memory after confirmation", async () => {
 		const user = userEvent.setup();
 		let deletedMemoryID: string | undefined;
