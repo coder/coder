@@ -626,15 +626,15 @@ func activeCitations(text string) (active, planned []string) {
 		// enforcement.
 		carry := false
 		for _, segment := range splitClauses(sentence) {
-			lower := strings.ToLower(segment)
-			marked := strings.Contains(lower, "planned")
+			clause := strings.ToLower(segment)
+			marked := strings.Contains(clause, "planned")
 			first := citation.FindStringIndex(segment)
-			introduces := len(first) < 2 || strings.Contains(strings.ToLower(segment[:first[0]]), "planned")
+			introduces := len(first) == 0 || strings.Contains(strings.ToLower(segment[:first[0]]), "planned")
 			switch {
 			case marked && introduces:
 				// The marker introduces the citations that follow it.
 				carry = true
-			case !marked && claimsEnforcement(lower):
+			case !marked && claimsEnforcement(clause):
 				// The clause asserts enforcement of its own citations.
 				carry = false
 			}
