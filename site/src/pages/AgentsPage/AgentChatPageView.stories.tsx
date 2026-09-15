@@ -1224,6 +1224,110 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 	},
 };
 
+const toolExpandStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
+
+const TALL_THINKING = "Thinking through the next step. ".repeat(400);
+
+/**
+ * Expanding a tall disclosure inside the live row must not read as the
+ * streamed reply filling the viewport: the anchored prompt stays put
+ * instead of the scroller handing off to bottom-following and yanking the
+ * reader to the transcript end.
+ */
+export const ToolExpansionKeepsAnchoredPrompt: Story = {
+	parameters: { pixel: { exclude: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={toolExpandStore} />,
+	play: async ({ canvasElement }) => {
+		toolExpandStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		toolExpandStore.setChatStatus("waiting");
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+		scrollTo(viewport, viewport.scrollHeight);
+		await settleScroller();
+
+		// Begin a turn: the prompt is appended FIRST so the scroller
+		// anchors it with a positive spacer, and only then does the large
+		// reasoning block stream into the live row. (Appending both in one
+		// batch mounts the tall row before the anchor settles, and the
+		// scroller hands off to bottom-following immediately.)
+		toolExpandStore.batch(() => {
+			toolExpandStore.upsertDurableMessages([
+				buildMessage(41, "user", "Please edit the config file."),
+			]);
+			toolExpandStore.setChatStatus("running");
+		});
+		await canvas.findByTestId("chat-message-live-assistant");
+		await settleScroller();
+		const prompt = canvas.getByTestId("chat-message-message:41");
+		const promptTop = () =>
+			prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+		const anchoredTop = promptTop();
+		expect(anchoredTop).toBeGreaterThan(0);
+		expect(anchoredTop).toBeLessThan(128);
+
+		toolExpandStore.applyMessageParts([
+			{ type: "reasoning", text: TALL_THINKING },
+		]);
+		// The reasoning disclosure renders inside the live row.
+		const liveRow = canvas.getByTestId("chat-message-live-assistant");
+		const toolHeader = await waitFor(() => {
+			const header = within(liveRow).getByRole("button", {
+				name: /thinking/i,
+			});
+			expect(header).toBeInTheDocument();
+			return header;
+		});
+		// Auto mode expands the streaming reasoning block fully.
+		await waitFor(() => {
+			expect(
+				within(liveRow).getByText(/Thinking through the next step/),
+			).toBeVisible();
+		});
+		await settleScroller();
+
+		// The reasoning block is far taller than the remaining spacer, so the
+		// pre-fix scroller read its arrival as the reply filling the viewport,
+		// handed off to bottom-following, and yanked the anchored prompt off
+		// screen.
+		expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
+
+		// Collapse the auto-expanded reasoning, then expand it again. The
+		// expansion is the same class of layout growth and must not move the
+		// reader either.
+		await userEvent.click(toolHeader);
+		await waitFor(() => {
+			expect(
+				within(liveRow).queryByText(/Thinking through the next step/),
+			).not.toBeInTheDocument();
+		});
+		await settleScroller();
+		const collapsedTop = promptTop();
+		expect(Math.abs(collapsedTop - anchoredTop)).toBeLessThan(4);
+		await userEvent.click(toolHeader);
+		await waitFor(() => {
+			expect(
+				within(liveRow).getByText(/Thinking through the next step/),
+			).toBeVisible();
+		});
+		await settleScroller();
+
+		// The expansion must not move the anchored prompt.
+		expect(Math.abs(promptTop() - collapsedTop)).toBeLessThan(4);
+
+		// More streamed output must also leave the reader anchored.
+		toolExpandStore.applyMessageParts([
+			{ type: "text", text: "Continuing with the next step. " },
+		]);
+		await settleScroller();
+		expect(Math.abs(promptTop() - collapsedTop)).toBeLessThan(4);
+	},
+};
+
 const underflowFetchSpy = fn();
 
 const UnderflowPaginationStory: FC = () => {

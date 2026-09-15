@@ -12,6 +12,7 @@ import {
 	type ReactNode,
 	useContext,
 	useId,
+	useRef,
 	useState,
 } from "react";
 import {
@@ -33,6 +34,17 @@ import type { ToolStatus } from "./utils";
  * `collapsed` and `expanded`, so toggle callbacks never emit `preview`.
  */
 export type ToolCallView = "collapsed" | "preview" | "expanded";
+
+// The MessageScroller viewport listens for this to keep the reader's scroll
+// position stable across the layout change: expanding or collapsing a tool
+// call must not read as an invitation to auto-follow the transcript.
+const USER_LAYOUT_INTENT_EVENT = "messagescroller:userlayoutintent";
+
+const dispatchUserLayoutIntent = (element: HTMLElement) => {
+	element.dispatchEvent(
+		new CustomEvent(USER_LAYOUT_INTENT_EVENT, { bubbles: true }),
+	);
+};
 
 type ToolCallAriaLabel = string | ((expanded: boolean) => string);
 
@@ -158,7 +170,13 @@ const Root: FC<ToolCallRootProps> = ({
 	const collapsible = hasContent;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
+	const wrapperRef = useRef<HTMLDivElement>(null);
 	const onToggle = () => {
+		// Signal before the state update so the scroller's latch precedes
+		// the collapse clamp's scroll event and the resize callback.
+		if (wrapperRef.current) {
+			dispatchUserLayoutIntent(wrapperRef.current);
+		}
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
@@ -181,7 +199,7 @@ const Root: FC<ToolCallRootProps> = ({
 				view,
 			}}
 		>
-			<div className={className} {...divProps}>
+			<div ref={wrapperRef} className={className} {...divProps}>
 				{children}
 			</div>
 		</ToolCallContext.Provider>

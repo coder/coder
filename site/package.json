@@ -203,6 +203,9 @@
 			"esbuild",
 			"odiff-bin",
 			"ssh2"
-		]
+		],
+		"patchedDependencies": {
+			"@shadcn/react@0.3.0": "patches/@shadcn__react@0.3.0.patch"
+		}
 	}
 }
