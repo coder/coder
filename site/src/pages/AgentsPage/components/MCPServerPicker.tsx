@@ -172,6 +172,48 @@ export const saveMCPSelection = (
 	);
 };
 
+interface MCPSelectionSources {
+	/** The selection the user made in this session, or `null` if untouched. */
+	userSelection: readonly string[] | null;
+	/**
+	 * The selection recorded on the chat, if any. An empty array means the user
+	 * deliberately opted out, so it still wins over saved and default values.
+	 * The API serializes an unrecorded selection as `null`.
+	 */
+	chatSelection?: readonly string[] | null;
+	organizationId: string;
+	servers: readonly TypesGen.MCPServerConfig[];
+	/** Whether the organization inherits the legacy unscoped selection. */
+	isDefaultOrganization?: boolean;
+}
+
+/**
+ * Resolve which MCP servers a chat should use, in precedence order: the current
+ * user selection, the chat record, the organization's saved selection, then the
+ * defaults implied by server availability.
+ */
+export const resolveMCPSelection = ({
+	userSelection,
+	chatSelection,
+	organizationId,
+	servers,
+	isDefaultOrganization,
+}: MCPSelectionSources): readonly string[] => {
+	if (userSelection !== null) {
+		return userSelection;
+	}
+	if (chatSelection) {
+		return chatSelection;
+	}
+	const saved = organizationId
+		? getSavedMCPSelection(organizationId, servers, isDefaultOrganization)
+		: null;
+	if (saved !== null) {
+		return saved;
+	}
+	return getDefaultMCPSelection(servers);
+};
+
 // ── Overlapping icon stack for the trigger ─────────────────────
 
 const ICON_STACK_MAX = 3;

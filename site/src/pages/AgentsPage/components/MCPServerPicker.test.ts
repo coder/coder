@@ -5,6 +5,7 @@ import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	mcpSelectionStorageKey,
+	resolveMCPSelection,
 	saveMCPSelection,
 } from "./MCPServerPicker";
 
@@ -227,6 +228,130 @@ describe("MCP selection persistence", () => {
 				buildServer({ id: "a", availability: "default_on", enabled: false }),
 			];
 			expect(getDefaultMCPSelection(servers)).toEqual([]);
+		});
+	});
+
+	describe("resolveMCPSelection", () => {
+		const servers = [
+			buildServer({ id: "s1", availability: "force_on" }),
+			buildServer({ id: "s2", availability: "default_on" }),
+			buildServer({ id: "s3", availability: "default_off" }),
+		];
+
+		it("prefers the user selection over every other source", () => {
+			saveMCPSelection(organizationId, ["s2"]);
+			expect(
+				resolveMCPSelection({
+					userSelection: ["s3"],
+					chatSelection: ["s2"],
+					organizationId,
+					servers,
+				}),
+			).toEqual(["s3"]);
+		});
+
+		it("treats an empty user selection as a deliberate opt-out", () => {
+			saveMCPSelection(organizationId, ["s2"]);
+			expect(
+				resolveMCPSelection({
+					userSelection: [],
+					chatSelection: ["s2"],
+					organizationId,
+					servers,
+				}),
+			).toEqual([]);
+		});
+
+		it("falls back to the chat selection when the user has not chosen", () => {
+			saveMCPSelection(organizationId, ["s2"]);
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					chatSelection: ["s3"],
+					organizationId,
+					servers,
+				}),
+			).toEqual(["s3"]);
+		});
+
+		it("treats an empty chat selection as a deliberate opt-out", () => {
+			saveMCPSelection(organizationId, ["s2"]);
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					chatSelection: [],
+					organizationId,
+					servers,
+				}),
+			).toEqual([]);
+		});
+
+		it("falls back past a chat without a recorded selection", () => {
+			saveMCPSelection(organizationId, ["s3"]);
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					chatSelection: null,
+					organizationId,
+					servers,
+				}),
+			).toEqual(["s3", "s1"]);
+		});
+
+		it("reads the legacy selection only for the default organization", () => {
+			localStorage.setItem(
+				"agents.selected-mcp-server-ids",
+				JSON.stringify(["s3"]),
+			);
+
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					organizationId,
+					servers,
+				}),
+			).toEqual(["s1", "s2"]);
+
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					organizationId,
+					servers,
+					isDefaultOrganization: true,
+				}),
+			).toEqual(["s3", "s1"]);
+		});
+
+		it("falls back to availability defaults without a saved selection", () => {
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					organizationId,
+					servers,
+				}),
+			).toEqual(["s1", "s2"]);
+		});
+
+		it("falls back to availability defaults while servers are still loading", () => {
+			saveMCPSelection(organizationId, ["s3"]);
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					organizationId,
+					servers: [],
+				}),
+			).toEqual([]);
+		});
+
+		it("skips the saved selection without an organization", () => {
+			saveMCPSelection("", ["s3"]);
+			expect(
+				resolveMCPSelection({
+					userSelection: null,
+					organizationId: "",
+					servers,
+				}),
+			).toEqual(["s1", "s2"]);
 		});
 	});
 });

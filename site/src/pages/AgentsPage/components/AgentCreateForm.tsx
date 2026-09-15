@@ -38,11 +38,7 @@ import {
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
-import {
-	getDefaultMCPSelection,
-	getSavedMCPSelection,
-	saveMCPSelection,
-} from "./MCPServerPicker";
+import { resolveMCPSelection, saveMCPSelection } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
@@ -423,20 +419,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelsQuery.data,
 	);
 
-	const effectiveMCPServerIds = (() => {
-		if (userMCPServerIds !== null) {
-			return userMCPServerIds;
-		}
-		const saved = getSavedMCPSelection(
-			organizationId,
-			mcpServers,
-			effectiveOrg?.is_default,
-		);
-		if (saved !== null) {
-			return saved;
-		}
-		return getDefaultMCPSelection(mcpServers);
-	})();
+	const effectiveMCPServerIds = resolveMCPSelection({
+		userSelection: userMCPServerIds,
+		organizationId,
+		servers: mcpServers,
+		isDefaultOrganization: effectiveOrg?.is_default,
+	});
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
