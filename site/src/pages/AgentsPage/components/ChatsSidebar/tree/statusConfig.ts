@@ -38,15 +38,15 @@ const statusConfig = {
 		className: "text-content-warning",
 		label: "Requires action",
 	},
-	paused: {
-		icon: PauseIcon,
-		className: "text-content-warning",
-		label: "Paused",
-	},
 	error: {
 		icon: AlertTriangleIcon,
 		className: "text-content-destructive",
 		label: "Error",
+	},
+	paused: {
+		icon: PauseIcon,
+		className: "text-content-warning",
+		label: "Paused",
 	},
 } as const satisfies Record<ChatStatus, ChatIconConfig>;
 
