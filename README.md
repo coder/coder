@@ -123,3 +123,5 @@ New contributors are always welcome. If you are new to the Coder codebase, see
 ## Hiring
 
 Apply on the [careers page](https://jobs.ashbyhq.com/coder?utm_source=github&utm_medium=readme&utm_campaign=unknown) if you are interested in joining the team.
+
+<!-- chat-diff uat fixture beta -->
