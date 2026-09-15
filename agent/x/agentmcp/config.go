@@ -3,13 +3,41 @@ package agentmcp
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
 )
 
-// ServerConfig describes a single MCP server parsed from a .mcp.json file.
+// PluginScope identifies the Agent Plugin an mcp.json file belongs to.
+// Name must be unique per reload; Root and DataDir must be absolute.
+// Only a change to mcp.json itself triggers a reparse, so the plugin's
+// files must be in place before its mcp.json is passed in.
+type PluginScope struct {
+	Name    string
+	Root    string
+	DataDir string
+}
+
+// ConfigSource names one MCP config file to load. A nil Plugin marks a
+// legacy .mcp.json file; otherwise Path must be the mcp.json at the
+// plugin root.
+type ConfigSource struct {
+	Path   string
+	Plugin *PluginScope
+}
+
+// LegacySources wraps plain .mcp.json paths as legacy ConfigSources.
+func LegacySources(paths []string) []ConfigSource {
+	sources := make([]ConfigSource, 0, len(paths))
+	for _, p := range paths {
+		sources = append(sources, ConfigSource{Path: p})
+	}
+	return sources
+}
+
+// ServerConfig describes a single MCP server parsed from a config file.
 type ServerConfig struct {
 	Name      string            `json:"name"`
 	Transport string            `json:"type"`
@@ -18,6 +46,12 @@ type ServerConfig struct {
 	Env       map[string]string `json:"env"`
 	URL       string            `json:"url"`
 	Headers   map[string]string `json:"headers"`
+	// Cwd is the absolute working directory for a stdio server. Empty
+	// selects the workspace working directory at launch.
+	Cwd string `json:"cwd,omitempty"`
+	// Plugin is set for plugin mcp.json servers. A scope change
+	// reconnects the server.
+	Plugin *PluginScope `json:"plugin,omitempty"`
 }
 
 // mcpConfigFile mirrors the on-disk .mcp.json schema.
@@ -35,10 +69,39 @@ type mcpServerEntry struct {
 	Headers map[string]string `json:"headers"`
 }
 
-// ParseConfig reads a .mcp.json file at path and returns the declared
-// MCP servers sorted by name. It returns an empty slice when the
-// mcpServers key is missing or empty.
-func ParseConfig(path string) ([]ServerConfig, error) {
+// ParseSource reads the config file named by src and returns its valid
+// servers sorted by name. A legacy .mcp.json fails whole on any invalid
+// entry. A plugin mcp.json fails whole on an invalid scope, path, or top
+// level; otherwise invalid entries are returned keyed by name and their
+// siblings still load.
+func ParseSource(src ConfigSource) ([]ServerConfig, map[string]error, error) {
+	if src.Plugin == nil {
+		servers, err := parseLegacyConfig(src.Path)
+		return servers, nil, err
+	}
+	if !filepath.IsAbs(src.Plugin.Root) || !filepath.IsAbs(src.Plugin.DataDir) {
+		return nil, nil, xerrors.Errorf("mcp config %q: plugin root %q and data dir %q must be absolute", src.Path, src.Plugin.Root, src.Plugin.DataDir)
+	}
+	if filepath.Clean(src.Path) != filepath.Join(src.Plugin.Root, pluginMCPFileName) {
+		return nil, nil, xerrors.Errorf("mcp config %q: a plugin mcp config must be %s at the plugin root", src.Path, pluginMCPFileName)
+	}
+	scope := *src.Plugin
+	var err error
+	if scope.Root, err = canonicalAllowMissing(scope.Root, scope.Root); err != nil {
+		return nil, nil, xerrors.Errorf("resolve plugin root %q: %w", src.Plugin.Root, err)
+	}
+	// os.Root refuses a symlinked mcp.json that leads outside the root.
+	data, err := readInRoot(scope.Root, pluginMCPFileName)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("read mcp config %q: %w", src.Path, err)
+	}
+	return parsePluginConfig(data, ConfigSource{Path: src.Path, Plugin: &scope})
+}
+
+// parseLegacyConfig reads a .mcp.json file at path and returns the
+// declared MCP servers sorted by name. It returns an empty slice when
+// the mcpServers key is missing or empty.
+func parseLegacyConfig(path string) ([]ServerConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, xerrors.Errorf("read mcp config %q: %w", path, err)
@@ -60,7 +123,7 @@ func ParseConfig(path string) ([]ServerConfig, error) {
 			return nil, xerrors.Errorf("parse server %q in %q: %w", name, path, err)
 		}
 
-		if strings.Contains(name, ToolNameSep) || strings.HasPrefix(name, "_") || strings.HasSuffix(name, "_") {
+		if reservedServerName(name) {
 			return nil, xerrors.Errorf("server name %q in %q contains reserved separator %q or leading/trailing underscore", name, path, ToolNameSep)
 		}
 
@@ -88,6 +151,21 @@ func ParseConfig(path string) ([]ServerConfig, error) {
 	})
 
 	return servers, nil
+}
+
+// reservedServerName reports whether name cannot be split back out of a
+// prefixed "server__tool" name.
+func reservedServerName(name string) bool {
+	return strings.Contains(name, ToolNameSep) || strings.HasPrefix(name, "_") || strings.HasSuffix(name, "_")
+}
+
+func readInRoot(root, rel string) ([]byte, error) {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return r.ReadFile(rel)
 }
 
 // inferTransport determines the transport type for a server entry.
