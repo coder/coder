@@ -13,11 +13,14 @@ import {
 	PopoverContent,
 } from "#/components/Popover/Popover";
 
-type SkillSource = "personal" | "workspace";
+type SkillSource = "personal" | "workspace" | "plugin";
 
 export type SkillMetadata = {
 	name: string;
 	description: string;
+	// Set for skills shipped inside an Agent Plugin. The plugin name is part
+	// of the skill's identity, so two plugins may each provide the same name.
+	pluginName?: string;
 };
 
 export type SkillMenuItem = SkillMetadata & {
@@ -42,18 +45,31 @@ export const createCommandMenuItem = (
 	altTriggerText: `/${command.name}`,
 });
 
+// Workspace and plugin triggers are always source-qualified so the inserted
+// alias stays unambiguous when the same skill name exists in another source.
+const qualifiedSkillTrigger = (
+	source: SkillSource,
+	skill: SkillMetadata,
+): string =>
+	source === "plugin"
+		? `/plugin/${skill.pluginName ?? ""}/${skill.name}`
+		: `/${source}/${skill.name}`;
+
 export const createSkillMenuItem = (
 	source: SkillSource,
 	skill: SkillMetadata,
 	// Bare personal names are ambiguous to read_skill when a workspace
 	// skill shares the name, so colliding triggers must stay qualified.
-	qualifyTrigger = source === "workspace",
+	qualifyTrigger = source !== "personal",
 ): SkillMenuItem => ({
 	name: skill.name,
 	description: skill.description,
+	pluginName: skill.pluginName,
 	source,
-	triggerText: qualifyTrigger ? `/${source}/${skill.name}` : `/${skill.name}`,
-	altTriggerText: `/${source}/${skill.name}`,
+	triggerText: qualifyTrigger
+		? qualifiedSkillTrigger(source, skill)
+		: `/${skill.name}`,
+	altTriggerText: qualifiedSkillTrigger(source, skill),
 });
 
 type SkillsTriggerMenuProps = {
@@ -137,8 +153,15 @@ const SkillCommandItem = ({
 			onSelect={handleSelect}
 		>
 			<div className="min-w-0 space-y-1">
-				<div className="truncate font-mono text-content-primary text-xs">
-					{skill.triggerText}
+				<div className="flex min-w-0 items-baseline gap-2">
+					<div className="truncate font-mono text-content-primary text-xs">
+						{skill.triggerText}
+					</div>
+					{skill.source === "plugin" && skill.pluginName && (
+						<span className="shrink-0 text-content-secondary text-xs">
+							plugin: {skill.pluginName}
+						</span>
+					)}
 				</div>
 				{skill.description.trim() && (
 					<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
