@@ -2,6 +2,7 @@ package agentcontext_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -192,4 +193,123 @@ func TestDRPCPusher_NilClientErrors(t *testing.T) {
 	pusher := agentcontext.NewDRPCPusher(nil)
 	_, err := pusher.PushContextState(context.Background(), &agentcontext.PushRequest{})
 	require.Error(t, err)
+}
+
+// pluginPushRequest returns a request carrying every plugin-related
+// field the wire can express.
+func pluginPushRequest() *agentcontext.PushRequest {
+	return &agentcontext.PushRequest{
+		Version:       3,
+		AggregateHash: [32]byte{0xaa},
+		Resources: []agentcontext.Resource{
+			{
+				ID:            "plugin:/tmp/plugins/p",
+				Kind:          agentcontext.KindPlugin,
+				Source:        "/tmp/plugins/p",
+				Name:          "p",
+				PluginName:    "p",
+				PluginVersion: "1.0.0",
+				Description:   "A plugin",
+				Status:        agentcontext.StatusOK,
+				ContentHash:   [32]byte{0x07},
+				SizeBytes:     42,
+			},
+			{
+				ID:          "skill:/tmp/plugins/p/skills/s",
+				Kind:        agentcontext.KindSkill,
+				Source:      "/tmp/plugins/p/skills/s",
+				Name:        "s",
+				PluginName:  "p",
+				Description: "Plugin skill",
+				Payload:     []byte("---\nname: s\n---\n"),
+				Status:      agentcontext.StatusOK,
+			},
+			{
+				ID:         "mcp_server:srv",
+				Kind:       agentcontext.KindMCPServer,
+				Source:     "srv",
+				Name:       "srv",
+				PluginName: "p",
+				Status:     agentcontext.StatusOK,
+				Tools:      []agentcontext.MCPTool{{Name: "echo"}},
+			},
+			{
+				ID:     "skill:/tmp/skills/plain",
+				Kind:   agentcontext.KindSkill,
+				Source: "/tmp/skills/plain",
+				Name:   "plain",
+				Status: agentcontext.StatusOK,
+			},
+		},
+	}
+}
+
+func TestDRPCPusher_PluginsEnabledEncodesPluginData(t *testing.T) {
+	t.Parallel()
+	client := &fakeDRPCClient{}
+	pusher := agentcontext.NewDRPCPusher(client, agentcontext.WithPluginsEnabled(true))
+
+	_, err := pusher.PushContextState(context.Background(), pluginPushRequest())
+	require.NoError(t, err)
+
+	pb := client.lastReq
+	require.Len(t, pb.Resources, 4)
+
+	plugin := pb.Resources[0]
+	require.Equal(t, "/tmp/plugins/p", plugin.Source)
+	require.Equal(t, agentproto.ContextResource_OK, plugin.Status)
+	require.Equal(t, uint64(42), plugin.SizeBytes)
+	body := plugin.GetPlugin()
+	require.NotNil(t, body, "plugin body must be set")
+	require.Equal(t, "p", body.GetName())
+	require.Equal(t, "1.0.0", body.GetVersion())
+	require.Equal(t, "A plugin", body.GetDescription())
+
+	skill := pb.Resources[1].GetSkill()
+	require.NotNil(t, skill)
+	require.Equal(t, "s", skill.GetName())
+	require.Equal(t, "p", skill.GetPluginName())
+
+	srv := pb.Resources[2].GetMcpServer()
+	require.NotNil(t, srv)
+	require.Equal(t, "srv", srv.GetServerName())
+	require.Equal(t, "p", srv.GetPluginName())
+
+	plain := pb.Resources[3].GetSkill()
+	require.NotNil(t, plain)
+	require.Empty(t, plain.GetPluginName())
+}
+
+func TestDRPCPusher_PluginsDisabledStripsPluginData(t *testing.T) {
+	t.Parallel()
+	client := &fakeDRPCClient{}
+	pusher := agentcontext.NewDRPCPusher(client)
+
+	_, err := pusher.PushContextState(context.Background(), pluginPushRequest())
+	require.NoError(t, err)
+
+	pb := client.lastReq
+	require.Len(t, pb.Resources, 3, "plugin resource must be dropped")
+	for _, res := range pb.Resources {
+		require.Nil(t, res.GetPlugin())
+		if skill := res.GetSkill(); skill != nil {
+			require.Empty(t, skill.GetPluginName())
+		}
+		if srv := res.GetMcpServer(); srv != nil {
+			require.Empty(t, srv.GetPluginName())
+		}
+	}
+	require.Equal(t, "/tmp/plugins/p/skills/s", pb.Resources[0].Source)
+	require.Equal(t, "srv", pb.Resources[1].Source)
+	require.Equal(t, "/tmp/skills/plain", pb.Resources[2].Source)
+
+	// The hash describes the resources actually sent, so it is the
+	// drift hash of the request without its plugin row.
+	req := pluginPushRequest()
+	sent := slices.DeleteFunc(req.Resources, func(r agentcontext.Resource) bool {
+		return r.Kind == agentcontext.KindPlugin
+	})
+	want := agentcontext.ComputeAggregateHash(agentcontext.HashedResources(sent))
+	require.Equal(t, want[:], pb.AggregateHash)
+	require.NotEqual(t, req.AggregateHash[:], pb.AggregateHash)
 }
