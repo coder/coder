@@ -395,6 +395,8 @@ func (s *scaletestPrometheusFlags) attach(opts *serpent.OptionSet) {
 type workspaceTargetFlags struct {
 	template         string
 	targetWorkspaces string
+	shardIndex       int64
+	shardCount       int64
 	useHostLogin     bool
 	allowEmpty       bool
 }
@@ -416,6 +418,18 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 			Value:       serpent.StringOf(&f.targetWorkspaces),
 		},
 		serpent.Option{
+			Flag:        "shard-index",
+			Env:         "CODER_SCALETEST_SHARD_INDEX",
+			Description: "Zero-based index of this shard when partitioning workspaces across multiple load generator replicas. Requires --shard-count and is mutually exclusive with --target-workspaces.",
+			Value:       serpent.Int64Of(&f.shardIndex),
+		},
+		serpent.Option{
+			Flag:        "shard-count",
+			Env:         "CODER_SCALETEST_SHARD_COUNT",
+			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each shard targets a disjoint, evenly-sized slice of the running workspaces. Mutually exclusive with --target-workspaces.",
+			Value:       serpent.Int64Of(&f.shardCount),
+		},
+		serpent.Option{
 			Flag:        "use-host-login",
 			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
 			Default:     "false",
@@ -434,6 +448,18 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 		if err != nil {
 			return nil, xerrors.Errorf("parse template: %w", err)
 		}
+	}
+
+	// --target-workspaces and the sharding flags are two mutually exclusive ways
+	// of selecting a subset of workspaces.
+	if f.targetWorkspaces != "" && (f.shardCount > 0 || f.shardIndex > 0) {
+		return nil, xerrors.New("--target-workspaces cannot be used with --shard-index/--shard-count")
+	}
+	if f.shardIndex > 0 && f.shardCount == 0 {
+		return nil, xerrors.New("--shard-index requires --shard-count")
+	}
+	if f.shardCount > 0 && (f.shardIndex < 0 || f.shardIndex >= f.shardCount) {
+		return nil, xerrors.Errorf("shard-index %d is out of range for shard-count %d (must be in [0, %d))", f.shardIndex, f.shardCount, f.shardCount)
 	}
 
 	// Parse target range
@@ -457,6 +483,29 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 		cliui.Warnf(warnWriter, "CODER_DISABLE_OWNER_WORKSPACE_ACCESS is set on the deployment.\n\t%d workspace(s) were skipped due to ownership mismatch.\n\tSet --use-host-login to only target workspaces you own.", numSkipped)
 	}
 
+	// Sharding mode: each replica targets a disjoint, evenly-sized slice of the
+	// running workspaces. We only consider running workspaces so the load is
+	// balanced across shards even if some workspaces failed to start; every
+	// shard computes the same ordered set (the workspaces query is
+	// deterministically ordered) and derives its own bounds, so the union of
+	// shards covers all running workspaces without overlap.
+	if f.shardCount > 0 {
+		running := make([]codersdk.Workspace, 0, len(workspaces))
+		for _, ws := range workspaces {
+			if ws.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
+				running = append(running, ws)
+			}
+		}
+		if len(running) == 0 {
+			if f.allowEmpty {
+				return nil, nil
+			}
+			return nil, xerrors.New("no running scaletest workspaces exist")
+		}
+		start, end := shardBounds(len(running), int(f.shardIndex), int(f.shardCount))
+		return running[start:end], nil
+	}
+
 	// Adjust targetEnd if not specified
 	if targetEnd == 0 {
 		targetEnd = len(workspaces)
@@ -475,6 +524,16 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Return the sliced workspaces
 	return workspaces[targetStart:targetEnd], nil
+}
+
+// shardBounds returns the [start, end) bounds of the slice belonging to shard
+// index of count total shards partitioning n items. The remainder is
+// distributed so that shard sizes differ by at most one, and the union of all
+// shards exactly covers [0, n) with no overlap.
+func shardBounds(n, index, count int) (start, end int) {
+	start = index * n / count
+	end = (index + 1) * n / count
+	return start, end
 }
 
 func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
