@@ -42,7 +42,7 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	}
 
 	agt := agent.New(o)
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		assert.NoError(t, agt.Close(), "failed to close agent during cleanup")
 	})
 

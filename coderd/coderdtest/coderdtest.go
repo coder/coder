@@ -273,8 +273,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(func() { close(ticker) })
 	}
 	if options.AutobuildStats != nil {
+		stats := options.AutobuildStats
 		t.Cleanup(func() {
-			close(options.AutobuildStats)
+			close(stats)
 		})
 	}
 
@@ -314,7 +315,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(natsCancel)
 		natPS, err := natspubsub.New(natsCtx, *options.Logger, natspubsub.Options{ClusterPort: server.RANDOM_PORT})
 		require.NoError(t, err)
-		t.Cleanup(func() { _ = natPS.Close() })
+		testutil.Cleanup(t, func() { _ = natPS.Close() })
 		options.Pubsub = natPS
 	}
 
@@ -398,7 +399,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		)
 		require.NoError(t, err, "create stats batcher")
 		options.StatsBatcher = batcher
-		t.Cleanup(closeBatcher)
+		testutil.Cleanup(t, closeBatcher)
 	}
 	if options.NotificationsEnqueuer == nil {
 		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
@@ -455,7 +456,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	defer jobReaperTicker.Stop()
 	jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), jobReaperTicker.C)
 	jobReaper.Start()
-	t.Cleanup(jobReaper.Close)
+	testutil.Cleanup(t, jobReaper.Close)
 
 	if options.TelemetryReporter == nil {
 		options.TelemetryReporter = telemetry.NewNoop()
@@ -521,7 +522,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		srv.Start()
 	}
 	t.Logf("coderdtest server started on %s", srv.URL)
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		t.Logf("closing coderdtest server on %s", srv.Listener.Addr().String())
 		srv.Close()
 		t.Logf("closed coderdtest server on %s", srv.Listener.Addr().String())
@@ -718,7 +719,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
 	client := codersdk.New(serverURL, codersdk.WithHTTPClient(NewIsolatedHTTPClient(serverURL)))
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
@@ -813,7 +814,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 
 	echoClient, echoServer := drpcsdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		_ = echoClient.Close()
 		_ = echoServer.Close()
 		cancelFunc()
@@ -845,7 +846,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 	// and ready to use when that may not strictly be the case.
 	<-connectedCh
 	closer := NewProvisionerDaemonCloser(daemon)
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		_ = closer.Close()
 	})
 	return closer
