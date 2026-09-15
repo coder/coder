@@ -196,14 +196,33 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 // may bound only that caller's wait for the reload result. They are
 // never passed to, and must not suppress, the reload body.
 func (m *Manager) ReloadSources(ctx context.Context, sources []ConfigSource) error {
-	ch, started, err := m.startReloadIfNeeded(sources)
-	if err != nil {
-		return err
+	return m.ReloadFrom(ctx, func() []ConfigSource { return sources })
+}
+
+// ReloadFrom is ReloadSources with the source list recomputed on every
+// attempt. Concurrent callers share one in-flight reload, so the body a
+// call joins may have been started for a different list; after it
+// settles, a snapshot mismatch starts one more reload. Recomputing the
+// list at that point means a retry never reapplies a list that another
+// caller has already superseded.
+func (m *Manager) ReloadFrom(ctx context.Context, sources func() []ConfigSource) error {
+	const maxAttempts = 3
+	for attempt := 1; ; attempt++ {
+		current := sources()
+		ch, started, err := m.startReloadIfNeeded(current)
+		if err != nil {
+			return err
+		}
+		if !started {
+			return nil
+		}
+		if err := m.waitReload(ctx, ch, 0); err != nil {
+			return err
+		}
+		if attempt >= maxAttempts || !m.SnapshotChanged(sources()) {
+			return nil
+		}
 	}
-	if !started {
-		return nil
-	}
-	return m.waitReload(ctx, ch, 0)
 }
 
 // SetOnReload registers a callback fired (outside the cache lock) after
@@ -224,8 +243,8 @@ func (m *Manager) SetOnReload(fn func()) {
 //
 // All concurrent callers share one in-flight reload keyed by "reload".
 // If a concurrent caller resolves different sources, its sources are
-// not consulted. The next SnapshotChanged check after this reload
-// completes will detect the mismatch and trigger a fresh reload.
+// not consulted by that body; ReloadFrom re-checks SnapshotChanged
+// after the body settles and starts another reload for them.
 func (m *Manager) startReloadIfNeeded(sources []ConfigSource) (<-chan reloadResult, bool, error) {
 	m.mu.RLock()
 	closed := m.closed
