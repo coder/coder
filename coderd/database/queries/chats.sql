@@ -1642,7 +1642,7 @@ UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'paused', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
@@ -2433,9 +2433,9 @@ SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, paused, running, requires_action.
+    -- Active statuses only: waiting, running, requires_action, paused.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'paused', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec
