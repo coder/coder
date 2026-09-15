@@ -30,8 +30,7 @@ const (
 // treating an assistant's "I don't know" as a contradiction and overwriting a
 // correct memory; updates stay with the main agent's tool and the UI.
 const memoryExtractionPrompt = "You review a completed coding-chat turn and record durable memory the main agent did not save itself. " +
-	"%s " +
-	chattool.MemoryGuidance + " " +
+	"%s %s " +
 	"Record only facts the user stated or explicitly confirmed in this turn. " +
 	"Never record that something is unknown, unspecified, undecided, or pending, and never record questions or the assistant's own guesses. " +
 	"Skip anything already covered by a memory in the index; existing memories are updated by the main agent, not by you. " +
@@ -151,7 +150,7 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 		return
 	}
 	call := resolved.newObjectCall("memory_extraction", "Record new durable memories stated by the user in this turn.", memoryExtractionMaxOutputTokens)
-	call.Prompt = quickgenPrompt(fmt.Sprintf(memoryExtractionPrompt, scope.Intro()), fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatMemoryIndex(scope, entries), transcript))
+	call.Prompt = quickgenPrompt(fmt.Sprintf(memoryExtractionPrompt, scope.Intro(), scope.Guidance()), fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatMemoryIndex(scope, entries), transcript))
 	modelCtx, cancelModel := context.WithTimeout(ctx, memoryExtractionModelTimeout)
 	defer cancelModel()
 	result, err := generateQuickgenObject[memoryExtraction](modelCtx, resolved.model.LanguageModel(), call)

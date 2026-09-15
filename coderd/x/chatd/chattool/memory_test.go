@@ -70,9 +70,12 @@ func TestFormatMemoryIndex(t *testing.T) {
 	require.Contains(t, index, "more memories not shown.")
 	require.LessOrEqual(t, len(index), chattool.MaxMemoryIndexBytes)
 	empty := chattool.FormatMemoryIndex(chattool.MemoryScope{Kind: chattool.MemoryScopePersonal}, nil)
-	require.Contains(t, empty, chattool.MemoryGuidance)
+	require.Contains(t, empty, "Do not save project details")
+	require.NotContains(t, empty, "people on this project")
 	require.Contains(t, empty, "No memories saved yet.")
 	require.Contains(t, empty, "Memory is personal to you")
+	require.Contains(t, index, "people on this project")
+	require.NotContains(t, index, "Do not save project details")
 }
 
 func TestSaveMemoryCapAndUpsert(t *testing.T) {

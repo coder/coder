@@ -266,4 +266,63 @@ describe("MemorySection", () => {
 			expect(deletedMemoryID).toBe(MockChatProjectMemory.id);
 		});
 	});
+
+	it("withholds the memory controls until memories have loaded", async () => {
+		let requestStarted = false;
+		let releaseResponse: () => void = () => {};
+		server.use(
+			http.get("/api/experimental/chats/memories", async () => {
+				requestStarted = true;
+				await new Promise<void>((resolve) => {
+					releaseResponse = resolve;
+				});
+				return HttpResponse.json([MockChatUserMemory]);
+			}),
+		);
+
+		render(
+			<Wrapper>
+				<MemorySection
+					scope={{
+						kind: "personal",
+						organizationId: MockDefaultOrganization.id,
+					}}
+				/>
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(requestStarted).toBe(true));
+		expect(
+			screen.queryByRole("button", { name: "Add memory" }),
+		).not.toBeInTheDocument();
+
+		releaseResponse();
+
+		await screen.findByRole("button", { name: "Add memory" });
+		expect(screen.getByText(MockChatUserMemory.name)).toBeInTheDocument();
+	});
+
+	it("shows the API error when memories fail to load", async () => {
+		server.use(
+			http.get("/api/experimental/chats/memories", () =>
+				HttpResponse.json({ message: "Memories unavailable" }, { status: 500 }),
+			),
+		);
+
+		render(
+			<Wrapper>
+				<MemorySection
+					scope={{
+						kind: "personal",
+						organizationId: MockDefaultOrganization.id,
+					}}
+				/>
+			</Wrapper>,
+		);
+
+		await screen.findByText("Memories unavailable");
+		expect(
+			screen.queryByRole("button", { name: "Add memory" }),
+		).not.toBeInTheDocument();
+	});
 });

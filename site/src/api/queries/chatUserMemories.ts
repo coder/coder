@@ -4,10 +4,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 
 const chatUserMemoriesFamilyKey = ["chat-user-memories"] as const;
 
-export const chatUserMemoriesKey = (organizationId: string) =>
+const chatUserMemoriesKey = (organizationId: string) =>
 	[...chatUserMemoriesFamilyKey, organizationId] as const;
 
-export const chatPersonalMemorySettingsKey = [
+const chatPersonalMemorySettingsKey = [
 	"chat-personal-memory-settings",
 ] as const;
 

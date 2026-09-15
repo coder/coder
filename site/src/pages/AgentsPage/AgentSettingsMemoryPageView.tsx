@@ -10,7 +10,7 @@ import { Switch } from "#/components/Switch/Switch";
 import { MemorySection } from "./components/MemorySection";
 import { SectionHeader } from "./components/SectionHeader";
 
-export interface AgentSettingsMemoryPageViewProps {
+interface AgentSettingsMemoryPageViewProps {
 	organizations: readonly TypesGen.Organization[];
 	selectedOrganization: TypesGen.Organization | undefined;
 	settings: TypesGen.ChatPersonalMemorySettings | undefined;

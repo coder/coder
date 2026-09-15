@@ -90,14 +90,6 @@ export const MockChatUserMemory: TypesGen.ChatUserMemory = {
 	updated_at: "2026-09-02T12:00:00Z",
 };
 
-export const MockChatUserMemory2: TypesGen.ChatUserMemory = {
-	...MockChatUserMemory,
-	id: "chat-user-memory-release-process",
-	name: "release-process",
-	description: "Releases require a changelog update.",
-	body: "Update the changelog and publish the release notes before releasing.",
-};
-
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [
