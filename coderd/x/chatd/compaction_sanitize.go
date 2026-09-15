@@ -36,7 +36,7 @@ func sanitizeCompactionPrompt(
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
 	}
 	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
-	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel.Provider())
+	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel, compactionModel.Provider())
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
 		compactionModel.Provider(),
 		messages,

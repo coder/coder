@@ -13,26 +13,29 @@ func TestToolResultMediaOmission(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
-		provider  string
+		transport string
+		display   string
 		mediaType string
 		size      int
 		wantNote  string
 	}{
-		{name: "anthropic png", provider: "anthropic", mediaType: "image/png", size: 1024},
-		{name: "anthropic jpeg with params", provider: "anthropic", mediaType: "image/jpeg; charset=binary", size: 1024},
-		{name: "anthropic svg", provider: "anthropic", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: Anthropic tool results only carry JPEG, PNG, GIF, or WebP images]"},
-		{name: "anthropic audio", provider: "anthropic", mediaType: "audio/mpeg", size: 1024, wantNote: "[audio/mpeg content omitted: Anthropic tool results only carry JPEG, PNG, GIF, or WebP images]"},
-		{name: "anthropic oversized png", provider: "anthropic", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes, wantNote: "[image omitted: 5242880 bytes exceeds the Anthropic inline image limit of 5242880 bytes]"},
-		{name: "bedrock pdf", provider: "bedrock", mediaType: "application/pdf", size: 1024, wantNote: "[application/pdf content omitted: AWS Bedrock tool results only carry JPEG, PNG, GIF, or WebP images]"},
-		{name: "openai audio", provider: "openai", mediaType: "audio/mpeg", size: 1024},
-		{name: "openai oversized png", provider: "openai", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes},
-		{name: "google pdf", provider: "google", mediaType: "application/pdf", size: 1024},
+		{name: "anthropic png", transport: "anthropic", display: "anthropic", mediaType: "image/png", size: 1024},
+		{name: "anthropic jpeg with params", transport: "anthropic", display: "anthropic", mediaType: "image/jpeg; charset=binary", size: 1024},
+		{name: "anthropic svg", transport: "anthropic", display: "anthropic", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: Anthropic tool results only carry JPEG, PNG, GIF, or WebP images]"},
+		{name: "anthropic audio", transport: "anthropic", display: "anthropic", mediaType: "audio/mpeg", size: 1024, wantNote: "[audio/mpeg content omitted: Anthropic tool results only carry JPEG, PNG, GIF, or WebP images]"},
+		{name: "anthropic oversized png", transport: "anthropic", display: "anthropic", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes, wantNote: "[image omitted: 5242880 bytes exceeds the Anthropic inline image limit of 5242880 bytes]"},
+		// Bedrock Claude rides the Anthropic transport via aibridge; the note names the configured provider.
+		{name: "bedrock claude pdf", transport: "anthropic", display: "bedrock", mediaType: "application/pdf", size: 1024, wantNote: "[application/pdf content omitted: AWS Bedrock tool results only carry JPEG, PNG, GIF, or WebP images]"},
+		// Bedrock non-Anthropic models ride the OpenAI transport and keep their media.
+		{name: "bedrock openai oversized png", transport: "openai", display: "bedrock", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes},
+		{name: "openai audio", transport: "openai", display: "openai", mediaType: "audio/mpeg", size: 1024},
+		{name: "google pdf", transport: "google", display: "google", mediaType: "application/pdf", size: 1024},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			note, omit := chatprovider.ToolResultMediaOmission(tc.provider, tc.mediaType, tc.size)
+			note, omit := chatprovider.ToolResultMediaOmission(tc.transport, tc.display, tc.mediaType, tc.size)
 			if omit != (tc.wantNote != "") || note != tc.wantNote {
-				t.Fatalf("ToolResultMediaOmission(%q, %q, %d) = (%q, %v), want (%q, %v)", tc.provider, tc.mediaType, tc.size, note, omit, tc.wantNote, tc.wantNote != "")
+				t.Fatalf("ToolResultMediaOmission(%q, %q, %q, %d) = (%q, %v), want (%q, %v)", tc.transport, tc.display, tc.mediaType, tc.size, note, omit, tc.wantNote, tc.wantNote != "")
 			}
 		})
 	}

@@ -10,16 +10,18 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
 
-// replaceUnsupportedToolMedia rewrites tool result media that provider
-// rejects into the accompanying text plus an omission note, on a copy of
-// messages. It runs on every prompt build, so media recorded under a more
-// permissive provider stays replayable after a provider switch while the
-// persisted result keeps its payload for the UI.
+// replaceUnsupportedToolMedia rewrites tool result media that the model's
+// transport rejects into the accompanying text plus an omission note, on a
+// copy of messages. It runs on every prompt build, so media recorded under
+// a more permissive provider stays replayable after a provider switch while
+// the persisted result keeps its payload for the UI. displayProvider is the
+// configured provider named in the note.
 func replaceUnsupportedToolMedia(
 	ctx context.Context,
 	logger slog.Logger,
 	messages []fantasy.Message,
-	provider string,
+	model chatprovider.Model,
+	displayProvider string,
 ) []fantasy.Message {
 	replaced := 0
 	out := make([]fantasy.Message, 0, len(messages))
@@ -36,7 +38,7 @@ func replaceUnsupportedToolMedia(
 				parts = append(parts, part)
 				continue
 			}
-			note, omit := chatprovider.ToolResultMediaOmission(provider, media.MediaType, base64DecodedLen(media.Data))
+			note, omit := chatprovider.ToolResultMediaOmission(model.Provider(), displayProvider, media.MediaType, base64DecodedLen(media.Data))
 			if !omit {
 				parts = append(parts, part)
 				continue
@@ -54,7 +56,7 @@ func replaceUnsupportedToolMedia(
 	}
 	if replaced > 0 {
 		logger.Debug(ctx, "replaced unsupported tool result media in prompt",
-			slog.F("provider", provider),
+			slog.F("provider", model.Provider()),
 			slog.F("replaced_parts", replaced),
 		)
 	}

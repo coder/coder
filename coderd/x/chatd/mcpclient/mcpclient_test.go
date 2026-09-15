@@ -1663,6 +1663,17 @@ func TestConvertCallResult_MixedContent(t *testing.T) {
 			}},
 			wantType: "image", wantData: []byte("real-image"), wantMIME: "image/jpeg",
 		},
+		{
+			name: "TextAndBlobWithoutMIMETypeStaysText",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.TextContent{Text: "Document retrieved"},
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+					URI: "file:///document.bin", Blob: []byte("opaque"),
+				}},
+			}},
+			wantType:    "text",
+			wantContent: "Document retrieved",
+		},
 	}
 
 	for _, tt := range tests {
