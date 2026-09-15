@@ -86,7 +86,7 @@ func TestWatcher_LateFileTriggersReload(t *testing.T) {
 
 	// The snapshot must now reflect the on-disk file so the
 	// next Reload short-circuits.
-	assert.False(t, m.SnapshotChanged([]string{configPath}))
+	assert.False(t, m.SnapshotChanged(PathSources([]string{configPath})))
 }
 
 func TestWatcher_RewriteTriggersReload(t *testing.T) {

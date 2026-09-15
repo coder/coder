@@ -2,8 +2,10 @@ package agentmcp_test
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,10 +17,13 @@ func TestParseConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		content     string
-		expected    []agentmcp.ServerConfig
-		expectError bool
+		name     string
+		content  string
+		expected []agentmcp.ServerConfig
+		// expectEntryErrs lists the entry names the parser must reject
+		// while still returning the remaining entries.
+		expectEntryErrs []string
+		expectError     bool
 	}{
 		{
 			name: "StdioServer",
@@ -134,7 +139,8 @@ func TestParseConfig(t *testing.T) {
 					"bad__name": map[string]any{"command": "run"},
 				},
 			}),
-			expectError: true,
+			expected:        []agentmcp.ServerConfig{},
+			expectEntryErrs: []string{"bad__name"},
 		},
 		{
 			name: "ServerNameTrailingUnderscore",
@@ -143,7 +149,8 @@ func TestParseConfig(t *testing.T) {
 					"server_": map[string]any{"command": "run"},
 				},
 			}),
-			expectError: true,
+			expected:        []agentmcp.ServerConfig{},
+			expectEntryErrs: []string{"server_"},
 		},
 		{
 			name: "ServerNameLeadingUnderscore",
@@ -152,7 +159,8 @@ func TestParseConfig(t *testing.T) {
 					"_server": map[string]any{"command": "run"},
 				},
 			}),
-			expectError: true,
+			expected:        []agentmcp.ServerConfig{},
+			expectEntryErrs: []string{"_server"},
 		},
 		{
 			name: "EmptyTransport", content: mustJSON(t, map[string]any{
@@ -160,7 +168,23 @@ func TestParseConfig(t *testing.T) {
 					"empty": map[string]any{},
 				},
 			}),
-			expectError: true,
+			expected:        []agentmcp.ServerConfig{},
+			expectEntryErrs: []string{"empty"},
+		},
+		{
+			name: "InvalidEntryDoesNotDropSiblings",
+			content: mustJSON(t, map[string]any{
+				"mcpServers": map[string]any{
+					"good":     map[string]any{"command": "run"},
+					"no-cmd":   map[string]any{},
+					"bad__sep": map[string]any{"command": "run"},
+					"not-obj":  "a string",
+				},
+			}),
+			expected: []agentmcp.ServerConfig{
+				{Name: "good", Transport: "stdio", Command: "run"},
+			},
+			expectEntryErrs: []string{"bad__sep", "no-cmd", "not-obj"},
 		},
 		{
 			name: "MissingMCPServersKey",
@@ -195,13 +219,14 @@ func TestParseConfig(t *testing.T) {
 			err := os.WriteFile(path, []byte(tt.content), 0o600)
 			require.NoError(t, err)
 
-			got, err := agentmcp.ParseConfig(path)
+			got, entryErrs, err := agentmcp.ParseConfig(path)
 			if tt.expectError {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
+			require.ElementsMatch(t, tt.expectEntryErrs, slices.Collect(maps.Keys(entryErrs)))
 		})
 	}
 }
@@ -226,8 +251,9 @@ func TestParseConfig_EnvVarInterpolation(t *testing.T) {
 	err := os.WriteFile(path, []byte(content), 0o600)
 	require.NoError(t, err)
 
-	got, err := agentmcp.ParseConfig(path)
+	got, entryErrs, err := agentmcp.ParseConfig(path)
 	require.NoError(t, err)
+	require.Empty(t, entryErrs)
 	require.Equal(t, []agentmcp.ServerConfig{
 		{
 			Name:      "srv",
@@ -241,7 +267,7 @@ func TestParseConfig_EnvVarInterpolation(t *testing.T) {
 func TestParseConfig_FileNotFound(t *testing.T) {
 	t.Parallel()
 
-	_, err := agentmcp.ParseConfig(filepath.Join(t.TempDir(), "nonexistent.json"))
+	_, _, err := agentmcp.ParseConfig(filepath.Join(t.TempDir(), "nonexistent.json"))
 	require.Error(t, err)
 }
 
