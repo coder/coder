@@ -31,8 +31,8 @@ type turnToken uint64
 // queued message is promoted or when the next prompt starts a task.
 //
 // A turn closes in two steps: Complete marks it finished and Settle
-// closes the span, so stages still open at Complete end inside the
-// turn's span if they end before Settle.
+// closes the span, so stages still open at Complete are counted in
+// the turn's accounting if they end before Settle.
 type runnerTurnSpan struct {
 	stages *chatloop.StageTracer
 	// organizationName resolves a chat's organization ID to the name
@@ -42,6 +42,7 @@ type runnerTurnSpan struct {
 	mu           sync.Mutex
 	span         *chatloop.StageSpan
 	spanCtx      trace.SpanContext
+	acc          *chatloop.TurnAccumulator
 	chatID       string
 	chatKind     string
 	organization string
@@ -120,18 +121,21 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, chat database.Chat, trigger
 	return t.contextLocked(ctx), t.token
 }
 
-// startLocked opens a chat_turn span and returns the context parented
-// to it.
+// startLocked opens a chat_turn span with a fresh accumulator and
+// returns the context parented to it.
 func (t *runnerTurnSpan) startLocked(ctx context.Context, startAt time.Time) context.Context {
 	t.token++
 	t.open = true
 	t.finished = false
 	t.pendingPromotion = nil
+	t.acc = chatloop.NewTurnAccumulator()
 
-	// The chat kind and organization ride on the context so every stage
-	// of the turn carries them.
+	// The chat kind, organization, and accumulator ride on the context
+	// so every stage of the turn carries the kind and organization and
+	// reports its time to the turn that contains it.
 	ctx = chatloop.ContextWithChatKind(ctx, t.chatKind)
 	ctx = chatloop.ContextWithOrganization(ctx, t.organization)
+	ctx = chatloop.ContextWithTurnAccumulator(ctx, t.acc)
 	turnCtx, span := t.stages.StartRootAt(ctx, chatloop.StageChatTurn, startAt, nil,
 		attribute.String(chatloop.AttrChatID, t.chatID))
 	t.span = span
@@ -154,19 +158,21 @@ func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
 	if !t.open || t.ended {
 		return ctx
 	}
-	// The scope, chat kind, and organization are set independently of
-	// the span context so stages run on this context keep them when
-	// tracing is not recording.
+	// The scope, chat kind, organization, and accumulator are set
+	// independently of the span context so stages run on this context
+	// keep them when tracing is not recording.
 	ctx = chatloop.ContextWithScope(ctx, chatloop.ScopeTurn)
 	ctx = chatloop.ContextWithChatKind(ctx, t.chatKind)
 	ctx = chatloop.ContextWithOrganization(ctx, t.organization)
+	ctx = chatloop.ContextWithTurnAccumulator(ctx, t.acc)
 	if !t.spanCtx.IsValid() {
 		return ctx
 	}
 	return trace.ContextWithSpanContext(ctx, t.spanCtx)
 }
 
-// Complete marks the turn identified by token as finished normally.
+// Complete marks the turn identified by token as finished normally,
+// which is what makes its accounting emittable when the span closes.
 // The span stays open until Settle.
 //
 // A non-zero queuedAt is the creation time of a queued message the
@@ -183,9 +189,26 @@ func (t *runnerTurnSpan) Complete(token turnToken, queuedAt time.Time) {
 		return
 	}
 	t.finished = true
+	t.acc.MarkCompleted()
 	if !queuedAt.IsZero() {
 		t.pendingPromotion = &turnPromotion{queuedAt: queuedAt, promotedAt: t.stages.Now()}
 	}
+}
+
+// Invalidate drops the accounting of the turn identified by token. A
+// turn that errored or was interrupted stops partway through its
+// stages, so its totals do not describe a full turn. The span stays
+// open and a later Ensure continues it.
+func (t *runnerTurnSpan) Invalidate(token turnToken) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.ownsLocked(token) {
+		return
+	}
+	t.acc.Invalidate()
 }
 
 // Settle closes the turn identified by token if Complete marked it
@@ -239,11 +262,17 @@ func (t *runnerTurnSpan) End(err error) {
 	t.closeLocked(err)
 }
 
-// closeLocked ends the open turn span.
+// closeLocked ends the open turn span. A non-nil error also drops the
+// turn's accounting, because the stages it collected stop where the
+// error happened.
 func (t *runnerTurnSpan) closeLocked(err error) {
+	if err != nil {
+		t.acc.Invalidate()
+	}
 	t.span.End(err)
 	t.span = nil
 	t.spanCtx = trace.SpanContext{}
+	t.acc = nil
 	t.open = false
 	t.finished = false
 	t.pendingPromotion = nil
