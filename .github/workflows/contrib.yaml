@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 # Only run one instance per PR to ensure in-order execution.
-concurrency: pr-${{ github.ref }}
+concurrency: pr-${{ github.event.pull_request.number || github.event.issue.number }}
 
 jobs:
   community-label:
