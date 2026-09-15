@@ -660,6 +660,59 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIPr
 	return i, err
 }
 
+const getAIProviderFilterOptions = `-- name: GetAIProviderFilterOptions :many
+SELECT DISTINCT ON (name)
+    name,
+    type,
+    display_name,
+    icon
+FROM
+    ai_providers
+ORDER BY
+    name ASC,
+    deleted ASC,
+    updated_at DESC
+`
+
+type GetAIProviderFilterOptionsRow struct {
+	Name        string         `db:"name" json:"name"`
+	Type        AIProviderType `db:"type" json:"type"`
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Icon        string         `db:"icon" json:"icon"`
+}
+
+// Returns the display metadata AI Gateway session viewers need to filter
+// interceptions by provider_name. Soft-deleted and disabled rows are
+// included because interceptions keep referencing them. When a name has
+// been reused, the live row wins so current metadata is shown.
+func (q *sqlQuerier) GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderFilterOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIProviderFilterOptionsRow
+	for rows.Next() {
+		var i GetAIProviderFilterOptionsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Type,
+			&i.DisplayName,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
