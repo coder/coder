@@ -4261,6 +4261,20 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				wantStatus:      http.StatusBadRequest,
 				wantMsgContains: "retention window",
 			},
+			// Unknown parameters are rejected whether or not a period is given,
+			// so a misspelled filter cannot silently widen the export.
+			{
+				name:            "UnknownParameter",
+				params:          map[string]string{"provider": "anthropic"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				name:            "UnknownParameterWithPeriod",
+				params:          map[string]string{"provider": "anthropic", "period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -4881,6 +4895,79 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
 		}, records[1])
+	})
+
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-filters-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Three usages that differ in every filterable dimension. The second
+		// has no recorded client and so matches the Unknown client.
+		for _, seed := range []struct {
+			providerName string
+			model        string
+			client       sql.NullString
+			costMicros   int64
+		}{
+			{providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "claude-code", Valid: true}, costMicros: 1000},
+			{providerName: "openai-prod", model: "gpt-4", costMicros: 500},
+			{providerName: "anthropic-prod", model: "claude-3", client: sql.NullString{String: "cursor", Valid: true}, costMicros: 250},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "provider", ProviderName: seed.providerName, Model: seed.model, Client: seed.client, StartedAt: inMonth,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
+				InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: seed.costMicros, Valid: true},
+			})
+		}
+
+		// Each expectation is the (model, cost_micros) of the rows kept.
+		cases := []struct {
+			name     string
+			params   map[string]string
+			wantRows [][]string
+		}{
+			{name: "ProviderName", params: map[string]string{"provider_name": "openai-prod"}, wantRows: [][]string{{"gpt-4", "500"}}},
+			{name: "Model", params: map[string]string{"model": "claude-4"}, wantRows: [][]string{{"claude-4", "1000"}}},
+			{name: "Client", params: map[string]string{"client": "cursor"}, wantRows: [][]string{{"claude-3", "250"}}},
+			{name: "UnknownClient", params: map[string]string{"client": "Unknown"}, wantRows: [][]string{{"gpt-4", "500"}}},
+			{name: "Combined", params: map[string]string{"provider_name": "anthropic-prod", "client": "claude-code"}, wantRows: [][]string{{"claude-4", "1000"}}},
+			{name: "Empty", params: map[string]string{"provider_name": "", "model": "", "client": ""}, wantRows: [][]string{{"claude-3", "250"}, {"claude-4", "1000"}, {"gpt-4", "500"}}},
+			{name: "NoMatch", params: map[string]string{"model": "missing"}, wantRows: nil},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// Now: 15 March 2026 12:00 UTC.
+				res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, tc.params)
+				defer res.Body.Close()
+				require.Equal(t, http.StatusOK, res.StatusCode)
+
+				records := readAISpendExportResponse(t, res)
+				var gotRows [][]string
+				for _, row := range records[1:] {
+					gotRows = append(gotRows, []string{row[6], row[13]})
+				}
+				require.ElementsMatch(t, tc.wantRows, gotRows)
+			})
+		}
 	})
 
 	t.Run("EscapesFormulaCells", func(t *testing.T) {
