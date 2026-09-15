@@ -332,7 +332,7 @@ const ActiveConnections: FC<{
 						<dl className="m-0 grid gap-3 py-2 text-sm">
 							{[
 								{
-									name: "VS Code",
+									name: "Visual Studio Code",
 									count: sessionCount?.vscode,
 									icon: (
 										<ExternalImage
