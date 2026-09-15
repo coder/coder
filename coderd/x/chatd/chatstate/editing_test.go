@@ -13,7 +13,7 @@ import (
 )
 
 // Scenario tests for queued-message edits (multi-step flows the matrix
-// cells do not cover) and the two queries the feature changed.
+// cells do not cover) and the queries the edit marker depends on.
 
 func setEditing(t *testing.T, f *testFixture, m *chatstate.ChatMachine, id int64, editing bool) chatstate.EditQueuedMessageResult {
 	t.Helper()
@@ -103,8 +103,8 @@ func TestEditing_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 	require.Equal(t, database.ChatReasoningEffortHigh, res.QueuedMessage.ReasoningEffort.ChatReasoningEffort, "a content-only edit keeps the override")
 }
 
-// TestGetStaleChats_ExcludesPaused: GetStaleChats reports waiting with
-// rows, not paused.
+// TestGetStaleChats_ExcludesPaused: a waiting chat with rows is stale; a
+// paused chat with rows is not.
 func TestGetStaleChats_ExcludesPaused(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
