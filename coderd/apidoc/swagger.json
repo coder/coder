@@ -21261,13 +21261,15 @@
 				"ai-gateway-seat-exclusion",
 				"chat-advisor",
 				"chat-virtual-desktop",
-				"agent-lifecycle-hooks"
+				"agent-lifecycle-hooks",
+				"chat-mcp-apps"
 			],
 			"x-enum-comments": {
 				"ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
 				"ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
 				"ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
 				"ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+				"ExperimentChatMCPApps": "Renders MCP Apps from MCP tool results in the agent chat right panel.",
 				"ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
 				"ExperimentExample": "This isn't used for anything.",
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -21291,7 +21293,8 @@
 				"Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
 				"Enables the advisor tool for root agent chats.",
 				"Enables virtual desktop and computer use provider for agents.",
-				"Enables chat lifecycle hook webhooks for agent chats."
+				"Enables chat lifecycle hook webhooks for agent chats.",
+				"Renders MCP Apps from MCP tool results in the agent chat right panel."
 			],
 			"x-enum-varnames": [
 				"ExperimentExample",
@@ -21306,7 +21309,8 @@
 				"ExperimentAIGatewaySeatExclusion",
 				"ExperimentChatAdvisor",
 				"ExperimentChatVirtualDesktop",
-				"ExperimentAgentLifecycleHooks"
+				"ExperimentAgentLifecycleHooks",
+				"ExperimentChatMCPApps"
 			]
 		},
 		"codersdk.ExternalAPIKeyScopes": {
