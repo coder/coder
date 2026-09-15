@@ -79,6 +79,24 @@ func TestParseConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "StreamableHTTPAlias",
+			content: mustJSON(t, map[string]any{
+				"mcpServers": map[string]any{
+					"remote": map[string]any{
+						"type": "streamable-http",
+						"url":  "https://example.com/mcp",
+					},
+				},
+			}),
+			expected: []agentmcp.ServerConfig{
+				{
+					Name:      "remote",
+					Transport: "http",
+					URL:       "https://example.com/mcp",
+				},
+			},
+		},
+		{
 			name: "ExplicitTypeOverridesInference",
 			content: mustJSON(t, map[string]any{
 				"mcpServers": map[string]any{
