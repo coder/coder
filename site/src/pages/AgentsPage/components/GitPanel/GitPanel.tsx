@@ -188,7 +188,17 @@ export const GitPanel: FC<GitPanelProps> = ({
 			if (localRepos.length > 0) {
 				setView({ type: "local", repoRoot: localRepos[0] });
 			}
-		} else if (view.type === "local") {
+		} else if (view.type === "remote") {
+			// A refId that matches no tracked ref is the pre-push
+			// sentinel. Without this reset, the switcher stays a
+			// static "No changes" badge after the first ref arrives.
+			const isTracked = (remoteDiffStats ?? []).some(
+				(status) => refItemId(status) === view.refId,
+			);
+			if (!isTracked) {
+				setView({ type: "remote", refId: defaultRemoteRefId });
+			}
+		} else {
 			// localRepos includes ever-dirty repos with empty diffs, so
 			// the active view stays valid until its root leaves the set.
 			if (!localRepos.includes(view.repoRoot)) {
@@ -201,7 +211,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 				}
 			}
 		}
-	}, [view, showRemoteTab, localRepos, defaultRemoteRefId]);
+	}, [view, showRemoteTab, localRepos, defaultRemoteRefId, remoteDiffStats]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
@@ -253,8 +263,16 @@ export const GitPanel: FC<GitPanelProps> = ({
 				refItemId(status) === effectiveView.refId,
 		) ?? remoteDiffStats?.[0];
 	const prTitle = selectedRemoteStatus?.pull_request_title;
+	const selectedPrNumber =
+		selectedRemoteStatus?.pr_number ??
+		parsePullRequestUrl(selectedRemoteStatus?.url ?? "")?.number;
 
-	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
+	// The selected ref decides the title row, not the primary. A
+	// branch-only primary must not hide an older selected PR's title.
+	const showPrTitleRow =
+		effectiveView.type === "remote" &&
+		Boolean(selectedPrNumber) &&
+		Boolean(prTitle);
 
 	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
 	// Ref callback so the observer attaches whenever the title span

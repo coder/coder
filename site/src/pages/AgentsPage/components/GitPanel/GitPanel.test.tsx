@@ -5,6 +5,7 @@ import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { ChatDiffContents, ChatDiffStatus } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
@@ -31,7 +32,9 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
-			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+				<TooltipProvider>{children}</TooltipProvider>
+			</ThemeOverride>
 		</QueryClientProvider>
 	);
 };
@@ -127,6 +130,72 @@ describe("GitPanel per-ref views", () => {
 					git_branch: "feature/no-pr-yet",
 				}),
 			),
+		);
+	});
+
+	it("adopts the first refs when they arrive after mount", async () => {
+		const user = userEvent.setup();
+
+		const view = renderPanel({ remoteDiffStats: undefined });
+
+		const firstRef = prStatus({
+			pull_request_title: "feat: first change",
+			git_branch: "feat/first",
+			pr_number: 23020,
+			url: "https://github.com/coder/coder/pull/23020",
+		});
+		const secondRef = prStatus({
+			pull_request_title: "fix: second change",
+			git_branch: "fix/second",
+			pr_number: 23021,
+			url: "https://github.com/coder/coder/pull/23021",
+		});
+		view.rerender(
+			<Wrapper>
+				<GitPanel
+					chatId="test-chat"
+					onRefresh={() => true}
+					onCommit={() => {}}
+					repositories={new Map()}
+					remoteDiffStats={[firstRef, secondRef]}
+				/>
+			</Wrapper>,
+		);
+
+		const switcher = await screen.findByTestId("git-panel-view-switcher");
+		expect(switcher.tagName).toBe("BUTTON");
+		expect(screen.queryByText("No changes")).not.toBeInTheDocument();
+
+		await user.click(switcher);
+		const menu = await screen.findByRole("menu");
+		expect(within(menu).getByText("PR #23020")).toBeInTheDocument();
+	});
+
+	it("shows the selected PR's title when the primary is a branch", async () => {
+		const user = userEvent.setup();
+
+		renderPanel({
+			remoteDiffStats: [
+				prStatus({
+					git_branch: "feature/no-pr-yet",
+					url: undefined,
+					pull_request_state: undefined,
+				}),
+				prStatus({
+					pull_request_title: "fix: second change",
+					git_branch: "fix/second",
+					pr_number: 23021,
+					url: "https://github.com/coder/coder/pull/23021",
+				}),
+			],
+		});
+
+		await user.click(screen.getByTestId("git-panel-view-switcher"));
+		const menu = await screen.findByRole("menu");
+		await user.click(within(menu).getByText("PR #23021"));
+
+		expect(screen.getByTestId("git-panel-pr-title")).toHaveTextContent(
+			"fix: second change",
 		);
 	});
 });

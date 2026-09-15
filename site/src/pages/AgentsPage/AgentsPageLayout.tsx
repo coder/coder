@@ -590,9 +590,9 @@ const AgentsPageLayout: FC = () => {
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents. The chat's
-						// diff_status field is already written into the
-						// chatKey and infinite-list caches below.
+						// Only refetch the diff file contents. The diff
+						// status changes are already merged into the
+						// chat caches below.
 						void invalidateChatDiffContents(queryClient, chatEvent.chat.id);
 					}
 					// Merge watch payloads by event kind so stale field

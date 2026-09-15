@@ -398,12 +398,9 @@ export const WithMultiplePRs: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Open the menu so the screenshot captures it. The menu
-		// contents are asserted in ChatTopBar.test.tsx.
+		// Open the menu so the screenshot captures it.
 		await userEvent.click(canvas.getByLabelText("View pull requests"));
-		await waitFor(() => {
-			expect(within(document.body).getAllByRole("menuitem")).toHaveLength(2);
-		});
+		await within(document.body).findByRole("menu");
 	},
 };
 

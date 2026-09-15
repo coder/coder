@@ -520,6 +520,11 @@ const diffStatusEqual = (
 const diffStatusRefKey = (status: TypesGen.ChatDiffStatus): string =>
 	`${status.remote_origin ?? ""}\u0000${status.git_branch ?? ""}`;
 
+// The server sends a status without ref fields when the ref has no
+// row anymore. It carries only chat_id.
+const isDiffStatusTombstone = (status: TypesGen.ChatDiffStatus): boolean =>
+	!status.remote_origin && !status.git_branch;
+
 const diffStatusesEqual = (
 	a: readonly TypesGen.ChatDiffStatus[] | undefined,
 	b: readonly TypesGen.ChatDiffStatus[] | undefined,
@@ -538,6 +543,7 @@ const mergeDiffStatuses = (
 	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
 	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
 	primary?: TypesGen.ChatDiffStatus,
+	removedRef?: TypesGen.DiffStatusRef,
 ): TypesGen.ChatDiffStatus[] | undefined => {
 	if (!incoming || incoming.length === 0) {
 		return cached ? [...cached] : undefined;
@@ -548,6 +554,10 @@ const mergeDiffStatuses = (
 	const merged = new Map(cached.map((s) => [diffStatusRefKey(s), s]));
 	for (const s of incoming) {
 		merged.set(diffStatusRefKey(s), s);
+	}
+	// A tombstone removes its ref instead of adding a blank entry.
+	if (removedRef) {
+		merged.delete(`${removedRef.remote_origin}\u0000${removedRef.git_branch}`);
 	}
 	// The server orders the list: the first row is the primary. Keep
 	// the server order rather than the cache order.
@@ -592,15 +602,24 @@ export const mergeWatchedChatSummary = (
 	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
 	// A diff_status_change carries the changed ref alone or the full
 	// list. Merge by ref key so other refs stay cached, and adopt the
-	// embedded primary so the first row keeps the server order.
+	// embedded primary so the first row keeps the server order. A
+	// tombstone status means the ref has no row anymore, so remove it.
+	const changedStatus = changedDiffStatus?.status ?? undefined;
+	const changedIsTombstone =
+		changedStatus !== undefined && isDiffStatusTombstone(changedStatus);
 	const nextDiffStatuses = isDiffStatusEvent
-		? mergeDiffStatuses(
-				cachedChat.diff_statuses,
-				changedDiffStatus?.status
-					? [changedDiffStatus.status]
-					: watchedChat.diff_statuses,
-				watchedChat.diff_status,
-			)
+		? changedIsTombstone
+			? mergeDiffStatuses(
+					cachedChat.diff_statuses,
+					watchedChat.diff_statuses,
+					watchedChat.diff_status,
+					changedDiffStatus?.ref,
+				)
+			: mergeDiffStatuses(
+					cachedChat.diff_statuses,
+					changedStatus ? [changedStatus] : watchedChat.diff_statuses,
+					watchedChat.diff_status,
+				)
 		: cachedChat.diff_statuses;
 	// Context drift is tracked outside chats.updated_at (it is driven by
 	// agent context pushes), so apply context_dirty payloads regardless of

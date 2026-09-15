@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
@@ -129,6 +129,37 @@ describe("ChatTopBar PR chip", () => {
 				name: /feat: add notification system/,
 			}),
 		).toBeInTheDocument();
+	});
+
+	it("opens the selected PR's URL when the chat tracks several", async () => {
+		const user = userEvent.setup();
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+
+		const primary = prStatus();
+		const secondary = prStatus({
+			url: "https://github.com/coder/coder/pull/456",
+			pull_request_title: "feat: add notification system",
+			pull_request_draft: true,
+			git_branch: "feat/two",
+		});
+		renderTopBar({
+			...MockChat,
+			diff_statuses: [primary, secondary],
+		});
+
+		await user.click(screen.getByLabelText("View pull requests"));
+		const menu = await screen.findByRole("menu");
+		await user.click(
+			within(menu).getByRole("menuitem", {
+				name: /feat: add notification system/,
+			}),
+		);
+
+		expect(open).toHaveBeenCalledWith(
+			"https://github.com/coder/coder/pull/456",
+			"_blank",
+			"noreferrer",
+		);
 	});
 
 	it("ignores tracked refs without a pull request link", async () => {

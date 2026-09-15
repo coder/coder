@@ -3295,6 +3295,56 @@ describe("mergeWatchedChatSummary", () => {
 		expect(merged.diff_statuses).toContain(refA);
 	});
 
+	it("removes the changed ref when the server sends a tombstone", () => {
+		const refA = {
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch: "feature-a",
+			url: "https://github.com/o/r/pull/1",
+			pull_request_state: "open",
+			pull_request_title: "A",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 0,
+			changed_files: 1,
+		};
+		const refB = {
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch: "feature-b",
+			url: "https://github.com/o/r/pull/2",
+			pull_request_state: "open",
+			pull_request_title: "B",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 2,
+			deletions: 1,
+			changed_files: 2,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [refA, refB],
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_statuses: [refB],
+			diff_status: refB,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-a",
+				},
+				// The server sends only chat_id when the ref has no row.
+				status: { chat_id: "chat-1" } as TypesGen.ChatDiffStatus,
+			},
+		});
+
+		expect(merged.diff_statuses).toEqual([refB]);
+	});
+
 	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
 		const cachedDiffStatus = {
 			chat_id: "chat-1",

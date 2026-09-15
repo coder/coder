@@ -181,13 +181,7 @@ export const MultiplePullRequests: Story = {
 		// shows the merged state. Behavior is asserted in Vitest.
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByTestId("git-panel-view-switcher"));
-		const menu = await waitFor(() => {
-			const el = document.querySelector<HTMLElement>("[role='menu']");
-			if (!el) {
-				throw new Error("menu not open yet");
-			}
-			return el;
-		});
+		const menu = await within(document.body).findByRole("menu");
 		await userEvent.click(within(menu).getByText("PR #23021"));
 	},
 };
@@ -228,13 +222,7 @@ export const ViewSwitcherOpen: Story = {
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
 		await userEvent.click(switcher);
 
-		// The Radix menu portals to document.body, so query the full
-		// document instead of the story canvas.
-		const menu = await waitFor(() => {
-			const el = document.querySelector("[role='menu']");
-			if (!el) throw new Error("menu not found");
-			return el as HTMLElement;
-		});
+		const menu = await within(document.body).findByRole("menu");
 
 		// Selecting a menu item swaps the active view and the trigger
 		// identifier reflects the new selection.
