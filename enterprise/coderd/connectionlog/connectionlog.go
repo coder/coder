@@ -401,6 +401,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		connectionID     = make([]uuid.UUID, 0, count)
 		disconnectReason = make([]string, 0, count)
 		disconnectTime   = make([]time.Time, 0, count)
+		clientSessionID  = make([]string, 0, count)
 	)
 
 	appendEntry := func(e batchEntry) {
@@ -421,6 +422,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		connectionID = append(connectionID, e.ConnectionID.UUID)
 		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
 		disconnectTime = append(disconnectTime, e.disconnectTime)
+		clientSessionID = append(clientSessionID, e.ClientSessionID.String)
 	}
 
 	for _, entry := range b.dedupedBatch {
@@ -448,6 +450,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		ConnectionID:     connectionID,
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,
+		ClientSessionID:  clientSessionID,
 	}
 }
 
