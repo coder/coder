@@ -38,10 +38,19 @@ const forbiddenTags = [
 	"video",
 ];
 
+// Flowchart image nodes (`id@{ img: "https://..." }`) make mermaid fetch
+// the image while laying out the diagram, before any output can be
+// sanitized, so the viewer's IP would leak to the host. They are
+// rejected up front instead.
+const imageNodePattern = /@\{[^}]*\bimg\s*:/;
+
 const renderDiagram = async (
 	source: string,
 	isDark: boolean,
 ): Promise<string> => {
+	if (imageNodePattern.test(source)) {
+		throw new Error("Image nodes are not supported in chat diagrams.");
+	}
 	const { default: mermaid } = await import("mermaid");
 	mermaid.initialize({
 		startOnLoad: false,
@@ -53,6 +62,23 @@ const renderDiagram = async (
 		fontFamily: "inherit",
 		htmlLabels: false,
 		flowchart: { htmlLabels: false },
+		// Keys that %%{init}%% directives inside the diagram source may
+		// not override, on top of mermaid's defaults (securityLevel,
+		// maxTextSize, maxEdges, ...). Directive-supplied CSS and HTML
+		// labels have been the vector for most mermaid advisories.
+		secure: [
+			"secure",
+			"securityLevel",
+			"startOnLoad",
+			"maxTextSize",
+			"suppressErrorRendering",
+			"maxEdges",
+			"htmlLabels",
+			"flowchart",
+			"themeCSS",
+			"fontFamily",
+			"altFontFamily",
+		],
 	});
 	const { svg } = await mermaid.render(`mermaid-${generateUUID()}`, source);
 	return DOMPurify.sanitize(svg, {
