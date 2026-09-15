@@ -1572,6 +1572,96 @@ func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 	assert.True(t, resp.IsError, "malformed input should produce an error response")
 }
 
+func TestConvertCallResult_MixedContent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		result      *mcp.CallToolResult
+		wantType    string
+		wantData    []byte
+		wantMIME    string
+		wantContent string
+	}{
+		{
+			name: "TextThenImage",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.TextContent{Text: "Screenshot captured"},
+				&mcp.ImageContent{Data: []byte("first-image"), MIMEType: "image/png"},
+			}},
+			wantType: "image", wantData: []byte("first-image"), wantMIME: "image/png",
+			wantContent: "Screenshot captured",
+		},
+		{
+			name: "ImageThenText",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.ImageContent{Data: []byte("first-image"), MIMEType: "image/png"},
+				&mcp.TextContent{Text: "Screenshot captured"},
+			}},
+			wantType: "image", wantData: []byte("first-image"), wantMIME: "image/png",
+			wantContent: "Screenshot captured",
+		},
+		{
+			name: "TextImageAndStructuredContent",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "Screenshot captured"},
+					&mcp.ImageContent{Data: []byte("first-image"), MIMEType: "image/png"},
+				},
+				StructuredContent: map[string]any{"width": 800},
+			},
+			wantType: "image", wantData: []byte("first-image"), wantMIME: "image/png",
+			wantContent: "Screenshot captured\n{\"width\":800}",
+		},
+		{
+			name: "MixedError",
+			result: &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "Screenshot failed"},
+					&mcp.ImageContent{Data: []byte("partial-image"), MIMEType: "image/png"},
+				},
+			},
+			wantType: "image", wantData: []byte("partial-image"), wantMIME: "image/png",
+			wantContent: "Screenshot failed",
+		},
+		{
+			name: "TextAndEmbeddedPDF",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.TextContent{Text: "Document retrieved"},
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+					URI: "file:///document.pdf", MIMEType: "application/pdf", Blob: []byte("pdf-data"),
+				}},
+			}},
+			wantType: "media", wantData: []byte("pdf-data"), wantMIME: "application/pdf",
+			wantContent: "Document retrieved",
+		},
+		{
+			name: "TextAndMultipleImages",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.TextContent{Text: "Screenshots captured"},
+				&mcp.ImageContent{Data: []byte("first-image"), MIMEType: "image/png"},
+				&mcp.ImageContent{Data: []byte("second-image"), MIMEType: "image/jpeg"},
+			}},
+			wantType: "image", wantData: []byte("first-image"), wantMIME: "image/png",
+			wantContent: "Screenshots captured",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := mcpclient.ConvertCallResultForTest(tt.result)
+			assert.Equal(t, tt.wantType, resp.Type)
+			assert.Equal(t, tt.wantData, resp.Data)
+			assert.Equal(t, tt.wantMIME, resp.MediaType)
+			assert.Equal(t, tt.wantContent, resp.Content)
+			assert.Equal(t, tt.result.IsError, resp.IsError)
+		})
+	}
+}
+
 func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
 
