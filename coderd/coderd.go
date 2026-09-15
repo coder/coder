@@ -104,6 +104,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/coderd/x/mcpgateway"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -882,6 +883,24 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
+	var oidcMCPSrc mcpclient.UserOIDCTokenSource
+	if options.OIDCConfig != nil {
+		oidcMCPSrc = newOIDCMCPTokenSource(
+			options.Database,
+			options.OIDCConfig,
+			options.Logger.Named("mcp-user-oidc"),
+		)
+	}
+
+	// The gateway is cheap to build. The route is only mounted when the
+	// experiment is enabled.
+	api.mcpGateway = mcpgateway.New(mcpgateway.Options{
+		Logger:          options.Logger.Named("mcpgateway"),
+		Database:        options.Database,
+		HTTPClient:      api.mcpHTTPClient,
+		OIDCTokenSource: oidcMCPSrc,
+	})
+
 	{ // Chat daemon and git sync worker initialization.
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
@@ -891,14 +910,6 @@ func New(options *Options) *API {
 			maxChatsPerAcquire = math.MinInt32
 		}
 
-		var oidcMCPSrc mcpclient.UserOIDCTokenSource
-		if options.OIDCConfig != nil {
-			oidcMCPSrc = newOIDCMCPTokenSource(
-				options.Database,
-				options.OIDCConfig,
-				options.Logger.Named("mcp-user-oidc"),
-			)
-		}
 		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
 		if options.ChatProviderAPIKeys != nil {
 			providerAPIKeys = *options.ChatProviderAPIKeys
@@ -935,6 +946,12 @@ func New(options *Options) *API {
 					options.PrometheusRegistry,
 				)
 			}
+			// With the experiment on, chatd reaches external MCP servers
+			// only through the gateway.
+			var chatMCPGateway http.Handler
+			if api.Experiments.Enabled(codersdk.ExperimentMCPGateway) {
+				chatMCPGateway = api.mcpGateway.Handler()
+			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
@@ -959,6 +976,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				MCPGateway:                     chatMCPGateway,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
@@ -1366,6 +1384,10 @@ func New(options *Options) *API {
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationParam(options.Database))
 				api.registerOrganizationChatRoutes(r, chatAPIPrefixExperimental)
+				r.Route("/mcp-gateway", func(r chi.Router) {
+					r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPGateway))
+					r.Mount("/", api.mcpGateway.Handler())
+				})
 				r.Route("/members/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
 					api.registerOrganizationMemberChatRoutes(r)
@@ -2186,6 +2208,7 @@ type API struct {
 
 	*Options
 	mcpHTTPClient *http.Client
+	mcpGateway    *mcpgateway.Gateway
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a

@@ -334,7 +334,7 @@ func connectOne(
 	timeout time.Duration,
 	hooks connectHooks,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+	headers := BuildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
 	// transport is created so any auth header already set above
@@ -357,7 +357,7 @@ func connectOne(
 		}
 	}
 
-	tr, err := createTransport(cfg, headers, httpClient)
+	tr, err := CreateTransport(cfg, headers, httpClient)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -433,7 +433,7 @@ func connectOne(
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
-		if !isToolAllowed(
+		if !IsToolAllowed(
 			mcpTool.Name,
 			cfg.ToolAllowList,
 			cfg.ToolDenyList,
@@ -462,7 +462,7 @@ func connectOne(
 	return tools, session, nil
 }
 
-func createTransport(
+func CreateTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 	baseHTTPClient *http.Client,
@@ -488,9 +488,9 @@ func createTransport(
 	}
 }
 
-// buildAuthHeaders constructs HTTP headers for authenticating
+// BuildAuthHeaders constructs HTTP headers for authenticating
 // with the MCP server based on the configured auth type.
-func buildAuthHeaders(
+func BuildAuthHeaders(
 	ctx context.Context,
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
@@ -607,13 +607,13 @@ func buildAuthHeaders(
 	return headers
 }
 
-// isToolAllowed checks a tool name against the allow and deny
+// IsToolAllowed checks a tool name against the allow and deny
 // lists. When the allow list is non-empty only tools in it are
 // permitted and the deny list is ignored. When the allow list
 // is empty and the deny list is non-empty, tools in the deny
 // list are rejected. Both lists use exact string matching
 // against the original (non-prefixed) tool name.
-func isToolAllowed(
+func IsToolAllowed(
 	toolName string,
 	allowList []string,
 	denyList []string,

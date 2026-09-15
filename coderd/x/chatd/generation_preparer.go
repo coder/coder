@@ -382,14 +382,29 @@ func (server *Server) prepareGeneration(
 		resolvedUserPrompt = server.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
 	})
+	// The gateway aggregates every upstream the owner may reach and
+	// holds their credentials, so chatd connects to it alone.
+	mcpHTTPClient := server.mcpHTTPClient
+	viaMCPGateway := server.mcpGateway != nil && len(mcpConnectConfigs) > 0
+	if viaMCPGateway {
+		gatewayClient, gatewayErr := server.mcpGatewayClient(ctx, chat.OwnerID)
+		if gatewayErr != nil {
+			cleanup()
+			return generationPrepared{}, gatewayErr
+		}
+		mcpConnectConfigs = []database.MCPServerConfig{mcpGatewayConfig(chat.OrganizationID)}
+		mcpHTTPClient = gatewayClient
+	}
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
-			var tokenErr error
-			mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
-			if tokenErr != nil {
-				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
+			if !viaMCPGateway {
+				var tokenErr error
+				mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+				if tokenErr != nil {
+					logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
+				}
+				mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			}
-			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
@@ -398,7 +413,7 @@ func (server *Server) prepareGeneration(
 				chat.OwnerID,
 				server.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
-				server.mcpHTTPClient,
+				mcpHTTPClient,
 			)
 			return nil
 		})
