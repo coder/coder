@@ -33,24 +33,20 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", string(codersdk.ChatErrorKindTimeout))
-	// StreamBufferDroppedTotal is a plain Counter, so it's always present
-	// in Gather output once registered; no exerciser call is
-	// needed.
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
 
 	expected := map[string]dto.MetricType{
-		"coderd_chatd_chats":                       dto.MetricType_GAUGE,
-		"coderd_chatd_message_count":               dto.MetricType_HISTOGRAM,
-		"coderd_chatd_prompt_size_bytes":           dto.MetricType_HISTOGRAM,
-		"coderd_chatd_tool_result_size_bytes":      dto.MetricType_HISTOGRAM,
-		"coderd_chatd_ttft_seconds":                dto.MetricType_HISTOGRAM,
-		"coderd_chatd_compaction_total":            dto.MetricType_COUNTER,
-		"coderd_chatd_steps_total":                 dto.MetricType_COUNTER,
-		"coderd_chatd_stream_retries_total":        dto.MetricType_COUNTER,
-		"coderd_chatd_stream_buffer_dropped_total": dto.MetricType_COUNTER,
-		"coderd_chatd_tool_errors_total":           dto.MetricType_COUNTER,
+		"coderd_chatd_chats":                  dto.MetricType_GAUGE,
+		"coderd_chatd_message_count":          dto.MetricType_HISTOGRAM,
+		"coderd_chatd_prompt_size_bytes":      dto.MetricType_HISTOGRAM,
+		"coderd_chatd_tool_result_size_bytes": dto.MetricType_HISTOGRAM,
+		"coderd_chatd_ttft_seconds":           dto.MetricType_HISTOGRAM,
+		"coderd_chatd_compaction_total":       dto.MetricType_COUNTER,
+		"coderd_chatd_steps_total":            dto.MetricType_COUNTER,
+		"coderd_chatd_stream_retries_total":   dto.MetricType_COUNTER,
+		"coderd_chatd_tool_errors_total":      dto.MetricType_COUNTER,
 	}
 
 	found := make(map[string]dto.MetricType)
@@ -87,14 +83,10 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.CompactionTotal.WithLabelValues("google", "gemini-2.5-pro", "timeout").Inc()
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5").Inc()
 	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", string(codersdk.ChatErrorKindTimeout)).Inc()
-	m.StreamBufferDroppedTotal.Inc()
 
-	// Nil-receiver guard for RecordStreamRetry and
-	// RecordStreamBufferDropped mirrors the existing RecordCompaction nil
-	// guard.
+	// Recording through nil metrics must not panic.
 	var nilMetrics *chatloop.Metrics
 	nilMetrics.RecordStreamRetry("anthropic", "claude-sonnet-4-5", chaterror.ClassifiedError{Kind: codersdk.ChatErrorKindTimeout})
-	nilMetrics.RecordStreamBufferDropped()
 	nilMetrics.RecordToolError("anthropic", "claude-sonnet-4-5", "test")
 }
 
@@ -313,43 +305,6 @@ func TestRecordStreamRetry(t *testing.T) {
 			})
 		})
 	}
-}
-
-func TestRecordStreamBufferDropped(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil metrics does not panic", func(t *testing.T) {
-		t.Parallel()
-		var m *chatloop.Metrics
-		m.RecordStreamBufferDropped()
-	})
-
-	t.Run("increments monotonically", func(t *testing.T) {
-		t.Parallel()
-
-		reg := prometheus.NewRegistry()
-		m := chatloop.NewMetrics(reg)
-
-		m.RecordStreamBufferDropped()
-		m.RecordStreamBufferDropped()
-		m.RecordStreamBufferDropped()
-
-		families, err := reg.Gather()
-		require.NoError(t, err)
-
-		var found bool
-		for _, f := range families {
-			if f.GetName() != "coderd_chatd_stream_buffer_dropped_total" {
-				continue
-			}
-			found = true
-			require.Len(t, f.GetMetric(), 1)
-			assert.Equal(t, float64(3), f.GetMetric()[0].GetCounter().GetValue())
-			assert.Empty(t, f.GetMetric()[0].GetLabel(),
-				"stream_buffer_dropped_total must be an unlabeled counter")
-		}
-		assert.True(t, found, "stream_buffer_dropped_total metric not found")
-	})
 }
 
 // requireCounter gathers metrics from reg, finds the named counter

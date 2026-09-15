@@ -36,6 +36,7 @@ describe("countInvisibleCharacters", () => {
 	});
 
 	it("handles text with interleaved ZWS", () => {
+		// oxlint-disable-next-line eslint/no-irregular-whitespace
 		// "h​e​l​l​o" — 4 ZWS between visible chars.
 		expect(countInvisibleCharacters("h\u200be\u200bl\u200bl\u200bo")).toBe(4);
 	});
