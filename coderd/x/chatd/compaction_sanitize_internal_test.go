@@ -72,7 +72,7 @@ func TestSanitizeCompactionPrompt_FlattensForeignProviderExecutedToolParts(t *te
 	}
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
 
 	require.Len(t, sanitized, 3)
 	// Provider-executed parts are flattened to text so the summary keeps
@@ -121,7 +121,7 @@ func TestSanitizeCompactionPrompt_DropsNonAssistantProviderExecutedParts(t *test
 	}
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
 
 	require.Len(t, sanitized, 1)
 	require.Equal(t, fantasy.MessageRoleUser, sanitized[0].Role)
@@ -151,7 +151,7 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedFileParts(t *testing.T) {
 	// placeholder while the prompt stays otherwise intact.
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "mistral", ModelName: "mistral-large"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)
@@ -186,11 +186,12 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedToolMedia(t *testing.T) {
 		},
 	}
 
-	// The chat model kept the audio; an Anthropic compaction model can only
-	// take images in tool results, so the part must become text.
+	// The chat model kept the audio; a Bedrock Claude compaction model rides
+	// the Anthropic transport, which only takes images in tool results, so
+	// the part must become text labeled with the configured provider.
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, "bedrock", configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
 
 	require.Len(t, sanitized, 1)
 	result, ok := sanitized[0].Content[0].(fantasy.ToolResultPart)
@@ -198,7 +199,7 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedToolMedia(t *testing.T) {
 	text, ok := result.Output.(fantasy.ToolResultOutputContentText)
 	require.True(t, ok, "expected text output, got %T", result.Output)
 	require.Contains(t, text.Text, "Synthesized audio")
-	require.Contains(t, text.Text, "[audio/mpeg content omitted")
+	require.Contains(t, text.Text, "[audio/mpeg content omitted: AWS Bedrock tool results")
 }
 
 func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *testing.T) {
@@ -227,7 +228,7 @@ func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *test
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)

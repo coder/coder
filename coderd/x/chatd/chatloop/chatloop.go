@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -1315,8 +1317,8 @@ func executeSingleTool(
 
 	// Cap tool output so a single oversized result (most often a large
 	// MCP response) cannot overflow the model's context window on the
-	// next request. Only the text payload is bounded; binary media data
-	// is passed through untouched.
+	// next request. Only the text payload is bounded here; media is
+	// checked by normalizeToolMedia below.
 	content := resp.Content
 	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
@@ -1340,10 +1342,24 @@ func executeSingleTool(
 			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
+		text := strings.ToValidUTF8(content, "\uFFFD")
+		if note, rejected := normalizeToolMedia(&resp); rejected {
+			logger.Warn(ctx, "tool result media rejected, keeping text only",
+				slog.F("tool_name", tc.ToolName),
+				slog.F("tool_call_id", tc.ToolCallID),
+				slog.F("media_type", resp.MediaType),
+				slog.F("media_bytes", len(resp.Data)),
+			)
+			if text != "" {
+				text += "\n"
+			}
+			result.Result = fantasy.ToolResultOutputContentText{Text: text + note}
+			break
+		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      strings.ToValidUTF8(content, "\uFFFD"),
+			Text:      text,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
@@ -1363,6 +1379,33 @@ func executeSingleTool(
 		}
 	}
 	return result
+}
+
+// normalizeToolMedia checks a media tool response before it is persisted
+// and replayed to every client: the payload must fit the chat attachment
+// cap, and bytes declared as an image must be an image. A declared image
+// type is replaced by the detected one so the stored media matches its
+// bytes. Provider-specific limits are applied later at prompt build. It
+// returns the note that stands in for rejected media.
+func normalizeToolMedia(resp *fantasy.ToolResponse) (string, bool) {
+	if len(resp.Data) > codersdk.MaxChatFileSizeBytes {
+		return fmt.Sprintf(
+			"[%s content omitted: %d bytes exceeds the %d byte tool media limit]",
+			resp.MediaType, len(resp.Data), codersdk.MaxChatFileSizeBytes,
+		), true
+	}
+	if !strings.HasPrefix(chatfiles.BaseMediaType(resp.MediaType), "image/") {
+		return "", false
+	}
+	detected := chatfiles.DetectMediaType(resp.Data)
+	if !strings.HasPrefix(detected, "image/") {
+		return fmt.Sprintf(
+			"[image omitted: payload declared as %s is %s]",
+			resp.MediaType, detected,
+		), true
+	}
+	resp.MediaType = detected
+	return "", false
 }
 
 func isToolActive(name string, activeTools []string) bool {
