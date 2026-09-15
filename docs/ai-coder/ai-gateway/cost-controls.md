@@ -301,7 +301,7 @@ coder exp ai-model-prices update prices.json
 
 ## Monitor spend
 
-Spend reporting is available in the Coder dashboard and as a CSV export.
+Spend reporting is available in the Coder dashboard, as a CSV export, and as a per-user JSON report.
 Prometheus metrics report enforcement and pricing gaps.
 
 ### Dashboard
@@ -313,7 +313,11 @@ Visibility follows the viewer's role:
 | Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu |
 | Members of a group                                   | The group's spend and budget, and their own member row               |
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
+| Users who can view AI sessions                       | An organization's total and per-user spend on the **Spend** page     |
 
+- The **Spend** page under **Admin settings** > **AI** shows AI Gateway spend for one organization at a time: the total for the period and, for each user, their cost and the providers and clients they spent through, filterable by provider, model, and client.
+  It opens on the current budget period and accepts a date range of up to 31&nbsp;days within the AI Gateway [retention period](./monitoring.md#data-retention).
+  It uses the same accounting as the [spend export](#spend-export), requires the AI Gateway entitlement, and flags usage that could not be priced.
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and
@@ -332,11 +336,9 @@ Administrators can also use the
 [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API
 endpoint to see a user's current effective group.
 
-### CSV Export
+### Spend export
 
-Users who can read group-member data for the organization can export approximate
-spend for reporting and internal cost allocation. The export is available through
-the API only.
+Users who can read group-member data for the organization can export approximate spend for reporting and internal cost allocation.
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
@@ -346,8 +348,15 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - Without parameters, the export covers the current budget period.
 - To select a range, pass `period_start` and `period_end` together as RFC 3339
   timestamps. A range can span at most 31 days.
-- Each row breaks spend down by user, group, model, and provider, with the
-  underlying token counts.
+- Spend is attributed through the group whose budget applied to each request, so usage that no budget group covers is not included.
+- Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
+
+The `users` endpoint accepts the same period parameters and returns one page of per-user spend as JSON, with each user's cost, providers, and clients, plus the period total and a count of usage that could not be priced. To narrow the report, pass `provider_name`, `model`, or `client` as exact matches; requests whose client is unknown match `client=Unknown`. `limit` (default 10, at most 100) and `offset` select the page. The **Spend** page reads this report, so its numbers reconcile with the CSV.
+
+```sh
+curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  "https://coder.example.com/api/v2/organizations/<organization>/ai/spend/users"
+```
 
 ### Prometheus Metrics
 

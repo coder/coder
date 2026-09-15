@@ -5573,6 +5573,40 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
+export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
+	user_id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: "Test User",
+	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+	cost_micros: 2_500_000,
+	unpriced_usage_count: 0,
+	providers: ["anthropic", "openai"],
+	clients: ["Claude Code", "Cursor"],
+};
+
+export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
+	{
+		period_start: "2026-02-10T00:00:00Z",
+		period_end: "2026-03-12T00:00:00Z",
+		retention_start: "2026-01-11T15:30:00Z",
+		count: 2,
+		total_cost_micros: 3_500_000,
+		total_unpriced_usage_count: 0,
+		users: [
+			MockOrganizationAISpendUser,
+			{
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				cost_micros: 1_000_000,
+				unpriced_usage_count: 0,
+				providers: ["anthropic"],
+				clients: ["Unknown"],
+			},
+		],
+	};
+
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,

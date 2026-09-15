@@ -3,6 +3,8 @@ import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeSessionThreadsResponse,
+	OrganizationAISpendFilter,
+	OrganizationAISpendReport,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -24,6 +26,40 @@ export const paginatedSessions = (
 				limit,
 				q: payload,
 			}),
+	};
+};
+
+const organizationAISpendKey = (
+	organizationId: string,
+	filter: OrganizationAISpendFilter,
+	pageNumber: number,
+) => ["organizations", organizationId, "aiSpend", filter, pageNumber] as const;
+
+export const paginatedOrganizationAISpend = (
+	organizationId: string,
+	filter: OrganizationAISpendFilter,
+): UsePaginatedQueryOptions<
+	OrganizationAISpendReport,
+	OrganizationAISpendFilter
+> => {
+	return {
+		queryPayload: () => filter,
+		queryKey: ({ payload, pageNumber }) =>
+			organizationAISpendKey(organizationId, payload, pageNumber),
+		queryFn: ({ payload, limit, offset }) =>
+			API.getOrganizationAISpendUsers(organizationId, {
+				...payload,
+				limit,
+				offset,
+			}),
+		// Every page aggregates the whole organization window, so the adjacent
+		// pages are not fetched speculatively.
+		prefetch: false,
+		staleTime: 60_000,
+		// Rows from another organization must not appear under the newly
+		// selected organization while its report loads.
+		placeholderData: (previousData, previousQuery) =>
+			previousQuery?.queryKey[1] === organizationId ? previousData : undefined,
 	};
 };
 

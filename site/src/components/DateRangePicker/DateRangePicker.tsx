@@ -83,6 +83,13 @@ interface DateRangePickerProps {
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
+	/** Longest range the calendar lets the user select, in inclusive days. */
+	maxDays?: number;
+	/**
+	 * Earliest day the calendar lets the user select. Presets that would start
+	 * before it are hidden.
+	 */
+	minDate?: Date;
 }
 
 /**
@@ -91,7 +98,7 @@ interface DateRangePickerProps {
  * rounded up to the next hour (if it falls on today) or to the start of
  * the following day.
  */
-function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+export function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
 	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
 	const end = dayjs(to).isSame(currentTime, "day")
@@ -121,10 +128,14 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	maxDays,
+	minDate,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
-	const resolvedPresets = presets ?? buildDefaultPresets(now);
+	const resolvedPresets = (presets ?? buildDefaultPresets(now)).filter(
+		(preset) => minDate === undefined || preset.range().from >= minDate,
+	);
 
 	// Internal selection state kept separate from the committed value
 	// so the user can freely adjust the range before applying. This
@@ -245,7 +256,12 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
-								disabled={{ after: currentTime }}
+								max={maxDays === undefined ? undefined : maxDays - 1}
+								disabled={
+									minDate === undefined
+										? { after: currentTime }
+										: [{ before: minDate }, { after: currentTime }]
+								}
 								today={currentTime}
 							/>
 						</div>

@@ -32,6 +32,7 @@ const LocationProbe = () => {
 
 const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/governance", useStoryElement: true },
+	{ path: "/ai/settings/spend", useStoryElement: true },
 	{ path: "/ai/settings/gateway-keys", useStoryElement: true },
 	{ path: "/ai/settings/providers", useStoryElement: true },
 	{ path: "/ai/settings/coder-agents", useStoryElement: true },
@@ -95,6 +96,12 @@ export const CoderAgentsActive: Story = {
 		await expect(
 			canvas.queryByRole("link", { name: "Spend" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const SpendVisible: Story = {
+	args: {
+		canViewAISpend: true,
 	},
 };
 
