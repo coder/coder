@@ -3241,7 +3241,10 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		err = chatDaemon.PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID)
+		err = chatDaemon.PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID, codersdk.DiffStatusRef{
+			RemoteOrigin: "git@github.com:coder/coder.git",
+			GitBranch:    "feature/test",
+		})
 		require.NoError(t, err)
 
 		var received codersdk.ChatWatchEvent
@@ -3266,6 +3269,26 @@ func TestWatchChats(t *testing.T) {
 		require.EqualValues(t, 42, ds.Additions)
 		require.EqualValues(t, 7, ds.Deletions)
 		require.EqualValues(t, 5, ds.ChangedFiles)
+
+		require.NotNil(t, received.ChangedDiffStatus)
+		require.Equal(t, "git@github.com:coder/coder.git", received.ChangedDiffStatus.Ref.RemoteOrigin)
+		require.Equal(t, "feature/test", received.ChangedDiffStatus.Ref.GitBranch)
+		require.NotNil(t, received.ChangedDiffStatus.Status)
+		require.NotNil(t, received.ChangedDiffStatus.Status.URL)
+		require.Equal(
+			t,
+			"https://github.com/coder/coder/pull/99",
+			*received.ChangedDiffStatus.Status.URL,
+		)
+		require.NotNil(t, received.ChangedDiffStatus.Status.PullRequestState)
+		require.Equal(
+			t,
+			"open",
+			*received.ChangedDiffStatus.Status.PullRequestState,
+		)
+		require.EqualValues(t, 42, received.ChangedDiffStatus.Status.Additions)
+		require.EqualValues(t, 7, received.ChangedDiffStatus.Status.Deletions)
+		require.EqualValues(t, 5, received.ChangedDiffStatus.Status.ChangedFiles)
 	})
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
@@ -12017,6 +12040,60 @@ func TestGetChatDiffContents(t *testing.T) {
 		require.Empty(t, diffContents.Diff)
 	})
 
+	t.Run("PartialSelectorIsRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "partial selector test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/diff?branch=feature/test", chat.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("UnmatchedSelectorIsNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "unmatched selector test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// The chat tracks no refs at all, yet the complete selector
+		// must still return 404 rather than an empty 200.
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/diff?origin=https%%3A%%2F%%2Fgithub.com%%2Fcoder%%2Fcoder.git&branch=does%%2Fnot%%2Fexist", chat.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
 	t.Run("DiscoveryWriteKeysStoredRef", func(t *testing.T) {
 		t.Parallel()
 
@@ -12110,6 +12187,67 @@ func TestGetChatDiffContents(t *testing.T) {
 		require.Equal(t, origin, statuses[0].GitRemoteOrigin)
 		require.True(t, statuses[0].Url.Valid)
 		require.Equal(t, prURL, statuses[0].Url.String)
+	})
+
+	t.Run("RefSelectorFetchesThatRefsDiff", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{
+				{
+					ID:    "gitlab-test",
+					Type:  "gitlab",
+					Regex: regexp.MustCompile(`gitlab\.example\.com`),
+				},
+			},
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		db := api.Database
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "sdk ref selector",
+		})
+
+		// Two tracked refs. The newer report is the primary.
+		for _, ref := range []struct {
+			branch     string
+			staleDelta time.Duration
+		}{
+			{branch: "feature/primary", staleDelta: time.Hour},
+			{branch: "feature/secondary", staleDelta: 2 * time.Hour},
+		} {
+			_, err := db.UpsertChatDiffStatusReference(
+				dbauthz.AsSystemRestricted(ctx),
+				database.UpsertChatDiffStatusReferenceParams{
+					ChatID:          chat.ID,
+					Url:             sql.NullString{},
+					GitBranch:       ref.branch,
+					GitRemoteOrigin: "https://gitlab.example.com/acme/project.git",
+					StaleAt:         time.Now().UTC().Add(ref.staleDelta),
+				},
+			)
+			require.NoError(t, err)
+		}
+
+		// The SDK option must fetch the secondary ref, which a
+		// selector-free call would not target.
+		diff, err := client.GetChatDiffContents(ctx, chat.ID, codersdk.WithChatDiffStatusRef(
+			codersdk.DiffStatusRef{
+				RemoteOrigin: "https://gitlab.example.com/acme/project.git",
+				GitBranch:    "feature/secondary",
+			},
+		))
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, diff.ChatID)
+		require.NotNil(t, diff.Branch)
+		require.Equal(t, "feature/secondary", *diff.Branch)
 	})
 
 	t.Run("NotFoundForDifferentUser", func(t *testing.T) {

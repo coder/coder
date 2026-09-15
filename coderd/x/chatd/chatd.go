@@ -3233,18 +3233,23 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 		Kind: kind,
 		Chat: chatWatchEventSDKChat(chat, diffStatus),
 	}
+	p.publishChatEvent(chat.OwnerID, chat.ID, event)
+}
+
+// publishChatEvent publishes one chat watch event.
+func (p *Server) publishChatEvent(ownerID, chatID uuid.UUID, event codersdk.ChatWatchEvent) {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
+			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(ownerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+			slog.F("chat_id", chatID),
+			slog.F("kind", event.Kind),
 			slog.Error(err),
 		)
 	}
@@ -3272,10 +3277,9 @@ func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) 
 }
 
 // PublishDiffStatusChange broadcasts a diff_status_change event for
-// the given chat so that watching clients know to re-fetch the diff
-// status. This is called from the HTTP layer after the diff status
-// is updated in the database.
-func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) error {
+// the given chat. changed_diff_status names the one ref that changed.
+// The embedded chat's diff_status carries the primary.
+func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, ref codersdk.DiffStatusRef) error {
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return xerrors.Errorf("get chat: %w", err)
@@ -3286,12 +3290,34 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 		return xerrors.Errorf("get chat diff status: %w", err)
 	}
 
-	var sdkStatus *codersdk.ChatDiffStatus
-	if len(dbStatuses) > 0 {
-		s := db2sdk.ChatDiffStatus(chatID, &dbStatuses[0])
-		sdkStatus = &s
+	var changed *codersdk.ChatDiffStatus
+	var primarySDK *codersdk.ChatDiffStatus
+	for i := range dbStatuses {
+		row := &dbStatuses[i]
+		if row.GitRemoteOrigin == ref.RemoteOrigin && row.GitBranch == ref.GitBranch {
+			sdk := db2sdk.ChatDiffStatus(chatID, row)
+			changed = &sdk
+			break
+		}
 	}
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, sdkStatus)
+	if len(dbStatuses) > 0 {
+		sdk := db2sdk.ChatDiffStatus(chatID, &dbStatuses[0])
+		primarySDK = &sdk
+	}
+	if changed == nil {
+		// The ref has no row (its PR was cleared). The event still
+		// tells clients to re-fetch the chat.
+		changed = &codersdk.ChatDiffStatus{ChatID: chatID}
+	}
+	event := codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindDiffStatusChange,
+		Chat: chatWatchEventSDKChat(chat, primarySDK),
+		ChangedDiffStatus: &codersdk.ChangedDiffStatus{
+			Ref:    ref,
+			Status: changed,
+		},
+	}
+	p.publishChatEvent(chat.OwnerID, chat.ID, event)
 	return nil
 }
 
