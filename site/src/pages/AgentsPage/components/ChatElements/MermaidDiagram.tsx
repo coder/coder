@@ -71,6 +71,11 @@ const renderDiagram = async (
  * Renders a fenced ```mermaid block from chat markdown as an SVG
  * diagram. Rendering waits until the fence is closed so partially
  * streamed source never produces a flash of parse errors.
+ *
+ * Streamdown ships its own Mermaid block, but it is only reachable
+ * through the default code component that Response replaces with the
+ * diff viewer, and it is not exported on its own. Its inline pan-zoom
+ * wrapper also cancels wheel events, which hijacks scrolling the chat.
  */
 export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	const theme = useTheme();
