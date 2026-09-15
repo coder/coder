@@ -259,20 +259,15 @@ const mermaidSequence = [
 	"Each hop is authenticated separately.",
 ].join("\n");
 
-const waitForDiagram = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await waitFor(
-		() => {
-			if (canvas.queryByRole("status", { name: "Rendering diagram" })) {
-				throw new Error("Diagram is still rendering.");
-			}
-		},
+const waitForDiagram = (canvasElement: HTMLElement) =>
+	within(canvasElement).findByRole(
+		"button",
+		{ name: "View diagram full size" },
 		{ timeout: 10_000 },
 	);
-};
 
 // Mermaid renders asynchronously after its chunk loads, so these
-// stories wait for the placeholder to go away before the capture.
+// stories wait for the rendered diagram before the capture.
 export const MermaidFlowchart: Story = {
 	args: {
 		children: mermaidFlowchart,
@@ -300,6 +295,20 @@ export const MermaidSequenceInProse: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await waitForDiagram(canvasElement);
+	},
+};
+
+// Clicking a rendered diagram opens it at natural size in a lightbox,
+// the same affordance chat images have.
+export const MermaidLightbox: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(await waitForDiagram(canvasElement));
+		await within(document.body).findByRole("dialog", {
+			name: "Diagram preview",
+		});
 	},
 };
 
