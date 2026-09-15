@@ -1,13 +1,16 @@
 package agent_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -67,4 +70,51 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 	for _, p := range pushes[1:] {
 		assert.False(t, p.GetInitial(), "only the first push must be Initial")
 	}
+}
+
+// logCapture records every message logged through it.
+type logCapture struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (c *logCapture) LogEntry(_ context.Context, e slog.SinkEntry) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.messages = append(c.messages, e.Message)
+}
+
+func (*logCapture) Sync() {}
+
+func (c *logCapture) has(msg string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, m := range c.messages {
+		if m == msg {
+			return true
+		}
+	}
+	return false
+}
+
+// TestAgent_MissingDirectoryNotice verifies that an agent whose manifest
+// has no directory logs a warning naming the working-directory context it
+// skips, since nothing else signals that <workdir>/.agents/plugins and
+// its siblings are not scanned.
+func TestAgent_MissingDirectoryNotice(t *testing.T) {
+	t.Parallel()
+
+	capture := &logCapture{}
+	//nolint:dogsled // Only the side effect on the logger matters here.
+	_, _, _, _, _ = setupAgent(t,
+		agentsdk.Manifest{Directory: ""},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.Logger = opts.Logger.AppendSinks(capture)
+		},
+	)
+
+	require.Eventually(t, func() bool {
+		return capture.has("agent directory is not set; skipping working-directory context")
+	}, testutil.WaitLong, testutil.IntervalFast)
 }

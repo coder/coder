@@ -24,6 +24,9 @@ type MCPServerStatus struct {
 	// as the server reported them (no server prefix), when
 	// Connected; empty otherwise.
 	Tools []MCPTool
+	// PluginName is the Agent Plugin whose mcp.json declared the
+	// server; empty for servers from legacy .mcp.json files.
+	PluginName string
 }
 
 // buildMCPServerResources turns a per-server MCP snapshot into one
@@ -70,6 +73,7 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 				Status:      StatusUnreadable,
 				Error:       errMsg,
 				ContentHash: hashMCPServerError(s.Name, errMsg),
+				PluginName:  s.PluginName,
 			})
 			continue
 		}
@@ -88,6 +92,7 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 			Status:      StatusOK,
 			ContentHash: hashMCPServer(s.Name, serverTools),
 			Tools:       serverTools,
+			PluginName:  s.PluginName,
 		})
 	}
 	if len(resources) == 0 {

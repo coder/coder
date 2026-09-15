@@ -72,6 +72,62 @@ func TestWatcher_FiresOnNewSkillFile(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "expected fire after SKILL.md create")
 }
 
+func TestWatcher_FiresOnPluginSkillFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, ".agents", "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	// The skill directory exists before Sync so the test exercises
+	// the watch on the plugin's immediate skill directories, not
+	// the directory-create path on its skills container.
+	skillDir := filepath.Join(pluginDir, "skills", "foo")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+
+	var fires atomic.Int32
+	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
+		Logger:   testutil.Logger(t).Named("watcher"),
+		Debounce: 10 * time.Millisecond,
+		OnChange: func() { fires.Add(1) },
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir}})
+
+	// Write SKILL.md inside Eventually so the test does not race
+	// fsnotify's watch-setup window.
+	require.Eventually(t, func() bool {
+		_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: foo\ndescription: bar\n---\nbody"), 0o600)
+		return fires.Load() >= 1
+	}, testutil.WaitShort, testutil.IntervalFast, "expected fire after plugin SKILL.md write")
+}
+
+func TestWatcher_FiresOnPluginManifestEdit(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+
+	var fires atomic.Int32
+	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
+		Logger:   testutil.Logger(t).Named("watcher"),
+		Debounce: 10 * time.Millisecond,
+		OnChange: func() { fires.Add(1) },
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir}})
+
+	manifest := pluginJSON(t, map[string]any{"name": "p", "version": "2"})
+	require.Eventually(t, func() bool {
+		_ = os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(manifest), 0o600)
+		return fires.Load() >= 1
+	}, testutil.WaitShort, testutil.IntervalFast, "expected fire after plugin.json edit")
+}
+
 func TestWatcher_CloseIsIdempotent(t *testing.T) {
 	t.Parallel()
 	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
