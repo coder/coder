@@ -1,38 +1,57 @@
 ---
-title: OAuth2 provider (Experimental)
+title: OAuth2 provider
 ---
 
-> [!WARNING]
-> The OAuth2 provider functionality is currently **experimental and unstable**. This feature:
->
-> - Is subject to breaking changes without notice
-> - May have incomplete functionality
-> - Is not recommended for production use
-> - Requires the `oauth2` experiment flag to be enabled
->
-> Use this feature for development and testing purposes only.
+> [!NOTE]
+> The OAuth2 provider is generally available and off by default.
+> Set `CODER_OAUTH2_PROVIDER_ENABLE=true` to turn it on.
+> The `oauth2` experiment has been removed.
 
 Coder can act as an OAuth2 authorization server, allowing third-party applications to authenticate users through Coder and access the Coder API on their behalf. This enables integrations where external applications can leverage Coder's authentication and user management.
 
 ## Requirements
 
 - Admin privileges in Coder
-- OAuth2 experiment flag enabled
+- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the Coder server
 - HTTPS recommended for production deployments
 
 ## Enable OAuth2 Provider
 
-Add the `oauth2` experiment flag to your Coder server:
+The provider is off by default.
+While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 Applications** page is hidden.
+Turn it on with the CLI flag:
 
 ```sh
-coder server --experiments oauth2
+coder server --oauth2-provider-enable
 ```
 
 Or set the environment variable:
 
 ```dotenv
-CODER_EXPERIMENTS=oauth2
+CODER_OAUTH2_PROVIDER_ENABLE=true
 ```
+
+Or set it in the YAML configuration file:
+
+```yaml
+oauth2:
+  provider:
+    enable: true
+```
+
+For Kubernetes deployments that use the Helm chart, add the environment variable to `coder.env` in your values file:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OAUTH2_PROVIDER_ENABLE
+      value: "true"
+```
+
+Existing applications, secrets, and user authorizations are kept while the provider is off and work again when you turn it on.
+Turning the provider off does not invalidate access tokens it already issued.
+Those tokens keep authenticating to the regular Coder API while the OAuth2 refresh and revocation endpoints return 404.
+Treat the setting as a way to stop new authorizations rather than as a way to revoke access, and revoke the tokens or delete the application before you disable the provider.
 
 ## Creating OAuth2 Applications
 
@@ -129,6 +148,8 @@ Coder supports the following OAuth2 client authentication methods at the token e
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
+
+Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
 
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
@@ -396,9 +417,11 @@ For more details on testing, see the [OAuth2 test scripts README](../../../scrip
 
 ## Common Issues
 
-### "OAuth2 experiment not enabled"
+### OAuth2 endpoints return 404
 
-Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
+The provider is off.
+Set `CODER_OAUTH2_PROVIDER_ENABLE=true` and restart the server.
+Refer to [Enable OAuth2 Provider](#enable-oauth2-provider).
 
 ### "Invalid redirect_uri"
 
@@ -640,10 +663,11 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 
 ## Limitations
 
-As an experimental feature, the current implementation has limitations:
+The current implementation has these limitations:
 
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
 - No client credentials grant support
+- No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
@@ -652,6 +676,27 @@ client sending one wider than its grant refreshed successfully. It is now
 enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
 refresh token is not consumed, so a client that drops the parameter or asks for
 less recovers without re-authorizing.
+
+Coder now enforces the `scope` an application declared for itself when it self-registered through [Dynamic Client Registration](#dynamic-client-registration).
+This affects only deployments that enabled Dynamic Client Registration and have an application that self-registered with a `scope`.
+Dynamic Client Registration is disabled by default, so if you never enabled it, nothing changes for you.
+Turning it back off does not clear the check: Coder validates the stored `scope` of an existing application whether or not registration is still allowed, so an application that self-registered before you turned the setting off is affected too.
+
+Earlier versions of Coder accepted any `scope` at registration without checking it, and every token for that application had full access.
+Coder now treats the registered `scope` as the list of scopes the application is allowed to request, as described under [Scopes](#scopes).
+Applications that self-registered without a `scope`, and applications created through the web UI or the management API, have no scope list and are not affected; they continue to receive full access.
+
+An affected application fails in the following ways:
+
+- A request for a scope name this deployment does not offer fails with `invalid_scope`.
+- If none of the registered names are offered, every authorization fails, even one that leaves `scope` out.
+- Authorization codes issued before the upgrade fail at the token endpoint with `invalid_grant` until they expire.
+
+For the full error details, refer to ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback) and ["invalid_grant" for a scope the deployment cannot mint](#invalid_grant-for-a-scope-the-deployment-cannot-mint).
+
+To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
+If that token is lost, register the application again.
+A Coder administrator cannot change an application's registered `scope` from the web UI or the management API; only the self-registration path writes that value.
 
 ## Standards Compliance
 
@@ -673,4 +718,4 @@ pages.
 
 ## Feedback
 
-This is an experimental feature under active development. Please report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
+Report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.

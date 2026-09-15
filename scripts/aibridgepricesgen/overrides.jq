@@ -62,6 +62,31 @@ end
     }
   end
 
+# Copilot does not charge for background utility calls using GPT-4o mini,
+# GPT-4o, or GPT-4.1, so record zero prices for these models.
+# Ref: https://docs.github.com/en/copilot/concepts/models/utility-models#list-of-utility-models
+#
+# Keep GPT-5.4 nano's upstream rates: utility calls are unbilled, but other
+# usage has published prices. The model ID alone cannot distinguish them.
+# Ref: https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing#openai
+| if (has("github-copilot") | not) then
+    error("overrides.jq: github-copilot missing upstream; update the utility model overrides")
+  else
+    reduce [
+      {id: "gpt-4o-mini", name: "GPT-4o mini"},
+      {id: "gpt-4o", name: "GPT-4o"},
+      {id: "gpt-4.1", name: "GPT-4.1"}
+    ][] as $model (.;
+      if (."github-copilot".models | has($model.id)) then
+        error("overrides.jq: github-copilot/\($model.id) now present upstream; review and drop the injection")
+      else
+        ."github-copilot".models[$model.id] = (
+          $model | .cost = {input: 0, output: 0, cache_read: 0, cache_write: 0}
+        )
+      end
+    )
+  end
+
 # Mapping of provider names on models.dev to our own names
 # Ref. table definition for ai_provider_type
 # amazon-bedrock -> bedrock

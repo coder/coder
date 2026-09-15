@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/wsrelated"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -51,7 +52,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, allLatestBuildRelated())
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -190,7 +191,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, workspaceBuilds, allLatestBuildRelated())
+	data, err := api.workspaceBuildsData(ctx, workspaceBuilds, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -281,7 +282,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, allLatestBuildRelated())
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -1117,7 +1118,7 @@ type workspaceBuildsData struct {
 // computed with window functions over pending jobs and provisioner daemons and
 // are comparatively expensive. Otherwise, it uses the cheaper
 // GetProvisionerJobsByIDs and leaves QueuePosition and QueueSize zero.
-func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cfg jobRelated) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cfg wsrelated.Job) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	if cfg.QueuePosition {
 		return api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
 			IDs:             jobIDs,
@@ -1140,7 +1141,7 @@ func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cf
 	return jobs, nil
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild, cfg latestBuildRelated) (workspaceBuildsData, error) {
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild, cfg wsrelated.LatestBuild) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
@@ -1290,7 +1291,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}
 
 	var statuses []database.WorkspaceAppStatus
-	if cfg.appStatuses() {
+	if cfg.AppStatuses() {
 		appIDs := make([]uuid.UUID, 0)
 		for _, app := range apps {
 			appIDs = append(appIDs, app.ID)

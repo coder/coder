@@ -2167,50 +2167,6 @@ func AIBridgeModelThought(t testing.TB, db database.Store, seed database.InsertA
 	return thought
 }
 
-func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Task {
-	t.Helper()
-
-	parameters := orig.TemplateParameters
-	if parameters == nil {
-		parameters = json.RawMessage([]byte("{}"))
-	}
-
-	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
-		ID:                 takeFirst(orig.ID, uuid.New()),
-		OrganizationID:     orig.OrganizationID,
-		OwnerID:            orig.OwnerID,
-		Name:               takeFirst(orig.Name, testutil.GetRandomNameHyphenated(t)),
-		DisplayName:        takeFirst(orig.DisplayName, testutil.GetRandomNameHyphenated(t)),
-		WorkspaceID:        orig.WorkspaceID,
-		TemplateVersionID:  orig.TemplateVersionID,
-		TemplateParameters: parameters,
-		Prompt:             orig.Prompt,
-		CreatedAt:          takeFirst(orig.CreatedAt, dbtime.Now()),
-	})
-	require.NoError(t, err, "failed to insert task")
-
-	// Return the Task from the view instead of the TaskTable
-	fetched, err := db.GetTaskByID(genCtx, task.ID)
-	require.NoError(t, err, "failed to fetch task")
-	require.Equal(t, task.ID, fetched.ID)
-
-	return fetched
-}
-
-func TaskWorkspaceApp(t testing.TB, db database.Store, orig database.TaskWorkspaceApp) database.TaskWorkspaceApp {
-	t.Helper()
-
-	app, err := db.UpsertTaskWorkspaceApp(genCtx, database.UpsertTaskWorkspaceAppParams{
-		TaskID:               orig.TaskID,
-		WorkspaceBuildNumber: orig.WorkspaceBuildNumber,
-		WorkspaceAgentID:     orig.WorkspaceAgentID,
-		WorkspaceAppID:       orig.WorkspaceAppID,
-	})
-	require.NoError(t, err, "failed to upsert task workspace app")
-
-	return app
-}
-
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
 	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
 		JobID:     takeFirst(seed.JobID, uuid.New()),

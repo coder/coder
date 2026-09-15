@@ -128,10 +128,6 @@ const (
 	ScopeTailnetCoordinatorDelete            ScopeName = "tailnet_coordinator:delete"
 	ScopeTailnetCoordinatorRead              ScopeName = "tailnet_coordinator:read"
 	ScopeTailnetCoordinatorUpdate            ScopeName = "tailnet_coordinator:update"
-	ScopeTaskCreate                          ScopeName = "task:create"
-	ScopeTaskDelete                          ScopeName = "task:delete"
-	ScopeTaskRead                            ScopeName = "task:read"
-	ScopeTaskUpdate                          ScopeName = "task:update"
 	ScopeTemplateCreate                      ScopeName = "template:create"
 	ScopeTemplateDelete                      ScopeName = "template:delete"
 	ScopeTemplateRead                        ScopeName = "template:read"
@@ -326,10 +322,6 @@ func (e ScopeName) Valid() bool {
 		ScopeTailnetCoordinatorDelete,
 		ScopeTailnetCoordinatorRead,
 		ScopeTailnetCoordinatorUpdate,
-		ScopeTaskCreate,
-		ScopeTaskDelete,
-		ScopeTaskRead,
-		ScopeTaskUpdate,
 		ScopeTemplateCreate,
 		ScopeTemplateDelete,
 		ScopeTemplateRead,
@@ -525,10 +517,6 @@ func AllScopeNameValues() []ScopeName {
 		ScopeTailnetCoordinatorDelete,
 		ScopeTailnetCoordinatorRead,
 		ScopeTailnetCoordinatorUpdate,
-		ScopeTaskCreate,
-		ScopeTaskDelete,
-		ScopeTaskRead,
-		ScopeTaskUpdate,
 		ScopeTemplateCreate,
 		ScopeTemplateDelete,
 		ScopeTemplateRead,
