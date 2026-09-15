@@ -332,8 +332,8 @@ func (server *Server) ContextResources(
 //     body-specific fields are empty.
 //
 // OK-but-empty instruction files, OK skills with no name, and untracked kinds
-// (reserved plugin/hook/subagent/command) are skipped. Input order (source ASC
-// from the query) is preserved.
+// (plugin, and the reserved hook/subagent/command) are skipped. Input order
+// (source ASC from the query) is preserved.
 func pinnedContextResources(resources []database.ChatContextResource) []codersdk.ChatContextResource {
 	var out []codersdk.ChatContextResource
 	for _, r := range resources {
@@ -399,8 +399,8 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 }
 
 // contextResourceKind maps a database body kind to the codersdk kind reported
-// on the chat. ok is false only for kinds chatd does not track yet (the
-// reserved plugin/hook/subagent/command kinds), which are omitted from the
+// on the chat. ok is false only for kinds chatd does not track yet (plugin,
+// and the reserved hook/subagent/command kinds), which are omitted from the
 // resource list.
 func contextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.ChatContextResourceKind, bool) {
 	switch kind {

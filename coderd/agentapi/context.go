@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"math"
+	"slices"
 	"sort"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
@@ -75,6 +78,10 @@ type ContextAPI struct {
 	// deployment-wide kill switch for context sync write load
 	// (CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC).
 	Disabled bool
+	// Experiments gates Agent Plugins data. With agent-plugins disabled,
+	// plugin resources and resources with a plugin_name are dropped
+	// before storing; the aggregate hash is stored as sent.
+	Experiments codersdk.Experiments
 }
 
 // ContextDirtyMarker hydrates chats from, and marks chats dirty against, a
@@ -126,7 +133,11 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		return nil, err
 	}
 
-	rows, err := validateAndConvertContextResources(req.Resources)
+	resources := req.Resources
+	if !a.Experiments.Enabled(codersdk.ExperimentAgentPlugins) {
+		resources = withoutPluginResources(resources)
+	}
+	rows, err := validateAndConvertContextResources(resources)
 	if err != nil {
 		return nil, err
 	}
@@ -277,8 +288,8 @@ func validateContextPushRequest(req *agentproto.PushContextStateRequest) error {
 //
 //   - empty, oversized, or duplicate sources (the PK depends on
 //     uniqueness and indexes the source column),
-//   - unknown body variants (kept extensible by emitting the proto's
-//     reserved kinds via dedicated body messages),
+//   - unknown body variants,
+//   - plugin names that fail workspacesdk.ValidatePluginName,
 //   - unknown status enum values,
 //   - per-resource and aggregate body sizes past the server caps.
 //
@@ -320,6 +331,9 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource)
 			return nil, xerrors.Errorf("resource %q: size %d exceeds int64 range", r.Source, r.SizeBytes)
 		}
 
+		if err := validateContextPluginName(r); err != nil {
+			return nil, xerrors.Errorf("resource %q: %w", r.Source, err)
+		}
 		kind, body, err := marshalContextResourceBody(r)
 		if err != nil {
 			return nil, xerrors.Errorf("resource %q: %w", r.Source, err)
@@ -350,6 +364,49 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource)
 		})
 	}
 	return rows, nil
+}
+
+// contextPluginName returns the plugin name carried by r: the manifest
+// name for a plugin resource, or plugin_name for a skill or MCP server.
+func contextPluginName(r *agentproto.ContextResource) string {
+	switch b := r.Body.(type) {
+	case *agentproto.ContextResource_Plugin:
+		return b.Plugin.GetName()
+	case *agentproto.ContextResource_Skill:
+		return b.Skill.GetPluginName()
+	case *agentproto.ContextResource_McpServer:
+		return b.McpServer.GetPluginName()
+	default:
+		return ""
+	}
+}
+
+// validateContextPluginName rejects a non-empty plugin name that is not
+// a valid Agent Plugin name. Plugin resources with a non-OK status may
+// carry an empty name.
+func validateContextPluginName(r *agentproto.ContextResource) error {
+	name := contextPluginName(r)
+	if name == "" {
+		return nil
+	}
+	return workspacesdk.ValidatePluginName(name)
+}
+
+// withoutPluginResources returns resources without plugin resources and
+// without resources that carry a plugin name. It does not modify the
+// input slice.
+func withoutPluginResources(resources []*agentproto.ContextResource) []*agentproto.ContextResource {
+	isPlugin := func(r *agentproto.ContextResource) bool {
+		if r == nil {
+			return false
+		}
+		_, ok := r.Body.(*agentproto.ContextResource_Plugin)
+		return ok || contextPluginName(r) != ""
+	}
+	if !slices.ContainsFunc(resources, isPlugin) {
+		return resources
+	}
+	return slices.DeleteFunc(slices.Clone(resources), isPlugin)
 }
 
 // marshalContextResourceBody picks the body variant set on the wire
@@ -393,6 +450,13 @@ func marshalContextResourceBody(r *agentproto.ContextResource) (kind database.Wo
 		}
 		body, err = marshalBody(payload)
 		return database.WorkspaceAgentContextBodyKindMcpServer, body, err
+	case *agentproto.ContextResource_Plugin:
+		payload := b.Plugin
+		if payload == nil {
+			payload = &agentproto.PluginBody{}
+		}
+		body, err = marshalBody(payload)
+		return database.WorkspaceAgentContextBodyKindPlugin, body, err
 	case nil:
 		return "", nil, xerrors.Errorf("missing body variant; status %s requires a typed body", r.Status)
 	default:

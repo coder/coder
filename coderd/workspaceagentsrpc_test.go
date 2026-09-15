@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -268,6 +269,38 @@ func TestWorkspaceAgentRPCUserSecretFilePathDisabled(t *testing.T) {
 		"ENV_ONLY":    []byte("env-value"),
 		"DUAL_TARGET": []byte("dual-value"),
 	}, byEnv)
+}
+
+func TestWorkspaceAgentRPCPluginsSupported(t *testing.T) {
+	t.Parallel()
+
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Enabled=%t", enabled), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				if enabled {
+					dv.Experiments = []string{string(codersdk.ExperimentAgentPlugins)}
+				}
+			})
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
+			owner := coderdtest.CreateFirstUser(t, client)
+			workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        owner.UserID,
+			}).WithAgent().Do()
+
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+			conn, err := agentClient.ConnectRPC(ctx)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			manifest, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+			require.NoError(t, err)
+			require.Equal(t, enabled, manifest.GetPluginsSupported())
+		})
+	}
 }
 
 func TestWorkspaceAgentRPCRole(t *testing.T) {

@@ -839,8 +839,7 @@ const (
 	// populated from the MCP runner's snapshot after the server
 	// has been connected.
 	KindMCPServer
-	// KindPlugin is reserved for Claude Code plugin manifests.
-	// Not emitted by v1.
+	// KindPlugin is an Agent Plugins manifest. Not emitted by v1.
 	KindPlugin
 	// KindHook is reserved for plugin hooks. Not emitted by v1.
 	KindHook

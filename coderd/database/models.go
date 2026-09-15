@@ -5454,9 +5454,9 @@ type ChatAutomation struct {
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
 type ChatContextResource struct {
 	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-	// Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.
+	// Resource locator: canonical file path for file-backed kinds, canonical plugin root directory for plugin resources, the MCP server name for mcp_server resources, or <plugin_name>/<server_name> for servers a plugin declares.
 	Source string `db:"source" json:"source"`
-	// Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.
+	// Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server, plugin (an Agent Plugins plugin.json manifest). HOOK/SUBAGENT/COMMAND are reserved.
 	BodyKind WorkspaceAgentContextBodyKind `db:"body_kind" json:"body_kind"`
 	// protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.
 	Body json.RawMessage `db:"body" json:"body"`
@@ -6870,9 +6870,9 @@ type WorkspaceAgent struct {
 // Per-resource state for the latest pushed workspace agent context snapshot.
 type WorkspaceAgentContextResource struct {
 	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	// Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.
+	// Resource locator: canonical file path for file-backed kinds, canonical plugin root directory for plugin resources, the MCP server name for mcp_server resources, or <plugin_name>/<server_name> for servers a plugin declares.
 	Source string `db:"source" json:"source"`
-	// Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.
+	// Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server, plugin (an Agent Plugins plugin.json manifest). HOOK/SUBAGENT/COMMAND are reserved.
 	BodyKind WorkspaceAgentContextBodyKind `db:"body_kind" json:"body_kind"`
 	// protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.
 	Body json.RawMessage `db:"body" json:"body"`

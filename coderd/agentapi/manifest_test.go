@@ -326,6 +326,7 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceID: workspace.ID,
 			Database:    mDB,
 			DerpMapFn:   derpMapFn,
+			Experiments: codersdk.Experiments{codersdk.ExperimentAgentPlugins},
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil)
@@ -364,6 +365,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			PluginsSupported: true,
 		}
 
 		// Log got and expected with spew.
