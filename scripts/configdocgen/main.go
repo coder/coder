@@ -328,11 +328,17 @@ func renderOption(b *strings.Builder, opt option, level int) {
 
 	if opt.typeName != "" {
 		_, _ = fmt.Fprintf(b, "- Type: `%s`", opt.typeName)
-		switch len(opt.typeChoices) {
-		case 1:
-			_, _ = fmt.Fprintf(b, ", must be %s", codeList(opt.typeChoices))
-		default:
-			if len(opt.typeChoices) > 1 {
+		switch {
+		case len(opt.typeChoices) == 1:
+			if opt.typeName == "enum-array" {
+				_, _ = fmt.Fprintf(b, ", each value must be %s", codeList(opt.typeChoices))
+			} else {
+				_, _ = fmt.Fprintf(b, ", must be %s", codeList(opt.typeChoices))
+			}
+		case len(opt.typeChoices) > 1:
+			if opt.typeName == "enum-array" {
+				_, _ = fmt.Fprintf(b, ", each value must be one of %s", codeList(opt.typeChoices))
+			} else {
 				_, _ = fmt.Fprintf(b, ", one of %s", codeList(opt.typeChoices))
 			}
 		}
@@ -350,7 +356,7 @@ func renderOption(b *strings.Builder, opt option, level int) {
 	if opt.defValue != "" {
 		_, _ = fmt.Fprintf(b, "- Default value: `%s`\n", opt.defValue)
 	}
-	if opt.secret && opt.yaml == "" {
+	if opt.secret && opt.env != "" && opt.yaml == "" {
 		_, _ = b.WriteString("- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.\n")
 	}
 	_, _ = b.WriteString("\n")

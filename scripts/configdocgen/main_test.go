@@ -277,6 +277,12 @@ func TestValueType(t *testing.T) {
 			"YAML sequence",
 			nil,
 		},
+		{
+			"structured object uses a YAML type",
+			&serpent.Struct[struct{ Name string }]{},
+			"YAML object",
+			nil,
+		},
 		{"nil value has no type", nil, "", nil},
 	}
 	for _, tc := range cases {
@@ -330,17 +336,28 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		Env:         "CODER_BUDGET_PERIOD",
 		Value:       serpent.EnumOf(new(string), "month"),
 	}
+	enumArray := serpent.Option{
+		Name:        "Permissions",
+		Description: "The permissions to grant.",
+		Flag:        "permissions",
+		Env:         "CODER_PERMISSIONS",
+		Value:       serpent.EnumArrayOf(new([]string), "read", "write"),
+	}
 	secretWithYAML := secret
 	secretWithYAML.Name = "Invalid Secret"
 	secretWithYAML.YAML = "invalidSecret"
+	secretWithoutEnv := secret
+	secretWithoutEnv.Name = "Secret Without Environment Variable"
+	secretWithoutEnv.Env = ""
 
-	got := render(buildTree(serpent.OptionSet{secret, plain, enum, singleChoiceEnum, secretWithYAML}))
+	got := render(buildTree(serpent.OptionSet{secret, plain, enum, singleChoiceEnum, enumArray, secretWithYAML, secretWithoutEnv}))
 
 	wantContains := []string{
 		"- Type: `string`",
 		"- Type: `url`",
 		"- Type: `enum`, one of `password`, `awsiamrds`",
 		"- Type: `enum`, must be `month`",
+		"- Type: `enum-array`, each value must be one of `read`, `write`",
 		"- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.",
 	}
 	for _, w := range wantContains {
@@ -349,7 +366,9 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		}
 	}
 
-	// Only an annotated secret without a YAML key carries the marker.
+	// Only an annotated secret with an environment variable and no YAML key
+	// carries the marker, so its reference to the environment variable above is
+	// always accurate.
 	if n := strings.Count(got, "Holds a secret"); n != 1 {
 		t.Errorf("secret marker rendered %d times, want 1", n)
 	}
