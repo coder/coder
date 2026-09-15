@@ -140,6 +140,9 @@ runs:
         if [[ ${RUNNER_OS} == Windows ]]; then
           target="test"
           [[ ${RACE_DETECTION} == true ]] && target=test-race
+          export CODER_TEST_PSMODULEPATH_PRESENT="${PSModulePath+present}"
+          export CODER_TEST_PSMODULEPATH_PRESENT="${CODER_TEST_PSMODULEPATH_PRESENT:-absent}"
+          export CODER_TEST_PSMODULEPATH="${PSModulePath-}"
           pwsh -NoProfile -File .github/scripts/test-with-postgres-diagnostics.ps1 \
             -OutputDirectory "${RUNNER_TEMP}/postgres-diagnostics" \
             -DatabasePath "${EMBEDDED_PG_PATH}" -Target "$target"
