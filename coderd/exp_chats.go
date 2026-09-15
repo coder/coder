@@ -2421,8 +2421,12 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				// states (W, E0, E1) per the chatd RFC; active
 				// chats refuse archive instead of being silently
 				// transitioned to waiting first.
+				message := "Cannot archive an active chat. Interrupt or wait for the chat to finish first."
+				if chat.Status == database.ChatStatusPaused {
+					message = "Cannot archive a paused chat. Finish editing, send, or remove the queued message under edit first."
+				}
 				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-					Message: "Cannot archive an active chat. Interrupt or wait for the chat to finish first.",
+					Message: message,
 					Detail:  err.Error(),
 				})
 				return
