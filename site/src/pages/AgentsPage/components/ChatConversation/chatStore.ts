@@ -54,8 +54,8 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-// Compares identity, order, and the fields a row changes in place, so a
-// queue_update that only sets editing_since or rewrites content is applied.
+// Rows change in place (editing_since, content, model), so identity and
+// order alone are not enough.
 export const chatQueuedMessagesEqual = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
@@ -112,8 +112,7 @@ export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
 ): boolean => status === "running" || status === "interrupting";
 
-// Statuses a turn ends in. A paused chat finished its turn and does not
-// process its queue while the head is under edit.
+// Statuses a turn ends in.
 export const isTurnFinishedChatStatus = (
 	status: TypesGen.ChatStatus | null | undefined,
 ): boolean => status === "waiting" || status === "paused";

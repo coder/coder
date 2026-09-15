@@ -158,11 +158,8 @@ interface AgentChatInputProps {
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	onEditQueuedMessage?: (id: number) => Promise<void> | void;
 	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
-	// A paused chat finished its turn with the queue head under edit; a
-	// send queues behind it.
 	isChatPaused?: boolean;
-	// Editing state, owned by the parent. Undefined means the composer
-	// is composing a new message.
+	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
 	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.

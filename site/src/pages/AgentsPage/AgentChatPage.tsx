@@ -615,9 +615,8 @@ const AgentChatPage: FC = () => {
 			onError: handleRequestError,
 		});
 
-	// A 404 means the row was already sent or removed. The store drops it
-	// on the spot, which is how the composer learns its edit target is gone
-	// without waiting for a queue_update.
+	// A 404 means the row was sent or removed; drop it locally rather than
+	// wait for a queue_update.
 	const patchQueuedMessage = async (
 		id: number,
 		req: TypesGen.EditChatQueuedMessageRequest,
@@ -670,8 +669,6 @@ const AgentChatPage: FC = () => {
 		}
 	}, [queuedEditTargetID, queuedEditRow, editing.leaveEdit]);
 
-	// Leaving a queued edit for a history edit or cancel ends it on the
-	// server first. When that fails the composer stays where it is.
 	const endQueuedEditBeforeLeaving = async (): Promise<boolean> => {
 		if (queuedEditTargetID === null) {
 			return true;

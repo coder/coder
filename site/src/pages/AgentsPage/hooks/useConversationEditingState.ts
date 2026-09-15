@@ -113,8 +113,8 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Leaves edit mode without restoring the pre-edit draft; the composer
-	// text stays as the new draft.
+	// Leaves edit mode keeping the composer text instead of the pre-edit
+	// draft.
 	const leaveEdit = () => {
 		setEditingTarget(null);
 		setEditingFileBlocks([]);
@@ -187,8 +187,8 @@ export function useConversationEditingState(deps: {
 		}
 
 		if (target?.kind === "queued") {
-			// The queued row stays in the queue, so the draft the user
-			// had before editing it is still wanted.
+			// Unlike a history edit, a saved queued row does not start a
+			// turn, so the pre-edit draft comes back.
 			restoreDraftBeforeEdit();
 			if (!isMobileViewport()) {
 				chatInputRef.current?.focus();
