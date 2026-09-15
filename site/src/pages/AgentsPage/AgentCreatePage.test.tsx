@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
@@ -14,6 +14,7 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockEntitlements,
+	MockOrganization,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
@@ -63,9 +64,28 @@ vi.mock("#/contexts/useWebpushNotifications", () => ({
 	useWebpushNotifications: () => ({ subscribed: false }),
 }));
 
+const LocationDisplay: FC = () => {
+	const location = useLocation();
+	return <output>{location.search}</output>;
+};
+
+const AgentCreatePageWithLocation: FC = () => (
+	<>
+		<AgentCreatePage />
+		<LocationDisplay />
+	</>
+);
+
 const Wrapper: FC<
-	PropsWithChildren<{ experiments: TypesGen.Experiment[] }>
-> = ({ children, experiments }) => {
+	PropsWithChildren<{
+		experiments: TypesGen.Experiment[];
+		initialEntry?: string;
+	}>
+> = ({
+	children,
+	experiments,
+	initialEntry = `/agents?project=${MockChatProject.id}`,
+}) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -80,9 +100,7 @@ const Wrapper: FC<
 					canViewOrganizationSettings: false,
 				}}
 			>
-				<MemoryRouter
-					initialEntries={[`/agents?project=${MockChatProject.id}`]}
-				>
+				<MemoryRouter initialEntries={[initialEntry]}>
 					<Routes>
 						<Route path="/agents" element={children} />
 						<Route path="/agents/:agentId" element={<div />} />
@@ -98,11 +116,17 @@ afterEach(() => server.resetHandlers());
 describe("AgentCreatePage project assignment", () => {
 	it("includes the selected project ID when chat projects are enabled", async () => {
 		const user = userEvent.setup();
+		const nonDefaultProject = {
+			...MockChatProject,
+			organization_id: MockOrganization.id,
+		};
+		let projectRequested = false;
 		let requestBody: unknown;
 		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
+			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () => {
+				projectRequested = true;
+				return HttpResponse.json(nonDefaultProject);
+			}),
 			http.post("/api/v2/chats", async ({ request }) => {
 				requestBody = await request.json();
 				return HttpResponse.json({ ...MockChat, id: "created-chat" });
@@ -115,12 +139,18 @@ describe("AgentCreatePage project assignment", () => {
 			</Wrapper>,
 		);
 
+		await waitFor(() => {
+			expect(projectRequested).toBe(true);
+		});
 		await user.click(
 			await screen.findByRole("button", { name: "Create chat" }),
 		);
 
 		await waitFor(() => {
-			expect(requestBody).toMatchObject({ project_id: MockChatProject.id });
+			expect(requestBody).toMatchObject({
+				organization_id: MockOrganization.id,
+				project_id: MockChatProject.id,
+			});
 		});
 	});
 
@@ -146,5 +176,25 @@ describe("AgentCreatePage project assignment", () => {
 			expect(requestBody).toBeDefined();
 		});
 		expect(requestBody).not.toHaveProperty("project_id");
+	});
+
+	it("removes an unavailable project from the URL", async () => {
+		server.use(
+			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
+				HttpResponse.json({ message: "Not found." }, { status: 404 }),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePageWithLocation />
+			</Wrapper>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("", { selector: "output" })).toHaveTextContent(
+				"",
+			);
+		});
 	});
 });

@@ -44,6 +44,10 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	require.Len(t, projects, 1)
 	require.EqualValues(t, 1, projects[0].ChatCount)
 
+	fetched, err := client.GetChatProject(ctx, project.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, fetched.ChatCount)
+
 	updatedName := "Renamed Project"
 	updatedDescription := "Updated description"
 	updated, err := client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{
@@ -53,6 +57,7 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, updatedName, updated.Name)
 	require.Equal(t, updatedDescription, updated.Description)
+	require.EqualValues(t, 1, updated.ChatCount)
 
 	_, err = client.CreateChatProject(ctx, codersdk.CreateChatProjectRequest{
 		OrganizationID: firstUser.OrganizationID,

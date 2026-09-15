@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -129,7 +130,15 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(project))
+	response, err := api.chatProjectResponse(ctx, project)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat project.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // @Summary Update chat project
@@ -195,7 +204,28 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = updated
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(updated))
+	response, err := api.chatProjectResponse(ctx, updated)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get updated chat project.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+func (api *API) chatProjectResponse(ctx context.Context, project database.ChatProject) (codersdk.ChatProject, error) {
+	projects, err := api.Database.GetChatProjectsByOrganizationID(ctx, project.OrganizationID)
+	if err != nil {
+		return codersdk.ChatProject{}, err
+	}
+	for _, row := range projects {
+		if row.ChatProject.ID == project.ID {
+			return db2sdk.ChatProjectRow(row), nil
+		}
+	}
+	return db2sdk.ChatProject(project), nil
 }
 
 // @Summary Delete chat project

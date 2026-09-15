@@ -43,6 +43,7 @@ const AgentProjectPage: FC = () => {
 				newChatPath={`/agents?project=${encodeURIComponent(projectId)}`}
 			/>
 			<ChatProjectDialog
+				key={projectQuery.data?.id ?? (isEditing ? "new" : "closed")}
 				organizationId={projectQuery.data?.organization_id ?? ""}
 				project={projectQuery.data}
 				open={isEditing}

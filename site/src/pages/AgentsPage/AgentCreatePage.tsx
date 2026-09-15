@@ -3,8 +3,8 @@ import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
-import { chatProjects } from "#/api/queries/chatProjects";
+import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProject } from "#/api/queries/chatProjects";
 import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -32,17 +32,13 @@ const AgentCreatePage: FC = () => {
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
-	const { experiments, organizations } = useDashboard();
-	const defaultOrganizationId =
-		organizations.find((organization) => organization.is_default)?.id ?? "";
+	const { experiments } = useDashboard();
 	const projectId = searchParams.get("project") ?? "";
 	const projectQuery = useQuery({
-		...chatProjects(defaultOrganizationId),
+		...chatProject(projectId),
 		enabled: experiments.includes("chat-projects") && Boolean(projectId),
 	});
-	const selectedProject = projectQuery.data?.find(
-		(project) => project.id === projectId,
-	);
+	const selectedProject = projectQuery.data;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -53,8 +49,8 @@ const AgentCreatePage: FC = () => {
 		if (
 			!projectId ||
 			!experiments.includes("chat-projects") ||
-			!projectQuery.isSuccess ||
-			selectedProject
+			!isApiError(projectQuery.error) ||
+			projectQuery.error.response.status !== 404
 		) {
 			return;
 		}
@@ -64,9 +60,8 @@ const AgentCreatePage: FC = () => {
 	}, [
 		experiments,
 		projectId,
-		projectQuery.isSuccess,
+		projectQuery.error,
 		searchParams,
-		selectedProject,
 		setSearchParams,
 	]);
 
@@ -90,7 +85,7 @@ const AgentCreatePage: FC = () => {
 			}
 		}
 		const createRequest: TypesGen.CreateChatRequest = {
-			organization_id: organizationId,
+			organization_id: selectedProject?.organization_id ?? organizationId,
 			content,
 			workspace_id: workspaceId,
 			mcp_server_ids:
@@ -99,9 +94,7 @@ const AgentCreatePage: FC = () => {
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-			...(selectedProject?.organization_id === organizationId
-				? { project_id: selectedProject.id }
-				: {}),
+			...(selectedProject ? { project_id: selectedProject.id } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
