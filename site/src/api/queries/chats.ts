@@ -1899,7 +1899,7 @@ export const editChatQueuedMessage = (
 		queuedMessageId: number;
 		req: TypesGen.EditChatQueuedMessageRequest;
 	}) => API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
-	// Invalidate on failure too: a 404 means the local queue is stale.
+	// A 404 means the local queue is stale.
 	onSettled: async () => {
 		await invalidateChatEntity(queryClient, chatId);
 		await invalidateChatMessages(queryClient, chatId);

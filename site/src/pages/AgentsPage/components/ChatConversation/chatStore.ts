@@ -54,8 +54,7 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-// Rows change in place (editing_since, content, model), so identity and
-// order alone are not enough.
+// Rows change in place, so editing_since, content and model are compared.
 export const chatQueuedMessagesEqual = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
