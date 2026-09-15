@@ -7967,9 +7967,9 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats_expanded
 WHERE agent_id = $1::uuid
     AND archived = false
-    -- Active statuses only: waiting, paused, running, requires_action.
+    -- Active statuses only: waiting, running, requires_action, paused.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'paused', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC
 `
 
@@ -11522,7 +11522,7 @@ UPDATE chats
 SET context_dirty_since = $1
 WHERE agent_id = $2::uuid
     AND archived = false
-    AND status IN ('waiting', 'paused', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM $3
     AND context_dirty_since IS NULL
