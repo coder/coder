@@ -458,6 +458,50 @@ func TestAIGatewayModelBedrockInferredOpenAIDefaultsToResponses(t *testing.T) {
 	require.Equal(t, "/v1/responses", <-paths)
 }
 
+func TestAIGatewayModelBedrockReasoningModelOverride(t *testing.T) {
+	t.Parallel()
+
+	bodies := make(chan []byte, 1)
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		bodyBytes, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		bodies <- bodyBytes
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"openai.brand-new-model","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		if strings.HasSuffix(req.URL.Path, "/chat/completions") {
+			body = `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"openai.brand-new-model","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+	provider := aibridgeTestAIProvider(uuid.New(), "primary-bedrock", database.AIProviderTypeBedrock)
+	route := newAIGatewayModelRoute(provider, string(provider.Type), aiGatewayProviderAuth{})
+	req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "openai.brand-new-model")
+	req.CallConfig = codersdk.ChatModelCallConfig{
+		OpenAIConfig:    &codersdk.ChatModelOpenAIConfig{ReasoningModel: new(true)},
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{Default: new(codersdk.ChatModelReasoningEffortHigh), Max: new(codersdk.ChatModelReasoningEffortHigh)},
+	}
+	model, err := server.newModel(t.Context(), req, route, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	require.NoError(t, err)
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Temperature: new(0.7), TopP: new(0.9), ProviderOptions: chatprovider.ProviderOptionsForCall(model, req.CallConfig, nil), Prompt: []fantasy.Message{{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+	}}})
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(<-bodies, &body))
+	require.Equal(t, map[string]any{"effort": "high"}, body["reasoning"])
+	require.NotContains(t, body, "temperature")
+	require.NotContains(t, body, "top_p")
+}
+
 func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 	t.Parallel()
 

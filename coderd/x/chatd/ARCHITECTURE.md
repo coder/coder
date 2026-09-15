@@ -915,7 +915,11 @@ During generation preparation, the effective effort is resolved as the chat's `l
 
 OpenAI models speak either the Responses API or Chat Completions. The provider SDK picks per model from a static known-model list, so a newly released model absent from that list falls back to Chat Completions. Model configs may override the choice with `openai_config.use_responses_api` inside `chat_model_configs.options`: unset keeps the known-model list, true forces Responses, false forces Chat Completions. It sits in `openai_config` rather than `provider_options.openai` because it is applied once when the client is built, while `provider_options` holds per-request parameters.
 
+TODO: document `openai_config.reasoning_model`: a tri-state override of whether the OpenAI client treats the model as a reasoning model (true sends reasoning effort and summary and drops temperature and top_p, false forces plain sampling, unset keeps fantasy's model-name heuristics), applied once at client construction through fantasy's `WithReasoningModelFunc`, visible for openai and bedrock providers because Bedrock also serves OpenAI-format models, and ignored for Anthropic models on Bedrock.
+
 `chatopenai.UsesResponsesAPI` owns the unset-override decision for both the client (`WithResponsesAPIFunc`) and `TransportFor`. When the override is nil it consults the SDK's known-model list, except that GPT-6 Astra defaults to Responses because its function calling is Responses-only.
+
+TODO: update the sentence above: this change removes the `IsGPT6Astra` fallback from `chatopenai.UsesResponsesAPI` because the bumped SDK recognizes gpt-6 and later generations itself, so the nil-override path now consults only the SDK known-model list (`IsGPT6Astra` remains only for the effort clamp).
 
 The transport is resolved exactly once, when the client is built, and carried on `chatprovider.Model` as a `chatopenai.Transport`. `Model` wraps the fantasy client with that resolved fact; its fields are unexported and only its constructor sets the transport, deriving it from the client, so no caller can pick a transport that disagrees with the client. `TransportInvalid` is the zero value and panics when read rather than defaulting to a wire format. A nil client yields that invalid zero value, which the construction path reports as an error.
 
