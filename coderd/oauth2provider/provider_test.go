@@ -152,6 +152,9 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 	t.Run("CallbackURLSchemes", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		tests := []struct {
 			name        string
 			callbackURL string
@@ -172,8 +175,6 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
-				client := coderdtest.New(t, nil)
-				_ = coderdtest.CreateFirstUser(t, client)
 				ctx := testutil.Context(t, testutil.WaitLong)
 				app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
 					Name:        testutil.GetRandomName(t),

@@ -84,8 +84,6 @@ func init() {
 		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
 			return false
 		}
-		// http(s) callback URLs must include a host; custom native-app schemes
-		// (e.g. vscode://) may be opaque.
 		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
 			return false
 		}

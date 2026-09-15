@@ -52,7 +52,7 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 		}
 		if (
 			(url.protocol === "http:" || url.protocol === "https:") &&
-			(!url.host || !/^https?:\/\/[^/\\\s]/i.test(value))
+			!/^https?:\/\/[^/\\\s]/i.test(value)
 		) {
 			return false;
 		}
@@ -74,10 +74,8 @@ const validationSchema = Yup.object({
 	callback_url: Yup.string()
 		.trim()
 		.required("Please enter a callback URL.")
-		.test(
-			"valid-callback-url",
-			"Please enter a valid callback URL with an allowed scheme.",
-			(value) => isValidCallbackURL(value),
+		.test("valid-callback-url", "Please enter a valid callback URL.", (value) =>
+			isValidCallbackURL(value),
 		),
 	icon: iconValidator,
 });
