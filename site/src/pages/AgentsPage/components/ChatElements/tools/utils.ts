@@ -257,7 +257,8 @@ export type MediaToolResult = {
 
 /**
  * Parses a tool result the server flagged with is_media. The server
- * persists such results as {data, mime_type, text}.
+ * persists such results as {data, mime_type, text}, keeping the MIME type
+ * exactly as the tool sent it, so it is normalized to a lowercase base type.
  */
 export const parseMediaToolResult = (
 	result: unknown,
@@ -270,7 +271,8 @@ export const parseMediaToolResult = (
 	) {
 		return null;
 	}
-	return { data: rec.data, mimeType: rec.mime_type, text: asString(rec.text) };
+	const mimeType = rec.mime_type.split(";")[0].trim().toLowerCase();
+	return { data: rec.data, mimeType, text: asString(rec.text) };
 };
 
 export const formatResultOutput = (result: unknown): string | null => {
