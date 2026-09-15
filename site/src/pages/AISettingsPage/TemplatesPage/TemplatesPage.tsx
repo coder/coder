@@ -6,10 +6,10 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { templates, updateTemplateMeta } from "#/api/queries/templates";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useFilter } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { useTemplatesFilter } from "#/pages/TemplatesPage/TemplatesFilter";
 import { pageTitle } from "#/utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
@@ -33,13 +33,12 @@ const TemplatesPage: FC = () => {
 			.map((organization) => organization.id),
 	);
 	const [searchParams, setSearchParams] = useSearchParams();
-	const filterState = useTemplatesFilter({
+	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		enabled: canManageTemplates,
 	});
 	const templatesQuery = useQuery({
-		...templates({ q: filterState.filter.query }),
+		...templates({ q: filter.query }),
 		enabled: canManageTemplates && organizationPermissionsQuery.isSuccess,
 	});
 	const authorizedTemplates = templatesQuery.data?.filter((template) =>
@@ -86,7 +85,7 @@ const TemplatesPage: FC = () => {
 			<title>{pageTitle("Templates", "AI Settings")}</title>
 
 			<TemplatesPageView
-				filterState={filterState}
+				filter={filter}
 				templates={authorizedTemplates}
 				isLoading={
 					organizationPermissionsQuery.isLoading || templatesQuery.isLoading

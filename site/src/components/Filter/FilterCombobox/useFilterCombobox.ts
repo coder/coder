@@ -151,6 +151,7 @@ type UseFilterComboboxOptions = {
 	categories: readonly FilterCategory[];
 	getSearchResults?: (query: string) => Promise<SearchResult[]>;
 	onSearchResultSelect?: (result: SearchResult) => void;
+	searchResultsErrorMessage?: string;
 };
 
 /**
@@ -166,6 +167,7 @@ export const useFilterCombobox = ({
 	categories,
 	getSearchResults,
 	onSearchResultSelect,
+	searchResultsErrorMessage = "Couldn't load workspace previews.",
 }: UseFilterComboboxOptions) => {
 	const chipKeys = useMemo(
 		() => categories.flatMap((category) => category.chipKeys ?? [category.key]),
@@ -398,7 +400,7 @@ export const useFilterCombobox = ({
 		suggestionsError && previewError
 			? "Couldn't load results."
 			: previewError
-				? "Couldn't load workspace previews."
+				? searchResultsErrorMessage
 				: suggestionsError
 					? "Couldn't load suggestions."
 					: "";
