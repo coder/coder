@@ -5,6 +5,7 @@ import {
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	LockIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -12,11 +13,11 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
 import {
-	type ComponentProps,
 	type FC,
 	useEffect,
 	useImperativeHandle,
@@ -51,6 +52,7 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
@@ -91,7 +93,6 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
-import { MCPServerToggleList } from "./MCPServerToggleList";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -661,15 +662,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		: false;
 
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
-	const mcpServerListProps: ComponentProps<typeof MCPServerToggleList> = {
-		servers: enabledMcpServers,
-		selectedServerIds: selectedMCPServerIds,
-		onToggle: handleMcpToggle,
-		onConnect: connectMCPServer,
-		connectingServerId: mcpConnectingId,
-		onDisconnect: setMcpDisconnectTarget,
-		isDisabled,
-	};
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
 			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
@@ -1447,13 +1439,94 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										{enabledMcpServers.length > 0 && (
 											<>
 												<Separator className="my-1" />
-												<MCPServerToggleList
-													{...mcpServerListProps}
-													onDisconnect={(server) => {
-														setPlusMenuOpen(false);
-														mcpServerListProps.onDisconnect(server);
-													}}
-												/>
+												{enabledMcpServers.map((server) => {
+													const isForceOn = server.availability === "force_on";
+													const isSelected =
+														isForceOn ||
+														(selectedMCPServerIds?.includes(server.id) ??
+															false);
+													const needsAuth =
+														server.auth_type === "oauth2" &&
+														!server.auth_connected;
+													const isConnecting = mcpConnectingId === server.id;
+													return (
+														<div
+															key={server.id}
+															className="flex items-center gap-1.5 px-1 py-1.5"
+														>
+															{server.icon_url ? (
+																<ExternalImage
+																	src={server.icon_url}
+																	alt=""
+																	className="size-3.5 shrink-0 rounded-sm"
+																/>
+															) : (
+																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+															)}
+															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
+																{server.display_name}
+															</span>
+															{isForceOn && (
+																<LockIcon className="size-3 shrink-0 text-content-secondary" />
+															)}
+															{needsAuth ? (
+																<>
+																	{isForceOn && (
+																		<span className="sr-only">Always on</span>
+																	)}
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																		onClick={() => connectMCPServer(server.id)}
+																		disabled={
+																			isDisabled || mcpConnectingId !== null
+																		}
+																	>
+																		{isConnecting ? (
+																			<Spinner
+																				loading
+																				className="h-2.5 w-2.5"
+																			/>
+																		) : null}
+																		Auth
+																	</Button>
+																</>
+															) : (
+																<>
+																	{server.auth_type === "oauth2" && (
+																		<Button
+																			variant="subtle"
+																			size="icon"
+																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
+																			onClick={() => {
+																				setPlusMenuOpen(false);
+																				setMcpDisconnectTarget(server);
+																			}}
+																			disabled={isDisabled}
+																			aria-label={`Disconnect ${server.display_name}`}
+																		>
+																			<UnlinkIcon />
+																		</Button>
+																	)}
+																	<Switch
+																		size="sm"
+																		checked={isSelected}
+																		onCheckedChange={(checked) =>
+																			handleMcpToggle(server.id, checked)
+																		}
+																		disabled={isDisabled || isForceOn}
+																		aria-label={
+																			isForceOn
+																				? `${server.display_name} always on`
+																				: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
+																		}
+																	/>
+																</>
+															)}
+														</div>
+													);
+												})}
 											</>
 										)}
 									</>
