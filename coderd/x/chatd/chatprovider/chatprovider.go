@@ -110,6 +110,19 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
+// AcceptsToolResultMediaType reports whether provider can carry a tool
+// result media part of mediaType. Anthropic and Bedrock render tool result
+// media as image blocks, so the API rejects every other type; the remaining
+// providers substitute a text placeholder themselves.
+func AcceptsToolResultMediaType(provider, mediaType string) bool {
+	switch NormalizeProvider(provider) {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		return strings.HasPrefix(mediaType, "image/")
+	default:
+		return true
+	}
+}
+
 // AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
 // file content part rather than silently dropping it. Callers replace rejected
 // parts with text, so a false negative costs fidelity while a false positive

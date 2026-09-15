@@ -8,6 +8,31 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestAcceptsToolResultMediaType(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		provider  string
+		mediaType string
+		want      bool
+	}{
+		{provider: "anthropic", mediaType: "image/png", want: true},
+		{provider: "anthropic", mediaType: "audio/mpeg", want: false},
+		{provider: "anthropic", mediaType: "application/pdf", want: false},
+		{provider: "bedrock", mediaType: "audio/mpeg", want: false},
+		{provider: "openai", mediaType: "audio/mpeg", want: true},
+		{provider: "google", mediaType: "application/pdf", want: true},
+	} {
+		t.Run(tc.provider+"/"+tc.mediaType, func(t *testing.T) {
+			t.Parallel()
+			got := chatprovider.AcceptsToolResultMediaType(tc.provider, tc.mediaType)
+			if got != tc.want {
+				t.Fatalf("AcceptsToolResultMediaType(%q, %q) = %v, want %v", tc.provider, tc.mediaType, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAcceptsFilePartMediaType(t *testing.T) {
 	t.Parallel()
 
