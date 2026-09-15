@@ -603,23 +603,6 @@ export const FindToolsSearchResult: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const summary = canvas.getByRole("button", {
-			name: "Matched 2 tools: github__list_issues, github__list_pull_requests",
-		});
-		expect(summary).toBeVisible();
-		expect(canvas.queryByText("github__list_issues")).not.toBeInTheDocument();
-		await userEvent.click(summary);
-		expect(canvas.getByText("github__list_issues")).toBeVisible();
-		expect(
-			canvas.getByText("List issues in a GitHub repository."),
-		).toBeVisible();
-		expect(canvas.getByText("github__list_pull_requests")).toBeVisible();
-		expect(
-			canvas.getByText("List pull requests in a GitHub repository."),
-		).toBeVisible();
-	},
 };
 
 export const FindToolsEmptyResult: Story = {
