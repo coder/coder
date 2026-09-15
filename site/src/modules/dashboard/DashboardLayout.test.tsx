@@ -1,6 +1,8 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import type { RouteObject } from "react-router";
+import type { Entitlements } from "#/api/typesGenerated";
 import {
 	MockEntitlements,
 	MockNoPermissions,
@@ -16,15 +18,19 @@ import { DashboardLayout } from "./DashboardLayout";
 const renderDashboardLayout = async ({
 	actual,
 	entitlement = "entitled",
+	features,
 	limit,
 	permissions = MockPermissions,
 	warnings,
+	children = [{ element: <h1>Test page</h1> }],
 }: {
 	actual?: number;
 	entitlement?: "entitled" | "grace_period" | "not_entitled";
+	features?: Partial<Entitlements["features"]>;
 	limit?: number;
 	permissions?: typeof MockPermissions;
 	warnings?: string[];
+	children?: RouteObject[];
 }) => {
 	server.use(
 		http.get("/api/v2/entitlements", () => {
@@ -41,6 +47,7 @@ const renderDashboardLayout = async ({
 						...(actual !== undefined ? { actual } : {}),
 						...(limit !== undefined ? { limit } : {}),
 					},
+					...features,
 				},
 			});
 		}),
@@ -49,10 +56,9 @@ const renderDashboardLayout = async ({
 		}),
 	);
 
-	renderWithAuth(<DashboardLayout />, {
-		children: [{ element: <h1>Test page</h1> }],
-	});
+	const result = renderWithAuth(<DashboardLayout />, { children });
 	await waitForLoaderToBeRemoved();
+	return result;
 };
 
 test("Show the new Coder version notification", async () => {
@@ -95,6 +101,20 @@ test("shows AI Governance over-limit warning in LicenseBanner for admin users", 
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		),
 	).toBeInTheDocument();
+});
+
+test("navigates a spend-only viewer to AI settings from Admin settings", async () => {
+	const { router } = await renderDashboardLayout({
+		permissions: { ...MockNoPermissions, viewAnyAIBridgeInterception: true },
+		features: { aibridge: { enabled: true, entitlement: "entitled" } },
+		children: [{ path: "/ai/settings", element: <h1>AI settings</h1> }],
+	});
+
+	const user = userEvent.setup();
+	await user.click(screen.getByRole("button", { name: "Admin settings" }));
+	await user.click(await screen.findByRole("menuitem", { name: "AI" }));
+	await screen.findByRole("heading", { name: "AI settings" });
+	expect(router.state.location.pathname).toBe("/ai/settings");
 });
 
 test("renders a skip link before navigation content", async () => {

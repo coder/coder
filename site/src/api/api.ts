@@ -423,6 +423,9 @@ export class ParameterValidationError extends Error {
 	}
 }
 
+type OrganizationAISpendParams = TypesGen.OrganizationAISpendFilter &
+	Pick<TypesGen.Pagination, "limit" | "offset">;
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -3084,6 +3087,25 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
+		return response.data;
+	};
+
+	/**
+	 * The export endpoint serves CSV unless the request asks for JSON, so the
+	 * Accept header is set explicitly rather than relying on Axios defaults.
+	 */
+	getOrganizationAISpend = async (
+		organizationId: string,
+		params: OrganizationAISpendParams,
+	): Promise<TypesGen.OrganizationAISpendReport> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organizationId}/ai/spend/export`,
+			params,
+		);
+		const response = await this.axios.get<TypesGen.OrganizationAISpendReport>(
+			url,
+			{ headers: { Accept: "application/json" } },
+		);
 		return response.data;
 	};
 

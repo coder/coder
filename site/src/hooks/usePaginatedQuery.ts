@@ -152,7 +152,7 @@ export function usePaginatedQuery<
 	const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
 		...extraOptions,
 		...getQueryOptionsFromPage(currentPage),
-		placeholderData: keepPreviousData,
+		placeholderData: extraOptions.placeholderData ?? keepPreviousData,
 	});
 
 	const count = query.data?.count;
@@ -232,7 +232,7 @@ export function usePaginatedQuery<
 			const firstPageOptions = getQueryOptionsFromPage(1);
 			try {
 				const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
-				const rounded = Math.ceil(firstPageResult?.count ?? 0 / limit);
+				const rounded = Math.ceil((firstPageResult?.count ?? 0) / limit);
 				fixedTotalPages = Math.max(rounded, 1);
 			} catch {
 				fixedTotalPages = 1;
