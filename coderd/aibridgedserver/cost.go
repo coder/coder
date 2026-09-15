@@ -199,6 +199,12 @@ func validateTotalCost(total decimal.Decimal) error {
 //
 // Each category is divided and truncated on its own, which makes a per-category breakdown
 // recomputed from the snapshotted price columns add up to the stored cost.
+//
+// This truncated, whole-micro-USD figure is NOT the authoritative cost for
+// the FOCUS export (coderd/aibridge/focus): that package's lineCost
+// recomputes from the same snapshotted prices at full decimal precision, by
+// design, and is expected to diverge from this function's output by a small
+// systematic delta. See lineCost's doc comment for the reconciliation notes.
 func tokenCost(tokens int64, pricePerMillion sql.NullInt64) decimal.Decimal {
 	if !pricePerMillion.Valid {
 		return decimal.Zero

@@ -3,8 +3,10 @@ package coderd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/csv"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
+	"github.com/coder/coder/v2/coderd/aibridge/focus"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1133,7 +1136,15 @@ func escapeCSVCell(value string) string {
 // together and are interpreted as UTC, and an explicit window must be non-empty,
 // span at most 31 days, and begin within the retention window. On invalid input
 // it writes the error response and returns ok=false.
-func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
+//
+// The caller owns parser: it must be a *httpapi.QueryParamParser shared with
+// every other query parameter the caller accepts (e.g. "format", "granularity"),
+// and the caller must call parser.ErrorExcessParams itself once every field has
+// been registered. This function only registers "period_start" and
+// "period_end" on it and never calls ErrorExcessParams, so that a caller with
+// additional accepted params does not have "period_start"/"period_end"
+// rejected as excess, and vice versa.
+func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request, parser *httpapi.QueryParamParser) (start, end time.Time, ok bool) {
 	query := r.URL.Query()
 	hasStart := query.Has("period_start")
 	hasEnd := query.Has("period_end")
@@ -1168,10 +1179,8 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 		return time.Time{}, time.Time{}, false
 	default:
 		// The caller asked for this period, so validate it.
-		parser := httpapi.NewQueryParamParser()
 		start = parser.Time3339Nano(query, time.Time{}, "period_start")
 		end = parser.Time3339Nano(query, time.Time{}, "period_end")
-		parser.ErrorExcessParams(query)
 		if len(parser.Errors) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Query parameters have invalid values.",
@@ -1229,8 +1238,17 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	periodStart, periodEnd, ok := api.aiSpendExportPeriod(ctx, rw, r)
+	periodParser := httpapi.NewQueryParamParser()
+	periodStart, periodEnd, ok := api.aiSpendExportPeriod(ctx, rw, r, periodParser)
 	if !ok {
+		return
+	}
+	periodParser.ErrorExcessParams(r.URL.Query())
+	if len(periodParser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: periodParser.Errors,
+		})
 		return
 	}
 	logger = logger.With(
@@ -1300,6 +1318,144 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(buf.Bytes()); err != nil {
 		logger.Error(ctx, "failed to write AI spend export", slog.Error(err))
+	}
+}
+
+// maxFOCUSExportGranularitySeconds bounds the granularity query parameter to
+// at most one calendar day. See focus.MaxGranularitySeconds for why this cap
+// does not, by itself, keep a rollup bucket within a single calendar month.
+const maxFOCUSExportGranularitySeconds = focus.MaxGranularitySeconds
+
+// defaultFOCUSExportGranularitySeconds is applied when the caller omits the
+// granularity query parameter: hourly rollup, per the illustrative grouping
+// key in the parent RFC's Granularity section.
+const defaultFOCUSExportGranularitySeconds = 3600
+
+// @Summary Export organization AI spend in FOCUS format
+// @Description Returns AI Gateway usage and cost for the organization as a FOCUS v1.2-shaped CSV or Parquet document, rolled up into hourly fixed-width time buckets by default, or at raw, unrolled per-response, per-token-type granularity, or a different rollup width, when the granularity query parameter is set.
+// @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC, exactly as for the existing /export endpoint (see its own description for defaults and validation).
+// @Description The optional format query parameter selects "csv" (default) or "parquet".
+// @Description The optional granularity query parameter, in seconds, selects the row grain: 0 requests raw, unrolled per-response grain; a positive value (default 3600, i.e. hourly) rolls responses up into fixed-width UTC time buckets of that many seconds, up to a maximum of 86400 (one day).
+// @Description This endpoint is experimental: it lives under /api/experimental and is gated behind the "focus-export" experiment (CODER_EXPERIMENTS=focus-export), off by default. Its FOCUS column set and semantics may still change.
+// @Description Requires organization-level administrator permissions.
+// @ID export-organization-ai-focus
+// @Security CoderSessionToken
+// @Produce text/csv
+// @Produce application/vnd.apache.parquet
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
+// @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param format query string false "Export format" enums(csv,parquet)
+// @Param granularity query int false "Rollup bucket width in seconds. 0 for raw, unrolled per-response grain. Defaults to 3600 (hourly)"
+// @Success 200
+// @Router /api/experimental/organizations/{organization}/ai/spend/export/focus [get]
+// @x-apidocgen {"skip": true}
+func (api *API) exportOrganizationAIFOCUS(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	// Same authorization decision as exportOrganizationAISpend: the export
+	// aggregates the whole organization, so require organization-wide read
+	// rather than letting a per-row filter narrow it to the caller.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceGroupMember.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	format := parser.String(query, "csv", "format")
+	granularitySeconds := parser.Int64(query, defaultFOCUSExportGranularitySeconds, "granularity")
+
+	periodStart, periodEnd, ok := api.aiSpendExportPeriod(ctx, rw, r, parser)
+	if !ok {
+		return
+	}
+
+	parser.ErrorExcessParams(query)
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if format != "csv" && format != "parquet" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter \"format\" must be \"csv\" or \"parquet\".",
+		})
+		return
+	}
+	if granularitySeconds < 0 || granularitySeconds > maxFOCUSExportGranularitySeconds {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Query parameter \"granularity\" must be between 0 and %d seconds.", maxFOCUSExportGranularitySeconds),
+		})
+		return
+	}
+
+	logger = logger.With(
+		slog.F("period_start", periodStart),
+		slog.F("period_end", periodEnd),
+		slog.F("format", format),
+		slog.F("granularity_seconds", granularitySeconds),
+	)
+
+	records, err := focus.LoadUsageRecords(ctx, api.Database, org.ID, periodStart, periodEnd, granularitySeconds)
+	if err != nil {
+		logger.Error(ctx, "failed to load FOCUS usage records", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	deploymentID := api.AccessURL.Host
+	rows := make([]focus.Row, 0, len(records))
+	for _, rec := range records {
+		rows = append(rows, focus.MapUsageRecord(rec, deploymentID)...)
+	}
+
+	var buf bytes.Buffer
+	var contentType string
+	switch format {
+	case "parquet":
+		if err := focus.WriteParquet(&buf, rows); err != nil {
+			logger.Error(ctx, "failed to write FOCUS parquet export", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		contentType = "application/vnd.apache.parquet"
+	default:
+		if err := focus.WriteCSV(&buf, rows); err != nil {
+			logger.Error(ctx, "failed to write FOCUS csv export", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		contentType = "text/csv; charset=utf-8"
+	}
+
+	// The handler already buffers the full body to set Content-Length before
+	// writing any headers, so the checksum is one additional pass over bytes
+	// already held, not an extra read of the underlying data (Export
+	// manifest, parent RFC).
+	checksum := sha256.Sum256(buf.Bytes())
+
+	filename := fmt.Sprintf("focus-export-%s-%s-to-%s.%s",
+		org.Name, periodStart.UTC().Format(time.DateOnly), periodEnd.UTC().Format(time.DateOnly), format)
+	rw.Header().Set("Content-Type", contentType)
+	rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	rw.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	// Manifest-equivalent metadata for this one-shot pull (Export manifest,
+	// parent RFC): the full manifest.json is Phase 2 only.
+	rw.Header().Set("X-Coder-Focus-Version", focus.FocusVersion)
+	rw.Header().Set("X-Coder-Focus-Mapping-Version", focus.MappingVersion)
+	rw.Header().Set("X-Coder-Focus-Generated-At", time.Now().UTC().Format(time.RFC3339))
+	rw.Header().Set("X-Coder-Focus-Row-Count", strconv.Itoa(len(rows)))
+	rw.Header().Set("X-Coder-Focus-Checksum-Sha256", hex.EncodeToString(checksum[:]))
+	rw.Header().Set("X-Coder-Focus-Granularity-Seconds", strconv.FormatInt(granularitySeconds, 10))
+	rw.WriteHeader(http.StatusOK)
+	if _, err := rw.Write(buf.Bytes()); err != nil {
+		logger.Error(ctx, "failed to write FOCUS export", slog.Error(err))
 	}
 }
 

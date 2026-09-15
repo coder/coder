@@ -347,6 +347,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.listAIModelPrices)
 			r.Post("/", api.upsertAIModelPrices)
 		})
+		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
+			// Same feature gate as the stable /api/v2 export, plus the
+			// focus-export experiment: two independent signals that this
+			// endpoint's contract is not yet stable (see exportOrganizationAIFOCUS).
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentFOCUSExport),
+			)
+			r.Get("/export/focus", api.exportOrganizationAIFOCUS)
+		})
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
