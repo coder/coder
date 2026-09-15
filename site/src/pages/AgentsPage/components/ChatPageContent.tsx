@@ -70,8 +70,10 @@ const isChatMessage = (
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
 // has no workspace skills; only an unresolved chat leaves them unknown.
-// Duplicate names keep the first resource to match read_skill resolution,
-// which also collapses duplicates first-wins in resource order.
+// Duplicate identities keep the first resource to match read_skill
+// resolution, which also collapses duplicates first-wins in resource order.
+// A skill shipped inside an Agent Plugin is identified by its plugin name
+// and skill name together, so two plugins may each provide the same name.
 export const workspaceSkillsFromChat = (
 	chat: TypesGen.Chat | undefined,
 ): SkillMetadata[] | undefined => {
@@ -80,16 +82,19 @@ export const workspaceSkillsFromChat = (
 	}
 	const skills = new Map<string, SkillMetadata>();
 	for (const resource of chat.context?.resources ?? []) {
-		if (
-			resource.kind !== "skill" ||
-			resource.status !== "ok" ||
-			skills.has(resource.skill_name ?? "")
-		) {
+		if (resource.kind !== "skill" || resource.status !== "ok") {
 			continue;
 		}
-		skills.set(resource.skill_name ?? "", {
-			name: resource.skill_name ?? "",
+		const name = resource.skill_name ?? "";
+		const pluginName = resource.plugin_name ?? "";
+		const identity = pluginName ? `plugin/${pluginName}/${name}` : name;
+		if (skills.has(identity)) {
+			continue;
+		}
+		skills.set(identity, {
+			name,
 			description: resource.skill_description ?? "",
+			pluginName: pluginName || undefined,
 		});
 	}
 	return [...skills.values()];

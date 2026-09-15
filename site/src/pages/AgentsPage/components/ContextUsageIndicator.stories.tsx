@@ -121,6 +121,103 @@ export const MultipleMcpConfigs: Story = {
 	},
 };
 
+// Resources shipped by Agent Plugins: plugins get their own section, plugin
+// skills group under a plugin label, plugin MCP servers show the server name
+// with a plugin suffix, and issue rows (including an OK plugin with a spec
+// warning) are attributed as "<plugin>/<name>".
+export const PluginResources: Story = {
+	args: {
+		usage: {
+			usedTokens: 36_000,
+			contextLimitTokens: 200_000,
+			context: {
+				dirty: false,
+				resources: [
+					{
+						source: "/home/coder/.coder/plugins/webtools",
+						kind: "plugin",
+						size_bytes: 412,
+						status: "ok",
+						plugin_name: "webtools",
+						error:
+							'extensions must be an object; ignored; unknown field "displayName" ignored',
+					},
+					{
+						source: "/home/coder/.coder/plugins/dbtools",
+						kind: "plugin",
+						size_bytes: 256,
+						status: "ok",
+						plugin_name: "dbtools",
+					},
+					{
+						source: "/home/coder/.coder/plugins/webtools/skills/fetch",
+						kind: "skill",
+						size_bytes: 110,
+						status: "ok",
+						skill_name: "fetch",
+						skill_description: "Fetch and summarize a web page.",
+						plugin_name: "webtools",
+					},
+					{
+						source: "/home/coder/.coder/plugins/dbtools/skills/migrate",
+						kind: "skill",
+						size_bytes: 120,
+						status: "ok",
+						skill_name: "migrate",
+						skill_description: "Run database migrations.",
+						plugin_name: "dbtools",
+					},
+					{
+						source: "/home/coder/.coder/skills/deploy",
+						kind: "skill",
+						size_bytes: 96,
+						status: "ok",
+						skill_name: "deploy",
+						skill_description: "Deploy the app to staging.",
+					},
+					{
+						source: "webtools/tools",
+						kind: "mcp_server",
+						size_bytes: 640,
+						status: "ok",
+						plugin_name: "webtools",
+						tools: [
+							{ name: "fetch_url", description: "Fetch a URL over HTTP." },
+						],
+					},
+					{
+						source: "github",
+						kind: "mcp_server",
+						size_bytes: 512,
+						status: "ok",
+						tools: [{ name: "list_issues" }],
+					},
+					{
+						source: "webtools/insecure",
+						kind: "mcp_server",
+						size_bytes: 0,
+						status: "unreadable",
+						plugin_name: "webtools",
+						error: "command not found: insecure-mcp",
+					},
+					{
+						source: "/home/coder/.coder/plugins/dbtools/skills/seed",
+						kind: "skill",
+						size_bytes: 0,
+						status: "invalid",
+						plugin_name: "dbtools",
+						error: "SKILL.md is missing the name frontmatter field",
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
 // Drifted pin: the ring announces a change, and the popover surfaces a refresh
 // affordance to re-pin the chat to the latest snapshot.
 export const Dirty: Story = {

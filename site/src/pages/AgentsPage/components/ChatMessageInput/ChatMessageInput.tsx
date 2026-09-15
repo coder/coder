@@ -701,7 +701,7 @@ const ChatMessageInput = ({
 	);
 	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
 		loadedWorkspaceSkills.map((skill) =>
-			createSkillMenuItem("workspace", skill),
+			createSkillMenuItem(skill.pluginName ? "plugin" : "workspace", skill),
 		),
 		skillsSearchQuery,
 	);

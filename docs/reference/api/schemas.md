@@ -2154,6 +2154,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           {
             "error": "string",
             "kind": "instruction_file",
+            "plugin_name": "string",
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -2250,6 +2251,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       {
         "error": "string",
         "kind": "instruction_file",
+        "plugin_name": "string",
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
@@ -2522,6 +2524,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "error": "string",
       "kind": "instruction_file",
+      "plugin_name": "string",
       "size_bytes": 0,
       "skill_description": "string",
       "skill_name": "string",
@@ -2553,6 +2556,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "error": "string",
   "kind": "instruction_file",
+  "plugin_name": "string",
   "size_bytes": 0,
   "skill_description": "string",
   "skill_name": "string",
@@ -2573,6 +2577,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |---------------------|--------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `error`             | string                                                                   | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
 | `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
+| `plugin_name`       | string                                                                   | false    |              | Plugin name is the owning Agent Plugin's name. It is the manifest name for the plugin kind and the attributing plugin for skill and mcp_server kinds shipped inside a plugin; empty otherwise.                                                                             |
 | `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
 | `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                            |
 | `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
@@ -2590,9 +2595,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                |
-|---------------------------------------------------------|
-| `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+| Value(s)                                                          |
+|-------------------------------------------------------------------|
+| `instruction_file`, `mcp_config`, `mcp_server`, `plugin`, `skill` |
 
 ## codersdk.ChatContextResourceStatus
 
@@ -5174,6 +5179,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         {
           "error": "string",
           "kind": "instruction_file",
+          "plugin_name": "string",
           "size_bytes": 0,
           "skill_description": "string",
           "skill_name": "string",
