@@ -52,6 +52,10 @@ func main() {
 // run scans roots, writes findings to stderr, and returns 0 for success, 1 for
 // unknown keys, or 2 for I/O errors.
 func run(roots []string, stderr io.Writer) int {
+	return runWithReadFile(roots, stderr, os.ReadFile)
+}
+
+func runWithReadFile(roots []string, stderr io.Writer, readFile func(string) ([]byte, error)) int {
 	files, err := collectMarkdown(roots)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "checkexperimentkeys: %v\n", err)
@@ -65,7 +69,7 @@ func run(roots []string, stderr io.Writer) int {
 
 	var findings []finding
 	for _, path := range files {
-		src, err := os.ReadFile(path)
+		src, err := readFile(path)
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "checkexperimentkeys: %v\n", err)
 			return 2

@@ -5218,39 +5218,30 @@ const (
 )
 
 func (e Experiment) DisplayName() string {
-	switch e {
-	case ExperimentExample:
-		return "Example Experiment"
-	case ExperimentAutoFillParameters:
-		return "Auto-fill Template Parameters"
-	case ExperimentNotifications:
-		return "SMTP and Webhook Notifications"
-	case ExperimentWorkspaceUsage:
-		return "Workspace Usage Tracking"
-	case ExperimentMCPServerHTTP:
-		return "MCP HTTP Server Functionality"
-	case ExperimentMCPToolSearch:
-		return "MCP Tool Search"
-	case ExperimentWorkspaceBuildUpdates:
-		return "Workspace Build Updates Channel"
-	case ExperimentNATSPubsub:
-		return "NATS Pubsub"
-	case ExperimentWorkspaceCapableLicensing:
-		return "Workspace-Capable Licensing"
-	case ExperimentAIGatewaySeatExclusion:
-		return "AI Gateway Seat Exclusion"
-	case ExperimentChatAdvisor:
-		return "Chat Advisor"
-	case ExperimentChatVirtualDesktop:
-		return "Chat Virtual Desktop"
-	case ExperimentAgentLifecycleHooks:
-		return "Agent Lifecycle Hooks"
-	default:
-		// Split on hyphen and convert to title case
-		// e.g. "mcp-server-http" -> "Mcp Server Http"
-		caser := cases.Title(language.English)
-		return caser.String(strings.ReplaceAll(string(e), "-", " "))
+	if displayName, ok := experimentDisplayNames[e]; ok {
+		return displayName
 	}
+
+	// Split on hyphen and convert to title case
+	// e.g. "mcp-server-http" -> "Mcp Server Http"
+	caser := cases.Title(language.English)
+	return caser.String(strings.ReplaceAll(string(e), "-", " "))
+}
+
+var experimentDisplayNames = map[Experiment]string{
+	ExperimentExample:                   "Example Experiment",
+	ExperimentAutoFillParameters:        "Auto-fill Template Parameters",
+	ExperimentNotifications:             "SMTP and Webhook Notifications",
+	ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
+	ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",
+	ExperimentMCPToolSearch:             "MCP Tool Search",
+	ExperimentWorkspaceBuildUpdates:     "Workspace Build Updates Channel",
+	ExperimentNATSPubsub:                "NATS Pubsub",
+	ExperimentWorkspaceCapableLicensing: "Workspace-Capable Licensing",
+	ExperimentAIGatewaySeatExclusion:    "AI Gateway Seat Exclusion",
+	ExperimentChatAdvisor:               "Chat Advisor",
+	ExperimentChatVirtualDesktop:        "Chat Virtual Desktop",
+	ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
 }
 
 // ExperimentsKnown should include all experiments defined above.

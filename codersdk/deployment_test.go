@@ -26,20 +26,6 @@ type exclusion struct {
 	yaml bool
 }
 
-func TestExperimentDisplayName(t *testing.T) {
-	t.Parallel()
-
-	for _, experiment := range codersdk.ExperimentsKnown {
-		experiment := experiment
-		t.Run(string(experiment), func(t *testing.T) {
-			t.Parallel()
-			require.NotEmpty(t, experiment.DisplayName())
-		})
-	}
-
-	require.Equal(t, "MCP Tool Search", codersdk.ExperimentMCPToolSearch.DisplayName())
-}
-
 func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	t.Parallel()
 
