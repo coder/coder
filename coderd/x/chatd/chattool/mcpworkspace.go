@@ -188,10 +188,10 @@ func (t *WorkspaceMCPTool) SetProviderOptions(
 }
 
 // convertMCPToolResponse translates a workspace agent MCP tool
-// response into a fantasy.ToolResponse. Text content blocks are
-// collected and joined; binary content (image/media) is returned
-// only when no text is available, matching the mcpclient
-// conversion strategy.
+// response into a fantasy.ToolResponse. All text blocks are kept
+// alongside the first binary block; additional binary blocks are
+// dropped because fantasy supports only one media payload per
+// response, matching the mcpclient conversion strategy.
 func convertMCPToolResponse(
 	resp workspacesdk.CallMCPToolResponse,
 ) fantasy.ToolResponse {
@@ -216,8 +216,14 @@ func convertMCPToolResponse(
 				continue
 			}
 			if binaryResult == nil {
+				// The chat loop only recognizes "image" and "media"
+				// response types, so audio is mapped to media.
+				responseType := "media"
+				if c.Type == "image" {
+					responseType = "image"
+				}
 				r := fantasy.ToolResponse{
-					Type:      c.Type,
+					Type:      responseType,
 					Data:      data,
 					MediaType: c.MediaType,
 					IsError:   resp.IsError,
@@ -229,19 +235,11 @@ func convertMCPToolResponse(
 		}
 	}
 
-	// Prefer text content. Only fall back to binary when no
-	// text was collected.
-	if len(textParts) > 0 {
-		r := fantasy.NewTextResponse(
-			strings.Join(textParts, "\n"),
-		)
-		r.IsError = resp.IsError
-		return r
-	}
 	if binaryResult != nil {
+		binaryResult.Content = strings.Join(textParts, "\n")
 		return *binaryResult
 	}
-	r := fantasy.NewTextResponse("")
+	r := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
 	r.IsError = resp.IsError
 	return r
 }
