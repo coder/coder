@@ -5,3 +5,11 @@ package agentcontext
 // this signal; the agent calls Run synchronously after wiring
 // the Manager. Tests use it to coordinate without polling.
 func ManagerStarted(m *Manager) <-chan struct{} { return m.started() }
+
+// HashedResources exposes driftResources to tests.
+func HashedResources(resources []Resource) []Resource { return driftResources(resources) }
+
+// WatchDirs exposes the directory set Watcher.Sync would watch.
+func WatchDirs(roots []ScanRoot, opts ResolveOptions) map[string]struct{} {
+	return (*Watcher)(nil).collectDirs(roots, opts)
+}
