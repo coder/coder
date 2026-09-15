@@ -277,6 +277,7 @@ type sqlcQuerier interface {
 	// @organization_id over the [period_start, period_end) window. Spend is
 	// attributed through the token usage's effective group, and rows are bucketed
 	// by the token usage created_at, matching how ai_user_daily_spend is derived.
+	// It must keep the same joins and predicates as ListOrganizationAISpendUsers.
 	ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
