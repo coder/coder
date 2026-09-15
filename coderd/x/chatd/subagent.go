@@ -794,7 +794,10 @@ func (p *Server) subagentTools(
 			"Wait for a spawned child agent to finish and return its response "+
 				"and status. Returns immediately when the agent finishes, even if "+
 				"a longer timeout is set. A timeout does not stop the agent; call "+
-				"wait_agent again or use list_agents to check its status.",
+				"wait_agent again or use list_agents to check its status. A timeout "+
+				"with status paused is expected: the child's owner is editing one "+
+				"of its queued messages and the child continues when the edit "+
+				"ends, so keep waiting unless the owner says otherwise.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
