@@ -1,7 +1,6 @@
 package rbac
 
 import (
-	"slices"
 	"sort"
 	"strings"
 )
@@ -133,17 +132,21 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 }
 
 // CanonicalScopeList rewrites a space-separated scope list into its canonical
-// spelling and drops duplicates. Both app write paths store the caller's
-// spelling as given, so this is where a stored allowlist gets one display form.
-// Unknown names are kept: this shows what is configured, not what is grantable.
+// spelling and drops duplicates, keeping first-seen order. Both app write paths
+// store the caller's spelling as given, so this is where a stored allowlist
+// gets one display form. Unknown names are kept: this shows what is
+// configured, not what is grantable.
 func CanonicalScopeList(raw string) string {
 	names := strings.Fields(raw)
 	canonical := make([]string, 0, len(names))
+	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		got := string(CanonicalScopeName(ScopeName(name)))
-		if !slices.Contains(canonical, got) {
-			canonical = append(canonical, got)
+		if _, dup := seen[got]; dup {
+			continue
 		}
+		seen[got] = struct{}{}
+		canonical = append(canonical, got)
 	}
 	return strings.Join(canonical, " ")
 }
