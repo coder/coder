@@ -249,6 +249,30 @@ export const formatToolInput = (args: unknown): string | null => {
 	return isEmptyObjectOrArray(input) ? null : formatValue(input);
 };
 
+export type MediaToolResult = {
+	data: string;
+	mimeType: string;
+	text: string;
+};
+
+/**
+ * Parses a tool result the server flagged with is_media. The server
+ * persists such results as {data, mime_type, text}.
+ */
+export const parseMediaToolResult = (
+	result: unknown,
+): MediaToolResult | null => {
+	const rec = asRecord(result);
+	if (
+		!rec ||
+		typeof rec.data !== "string" ||
+		typeof rec.mime_type !== "string"
+	) {
+		return null;
+	}
+	return { data: rec.data, mimeType: rec.mime_type, text: asString(rec.text) };
+};
+
 export const formatResultOutput = (result: unknown): string | null => {
 	if (result === undefined || result === null) {
 		return null;

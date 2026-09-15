@@ -36,7 +36,7 @@ import {
 } from "./subagentDescriptor";
 import { ToolCall } from "./ToolCall";
 import { ToolLabel } from "./ToolLabel";
-import { ToolResultImage } from "./ToolResultImage";
+import { ToolResultMedia } from "./ToolResultMedia";
 import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
 	asNumber,
@@ -56,6 +56,7 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseMediaToolResult,
 	parseServerEditDiffText,
 	parseServerEditResults,
 	type ToolStatus,
@@ -962,20 +963,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
-	const rec = asRecord(result);
-	const imageResult =
-		isMedia &&
-		rec &&
-		typeof rec.data === "string" &&
-		rec.data.length > 0 &&
-		typeof rec.mime_type === "string" &&
-		rec.mime_type.startsWith("image/")
-			? { data: rec.data, mimeType: rec.mime_type, text: asString(rec.text) }
-			: null;
-	const resultOutput = imageResult ? null : formatResultOutput(result);
-	const fileContent = imageResult
-		? null
-		: getFileContentForViewer(name, args, result);
+	const mediaResult = isMedia ? parseMediaToolResult(result) : null;
+	// Media payloads are base64 blobs; keep them out of the text formatters.
+	const textResult = mediaResult ? undefined : result;
+	const resultOutput = formatResultOutput(textResult);
+	const fileContent = getFileContentForViewer(name, args, textResult);
 	const fileViewerOpts = getFileViewerOptions(isDark);
 	const fileContentOptions = fileContent
 		? {
@@ -991,8 +983,9 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		: undefined;
 
 	const hasContent = Boolean(
-		toolInput || fileContent || resultOutput || imageResult,
+		toolInput || fileContent || resultOutput || mediaResult,
 	);
+	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 	const fallbackErrorMessage = getGenericToolErrorMessage({
 		name,
@@ -1031,20 +1024,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					isDark={isDark}
 					resultOutput={resultOutput}
 				/>
-				{imageResult && (
-					<>
-						<ToolResultImage
-							data={imageResult.data}
-							mimeType={imageResult.mimeType}
-							alt="Image from tool result"
-						/>
-						{imageResult.text && (
-							<pre className="mt-1.5 whitespace-pre-wrap break-words text-xs text-content-secondary">
-								{imageResult.text}
-							</pre>
-						)}
-					</>
-				)}
+				{mediaResult && <ToolResultMedia media={mediaResult} />}
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);
