@@ -38,12 +38,6 @@ const forbiddenTags = [
 	"video",
 ];
 
-export const sanitizeDiagramSvg = (svg: string): string =>
-	DOMPurify.sanitize(svg, {
-		USE_PROFILES: { html: true, svg: true, svgFilters: true },
-		FORBID_TAGS: forbiddenTags,
-	});
-
 const renderDiagram = async (
 	source: string,
 	isDark: boolean,
@@ -61,7 +55,10 @@ const renderDiagram = async (
 		flowchart: { htmlLabels: false },
 	});
 	const { svg } = await mermaid.render(`mermaid-${generateUUID()}`, source);
-	return sanitizeDiagramSvg(svg);
+	return DOMPurify.sanitize(svg, {
+		USE_PROFILES: { html: true, svg: true, svgFilters: true },
+		FORBID_TAGS: forbiddenTags,
+	});
 };
 
 /**
