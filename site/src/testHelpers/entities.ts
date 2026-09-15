@@ -78,14 +78,6 @@ export const MockChatProjectMemory: TypesGen.ChatProjectMemory = {
 	updated_at: "2026-09-02T12:00:00Z",
 };
 
-export const MockChatProjectMemory2: TypesGen.ChatProjectMemory = {
-	...MockChatProjectMemory,
-	id: "chat-project-memory-release-process",
-	name: "release-process",
-	description: "Releases require a changelog update.",
-	body: "Update the changelog and publish the release notes before releasing.",
-};
-
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [
