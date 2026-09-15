@@ -15,30 +15,46 @@ When the prose refers to the Coder command-line interface as a tool, wrap it in 
 The bare lowercase `coder` (no backticks) is wrong.
 It reads as a misspelling of the product name.
 
-| Do                              | Don't                                          |
-|---------------------------------|------------------------------------------------|
-| Coder                           | coder (referring to the product, no backticks) |
-| `coder` (the CLI, in backticks) | coder (the CLI, no backticks)                  |
-| AI Gateway                      | AI gateway, AIGateway, AI Bridge               |
-| Workspace Proxy                 | workspace proxy (referring to the feature)     |
-| workspace                       | Workspace (referring to the generic concept)   |
-| template                        | Template (referring to the generic concept)    |
-| agent                           | Agent (referring to the generic concept)       |
-| provisioner                     | Provisioner (referring to the generic concept) |
+| Do                              | Don't                                                                                |
+|----------------------------------|----------------------------------------------------------------------------------------|
+| Coder                            | coder (referring to the product, no backticks)                                         |
+| `coder` (the CLI, in backticks)  | coder (the CLI, no backticks)                                                           |
+| AI Gateway                       | AI gateway, AIGateway, AI Bridge                                                        |
+| Coder Agents                     | Coder agents, coder agents (referring to the product)                                  |
+| Coder Workspaces                 | Coder workspaces, coder workspaces (referring to the product)                          |
+| Workspace Proxy                  | workspace proxy (referring to the feature)                                             |
+| workspace                        | Workspace (referring to the object a developer creates, configures, and connects to)   |
+| template                         | Template (referring to the generic concept)                                            |
+| agent                            | Agent (referring to the generic concept)                                               |
+| provisioner                      | Provisioner (referring to the generic concept)                                         |
 
 **Do**:
 
 > Run `coder login` to authenticate against the Coder server.
 >
 > Open the AI Gateway integration page to configure model providers.
+>
+> Coder Workspaces are cloud development environments defined with Terraform.
+> Create a workspace from a template, then connect to it with your IDE.
 
 **Don't**:
 
 > Run coder login to authenticate against the coder server.
 >
 > Open the ai gateway integration page to configure model providers.
+>
+> Coder workspaces are cloud development environments defined with Terraform.
+> (Lowercase "workspaces" here reads as the generic object, not the named product.)
 
-*Enforced by `Coder.ProductTerms` (planned).*
+> [!NOTE]
+> `Coder Workspaces` and `Coder Agents` name the products: the platform capability that Coder markets and ships as a whole.
+> A bare `workspace` or `agent` names the object a developer or a template creates: the on-demand environment the developer connects to, or the process that runs inside it.
+> Capitalize the product name whenever the prose introduces or markets the capability (a page heading like "Coder Workspaces," a comparison of product tiers, a `docs/README.md`-style overview).
+> Keep the generic object lowercase everywhere else, including in step-by-step instructions ("create a workspace," "the agent starts").
+> This mirrors coder.com's marketing usage, where `Coder Workspaces` sits alongside `Coder Agents`, `AI Gateway`, and `Agent Firewall` as one of four named products.
+
+*Enforced by `Coder.ProductTerms` (planned).
+The planned rule's term list must include `Coder Workspaces` and `Coder Agents` alongside the other named products.*
 
 The [glossary](../../reference/glossary.md) is the fuller registry of these names and disambiguates collisions like the several senses of "agent".
 When you add, rename, or deprecate a product or feature name, update the glossary in the same change.
