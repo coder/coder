@@ -1,4 +1,3 @@
-import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
@@ -43,18 +42,6 @@ const meta: Meta<typeof Response> = {
 	args: {
 		children: sampleMarkdown,
 	},
-	// Without the app's worker pool a cold in-page highlighter loses its
-	// first render under StrictMode, so code blocks that mount after the
-	// initial story render (such as the Mermaid error fallback) stay
-	// blank. Warming the themes first makes that render synchronous.
-	loaders: [
-		async () => {
-			await preloadHighlighter({
-				themes: ["github-dark-high-contrast", "github-light"],
-				langs: [],
-			});
-		},
-	],
 };
 
 export default meta;
@@ -260,19 +247,15 @@ const mermaidSequence = [
 ].join("\n");
 
 const waitForDiagram = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await waitFor(
-		() => {
-			if (canvas.queryByRole("status", { name: "Rendering diagram" })) {
-				throw new Error("Diagram is still rendering.");
-			}
-		},
+	await within(canvasElement).findByRole(
+		"img",
+		{ name: "Mermaid chart" },
 		{ timeout: 10_000 },
 	);
 };
 
 // Mermaid renders asynchronously after its chunk loads, so these
-// stories wait for the placeholder to go away before the capture.
+// stories wait for the SVG before the capture.
 export const MermaidFlowchart: Story = {
 	args: {
 		children: mermaidFlowchart,
@@ -303,8 +286,25 @@ export const MermaidSequenceInProse: Story = {
 	},
 };
 
+// Streamdown's fullscreen view is portaled to the body with the
+// pan-zoom controls enabled.
+export const MermaidFullscreen: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiagram(canvasElement);
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "View fullscreen" }),
+		);
+		await within(document.body).findByRole("dialog", {
+			name: "View fullscreen",
+		});
+	},
+};
+
 // A parse error shows the Mermaid message and keeps the source
-// visible as a regular code block underneath.
+// visible underneath.
 export const MermaidSyntaxError: Story = {
 	args: {
 		children: [
