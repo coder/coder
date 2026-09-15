@@ -1,6 +1,6 @@
 // Package agentcontext consolidates the agent-side plumbing that
 // resolves, watches, and pushes workspace context (instruction
-// files, skills, and MCP configuration) to coderd.
+// files, skills, MCP configuration, and Agent Plugins) to coderd.
 //
 // This is the agent half of the design described in
 // "RFC: Workspace Context Sources for Coder Agents". It owns:
@@ -9,12 +9,21 @@
 //     built-in defaults and the working directory.
 //   - A resolver that classifies files at fixed locations under
 //     each scan root into typed Resources (instruction files,
-//     skills, MCP configs, MCP servers). Discovery is shallow:
-//     instruction files (AGENTS.md, CLAUDE.md, .cursorrules) and
-//     .mcp.json are read only at a scan root's top level, skills
+//     skills, MCP configs, MCP servers, plugins). Discovery is
+//     shallow: instruction files (AGENTS.md, CLAUDE.md, .cursorrules)
+//     and .mcp.json are read only at a scan root's top level, skills
 //     only from fixed container directories (skills, .agents/skills,
-//     .claude/skills, .codex/skills), and the resolver never walks
-//     the tree downward or up to a parent directory.
+//     .claude/skills, .codex/skills), plugins only from the plugins
+//     and .agents/plugins containers or a scan root that is itself a
+//     plugin, and the resolver never walks the tree downward or up
+//     to a parent directory.
+//   - Agent Plugins (agent-plugins.org, spec 1.0.0) support, gated by
+//     Manager.SetPluginsEnabled. A plugin is a directory whose
+//     plugin.json carries the agent-plugins $schema; the manifest is
+//     validated by hand against the closed 1.0.0 schema and emitted as
+//     a KindPlugin resource. Its skills/ children are emitted as
+//     KindSkill resources attributed through Resource.PluginName, with
+//     every path read inside the plugin contained to the plugin root.
 //   - A fixed-location fsnotify watcher that signals a re-resolve
 //     when any recognized file changes.
 //   - A readiness gate (Manager.SetReady). The Manager starts gated,

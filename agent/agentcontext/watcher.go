@@ -35,10 +35,11 @@ type WatcherOptions struct {
 
 // Watcher is a fixed-location fsnotify wrapper. It watches only
 // the directories that can hold recognized resources (each scan
-// root plus its skill containers and immediate skill dirs) rather
-// than walking the tree, mirroring the resolver's fixed-location
-// discovery. Inotify ENOSPC degrades the watcher into a poll-only
-// mode that still re-resolves on Sync calls.
+// root plus its skill containers, plugin containers, and the
+// immediate skill and plugin dirs) rather than walking the tree,
+// mirroring the resolver's fixed-location discovery. Inotify
+// ENOSPC degrades the watcher into a poll-only mode that still
+// re-resolves on Sync calls.
 type Watcher struct {
 	logger   slog.Logger
 	clock    quartz.Clock
@@ -123,7 +124,9 @@ func (w *Watcher) Degraded() string {
 
 // Sync replaces the set of watched directories with the fixed
 // locations that can hold recognized resources: each scan root,
-// its skill containers, and the immediate skill subdirectories.
+// its skill containers and immediate skill subdirectories, and its
+// plugin containers with each plugin's root, skills container, and
+// immediate skill subdirectories.
 // Files are not watched directly; watching the parent directory
 // catches creates, renames, removes, and writes that touch any
 // recognized basename. Files that are themselves scan roots are
@@ -278,7 +281,11 @@ func (w *Watcher) run() {
 // are picked up.
 func (*Watcher) eventRelevant(ev fsnotify.Event) bool {
 	name := filepath.Base(ev.Name)
-	if recognizedInstructionFile(name) || name == mcpConfigFileName || name == skillMetaFileName {
+	switch name {
+	case mcpConfigFileName, skillMetaFileName, pluginManifestFileName, pluginMCPConfigFileName:
+		return true
+	}
+	if recognizedInstructionFile(name) {
 		return true
 	}
 	// Directory create/remove flips re-resolve so new subtrees
@@ -313,10 +320,15 @@ func (w *Watcher) schedule() {
 
 // collectDirs returns the set of directories to watch. Discovery
 // is fixed-location, mirroring the resolver: for each scan root we
-// watch the root directory itself (catching top-level instruction
-// and .mcp.json changes), plus every existing skill container and
-// its immediate skill subdirectories (catching skill add/remove
-// and SKILL.md writes). The watcher never recurses the tree.
+// watch the root directory itself (catching top-level instruction,
+// .mcp.json, and plugin.json changes), every existing skill
+// container and its immediate skill subdirectories (catching skill
+// add/remove and SKILL.md writes), and every existing plugin
+// container with each immediate plugin directory, its skills
+// container, and that container's immediate subdirectories. Plugin
+// directories are registered whether or not plugin discovery is
+// enabled; they are plain directories and the resolver decides
+// what to read. The watcher never recurses the tree.
 func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, root := range roots {
@@ -338,16 +350,43 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 		}
 		out[root.Path] = struct{}{}
 		for _, container := range skillContainersFor(root.Path) {
+			collectContainerDirs(container, out)
+		}
+		for _, container := range pluginContainersFor(root.Path) {
 			out[container] = struct{}{}
-			entries, err := os.ReadDir(container)
-			if err != nil {
-				continue
-			}
-			for _, e := range entries {
-				if e.IsDir() {
-					out[filepath.Join(container, e.Name())] = struct{}{}
+			for _, pluginDir := range immediateSubdirs(container) {
+				out[pluginDir] = struct{}{}
+				skills := filepath.Join(pluginDir, pluginSkillsDirName)
+				if info, err := os.Stat(skills); err == nil && info.IsDir() {
+					collectContainerDirs(skills, out)
 				}
 			}
+		}
+	}
+	return out
+}
+
+// collectContainerDirs adds container and each of its immediate
+// subdirectories to out.
+func collectContainerDirs(container string, out map[string]struct{}) {
+	out[container] = struct{}{}
+	for _, dir := range immediateSubdirs(container) {
+		out[dir] = struct{}{}
+	}
+}
+
+// immediateSubdirs lists the directory entries of dir that are
+// themselves directories. Symlinked entries are not directories
+// to ReadDir and are excluded.
+func immediateSubdirs(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, filepath.Join(dir, e.Name()))
 		}
 	}
 	return out
