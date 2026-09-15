@@ -167,3 +167,11 @@ runs:
           ${{ runner.temp }}/iostat.log
         if-no-files-found: ignore
         retention-days: 7
+
+    - name: Upload PostgreSQL logs (Windows/macOS)
+      if: failure() && runner.os != 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: postgres-logs-${{ github.job }}-${{ runner.os }}
+        path: ${{ inputs.embedded-pg-path }}/data/log
+        if-no-files-found: ignore

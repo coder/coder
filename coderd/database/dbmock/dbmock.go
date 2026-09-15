@@ -10962,6 +10962,21 @@ func (mr *MockStoreMockRecorder) UpdateUserDeletedByID(ctx, id any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateUserDeletedByID), ctx, id)
 }
 
+// UpdateUserEmail mocks base method.
+func (m *MockStore) UpdateUserEmail(ctx context.Context, arg database.UpdateUserEmailParams) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserEmail", ctx, arg)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserEmail indicates an expected call of UpdateUserEmail.
+func (mr *MockStoreMockRecorder) UpdateUserEmail(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserEmail", reflect.TypeOf((*MockStore)(nil).UpdateUserEmail), ctx, arg)
+}
+
 // UpdateUserGithubComUserID mocks base method.
 func (m *MockStore) UpdateUserGithubComUserID(ctx context.Context, arg database.UpdateUserGithubComUserIDParams) error {
 	m.ctrl.T.Helper()
