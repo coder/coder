@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -1340,10 +1342,23 @@ func executeSingleTool(
 			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
+		text := strings.ToValidUTF8(content, "\uFFFD")
+		if note, oversized := oversizedInlineImageNote(provider, resp); oversized {
+			logger.Warn(ctx, "tool result image exceeds provider inline image limit, keeping text only",
+				slog.F("tool_name", tc.ToolName),
+				slog.F("tool_call_id", tc.ToolCallID),
+				slog.F("image_bytes", len(resp.Data)),
+			)
+			if text != "" {
+				text += "\n"
+			}
+			result.Result = fantasy.ToolResultOutputContentText{Text: text + note}
+			break
+		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      strings.ToValidUTF8(content, "\uFFFD"),
+			Text:      text,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
@@ -1363,6 +1378,23 @@ func executeSingleTool(
 		}
 	}
 	return result
+}
+
+// oversizedInlineImageNote reports whether resp carries an image the
+// provider's documented inline image cap rejects. Such an image would
+// fail the next request and, once persisted, every later turn of the
+// chat, so the caller keeps only the text plus the returned note.
+func oversizedInlineImageNote(provider string, resp fantasy.ToolResponse) (string, bool) {
+	imageCap, hasCap := chatprovider.InlineImageCapBytes(provider)
+	if !hasCap || !strings.HasPrefix(resp.MediaType, "image/") || len(resp.Data) < imageCap {
+		return "", false
+	}
+	return fmt.Sprintf(
+		"[image omitted: %d bytes exceeds the %s inline image limit of %d bytes]",
+		len(resp.Data),
+		chatprovider.ProviderDisplayName(chatprovider.NormalizeProvider(provider)),
+		imageCap,
+	), true
 }
 
 func isToolActive(name string, activeTools []string) bool {
