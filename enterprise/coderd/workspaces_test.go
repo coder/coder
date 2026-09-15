@@ -3258,6 +3258,8 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 // This is testing that dynamic params defers input validation to terraform.
 // It does not try to do this in coder/coder.
 func TestWorkspaceTemplateParamsChange(t *testing.T) {
+	t.Parallel()
+
 	indicatorFile := filepath.ToSlash(filepath.Join(t.TempDir(), "workspace_indicator.txt"))
 	mainTfTemplate := fmt.Sprintf(`
 		terraform {
@@ -3292,7 +3294,6 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		}
 	`, indicatorFile)
 	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
-	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
@@ -3313,7 +3314,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
+	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil,
+		coderdenttest.WithTerraformCLIConfigPath(tfCliConfigPath))
 
 	// This can take a while, so set a long timeout that outlasts the three
 	// build awaits below.
@@ -3419,8 +3421,9 @@ type testWorkspaceTagsTerraformCase struct {
 // this is fine.
 // To improve speed, we pre-download the providers and set a custom Terraform
 // config file so that we only reference those
-// nolint:paralleltest // t.Setenv
 func TestWorkspaceTagsTerraform(t *testing.T) {
+	t.Parallel()
+
 	coderProviderTemplate := `
 		terraform {
 			required_providers {
@@ -3431,7 +3434,6 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		}
 	`
 	tfCliConfigPath := downloadProviders(t, coderProviderTemplate)
-	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
 	for _, tc := range []testWorkspaceTagsTerraformCase{
 		{
@@ -3566,20 +3568,26 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// Each subtest provisions with its own coderd, provisioner
+			// daemon, and plugin cache directory. Only the pre-downloaded
+			// provider mirror is shared, read-only.
+			t.Parallel()
 			t.Run("dynamic", func(t *testing.T) {
-				workspaceTagsTerraform(t, tc, true)
+				t.Parallel()
+				workspaceTagsTerraform(t, tc, tfCliConfigPath, true)
 			})
 
 			// classic uses tfparse for tags. This sub test can be
 			// removed when tf parse is removed.
 			t.Run("classic", func(t *testing.T) {
-				workspaceTagsTerraform(t, tc, false)
+				t.Parallel()
+				workspaceTagsTerraform(t, tc, tfCliConfigPath, false)
 			})
 		})
 	}
 }
 
-func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dynamic bool) {
+func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, tfCliConfigPath string, dynamic bool) {
 	mainTfTemplate := `
 		terraform {
 			required_providers {
@@ -3637,7 +3645,8 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 	})
 
 	// The provisioner for the next template version
-	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
+	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags,
+		coderdenttest.WithTerraformCLIConfigPath(tfCliConfigPath))
 
 	// Creating a template as a template admin must succeed
 	templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
@@ -3681,8 +3690,8 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 // downloadProviders is a test helper that caches Terraform providers and returns
 // the path to a Terraform CLI config file that uses the cached providers.
 // This uses the shared testutil caching infrastructure to avoid re-downloading
-// providers on every test run. It is the responsibility of the caller to set
-// TF_CLI_CONFIG_FILE.
+// providers on every test run. Callers pass the returned path to the
+// provisioner via coderdenttest.WithTerraformCLIConfigPath.
 // On Windows, provider caching is not supported and an empty string is returned.
 func downloadProviders(t *testing.T, providersTf string) string {
 	t.Helper()
@@ -3693,7 +3702,7 @@ func downloadProviders(t *testing.T, providersTf string) string {
 
 	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, testName, templateFiles)
 	if cliConfigPath != "" {
-		t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
+		t.Logf("Using Terraform CLI config %s", cliConfigPath)
 	}
 	return cliConfigPath
 }

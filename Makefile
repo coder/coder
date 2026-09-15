@@ -1540,10 +1540,21 @@ endif
 
 TEST_PACKAGES ?= ./...
 
+# go test runs packages in argument order and drops duplicates, so name the
+# slowest packages first when testing everything. With ./... alone packages
+# run alphabetically and enterprise/coderd, one of the longest, only starts
+# near the end of the run and finishes last.
+TEST_PACKAGES_SLOWEST := ./coderd ./coderd/database ./cli ./coderd/database/migrations ./enterprise/coderd ./enterprise/cli ./enterprise ./coderd/x/chatd
+ifeq ($(TEST_PACKAGES),./...)
+TEST_PACKAGES_ORDERED := $(TEST_PACKAGES_SLOWEST) $(TEST_PACKAGES)
+else
+TEST_PACKAGES_ORDERED := $(TEST_PACKAGES)
+endif
+
 test:
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$(TEST_PACKAGES_ORDERED)" \
 		-- \
 		$(GOTEST_FLAGS)
 .PHONY: test
@@ -1554,7 +1565,7 @@ test-race:
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		--junitfile="gotests.xml" \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$(TEST_PACKAGES_ORDERED)" \
 		-- \
 		-race \
 		$(GOTEST_FLAGS)
@@ -1653,6 +1664,11 @@ test-postgres-docker:
 	# database in memory (--tmpfs).
 	#
 	# https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM
+	#
+	# JIT is disabled because test databases are tiny and have no planner
+	# statistics, so cost estimates for complex queries are wildly inflated
+	# and trigger LLVM compilation that takes hundreds of milliseconds per
+	# query (e.g. GetUserStatusCounts: 318ms with JIT vs 0.3ms without).
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -1672,6 +1688,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
+		-c jit=off \
 		-c log_statement=$(TEST_POSTGRES_LOG_STATEMENT)
 	while ! pg_isready -h 127.0.0.1
 	do
@@ -1709,7 +1726,7 @@ test-timings:
 	set +e; \
 	GOTESTSUM_JSONFILE="$$tmp_json" $(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$(TEST_PACKAGES_ORDERED)" \
 		-- \
 		$(GOTEST_FLAGS); \
 	test_status=$$?; \
