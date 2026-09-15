@@ -423,5 +423,5 @@ func (b *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func notReadyHandler(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "AI Gateway is starting up; retry shortly", http.StatusServiceUnavailable)
+	http.Error(w, "AI Gateway is starting up, retry shortly", http.StatusServiceUnavailable)
 }
