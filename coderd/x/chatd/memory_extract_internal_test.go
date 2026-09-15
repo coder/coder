@@ -161,6 +161,7 @@ func TestExtractMemories(t *testing.T) {
 			db:                       db,
 			logger:                   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			clock:                    quartz.NewReal(),
+			experiments:              codersdk.ExperimentsKnown,
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripper}),
 		}
 	}
@@ -585,7 +586,7 @@ func TestResolveMemoryScope(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		userID := uuid.New()
 		db.EXPECT().GetUserChatPersonalMemoryEnabled(gomock.Any(), userID).Return("true", nil)
-		server := &Server{db: db, logger: slogtest.Make(t, nil), configCache: newChatConfigCache(t.Context(), db, quartz.NewReal())}
+		server := &Server{db: db, logger: slogtest.Make(t, nil), configCache: newChatConfigCache(t.Context(), db, quartz.NewReal()), experiments: codersdk.ExperimentsKnown}
 		_, scope, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), OwnerID: userID, OrganizationID: uuid.New()})
 		require.Equal(t, memoryScopeAvailable, status)
 		require.Equal(t, chattool.MemoryScopePersonal, scope.Kind)
@@ -596,9 +597,16 @@ func TestResolveMemoryScope(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		userID := uuid.New()
 		db.EXPECT().GetUserChatPersonalMemoryEnabled(gomock.Any(), userID).Return("false", nil)
-		server := &Server{db: db, logger: slogtest.Make(t, nil), configCache: newChatConfigCache(t.Context(), db, quartz.NewReal())}
+		server := &Server{db: db, logger: slogtest.Make(t, nil), configCache: newChatConfigCache(t.Context(), db, quartz.NewReal()), experiments: codersdk.ExperimentsKnown}
 		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), OwnerID: userID, OrganizationID: uuid.New()})
 		require.Equal(t, memoryScopeDisabled, status)
+	})
+	t.Run("ExperimentDisabledSkipsDatabaseAndModelCalls", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+		server.extractMemories(t.Context(), slogtest.Make(t, nil), database.Chat{ID: uuid.New()})
 	})
 	t.Run("Project", func(t *testing.T) {
 		t.Parallel()
@@ -606,7 +614,7 @@ func TestResolveMemoryScope(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		projectID := uuid.New()
 		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{Name: "platform"}, nil)
-		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
 		_, scope, status := server.resolveMemoryScope(context.Background(), database.Chat{ID: uuid.New(), OwnerID: uuid.New(), OrganizationID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
 		require.Equal(t, memoryScopeAvailable, status)
 		require.Equal(t, chattool.MemoryScopeProject, scope.Kind)
@@ -618,7 +626,7 @@ func TestResolveMemoryScope(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		userID := uuid.New()
 		db.EXPECT().GetUserChatPersonalMemoryEnabled(gomock.Any(), userID).Return("", sql.ErrNoRows)
-		server := &Server{db: db, logger: slogtest.Make(t, nil), configCache: newChatConfigCache(t.Context(), db, quartz.NewReal())}
+		server := &Server{db: db, logger: slogtest.Make(t, nil), configCache: newChatConfigCache(t.Context(), db, quartz.NewReal()), experiments: codersdk.ExperimentsKnown}
 		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), OwnerID: userID, OrganizationID: uuid.New()})
 		require.Equal(t, memoryScopeAvailable, status)
 	})

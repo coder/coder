@@ -67,6 +67,9 @@ type memoryExtractionUpsert struct {
 
 // resolveMemoryScope returns the durable-memory store available to a chat.
 func (p *Server) resolveMemoryScope(ctx context.Context, chat database.Chat) (chattool.MemoryStore, chattool.MemoryScope, memoryScopeStatus) {
+	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
+		return nil, chattool.MemoryScope{}, memoryScopeUnavailable
+	}
 	if chat.ParentChatID.Valid {
 		return nil, chattool.MemoryScope{}, memoryScopeUnavailable
 	}
@@ -92,7 +95,7 @@ func (p *Server) resolveMemoryScope(ctx context.Context, chat database.Chat) (ch
 }
 
 func (p *Server) maybeExtractMemoriesAsync(ctx context.Context, logger slog.Logger, chat database.Chat) {
-	if chat.ParentChatID.Valid {
+	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) || chat.ParentChatID.Valid {
 		return
 	}
 	extractCtx, cancel := p.inflightContext(ctx)
@@ -106,6 +109,10 @@ func (p *Server) maybeExtractMemoriesAsync(ctx context.Context, logger slog.Logg
 }
 
 func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat database.Chat) {
+	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, memoryExtractionWorkTimeout)
 	defer cancel()
 	//nolint:gocritic // Background memory extraction acts as the chat daemon.
