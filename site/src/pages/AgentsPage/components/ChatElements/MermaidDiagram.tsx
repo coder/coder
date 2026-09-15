@@ -3,10 +3,10 @@ import { Maximize2Icon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useIsCodeFenceIncomplete } from "streamdown";
 import { getErrorMessage } from "#/api/errors";
-import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useTheme } from "#/theme/context";
 import { generateUUID } from "#/utils/random";
+import { Lightbox } from "../Lightbox";
 
 type RenderState =
 	| { status: "pending" }
@@ -183,19 +183,26 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					<Maximize2Icon className="size-3.5" />
 				</span>
 			</button>
-			<DiagramLightbox
-				svg={state.svg}
-				open={expanded}
-				onOpenChange={setExpanded}
-				onClose={() => triggerRef.current?.focus()}
-			/>
+			{expanded && (
+				<Lightbox
+					title="Diagram preview"
+					onClose={() => setExpanded(false)}
+					onCloseAutoFocus={() => triggerRef.current?.focus()}
+				>
+					<div
+						style={{ width: fittedWidth(state.svg) }}
+						className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border-default bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
+						dangerouslySetInnerHTML={{ __html: state.svg }}
+					/>
+				</Lightbox>
+			)}
 		</>
 	);
 };
 
 // Mermaid emits a viewBox, so the SVG scales with its container. The
-// lightbox sizes that container to the largest width that keeps the
-// whole diagram inside the dialog's viewport bounds.
+// lightbox sizes its padded (3rem) frame to the largest width that
+// keeps the whole diagram inside the 90vw by 85vh bounds.
 const fittedWidth = (svg: string): string | undefined => {
 	const viewBox = svg
 		.match(/viewBox="([^"]+)"/)?.[1]
@@ -206,37 +213,5 @@ const fittedWidth = (svg: string): string | undefined => {
 	if (!(width > 0 && height > 0)) {
 		return undefined;
 	}
-	return `min(calc(90vw - 3rem), calc((85vh - 3rem) * ${width / height}))`;
+	return `min(90vw, calc((85vh - 3rem) * ${width / height} + 3rem))`;
 };
-
-const DiagramLightbox = ({
-	svg,
-	open,
-	onOpenChange,
-	onClose,
-}: {
-	svg: string;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	/** Runs instead of Radix's default close focus handling, which does
-	 * not reliably reach the trigger inside the streamed message tree. */
-	onClose: () => void;
-}) => (
-	<Dialog open={open} onOpenChange={onOpenChange}>
-		<DialogContent
-			className="max-h-[85vh] w-fit max-w-[90vw] overflow-auto rounded-md border-border-default p-6"
-			aria-describedby={undefined}
-			onCloseAutoFocus={(event) => {
-				event.preventDefault();
-				onClose();
-			}}
-		>
-			<DialogTitle className="sr-only">Diagram preview</DialogTitle>
-			<div
-				style={{ width: fittedWidth(svg) }}
-				className="[&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
-				dangerouslySetInnerHTML={{ __html: svg }}
-			/>
-		</DialogContent>
-	</Dialog>
-);
