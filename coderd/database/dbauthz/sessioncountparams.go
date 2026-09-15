@@ -3,7 +3,7 @@ package dbauthz
 import (
 	"context"
 	"encoding/json"
-	"slices"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -13,42 +13,47 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// The template insights read query and the usage stats rollup take the app
-// family attribution registry as a single jsonb parameter. Both hardcode one
-// probe per family, so a registry that is empty, malformed, or keyed
-// differently from codersdk.AttributedAppFamilies would still run and return
-// zero counts for the affected families, silently dropping sessions from
-// insights and Prometheus. dbauthz wraps every production store, including
-// the transaction stores used by the rollup, so validating here makes a wrong
-// registry fail the call loudly instead of failing the data quietly. These
-// methods override the generated ones in dbauthz.go; scripts/dbgen preserves
-// methods defined outside that file.
+// The minute aggregation queries take the app-to-family registry as jsonb and
+// fall back to the unknown family for unregistered apps, so a bad registry
+// still succeeds while silently misattributing usage. dbauthz wraps every
+// production store, including the rollup's transaction stores, so validating
+// here fails the call loudly instead. These methods override the generated
+// ones in dbauthz.go; scripts/dbgen preserves methods defined outside that
+// file.
 
-// validateSessionCountAppFamilies checks that the registry has exactly the
-// families the queries probe, each with at least one app name.
+// validateSessionCountAppFamilies checks that the registry is a non-empty
+// jsonb object of normalized app names to normalized, non-unknown family
+// names. New families are valid without any SQL change.
 func validateSessionCountAppFamilies(appFamilies json.RawMessage) error {
-	if len(appFamilies) == 0 {
-		return xerrors.New("developer error: session count app families must not be empty, populate them with codersdk.SessionCountAppFamiliesJSON()")
-	}
-
-	var families map[codersdk.AppFamilyName][]string
-	if err := json.Unmarshal(appFamilies, &families); err != nil {
-		return xerrors.Errorf("developer error: session count app families must be a JSON object of family to app names, populate them with codersdk.SessionCountAppFamiliesJSON(): %w", err)
-	}
-
-	required := codersdk.AttributedAppFamilies()
-	for _, family := range required {
-		appNames, ok := families[family]
-		if !ok {
-			return xerrors.Errorf("developer error: session count app families is missing family %q, which the queries probe; populate them with codersdk.SessionCountAppFamiliesJSON()", family)
-		}
-		if len(appNames) == 0 {
-			return xerrors.Errorf("developer error: session count app families has no app names for family %q, so its sessions would go uncounted", family)
+	var families map[string]codersdk.AppFamilyName
+	if len(appFamilies) > 0 {
+		if err := json.Unmarshal(appFamilies, &families); err != nil {
+			return xerrors.Errorf("invalid app family registry: %w", err)
 		}
 	}
-	for family := range families {
-		if !slices.Contains(required, family) {
-			return xerrors.Errorf("developer error: session count app families has family %q, which no query probes; add a probe per query or drop it from codersdk.AttributedAppFamilies", family)
+	if len(families) == 0 {
+		return xerrors.New("app family registry is empty")
+	}
+
+	for appName, family := range families {
+		if appName == "" {
+			return xerrors.New("empty app name")
+		}
+		// Stored app names are normalized, so an unnormalized key matches no
+		// session and that app's activity falls back to the unknown family.
+		if normalized := codersdk.NormalizeAppName(appName); normalized != appName {
+			return xerrors.Errorf("app name %q not normalized, want %q", appName, normalized)
+		}
+		// A blank family is not an attribution, so its apps would report under
+		// no usable name at all.
+		if strings.TrimSpace(string(family)) == "" {
+			return xerrors.Errorf("no family for app %q", appName)
+		}
+		if normalized := codersdk.NormalizeAppName(string(family)); normalized != string(family) {
+			return xerrors.Errorf("family %q for app %q not normalized, want %q", family, appName, normalized)
+		}
+		if family == codersdk.AppFamilyUnknown {
+			return xerrors.Errorf("app %q maps to unknown family", appName)
 		}
 	}
 	return nil
