@@ -140,7 +140,7 @@ module "jetbrains" {
 
 module "filebrowser" {
   source   = "dev.registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.5"
+  version  = "1.1.6"
   agent_id = coder_agent.dev.id
 }
 
