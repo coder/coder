@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
@@ -603,7 +603,8 @@ describe("ChatsSidebar PR icon", () => {
 		],
 	});
 
-	it("renders a plain PR icon when the chat tracks one pull request", () => {
+	it("keeps a plain PR icon when the chat tracks one pull request", async () => {
+		const user = userEvent.setup();
 		render(
 			<Wrapper>
 				<ChatsSidebar
@@ -625,15 +626,12 @@ describe("ChatsSidebar PR icon", () => {
 			</Wrapper>,
 		);
 
-		expect(
-			screen.getByRole("img", { name: "Pull request open" }),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByTestId("chat-node-pr-trigger-one-pr"),
-		).not.toBeInTheDocument();
+		// A single PR renders a bare icon; no popover opens on hover.
+		await user.hover(screen.getByRole("img", { name: "Pull request open" }));
+		expect(screen.queryByRole("tooltip")).toBeNull();
 	});
 
-	it("shows a count next to the PR icon when the chat tracks multiple pull requests", () => {
+	it("names the PR icon with the tracked count", () => {
 		render(
 			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={[multiPRChat]} />
@@ -641,11 +639,8 @@ describe("ChatsSidebar PR icon", () => {
 		);
 
 		expect(
-			screen.getByRole("img", { name: "2 pull requests" }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByTestId("chat-node-pr-trigger-multi-pr"),
-		).toHaveTextContent("2");
+			screen.getByRole("img", { name: /pull requests/ }),
+		).toHaveAccessibleName("2 pull requests");
 	});
 
 	it("lists every pull request with number and title on hover", async () => {
@@ -656,13 +651,13 @@ describe("ChatsSidebar PR icon", () => {
 			</Wrapper>,
 		);
 
-		await user.hover(screen.getByTestId("chat-node-pr-trigger-multi-pr"));
+		await user.hover(screen.getByRole("img", { name: "2 pull requests" }));
 
-		const list = await screen.findByTestId("chat-node-pr-list-multi-pr");
-		expect(list).toHaveTextContent("PR #1");
-		expect(list).toHaveTextContent("feat: add login page");
-		expect(list).toHaveTextContent("PR #2");
-		expect(list).toHaveTextContent("feat: add login tests");
+		const tooltip = await screen.findByRole("tooltip");
+		within(tooltip).getByText("PR #1");
+		within(tooltip).getByText("feat: add login page");
+		within(tooltip).getByText("PR #2");
+		within(tooltip).getByText("feat: add login tests");
 	});
 });
 

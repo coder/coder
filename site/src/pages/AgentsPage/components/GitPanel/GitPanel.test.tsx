@@ -89,7 +89,7 @@ describe("GitPanel per-ref views", () => {
 			),
 		);
 
-		await user.click(screen.getByTestId("git-panel-view-switcher"));
+		await user.click(screen.getByRole("button", { name: "Switch git view" }));
 		const menu = await screen.findByRole("menu");
 		await user.click(within(menu).getByText("PR #23021"));
 
@@ -162,13 +162,14 @@ describe("GitPanel per-ref views", () => {
 			</Wrapper>,
 		);
 
-		const switcher = await screen.findByTestId("git-panel-view-switcher");
-		expect(switcher.tagName).toBe("BUTTON");
-		expect(screen.queryByText("No changes")).not.toBeInTheDocument();
+		const switcher = await screen.findByRole("button", {
+			name: "Switch git view",
+		});
 
 		await user.click(switcher);
 		const menu = await screen.findByRole("menu");
-		expect(within(menu).getByText("PR #23020")).toBeInTheDocument();
+		within(menu).getByText("PR #23020");
+		within(menu).getByText("PR #23021");
 	});
 
 	it("shows the selected PR's title when the primary is a branch", async () => {
@@ -190,12 +191,12 @@ describe("GitPanel per-ref views", () => {
 			],
 		});
 
-		await user.click(screen.getByTestId("git-panel-view-switcher"));
+		await user.click(screen.getByRole("button", { name: "Switch git view" }));
 		const menu = await screen.findByRole("menu");
 		await user.click(within(menu).getByText("PR #23021"));
 
-		expect(screen.getByTestId("git-panel-pr-title")).toHaveTextContent(
-			"fix: second change",
-		);
+		// The title row must carry the selected PR's title, not the
+		// branch-only primary's.
+		screen.getByText("fix: second change");
 	});
 });

@@ -1720,19 +1720,10 @@ export const WithMultiplePRs: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.getByTestId("chat-node-pr-trigger-multi-pr"),
-			).toBeInTheDocument(),
-		);
-		// Leave the PR list open so Pixel captures the hover state.
-		await userEvent.hover(canvas.getByTestId("chat-node-pr-trigger-multi-pr"));
-		// The tooltip portals to the body, outside the story canvas.
-		await waitFor(() =>
-			expect(
-				within(document.body).getByTestId("chat-node-pr-list-multi-pr"),
-			).toBeInTheDocument(),
-		);
+		// Hover so Pixel captures the PR list popover. The tooltip
+		// portals to the body, outside the story canvas.
+		await userEvent.hover(canvas.getByRole("img", { name: "3 pull requests" }));
+		await within(document.body).findByRole("tooltip");
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({

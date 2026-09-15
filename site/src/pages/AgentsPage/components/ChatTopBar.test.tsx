@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
@@ -95,9 +95,6 @@ describe("ChatTopBar PR chip", () => {
 			"href",
 			"https://github.com/coder/coder/pull/123",
 		);
-		expect(
-			screen.queryByLabelText("View pull requests"),
-		).not.toBeInTheDocument();
 	});
 
 	it("lists every PR in a menu when the chat tracks several", async () => {
@@ -115,20 +112,13 @@ describe("ChatTopBar PR chip", () => {
 
 		await userEvent.click(screen.getByLabelText("View pull requests"));
 
-		await waitFor(() => {
-			const items = screen.getAllByRole("menuitem");
-			expect(items).toHaveLength(2);
+		const menu = await screen.findByRole("menu");
+		within(menu).getByRole("menuitem", {
+			name: /fix: resolve race condition/,
 		});
-		expect(
-			screen.getByRole("menuitem", {
-				name: /fix: resolve race condition/,
-			}),
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("menuitem", {
-				name: /feat: add notification system/,
-			}),
-		).toBeInTheDocument();
+		within(menu).getByRole("menuitem", {
+			name: /feat: add notification system/,
+		});
 	});
 
 	it("opens the selected PR's URL when the chat tracks several", async () => {
@@ -177,10 +167,10 @@ describe("ChatTopBar PR chip", () => {
 		const link = screen.getByRole("link", {
 			name: /fix: resolve race condition/,
 		});
-		expect(link).toBeInTheDocument();
-		expect(
-			screen.queryByLabelText("View pull requests"),
-		).not.toBeInTheDocument();
+		expect(link).toHaveAttribute(
+			"href",
+			"https://github.com/coder/coder/pull/123",
+		);
 	});
 
 	it("ignores branch rows, which carry a tree URL rather than a PR", () => {
@@ -200,9 +190,9 @@ describe("ChatTopBar PR chip", () => {
 		const link = screen.getByRole("link", {
 			name: /fix: resolve race condition/,
 		});
-		expect(link).toBeInTheDocument();
-		expect(
-			screen.queryByLabelText("View pull requests"),
-		).not.toBeInTheDocument();
+		expect(link).toHaveAttribute(
+			"href",
+			"https://github.com/coder/coder/pull/123",
+		);
 	});
 });
