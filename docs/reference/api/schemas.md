@@ -1006,7 +1006,8 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    }
+    },
+    "stage_metrics": "string"
   }
 }
 ```
@@ -2495,7 +2496,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  }
+  },
+  "stage_metrics": "string"
 }
 ```
 
@@ -2510,6 +2512,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_secret`           | string                     | false    |              |             |
 | `hook_timeout`          | integer                    | false    |              |             |
 | `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
+| `stage_metrics`         | string                     | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -7286,7 +7289,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stage_metrics": "string"
       }
     },
     "allow_workspace_renames": true,
@@ -7896,7 +7900,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      }
+      },
+      "stage_metrics": "string"
     }
   },
   "allow_workspace_renames": true,

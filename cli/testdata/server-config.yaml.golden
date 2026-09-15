@@ -829,6 +829,13 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
+  # How much of the chat lifecycle stage instrumentation to expose as Prometheus
+  # metrics. "basic" records per-occurrence durations for the wait, connect, and
+  # model-call stages on a 12-bucket ladder. "full" adds every stage, a 16-bucket
+  # ladder, and the per-turn stage distributions at a higher series count. "off"
+  # exposes none. Tracing spans are unaffected.
+  # (default: basic, type: enum[off\|basic\|full])
+  stageMetrics: basic
   # HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires
   # --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the
   # agent-lifecycle-hooks experiment.

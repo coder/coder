@@ -1790,6 +1790,17 @@ How often to reconcile workspace prebuilds state.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --chat-stage-metrics
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>off\|basic\|full</code>          |
+| Environment | <code>$CODER_CHAT_STAGE_METRICS</code> |
+| YAML        | <code>chat.stageMetrics</code>         |
+| Default     | <code>basic</code>                     |
+
+How much of the chat lifecycle stage instrumentation to expose as Prometheus metrics. "basic" records per-occurrence durations for the wait, connect, and model-call stages on a 12-bucket ladder. "full" adds every stage, a 16-bucket ladder, and the per-turn stage distributions at a higher series count. "off" exposes none. Tracing spans are unaffected.
+
 ### --ai-gateway-enabled
 
 |             |                                        |
