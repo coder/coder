@@ -704,11 +704,17 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[chattool.FindToolsName] = true
 	}
 
-	toolNameToConfigID := make(map[string]uuid.UUID)
+	toolNameToConfigID := make(map[string]toolAttribution)
 	for _, t := range tools {
-		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
-			toolNameToConfigID[t.Info().Name] = mcpTool.MCPServerConfigID()
+		mcpTool, ok := t.(mcpclient.MCPToolIdentifier)
+		if !ok {
+			continue
 		}
+		attribution := toolAttribution{ConfigID: mcpTool.MCPServerConfigID()}
+		if appTool, ok := t.(mcpclient.MCPAppToolIdentifier); ok {
+			attribution.UIResourceURI = appTool.MCPAppResourceURI()
+		}
+		toolNameToConfigID[t.Info().Name] = attribution
 	}
 
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()

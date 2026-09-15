@@ -3453,3 +3453,59 @@ func TestPartFromContent_ExecuteToolParsedCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestToolResultContentToPart_MCPAppResult(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	t.Run("PromotesEnvelope", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID:     "call-1",
+			ToolName:       "srv__board",
+			Result:         fantasy.ToolResultOutputContentText{Text: "board updated"},
+			ClientMetadata: `{"mcp_app":{"resource_uri":"ui://srv/board","result":{"content":[{"type":"text","text":"board updated"}],"structuredContent":{"tasks":[]}}}}`,
+		})
+		require.Equal(t, "ui://srv/board", part.MCPAppResourceURI)
+		require.JSONEq(t, `{"content":[{"type":"text","text":"board updated"}],"structuredContent":{"tasks":[]}}`, string(part.MCPResult))
+		require.False(t, part.MCPResultTruncated)
+		require.JSONEq(t, `{"output":"board updated"}`, string(part.Result))
+	})
+
+	t.Run("Truncated", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID:     "call-1",
+			ToolName:       "srv__board",
+			Result:         fantasy.ToolResultOutputContentText{Text: "x"},
+			ClientMetadata: `{"mcp_app":{"resource_uri":"ui://srv/board","truncated":true}}`,
+		})
+		require.Equal(t, "ui://srv/board", part.MCPAppResourceURI)
+		require.Empty(t, part.MCPResult)
+		require.True(t, part.MCPResultTruncated)
+	})
+
+	t.Run("NoEnvelope", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID:     "call-1",
+			ToolName:       "srv__echo",
+			Result:         fantasy.ToolResultOutputContentText{Text: "x"},
+			ClientMetadata: `{"attachments":[]}`,
+		})
+		require.Empty(t, part.MCPAppResourceURI)
+		require.Empty(t, part.MCPResult)
+	})
+
+	t.Run("MalformedIgnored", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID:     "call-1",
+			ToolName:       "srv__echo",
+			Result:         fantasy.ToolResultOutputContentText{Text: "x"},
+			ClientMetadata: `{not json`,
+		})
+		require.Empty(t, part.MCPAppResourceURI)
+		require.JSONEq(t, `{"output":"x"}`, string(part.Result))
+	})
+}

@@ -75,7 +75,7 @@ type generationPrepared struct {
 	StopAfterTools     map[string]struct{}
 	ExclusiveToolNames map[string]bool
 	BuiltinToolNames   map[string]bool
-	ToolNameToConfigID map[string]uuid.UUID
+	ToolNameToConfigID map[string]toolAttribution
 
 	MaxSteps   int
 	Compaction *generationCompaction
@@ -741,7 +741,7 @@ func (s *taskStarter) generateAssistant(
 		ProviderTools:        prepared.ProviderTools,
 		ContextLimitFallback: prepared.ContextLimitFallback,
 		CallTemplate:         prepared.CallTemplate,
-		PublishMessagePart:   attempt.publish,
+		PublishMessagePart:   stampToolMetadata(attempt.publish, prepared.ToolNameToConfigID),
 		OnModelStreamStart:   attempt.startModelInvocation,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
@@ -916,7 +916,7 @@ func (s *taskStarter) executeLocalTools(
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
 			BillingRecorder:    billingRecorder,
-			PublishMessagePart: attempt.publish,
+			PublishMessagePart: stampToolMetadata(attempt.publish, prepared.ToolNameToConfigID),
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
 			Clock:              s.opts.Clock,

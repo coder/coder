@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/shellparse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -804,6 +805,17 @@ func toolResultContentToPart(
 	part := codersdk.ChatMessageToolResult(content.ToolCallID, content.ToolName, result, isError, isMedia)
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
+	if appResult, ok, err := mcpclient.AppResultFromMetadata(content.ClientMetadata); err != nil {
+		logger.Warn(context.Background(), "ignoring malformed MCP app result metadata",
+			slog.F("tool_name", content.ToolName),
+			slog.F("tool_call_id", content.ToolCallID),
+			slog.Error(err),
+		)
+	} else if ok {
+		part.MCPAppResourceURI = appResult.ResourceURI
+		part.MCPResult = appResult.Result
+		part.MCPResultTruncated = appResult.Truncated
+	}
 	return part
 }
 

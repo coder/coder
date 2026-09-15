@@ -2963,6 +2963,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app_resource_uri": "string",
+      "mcp_result": [
+        0
+      ],
+      "mcp_result_truncated": true,
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -3050,6 +3055,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "hook_rewritten": true,
   "is_error": true,
   "is_media": true,
+  "mcp_app_resource_uri": "string",
+  "mcp_result": [
+    0
+  ],
+  "mcp_result_truncated": true,
   "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
   "media_type": "string",
   "name": "string",
@@ -3104,6 +3114,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_app_resource_uri`         | string                                                       | false    |              | Mcp app resource uri is the ui:// resource declared by an MCP tool whose results render as an MCP App. Empty for tools without a UI.                                                                                                                                                                                                                                                                       |
+| `mcp_result`                   | array of integer                                             | false    |              | Mcp result is the raw MCP CallToolResult (content, structuredContent, isError, _meta) for tools that declare a UI resource. It is what the rendered app receives; Result remains the model-facing form.                                                                                                                                                                                                    |
+| `mcp_result_truncated`         | boolean                                                      | false    |              | Mcp result truncated is set when MCPResult was omitted because the raw result exceeded the size cap.                                                                                                                                                                                                                                                                                                       |
 | `mcp_server_config_id`         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3212,6 +3225,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -3286,6 +3304,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -4592,6 +4615,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app_resource_uri": "string",
+      "mcp_result": [
+        0
+      ],
+      "mcp_result_truncated": true,
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -4749,6 +4777,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -4821,6 +4854,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app_resource_uri": "string",
+      "mcp_result": [
+        0
+      ],
+      "mcp_result_truncated": true,
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -4881,6 +4919,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -4990,6 +5033,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "hook_rewritten": true,
     "is_error": true,
     "is_media": true,
+    "mcp_app_resource_uri": "string",
+    "mcp_result": [
+      0
+    ],
+    "mcp_result_truncated": true,
     "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
     "media_type": "string",
     "name": "string",
@@ -5717,6 +5765,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -5790,6 +5843,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -5864,6 +5922,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -8648,6 +8711,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -8721,6 +8789,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",

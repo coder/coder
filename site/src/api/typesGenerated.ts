@@ -3488,6 +3488,11 @@ export interface ChatToolCallPart {
 	 */
 	readonly hook_rewritten?: boolean;
 	/**
+	 * MCPAppResourceURI is the ui:// resource declared by an MCP tool
+	 * whose results render as an MCP App. Empty for tools without a UI.
+	 */
+	readonly mcp_app_resource_uri?: string;
+	/**
 	 * CreatedAt is the timestamp this part carries. The semantics
 	 * depend on the part type: for tool-call and tool-result parts
 	 * it is the time the call was emitted or the result was
@@ -3514,6 +3519,22 @@ export interface ChatToolResultPart {
 	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
+	/**
+	 * MCPAppResourceURI is the ui:// resource declared by an MCP tool
+	 * whose results render as an MCP App. Empty for tools without a UI.
+	 */
+	readonly mcp_app_resource_uri?: string;
+	/**
+	 * MCPResult is the raw MCP CallToolResult (content, structuredContent,
+	 * isError, _meta) for tools that declare a UI resource. It is what the
+	 * rendered app receives; Result remains the model-facing form.
+	 */
+	readonly mcp_result?: Record<string, string>;
+	/**
+	 * MCPResultTruncated is set when MCPResult was omitted because the
+	 * raw result exceeded the size cap.
+	 */
+	readonly mcp_result_truncated?: boolean;
 	/**
 	 * CreatedAt is the timestamp this part carries. The semantics
 	 * depend on the part type: for tool-call and tool-result parts

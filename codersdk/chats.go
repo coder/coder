@@ -384,6 +384,16 @@ type ChatMessagePart struct {
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 	// HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
 	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
+	// MCPAppResourceURI is the ui:// resource declared by an MCP tool
+	// whose results render as an MCP App. Empty for tools without a UI.
+	MCPAppResourceURI string `json:"mcp_app_resource_uri,omitempty" variants:"tool-call?,tool-result?"`
+	// MCPResult is the raw MCP CallToolResult (content, structuredContent,
+	// isError, _meta) for tools that declare a UI resource. It is what the
+	// rendered app receives; Result remains the model-facing form.
+	MCPResult json.RawMessage `json:"mcp_result,omitempty" variants:"tool-result?"`
+	// MCPResultTruncated is set when MCPResult was omitted because the
+	// raw result exceeded the size cap.
+	MCPResultTruncated bool `json:"mcp_result_truncated,omitempty" variants:"tool-result?"`
 	// CreatedAt is the timestamp this part carries. The semantics
 	// depend on the part type: for tool-call and tool-result parts
 	// it is the time the call was emitted or the result was

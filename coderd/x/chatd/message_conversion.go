@@ -29,7 +29,7 @@ const interruptedToolResultErrorMessage = "tool call was interrupted before it p
 type buildCommitStepMessagesInput struct {
 	modelConfigID          uuid.UUID
 	step                   stepData
-	toolNameToConfigID     map[string]uuid.UUID
+	toolNameToConfigID     map[string]toolAttribution
 	logger                 slog.Logger
 	contentVersion         int16
 	hookRewrittenToolCalls map[string]json.RawMessage
@@ -118,7 +118,7 @@ func buildAssistantParts(
 	assistantBlocks []fantasy.Content,
 	toolResults []fantasy.ToolResultContent,
 	step stepData,
-	toolNameToConfigID map[string]uuid.UUID,
+	toolNameToConfigID map[string]toolAttribution,
 	hookRewrittenToolCalls map[string]json.RawMessage,
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
@@ -178,12 +178,48 @@ func buildAssistantParts(
 	return parts
 }
 
-func applyToolMetadata(part *codersdk.ChatMessagePart, toolNameToConfigID map[string]uuid.UUID) {
+// toolAttribution identifies the MCP server a tool belongs to and,
+// when the tool declares one, the ui:// resource that renders its
+// results.
+type toolAttribution struct {
+	ConfigID      uuid.UUID
+	UIResourceURI string
+}
+
+// applyToolMetadata stamps MCP attribution onto tool-call and
+// tool-result parts. Parts for tools without an attribution entry are
+// left untouched.
+func applyToolMetadata(part *codersdk.ChatMessagePart, toolNameToConfigID map[string]toolAttribution) {
 	if part.ToolName == "" || len(toolNameToConfigID) == 0 {
 		return
 	}
-	if configID, ok := toolNameToConfigID[part.ToolName]; ok {
-		part.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+	switch part.Type {
+	case codersdk.ChatMessagePartTypeToolCall, codersdk.ChatMessagePartTypeToolResult:
+	default:
+		return
+	}
+	attribution, ok := toolNameToConfigID[part.ToolName]
+	if !ok {
+		return
+	}
+	part.MCPServerConfigID = uuid.NullUUID{UUID: attribution.ConfigID, Valid: true}
+	if attribution.UIResourceURI != "" {
+		part.MCPAppResourceURI = attribution.UIResourceURI
+	}
+}
+
+// stampToolMetadata wraps a message part publisher so streamed parts
+// carry the same MCP attribution as their persisted counterparts.
+func stampToolMetadata(
+	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+	toolNameToConfigID map[string]toolAttribution,
+) func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {
+	if publish == nil || len(toolNameToConfigID) == 0 {
+		return publish
+	}
+	return func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+		applyToolMetadata(&part, toolNameToConfigID)
+		publish(role, part)
 	}
 }
 
@@ -834,6 +870,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	}
 	if part.MCPServerConfigID.Valid {
 		call.part.MCPServerConfigID = part.MCPServerConfigID
+	}
+	if part.MCPAppResourceURI != "" {
+		call.part.MCPAppResourceURI = part.MCPAppResourceURI
 	}
 	if part.CreatedAt != nil {
 		call.part.CreatedAt = part.CreatedAt

@@ -268,8 +268,8 @@ func TestBuildCommitStepMessages_ToolTimestampsAndMCPConfigIDs(t *testing.T) {
 		modelConfigID:  uuid.New(),
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		toolNameToConfigID: map[string]uuid.UUID{
-			"mcp_tool": configID,
+		toolNameToConfigID: map[string]toolAttribution{
+			"mcp_tool": {ConfigID: configID},
 		},
 		step: stepData{Content: []fantasy.Content{
 			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "mcp_tool", Input: `{}`},
@@ -1373,4 +1373,99 @@ func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, generationActionGenerateAssistant, decision.kind)
+}
+
+func TestBuildCommitStepMessages_MCPAppAttribution(t *testing.T) {
+	t.Parallel()
+
+	configID := uuid.New()
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		toolNameToConfigID: map[string]toolAttribution{
+			"srv__board": {ConfigID: configID, UIResourceURI: "ui://srv/board"},
+			"srv__echo":  {ConfigID: configID},
+		},
+		step: stepData{Content: []fantasy.Content{
+			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "srv__board", Input: `{}`},
+			fantasy.ToolCallContent{ToolCallID: "call-2", ToolName: "srv__echo", Input: `{}`},
+			fantasy.ToolResultContent{
+				ToolCallID:     "call-1",
+				ToolName:       "srv__board",
+				Result:         fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+				ClientMetadata: `{"mcp_app":{"resource_uri":"ui://srv/board","result":{"content":[]}}}`,
+			},
+			fantasy.ToolResultContent{ToolCallID: "call-2", ToolName: "srv__echo", Result: fantasy.ToolResultOutputContentText{Text: `{"ok":true}`}},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+
+	callParts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
+	require.Len(t, callParts, 2)
+	require.Equal(t, "ui://srv/board", callParts[0].MCPAppResourceURI)
+	require.Equal(t, uuid.NullUUID{UUID: configID, Valid: true}, callParts[0].MCPServerConfigID)
+	require.Empty(t, callParts[1].MCPAppResourceURI)
+	require.Equal(t, uuid.NullUUID{UUID: configID, Valid: true}, callParts[1].MCPServerConfigID)
+
+	boardResult := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
+	require.Equal(t, "ui://srv/board", boardResult.MCPAppResourceURI)
+	require.JSONEq(t, `{"content":[]}`, string(boardResult.MCPResult))
+	echoResult := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
+	require.Empty(t, echoResult.MCPAppResourceURI)
+	require.Empty(t, echoResult.MCPResult)
+}
+
+func TestStampToolMetadata(t *testing.T) {
+	t.Parallel()
+
+	configID := uuid.New()
+	attribution := map[string]toolAttribution{
+		"srv__board": {ConfigID: configID, UIResourceURI: "ui://srv/board"},
+	}
+	var published []codersdk.ChatMessagePart
+	publish := stampToolMetadata(func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+		published = append(published, part)
+	}, attribution)
+
+	publish(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call-1", ToolName: "srv__board"})
+	publish(codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "call-1", ToolName: "srv__board"})
+	publish(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "srv__board"})
+	publish(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call-2", ToolName: "other"})
+
+	require.Len(t, published, 4)
+	require.Equal(t, "ui://srv/board", published[0].MCPAppResourceURI)
+	require.Equal(t, uuid.NullUUID{UUID: configID, Valid: true}, published[0].MCPServerConfigID)
+	require.Equal(t, "ui://srv/board", published[1].MCPAppResourceURI)
+	require.Empty(t, published[2].MCPAppResourceURI)
+	require.False(t, published[2].MCPServerConfigID.Valid)
+	require.Empty(t, published[3].MCPAppResourceURI)
+	require.False(t, published[3].MCPServerConfigID.Valid)
+
+	require.Nil(t, stampToolMetadata(nil, attribution))
+}
+
+func TestBufferedPartsToPartialMessages_MCPAppResourceURI(t *testing.T) {
+	t.Parallel()
+
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call-1", ToolName: "srv__board",
+			MCPAppResourceURI: "ui://srv/board", ArgsDelta: `{}`,
+		}},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+	assistantParts := parseMessageParts(t, got[0].Role, got[0].Content)
+	require.Len(t, assistantParts, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, assistantParts[0].Type)
+	require.Equal(t, "ui://srv/board", assistantParts[0].MCPAppResourceURI)
 }

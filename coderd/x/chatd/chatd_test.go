@@ -14537,3 +14537,203 @@ func setupWorkspaceContextAgentConn(
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 }
+
+// TestMCPAppToolStreamsAndPersistsAttribution verifies that tool-call and
+// tool-result parts for an MCP tool declaring a ui:// resource carry the
+// MCP app fields both on the live stream and in the persisted messages.
+func TestMCPAppToolStreamsAndPersistsAttribution(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := newTestMCPServer("board-mcp")
+	mcpSrv.AddTool(&mcp.Tool{
+		Name:        "list_tasks",
+		Description: "Lists tasks",
+		InputSchema: map[string]any{"type": "object"},
+		Meta:        map[string]any{"ui": map[string]any{"resourceUri": "ui://board/main"}},
+	}, func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{
+			Content:           []mcp.Content{&mcp.TextContent{Text: "1 task"}},
+			StructuredContent: map[string]any{"tasks": []any{"milk"}},
+		}, nil
+	})
+	mcpSrv.AddTool(&mcp.Tool{
+		Name:        "refresh",
+		Description: "App-only refresh",
+		InputSchema: map[string]any{"type": "object"},
+		Meta:        map[string]any{"ui": map[string]any{"resourceUri": "ui://board/main", "visibility": []any{"app"}}},
+	}, func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil
+	})
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	var (
+		callCount    atomic.Int32
+		llmToolsMu   sync.Mutex
+		llmToolNames []string
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if callCount.Add(1) == 1 {
+			llmToolsMu.Lock()
+			for _, tool := range req.Tools {
+				llmToolNames = append(llmToolNames, tool.Function.Name)
+			}
+			llmToolsMu.Unlock()
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("board-mcp__list_tasks", `{}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Done")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Board MCP",
+		Slug:           "board-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "mcp-app-test",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("List tasks."),
+		},
+	})
+	require.NoError(t, err)
+
+	var (
+		streamMu      sync.Mutex
+		streamedCall  *codersdk.ChatMessagePart
+		streamedTool  *codersdk.ChatMessagePart
+		collectorDone = make(chan struct{})
+	)
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	go func() {
+		defer close(collectorDone)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, eventsOK := <-liveEvents:
+				if !eventsOK {
+					return
+				}
+				// A part reaches a subscriber either as a live
+				// message_part or, once its step commits, inside the
+				// committed message; both carry the same fields.
+				var parts []codersdk.ChatMessagePart
+				switch {
+				case event.Type == codersdk.ChatStreamEventTypeMessagePart && event.MessagePart != nil:
+					parts = []codersdk.ChatMessagePart{event.MessagePart.Part}
+				case event.Type == codersdk.ChatStreamEventTypeMessage && event.Message != nil:
+					parts = event.Message.Content
+				default:
+					continue
+				}
+				streamMu.Lock()
+				for _, part := range parts {
+					if part.ToolName != "board-mcp__list_tasks" {
+						continue
+					}
+					switch {
+					case part.Type == codersdk.ChatMessagePartTypeToolCall && streamedCall == nil:
+						p := part
+						streamedCall = &p
+					case part.Type == codersdk.ChatMessagePartTypeToolResult && len(part.Result) > 0 && streamedTool == nil:
+						p := part
+						streamedTool = &p
+					}
+				}
+				streamMu.Unlock()
+			}
+		}
+	}()
+
+	server.Start()
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
+	}
+	// The persisted tool result is published on the stream before the
+	// chat status flips, so wait for it rather than for the stream to end.
+	require.Eventually(t, func() bool {
+		streamMu.Lock()
+		defer streamMu.Unlock()
+		return streamedCall != nil && streamedTool != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	cancelLive()
+	<-collectorDone
+
+	llmToolsMu.Lock()
+	recordedNames := append([]string(nil), llmToolNames...)
+	llmToolsMu.Unlock()
+	require.Contains(t, recordedNames, "board-mcp__list_tasks")
+	require.NotContains(t, recordedNames, "board-mcp__refresh", "app-only tools are hidden from the model")
+
+	streamMu.Lock()
+	defer streamMu.Unlock()
+	require.NotNil(t, streamedCall, "streamed tool-call part")
+	require.Equal(t, "ui://board/main", streamedCall.MCPAppResourceURI)
+	require.Equal(t, uuid.NullUUID{UUID: mcpConfig.ID, Valid: true}, streamedCall.MCPServerConfigID)
+	require.NotNil(t, streamedTool, "streamed tool-result part")
+	require.Equal(t, "ui://board/main", streamedTool.MCPAppResourceURI)
+	require.Equal(t, uuid.NullUUID{UUID: mcpConfig.ID, Valid: true}, streamedTool.MCPServerConfigID)
+	require.False(t, streamedTool.MCPResultTruncated)
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(streamedTool.MCPResult, &raw))
+	require.Equal(t, map[string]any{"tasks": []any{"milk"}}, raw["structuredContent"])
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	var persistedCall, persistedResult bool
+	for _, msg := range messages {
+		parts, parseErr := chatprompt.ParseContent(msg)
+		if parseErr != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.ToolName != "board-mcp__list_tasks" {
+				continue
+			}
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeToolCall:
+				persistedCall = true
+				require.Equal(t, "ui://board/main", part.MCPAppResourceURI)
+			case codersdk.ChatMessagePartTypeToolResult:
+				persistedResult = true
+				require.Equal(t, "ui://board/main", part.MCPAppResourceURI)
+				require.NotEmpty(t, part.MCPResult)
+			}
+		}
+	}
+	require.True(t, persistedCall, "persisted tool-call part")
+	require.True(t, persistedResult, "persisted tool-result part")
+}

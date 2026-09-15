@@ -18164,6 +18164,21 @@
 				"is_media": {
 					"type": "boolean"
 				},
+				"mcp_app_resource_uri": {
+					"description": "MCPAppResourceURI is the ui:// resource declared by an MCP tool\nwhose results render as an MCP App. Empty for tools without a UI.",
+					"type": "string"
+				},
+				"mcp_result": {
+					"description": "MCPResult is the raw MCP CallToolResult (content, structuredContent,\nisError, _meta) for tools that declare a UI resource. It is what the\nrendered app receives; Result remains the model-facing form.",
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"mcp_result_truncated": {
+					"description": "MCPResultTruncated is set when MCPResult was omitted because the\nraw result exceeded the size cap.",
+					"type": "boolean"
+				},
 				"mcp_server_config_id": {
 					"type": "string",
 					"format": "uuid"

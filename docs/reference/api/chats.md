@@ -2310,6 +2310,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -2384,6 +2389,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -2509,6 +2519,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -2582,6 +2597,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -2656,6 +2676,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -2785,6 +2810,11 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -2858,6 +2888,11 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -3346,6 +3381,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app_resource_uri": "string",
+          "mcp_result": [
+            0
+          ],
+          "mcp_result_truncated": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -3418,6 +3458,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app_resource_uri": "string",
+        "mcp_result": [
+          0
+        ],
+        "mcp_result_truncated": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -3478,6 +3523,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "hook_rewritten": true,
             "is_error": true,
             "is_media": true,
+            "mcp_app_resource_uri": "string",
+            "mcp_result": [
+              0
+            ],
+            "mcp_result_truncated": true,
             "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
             "media_type": "string",
             "name": "string",
@@ -3578,6 +3628,9 @@ Status Code **200**
 | `»»» hook_rewritten`               | boolean                                                                          | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `»»» is_error`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» is_media`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» mcp_app_resource_uri`         | string                                                                           | false    |              | Mcp app resource uri is the ui:// resource declared by an MCP tool whose results render as an MCP App. Empty for tools without a UI.                                                                                                                                                                                                                                                                       |
+| `»»» mcp_result`                   | array                                                                            | false    |              | Mcp result is the raw MCP CallToolResult (content, structuredContent, isError, _meta) for tools that declare a UI resource. It is what the rendered app receives; Result remains the model-facing form.                                                                                                                                                                                                    |
+| `»»» mcp_result_truncated`         | boolean                                                                          | false    |              | Mcp result truncated is set when MCPResult was omitted because the raw result exceeded the size cap.                                                                                                                                                                                                                                                                                                       |
 | `»»» mcp_server_config_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» media_type`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» name`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
