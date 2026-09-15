@@ -47,7 +47,7 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: write
@@ -261,7 +261,11 @@ jobs:
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
           wait: complete
-          wait-timeout-seconds: "600"
+          # The chat keeps running in Coder after this job stops watching, so
+          # a timeout here only turns a finished review red. A review on the
+          # local model takes 5 to 30 minutes; 40 minutes covers every normal
+          # run seen so far and leaves the job cap above room for setup.
+          wait-timeout-seconds: "2400"
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
           comment-on-issue: "false"
