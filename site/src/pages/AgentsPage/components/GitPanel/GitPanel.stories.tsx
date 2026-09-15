@@ -75,22 +75,23 @@ const defaultDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
 };
 
-/** Reusable PR diff status with head/base branches. */
 const makePrStatus = (
 	overrides: Partial<ChatDiffStatus> = {},
-): ChatDiffStatus => ({
-	...defaultDiffStatus,
-	url: "https://github.com/coder/coder/pull/23020",
-	pull_request_title: "feat(agents): add MCP server configuration to agents",
-	pull_request_state: "open",
-	pull_request_draft: false,
-	base_branch: "main",
-	head_branch: "feat/add-mcp-config",
-	additions: 4037,
-	deletions: 7,
-	changed_files: 12,
-	...overrides,
-});
+): ChatDiffStatus[] => [
+	{
+		...defaultDiffStatus,
+		url: "https://github.com/coder/coder/pull/23020",
+		pull_request_title: "feat(agents): add MCP server configuration to agents",
+		pull_request_state: "open",
+		pull_request_draft: false,
+		base_branch: "main",
+		head_branch: "feat/add-mcp-config",
+		additions: 4037,
+		deletions: 7,
+		changed_files: 12,
+		...overrides,
+	},
+];
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -128,6 +129,7 @@ type Story = StoryObj<typeof GitPanel>;
 /** PR is open with a title, head/base branches, and working changes. */
 export const PullRequestAndWorkingChanges: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus(),
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
@@ -141,11 +143,56 @@ export const PullRequestAndWorkingChanges: Story = {
 };
 
 /**
- * Opens the dropdown, then clicks a working entry so the screenshot shows
- * the swapped view.
+ * Two tracked PRs on different branches, switching between them via
+ * the view switcher.
+ */
+export const MultiplePullRequests: Story = {
+	args: {
+		chatId: "test-chat",
+		prTab: { prNumber: 23020, chatId: "test-chat" },
+		remoteDiffStats: [
+			...makePrStatus({
+				pull_request_title: "feat: first change",
+				head_branch: "feat/first",
+				git_branch: "feat/first",
+				pr_number: 23020,
+			}),
+			...makePrStatus({
+				pull_request_title: "fix: second change",
+				head_branch: "fix/second",
+				git_branch: "fix/second",
+				pr_number: 23021,
+				url: "https://github.com/coder/coder/pull/23021",
+				pull_request_state: "merged",
+				additions: 12,
+				deletions: 3,
+				changed_files: 2,
+			}),
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff: sampleDiff,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		// Open the switcher and select the second PR so the screenshot
+		// shows the merged state. Behavior is asserted in Vitest.
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByTestId("git-panel-view-switcher"));
+		const menu = await within(document.body).findByRole("menu");
+		await userEvent.click(within(menu).getByText("PR #23021"));
+	},
+};
+
+/**
+ * Opens the dropdown, asserts the PR + working repos appear, then
+ * clicks a working entry to verify the view swap.
  */
 export const ViewSwitcherOpen: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			pull_request_title: "feat: multi-repo workspace support",
@@ -175,13 +222,7 @@ export const ViewSwitcherOpen: Story = {
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
 		await userEvent.click(switcher);
 
-		// The Radix menu portals to document.body, so query the full
-		// document instead of the story canvas.
-		const menu = await waitFor(() => {
-			const el = document.querySelector("[role='menu']");
-			if (!el) throw new Error("menu not found");
-			return el as HTMLElement;
-		});
+		const menu = await within(document.body).findByRole("menu");
 
 		// Selecting a menu item swaps the active view and the trigger
 		// identifier reflects the new selection.
@@ -193,6 +234,7 @@ export const ViewSwitcherOpen: Story = {
 /** Draft PR with head/base branches. */
 export const DraftPullRequest: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 22950, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/22950",
@@ -218,6 +260,7 @@ export const DraftPullRequest: Story = {
 /** Merged PR. */
 export const MergedPullRequest: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 23000, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/23000",
@@ -240,6 +283,7 @@ export const MergedPullRequest: Story = {
 /** Closed PR. */
 export const ClosedPullRequest: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 22800, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/22800",
@@ -262,12 +306,15 @@ export const ClosedPullRequest: Story = {
 /** Branch pushed but no PR opened yet. */
 export const BranchOnly: Story = {
 	args: {
-		remoteDiffStats: {
-			...defaultDiffStatus,
-			additions: 42,
-			deletions: 7,
-			changed_files: 3,
-		},
+		chatId: "test-chat",
+		remoteDiffStats: [
+			{
+				...defaultDiffStatus,
+				additions: 42,
+				deletions: 7,
+				changed_files: 3,
+			},
+		],
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 };
@@ -275,6 +322,7 @@ export const BranchOnly: Story = {
 /** Only local working changes, no remote/PR. */
 export const WorkingChangesOnly: Story = {
 	args: {
+		chatId: "test-chat",
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 };
@@ -282,6 +330,7 @@ export const WorkingChangesOnly: Story = {
 /** Multiple repos with working changes. */
 export const MultipleRepos: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			pull_request_title: "feat: multi-repo workspace support",
@@ -314,6 +363,7 @@ export const MultipleRepos: Story = {
 /** No remote changes, no working changes — empty state. */
 export const EmptyState: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 23020, chatId: "test-chat" },
 	},
 };
@@ -321,6 +371,7 @@ export const EmptyState: Story = {
 /** No repositories and no remote tab; Git controls should be disabled. */
 export const GitNotActive: Story = {
 	args: {
+		chatId: "test-chat",
 		repositories: new Map(),
 	},
 };
@@ -328,6 +379,7 @@ export const GitNotActive: Story = {
 /** Git watcher is loading its first repository update. */
 export const GitStatusLoading: Story = {
 	args: {
+		chatId: "test-chat",
 		repositories: new Map(),
 		isGitStatusLoading: true,
 	},
@@ -340,6 +392,7 @@ export const GitStatusLoading: Story = {
  */
 export const InlineCommentInput: Story = {
 	args: {
+		chatId: "test-chat",
 		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus(),
 	},
@@ -373,6 +426,7 @@ export const InlineCommentInput: Story = {
 
 export const LargeDiff: Story = {
 	args: {
+		chatId: "test-chat",
 		repositories: new Map([
 			[
 				"/home/coder/large-project",
@@ -393,6 +447,7 @@ export const LargeDiff: Story = {
  */
 export const EverDirtyRepoGoneClean: Story = {
 	args: {
+		chatId: "test-chat",
 		repositories: new Map([
 			["/home/coder/coder", makeRepo({ unified_diff: "" })],
 		]),
@@ -407,6 +462,7 @@ export const EverDirtyRepoGoneClean: Story = {
  */
 export const CleanRepoFromStart: Story = {
 	args: {
+		chatId: "test-chat",
 		repositories: new Map([
 			["/home/coder/coder", makeRepo({ unified_diff: "" })],
 		]),

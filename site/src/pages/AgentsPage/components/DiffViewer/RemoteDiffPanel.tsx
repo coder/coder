@@ -63,6 +63,7 @@ interface RemoteDiffPanelProps {
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: TypesGen.ChatDiffStatus;
+	remoteRef?: TypesGen.DiffStatusRef;
 }
 
 export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
@@ -71,13 +72,17 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	chatInputRef,
 	diffStyle,
 	diffStatus,
+	remoteRef,
 }) => {
 	// ---------------------------------------------------------------
 	// Data fetching
 	// ---------------------------------------------------------------
 	const diffContentsQuery = useQuery({
-		...chatDiffContents(chatId),
-		enabled: Boolean(diffStatus?.url),
+		...chatDiffContents(chatId, remoteRef),
+		// A ref without a PR URL still has a fetchable branch diff.
+		enabled:
+			Boolean(diffStatus?.url) ||
+			Boolean(remoteRef?.remote_origin && remoteRef?.git_branch),
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;

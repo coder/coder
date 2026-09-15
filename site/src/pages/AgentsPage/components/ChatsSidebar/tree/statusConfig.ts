@@ -49,7 +49,7 @@ const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
 	return statusConfig[status] ?? statusConfig.waiting;
 };
 
-const getPRIconConfig = (
+export const getPRIconConfig = (
 	diffStatus: ChatDiffStatus | undefined,
 ): ChatIconConfig | undefined => {
 	const state = diffStatus?.pull_request_state;
@@ -84,10 +84,6 @@ const getPRIconConfig = (
 	};
 };
 
-const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
-	return chat.diff_status;
-};
-
 /**
  * Returns the icons and styling that represent a chat's current state.
  *
@@ -100,15 +96,20 @@ export const getChatDisplayConfig = (
 	className: string;
 	label: string;
 	prIcon: ChatIconConfig | undefined;
+	prStatuses: ChatDiffStatus[];
 	diffStatus: ChatDiffStatus | undefined;
 } => {
-	const diffStatus = getChatDiffStatus(chat);
+	const diffStatus = chat.diff_statuses?.[0];
+	const prStatuses = (chat.diff_statuses ?? []).filter(
+		(status) => status.pull_request_state,
+	);
 	const config = getStatusConfig(chat.status);
 	return {
 		icon: config.icon,
 		className: config.className,
 		label: config.label,
 		prIcon: getPRIconConfig(diffStatus),
+		prStatuses,
 		diffStatus,
 	};
 };
