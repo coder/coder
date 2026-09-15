@@ -46,6 +46,88 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 	require.Len(t, mutations, 1)
 	require.Equal(t, "merge", mutations[0].Op)
 	require.NotContains(t, mutations, memoryConsolidationMutation{Op: "update", Name: "fresh", Description: "Changed", Body: "Changed body"})
+
+	t.Run("AllowsOneSourceWhenTargetExists", func(t *testing.T) {
+		t.Parallel()
+
+		mutations := validateMemoryConsolidationMutations([]memoryConsolidationMutation{{
+			Op:          "merge",
+			Into:        "old-a",
+			From:        []string{"old-b"},
+			Description: "Merged",
+			Body:        "Merged body",
+		}}, memories, now)
+		require.Len(t, mutations, 1)
+	})
+
+	t.Run("RequiresTwoSourcesWhenTargetIsNew", func(t *testing.T) {
+		t.Parallel()
+
+		mutations := validateMemoryConsolidationMutations([]memoryConsolidationMutation{{
+			Op:          "merge",
+			Into:        "merged",
+			From:        []string{"old-a"},
+			Description: "Merged",
+			Body:        "Merged body",
+		}}, memories, now)
+		require.Empty(t, mutations)
+	})
+}
+
+type memoryConsolidationStore struct {
+	memories map[string]chattool.Memory
+}
+
+func (s *memoryConsolidationStore) Get(_ context.Context, name string) (chattool.Memory, error) {
+	memory, ok := s.memories[name]
+	if !ok {
+		return chattool.Memory{}, chattool.ErrMemoryNotFound
+	}
+	return memory, nil
+}
+
+func (*memoryConsolidationStore) List(context.Context) ([]chattool.MemoryIndexEntry, error) {
+	return nil, nil
+}
+
+func (*memoryConsolidationStore) ListFull(context.Context) ([]chattool.Memory, error) {
+	return nil, nil
+}
+
+func (s *memoryConsolidationStore) Count(context.Context) (int64, error) {
+	return int64(len(s.memories)), nil
+}
+
+func (s *memoryConsolidationStore) Upsert(_ context.Context, input chattool.MemoryInput) (chattool.Memory, error) {
+	memory := chattool.Memory{Name: input.Name, Description: input.Description, Body: input.Body}
+	s.memories[input.Name] = memory
+	return memory, nil
+}
+
+func (s *memoryConsolidationStore) Delete(_ context.Context, name string) error {
+	delete(s.memories, name)
+	return nil
+}
+func (s *memoryConsolidationStore) InTx(fn func(chattool.MemoryStore) error) error { return fn(s) }
+
+func TestApplyMemoryConsolidationMutations(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	snapshot := []chattool.Memory{{Name: "memory", Description: "Old", Body: "Old body", UpdatedAt: now.Add(-48 * time.Hour)}}
+	store := &memoryConsolidationStore{memories: map[string]chattool.Memory{
+		"memory": {Name: "memory", Description: "Old", Body: "Old body", UpdatedAt: now.Add(-47 * time.Hour)},
+	}}
+
+	applied, err := applyMemoryConsolidationMutations(t.Context(), store, []memoryConsolidationMutation{{
+		Op:          "update",
+		Name:        "memory",
+		Description: "Consolidated",
+		Body:        "Consolidated body",
+	}}, snapshot, now)
+	require.NoError(t, err)
+	require.Empty(t, applied)
+	require.Equal(t, "Old", store.memories["memory"].Description)
 }
 
 func TestFormatMemoryConsolidationInput(t *testing.T) {
@@ -285,6 +367,18 @@ func TestConsolidateMemories(t *testing.T) {
 			return response, nil
 		}))
 		record := database.ChatMemoryConsolidation{ID: uuid.New()}
+		projectMemoryRow := func(memory chattool.Memory) database.GetChatProjectMemoryByNameRow {
+			return database.GetChatProjectMemoryByNameRow{ChatProjectMemory: database.ChatProjectMemory{
+				Name:        memory.Name,
+				Description: memory.Description,
+				Body:        memory.Body,
+				UpdatedAt:   memory.UpdatedAt,
+			}}
+		}
+		memoryByName := make(map[string]chattool.Memory, len(memories))
+		for _, memory := range memories {
+			memoryByName[memory.Name] = memory
+		}
 
 		calls := []*gomock.Call{
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
@@ -305,6 +399,9 @@ func TestConsolidateMemories(t *testing.T) {
 			}).Return(record, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(projectRows(memories), nil),
 			inTx(db),
+			db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-copy"}).Return(projectMemoryRow(memoryByName["alpha-copy"]), nil),
+			db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-secondary"}).Return(projectMemoryRow(memoryByName["alpha-secondary"]), nil),
+			db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha"}).Return(projectMemoryRow(memoryByName["alpha"]), nil),
 			db.EXPECT().UpsertChatProjectMemoryByName(gomock.Any(), database.UpsertChatProjectMemoryByNameParams{
 				ProjectID:      chat.ProjectID.UUID,
 				OrganizationID: chat.OrganizationID,
@@ -316,13 +413,20 @@ func TestConsolidateMemories(t *testing.T) {
 			}).Return(database.ChatProjectMemory{}, nil),
 			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-copy"}).Return(nil),
 			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-secondary"}).Return(nil),
+			db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "stale"}).Return(projectMemoryRow(memoryByName["stale"]), nil),
 			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "stale"}).Return(nil),
 		)
 		for i := 1; i <= 5; i++ {
-			calls = append(calls, db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{
-				ProjectID: chat.ProjectID.UUID,
-				Name:      fmt.Sprintf("old-%d", i),
-			}).Return(nil))
+			name := fmt.Sprintf("old-%d", i)
+			calls = append(calls,
+				db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{
+					ProjectID: chat.ProjectID.UUID,
+					Name:      name,
+				}).Return(projectMemoryRow(memoryByName[name]), nil),
+				db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{
+					ProjectID: chat.ProjectID.UUID,
+					Name:      fmt.Sprintf("old-%d", i),
+				}).Return(nil))
 		}
 		calls = append(calls,
 			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(21), nil),
@@ -425,11 +529,19 @@ func TestConsolidateMemories(t *testing.T) {
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			db.EXPECT().GetChatProjectByID(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatProject{Name: "platform"}, nil),
 			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(chattool.MaxMemories), nil),
+			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{
+				Status:    database.ChatMemoryConsolidationStatusSucceeded,
+				StartedAt: time.Now().Add(-time.Hour),
+			}, nil),
 		}
 		calls = append(calls, expectModelResolution(db, chat)...)
 		calls = append(calls,
 			inTx(db),
 			db.EXPECT().TryAcquireLock(gomock.Any(), memoryConsolidationScopeForChat(chat).lockID()).Return(true, nil),
+			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{
+				Status:    database.ChatMemoryConsolidationStatusSucceeded,
+				StartedAt: time.Now().Add(-time.Hour),
+			}, nil),
 			db.EXPECT().InsertChatMemoryConsolidation(gomock.Any(), gomock.Any()).Return(record, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
 			db.EXPECT().FinishChatMemoryConsolidation(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -447,6 +559,25 @@ func TestConsolidateMemories(t *testing.T) {
 
 		server.consolidateMemories(t.Context(), slogtest.Make(t, nil), chat)
 		require.Equal(t, 1, modelCalls)
+	})
+
+	t.Run("AtCapSkipsFreshRunningWithoutModelCall", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newProjectChat()
+		gomock.InOrder(
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+			db.EXPECT().GetChatProjectByID(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatProject{Name: "platform"}, nil),
+			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(chattool.MaxMemories), nil),
+			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{
+				Status:    database.ChatMemoryConsolidationStatusRunning,
+				StartedAt: time.Now().Add(-time.Minute),
+			}, nil),
+		)
+
+		newServer(t, db, nil).consolidateMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
 
 	t.Run("PersonalScopeUsesUserQueries", func(t *testing.T) {
