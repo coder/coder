@@ -36,7 +36,7 @@ func serveAsync(tracker *Server, next http.Handler) <-chan int {
 	done := make(chan int, 1)
 	go func() {
 		rec := httptest.NewRecorder()
-		handler := &requestHandler{handler: next, inflight: tracker.inflight}
+		handler := tracker.inflight.Middleware(nil)(next)
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 		done <- rec.Code
 	}()
@@ -128,12 +128,9 @@ func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	handler := &requestHandler{
-		handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-			t.Error("request admitted after shutdown")
-		}),
-		inflight: tracker.inflight,
-	}
+	handler := tracker.inflight.Middleware(nil)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("request admitted after shutdown")
+	}))
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
@@ -148,8 +145,8 @@ func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 
 	handler, _, _ := blockingHandler()
 	rec := httptest.NewRecorder()
-	backend := &requestHandler{handler: handler, inflight: tracker.inflight}
-	backend.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+	current := tracker.inflight.Middleware(nil)(handler)
+	current.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Contains(t, rec.Body.String(), "shutting down")
 }
@@ -164,7 +161,7 @@ func newProxyTestServer(t *testing.T) *Server {
 		logger:       slogtest.Make(t, nil),
 		inflight:     aibridge.NewInflightGate(),
 	}
-	s.backend.Store(&requestHandler{inflight: s.inflight})
+	s.backend.Store(&backend{})
 	t.Cleanup(func() { _ = s.Close() })
 	return s
 }

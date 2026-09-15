@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcpmock"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 // InflightRequests returns the number of admitted requests still running.
@@ -197,9 +196,10 @@ func TestRequestBridgeShutdownDoesNotWaitForCanceledHandler(t *testing.T) {
 				<-release // Deliberately ignore request cancellation.
 			})
 			bridge := &RequestBridge{
-				mux: mux, inflight: NewInflightGate(), clock: quartz.NewReal(),
-				logger: slogtest.Make(t, nil),
+				inflight: NewInflightGate(),
+				logger:   slogtest.Make(t, nil),
 			}
+			bridge.handler = bridge.inflight.Middleware(nil)(mux)
 			// MCP cleanup must be attempted while the handler is still blocked.
 			if withMCP {
 				proxy := mcpmock.NewMockServerProxier(gomock.NewController(t))

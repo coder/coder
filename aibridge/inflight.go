@@ -2,6 +2,7 @@ package aibridge
 
 import (
 	"context"
+	"net/http"
 	"sync"
 )
 
@@ -24,6 +25,25 @@ type InflightGate struct {
 func NewInflightGate() *InflightGate {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &InflightGate{drained: make(chan struct{}), ctx: ctx, cancel: cancel}
+}
+
+// Middleware admits requests and links their contexts to Close, or returns 503
+// after shutdown begins. onAdmit runs under the admission lock and must not
+// call other gate methods.
+func (g *InflightGate) Middleware(onAdmit func()) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			release, ok := g.Admit(onAdmit)
+			if !ok {
+				http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
+				return
+			}
+			defer release()
+			ctx, cleanup := g.RequestContext(r.Context())
+			defer cleanup()
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 // Admit returns nil, false after shutdown begins. Otherwise, onAdmit runs

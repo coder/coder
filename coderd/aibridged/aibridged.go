@@ -41,7 +41,7 @@ type Server struct {
 	// backend holds the current request handler. Mode is fixed at startup.
 	// Provider reloads update the pool in interception mode or atomically replace
 	// the handler in proxy mode. In-flight requests retain their original router.
-	backend   atomic.Pointer[requestHandler]
+	backend   atomic.Pointer[backend]
 	backendMu sync.Mutex
 
 	// inflight tracks proxy requests across router snapshots. Shutdown waits
@@ -68,14 +68,13 @@ type Server struct {
 	shutdownOnce sync.Once
 }
 
-// requestHandler holds either an interception pool or a proxy router.
-// Its fields are fixed after publication. Both pool and handler are nil when
+// backend holds either an interception pool or a proxy router.
+// Its fields are fixed after publication. Both pool and proxyRouter are nil when
 // proxy mode is selected but providers are not yet loaded.
-type requestHandler struct {
-	pool     Pooler                 // RequestBridge pool.
-	handler  http.Handler           // Proxy router for this snapshot.
-	keyPools func() []*keypool.Pool // Current key pools for metric scrapes.
-	inflight *aibridge.InflightGate // Server wide, shared proxy admission and drain gate.
+type backend struct {
+	pool        Pooler                 // RequestBridge pool.
+	proxyRouter http.Handler           // Proxy router for this snapshot.
+	keyPools    func() []*keypool.Pool // Current key pools for metric scrapes.
 }
 
 // New starts a gateway server. Creates a request pool only when interception
@@ -230,7 +229,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 	}
 
 	// Otherwise, use proxy mode.
-	s.backend.Store(&requestHandler{})
+	s.backend.Store(&backend{})
 	s.logger.Warn(ctx, "reverse proxy routing is not yet functional")
 	return nil
 }
@@ -241,7 +240,7 @@ func (s *Server) initializeInterception() error {
 	if err != nil {
 		return xerrors.Errorf("create request pool: %w", err)
 	}
-	s.backend.Store(&requestHandler{pool: pool, keyPools: pool.KeyPools})
+	s.backend.Store(&backend{pool: pool, keyPools: pool.KeyPools})
 	return nil
 }
 
@@ -277,12 +276,12 @@ func (s *Server) Client(ctx context.Context) (DRPCClient, error) {
 
 // GetRequestHandler retrieves the selected gateway handler for the request.
 func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
-	backend := s.backend.Load()
-	if backend == nil {
+	current := s.backend.Load()
+	if current == nil {
 		return http.HandlerFunc(notReadyHandler), nil
 	}
-	if backend.pool != nil {
-		reqBridge, err := backend.pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+	if current.pool != nil {
+		reqBridge, err := current.pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
 		if err != nil {
 			return nil, xerrors.Errorf("acquire request bridge: %w", err)
 		}
@@ -290,10 +289,10 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 	}
 	// Proxy mode serves every request from one handler, which does not exist
 	// until the first provider snapshot arrives.
-	if backend.handler == nil {
+	if current.proxyRouter == nil {
 		return http.HandlerFunc(notReadyHandler), nil
 	}
-	return backend, nil
+	return current.proxyRouter, nil
 }
 
 // Ready reports whether the server currently has an active DRPC connection to coderd.
@@ -318,19 +317,19 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	backend := s.backend.Load()
-	if backend == nil {
+	current := s.backend.Load()
+	if current == nil {
 		return xerrors.New("gateway mode not selected")
 	}
-	if backend.pool != nil {
-		backend.pool.ReplaceProviders(providers)
+	if current.pool != nil {
+		current.pool.ReplaceProviders(providers)
 		return nil
 	}
 	router, err := aibridge.NewProxyRouter(providers, s.logger)
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}
-	s.backend.Store(&requestHandler{handler: router, keyPools: router.KeyPools, inflight: s.inflight})
+	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(nil)(router), keyPools: router.KeyPools})
 	return nil
 }
 
@@ -340,11 +339,11 @@ func (s *Server) KeyPoolStateCollector() prometheus.Collector {
 }
 
 func (s *Server) keyPools() []*keypool.Pool {
-	backend := s.backend.Load()
-	if backend == nil || backend.keyPools == nil {
+	current := s.backend.Load()
+	if current == nil || current.keyPools == nil {
 		return nil
 	}
-	return backend.keyPools()
+	return current.keyPools()
 }
 
 // isShutdown returns whether the Server is shutdown or not.
@@ -367,9 +366,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.wg.Wait()
 
 		var pool Pooler
-		if backend := s.backend.Load(); backend != nil {
-			if backend.pool != nil {
-				pool = backend.pool
+		if current := s.backend.Load(); current != nil {
+			if current.pool != nil {
+				pool = current.pool
 			} else {
 				// Proxy snapshots share this gate. On deadline, cancel requests
 				// without waiting for their handlers to exit.
@@ -407,19 +406,6 @@ func (s *Server) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	return s.Shutdown(ctx)
-}
-
-// ServeHTTP serves this proxy snapshot using server-wide request admission.
-func (b *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	release, ok := b.inflight.Admit(nil)
-	if !ok {
-		http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
-		return
-	}
-	defer release()
-	ctx, cleanup := b.inflight.RequestContext(r.Context())
-	defer cleanup()
-	b.handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
 func notReadyHandler(w http.ResponseWriter, _ *http.Request) {

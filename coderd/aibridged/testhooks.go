@@ -15,13 +15,13 @@ func (s *Server) SetPoolForTest(ctx context.Context, pool Pooler) error {
 	if pool == nil {
 		return xerrors.New("nil request pool")
 	}
-	backend := s.backend.Load()
-	if backend == nil || backend.pool == nil {
+	current := s.backend.Load()
+	if current == nil || current.pool == nil {
 		return xerrors.New("interception mode not selected")
 	}
-	if err := backend.pool.Shutdown(ctx); err != nil {
+	if err := current.pool.Shutdown(ctx); err != nil {
 		return xerrors.Errorf("shutdown unused request pool: %w", err)
 	}
-	s.backend.Store(&requestHandler{pool: pool, keyPools: pool.KeyPools})
+	s.backend.Store(&backend{pool: pool, keyPools: pool.KeyPools})
 	return nil
 }

@@ -2,6 +2,8 @@ package aibridge
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -9,6 +11,60 @@ import (
 
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestInflightGate_Middleware(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"Accepted", "Rejected", "Panic"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			gate := NewInflightGate()
+			defer gate.Close()
+			if name == "Rejected" {
+				gate.Close()
+			}
+			admitted := false
+			var requestCtx context.Context
+			rec := httptest.NewRecorder()
+			handler := gate.Middleware(func() { admitted = true })(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestCtx = r.Context()
+				require.NoError(t, requestCtx.Err())
+				gate.mu.Lock()
+				active := gate.active
+				gate.mu.Unlock()
+				require.Equal(t, 1, active)
+				if name == "Panic" {
+					panic("handler panic")
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			serve := func() {
+				handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
+			}
+			if name == "Panic" {
+				require.PanicsWithValue(t, "handler panic", serve)
+			} else {
+				serve()
+			}
+			gate.mu.Lock()
+			active := gate.active
+			gate.mu.Unlock()
+			require.Zero(t, active)
+			require.NoError(t, t.Context().Err(), "cleanup must not cancel the parent")
+			if name == "Rejected" {
+				require.False(t, admitted)
+				require.Nil(t, requestCtx, "rejected requests must not reach the handler")
+				require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+				require.Equal(t, "AI Gateway is shutting down\n", rec.Body.String())
+				return
+			}
+			require.True(t, admitted)
+			require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+			if name == "Accepted" {
+				require.Equal(t, http.StatusNoContent, rec.Code)
+			}
+		})
+	}
+}
 
 func TestInflightGate_Admission(t *testing.T) {
 	t.Parallel()

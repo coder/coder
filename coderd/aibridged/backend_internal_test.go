@@ -42,7 +42,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	// One registered key-state collector must safely handle startup before mode
 	// selection and proxy mode before the first provider snapshot arrives.
 	require.Empty(t, gather(t, registry))
-	server.backend.Store(&requestHandler{})
+	server.backend.Store(&backend{})
 	require.Empty(t, gather(t, registry))
 
 	// Interception reloads update metrics from the same registered collector.
@@ -50,7 +50,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	pool, err := NewCachedBridgePool(DefaultPoolOptions, []aibridge.Provider{firstProvider}, slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
-	server.backend.Store(&requestHandler{pool: pool, keyPools: pool.KeyPools})
+	server.backend.Store(&backend{pool: pool, keyPools: pool.KeyPools})
 
 	metrics := gather(t, registry)
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "key_pool_state", "first", "valid"))
@@ -67,7 +67,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	thirdProvider := newProvider(t, "third")
 	firstRouter, err := aibridge.NewProxyRouter([]aibridge.Provider{thirdProvider}, slogtest.Make(t, nil))
 	require.NoError(t, err)
-	server.backend.Store(&requestHandler{handler: firstRouter, keyPools: firstRouter.KeyPools, inflight: server.inflight})
+	server.backend.Store(&backend{proxyRouter: firstRouter, keyPools: firstRouter.KeyPools})
 
 	metrics = gather(t, registry)
 	require.False(t, testutil.PromGaugeGathered(t, metrics, "key_pool_state", "second", "valid"))
@@ -76,7 +76,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	fourthProvider := newProvider(t, "fourth")
 	secondRouter, err := aibridge.NewProxyRouter([]aibridge.Provider{fourthProvider}, slogtest.Make(t, nil))
 	require.NoError(t, err)
-	server.backend.Store(&requestHandler{handler: secondRouter, keyPools: secondRouter.KeyPools, inflight: server.inflight})
+	server.backend.Store(&backend{proxyRouter: secondRouter, keyPools: secondRouter.KeyPools})
 
 	metrics = gather(t, registry)
 	require.False(t, testutil.PromGaugeGathered(t, metrics, "key_pool_state", "third", "valid"))
@@ -85,11 +85,11 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 
 // InterceptionPoolForTest returns the active interception pool, if selected.
 func (s *Server) InterceptionPoolForTest() Pooler {
-	backend := s.backend.Load()
-	if backend == nil {
+	current := s.backend.Load()
+	if current == nil {
 		return nil
 	}
-	return backend.pool
+	return current.pool
 }
 
 // shutdownPool isolates pool shutdown from request handling.
@@ -131,11 +131,11 @@ func TestServerShutdownMode(t *testing.T) {
 				inflight: aibridge.NewInflightGate(),
 			}
 			if tc.selected {
-				backend := &requestHandler{}
+				current := &backend{}
 				if tc.interception {
-					backend.pool = pool
+					current.pool = pool
 				}
-				server.backend.Store(backend)
+				server.backend.Store(current)
 			}
 			proxy := tc.selected && !tc.interception
 			if !proxy {

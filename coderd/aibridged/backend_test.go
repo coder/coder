@@ -357,17 +357,17 @@ func TestReplaceProviders_SwapsRouter(t *testing.T) {
 	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{
 		openAIProvider("openai", firstPool),
 		openAIProvider("anthropic", secondPool),
+		aibridge.NewDisabledProviderStub("disabled", "openai"),
 	}))
 	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 	requireKeyPoolState(t, f.srv, 1, "anthropic", "valid")
 
 	newHandler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
-	require.NotSame(t, oldHandler, newHandler, "a reload must publish a new router")
 
 	// Handlers already acquired keep serving from the router they hold.
-	require.Equal(t, http.StatusNotFound, serveHandler(t, oldHandler, "/openai/v1/chat/completions").Code)
-	require.Equal(t, http.StatusNotFound, serveHandler(t, newHandler, "/openai/v1/chat/completions").Code)
+	require.Equal(t, http.StatusNotFound, serveHandler(t, oldHandler, "/disabled/v1/models").Code)
+	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, newHandler, "/disabled/v1/models").Code)
 }
 
 // Invalid snapshots leave the previous router serving.
@@ -380,7 +380,10 @@ func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	waitReady(t, f.srv)
 
 	good := singleKeyPool(t, "openai", "key")
-	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{openAIProvider("openai", good)}))
+	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{
+		openAIProvider("openai", good),
+		aibridge.NewDisabledProviderStub("disabled", "openai"),
+	}))
 	handler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
 
@@ -393,7 +396,8 @@ func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 	retained, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
-	require.Same(t, handler, retained)
+	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, handler, "/disabled/v1/models").Code)
+	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, retained, "/disabled/v1/models").Code)
 	require.Equal(t, http.StatusNotFound, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
 }
 

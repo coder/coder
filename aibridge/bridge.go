@@ -70,8 +70,8 @@ const (
 //
 // RequestBridge is safe for concurrent use.
 type RequestBridge struct {
-	mux    *http.ServeMux
-	logger slog.Logger
+	handler http.Handler
+	logger  slog.Logger
 
 	mcpProxy mcp.ServerProxier
 
@@ -183,7 +183,6 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	}
 
 	b := &RequestBridge{
-		mux:      mux,
 		logger:   logger,
 		mcpProxy: mcpProxy,
 		inflight: NewInflightGate(),
@@ -192,6 +191,9 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	for _, opt := range opts {
 		opt(b)
 	}
+	b.handler = b.inflight.Middleware(func() {
+		_ = b.clock.Now("serve_admission") // Trap point for deterministic race tests.
+	})(http.MaxBytesHandler(mux, maxRequestBodyBytes))
 	return b, nil
 }
 
@@ -399,25 +401,7 @@ func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	release, ok := b.inflight.Admit(func() {
-		_ = b.clock.Now("serve_admission") // Trap point for deterministic race tests.
-	})
-	if !ok {
-		http.Error(rw, "AI Gateway is shutting down", http.StatusServiceUnavailable)
-		return
-	}
-	defer release()
-
-	// We want to abide by the context passed in without losing any of its
-	// functionality, but we still want to link our shutdown context to each
-	// request.
-	ctx, cleanup := b.inflight.RequestContext(r.Context())
-	defer cleanup()
-
-	// Cap the request body as it is read.
-	r = r.WithContext(ctx)
-	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
-	b.mux.ServeHTTP(rw, r)
+	b.handler.ServeHTTP(rw, r)
 }
 
 // Shutdown drains requests until ctx expires, then cancels remaining requests
