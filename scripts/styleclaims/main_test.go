@@ -674,3 +674,116 @@ func TestActiveCitationsSharedPlannedPrefix(t *testing.T) {
 	assertSame(t, "active", active, []string{"Coder.Two"})
 	assertSame(t, "planned", planned, []string{"Coder.One"})
 }
+
+func TestUnfencedRespectsFenceRunLength(t *testing.T) {
+	t.Parallel()
+
+	// A 4-backtick block teaching nested fences: the inner 3-backtick lines are
+	// content, and the block closes only on a run at least as long as its
+	// opener.
+	src := "````md\n```sh\n*Enforced by `Coder.InsideTheOuterFence`.*\n```\n````\n\n*Documentation-only.\nNo Vale rule.*\n"
+	got := parseAnnotations("page.md", src)
+	if len(got) != 1 || strings.Contains(got[0].text, "InsideTheOuterFence") {
+		t.Fatalf("parseAnnotations() = %v, want only the footer outside the fence", got)
+	}
+
+	// A fence line carrying an info string opens a block; it never closes one.
+	if found := parseAnnotations("page.md", "```\n```md\n*Enforced by `Coder.StillFenced`.*\n```\n"); len(found) != 0 {
+		t.Errorf("parseAnnotations() = %v, want nothing: the info-string line cannot close the block", found)
+	}
+}
+
+func TestCheckChecksTableRejectsInactiveRow(t *testing.T) {
+	t.Parallel()
+
+	landing := checksTable("`Coder.BrandNames`", "`error`", "`docs/**`")
+	rules := []valeRule{{name: "BrandNames", severity: "error"}}
+	findings := checkChecksTable(landing, rules)
+	if !containsMsg(findings, "leaves it off everywhere") {
+		t.Errorf("findings = %v, want a finding for a row that claims a disabled rule runs", findings)
+	}
+	if containsMsg(findings, "severity") || containsMsg(findings, "scope") {
+		t.Errorf("findings = %v, want no severity or scope comparison against a disabled rule", findings)
+	}
+}
+
+func TestClassifyUsesEnablementAndLoadedStyles(t *testing.T) {
+	t.Parallel()
+
+	enabled := map[string]bool{"BrandNames": true}
+	loaded := map[string]bool{"Coder": true, "Google": true}
+
+	cases := []struct {
+		name string
+		text string
+		want class
+	}{
+		{
+			name: "an enabled Coder rule is tool coverage",
+			text: "*Enforced by `Coder.BrandNames`.*",
+			want: classTool,
+		},
+		{
+			name: "a rule file that runs nowhere is not tool coverage",
+			text: "*Enforced by `Coder.SwitchedOff`.*",
+			want: classDocumentationOnly,
+		},
+		{
+			name: "a loaded third-party rule is tool coverage",
+			text: "*Enforced by `Google.OxfordComma`.*",
+			want: classTool,
+		},
+		{
+			name: "an unloaded third-party rule is not",
+			text: "*Enforced by `Microsoft.Foo`.*",
+			want: classDocumentationOnly,
+		},
+	}
+
+	for _, tc := range cases {
+		if got := classify(tc.text, enabled, loaded); got != tc.want {
+			t.Errorf("%s: classify() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestActiveCitationsBindsMarkersToClauses(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		text        string
+		wantActive  []string
+		wantPlanned []string
+	}{
+		{
+			name:        "a marker after the second citation leaves the first active",
+			text:        "*Enforced by `Coder.One` and `Coder.Two` (planned).*",
+			wantActive:  []string{"Coder.One"},
+			wantPlanned: []string{"Coder.Two"},
+		},
+		{
+			name:        "a marker after the first citation leaves the second active",
+			text:        "*Enforced by `Coder.One` (planned) and `Coder.Two`.*",
+			wantActive:  []string{"Coder.Two"},
+			wantPlanned: []string{"Coder.One"},
+		},
+		{
+			name:        "an opening marker covers every citation",
+			text:        "*Planned Vale rules `Coder.One` and `Coder.Two`.*",
+			wantPlanned: []string{"Coder.One", "Coder.Two"},
+		},
+		{
+			name:        "a marker in a trailing clause stays there",
+			text:        "*Enforced by `scripts/check_emdash.sh`, with `Coder.EmDash` (planned) to follow.*",
+			wantActive:  []string{"scripts/check_emdash.sh"},
+			wantPlanned: []string{"Coder.EmDash"},
+		},
+	}
+
+	for _, tc := range cases {
+		active, planned := activeCitations(tc.text)
+		assertSame(t, tc.name+" active", active, tc.wantActive)
+		assertSame(t, tc.name+" planned", planned, tc.wantPlanned)
+	}
+}

@@ -294,7 +294,7 @@ func checkFooterCoverage(page, src string) []finding {
 		}
 		findings = append(findings, finding{
 			filepath.Join(styleGuide, page), h.line,
-			fmt.Sprintf("%q states a rule but carries no enforcement footer, so the coverage table can't count it", h.text),
+			fmt.Sprintf("%q states a rule but carries no enforcement footer, so the coverage table can't count it. Add the footer, or mark the section Out of scope or Not a rule.", h.text),
 		})
 	}
 	return findings
@@ -306,21 +306,24 @@ func checkFooterCoverage(page, src string) []finding {
 func unfenced(src string) []string {
 	lines := strings.Split(src, "\n")
 	out := make([]string, len(lines))
-	// opener remembers the delimiter that started the current block, because
-	// CommonMark closes a fence only with the delimiter that opened it. A
-	// nested `~~~` inside a ``` block is content, not a fence.
-	opener := ""
+	// open describes the fence that started the current block. CommonMark
+	// closes a fence only with a run of the same character at least as long as
+	// the opener, so a 3-backtick line inside a 4-backtick block is content, and
+	// so is a `~~~` line inside a backtick block. The style guide teaches nested
+	// fences with 4-backtick blocks, so both cases occur in the corpus the
+	// checker reads.
+	var open fence
 	for i, line := range lines {
-		if delim := fenceDelimiter(line); delim != "" {
-			switch opener {
-			case "":
-				opener = delim
-			case delim:
-				opener = ""
+		if f, ok := parseFence(line); ok {
+			switch {
+			case open.char == 0:
+				open = f
+			case f.char == open.char && f.length >= open.length && !f.info:
+				open = fence{}
 			}
 			continue
 		}
-		if opener != "" {
+		if open.char != 0 {
 			continue
 		}
 		out[i] = line
@@ -328,16 +331,31 @@ func unfenced(src string) []string {
 	return out
 }
 
-// fenceDelimiter returns the fence marker a line opens or closes with, or the
-// empty string when the line is not a fence.
-func fenceDelimiter(line string) string {
+// fence is a Markdown code fence delimiter.
+type fence struct {
+	char   byte // '`' or '~'
+	length int  // the run length of char
+	info   bool // true when the line carries an info string, so it can only open
+}
+
+// parseFence returns the fence a line opens or closes with.
+func parseFence(line string) (fence, bool) {
 	trimmed := strings.TrimSpace(line)
-	for _, delim := range []string{"```", "~~~"} {
-		if strings.HasPrefix(trimmed, delim) {
-			return delim
-		}
+	if trimmed == "" {
+		return fence{}, false
 	}
-	return ""
+	char := trimmed[0]
+	if char != '`' && char != '~' {
+		return fence{}, false
+	}
+	length := 0
+	for length < len(trimmed) && trimmed[length] == char {
+		length++
+	}
+	if length < 3 {
+		return fence{}, false
+	}
+	return fence{char: char, length: length, info: strings.TrimSpace(trimmed[length:]) != ""}, true
 }
 
 // parseValeConfig returns the styles listed in BasedOnStyles and the per-rule
@@ -543,45 +561,67 @@ func activeCitations(text string) (active, planned []string) {
 		if !strings.Contains(lower, "enforc") && !strings.Contains(lower, "vale rule") {
 			continue
 		}
-		locs := citation.FindAllStringSubmatchIndex(sentence, -1)
-		if len(locs) == 0 {
-			continue
+		segments := splitClauses(sentence)
+		// A marker that opens the sentence before any citation introduces the
+		// whole list, as in "Planned Vale rules `A` and `B`", so it covers
+		// every citation the sentence names. A marker that follows a citation
+		// belongs to that citation's clause only.
+		introduces := false
+		if len(segments) > 0 {
+			head := segments[0]
+			if loc := citation.FindStringIndex(head); loc != nil {
+				introduces = strings.Contains(strings.ToLower(head[:loc[0]]), "planned")
+			}
 		}
-		// A marker before the first citation introduces the whole list, as in
-		// "Planned Vale rules `A` and `B`", so it covers every citation the
-		// sentence names.
-		prefixPlanned := strings.Contains(strings.ToLower(sentence[:locs[0][0]]), "planned")
-		for i, loc := range locs {
-			name := sentence[loc[2]:loc[3]]
-			start := 0
-			if i > 0 {
-				start = locs[i-1][1]
+		for _, segment := range segments {
+			marked := introduces || strings.Contains(strings.ToLower(segment), "planned")
+			for _, m := range citation.FindAllStringSubmatch(segment, -1) {
+				if marked {
+					planned = append(planned, m[1])
+					continue
+				}
+				active = append(active, m[1])
 			}
-			end := len(sentence)
-			if i+1 < len(locs) {
-				end = locs[i+1][0]
-			}
-			// A citation is planned when "planned" sits in its own clause,
-			// either just before it ("Planned Vale rule `X`") or just after
-			// it ("`X` (planned)"). Scoping to the neighboring text keeps
-			// mixed annotations that cite one active and one planned checker
-			// classified correctly on both halves.
-			// A marker that closes the previous citation's parenthetical
-			// belongs to that citation, not to this one, so the backward
-			// window starts after the last closing parenthesis.
-			before := sentence[start:loc[0]]
-			if end := strings.LastIndex(before, ")"); end >= 0 {
-				before = before[end+1:]
-			}
-			window := strings.ToLower(before + sentence[loc[1]:end])
-			if prefixPlanned || strings.Contains(window, "planned") {
-				planned = append(planned, name)
-				continue
-			}
-			active = append(active, name)
 		}
 	}
 	return active, planned
+}
+
+// splitClauses breaks a sentence into the clauses a status marker can bind to.
+// A marker such as "(planned)" applies to the citations in its own clause, so a
+// mixed annotation naming one active and one planned checker classifies
+// correctly on both halves.
+func splitClauses(sentence string) []string {
+	var out []string
+	start := 0
+	inCode := false
+	for i := 0; i < len(sentence); i++ {
+		if sentence[i] == '`' {
+			inCode = !inCode
+		}
+		if inCode {
+			continue
+		}
+		size := 0
+		switch {
+		case sentence[i] == ',' || sentence[i] == ';':
+			size = 1
+		case strings.HasPrefix(sentence[i:], " and "):
+			size = len(" and ")
+		case strings.HasPrefix(sentence[i:], " with "):
+			size = len(" with ")
+		}
+		if size == 0 {
+			continue
+		}
+		out = append(out, sentence[start:i])
+		start = i + size
+		i = start - 1
+	}
+	if rest := sentence[start:]; strings.TrimSpace(rest) != "" {
+		out = append(out, rest)
+	}
+	return out
 }
 
 // splitSentences breaks an annotation into sentences. Periods inside backticks
@@ -620,7 +660,7 @@ func isTool(c string) bool {
 // annotation that declares its section documentation-only stays
 // documentation-only even when it cross-references a rule that another
 // section owns, so a single rule is never counted under two sections.
-func classify(text string, ruleNames, loadedStyle map[string]bool) class {
+func classify(text string, enabled, loadedStyle map[string]bool) class {
 	if documentationOnly.MatchString(text) {
 		return classDocumentationOnly
 	}
@@ -630,7 +670,10 @@ func classify(text string, ruleNames, loadedStyle map[string]bool) class {
 		switch {
 		case isTool(c):
 			return classTool
-		case strings.HasPrefix(c, coderPackage+".") && ruleNames[strings.TrimPrefix(c, coderPackage+".")]:
+		case strings.HasPrefix(c, coderPackage+".") && enabled[strings.TrimPrefix(c, coderPackage+".")]:
+			// A rule .vale.ini leaves off everywhere checks no file, so a
+			// section citing it is not tool-checked, whatever the citation
+			// claims. checkClaims reports the claim separately.
 			return classTool
 		case style != coderPackage && loadedStyle[style]:
 			// A third-party rule counts as tool coverage once the repo loads
@@ -670,7 +713,7 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 		var total, tool, planned, docOnly int
 		for _, a := range annotations[page] {
 			total++
-			cls := classify(a.text, ruleNames, loadedStyle)
+			cls := classify(a.text, enabled, loadedStyle)
 			switch cls {
 			case classTool:
 				tool++
@@ -816,7 +859,7 @@ func checkScopeCell(path string, line int, cell string, rule valeRule) []finding
 	}
 	return []finding{{
 		path, line,
-		fmt.Sprintf("scope for `%s.%s` reads %q but %s gives it %q", coderPackage, rule.name, strings.TrimSpace(cell), valeConfig, want),
+		fmt.Sprintf("scope for `%s.%s` reads %q but %s gives it %q. Update the cell, or change the configuration.", coderPackage, rule.name, strings.TrimSpace(cell), valeConfig, want),
 	}}
 }
 
@@ -846,7 +889,7 @@ func checkCoverageTable(pages []string, landing string, counts map[string][4]int
 			if row.nums != wantTotal {
 				findings = append(findings, finding{
 					path, i + 1,
-					fmt.Sprintf("total row is %v but the annotations sum to %v (rules, tool-checked, planned, documentation-only)", row.nums, wantTotal),
+					fmt.Sprintf("total row is %v but the annotations sum to %v (rules, tool-checked, planned, documentation-only). Update the total row.", row.nums, wantTotal),
 				})
 			}
 			seen["**Total**"] = true
