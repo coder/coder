@@ -806,3 +806,58 @@ func TestUnderPathMatchesOnSegments(t *testing.T) {
 		}
 	}
 }
+
+func TestActiveCitationsMixedClauseOrderings(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		text        string
+		wantActive  []string
+		wantPlanned []string
+	}{
+		{
+			name:        "an introducer in a citation-less clause carries",
+			text:        "*Planned Vale rules, `Coder.One` and `Coder.Two`.*",
+			wantPlanned: []string{"Coder.One", "Coder.Two"},
+		},
+		{
+			name:        "a later clause re-asserting enforcement stops the carry",
+			text:        "*Planned `Coder.One`, enforced by `Coder.Two`.*",
+			wantActive:  []string{"Coder.Two"},
+			wantPlanned: []string{"Coder.One"},
+		},
+		{
+			name:        "a separator inside a parenthetical does not split the clause",
+			text:        "*Enforced by `Coder.One` (planned, ships at warning) and `Coder.Two`.*",
+			wantActive:  []string{"Coder.Two"},
+			wantPlanned: []string{"Coder.One"},
+		},
+		{
+			name:       "a separator inside a code span does not split the clause",
+			text:       "*Enforced by `scripts/check_emdash.sh` and `Coder.One`.*",
+			wantActive: []string{"scripts/check_emdash.sh", "Coder.One"},
+		},
+	}
+
+	for _, tc := range cases {
+		active, planned := activeCitations(tc.text)
+		assertSame(t, tc.name+" active", active, tc.wantActive)
+		assertSame(t, tc.name+" planned", planned, tc.wantPlanned)
+	}
+}
+
+func TestParseFenceIgnoresIndentedCode(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := parseFence("    ```"); ok {
+		t.Error("a line indented four spaces is an indented code block, not a fence")
+	}
+	if f, ok := parseFence("   ```"); !ok || f.length != 3 {
+		t.Errorf("parseFence(three spaces) = %+v, %v, want a fence", f, ok)
+	}
+	src := "    ```\n*Enforced by `Coder.NotFenced`.*\n"
+	if got := parseAnnotations("page.md", src); len(got) != 1 {
+		t.Errorf("parseAnnotations() = %v, want the footer: the indented line opens no fence", got)
+	}
+}

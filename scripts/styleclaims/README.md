@@ -45,8 +45,8 @@ weaker on that side.
 
 ## The annotation format it relies on
 
-An annotation starts with one of `Enforced`, `Documentation-only`, `Adapted`,
-`Vale rule`, `Periods`, or `Alt-text`, and runs to the line ending in `*`.
+An annotation starts with one of `Enforced`, `Documentation-only`, `Adapted`, or
+`Vale rule`, and runs to the line ending in `*`.
 
 A citation counts as a claim only when its sentence contains `enforc` or names a
 `Vale rule`. A sentence that mentions a rule without claiming it runs, such as
@@ -64,9 +64,12 @@ Mark each planned citation individually. `(planned)` after the citation, or
 ```
 
 A trailing clause such as `(both planned)` that covers several citations at once
-isn't understood; mark each one. A marker that opens the sentence, as in
-"Planned Vale rules" followed by a list, does cover every citation in that
-sentence.
+isn't understood; mark each one.
+
+A marker that appears before any citation introduces the list that follows, as
+in "Planned Vale rules" followed by names, and it carries until a later clause
+re-asserts enforcement. So "Planned `A`, enforced by `B`." reads `A` planned and
+`B` active.
 
 ## Counting
 

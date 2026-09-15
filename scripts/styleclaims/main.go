@@ -340,6 +340,11 @@ type fence struct {
 
 // parseFence returns the fence a line opens or closes with.
 func parseFence(line string) (fence, bool) {
+	// CommonMark allows a fence up to 3 spaces of indentation; 4 or more makes
+	// the line an indented code block rather than a fence.
+	if len(line)-len(strings.TrimLeft(line, " ")) >= 4 {
+		return fence{}, false
+	}
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" {
 		return fence{}, false
@@ -571,22 +576,26 @@ func activeCitations(text string) (active, planned []string) {
 		if !strings.Contains(lower, "enforc") && !strings.Contains(lower, "vale rule") {
 			continue
 		}
-		segments := splitClauses(sentence)
-		// A marker that opens the sentence before any citation introduces the
-		// whole list, as in "Planned Vale rules `A` and `B`", so it covers
-		// every citation the sentence names. A marker that follows a citation
-		// belongs to that citation's clause only.
-		introduces := false
-		if len(segments) > 0 {
-			head := segments[0]
-			if loc := citation.FindStringIndex(head); loc != nil {
-				introduces = strings.Contains(strings.ToLower(head[:loc[0]]), "planned")
+		// A status marker binds to the citations in its own clause. A marker
+		// that appears before any citation introduces the list that follows,
+		// so it carries into later clauses until a clause re-asserts
+		// enforcement.
+		carry := false
+		for _, segment := range splitClauses(sentence) {
+			lower := strings.ToLower(segment)
+			marked := strings.Contains(lower, "planned")
+			first := citation.FindStringIndex(segment)
+			introduces := len(first) < 2 || strings.Contains(strings.ToLower(segment[:first[0]]), "planned")
+			switch {
+			case marked && introduces:
+				// The marker introduces the citations that follow it.
+				carry = true
+			case !marked && strings.Contains(lower, "enforc"):
+				// The clause asserts enforcement of its own citations.
+				carry = false
 			}
-		}
-		for _, segment := range segments {
-			marked := introduces || strings.Contains(strings.ToLower(segment), "planned")
 			for _, m := range citation.FindAllStringSubmatch(segment, -1) {
-				if marked {
+				if marked || carry {
 					planned = append(planned, m[1])
 					continue
 				}
@@ -600,21 +609,34 @@ func activeCitations(text string) (active, planned []string) {
 // splitClauses breaks a sentence into the clauses a status marker can bind to.
 // A marker such as "(planned)" applies to the citations in its own clause, so a
 // mixed annotation naming one active and one planned checker classifies
-// correctly on both halves.
+// correctly on both halves. splitSentences already breaks on semicolons, so a
+// clause never spans one.
 func splitClauses(sentence string) []string {
 	var out []string
 	start := 0
 	inCode := false
+	depth := 0
 	for i := 0; i < len(sentence); i++ {
-		if sentence[i] == '`' {
+		switch sentence[i] {
+		case '`':
 			inCode = !inCode
+		case '(':
+			if !inCode {
+				depth++
+			}
+		case ')':
+			if !inCode && depth > 0 {
+				depth--
+			}
 		}
-		if inCode {
+		// A separator inside a code span or a parenthetical belongs to the
+		// clause it sits in, not between two clauses.
+		if inCode || depth > 0 {
 			continue
 		}
 		size := 0
 		switch {
-		case sentence[i] == ',' || sentence[i] == ';':
+		case sentence[i] == ',':
 			size = 1
 		case strings.HasPrefix(sentence[i:], " and "):
 			size = len(" and ")
@@ -746,7 +768,7 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 					if !ruleNames[rule] {
 						findings = append(findings, finding{
 							a.file, a.line,
-							fmt.Sprintf("claims `%s` enforces this rule, but %s/%s.yml does not exist. Mark the citation (planned).", c, rulesDir, rule),
+							fmt.Sprintf("claims `%s` enforces this rule, but %s/%s.yml does not exist. Mark the citation (planned), or add the rule file.", c, rulesDir, rule),
 						})
 						continue
 					}
@@ -769,7 +791,7 @@ func checkClaims(pages []string, styles []string, rules []valeRule, annotations 
 				if !loadedStyle[style] {
 					findings = append(findings, finding{
 						a.file, a.line,
-						fmt.Sprintf("claims `%s` enforces this rule, but %s does not load the %s style. Mark the citation (planned).", c, valeConfig, style),
+						fmt.Sprintf("claims `%s` enforces this rule, but %s does not load the %s style. Mark the citation (planned), or load the style.", c, valeConfig, style),
 					})
 				}
 			}
