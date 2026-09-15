@@ -65,8 +65,16 @@ export const EditOAuth2AppPageView: FC = () => {
 	const isPublicClient = appQuery.data?.client_type === "public";
 	const secretsQuery = useQuery({
 		...oauth2.getAppSecrets(appId ?? ""),
+		// appQuery.isSuccess is load-bearing. isPublicClient reads appQuery.data,
+		// which is undefined until the app resolves, so on the first render
+		// !isPublicClient is true and the secrets request would go out before the
+		// client type is known. Waiting on the app query costs nothing visible:
+		// this page renders a fullscreen loader until appQuery resolves anyway.
 		enabled:
-			Boolean(appId) && permissions.viewOAuth2AppSecrets && !isPublicClient,
+			Boolean(appId) &&
+			permissions.viewOAuth2AppSecrets &&
+			appQuery.isSuccess &&
+			!isPublicClient,
 	});
 
 	const putAppMutation = useMutation(oauth2.putApp(queryClient));
