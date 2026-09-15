@@ -123,7 +123,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.secrets(),
 		r.sharing(),
 		r.state(),
-		r.tasksCommand(),
 		r.templates(),
 		r.tokens(),
 		r.users(),
@@ -172,6 +171,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
+		r.updateUserEmail(),
 	}
 }
 

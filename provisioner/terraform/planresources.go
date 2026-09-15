@@ -7,8 +7,7 @@ import (
 )
 
 type PlanState struct {
-	DailyCost   int32
-	AITaskCount int32
+	DailyCost int32
 }
 
 func planModules(plan *tfjson.Plan) []*tfjson.StateModule {
@@ -35,19 +34,15 @@ func ConvertPlanState(plan *tfjson.Plan) (*PlanState, error) {
 	modules := planModules(plan)
 
 	var dailyCost int32
-	var aiTaskCount int32
 	for _, mod := range modules {
 		err := forEachResource(mod, func(res *tfjson.StateResource) error {
-			switch res.Type {
-			case "coder_metadata":
+			if res.Type == "coder_metadata" {
 				var attrs resourceMetadataAttributes
 				err := mapstructure.Decode(res.AttributeValues, &attrs)
 				if err != nil {
 					return xerrors.Errorf("decode metadata attributes: %w", err)
 				}
 				dailyCost += attrs.DailyCost
-			case "coder_ai_task":
-				aiTaskCount++
 			}
 			return nil
 		})
@@ -57,8 +52,7 @@ func ConvertPlanState(plan *tfjson.Plan) (*PlanState, error) {
 	}
 
 	return &PlanState{
-		DailyCost:   dailyCost,
-		AITaskCount: aiTaskCount,
+		DailyCost: dailyCost,
 	}, nil
 }
 

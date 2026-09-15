@@ -15,6 +15,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
+import { ExportPolicyButton } from "#/modules/idpSync/ExportPolicyButton";
 import { IdpGroupSyncForm } from "./IdpGroupSyncForm";
 import { IdpRoleSyncForm } from "./IdpRoleSyncForm";
 
@@ -22,7 +23,8 @@ interface IdpSyncPageViewProps {
 	tab: string;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
-	claimFieldValues: readonly string[] | undefined;
+	groupClaimFieldValues: readonly string[] | undefined;
+	roleClaimFieldValues: readonly string[] | undefined;
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
 	roles: Role[] | undefined;
@@ -38,7 +40,8 @@ const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	tab,
 	groupSyncSettings,
 	roleSyncSettings,
-	claimFieldValues,
+	groupClaimFieldValues,
+	roleClaimFieldValues,
 	groups,
 	groupsMap,
 	roles,
@@ -77,29 +80,43 @@ const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					<TabsTrigger value="groups">Group sync settings</TabsTrigger>
 					<TabsTrigger value="roles">Role sync settings</TabsTrigger>
 				</TabsList>
-				<TabsContent value="groups">
-					<IdpGroupSyncForm
-						groupSyncSettings={groupSyncSettings}
-						claimFieldValues={claimFieldValues}
-						groupMappingCount={groupMappingCount}
-						legacyGroupMappingCount={legacyGroupMappingCount}
-						groups={groups}
-						groupsMap={groupsMap}
-						organization={organization}
-						onSubmit={onSubmitGroupSyncSettings}
-						onSyncFieldChange={onGroupSyncFieldChange}
-					/>
+				<TabsContent value="groups" className="py-8">
+					<div className="flex flex-col gap-6">
+						<div className="flex justify-end">
+							<ExportPolicyButton
+								syncSettings={groupSyncSettings}
+								filename={`${organization.name}_groups-policy.json`}
+							/>
+						</div>
+						<IdpGroupSyncForm
+							groupSyncSettings={groupSyncSettings}
+							claimFieldValues={groupClaimFieldValues}
+							groupMappingCount={groupMappingCount}
+							legacyGroupMappingCount={legacyGroupMappingCount}
+							groups={groups}
+							groupsMap={groupsMap}
+							onSubmit={onSubmitGroupSyncSettings}
+							onSyncFieldChange={onGroupSyncFieldChange}
+						/>
+					</div>
 				</TabsContent>
-				<TabsContent value="roles">
-					<IdpRoleSyncForm
-						roleSyncSettings={roleSyncSettings}
-						claimFieldValues={claimFieldValues}
-						roleMappingCount={roleMappingCount}
-						roles={roles || []}
-						organization={organization}
-						onSubmit={onSubmitRoleSyncSettings}
-						onSyncFieldChange={onRoleSyncFieldChange}
-					/>
+				<TabsContent value="roles" className="py-8">
+					<div className="flex flex-col gap-6">
+						<div className="flex justify-end">
+							<ExportPolicyButton
+								syncSettings={roleSyncSettings}
+								filename={`${organization.name}_roles-policy.json`}
+							/>
+						</div>
+						<IdpRoleSyncForm
+							roleSyncSettings={roleSyncSettings}
+							claimFieldValues={roleClaimFieldValues}
+							roleMappingCount={roleMappingCount}
+							roles={roles || []}
+							onSubmit={onSubmitRoleSyncSettings}
+							onSyncFieldChange={onRoleSyncFieldChange}
+						/>
+					</div>
 				</TabsContent>
 			</Tabs>
 		</div>

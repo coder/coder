@@ -118,7 +118,7 @@ func TestBuildProviderFromProtoSetsAPIDumpDir(t *testing.T) {
 					SmallFastModel:  "anthropic.claude-3-5-haiku-20241022-v1:0",
 				},
 			},
-			expectedType: aibridge.ProviderAnthropic,
+			expectedType: aibridge.ProviderBedrock,
 		},
 	}
 

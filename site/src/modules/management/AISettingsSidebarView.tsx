@@ -1,6 +1,12 @@
 import { cn } from "cn";
 import type { FC, ReactNode } from "react";
-import { Link, NavLink, useMatch } from "react-router";
+import {
+	Link,
+	NavLink,
+	type To,
+	useMatch,
+	useSearchParams,
+} from "react-router";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
@@ -9,6 +15,7 @@ import {
 	canAccessAnyChatModelConfig,
 	type Permissions,
 } from "#/modules/permissions";
+import { modelOrganizationSearchParam } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 
 interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */
@@ -17,7 +24,7 @@ interface AISettingsSidebarViewProps {
 	canShareOrganizationMCPServers?: boolean;
 }
 
-const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
+const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 	href,
 	children,
 }) => (
@@ -36,7 +43,19 @@ const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
 	</NavLink>
 );
 
-const ModelsSidebarNavItem: FC = () => {
+const organizationScopedPath = (
+	pathname: string,
+	organizationName: string | null,
+): To => ({
+	pathname,
+	search: organizationName
+		? new URLSearchParams({
+				[modelOrganizationSearchParam]: organizationName,
+			}).toString()
+		: "",
+});
+
+const ModelsSidebarNavItem: FC<{ href: To }> = ({ href }) => {
 	const legacyMatch = useMatch("/ai/settings/models/*");
 	const organizationMatch = useMatch(
 		"/ai/settings/organizations/:organization/models/*",
@@ -45,7 +64,7 @@ const ModelsSidebarNavItem: FC = () => {
 
 	return (
 		<Link
-			to="/ai/settings/models"
+			to={href}
 			aria-current={isActive ? "page" : undefined}
 			className={cn(
 				"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
@@ -62,6 +81,25 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 }) => {
+	const [searchParams] = useSearchParams();
+	const organizationName = searchParams.get(modelOrganizationSearchParam);
+	const modelsPath = organizationScopedPath(
+		"/ai/settings/models",
+		organizationName,
+	);
+	const coderAgentsPath = organizationScopedPath(
+		"/ai/settings/coder-agents",
+		organizationName,
+	);
+	const mcpServersPath = organizationScopedPath(
+		"/ai/settings/mcp-servers",
+		organizationName,
+	);
+	const addMCPServerPath = organizationScopedPath(
+		"/ai/settings/mcp-servers/add",
+		organizationName,
+	);
+
 	return (
 		<BaseSidebar>
 			<div className="flex flex-col gap-1">
@@ -81,15 +119,15 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{(canAccessAnyChatModelConfig(permissions) ||
-					canAccessOrganizationModels) && <ModelsSidebarNavItem />}
+					canAccessOrganizationModels) && (
+					<ModelsSidebarNavItem href={modelsPath} />
+				)}
 				{(permissions.editDeploymentConfig || canAccessOrganizationModels) && (
-					<SidebarNavItem href="/ai/settings/coder-agents">
-						Coder Agents
-					</SidebarNavItem>
+					<SidebarNavItem href={coderAgentsPath}>Coder Agents</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
 					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
-						<SubNavItem href="/ai/settings/mcp-servers">MCP servers</SubNavItem>
+						<SubNavItem href={mcpServersPath}>MCP servers</SubNavItem>
 						{permissions.updateAnyTemplate && (
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 						)}
@@ -112,8 +150,8 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 									permissions.updateAnyMCPServerConfig ||
 									permissions.deleteAnyMCPServerConfig ||
 									canShareOrganizationMCPServers
-										? "/ai/settings/mcp-servers"
-										: "/ai/settings/mcp-servers/add"
+										? mcpServersPath
+										: addMCPServerPath
 								}
 							>
 								MCP servers

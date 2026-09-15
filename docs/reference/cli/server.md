@@ -461,6 +461,17 @@ Allow all logins, setting this option means allowed orgs and teams must be empty
 
 Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
+### --oauth2-provider-enable
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_OAUTH2_PROVIDER_ENABLE</code> |
+| YAML        | <code>oauth2.provider.enable</code>        |
+| Default     | <code>false</code>                         |
+
+Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+
 ### --oidc-allow-signups
 
 |             |                                        |
@@ -825,6 +836,17 @@ Deprecated and ignored.
 | Default     | <code>10m0s</code>                                    |
 
 Time to force cancel provisioning tasks that are stuck.
+
+### --provisioner-disable-module-cache
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_PROVISIONER_DISABLE_MODULE_CACHE</code> |
+| YAML        | <code>provisioning.disableModuleCache</code>         |
+| Default     | <code>false</code>                                   |
+
+Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.
 
 ### --provisioner-daemon-psk
 

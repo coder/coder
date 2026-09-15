@@ -67,13 +67,10 @@ export const CreateOrganizationPageView: FC<
 			icon: "",
 		},
 		validationSchema,
-		onSubmit: (values) => {
-			createOrganizationMutation.mutate(values, {
-				onSuccess: () => {
-					toast.success(`Organization "${values.name}" created successfully.`);
-					void navigate(`/organizations/${values.name}`);
-				},
-			});
+		onSubmit: async (values) => {
+			await createOrganizationMutation.mutateAsync(values);
+			toast.success(`Organization "${values.name}" created successfully.`);
+			void navigate(`/organizations/${values.name}`);
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);

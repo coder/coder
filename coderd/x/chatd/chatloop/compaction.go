@@ -124,6 +124,8 @@ type CompactionResult struct {
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
+	// EstimatedContextTokens covers only SystemSummary, not the full prompt.
+	EstimatedContextTokens int64
 	// Runtime is the wall-clock duration of the summarization model
 	// call, the compaction step's billable runtime (see
 	// PersistedStep.Runtime). Zero when the run was gated off before
@@ -151,9 +153,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if contextTokens <= 0 && !config.Force {
 		return CompactionResult{}, nil
 	}
-	metadataLimit := extractContextLimit(opts.StepMetadata)
 	contextLimit := resolveContextLimit(
-		metadataLimit.Int64,
 		config.ContextLimit,
 		opts.ContextLimitFallback,
 	)
@@ -200,14 +200,16 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		ContextLimit:     contextLimit,
 		Runtime:          summaryRuntime,
 	}
+	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{
-			"summary":              summary,
-			"source":               config.Source,
-			"threshold_percent":    config.ThresholdPercent,
-			"usage_percent":        usagePercent,
-			"context_tokens":       contextTokens,
-			"context_limit_tokens": contextLimit,
+			"summary":                  summary,
+			"source":                   config.Source,
+			"threshold_percent":        config.ThresholdPercent,
+			"usage_percent":            usagePercent,
+			"context_tokens":           contextTokens,
+			"context_limit_tokens":     contextLimit,
+			"estimated_context_tokens": result.EstimatedContextTokens,
 		})
 		config.PublishMessagePart(
 			codersdk.ChatMessageRoleTool,
@@ -300,13 +302,9 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 	return total
 }
 
-// resolveContextLimit picks the first positive value from metadata,
-// configured limit, and fallback — in that priority order. Returns
-// 0 when none are positive.
-func resolveContextLimit(metadataLimit, configLimit, fallback int64) int64 {
-	if metadataLimit > 0 {
-		return metadataLimit
-	}
+// resolveContextLimit returns the configured limit when positive, then
+// the fallback, or zero when neither is positive.
+func resolveContextLimit(configLimit, fallback int64) int64 {
 	if configLimit > 0 {
 		return configLimit
 	}
@@ -400,9 +398,6 @@ func startCompactionDebugRun(
 
 	return compactionCtx, func(runErr error) {
 		status := chatdebug.ClassifyError(runErr)
-		if runErr != nil && xerrors.Is(runErr, ErrInterrupted) {
-			status = chatdebug.StatusInterrupted
-		}
 		// Debug instrumentation must not surface as a compaction failure.
 		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
 			RunID:  run.ID,

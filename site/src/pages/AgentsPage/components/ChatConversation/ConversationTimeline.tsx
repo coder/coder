@@ -36,6 +36,7 @@ import {
 } from "./liveStatusModel";
 import {
 	buildDisplayMessages,
+	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
@@ -399,6 +400,7 @@ const ChatMessageItem = memo<{
 interface ConversationTimelineProps {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
 	streamTools?: readonly MergedTool[];
@@ -426,6 +428,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		organizationId,
 		parsedMessages,
+		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
 		streamTools = [],
@@ -450,6 +453,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		};
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
+		const evictedFileIds = deriveEvictedFileIds(parsedMessages, chatFiles);
 		const renderRows = assignTimelineRows(
 			displayMessages,
 			Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)),
@@ -551,7 +555,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<FileProbeProvider>
+			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				{renderRows.map((row) => {
 					if (row.type === "live") {
 						// This row only exists when liveStatus is set.

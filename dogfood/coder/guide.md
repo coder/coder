@@ -11,7 +11,7 @@ The following explains how to do certain things related to dogfooding.
 ### Dogfood using Coder's Deployment
 
 1. Go to
-   [https://dev.coder.com/templates/coder-ts](https://dev.coder.com/templates/coder-ts)
+   [https://dogfood.cdr.dev/templates/coder-ts](https://dogfood.cdr.dev/templates/coder-ts)
    1. If you don't have an account, sign in with GitHub
    2. If you see a dialog/pop-up, hit "Cancel" (this is because of Rippling)
 2. Create a workspace
