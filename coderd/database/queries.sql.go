@@ -3596,6 +3596,119 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 	return i, err
 }
 
+const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	users.name AS name,
+	users.avatar_url AS avatar_url,
+	groups.organization_id AS organization_id,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+	AND CASE
+		WHEN $4::text != '' THEN ai.provider_name = $4::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $5::text != '' THEN ai.model = $5::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $6::text != '' THEN COALESCE(ai.client, 'Unknown') = $6::text
+		ELSE true
+	END
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	groups.organization_id
+ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
+LIMIT NULLIF($8::int, 0)
+OFFSET $7::int
+`
+
+type ListOrganizationAISpendUsersParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type ListOrganizationAISpendUsersRow struct {
+	UserID                  uuid.UUID `db:"user_id" json:"user_id"`
+	Username                string    `db:"username" json:"username"`
+	Name                    string    `db:"name" json:"name"`
+	AvatarURL               string    `db:"avatar_url" json:"avatar_url"`
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+	CostMicros              int64     `db:"cost_micros" json:"cost_micros"`
+	UnpricedUsageCount      int64     `db:"unpriced_usage_count" json:"unpriced_usage_count"`
+	Count                   int64     `db:"count" json:"count"`
+	TotalCostMicros         int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalUnpricedUsageCount int64     `db:"total_unpriced_usage_count" json:"total_unpriced_usage_count"`
+}
+
+// Returns one page of per-user AI spend for @organization_id over the
+// [period_start, period_end) window, most expensive first, together with the
+// count and totals over every matching user. It must keep the same joins and
+// predicates as ExportOrganizationAISpend so both report the same token usage.
+func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.ProviderName,
+		arg.Model,
+		arg.Client,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationAISpendUsersRow
+	for rows.Next() {
+		var i ListOrganizationAISpendUsersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
+			&i.OrganizationID,
+			&i.CostMicros,
+			&i.UnpricedUsageCount,
+			&i.Count,
+			&i.TotalCostMicros,
+			&i.TotalUnpricedUsageCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
