@@ -154,16 +154,17 @@ export const DeleteDialogOpen: Story = {
 	},
 };
 
-const dcrApp = {
-	...mockApp,
-	name: "VS Code Coder Extension",
-	callback_url: "vscode://coder.coder-remote/oauth/callback",
-};
-
 export const DynamicallyRegisteredValues: Story = {
 	parameters: {
 		queries: [
-			{ key: oauth2ProviderAppKey(appId), data: dcrApp },
+			{
+				key: oauth2ProviderAppKey(appId),
+				data: {
+					...mockApp,
+					name: "VS Code Coder Extension",
+					callback_url: "vscode://coder.coder-remote/oauth/callback",
+				},
+			},
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
 				data: MockOAuth2ProviderAppSecrets,

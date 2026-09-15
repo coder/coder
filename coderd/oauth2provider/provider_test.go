@@ -129,7 +129,6 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 		// Values registered through Dynamic Client Registration (RFC 7591),
 		// such as a name with spaces and a custom native-app callback scheme,
 		// must be creatable and editable via the admin OAuth2 app settings.
-		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
 			Name:        "VS Code Coder Extension",
 			CallbackURL: "vscode://coder.coder-remote/oauth/callback",
@@ -138,7 +137,6 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 		require.Equal(t, "VS Code Coder Extension", app.Name)
 		require.Equal(t, "vscode://coder.coder-remote/oauth/callback", app.CallbackURL)
 
-		//nolint:gocritic // OAuth2 app management requires owner permission.
 		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
 			Name:        "Cursor (MCP)",
 			CallbackURL: "cursor://anysphere.cursor-mcp/oauth/callback",

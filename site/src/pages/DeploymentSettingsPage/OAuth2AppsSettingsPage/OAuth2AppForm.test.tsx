@@ -5,7 +5,12 @@ import { render } from "#/testHelpers/renderHelpers";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 describe("OAuth2AppForm", () => {
-	it("submits dynamically registered client values", async () => {
+	it.each([
+		"VS Code Coder Extension",
+		" VS Code Coder Extension",
+		"VS Code Coder Extension ",
+		" VS Code Coder Extension ",
+	])("submits a trimmed name for %j", async (name) => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
@@ -13,7 +18,7 @@ describe("OAuth2AppForm", () => {
 			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
 		);
 
-		await user.type(screen.getByLabelText(/^name/i), "VS Code Coder Extension");
+		await user.type(screen.getByLabelText(/^name/i), name);
 		await user.type(
 			screen.getByLabelText(/callback url/i),
 			"vscode://coder.coder-remote/oauth/callback",
@@ -50,7 +55,7 @@ describe("OAuth2AppForm", () => {
 		);
 
 		await user.clear(screen.getByLabelText(/^name/i));
-		await user.type(screen.getByLabelText(/^name/i), "Cursor MCP Extension");
+		await user.type(screen.getByLabelText(/^name/i), " Cursor MCP Extension ");
 		await user.click(
 			screen.getByRole("button", { name: /update application/i }),
 		);

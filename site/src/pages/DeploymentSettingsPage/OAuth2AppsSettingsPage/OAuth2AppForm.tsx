@@ -97,7 +97,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		validateOnMount: true,
 		onSubmit: async (values) => {
 			didSubmit.current = true;
-			await onSubmit(values);
+			await onSubmit({ ...values, name: values.name.trim() });
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
