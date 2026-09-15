@@ -2,6 +2,7 @@ package chattool_test
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strings"
 	"testing"
@@ -110,6 +111,125 @@ func TestWorkspaceMCPTool_Errors(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 	})
+}
+
+func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
+	t.Parallel()
+
+	image := []byte{0x89, 'P', 'N', 'G', 1, 2, 3}
+	audio := []byte("wav-bytes")
+	encoded := func(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+
+	tests := []struct {
+		name          string
+		resp          workspacesdk.CallMCPToolResponse
+		wantType      string
+		wantData      []byte
+		wantMediaType string
+		wantContent   string
+		wantIsError   bool
+	}{
+		{
+			name: "TextThenImage",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				{Type: "text", Text: "Ran Playwright code"},
+				{Type: "image", Data: encoded(image), MediaType: "image/png"},
+			}},
+			wantType:      "image",
+			wantData:      image,
+			wantMediaType: "image/png",
+			wantContent:   "Ran Playwright code",
+		},
+		{
+			name: "ImageThenText",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				{Type: "image", Data: encoded(image), MediaType: "image/png"},
+				{Type: "text", Text: "first"},
+				{Type: "text", Text: "second"},
+			}},
+			wantType:      "image",
+			wantData:      image,
+			wantMediaType: "image/png",
+			wantContent:   "first\nsecond",
+		},
+		{
+			name: "AudioWithTextIsMedia",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				{Type: "text", Text: "transcript"},
+				{Type: "audio", Data: encoded(audio), MediaType: "audio/wav"},
+			}},
+			wantType:      "media",
+			wantData:      audio,
+			wantMediaType: "audio/wav",
+			wantContent:   "transcript",
+		},
+		{
+			name: "FirstImageKept",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				{Type: "image", Data: encoded(image), MediaType: "image/png"},
+				{Type: "image", Data: encoded(audio), MediaType: "image/jpeg"},
+				{Type: "text", Text: "two shots"},
+			}},
+			wantType:      "image",
+			wantData:      image,
+			wantMediaType: "image/png",
+			wantContent:   "two shots",
+		},
+		{
+			name: "MixedErrorKeepsFlag",
+			resp: workspacesdk.CallMCPToolResponse{IsError: true, Content: []workspacesdk.MCPToolContent{
+				{Type: "text", Text: "boom"},
+				{Type: "image", Data: encoded(image), MediaType: "image/png"},
+			}},
+			wantType:      "image",
+			wantData:      image,
+			wantMediaType: "image/png",
+			wantContent:   "boom",
+			wantIsError:   true,
+		},
+		{
+			name: "TextOnly",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				{Type: "text", Text: "plain"},
+			}},
+			wantType:    "text",
+			wantContent: "plain",
+		},
+		{
+			name: "ImageOnly",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				{Type: "image", Data: encoded(image), MediaType: "image/png"},
+			}},
+			wantType:      "image",
+			wantData:      image,
+			wantMediaType: "image/png",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tool := chattool.NewWorkspaceMCPTools(
+				[]workspacesdk.MCPToolInfo{{Name: "browser__take_screenshot"}},
+				func(context.Context) (workspacesdk.AgentConn, error) {
+					return &fakeAgentConn{
+						callMCPToolFunc: func(context.Context, workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+							return tt.resp, nil
+						},
+					}, nil
+				},
+			)[0]
+
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: "{}"})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantType, resp.Type)
+			assert.Equal(t, tt.wantData, resp.Data)
+			assert.Equal(t, tt.wantMediaType, resp.MediaType)
+			assert.Equal(t, tt.wantContent, resp.Content)
+			assert.Equal(t, tt.wantIsError, resp.IsError)
+		})
+	}
 }
 
 func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
