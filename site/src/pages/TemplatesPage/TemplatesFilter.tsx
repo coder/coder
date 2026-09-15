@@ -90,7 +90,12 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 			return orgOption(org);
 		},
 		getOptions: async () => {
-			const orgs = await API.getMyOrganizations();
+			// The tables this filter drives are scoped by template permissions,
+			// not by membership, so an organization whose templates are listed
+			// has to be offered here even when the user is not a member of it.
+			// getSelectedOption below already resolves such an organization, so
+			// the query works when typed into the URL; only the picker hid it.
+			const orgs = await API.getOrganizations();
 			return orgs.map(orgOption);
 		},
 	});
