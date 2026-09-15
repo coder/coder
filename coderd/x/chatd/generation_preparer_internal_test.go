@@ -296,18 +296,20 @@ func TestPrepareGenerationMemory(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		project         bool
-		subagent        bool
-		personalEnabled *bool
-		wantMemoryBlock bool
-		wantMemoryTools bool
-		intro           string
+		name               string
+		project            bool
+		subagent           bool
+		personalEnabled    *bool
+		experimentsEnabled bool
+		wantMemoryBlock    bool
+		wantMemoryTools    bool
+		intro              string
 	}{
-		{name: "Project", project: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
-		{name: "Personal", wantMemoryBlock: true, wantMemoryTools: true, intro: "Memory is personal to you"},
-		{name: "PersonalDisabled", personalEnabled: new(false)},
-		{name: "Subagent", subagent: true},
+		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "Personal", experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: "Memory is personal to you"},
+		{name: "PersonalDisabled", experimentsEnabled: true, personalEnabled: new(false)},
+		{name: "ExperimentDisabled"},
+		{name: "Subagent", experimentsEnabled: true, subagent: true},
 	}
 
 	for _, tt := range tests {
@@ -345,7 +347,11 @@ func TestPrepareGenerationMemory(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
+			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
+			if !tt.experimentsEnabled {
+				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
+			}
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
 			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Cleanup)

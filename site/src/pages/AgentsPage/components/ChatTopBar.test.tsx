@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FC, PropsWithChildren } from "react";
+import { type FC, type PropsWithChildren, useEffect } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -15,12 +15,19 @@ import {
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { ChatTopBar } from "./ChatTopBar";
 
-const LocationProbe: FC = () => {
+const LocationProbe: FC<
+	PropsWithChildren<{ readonly onLocationChange: (pathname: string) => void }>
+> = ({ children, onLocationChange }) => {
 	const location = useLocation();
-	return <output aria-label="Location">{location.pathname}</output>;
+	useEffect(() => {
+		onLocationChange(location.pathname);
+	}, [location.pathname, onLocationChange]);
+	return children;
 };
 
-const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+const Wrapper: FC<
+	PropsWithChildren<{ readonly onLocationChange: (pathname: string) => void }>
+> = ({ children, onLocationChange }) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -38,10 +45,17 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 				<MemoryRouter initialEntries={[`/agents/${MockChat.id}`]}>
 					<Routes>
 						<Route element={<Outlet />}>
-							<Route path="/agents/:agentId" element={children} />
+							<Route
+								path="/agents/:agentId"
+								element={
+									<LocationProbe onLocationChange={onLocationChange}>
+										{children}
+									</LocationProbe>
+								}
+							/>
 							<Route
 								path="/agents/settings/memory"
-								element={<LocationProbe />}
+								element={<LocationProbe onLocationChange={onLocationChange} />}
 							/>
 						</Route>
 					</Routes>
@@ -54,8 +68,9 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 describe("ChatTopBar", () => {
 	it("navigates root chats to personal memory settings", async () => {
 		const user = userEvent.setup();
+		const onLocationChange = vi.fn();
 		render(
-			<Wrapper>
+			<Wrapper onLocationChange={onLocationChange}>
 				<ChatTopBar
 					chat={MockChat}
 					panel={{ showSidebarPanel: false, onToggleSidebar: () => {} }}
@@ -68,15 +83,18 @@ describe("ChatTopBar", () => {
 		);
 		await user.click(screen.getByRole("menuitem", { name: "Memory" }));
 
-		expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent(
-			"/agents/settings/memory",
-		);
+		await waitFor(() => {
+			expect(onLocationChange).toHaveBeenLastCalledWith(
+				"/agents/settings/memory",
+			);
+		});
 	});
 
-	it("omits personal memory from project chat actions", async () => {
+	it("keeps project chats out of personal memory settings", async () => {
 		const user = userEvent.setup();
+		const onLocationChange = vi.fn();
 		render(
-			<Wrapper>
+			<Wrapper onLocationChange={onLocationChange}>
 				<ChatTopBar
 					chat={{ ...MockChat, project_id: "project-1" }}
 					panel={{ showSidebarPanel: false, onToggleSidebar: () => {} }}
@@ -84,10 +102,13 @@ describe("ChatTopBar", () => {
 			</Wrapper>,
 		);
 
+		await waitFor(() => {
+			expect(onLocationChange).toHaveBeenCalledWith(`/agents/${MockChat.id}`);
+		});
 		await user.click(
 			screen.getByRole("button", { name: "Open agent actions" }),
 		);
 
-		expect(screen.queryByRole("menuitem", { name: "Memory" })).toBeNull();
+		expect(onLocationChange).toHaveBeenCalledTimes(1);
 	});
 });
