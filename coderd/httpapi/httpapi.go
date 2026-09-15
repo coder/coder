@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -49,11 +50,48 @@ func init() {
 		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	oauth2AppNameValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		return codersdk.OAuth2AppNameValid(str) == nil
+	}
+	err := Validate.RegisterValidation("oauth2_app_name", oauth2AppNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	// oauth2_callback_url checks for a safe redirect URI scheme and requires a
+	// host for HTTP(S) callback URLs. Custom native-app schemes such as vscode://
+	// may be opaque. It does not apply the full DCR redirect URI policy.
+	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		u, err := url.Parse(str)
+		if err != nil {
+			return false
+		}
+		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
+			return false
+		}
+		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
+			return false
+		}
+		return true
+	}
+	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
+	if err != nil {
+		panic(err)
 	}
 
 	displayNameValidator := func(fl validator.FieldLevel) bool {
@@ -81,7 +119,7 @@ func init() {
 		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
 	if err != nil {
 		panic(err)
 	}

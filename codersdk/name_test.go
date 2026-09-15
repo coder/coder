@@ -287,3 +287,41 @@ func TestGroupNameValid(t *testing.T) {
 		})
 	}
 }
+
+func TestOAuth2AppNameValid(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"", false},
+		{"a", true},
+		{"my-app", true},
+		// DCR-registered clients use spaces and other characters that the
+		// slug-style name validator rejects.
+		{"VS Code Coder Extension", true},
+		{"Cursor (MCP)", true},
+		{"new", true},
+		{"create", true},
+		{" leading", false},
+		{"trailing ", false},
+		{" ", false},
+		{strings.Repeat("a", 64), true},
+		{strings.Repeat("a", 65), false},
+		{strings.Repeat("é", 32), true},
+		{strings.Repeat("é", 33), false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.OAuth2AppNameValid(testCase.Name)
+			assert.Equal(t, testCase.Valid, err == nil,
+				"Test case %q failed: expected valid=%t but got error: %v",
+				testCase.Name, testCase.Valid, err)
+			if len(testCase.Name) > 64 {
+				assert.EqualError(t, err, "must be <= 64 bytes")
+			}
+		})
+	}
+}

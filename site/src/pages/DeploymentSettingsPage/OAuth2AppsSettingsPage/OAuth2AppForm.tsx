@@ -13,12 +13,7 @@ import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
-import {
-	getFormHelpers,
-	iconValidator,
-	nameValidator,
-	onChangeTrimmed,
-} from "#/utils/formUtils";
+import { getFormHelpers, iconValidator } from "#/utils/formUtils";
 
 type OAuth2AppFormValues = {
 	name: string;
@@ -38,25 +33,52 @@ type OAuth2AppFormProps = {
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-const isHttpUrl = (value: string | undefined): boolean => {
+// Mirror codersdk.ValidateRedirectURIScheme and httpapi's oauth2_callback_url.
+// The server remains authoritative for URL syntax differences between parsers.
+// oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
+const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
+
+const isValidCallbackURL = (value: string | undefined): boolean => {
 	if (!value) {
 		return false;
 	}
 	try {
 		const url = new URL(value);
-		return url.protocol === "http:" || url.protocol === "https:";
+		if (url.protocol === "urn:") {
+			return url.href === "urn:ietf:wg:oauth:2.0:oob";
+		}
+		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol)) {
+			return false;
+		}
+		if (
+			(url.protocol === "http:" || url.protocol === "https:") &&
+			!/^https?:\/\/[^/\\\s]/i.test(value)
+		) {
+			return false;
+		}
+		return true;
 	} catch {
 		return false;
 	}
 };
 
+// Keep the UTF-8 byte limit aligned with codersdk.OAuth2AppNameValid.
+const MAX_NAME_BYTES = 64;
+
 const validationSchema = Yup.object({
-	name: nameValidator("Name"),
+	name: Yup.string()
+		.trim()
+		.required("Please enter a name.")
+		.test(
+			"name-byte-length",
+			`Name cannot be longer than ${MAX_NAME_BYTES} UTF-8 bytes.`,
+			(value) => new TextEncoder().encode(value).length <= MAX_NAME_BYTES,
+		),
 	callback_url: Yup.string()
 		.trim()
 		.required("Please enter a callback URL.")
-		.test("http-url", "Callback URL must be a valid URL.", (value) =>
-			isHttpUrl(value),
+		.test("valid-callback-url", "Please enter a valid callback URL.", (value) =>
+			isValidCallbackURL(value),
 		),
 	icon: iconValidator,
 });
@@ -81,7 +103,11 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		validateOnMount: true,
 		onSubmit: async (values) => {
 			didSubmit.current = true;
-			await onSubmit(values);
+			await onSubmit({
+				...values,
+				name: values.name.trim(),
+				callback_url: values.callback_url.trim(),
+			});
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
@@ -124,7 +150,6 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					label="Name"
 					description="The name of your Coder app."
 					disabled={formDisabled}
-					onChange={onChangeTrimmed(form)}
 					autoFocus
 					required
 				/>

@@ -59,6 +59,24 @@ func NameValid(str string) error {
 	return nil
 }
 
+// OAuth2AppNameValid returns whether the input string is a valid OAuth2
+// application name: a non-empty string of at most 64 UTF-8 bytes with no
+// leading or trailing whitespace. Unlike NameValid, it allows spaces and other
+// characters that appear in dynamically registered client names such as
+// "VS Code Coder Extension".
+func OAuth2AppNameValid(str string) error {
+	if len(str) < 1 {
+		return xerrors.New("must be >= 1 character")
+	}
+	if len(str) > 64 {
+		return xerrors.New("must be <= 64 bytes")
+	}
+	if strings.TrimSpace(str) != str {
+		return xerrors.New("must not have leading or trailing whitespace")
+	}
+	return nil
+}
+
 // TemplateVersionNameValid returns whether the input string is a valid template version name.
 func TemplateVersionNameValid(str string) error {
 	if len(str) > 64 {
