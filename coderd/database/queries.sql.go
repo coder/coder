@@ -7706,7 +7706,6 @@ FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 `
 
-// Counts every queued row, under edit or not.
 func (q *sqlQuerier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countChatQueuedMessages, chatID)
 	var count int64
@@ -9280,7 +9279,6 @@ WHERE chat_id = $1
 ORDER BY position ASC, id ASC
 `
 
-// Processing order: position, not created_at.
 func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatQueuedMessages, chatID)
 	if err != nil {
