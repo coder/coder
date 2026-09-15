@@ -151,8 +151,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	// Only delete and promote remove the row, so only they hide it
-	// optimistically.
+	// Delete and promote remove the row, so they hide it optimistically.
 	const runAction = async (
 		id: number,
 		action: QueuedMessageAction,

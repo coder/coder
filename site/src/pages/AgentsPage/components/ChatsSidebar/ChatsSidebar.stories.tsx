@@ -357,8 +357,6 @@ export const ChatWithTurnSummaryAndError: Story = {
 	},
 };
 
-// The turn finished while the queue head was under edit, so the chat is
-// paused rather than idle.
 export const PausedChat: Story = {
 	args: {
 		chats: [

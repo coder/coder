@@ -615,8 +615,8 @@ const AgentChatPage: FC = () => {
 			onError: handleRequestError,
 		});
 
-	// A 404 means the row was sent or removed; drop it locally rather than
-	// wait for a queue_update.
+	// A 404 means the row was sent or removed. Drop it locally; a
+	// queue_update for it may never arrive.
 	const patchQueuedMessage = async (
 		id: number,
 		req: TypesGen.EditChatQueuedMessageRequest,
