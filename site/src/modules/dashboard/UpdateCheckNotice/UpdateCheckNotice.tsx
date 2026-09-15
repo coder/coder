@@ -37,6 +37,8 @@ export const UpdateCheckNotice: FC<UpdateCheckNoticeProps> = ({
 			duration: Number.POSITIVE_INFINITY,
 			// A sparkle nods at the new release instead of the generic info icon.
 			icon: <SparkleIcon className="text-content-primary" />,
+			// Center the icon within the headline's line box so the two align.
+			classNames: { icon: "self-start flex-row items-center h-5 pt-0" },
 			// Clear the deployment banner so the toast doesn't overlap it.
 			className: aboveDeploymentBanner ? "mb-9" : undefined,
 			description: (
