@@ -169,6 +169,7 @@ func (server *Server) prepareGeneration(
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
+	isOrchestrator := isOrchestratorMode(chat.Mode)
 	isRootChat := !chat.ParentChatID.Valid
 
 	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
@@ -493,43 +494,55 @@ func (server *Server) prepareGeneration(
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
-	tools := []fantasy.AgentTool{
-		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
-		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
-		chattool.AttachFile(chattool.AttachFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			StoreFile:        storeChatAttachment,
-		}),
-		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
-			AgentBrowserSession: chat.ID.String(),
-		}),
-		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-	}
-	if isPlanModeTurn && isRootChat {
-		tools = append(tools, chattool.NewAskUserQuestionTool())
-	}
-	if isRootChat {
-		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
-			chat:            chat,
-			modelConfigID:   modelConfig.ID,
-			workspaceCtx:    &workspaceCtx,
-			workspaceMu:     &workspaceMu,
-			resolvePlanPath: resolvePlanPathForTools,
-			storeFile:       storeChatAttachment,
-			isPlanModeTurn:  isPlanModeTurn,
+	var tools []fantasy.AgentTool
+	switch {
+	case isOrchestrator:
+		// Orchestrator chats never attach a workspace, so they skip every
+		// workspace-backed built-in and coordinate other chats instead.
+		tools = server.orchestratorTools(func() database.Chat {
+			chatStateMu.Lock()
+			defer chatStateMu.Unlock()
+			return currentChat
 		})
+	default:
+		tools = []fantasy.AgentTool{
+			chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+			chattool.WriteFile(chattool.WriteFileOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+				ResolvePlanPath:  resolvePlanPathForTools,
+				IsPlanTurn:       isPlanModeTurn,
+			}),
+			chattool.EditFiles(chattool.EditFilesOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+				ResolvePlanPath:  resolvePlanPathForTools,
+				IsPlanTurn:       isPlanModeTurn,
+			}),
+			chattool.AttachFile(chattool.AttachFileOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+				StoreFile:        storeChatAttachment,
+			}),
+			chattool.Execute(chattool.ExecuteOptions{
+				GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
+				AgentBrowserSession: chat.ID.String(),
+			}),
+			chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+			chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+			chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+		}
+		if isPlanModeTurn && isRootChat {
+			tools = append(tools, chattool.NewAskUserQuestionTool())
+		}
+		if isRootChat {
+			tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+				chat:            chat,
+				modelConfigID:   modelConfig.ID,
+				workspaceCtx:    &workspaceCtx,
+				workspaceMu:     &workspaceMu,
+				resolvePlanPath: resolvePlanPathForTools,
+				storeFile:       storeChatAttachment,
+				isPlanModeTurn:  isPlanModeTurn,
+			})
+		}
 	}
 
 	skillOpts := chattool.ReadSkillOptions{

@@ -1016,7 +1016,11 @@ const AgentChatPage: FC = () => {
 					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
 					planModeEnabled={planModeEnabled}
-					onPlanModeToggle={handlePlanModeToggle}
+					onPlanModeToggle={
+						chatQuery.data?.mode === "orchestrator"
+							? undefined
+							: handlePlanModeToggle
+					}
 					showRightPanel={showSidebarPanel}
 				/>
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
@@ -1073,12 +1077,16 @@ const AgentChatPage: FC = () => {
 					aiGatewayDisabled={aiGatewayDisabled}
 					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
-					onPlanModeToggle={handlePlanModeToggle}
+					onPlanModeToggle={
+						chat.mode === "orchestrator" ? undefined : handlePlanModeToggle
+					}
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
 					isInterruptPending={isInterruptPending}
 					onWorkspaceChange={
-						canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+						canUpdateChatWorkspace && chat.mode !== "orchestrator"
+							? handleWorkspaceChange
+							: undefined
 					}
 					isWorkspaceLoading={isUpdateChatWorkspacePending}
 					showSidebarPanel={showSidebarPanel}

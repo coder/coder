@@ -2221,6 +2221,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -2317,6 +2318,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -2360,6 +2362,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `last_reasoning_effort` | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `mode`                  | [codersdk.ChatMode](#codersdkchatmode)                          | false    |              | Mode marks chats with specialized tool sets. Empty for regular chats.                                                                                                                                                                                                      |
 | `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_name`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -3331,6 +3334,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `has_more`        | boolean                                                           | false    |              |             |
 | `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+
+## codersdk.ChatMode
+
+```json
+"computer_use"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                  |
+|-------------------------------------------|
+| `computer_use`, `explore`, `orchestrator` |
 
 ## codersdk.ChatModel
 
@@ -5241,6 +5258,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
+    "mode": "computer_use",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
@@ -6340,6 +6358,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
 | `availability` | `default_off`, `default_on`, `force_on`                    |
 | `transport`    | `sse`, `streamable_http`                                   |
+
+## codersdk.CreateOrchestratorChatRequest
+
+```json
+{
+  "client_type": "ui",
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                      | Required | Restrictions | Description |
+|--------------------|-----------------------------------------------------------|----------|--------------|-------------|
+| `client_type`      | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |             |
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |             |
+| `mcp_server_ids`   | array of string                                           | false    |              |             |
+| `model_config_id`  | string                                                    | false    |              |             |
+| `organization_id`  | string                                                    | false    |              |             |
+| `reasoning_effort` | string                                                    | false    |              |             |
 
 ## codersdk.CreateOrganizationRequest
 
@@ -8866,9 +8920,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-orchestrator`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

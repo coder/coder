@@ -1126,6 +1126,9 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
+	// ID, when set, is used instead of a random chat ID so callers can
+	// make creation idempotent through the primary key.
+	ID                      uuid.UUID
 	OrganizationID          uuid.UUID
 	OwnerID                 uuid.UUID
 	WorkspaceID             uuid.NullUUID
@@ -1338,7 +1341,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Resolve the deployment prompt before opening the transaction so
 	// chat creation does not hold one DB connection while waiting for
 	// another pool checkout.
-	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	isOrchestrator := isOrchestratorMode(opts.ChatMode)
+	var deploymentPrompt string
+	if isOrchestrator {
+		deploymentPrompt = p.resolveOrchestratorSystemPrompt(ctx)
+	} else {
+		deploymentPrompt = p.resolveDeploymentSystemPrompt(ctx)
+	}
 
 	if opts.ModelConfigID != uuid.Nil {
 		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
@@ -1351,7 +1360,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
 
-	chatID := uuid.New()
+	chatID := opts.ID
+	if chatID == uuid.Nil {
+		chatID = uuid.New()
+	}
 	contentParts := opts.InitialUserContent
 	if p.hooks.Enabled() {
 		// Validate model admission before dispatch, matching the insert path.
@@ -1385,7 +1397,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	userPrompt := codersdk.SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
-	if opts.WorkspaceID.Valid {
+	switch {
+	case isOrchestrator:
+		workspaceAwareness = orchestratorAwareness
+	case opts.WorkspaceID.Valid:
 		workspaceAwareness = workspaceAttachedAwareness
 	}
 	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -3429,6 +3444,10 @@ func allToolNames(allTools []fantasy.AgentTool) []string {
 
 func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
+}
+
+func isOrchestratorMode(mode database.NullChatMode) bool {
+	return mode.Valid && mode.ChatMode == database.ChatModeOrchestrator
 }
 
 // filterExternalMCPConfigsForTurn returns the external MCP server configs

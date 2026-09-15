@@ -1012,6 +1012,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByIDForShare(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(chat)
 	}))
+	s.Run("GetOrchestratorChatByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{
+			Mode: database.NullChatMode{ChatMode: database.ChatModeOrchestrator, Valid: true},
+		})
+		dbm.EXPECT().GetOrchestratorChatByOwnerID(gomock.Any(), chat.OwnerID).Return(chat, nil).AnyTimes()
+		check.Args(chat.OwnerID).Asserts(chat, policy.ActionRead).Returns(chat)
+	}))
 	s.Run("GetChatStreamSyncRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New(), uuid.New()}
 		rows := []database.GetChatStreamSyncRowsRow{{ID: ids[0]}}

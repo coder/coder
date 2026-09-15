@@ -62,6 +62,7 @@ import {
 	chatsByWorkspace,
 	createChat,
 	createChatMessage,
+	createOrchestratorChat,
 	deleteChatModel,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -88,6 +89,7 @@ import {
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	openChat,
+	orchestratorChatKey,
 	organizationChatModelsKey,
 	patchChatEntity,
 	patchChatMessages,
@@ -126,6 +128,7 @@ vi.mock("#/api/api", () => ({
 		experimental: {
 			updateChat: vi.fn(),
 			createChat: vi.fn(),
+			createOrchestratorChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
@@ -1877,6 +1880,22 @@ describe("mutation invalidation scope", () => {
 			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
 			"chatMessagesKey should NOT be invalidated",
 		).not.toBe(true);
+	});
+
+	it("createOrchestratorChat caches the orchestrator and invalidates sidebar queries", async () => {
+		const queryClient = createTestQueryClient();
+		const chat = makeChat("orchestrator-chat", { mode: "orchestrator" });
+		seedAllActiveQueries(queryClient, chat.id);
+
+		const mutation = createOrchestratorChat(queryClient);
+		mutation.onSuccess(chat);
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(queryClient.getQueryData(orchestratorChatKey)).toBe(chat);
+		expect(
+			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
+		).toBe(true);
 	});
 
 	it("deleteChatQueuedMessage invalidates only chat detail and messages", async () => {

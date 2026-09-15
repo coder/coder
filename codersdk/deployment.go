@@ -5215,6 +5215,7 @@ const (
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
+	ExperimentChatOrchestrator          Experiment = "chat-orchestrator"           // Enables the per-user orchestrator chat that spawns and inspects other chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5243,6 +5244,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
 		return "Agent Lifecycle Hooks"
+	case ExperimentChatOrchestrator:
+		return "Chat Orchestrator"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5266,6 +5269,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
+	ExperimentChatOrchestrator,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

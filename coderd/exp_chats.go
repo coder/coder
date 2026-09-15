@@ -2251,6 +2251,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if isOrchestratorChat(chat) && (req.WorkspaceID != nil || (req.PlanMode != nil && *req.PlanMode != "")) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Orchestrator chats cannot attach a workspace or enter plan mode.",
+		})
+		return
+	}
+
 	var planModeUpdate *database.NullChatPlanMode
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
@@ -2622,6 +2629,12 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if !validateChatPlanMode(*req.PlanMode) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid plan_mode value.",
+			})
+			return
+		}
+		if isOrchestratorChat(chat) && *req.PlanMode != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Orchestrator chats cannot enter plan mode.",
 			})
 			return
 		}

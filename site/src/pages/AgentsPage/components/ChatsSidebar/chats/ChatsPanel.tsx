@@ -20,6 +20,7 @@ import {
 	SearchIcon,
 	SettingsIcon,
 	SquarePenIcon,
+	WorkflowIcon,
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
@@ -97,6 +98,8 @@ interface ChatsPanelProps {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
+	readonly orchestratorEnabled: boolean;
+	readonly orchestratorChatId?: string;
 }
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
@@ -130,6 +133,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isChatsActive,
 	location,
 	currentUserId,
+	orchestratorEnabled,
+	orchestratorChatId,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -407,6 +412,21 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
+				{orchestratorEnabled && (
+					<SettingsNavItem
+						icon={WorkflowIcon}
+						label="Orchestrator"
+						active={
+							location.pathname === "/agents/orchestrator" ||
+							(orchestratorChatId !== undefined &&
+								activeChatId === orchestratorChatId)
+						}
+						to={{
+							pathname: "/agents/orchestrator",
+							search: locationSearch,
+						}}
+					/>
+				)}
 				{onOpenSearchDialog && (
 					<SettingsNavItem
 						icon={SearchIcon}

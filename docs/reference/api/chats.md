@@ -149,6 +149,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
+    "mode": "computer_use",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
@@ -248,6 +249,7 @@ Status Code **200**
 | `» last_reasoning_effort` | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» last_turn_summary`     | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» mcp_server_ids`        | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» mode`                  | [codersdk.ChatMode](schemas.md#codersdkchatmode)                                   | false    |              | Mode marks chats with specialized tool sets. Empty for regular chats.                                                                                                                                                                                                      |
 | `» organization_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_name`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -272,6 +274,7 @@ Status Code **200**
 | `client_type` | `api`, `ui`                                                                                                                                                                                                                                                       |
 | `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 | `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
+| `mode`        | `computer_use`, `explore`, `orchestrator`                                                                                                                                                                                                                         |
 | `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -428,6 +431,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -524,6 +528,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -1272,6 +1277,502 @@ curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get orchestrator chat
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/orchestrator \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/orchestrator`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "archived": true,
+  "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "children": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "archived": true,
+      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "children": [],
+      "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "resources": [
+          {
+            "error": "string",
+            "kind": "instruction_file",
+            "size_bytes": 0,
+            "skill_description": "string",
+            "skill_name": "string",
+            "source": "string",
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "created_at": "2019-08-24T14:15:22Z",
+      "diff_status": {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      },
+      "files": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "mime_type": "string",
+          "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
+        }
+      ],
+      "has_unread": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "last_error": {
+        "detail": "string",
+        "kind": "generic",
+        "message": "string",
+        "provider": "string",
+        "retryable": true,
+        "status_code": 0
+      },
+      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_reasoning_effort": "string",
+      "last_turn_summary": "string",
+      "mcp_server_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "mode": "computer_use",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
+      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+      "pin_order": 0,
+      "plan_mode": "plan",
+      "queued_for_capacity": true,
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
+      "status": "waiting",
+      "summary": "string",
+      "title": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "warnings": [
+        "string"
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ],
+  "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "resources": [
+      {
+        "error": "string",
+        "kind": "instruction_file",
+        "size_bytes": 0,
+        "skill_description": "string",
+        "skill_name": "string",
+        "source": "string",
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
+      }
+    ]
+  },
+  "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
+  "files": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "mime_type": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
+    }
+  ],
+  "has_unread": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "last_error": {
+    "detail": "string",
+    "kind": "generic",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_reasoning_effort": "string",
+  "last_turn_summary": "string",
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "mode": "computer_use",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "queued_for_capacity": true,
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
+  "status": "waiting",
+  "summary": "string",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": [
+    "string"
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                        | Description                             | Schema                                           |
+|--------|----------------------------------------------------------------|-----------------------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)        | OK                                      | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4) | The caller has no orchestrator chat yet | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create orchestrator chat
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/chats/orchestrator \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/chats/orchestrator`
+
+> Body parameter
+
+```json
+{
+  "client_type": "ui",
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "reasoning_effort": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description                      |
+|--------|------|--------------------------------------------------------------------------------------------|----------|----------------------------------|
+| `body` | body | [codersdk.CreateOrchestratorChatRequest](schemas.md#codersdkcreateorchestratorchatrequest) | true     | Create orchestrator chat request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "archived": true,
+  "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "children": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "archived": true,
+      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "children": [],
+      "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "resources": [
+          {
+            "error": "string",
+            "kind": "instruction_file",
+            "size_bytes": 0,
+            "skill_description": "string",
+            "skill_name": "string",
+            "source": "string",
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "created_at": "2019-08-24T14:15:22Z",
+      "diff_status": {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      },
+      "files": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "mime_type": "string",
+          "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
+        }
+      ],
+      "has_unread": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "last_error": {
+        "detail": "string",
+        "kind": "generic",
+        "message": "string",
+        "provider": "string",
+        "retryable": true,
+        "status_code": 0
+      },
+      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_reasoning_effort": "string",
+      "last_turn_summary": "string",
+      "mcp_server_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "mode": "computer_use",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
+      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+      "pin_order": 0,
+      "plan_mode": "plan",
+      "queued_for_capacity": true,
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
+      "status": "waiting",
+      "summary": "string",
+      "title": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "warnings": [
+        "string"
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ],
+  "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "resources": [
+      {
+        "error": "string",
+        "kind": "instruction_file",
+        "size_bytes": 0,
+        "skill_description": "string",
+        "skill_name": "string",
+        "source": "string",
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
+      }
+    ]
+  },
+  "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
+  "files": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "mime_type": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
+    }
+  ],
+  "has_unread": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "last_error": {
+    "detail": "string",
+    "kind": "generic",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_reasoning_effort": "string",
+  "last_turn_summary": "string",
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "mode": "computer_use",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "queued_for_capacity": true,
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
+  "status": "waiting",
+  "summary": "string",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": [
+    "string"
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                       | Description                                 | Schema                                           |
+|--------|---------------------------------------------------------------|---------------------------------------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)  | Created                                     | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8) | The caller already has an orchestrator chat | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Watch chat events for a user via WebSockets
 
 ### Code samples
@@ -1374,6 +1875,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
+    "mode": "computer_use",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
@@ -1522,6 +2024,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -1618,6 +2121,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -1801,6 +2305,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -1897,6 +2402,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -2128,6 +2634,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -2224,6 +2731,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -3149,6 +3657,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -3245,6 +3754,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",

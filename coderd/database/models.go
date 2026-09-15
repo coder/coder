@@ -1666,8 +1666,9 @@ func AllChatMessageVisibilityValues() []ChatMessageVisibility {
 type ChatMode string
 
 const (
-	ChatModeComputerUse ChatMode = "computer_use"
-	ChatModeExplore     ChatMode = "explore"
+	ChatModeComputerUse  ChatMode = "computer_use"
+	ChatModeExplore      ChatMode = "explore"
+	ChatModeOrchestrator ChatMode = "orchestrator"
 )
 
 func (e *ChatMode) Scan(src interface{}) error {
@@ -1708,7 +1709,8 @@ func (ns NullChatMode) Value() (driver.Value, error) {
 func (e ChatMode) Valid() bool {
 	switch e {
 	case ChatModeComputerUse,
-		ChatModeExplore:
+		ChatModeExplore,
+		ChatModeOrchestrator:
 		return true
 	}
 	return false
@@ -1718,6 +1720,7 @@ func AllChatModeValues() []ChatMode {
 	return []ChatMode{
 		ChatModeComputerUse,
 		ChatModeExplore,
+		ChatModeOrchestrator,
 	}
 }
 

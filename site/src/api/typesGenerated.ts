@@ -1908,6 +1908,10 @@ export interface Chat {
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
+	/**
+	 * Mode marks chats with specialized tool sets. Empty for regular chats.
+	 */
+	readonly mode?: ChatMode;
 	readonly plan_mode?: ChatPlanMode;
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
@@ -2760,6 +2764,9 @@ export interface ChatMessagesResponse {
 }
 
 // From codersdk/chats.go
+export type ChatMode = "computer_use" | "explore" | "orchestrator";
+
+// From codersdk/chats.go
 /**
  * ChatModel is an org-scoped model configuration.
  */
@@ -3112,6 +3119,12 @@ export interface ChatModelVercelProviderOptions {
 	// empty interface{} type, falling back to unknown
 	readonly extra_body?: Record<string, unknown>;
 }
+
+export const ChatModes: ChatMode[] = [
+	"computer_use",
+	"explore",
+	"orchestrator",
+];
 
 // From codersdk/chats.go
 /**
@@ -3969,6 +3982,21 @@ export interface CreateMCPServerConfigRequest {
 	 * headers on every outgoing MCP request. See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateOrchestratorChatRequest creates the caller's orchestrator chat with
+ * its first message. Orchestrator chats never attach a workspace, so the
+ * request omits workspace and plan mode fields.
+ */
+export interface CreateOrchestratorChatRequest {
+	readonly organization_id: string;
+	readonly content: readonly ChatInputPart[];
+	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
+	readonly mcp_server_ids?: readonly string[];
+	readonly client_type?: ChatClientType;
 }
 
 // From codersdk/organizations.go
@@ -5005,6 +5033,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-orchestrator"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5020,6 +5049,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-orchestrator",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",

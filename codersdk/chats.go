@@ -117,6 +117,7 @@ type Chat struct {
 	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
 	Title               string       `json:"title"`
 	Status              ChatStatus   `json:"status"`
+	Mode                ChatMode     `json:"mode,omitempty"`
 	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
 	LastError           *ChatError   `json:"last_error,omitempty"`
 	LastTurnSummary     *string      `json:"last_turn_summary"`
@@ -580,6 +581,18 @@ type CreateChatRequest struct {
 	ClientType         ChatClientType `json:"client_type,omitempty"`
 }
 
+// CreateOrchestratorChatRequest creates the caller's orchestrator chat with
+// its first message. Orchestrator chats never attach a workspace, so the
+// request omits workspace and plan mode fields.
+type CreateOrchestratorChatRequest struct {
+	OrganizationID  uuid.UUID       `json:"organization_id" format:"uuid"`
+	Content         []ChatInputPart `json:"content"`
+	ModelConfigID   *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string         `json:"reasoning_effort,omitempty"`
+	MCPServerIDs    []uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
+	ClientType      ChatClientType  `json:"client_type,omitempty"`
+}
+
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
 	Title       *string    `json:"title,omitempty"`
@@ -614,6 +627,20 @@ const (
 	// before the queued message is promoted, preserving correct
 	// conversation order.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
+)
+
+// ChatMode marks chats whose tool set differs from a regular chat.
+type ChatMode string
+
+const (
+	// ChatModeComputerUse drives a virtual desktop through a computer use
+	// provider tool.
+	ChatModeComputerUse ChatMode = "computer_use"
+	// ChatModeExplore is a read-only delegated code discovery chat.
+	ChatModeExplore ChatMode = "explore"
+	// ChatModeOrchestrator is the single per-user chat that spawns and
+	// inspects the user's other chats without workspace tools.
+	ChatModeOrchestrator ChatMode = "orchestrator"
 )
 
 // ChatPlanMode represents the persistent plan mode state of a chat.
@@ -2742,6 +2769,36 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 		return Chat{}, ReadBodyAsError(res)
 	}
 	defer res.Body.Close()
+	var chat Chat
+	return chat, ReadBodyAsJSON(res, &chat)
+}
+
+// OrchestratorChat returns the caller's orchestrator chat. It returns a
+// 404 error until the chat is created with CreateOrchestratorChat.
+func (c *Client) OrchestratorChat(ctx context.Context) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/orchestrator", nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, ReadBodyAsJSON(res, &chat)
+}
+
+// CreateOrchestratorChat creates the caller's orchestrator chat with its
+// first message. It fails with 409 when the chat already exists.
+func (c *Client) CreateOrchestratorChat(ctx context.Context, req CreateOrchestratorChatRequest) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/chats/orchestrator", req)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return Chat{}, ReadBodyAsError(res)
+	}
 	var chat Chat
 	return chat, ReadBodyAsJSON(res, &chat)
 }
