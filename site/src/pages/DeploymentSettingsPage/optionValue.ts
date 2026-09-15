@@ -1,6 +1,24 @@
 import type { SerpentOption } from "#/api/typesGenerated";
 import { humanDuration } from "#/utils/time";
 
+// serpent.Enum has no JSON marshaler on the Go side, so enum-typed options
+// (e.g. "SameSite Auth Cookie") reach the frontend as the whole struct
+// { Choices, Value } instead of the configured string.
+interface SerpentEnumValue {
+	readonly Choices: readonly string[];
+	readonly Value: string | null;
+}
+
+function isSerpentEnumValue(value: unknown): value is SerpentEnumValue {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		"Value" in value &&
+		Array.isArray((value as { Choices?: unknown }).Choices)
+	);
+}
+
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(
 	option: SerpentOption,
@@ -67,6 +85,9 @@ export function optionValue(
 			return experimentMap;
 		}
 		default:
+			if (isSerpentEnumValue(option.value)) {
+				return option.value.Value ?? "";
+			}
 			return option.value as
 				| number
 				| string
