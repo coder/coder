@@ -56,6 +56,34 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 	);
 };
 
+export const ContextMenuSub = ContextMenuPrimitive.Sub;
+
+export const ContextMenuSubTrigger: React.FC<
+	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.SubTrigger>
+> = ({ className, children, ...props }) => {
+	return (
+		<ContextMenuPrimitive.SubTrigger
+			className={cn(menuItemClass, className)}
+			{...props}
+		>
+			{children}
+		</ContextMenuPrimitive.SubTrigger>
+	);
+};
+
+export const ContextMenuSubContent: React.FC<
+	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.SubContent>
+> = ({ className, ...props }) => {
+	return (
+		<ContextMenuPrimitive.Portal>
+			<ContextMenuPrimitive.SubContent
+				className={cn(menuContentClass, className)}
+				{...props}
+			/>
+		</ContextMenuPrimitive.Portal>
+	);
+};
+
 export const ContextMenuSeparator: React.FC<
 	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.Separator>
 > = ({ className, ...props }) => {

@@ -363,6 +363,9 @@ const AgentsPageLayout = lazy(
 	() => import("./pages/AgentsPage/AgentsPageLayout"),
 );
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
+const AgentProjectPage = lazy(
+	() => import("./pages/AgentsPage/AgentProjectPage"),
+);
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
 const DesktopPopoutPage = lazy(
 	() => import("./pages/AgentsPage/DesktopPopoutPage"),
@@ -886,6 +889,14 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/templates" replace />}
 						/>
 					</Route>
+					<Route
+						path="projects/:projectId"
+						element={
+							<Suspense fallback={<AgentChatPageSkeleton />}>
+								<AgentProjectPage />
+							</Suspense>
+						}
+					/>
 					<Route
 						path=":agentId"
 						element={

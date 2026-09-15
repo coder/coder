@@ -5212,6 +5212,7 @@ const (
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
+	ExperimentChatProjects              Experiment = "chat-projects"               // Enables organization-scoped projects that group agent chats.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
@@ -5237,6 +5238,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
 		return "AI Gateway Seat Exclusion"
+	case ExperimentChatProjects:
+		return "Chat Projects"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
@@ -5263,6 +5266,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
+	ExperimentChatProjects,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,

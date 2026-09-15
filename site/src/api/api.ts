@@ -3230,6 +3230,7 @@ class ExperimentalApiMethods {
 		after_id?: string;
 		limit?: number;
 		offset?: number;
+		project_id?: string;
 		q?: string;
 	}): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(
@@ -3237,6 +3238,49 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatProjects = async (
+		organizationId: string,
+	): Promise<TypesGen.ChatProject[]> => {
+		const response = await this.axios.get<TypesGen.ChatProject[]>(
+			getURLWithSearchParams("/api/experimental/chats/projects", {
+				organization: organizationId,
+			}),
+		);
+		return response.data;
+	};
+
+	createChatProject = async (
+		req: TypesGen.CreateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.post<TypesGen.ChatProject>(
+			"/api/experimental/chats/projects",
+			req,
+		);
+		return response.data;
+	};
+
+	getChatProject = async (projectId: string): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.get<TypesGen.ChatProject>(
+			`/api/experimental/chats/projects/${projectId}`,
+		);
+		return response.data;
+	};
+
+	updateChatProject = async (
+		projectId: string,
+		req: TypesGen.UpdateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.patch<TypesGen.ChatProject>(
+			`/api/experimental/chats/projects/${projectId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProject = async (projectId: string): Promise<void> => {
+		await this.axios.delete(`/api/experimental/chats/projects/${projectId}`);
+	};
+
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}`,

@@ -32,6 +32,7 @@ chats_expanded AS (
         updated_chats.last_read_message_id,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
+        updated_chats.project_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
@@ -98,6 +99,7 @@ chats_expanded AS (
         updated_chats.last_read_message_id,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
+        updated_chats.project_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
@@ -589,6 +591,10 @@ WHERE
         ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
     END
     AND CASE
+        WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
+        ELSE true
+    END
+    AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
@@ -794,6 +800,7 @@ INSERT INTO chats (
     id,
     organization_id,
     owner_id,
+    project_id,
     workspace_id,
     build_id,
     agent_id,
@@ -812,6 +819,7 @@ INSERT INTO chats (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
     @owner_id::uuid,
+    sqlc.narg('project_id')::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('build_id')::uuid,
     sqlc.narg('agent_id')::uuid,
@@ -856,6 +864,7 @@ chats_expanded AS (
         inserted_chat.last_read_message_id,
         inserted_chat.dynamic_tools,
         inserted_chat.organization_id,
+        inserted_chat.project_id,
         inserted_chat.plan_mode,
         inserted_chat.client_type,
         inserted_chat.last_turn_summary,
@@ -1020,6 +1029,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1090,6 +1100,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1158,6 +1169,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1226,6 +1238,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1294,6 +1307,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1323,6 +1337,14 @@ chats_expanded AS (
 )
 SELECT *
 FROM chats_expanded;
+
+-- name: UpdateChatProjectBinding :one
+UPDATE chats
+SET
+    project_id = sqlc.narg('project_id')::uuid,
+    updated_at = now()
+WHERE id = @id::uuid
+RETURNING *;
 
 -- name: UpdateChatWorkspaceBinding :one
 WITH current_chat AS (
@@ -1382,6 +1404,7 @@ chats_expanded AS (
         result_chat.last_read_message_id,
         result_chat.dynamic_tools,
         result_chat.organization_id,
+        result_chat.project_id,
         result_chat.plan_mode,
         result_chat.client_type,
         result_chat.last_turn_summary,
@@ -1449,6 +1472,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1545,6 +1569,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1846,6 +1871,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -2133,6 +2159,7 @@ chats_expanded AS (
         locked_chat.last_read_message_id,
         locked_chat.dynamic_tools,
         locked_chat.organization_id,
+        locked_chat.project_id,
         locked_chat.plan_mode,
         locked_chat.client_type,
         locked_chat.last_turn_summary,
@@ -2197,6 +2224,7 @@ chats_expanded AS (
         shared_chat.last_read_message_id,
         shared_chat.dynamic_tools,
         shared_chat.organization_id,
+        shared_chat.project_id,
         shared_chat.plan_mode,
         shared_chat.client_type,
         shared_chat.last_turn_summary,
@@ -2595,6 +2623,7 @@ chats_expanded AS (
         bumped_chat.last_read_message_id,
         bumped_chat.dynamic_tools,
         bumped_chat.organization_id,
+        bumped_chat.project_id,
         bumped_chat.plan_mode,
         bumped_chat.client_type,
         bumped_chat.last_turn_summary,
@@ -2679,6 +2708,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -2746,6 +2776,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
