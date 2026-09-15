@@ -102,7 +102,7 @@ jobs:
       pull-requests: write
     steps:
       - name: cla
-        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
+        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || (github.event_name == 'pull_request_target' && github.event.action != 'closed')
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -117,6 +117,12 @@ jobs:
           branch: "main"
           # Some users have signed a corporate CLA with Coder so are exempt from signing our community one.
           allowlist: "coryb,aaronlehmann,dependabot*,blink-so*,blinkagent*"
+          # The `closed` event fires for both merged and closed-without-merging PRs, and the
+          # action cannot tell them apart. Locking on close (the action's default) can strand
+          # a PR: a later `reopened` run then fails because it can't comment on a locked PR.
+          # We already skip the `closed` action above, but disable locking too in case that
+          # guard is ever removed.
+          lock-pullrequest-aftermerge: false
 
   title:
     runs-on: ubuntu-latest
