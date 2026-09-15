@@ -1001,8 +1001,7 @@ func (tx *Tx) resumeIfUnpaused(chat database.Chat) error {
 
 // promoteQueuedRow pops target out of the queue into active history and
 // sets the chat running with last_error cleared. Every outstanding tool
-// call is closed first (not just dynamic ones) so the LLM history stays
-// valid.
+// call, dynamic or not, is closed first so the LLM history stays valid.
 func (tx *Tx) promoteQueuedRow(chat database.Chat, target database.ChatQueuedMessage) (database.ChatMessage, []database.ChatMessage, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {
