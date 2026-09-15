@@ -9,7 +9,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useLatestAbortController } from "../hooks/useLatestAbortController";
-import { isAbortError } from "../utils/chatAttachments";
+import { isAbortError, isRasterImageMediaType } from "../utils/chatAttachments";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
@@ -147,7 +147,7 @@ export const AttachmentPreview: FC<{
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
 							className="group relative"
 						>
-							{file.type.startsWith("image/") && previewUrl ? (
+							{isRasterImageMediaType(file.type) && previewUrl ? (
 								<button
 									type="button"
 									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"

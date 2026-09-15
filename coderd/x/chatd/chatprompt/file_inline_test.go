@@ -99,6 +99,14 @@ func TestConvertMessagesWithFiles_InlinesTextFilePartWhenProviderRejects(t *test
 			wantText:  true,
 		},
 		{
+			name:      "svg rejected becomes text despite image prefix",
+			fileName:  "diagram.svg",
+			mediaType: "image/svg+xml",
+			data:      []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`),
+			accepts:   acceptNone,
+			wantText:  true,
+		},
+		{
 			name:      "image never decoded even when rejected",
 			fileName:  "pic.png",
 			mediaType: "image/png",
