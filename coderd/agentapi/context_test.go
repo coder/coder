@@ -386,7 +386,7 @@ func TestPushContextState(t *testing.T) {
 
 		gotKinds := map[database.WorkspaceAgentContextBodyKind][]byte{}
 		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
-			Times(4).
+			Times(5).
 			DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
 				gotKinds[arg.BodyKind] = arg.Body
 				return database.WorkspaceAgentContextResource{}, nil
@@ -403,6 +403,7 @@ func TestPushContextState(t *testing.T) {
 				skillResource("/a/.agents/skills/example/SKILL.md", "example", "an example"),
 				mcpConfigResource("/a/.mcp.json"),
 				mcpServer,
+				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
 			},
 		})
 		require.NoError(t, err)
@@ -412,6 +413,8 @@ func TestPushContextState(t *testing.T) {
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindSkill)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpConfig)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpServer)
+		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindPlugin)
+		require.JSONEq(t, `{"name":"acme","version":"1.0.0"}`, string(gotKinds[database.WorkspaceAgentContextBodyKindPlugin]))
 
 		// Confirm each body deserializes as JSON; the actual proto
 		// roundtrip is exercised by the resolver tests on the agent
@@ -680,6 +683,20 @@ func mcpServerResource(source, serverName, description string) *agentproto.Conte
 			McpServer: &agentproto.MCPServerBody{
 				ServerName:  serverName,
 				Description: description,
+			},
+		},
+	}
+}
+
+func pluginResource(source, name, version string) *agentproto.ContextResource {
+	return &agentproto.ContextResource{
+		Source:      source,
+		ContentHash: []byte{0x40, 0x50, 0x60},
+		Status:      agentproto.ContextResource_OK,
+		Body: &agentproto.ContextResource_Plugin{
+			Plugin: &agentproto.PluginBody{
+				Name:    name,
+				Version: version,
 			},
 		},
 	}

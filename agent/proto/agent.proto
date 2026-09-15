@@ -100,6 +100,12 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	// plugins_supported reports that coderd accepts plugin context
+	// resources (the plugin body variant and plugin_name attribution
+	// on PushContextState). coderd at v2.13 or later always sets it;
+	// older versions never do, so the agent treats false as "do not
+	// discover or emit plugins".
+	bool plugins_supported = 20;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest
@@ -550,9 +556,9 @@ message UpdateAppStatusResponse {}
 // of a PushContextStateRequest snapshot.
 //
 // The resource kind is conveyed by which variant of the body
-// oneof is set. Reserved variants for the Claude Code plugin
-// RFC (plugin/hook/subagent/command bodies) are not emitted by
-// v2.10 agents but will be added without renumbering.
+// oneof is set. The plugin variant (Agent Plugins manifests) was
+// added in v2.13; hook/subagent/command variants may be added
+// later without renumbering.
 message ContextResource {
 	// source is the resource's own locator: a canonical file path
 	// for file-backed kinds, or the MCP server name for
@@ -591,6 +597,7 @@ message ContextResource {
 		SkillMetaBody skill = 11;
 		MCPConfigBody mcp_config = 12;
 		MCPServerBody mcp_server = 13;
+		PluginBody plugin = 17;
 	}
 
 	// Reserved tags from the legacy v2.10 schema that carried
@@ -616,6 +623,21 @@ message SkillMetaBody {
 	bytes meta = 1;
 	string name = 2;
 	string description = 3;
+	// plugin_name is the name of the Agent Plugin that ships this
+	// skill under its skills/ directory. Empty for skills that are
+	// not part of a plugin.
+	string plugin_name = 4;
+}
+
+// PluginBody carries the validated fields of an Agent Plugins
+// (agent-plugins.org) plugin.json manifest. The resource's
+// source is the canonical plugin root directory. Skills and MCP
+// servers that belong to the plugin are separate resources that
+// reference it through their plugin_name field.
+message PluginBody {
+	string name = 1;
+	string version = 2;
+	string description = 3;
 }
 
 // MCPConfigBody is intentionally empty: the .mcp.json content
@@ -632,6 +654,10 @@ message MCPServerBody {
 	string server_name = 1;
 	string description = 2;
 	repeated MCPTool tools = 3;
+	// plugin_name is the name of the Agent Plugin whose mcp.json
+	// declares this server. Empty for servers from workspace
+	// .mcp.json files.
+	string plugin_name = 4;
 }
 
 // MCPTool mirrors the MCP server-reported tool surface. The
