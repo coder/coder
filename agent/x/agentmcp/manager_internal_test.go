@@ -431,3 +431,37 @@ func runFakeMCPServer() {
 		_, _ = fmt.Fprintf(os.Stdout, "%s\n", out)
 	}
 }
+
+func TestReload_ConnectFailureCarriesReason(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mcp.json")
+	cfg, err := json.Marshal(map[string]any{"mcpServers": map[string]any{
+		"missing": map[string]any{"type": "stdio", "command": "coder-test-missing-mcp-binary"},
+		"bogus":   map[string]any{"type": "bogus", "url": "https://example.com/mcp"},
+	}})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, cfg, 0o600))
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	require.NoError(t, m.Reload(ctx, []string{path}))
+
+	catalog := m.Catalog()
+	require.Len(t, catalog, 2)
+	byName := make(map[string]ServerStatus, len(catalog))
+	for _, st := range catalog {
+		byName[st.Name] = st
+	}
+	require.Contains(t, byName, "missing")
+	assert.False(t, byName["missing"].Connected)
+	assert.Contains(t, byName["missing"].Err, "failed to connect: ")
+	assert.Contains(t, byName["missing"].Err, "coder-test-missing-mcp-binary")
+	require.Contains(t, byName, "bogus")
+	assert.False(t, byName["bogus"].Connected)
+	assert.Contains(t, byName["bogus"].Err, `unsupported transport "bogus"`)
+}
