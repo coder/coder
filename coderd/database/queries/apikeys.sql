@@ -92,6 +92,20 @@ DELETE FROM
 WHERE
 	id = $1;
 
+-- name: DeleteAPIKeyByIDReturningRow :one
+-- Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+-- this the arbiter of single use. A prior read cannot arbitrate: its result is
+-- stale the moment it returns.
+--
+-- Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+-- level: the second transaction waits for the first, then removes nothing.
+-- SERIALIZABLE would abort and retry it instead.
+DELETE FROM
+	api_keys
+WHERE
+	id = $1
+RETURNING *;
+
 -- name: DeleteApplicationConnectAPIKeysByUserID :exec
 DELETE FROM
 	api_keys

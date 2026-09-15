@@ -61,6 +61,12 @@ type AIProviderBedrockSettings struct {
 	// AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
 	// behavior.
 	Protocol AIProviderBedrockProtocol `json:"protocol,omitempty"`
+	// ResolvedModel and ResolvedSmallFastModel are the model IDs behind the
+	// configured identifiers, which differ from them only for application
+	// inference profile ARNs. The server resolves those through AWS when the
+	// provider is written and owns the values; a client cannot set them.
+	ResolvedModel          string `json:"resolved_model,omitempty"`
+	ResolvedSmallFastModel string `json:"resolved_small_fast_model,omitempty"`
 }
 
 // ResolvedProtocol returns the configured protocol, mapping the empty value to

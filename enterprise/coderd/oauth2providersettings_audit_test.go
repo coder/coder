@@ -46,6 +46,10 @@ func TestOAuth2ProviderSettingsAuditDiff(t *testing.T) {
 			Database: db,
 			Pubsub:   ps,
 			Auditor:  auditor,
+			// Settings stay reachable and audited while the provider is off.
+			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.OAuth2.Provider.Enable = false
+			}),
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
