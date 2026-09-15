@@ -205,7 +205,7 @@ func convertMCPToolResponse(
 		case "text":
 			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
 		case "image", "audio":
-			if c.Data == "" {
+			if c.Data == "" || c.MediaType == "" {
 				continue
 			}
 			data, err := base64.StdEncoding.DecodeString(c.Data)

@@ -111,18 +111,20 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
-// ToolResultMediaOmission reports whether provider rejects a tool result
-// media part of mediaType and size bytes, returning the note the model
-// sees in its place. Anthropic and Bedrock render tool result media as
-// image blocks, so they take only the image formats the Messages API
-// accepts and only under the inline image cap. Other providers substitute
-// text placeholders for unsupported media themselves.
-func ToolResultMediaOmission(provider, mediaType string, size int) (string, bool) {
-	normalized := NormalizeProvider(provider)
+// ToolResultMediaOmission reports whether the transportProvider rejects a
+// tool result media part of mediaType and size bytes, returning the note
+// the model sees in its place labeled with displayProvider. The two differ
+// when aibridge routes a configured provider such as Bedrock through the
+// Anthropic or OpenAI transport. The Anthropic transport renders tool
+// result media as image blocks, so it takes only the image formats the
+// Messages API accepts and only under the inline image cap. Other
+// transports substitute text placeholders for unsupported media themselves.
+func ToolResultMediaOmission(transportProvider, displayProvider, mediaType string, size int) (string, bool) {
+	normalized := NormalizeProvider(transportProvider)
 	if normalized != fantasyanthropic.Name && normalized != fantasybedrock.Name {
 		return "", false
 	}
-	displayName := ProviderDisplayName(normalized)
+	displayName := ProviderDisplayName(displayProvider)
 	baseType := mediaType
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
 		baseType = parsed

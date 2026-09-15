@@ -176,6 +176,15 @@ func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
 			wantContent:   "two shots",
 		},
 		{
+			name: "ImageWithoutMediaTypeStaysText",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				{Type: "text", Text: "captured"},
+				{Type: "image", Data: encoded(image)},
+			}},
+			wantType:    "text",
+			wantContent: "captured",
+		},
+		{
 			name: "MixedErrorKeepsFlag",
 			resp: workspacesdk.CallMCPToolResponse{IsError: true, Content: []workspacesdk.MCPToolContent{
 				{Type: "text", Text: "boom"},
