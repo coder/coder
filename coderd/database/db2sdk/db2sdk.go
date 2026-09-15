@@ -1845,9 +1845,13 @@ func ChatProject(project database.ChatProject) codersdk.ChatProject {
 }
 
 func ChatProjectRow(row database.GetChatProjectsByOrganizationIDRow) codersdk.ChatProject {
-	project := ChatProject(row.ChatProject)
-	project.ChatCount = row.ChatCount
-	return project
+	return chatProjectWithChatCount(row.ChatProject, row.ChatCount)
+}
+
+func chatProjectWithChatCount(project database.ChatProject, chatCount int64) codersdk.ChatProject {
+	response := ChatProject(project)
+	response.ChatCount = chatCount
+	return response
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
