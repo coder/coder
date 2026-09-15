@@ -364,6 +364,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			PluginsSupported: true,
 		}
 
 		// Log got and expected with spew.
@@ -431,6 +433,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      []*agentproto.WorkspaceAgentMetadata_Description{},
 			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			PluginsSupported: true,
 		}
 
 		require.Equal(t, expected, got)
@@ -613,6 +617,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			PluginsSupported: true,
 		}
 
 		// Log got and expected with spew.
