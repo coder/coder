@@ -81,7 +81,7 @@ export const useSingleSignOnSection = () => {
 		mutation.reset();
 	};
 
-	const confirm = (password: string) => {
+	const confirm = (password?: string) => {
 		if (!loginTypeConfirmation.selectedType) {
 			throw new Error("No login type selected");
 		}
@@ -182,24 +182,40 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 						{noSsoEnabled && <SSOEmptyState />}
 					</>
 				) : (
-					<div className="bg-surface-secondary rounded-md border border-border border-solid p-4 flex gap-4 items-center text-sm">
-						<CircleCheckIcon className="text-content-success size-icon-xs" />
-						<span>
-							Authenticated with{" "}
-							<strong>
-								{userLoginType.login_type === "github"
-									? "GitHub"
-									: getOIDCLabel(authMethods.oidc)}
-							</strong>
-						</span>
-						<div className="leading-none ml-auto">
-							{userLoginType.login_type === "github" ? (
-								<ExternalImage src="/icon/github.svg" className="size-4" />
-							) : (
-								<OIDCIcon oidcAuth={authMethods.oidc} />
-							)}
+					<>
+						<div className="bg-surface-secondary rounded-md border border-border border-solid p-4 flex gap-4 items-center text-sm">
+							<CircleCheckIcon className="text-content-success size-icon-xs" />
+							<span>
+								Authenticated with{" "}
+								<strong>
+									{userLoginType.login_type === "github"
+										? "GitHub"
+										: getOIDCLabel(authMethods.oidc)}
+								</strong>
+							</span>
+							<div className="leading-none ml-auto">
+								{userLoginType.login_type === "github" ? (
+									<ExternalImage src="/icon/github.svg" className="size-4" />
+								) : (
+									<OIDCIcon oidcAuth={authMethods.oidc} />
+								)}
+							</div>
 						</div>
-					</div>
+
+						{userLoginType.login_type === "github" &&
+							authMethods.oidc.enabled && (
+								<Button
+									variant="outline"
+									size="lg"
+									className="w-full"
+									disabled={isUpdating}
+									onClick={() => openConfirmation("oidc")}
+								>
+									<OIDCIcon oidcAuth={authMethods.oidc} />
+									Switch to {getOIDCLabel(authMethods.oidc)}
+								</Button>
+							)}
+					</>
 				)}
 			</div>
 
@@ -209,6 +225,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 				loading={isUpdating}
 				onClose={closeConfirmation}
 				onConfirm={confirm}
+				requiresPassword={userLoginType.login_type === "password"}
 			/>
 		</div>
 	);
@@ -241,7 +258,8 @@ interface ConfirmLoginTypeChangeModalProps {
 	loading: boolean;
 	error: unknown;
 	onClose: () => void;
-	onConfirm: (password: string) => void;
+	onConfirm: (password?: string) => void;
+	requiresPassword: boolean;
 }
 
 const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
@@ -250,17 +268,23 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 	error,
 	onClose,
 	onConfirm,
+	requiresPassword,
 }) => {
 	const [password, setPassword] = useState("");
 	const passwordId = useId();
 	const errorId = useId();
 	const hasError = Boolean(error);
 	const errorMessage = error
-		? getErrorMessage(error, "Your password is incorrect")
+		? getErrorMessage(
+				error,
+				requiresPassword
+					? "Your password is incorrect"
+					: "Unable to change your login type",
+			)
 		: undefined;
 
 	const handleConfirm = () => {
-		onConfirm(password);
+		onConfirm(requiresPassword ? password : undefined);
 	};
 
 	return (
@@ -281,30 +305,32 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 						After changing your login type, you will not be able to change it
 						again. Are you sure you want to proceed and change your login type?
 					</p>
-					<div className="flex flex-col gap-2 text-left">
-						<Label htmlFor={passwordId}>Confirm your password</Label>
-						<Input
-							autoFocus
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									handleConfirm();
-								}
-							}}
-							name="confirm-password"
-							id={passwordId}
-							value={password}
-							onChange={(e) => setPassword(e.currentTarget.value)}
-							type="password"
-							aria-invalid={hasError}
-							aria-describedby={hasError ? errorId : undefined}
-							className={cn(hasError && "border-border-destructive")}
-						/>
-						{hasError && (
-							<span id={errorId} className="text-xs text-content-destructive">
-								{errorMessage}
-							</span>
-						)}
-					</div>
+					{requiresPassword && (
+						<div className="flex flex-col gap-2 text-left">
+							<Label htmlFor={passwordId}>Confirm your password</Label>
+							<Input
+								autoFocus
+								onKeyDown={(event) => {
+									if (event.key === "Enter") {
+										handleConfirm();
+									}
+								}}
+								name="confirm-password"
+								id={passwordId}
+								value={password}
+								onChange={(e) => setPassword(e.currentTarget.value)}
+								type="password"
+								aria-invalid={hasError}
+								aria-describedby={hasError ? errorId : undefined}
+								className={cn(hasError && "border-border-destructive")}
+							/>
+						</div>
+					)}
+					{hasError && (
+						<span id={errorId} className="text-xs text-content-destructive">
+							{errorMessage}
+						</span>
+					)}
 				</div>
 			}
 		/>
