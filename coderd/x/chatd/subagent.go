@@ -1636,9 +1636,9 @@ func (p *Server) checkSubagentCompletion(
 	// interrupting is transient: the worker transitions it to
 	// waiting (no queued messages) or running (queued messages).
 	// Treat it as not-done so the agent settles before
-	// classification, avoiding stale partial output. paused holds
-	// a queued message the owner is editing; the child continues
-	// when the edit ends, so it is not done either.
+	// classification, avoiding stale partial output. A paused child
+	// continues once its owner ends the queued edit, so it is not
+	// done either.
 	if chat.Status == database.ChatStatusRunning ||
 		chat.Status == database.ChatStatusInterrupting ||
 		chat.Status == database.ChatStatusPaused {
