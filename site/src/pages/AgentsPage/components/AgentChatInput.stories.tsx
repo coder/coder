@@ -753,20 +753,6 @@ export const PlusMenuAlwaysOnNeedingAuth: Story = {
 	},
 };
 
-export const MCPGroupDisconnectDialog: Story = {
-	args: WithMCPServers.args,
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
-		);
-		await userEvent.click(
-			await body.findByRole("button", { name: "Disconnect GitHub" }),
-		);
-		await body.findByText("Disconnect GitHub?");
-	},
-};
-
 /** MCP server needing OAuth — shows Auth button instead of toggle. */
 export const WithMCPNeedingAuth: Story = {
 	args: {
@@ -1394,8 +1380,8 @@ export const MCPGroupInOverflow: Story = {
 		await userEvent.click(
 			within(overflow).getByRole("button", { name: "3 MCPs" }),
 		);
-		await within(document.body).findByRole("switch", {
-			name: "Disable Linear",
+		await within(document.body).findByRole("button", {
+			name: "Remove Linear",
 		});
 	},
 };
