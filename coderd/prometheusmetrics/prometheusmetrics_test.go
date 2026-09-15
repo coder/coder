@@ -725,7 +725,7 @@ func TestAgentStats(t *testing.T) {
 	// and it doesn't depend on the real time.
 	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, time.Now().Add(-time.Minute), time.Hour, agentmetrics.LabelAll, false)
+	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond, agentmetrics.LabelAll, false)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -751,6 +751,9 @@ func TestAgentStats(t *testing.T) {
 			case "coderd_prometheusmetrics_agentstats_execution_seconds":
 				executionSeconds = true
 			case "coderd_agentstats_session_count":
+				// Agents only report the four legacy app names, so each per-app
+				// series has family == app_name and matches the golden value
+				// recorded for the corresponding legacy gauge.
 				perAppCounts = len(metric.Metric) == 12
 				for _, sample := range metric.Metric {
 					labels := map[string]string{}

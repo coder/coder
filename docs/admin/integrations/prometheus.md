@@ -122,8 +122,9 @@ Each agent statistics report retains up to 64 distinct normalized application na
 If a report exceeds that limit, Coder aggregates the remaining counts into `app_name="unknown"` and `family="unknown"`.
 This cap applies to each report, not to the deployment as a whole.
 
-After a successful collection, Coder removes session-count series that the collection no longer reports.
-If a successful collection reports no session counts, the gauge has no session-count series.
+Each collection only includes agents that reported statistics since the previous collection.
+A collection with at least one report replaces the gauge and drops series for applications that are no longer reported.
+A collection with no reports keeps the previous series, matching the other `coderd_agentstats_*` gauges.
 Write queries and alerts to handle absent series.
 
 The legacy `coderd_agentstats_session_count_jetbrains`, `coderd_agentstats_session_count_reconnecting_pty`, `coderd_agentstats_session_count_ssh`, and `coderd_agentstats_session_count_vscode` gauges are deprecated.

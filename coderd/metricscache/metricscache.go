@@ -3,7 +3,6 @@ package metricscache
 import (
 	"context"
 	"database/sql"
-	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -159,7 +158,7 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	}
 
 	sessionCounts := codersdk.SessionCountsByFamily(appCounts)
-	apps := make(map[string]codersdk.SessionCountApp)
+	apps := make(map[string]codersdk.SessionCountApp, len(appCounts))
 	for name := range appCounts {
 		if app, ok := codersdk.SessionCountAppMetadata(name); ok {
 			apps[name] = app
@@ -293,14 +292,12 @@ func (c *Cache) TemplateWorkspaceOwners(id uuid.UUID) (int, bool) {
 	return resp, true
 }
 
+// DeploymentStats returns the latest published snapshot. The maps it contains
+// are shared with the cache and must not be mutated.
 func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
 	deploymentStats := c.deploymentStatsResponse.Load()
 	if deploymentStats == nil {
 		return codersdk.DeploymentStats{}, false
 	}
-	// Keep caller mutations separate from the atomically published snapshot.
-	stats := *deploymentStats
-	stats.SessionCount.SessionCounts = maps.Clone(stats.SessionCount.SessionCounts)
-	stats.SessionCount.Apps = maps.Clone(stats.SessionCount.Apps)
-	return stats, true
+	return *deploymentStats, true
 }

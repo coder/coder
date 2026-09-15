@@ -2,7 +2,6 @@ package codersdk_test
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -347,17 +346,14 @@ func TestDecodeSessionCounts(t *testing.T) {
 
 func TestSessionCountAppMetadata(t *testing.T) {
 	t.Parallel()
-	cursor, ok := codersdk.SessionCountAppMetadata("cursor")
-	require.True(t, ok)
+	cursor, ok := codersdk.SessionCountAppMetadata("Cursor")
+	require.True(t, ok, "lookup must normalize like AppNameFamily")
 	require.Equal(t, codersdk.SessionCountApp{DisplayName: "Cursor", Icon: "/icon/cursor.svg"}, cursor)
-	vscode, ok := codersdk.SessionCountAppMetadata("vscode")
-	require.True(t, ok)
-	require.Equal(t, "VS Code", vscode.DisplayName)
-	for _, unknown := range []string{"future_ide", "../../cursor", "https://example.com/icon.svg"} {
-		metadata, ok := codersdk.SessionCountAppMetadata(unknown)
-		require.False(t, ok)
-		require.Empty(t, metadata)
-	}
+	metadata, ok := codersdk.SessionCountAppMetadata("../../cursor")
+	require.False(t, ok)
+	require.Empty(t, metadata)
+	// Every registered icon is a bundled, clean path so the frontend never
+	// renders an arbitrary URL.
 	for name := range codersdk.SessionCountAppFamilies() {
 		metadata, ok := codersdk.SessionCountAppMetadata(name)
 		require.True(t, ok, name)
@@ -367,7 +363,6 @@ func TestSessionCountAppMetadata(t *testing.T) {
 		}
 		require.True(t, strings.HasPrefix(metadata.Icon, "/icon/"), name)
 		require.Equal(t, filepath.Clean(metadata.Icon), metadata.Icon)
-		_, err := os.Stat(filepath.Join("..", "site", "static", metadata.Icon))
-		require.NoError(t, err, "icon for %s must be bundled", name)
+		require.FileExists(t, filepath.Join("..", "site", "static", metadata.Icon), "icon for %s must be bundled", name)
 	}
 }

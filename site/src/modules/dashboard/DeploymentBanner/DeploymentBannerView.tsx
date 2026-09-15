@@ -8,14 +8,13 @@ import {
 	GitCompareArrowsIcon,
 	RocketIcon,
 	RotateCwIcon,
-	SquareTerminalIcon,
-	TerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import {
 	type FC,
 	type PropsWithChildren,
+	type ReactNode,
 	useEffect,
 	useMemo,
 	useState,
@@ -294,23 +293,54 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	);
 };
 
+const MAX_VISIBLE_APPS = 4;
+
+const SESSION_FAMILIES: readonly {
+	key: "vscode" | "jetbrains" | "ssh" | "reconnecting_pty";
+	name: string;
+	icon: ReactNode;
+}[] = [
+	{
+		key: "vscode",
+		name: "Visual Studio Code",
+		icon: <ExternalImage src="/icon/code.svg" alt="" className="size-4" />,
+	},
+	{
+		key: "jetbrains",
+		name: "JetBrains",
+		icon: <ExternalImage src="/icon/jetbrains.svg" alt="" className="size-4" />,
+	},
+	{
+		key: "ssh",
+		name: "SSH",
+		icon: <ExternalImage src="/icon/terminal.svg" alt="" className="size-4" />,
+	},
+	{
+		key: "reconnecting_pty",
+		name: "Web Terminal",
+		icon: <AppWindowIcon className="size-4" />,
+	},
+];
+
 const ActiveConnections: FC<{
 	sessionCount?: DeploymentStats["session_count"];
 }> = ({ sessionCount }) => {
+	// Busiest apps first; ties break on display name, then identifier, so the
+	// order is stable across refreshes.
 	const applications = Object.entries(sessionCount?.session_counts ?? {})
 		.filter(([, count]) => count > 0)
-		.map(([id, count]) => ({
-			id,
-			count,
-			app: sessionCount?.apps[id],
-			name: sessionCount?.apps[id]?.display_name || id,
-		}))
+		.map(([id, count]) => {
+			const app = sessionCount?.apps?.[id];
+			return { id, count, icon: app?.icon, name: app?.display_name || id };
+		})
 		.sort(
 			(first, second) =>
 				second.count - first.count ||
 				first.name.localeCompare(second.name, "en-US") ||
 				first.id.localeCompare(second.id, "en-US"),
 		);
+	const visible = applications.slice(0, MAX_VISIBLE_APPS);
+	const overflow = applications.slice(MAX_VISIBLE_APPS);
 
 	return (
 		<div className="flex items-center">
@@ -332,42 +362,9 @@ const ActiveConnections: FC<{
 					>
 						<HelpPopoverTitle>Connections by family</HelpPopoverTitle>
 						<dl className="m-0 grid gap-3 py-2 text-sm">
-							{[
-								{
-									name: "Visual Studio Code",
-									count: sessionCount?.vscode,
-									icon: (
-										<ExternalImage
-											src="/icon/code.svg"
-											alt=""
-											className="size-4"
-										/>
-									),
-								},
-								{
-									name: "JetBrains",
-									count: sessionCount?.jetbrains,
-									icon: (
-										<ExternalImage
-											src="/icon/jetbrains.svg"
-											alt=""
-											className="size-4"
-										/>
-									),
-								},
-								{
-									name: "SSH",
-									count: sessionCount?.ssh,
-									icon: <TerminalIcon className="size-4" />,
-								},
-								{
-									name: "Web Terminal",
-									count: sessionCount?.reconnecting_pty,
-									icon: <SquareTerminalIcon className="size-4" />,
-								},
-							].map(({ name, count, icon }) => (
+							{SESSION_FAMILIES.map(({ key, name, icon }) => (
 								<div
-									key={name}
+									key={key}
 									className="flex items-center justify-between gap-4"
 								>
 									<dt className="flex items-center gap-3">
@@ -375,7 +372,7 @@ const ActiveConnections: FC<{
 										{name}
 									</dt>
 									<dd className="m-0 font-mono font-medium tabular-nums text-content-primary">
-										{count ?? "-"}
+										{sessionCount?.[key] ?? "-"}
 									</dd>
 								</div>
 							))}
@@ -388,26 +385,16 @@ const ActiveConnections: FC<{
 				</Tooltip>
 			</TooltipProvider>
 			<div className="flex gap-2 text-content-secondary">
-				{sessionCount ? (
-					applications.length > 0 ? (
-						applications
-							.slice(0, 4)
-							.map(({ id, name, count, app }, index) => (
-								<ActiveConnection
-									key={`${id}:${app?.icon ?? ""}`}
-									app={app}
-									count={count}
-									name={name}
-									showSeparator={index > 0}
-								/>
-							))
-					) : (
-						<div>No active connections</div>
-					)
-				) : (
+				{!sessionCount ? (
 					<div>-</div>
+				) : visible.length === 0 ? (
+					<div>No active connections</div>
+				) : (
+					visible.map((app, index) => (
+						<ActiveConnection key={app.id} {...app} showSeparator={index > 0} />
+					))
 				)}
-				{applications.length > 4 && (
+				{overflow.length > 0 && (
 					<Popover>
 						<PopoverTrigger asChild>
 							<Button
@@ -415,7 +402,7 @@ const ActiveConnections: FC<{
 								size="xs"
 								className="p-0 font-mono text-xs"
 							>
-								+{applications.length - 4} more
+								+{overflow.length} more
 							</Button>
 						</PopoverTrigger>
 						<PopoverContent
@@ -425,13 +412,14 @@ const ActiveConnections: FC<{
 							className="p-3 text-xs"
 						>
 							<ul className="m-0 grid list-none gap-3 p-0">
-								{applications.slice(4).map(({ id, name, count, app }) => (
-									<li
-										key={`${id}:${app?.icon ?? ""}`}
-										className="flex items-center gap-2"
-									>
-										<AppIcon icon={app?.icon} name={name} />
-										<span className="min-w-0 flex-1 break-words">{name}</span>
+								{overflow.map(({ id, name, count, icon }) => (
+									<li key={id} className="flex items-center gap-2">
+										<AppLabel
+											icon={icon}
+											name={name}
+											showName
+											nameClassName="min-w-0 flex-1 break-words"
+										/>
 										<span>{count}</span>
 									</li>
 								))}
@@ -445,52 +433,63 @@ const ActiveConnections: FC<{
 };
 
 const ActiveConnection: FC<{
-	app?: DeploymentStats["session_count"]["apps"][string];
+	icon?: string;
 	count: number;
 	name: string;
 	showSeparator: boolean;
-}> = ({ app, count, name, showSeparator }) => {
-	const showName = !app?.icon?.startsWith("/icon/");
+}> = ({ icon, count, name, showSeparator }) => (
+	<>
+		{showSeparator && <ValueSeparator />}
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						aria-label={`${name}: ${count} active connections`}
+						className="flex items-center gap-1"
+						role="img"
+						// biome-ignore lint/a11y/noNoninteractiveTabindex: role="img" supplies a keyboard tooltip trigger for icon-only connection counts.
+						tabIndex={0}
+					>
+						<AppLabel
+							icon={icon}
+							name={name}
+							nameClassName="max-w-32 truncate"
+						/>
+						{count}
+					</div>
+				</TooltipTrigger>
+				<TooltipContent>{name}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	</>
+);
+
+// AppLabel renders the app's bundled icon, or a generic icon plus the display
+// name when the app has none or it fails to load. Only server-curated
+// "/icon/" paths are ever used as an image source.
+const AppLabel: FC<{
+	icon?: string;
+	name: string;
+	showName?: boolean;
+	nameClassName?: string;
+}> = ({ icon, name, showName, nameClassName }) => {
+	const [hasFailed, setHasFailed] = useState(false);
+	const src = !hasFailed && icon?.startsWith("/icon/") ? icon : undefined;
 
 	return (
 		<>
-			{showSeparator && <ValueSeparator />}
-			<TooltipProvider delayDuration={100}>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<div
-							aria-label={`${name}: ${count} active connections`}
-							className="flex items-center gap-1"
-							role="img"
-							// biome-ignore lint/a11y/noNoninteractiveTabindex: role="img" supplies a keyboard tooltip trigger for icon-only connection counts.
-							tabIndex={0}
-						>
-							<AppIcon icon={app?.icon} name={name} />
-							{showName && <span className="max-w-32 truncate">{name}</span>}
-							{count}
-						</div>
-					</TooltipTrigger>
-					<TooltipContent>{name}</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			{src ? (
+				<ExternalImage
+					src={src}
+					alt={`${name} icon`}
+					className="size-icon-xs shrink-0"
+					onError={() => setHasFailed(true)}
+				/>
+			) : (
+				<AppWindowIcon className="size-icon-xs shrink-0" />
+			)}
+			{(showName || !src) && <span className={nameClassName}>{name}</span>}
 		</>
-	);
-};
-
-const AppIcon: FC<{ icon?: string; name: string }> = ({ icon, name }) => {
-	const [hasFailed, setHasFailed] = useState(false);
-
-	if (!icon?.startsWith("/icon/") || hasFailed) {
-		return <AppWindowIcon className="size-icon-xs shrink-0" />;
-	}
-
-	return (
-		<ExternalImage
-			src={icon}
-			alt={`${name} icon`}
-			className="size-icon-xs shrink-0"
-			onError={() => setHasFailed(true)}
-		/>
 	);
 };
 

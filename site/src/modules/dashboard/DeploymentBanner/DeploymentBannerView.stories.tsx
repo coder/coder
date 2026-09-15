@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fireEvent, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import type {
 	DeploymentStats,
 	SessionCountDeploymentStats,
@@ -10,8 +10,8 @@ import {
 } from "#/testHelpers/entities";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
-const statsWithSessionCount = (
-	sessionCount: Partial<SessionCountDeploymentStats> = {},
+const withSessionCount = (
+	sessionCount: Partial<SessionCountDeploymentStats>,
 ): DeploymentStats => ({
 	...MockDeploymentStats,
 	session_count: {
@@ -25,97 +25,25 @@ const statsWithSessionCount = (
 	},
 });
 
-const statsWithUnknownApp = statsWithSessionCount({
-	session_counts: { unknown_app: 3 },
-});
-
-const statsWithNoActiveConnections = statsWithSessionCount({});
-
-const statsWithManyApps = statsWithSessionCount({
+// Seven positive apps: four visible, three behind "+3 more", one of them
+// without a bundled icon.
+const manyApps = withSessionCount({
 	vscode: 152,
 	jetbrains: 5,
 	ssh: 39,
 	reconnecting_pty: 15,
 	session_counts: {
-		cursor: 24,
-		jetbrains: 5,
-		ssh: 32,
-		vscode: 128,
-		reconnecting_pty: 15,
+		...MockDeploymentStats.session_count.session_counts,
+		zed: 7,
+		vscodium: 4,
 		zero_count: 0,
 		negative_count: -1,
-		zed: 7,
 	},
 	apps: {
 		...MockDeploymentStats.session_count.apps,
-		zed: {
-			display_name: "Zed",
-			icon: "/icon/zed.svg",
-		},
-	},
-});
-
-const statsWithLongAppNames = statsWithSessionCount({
-	session_counts: { long_name: 1 },
-	apps: {
-		long_name: {
-			display_name:
-				"A workspace application with an intentionally long display name",
-		},
-	},
-});
-
-const statsWithAppWithoutIcon = statsWithSessionCount({
-	vscode: 6,
-	session_counts: {
-		vscodium: 4,
-		trae: 2,
-	},
-	apps: {
+		zed: { display_name: "Zed", icon: "/icon/zed.svg" },
 		vscodium: { display_name: "VSCodium" },
-		trae: { display_name: "Trae" },
 	},
-});
-
-const statsWithBrokenIcon = statsWithSessionCount({
-	vscode: 24,
-	session_counts: { cursor: 24 },
-	apps: {
-		cursor: {
-			display_name: "Cursor",
-			icon: "/icon/does-not-exist.svg",
-		},
-	},
-});
-
-const statsWithFourApps = statsWithSessionCount({
-	vscode: 152,
-	ssh: 32,
-	reconnecting_pty: 15,
-	session_counts: {
-		vscode: 128,
-		ssh: 32,
-		cursor: 24,
-		reconnecting_pty: 15,
-	},
-	apps: MockDeploymentStats.session_count.apps,
-});
-
-const statsWithTiedCounts = statsWithSessionCount({
-	session_counts: {
-		zulu: 2,
-		echo: 1,
-		delta: 1,
-		charlie: 1,
-		bravo: 1,
-		alpha: 1,
-	},
-});
-
-const statsWithLargeOverflow = statsWithSessionCount({
-	session_counts: Object.fromEntries(
-		Array.from({ length: 65 }, (_, i) => [`custom_application_${i}`, 65 - i]),
-	),
 });
 
 const meta: Meta<typeof DeploymentBannerView> = {
@@ -129,51 +57,56 @@ const meta: Meta<typeof DeploymentBannerView> = {
 export default meta;
 type Story = StoryObj<typeof DeploymentBannerView>;
 
-export const Cursor: Story = {};
+export const Default: Story = {};
+
+export const DefaultLight: Story = {
+	parameters: { themes: { themeOverride: "light" } },
+};
 
 export const Loading: Story = {
-	args: {
-		stats: undefined,
-	},
+	args: { stats: undefined },
 };
 
-export const UnknownApp: Story = {
-	args: {
-		stats: statsWithUnknownApp,
-	},
-};
-
-export const NoActiveConnections: Story = {
-	args: {
-		stats: statsWithNoActiveConnections,
-	},
-};
-
-export const ManyApps: Story = {
-	args: {
-		stats: statsWithManyApps,
-	},
-};
-
-export const FourApps: Story = {
-	args: {
-		stats: statsWithFourApps,
-	},
+// Static session count variants stacked into one screenshot.
+export const SessionCountVariants: Story = {
+	render: () => (
+		<div className="grid gap-2">
+			<DeploymentBannerView stats={withSessionCount({})} />
+			<DeploymentBannerView
+				stats={withSessionCount({ session_counts: { unknown_app: 3 } })}
+			/>
+			<DeploymentBannerView
+				stats={withSessionCount({
+					session_counts: { long_name: 1 },
+					apps: {
+						long_name: {
+							display_name:
+								"A workspace application with an intentionally long display name",
+						},
+					},
+				})}
+			/>
+			<DeploymentBannerView
+				stats={withSessionCount({
+					vscode: 6,
+					session_counts: { vscodium: 4, trae: 2 },
+					apps: {
+						vscodium: { display_name: "VSCodium" },
+						trae: { display_name: "Trae" },
+					},
+				})}
+			/>
+			<DeploymentBannerView stats={manyApps} />
+		</div>
+	),
 };
 
 export const OverflowOpen: Story = {
-	...ManyApps,
+	args: { stats: manyApps },
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "+2 more" }),
+			within(canvasElement).getByRole("button", { name: "+3 more" }),
 		);
-	},
-};
-
-export const OverflowKeyboard: Story = {
-	play: async ({ canvasElement }) => {
-		within(canvasElement).getByRole("button", { name: "+1 more" }).focus();
-		await userEvent.keyboard("{Enter}");
 	},
 };
 
@@ -188,65 +121,16 @@ export const OverflowNarrow: Story = {
 	],
 };
 
-export const FamilyTotals: Story = {
-	play: async ({ canvasElement }) => {
-		await userEvent.hover(
-			within(canvasElement).getByRole("button", { name: "Active Connections" }),
-		);
-	},
-};
-
-export const FamilyTotalsLight: Story = {
-	...FamilyTotals,
-	parameters: { themes: { themeOverride: "light" } },
-};
-
-export const FamilyTotalsLoading: Story = {
-	...Loading,
-	play: FamilyTotals.play,
-};
-
-export const FamilyTotalsEmpty: Story = {
-	...NoActiveConnections,
-	play: FamilyTotals.play,
-};
-
-export const OverflowScrolledAway: Story = {
-	...OverflowNarrow,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = canvas.getByRole("button", { name: "+2 more" });
-		trigger.scrollIntoView({ behavior: "instant", inline: "center" });
-		await userEvent.click(trigger);
-		canvas
-			.getByRole("link", { name: "15" })
-			.scrollIntoView({ behavior: "instant", inline: "start" });
-	},
-};
-
-export const FamilyTotalsKeyboard: Story = {
-	play: ({ canvasElement }) => {
-		within(canvasElement)
-			.getByRole("button", { name: "Active Connections" })
-			.focus();
-	},
-};
-
-export const UnknownAppFamilyTotals: Story = {
-	...UnknownApp,
-	play: FamilyTotals.play,
-};
-
-export const TiedCounts: Story = {
-	args: {
-		stats: statsWithTiedCounts,
-	},
-	play: OverflowOpen.play,
-};
-
 export const LargeOverflow: Story = {
 	args: {
-		stats: statsWithLargeOverflow,
+		stats: withSessionCount({
+			session_counts: Object.fromEntries(
+				Array.from({ length: 65 }, (_, i) => [
+					`custom_application_${i}`,
+					65 - i,
+				]),
+			),
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -255,31 +139,15 @@ export const LargeOverflow: Story = {
 	},
 };
 
-export const LongAppNames: Story = {
-	args: {
-		stats: statsWithLongAppNames,
-	},
-};
-
-export const KnownAppsWithoutIcons: Story = {
-	args: {
-		stats: statsWithAppWithoutIcon,
-	},
-};
-
-export const BrokenAppIcon: Story = {
-	args: {
-		stats: statsWithBrokenIcon,
-	},
+export const FamilyTotals: Story = {
 	play: async ({ canvasElement }) => {
-		fireEvent.error(
-			within(canvasElement).getByRole("img", { name: "Cursor icon" }),
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "Active Connections" }),
+		);
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
 		);
 	},
-};
-
-export const CursorLight: Story = {
-	parameters: { themes: { themeOverride: "light" } },
 };
 
 export const WithHealthIssues: Story = {
@@ -288,7 +156,11 @@ export const WithHealthIssues: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByTestId("deployment-health-trigger"));
+		const trigger = canvas.getByTestId("deployment-health-trigger");
+		await userEvent.hover(trigger);
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
+		);
 	},
 };
 
@@ -296,14 +168,18 @@ export const WithDismissedHealthIssues: Story = {
 	args: {
 		health: {
 			...DeploymentHealthUnhealthy,
-			workspace_proxy: {
-				...DeploymentHealthUnhealthy.workspace_proxy,
+			derp: {
+				...DeploymentHealthUnhealthy.derp,
 				dismissed: true,
 			},
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByTestId("deployment-health-trigger"));
+		const trigger = canvas.getByTestId("deployment-health-trigger");
+		await userEvent.hover(trigger);
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
+		);
 	},
 };

@@ -1155,7 +1155,7 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
 	sessionCounts, err := codersdk.DecodeSessionCounts(stat.SessionCounts)
 	if err != nil {
-		return WorkspaceAgentStat{}, xerrors.Errorf("group session counts by app family: %w", err)
+		return WorkspaceAgentStat{}, xerrors.Errorf("decode session counts: %w", err)
 	}
 	familySessionCounts := codersdk.SessionCountsByFamily(sessionCounts)
 	return WorkspaceAgentStat{

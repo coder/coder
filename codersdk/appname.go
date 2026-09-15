@@ -36,12 +36,16 @@ type SessionCountApp struct {
 	Icon string `json:"icon,omitempty"`
 }
 
-// sessionApps owns app attribution and presentation. Unregistered names keep
-// their identity in storage and use the unknown family when aggregated.
-var sessionApps = map[string]struct {
+type sessionApp struct {
 	family AppFamilyName
 	SessionCountApp
-}{
+}
+
+// sessionApps owns app attribution and presentation. Keys are normalized app
+// names. Unregistered names keep their identity in storage and use the
+// unknown family when aggregated. Apps without a bundled icon leave Icon
+// empty so clients render a generic icon next to the display name.
+var sessionApps = map[string]sessionApp{
 	"vscode":          {AppFamilyVSCode, SessionCountApp{"VS Code", "/icon/code.svg"}},
 	"vscode_insiders": {AppFamilyVSCode, SessionCountApp{"VS Code Insiders", "/icon/code-insiders.svg"}},
 	"vscode_web":      {AppFamilyVSCode, SessionCountApp{"VS Code Web", "/icon/code.svg"}},
@@ -59,12 +63,19 @@ var sessionApps = map[string]struct {
 	// Zed speaks SSH and contributes to the SSH compatibility total.
 	"zed":              {AppFamilySSH, SessionCountApp{"Zed", "/icon/zed.svg"}},
 	"ssh":              {AppFamilySSH, SessionCountApp{"SSH", "/icon/terminal.svg"}},
-	"reconnecting_pty": {AppFamilyReconnectingPTY, SessionCountApp{"Web Terminal", "/icon/terminal.svg"}},
+	"reconnecting_pty": {AppFamilyReconnectingPTY, SessionCountApp{"Web Terminal", ""}},
 }
 
-// SessionCountAppMetadata returns metadata for a recognized, normalized app name.
+// lookupSessionApp normalizes appName and returns its registry entry.
+func lookupSessionApp(appName string) (sessionApp, bool) {
+	app, ok := sessionApps[NormalizeAppName(appName)]
+	return app, ok
+}
+
+// SessionCountAppMetadata returns presentation metadata for a recognized app
+// name. Unrecognized names return false and should be shown as-is.
 func SessionCountAppMetadata(appName string) (SessionCountApp, bool) {
-	app, ok := sessionApps[appName]
+	app, ok := lookupSessionApp(appName)
 	return app.SessionCountApp, ok
 }
 
@@ -125,7 +136,7 @@ func DecodeSessionCounts(appCounts json.RawMessage) (map[string]int64, error) {
 // AppNameFamily normalizes an app name and returns its family, or
 // AppFamilyUnknown.
 func AppNameFamily(appName string) AppFamilyName {
-	if app, ok := sessionApps[NormalizeAppName(appName)]; ok {
+	if app, ok := lookupSessionApp(appName); ok {
 		return app.family
 	}
 	return AppFamilyUnknown

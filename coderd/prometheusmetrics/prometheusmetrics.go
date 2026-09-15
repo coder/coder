@@ -3,8 +3,10 @@ package prometheusmetrics
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -428,26 +430,19 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	}, nil
 }
 
-func stageAgentSessionCounts(ctx context.Context, logger slog.Logger, agentStat database.GetWorkspaceAgentStatsAndLabelsRow, labelValues []string, gauge *CachedGaugeVec) (map[codersdk.AppFamilyName]int64, bool) {
-	appCounts, err := codersdk.DecodeSessionCounts(agentStat.SessionCounts)
+// stageAgentSessionCounts stages one series per app on gauge and returns the
+// per-family totals for the legacy gauges. Unknown app names are kept under
+// their own app_name with the unknown family rather than dropped.
+func stageAgentSessionCounts(raw json.RawMessage, labelValues []string, gauge *CachedGaugeVec) (map[codersdk.AppFamilyName]int64, error) {
+	appCounts, err := codersdk.DecodeSessionCounts(raw)
 	if err != nil {
-		logger.Error(ctx, "can't decode agent session counts",
-			slog.F("agent_name", agentStat.AgentName),
-			slog.F("workspace_name", agentStat.WorkspaceName),
-			slog.Error(err),
-		)
-		return nil, false
+		return nil, err
 	}
-
 	for appName, count := range appCounts {
-		sessionLabels := make([]string, len(labelValues)+2)
-		copy(sessionLabels, labelValues)
-		sessionLabels[len(labelValues)] = appName
-		sessionLabels[len(labelValues)+1] = string(codersdk.AppNameFamily(appName))
-		gauge.WithLabelValues(VectorOperationAdd, float64(count), sessionLabels...)
+		labels := append(slices.Clone(labelValues), appName, string(codersdk.AppNameFamily(appName)))
+		gauge.WithLabelValues(VectorOperationAdd, float64(count), labels...)
 	}
-
-	return codersdk.SessionCountsByFamily(appCounts), true
+	return codersdk.SessionCountsByFamily(appCounts), nil
 }
 
 // nolint:revive // This will be removed alongside the workspaceusage experiment
@@ -562,8 +557,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
-	sessionCountLabels := append([]string{}, aggregateByLabels...)
-	sessionCountLabels = append(sessionCountLabels, "app_name", "family")
+	sessionCountLabels := append(slices.Clone(aggregateByLabels), "app_name", "family")
 	agentStatsSessionCountGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -631,8 +625,14 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), labelValues...)
 					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0, labelValues...)
 
-					sessionCounts, ok := stageAgentSessionCounts(ctx, logger, agentStat, labelValues, agentStatsSessionCountGauge)
-					if !ok {
+					// A malformed sum leaves the other gauges for this agent intact.
+					sessionCounts, err := stageAgentSessionCounts(agentStat.SessionCounts, labelValues, agentStatsSessionCountGauge)
+					if err != nil {
+						logger.Error(ctx, "can't decode agent session counts",
+							slog.F("agent_name", agentStat.AgentName),
+							slog.F("workspace_name", agentStat.WorkspaceName),
+							slog.Error(err),
+						)
 						continue
 					}
 					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyJetBrains]), labelValues...)
@@ -641,6 +641,9 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyVSCode]), labelValues...)
 				}
 
+				// Each poll only sees stats reported since the previous poll, so
+				// an empty window keeps the last published values on every gauge
+				// rather than clearing them.
 				if len(stats) > 0 {
 					agentStatsRxBytesGauge.Commit()
 					agentStatsTxBytesGauge.Commit()
@@ -650,8 +653,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsSessionCountReconnectingPTYGauge.Commit()
 					agentStatsSessionCountSSHGauge.Commit()
 					agentStatsSessionCountVSCodeGauge.Commit()
+					agentStatsSessionCountGauge.Commit()
 				}
-				agentStatsSessionCountGauge.Commit()
 			}
 
 			logger.Debug(ctx, "agent metrics collection is done", slog.F("len", len(stats)))

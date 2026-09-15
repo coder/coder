@@ -3,7 +3,6 @@ package metricscache_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -319,24 +318,21 @@ func TestCache_DeploymentStats(t *testing.T) {
 			clock.Advance(time.Minute).MustWait(ctx)
 			stat, ok := cache.DeploymentStats()
 			require.True(t, ok)
-			require.Equal(t, counts, stat.SessionCount.SessionCounts)
-			require.Equal(t, int64(3), stat.SessionCount.VSCode)
-			require.Equal(t, int64(3), stat.SessionCount.SSH)
-			require.Equal(t, int64(5), stat.SessionCount.JetBrains)
-			require.Equal(t, int64(6), stat.SessionCount.ReconnectingPTY)
-			require.Equal(t, codersdk.SessionCountApp{DisplayName: "Cursor", Icon: "/icon/cursor.svg"}, stat.SessionCount.Apps["cursor"])
-			require.NotContains(t, stat.SessionCount.Apps, "future_ide")
-			require.Len(t, stat.SessionCount.Apps, 5)
+			// Legacy family totals fold vscode+cursor and zed+ssh; unknown
+			// names are counted but carry no metadata.
+			require.Equal(t, codersdk.SessionCountDeploymentStats{
+				SessionCounts: counts,
+				Apps: map[string]codersdk.SessionCountApp{
+					"vscode":           {DisplayName: "VS Code", Icon: "/icon/code.svg"},
+					"cursor":           {DisplayName: "Cursor", Icon: "/icon/cursor.svg"},
+					"zed":              {DisplayName: "Zed", Icon: "/icon/zed.svg"},
+					"jetbrains":        {DisplayName: "JetBrains", Icon: "/icon/jetbrains.svg"},
+					"reconnecting_pty": {DisplayName: "Web Terminal"},
+				},
+				VSCode: 3, SSH: 3, JetBrains: 5, ReconnectingPTY: 6,
+			}, stat.SessionCount)
 
-			other, ok := cache.DeploymentStats()
-			require.True(t, ok)
-			other.SessionCount.SessionCounts["cursor"] = 999
-			other.SessionCount.Apps["cursor"] = codersdk.SessionCountApp{DisplayName: "Changed"}
-			unchanged, ok := cache.DeploymentStats()
-			require.True(t, ok)
-			require.Equal(t, int64(2), unchanged.SessionCount.SessionCounts["cursor"])
-			require.Equal(t, "Cursor", unchanged.SessionCount.Apps["cursor"].DisplayName)
-
+			// A later report with no sessions clears every count and app.
 			dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 				AgentID: agentStat.AgentID, UserID: agentStat.UserID, WorkspaceID: agentStat.WorkspaceID, TemplateID: agentStat.TemplateID,
 				CreatedAt: now.Add(-time.Minute), Usage: usage, ConnectionMedianLatencyMS: 10,
@@ -345,17 +341,11 @@ func TestCache_DeploymentStats(t *testing.T) {
 			clock.Advance(time.Minute).MustWait(ctx)
 			empty, ok := cache.DeploymentStats()
 			require.True(t, ok)
-			require.Equal(t, map[string]int64{}, empty.SessionCount.SessionCounts)
-			require.Equal(t, map[string]codersdk.SessionCountApp{}, empty.SessionCount.Apps)
-			require.Zero(t, empty.SessionCount.VSCode)
-			require.Zero(t, empty.SessionCount.SSH)
-			require.Zero(t, empty.SessionCount.JetBrains)
-			require.Zero(t, empty.SessionCount.ReconnectingPTY)
-			raw, err := json.Marshal(empty.SessionCount)
-			require.NoError(t, err)
-			require.JSONEq(t, `{"session_counts":{},"apps":{},"vscode":0,"ssh":0,"jetbrains":0,"reconnecting_pty":0}`, string(raw))
-			require.Equal(t, counts, stat.SessionCount.SessionCounts, "refresh must not mutate a published map")
-			require.Len(t, stat.SessionCount.Apps, 5)
+			require.Equal(t, codersdk.SessionCountDeploymentStats{
+				SessionCounts: map[string]int64{},
+				Apps:          map[string]codersdk.SessionCountApp{},
+			}, empty.SessionCount)
+			require.Equal(t, counts, stat.SessionCount.SessionCounts, "refresh must not mutate a published snapshot")
 		})
 	}
 }

@@ -3897,7 +3897,6 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 			},
 			reconnecting_pty: {
 				display_name: "Web Terminal",
-				icon: "/icon/terminal.svg",
 			},
 		},
 	},
