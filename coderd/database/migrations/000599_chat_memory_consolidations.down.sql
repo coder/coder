@@ -1,0 +1,4 @@
+DROP INDEX idx_chat_memory_consolidations_user_organization_started_at;
+DROP INDEX idx_chat_memory_consolidations_project_started_at;
+DROP TABLE chat_memory_consolidations;
+DROP TYPE chat_memory_consolidation_status;

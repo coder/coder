@@ -6244,6 +6244,312 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
+const finishChatMemoryConsolidation = `-- name: FinishChatMemoryConsolidation :one
+UPDATE chat_memory_consolidations
+SET
+    status = $1::chat_memory_consolidation_status,
+    finished_at = now(),
+    memories_after = $2::int,
+    mutations = $3::jsonb,
+    error = $4::text
+WHERE id = $5::uuid
+RETURNING id, organization_id, project_id, user_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+`
+
+type FinishChatMemoryConsolidationParams struct {
+	Status        ChatMemoryConsolidationStatus `db:"status" json:"status"`
+	MemoriesAfter int32                         `db:"memories_after" json:"memories_after"`
+	Mutations     json.RawMessage               `db:"mutations" json:"mutations"`
+	Error         string                        `db:"error" json:"error"`
+	ID            uuid.UUID                     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) FinishChatMemoryConsolidation(ctx context.Context, arg FinishChatMemoryConsolidationParams) (ChatMemoryConsolidation, error) {
+	row := q.db.QueryRowContext(ctx, finishChatMemoryConsolidation,
+		arg.Status,
+		arg.MemoriesAfter,
+		arg.Mutations,
+		arg.Error,
+		arg.ID,
+	)
+	var i ChatMemoryConsolidation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Model,
+		&i.MemoriesBefore,
+		&i.MemoriesAfter,
+		&i.Mutations,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getChatMemoryConsolidationsByProject = `-- name: GetChatMemoryConsolidationsByProject :many
+SELECT id, organization_id, project_id, user_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+FROM chat_memory_consolidations
+WHERE project_id = $1::uuid
+ORDER BY started_at DESC
+LIMIT $2::int
+`
+
+type GetChatMemoryConsolidationsByProjectParams struct {
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) GetChatMemoryConsolidationsByProject(ctx context.Context, arg GetChatMemoryConsolidationsByProjectParams) ([]ChatMemoryConsolidation, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMemoryConsolidationsByProject, arg.ProjectID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMemoryConsolidation
+	for rows.Next() {
+		var i ChatMemoryConsolidation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.UserID,
+			&i.Status,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Model,
+			&i.MemoriesBefore,
+			&i.MemoriesAfter,
+			&i.Mutations,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatMemoryConsolidationsByUser = `-- name: GetChatMemoryConsolidationsByUser :many
+SELECT id, organization_id, project_id, user_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+FROM chat_memory_consolidations
+WHERE user_id = $1::uuid
+    AND organization_id = $2::uuid
+ORDER BY started_at DESC
+LIMIT $3::int
+`
+
+type GetChatMemoryConsolidationsByUserParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	LimitCount     int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) GetChatMemoryConsolidationsByUser(ctx context.Context, arg GetChatMemoryConsolidationsByUserParams) ([]ChatMemoryConsolidation, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMemoryConsolidationsByUser, arg.UserID, arg.OrganizationID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMemoryConsolidation
+	for rows.Next() {
+		var i ChatMemoryConsolidation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.UserID,
+			&i.Status,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Model,
+			&i.MemoriesBefore,
+			&i.MemoriesAfter,
+			&i.Mutations,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLatestChatMemoryConsolidationByProject = `-- name: GetLatestChatMemoryConsolidationByProject :one
+SELECT id, organization_id, project_id, user_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+FROM chat_memory_consolidations
+WHERE project_id = $1::uuid
+ORDER BY started_at DESC
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetLatestChatMemoryConsolidationByProject(ctx context.Context, projectID uuid.UUID) (ChatMemoryConsolidation, error) {
+	row := q.db.QueryRowContext(ctx, getLatestChatMemoryConsolidationByProject, projectID)
+	var i ChatMemoryConsolidation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Model,
+		&i.MemoriesBefore,
+		&i.MemoriesAfter,
+		&i.Mutations,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getLatestChatMemoryConsolidationByUser = `-- name: GetLatestChatMemoryConsolidationByUser :one
+SELECT id, organization_id, project_id, user_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+FROM chat_memory_consolidations
+WHERE user_id = $1::uuid
+    AND organization_id = $2::uuid
+ORDER BY started_at DESC
+LIMIT 1
+`
+
+type GetLatestChatMemoryConsolidationByUserParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetLatestChatMemoryConsolidationByUser(ctx context.Context, arg GetLatestChatMemoryConsolidationByUserParams) (ChatMemoryConsolidation, error) {
+	row := q.db.QueryRowContext(ctx, getLatestChatMemoryConsolidationByUser, arg.UserID, arg.OrganizationID)
+	var i ChatMemoryConsolidation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Model,
+		&i.MemoriesBefore,
+		&i.MemoriesAfter,
+		&i.Mutations,
+		&i.Error,
+	)
+	return i, err
+}
+
+const insertChatMemoryConsolidation = `-- name: InsertChatMemoryConsolidation :one
+INSERT INTO chat_memory_consolidations (
+    organization_id,
+    project_id,
+    user_id,
+    status,
+    model,
+    memories_before
+)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    'running',
+    $4::text,
+    $5::int
+)
+RETURNING id, organization_id, project_id, user_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+`
+
+type InsertChatMemoryConsolidationParams struct {
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	UserID         uuid.NullUUID `db:"user_id" json:"user_id"`
+	Model          string        `db:"model" json:"model"`
+	MemoriesBefore int32         `db:"memories_before" json:"memories_before"`
+}
+
+func (q *sqlQuerier) InsertChatMemoryConsolidation(ctx context.Context, arg InsertChatMemoryConsolidationParams) (ChatMemoryConsolidation, error) {
+	row := q.db.QueryRowContext(ctx, insertChatMemoryConsolidation,
+		arg.OrganizationID,
+		arg.ProjectID,
+		arg.UserID,
+		arg.Model,
+		arg.MemoriesBefore,
+	)
+	var i ChatMemoryConsolidation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Model,
+		&i.MemoriesBefore,
+		&i.MemoriesAfter,
+		&i.Mutations,
+		&i.Error,
+	)
+	return i, err
+}
+
+const pruneChatMemoryConsolidationsByProject = `-- name: PruneChatMemoryConsolidationsByProject :exec
+DELETE FROM chat_memory_consolidations
+WHERE id IN (
+    SELECT id
+    FROM chat_memory_consolidations
+    WHERE project_id = $1::uuid
+    ORDER BY started_at DESC
+    OFFSET $2::int
+)
+`
+
+type PruneChatMemoryConsolidationsByProjectParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	KeepCount int32     `db:"keep_count" json:"keep_count"`
+}
+
+func (q *sqlQuerier) PruneChatMemoryConsolidationsByProject(ctx context.Context, arg PruneChatMemoryConsolidationsByProjectParams) error {
+	_, err := q.db.ExecContext(ctx, pruneChatMemoryConsolidationsByProject, arg.ProjectID, arg.KeepCount)
+	return err
+}
+
+const pruneChatMemoryConsolidationsByUser = `-- name: PruneChatMemoryConsolidationsByUser :exec
+DELETE FROM chat_memory_consolidations
+WHERE id IN (
+    SELECT id
+    FROM chat_memory_consolidations
+    WHERE user_id = $1::uuid
+        AND organization_id = $2::uuid
+    ORDER BY started_at DESC
+    OFFSET $3::int
+)
+`
+
+type PruneChatMemoryConsolidationsByUserParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	KeepCount      int32     `db:"keep_count" json:"keep_count"`
+}
+
+func (q *sqlQuerier) PruneChatMemoryConsolidationsByUser(ctx context.Context, arg PruneChatMemoryConsolidationsByUserParams) error {
+	_, err := q.db.ExecContext(ctx, pruneChatMemoryConsolidationsByUser, arg.UserID, arg.OrganizationID, arg.KeepCount)
+	return err
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :one
 UPDATE
     chat_model_configs

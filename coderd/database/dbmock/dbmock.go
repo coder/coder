@@ -1990,6 +1990,21 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// FinishChatMemoryConsolidation mocks base method.
+func (m *MockStore) FinishChatMemoryConsolidation(ctx context.Context, arg database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinishChatMemoryConsolidation", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemoryConsolidation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FinishChatMemoryConsolidation indicates an expected call of FinishChatMemoryConsolidation.
+func (mr *MockStoreMockRecorder) FinishChatMemoryConsolidation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishChatMemoryConsolidation", reflect.TypeOf((*MockStore)(nil).FinishChatMemoryConsolidation), ctx, arg)
+}
+
 // GetAIBridgeChatCost mocks base method.
 func (m *MockStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	m.ctrl.T.Helper()
@@ -3143,6 +3158,36 @@ func (m *MockStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool
 func (mr *MockStoreMockRecorder) GetChatIncludeDefaultSystemPrompt(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatIncludeDefaultSystemPrompt), ctx)
+}
+
+// GetChatMemoryConsolidationsByProject mocks base method.
+func (m *MockStore) GetChatMemoryConsolidationsByProject(ctx context.Context, arg database.GetChatMemoryConsolidationsByProjectParams) ([]database.ChatMemoryConsolidation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMemoryConsolidationsByProject", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatMemoryConsolidation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMemoryConsolidationsByProject indicates an expected call of GetChatMemoryConsolidationsByProject.
+func (mr *MockStoreMockRecorder) GetChatMemoryConsolidationsByProject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMemoryConsolidationsByProject", reflect.TypeOf((*MockStore)(nil).GetChatMemoryConsolidationsByProject), ctx, arg)
+}
+
+// GetChatMemoryConsolidationsByUser mocks base method.
+func (m *MockStore) GetChatMemoryConsolidationsByUser(ctx context.Context, arg database.GetChatMemoryConsolidationsByUserParams) ([]database.ChatMemoryConsolidation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMemoryConsolidationsByUser", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatMemoryConsolidation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMemoryConsolidationsByUser indicates an expected call of GetChatMemoryConsolidationsByUser.
+func (mr *MockStoreMockRecorder) GetChatMemoryConsolidationsByUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMemoryConsolidationsByUser", reflect.TypeOf((*MockStore)(nil).GetChatMemoryConsolidationsByUser), ctx, arg)
 }
 
 // GetChatMemoryCursor mocks base method.
@@ -4538,6 +4583,36 @@ func (m *MockStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
+}
+
+// GetLatestChatMemoryConsolidationByProject mocks base method.
+func (m *MockStore) GetLatestChatMemoryConsolidationByProject(ctx context.Context, projectID uuid.UUID) (database.ChatMemoryConsolidation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestChatMemoryConsolidationByProject", ctx, projectID)
+	ret0, _ := ret[0].(database.ChatMemoryConsolidation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestChatMemoryConsolidationByProject indicates an expected call of GetLatestChatMemoryConsolidationByProject.
+func (mr *MockStoreMockRecorder) GetLatestChatMemoryConsolidationByProject(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestChatMemoryConsolidationByProject", reflect.TypeOf((*MockStore)(nil).GetLatestChatMemoryConsolidationByProject), ctx, projectID)
+}
+
+// GetLatestChatMemoryConsolidationByUser mocks base method.
+func (m *MockStore) GetLatestChatMemoryConsolidationByUser(ctx context.Context, arg database.GetLatestChatMemoryConsolidationByUserParams) (database.ChatMemoryConsolidation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestChatMemoryConsolidationByUser", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemoryConsolidation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestChatMemoryConsolidationByUser indicates an expected call of GetLatestChatMemoryConsolidationByUser.
+func (mr *MockStoreMockRecorder) GetLatestChatMemoryConsolidationByUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestChatMemoryConsolidationByUser", reflect.TypeOf((*MockStore)(nil).GetLatestChatMemoryConsolidationByUser), ctx, arg)
 }
 
 // GetLatestCryptoKeyByFeature mocks base method.
@@ -8123,6 +8198,21 @@ func (mr *MockStoreMockRecorder) InsertChatFile(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatFile", reflect.TypeOf((*MockStore)(nil).InsertChatFile), ctx, arg)
 }
 
+// InsertChatMemoryConsolidation mocks base method.
+func (m *MockStore) InsertChatMemoryConsolidation(ctx context.Context, arg database.InsertChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatMemoryConsolidation", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemoryConsolidation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatMemoryConsolidation indicates an expected call of InsertChatMemoryConsolidation.
+func (mr *MockStoreMockRecorder) InsertChatMemoryConsolidation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatMemoryConsolidation", reflect.TypeOf((*MockStore)(nil).InsertChatMemoryConsolidation), ctx, arg)
+}
+
 // InsertChatMessages mocks base method.
 func (m *MockStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	m.ctrl.T.Helper()
@@ -9784,6 +9874,34 @@ func (m *MockStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) 
 func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
+}
+
+// PruneChatMemoryConsolidationsByProject mocks base method.
+func (m *MockStore) PruneChatMemoryConsolidationsByProject(ctx context.Context, arg database.PruneChatMemoryConsolidationsByProjectParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PruneChatMemoryConsolidationsByProject", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PruneChatMemoryConsolidationsByProject indicates an expected call of PruneChatMemoryConsolidationsByProject.
+func (mr *MockStoreMockRecorder) PruneChatMemoryConsolidationsByProject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneChatMemoryConsolidationsByProject", reflect.TypeOf((*MockStore)(nil).PruneChatMemoryConsolidationsByProject), ctx, arg)
+}
+
+// PruneChatMemoryConsolidationsByUser mocks base method.
+func (m *MockStore) PruneChatMemoryConsolidationsByUser(ctx context.Context, arg database.PruneChatMemoryConsolidationsByUserParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PruneChatMemoryConsolidationsByUser", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PruneChatMemoryConsolidationsByUser indicates an expected call of PruneChatMemoryConsolidationsByUser.
+func (mr *MockStoreMockRecorder) PruneChatMemoryConsolidationsByUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneChatMemoryConsolidationsByUser", reflect.TypeOf((*MockStore)(nil).PruneChatMemoryConsolidationsByUser), ctx, arg)
 }
 
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.

@@ -62,6 +62,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Route("/memories", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
 				r.Get("/", api.listChatUserMemories)
+				r.Get("/consolidations", api.listChatUserMemoryConsolidations)
 				r.Post("/", api.postChatUserMemory)
 				r.Route("/{memory}", func(r chi.Router) {
 					r.Use(httpmw.ExtractChatUserMemoryParam(api.Database))
@@ -78,6 +79,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 					r.Use(httpmw.ExtractChatProjectParam(api.Database))
 					r.Route("/memories", func(r chi.Router) {
 						r.Get("/", api.listChatProjectMemories)
+						r.Get("/consolidations", api.listChatProjectMemoryConsolidations)
 						r.Post("/", api.postChatProjectMemory)
 						r.Route("/{memory}", func(r chi.Router) {
 							r.Use(httpmw.ExtractChatProjectMemoryParam(api.Database))
