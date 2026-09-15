@@ -546,6 +546,13 @@ func (s *Server) parseHostname(rw http.ResponseWriter, r *http.Request, next htt
 		return appurl.ApplicationURL{}, false
 	}
 
+	// Subdomains reserved for the MCP app sandbox proxy document are never
+	// workspace apps.
+	if MCPAppSandboxHostRegex.MatchString(strings.ToLower(subdomain)) {
+		s.serveMCPAppSandbox(rw, r)
+		return appurl.ApplicationURL{}, false
+	}
+
 	// Parse the application URL from the subdomain.
 	app, err := appurl.ParseSubdomainAppURL(subdomain)
 	if err != nil {

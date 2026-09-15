@@ -1,0 +1,176 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="mcp-app-host-origin" content="{{.HostOrigin}}" />
+    <title>MCP App Sandbox</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        background-color: transparent;
+      }
+      iframe {
+        display: block;
+        border: 0;
+        width: 100%;
+        height: 100%;
+        background-color: transparent;
+        color-scheme: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      (function () {
+        "use strict";
+
+        var RESOURCE_READY_NOTIFICATION =
+          "ui/notifications/sandbox-resource-ready";
+        var PROXY_READY_NOTIFICATION = "ui/notifications/sandbox-proxy-ready";
+        var DEFAULT_SANDBOX = "allow-scripts allow-same-origin";
+        var ALLOWED_SANDBOX_TOKENS = {
+          "allow-scripts": true,
+          "allow-same-origin": true,
+          "allow-forms": true,
+          "allow-popups": true,
+        };
+
+        if (window.self === window.top) {
+          throw new Error("This document must be loaded inside an iframe.");
+        }
+
+        var hostOriginMeta = document.querySelector(
+          'meta[name="mcp-app-host-origin"]'
+        );
+        var HOST_ORIGIN = hostOriginMeta
+          ? hostOriginMeta.getAttribute("content")
+          : "";
+        if (!HOST_ORIGIN) {
+          throw new Error("The host origin meta tag is missing.");
+        }
+
+        var OWN_ORIGIN = window.location.origin;
+
+        // Accessing window.top across origins must throw a SecurityError.
+        // If it does not, this document shares an origin with the embedding
+        // page and content loaded here could reach it.
+        try {
+          window.top.alert(
+            "If you see this, the sandbox is not set up securely."
+          );
+          throw "FAIL";
+        } catch (e) {
+          if (e === "FAIL") {
+            throw new Error("The sandbox is not set up securely.");
+          }
+        }
+
+        var inner = document.createElement("iframe");
+        inner.setAttribute("sandbox", DEFAULT_SANDBOX);
+        document.body.appendChild(inner);
+
+        // Returns the override only when every whitespace-separated token is
+        // one of the permitted sandbox flags; otherwise the default is kept.
+        function sandboxAttribute(override) {
+          if (typeof override !== "string") {
+            return DEFAULT_SANDBOX;
+          }
+          var tokens = override.split(/\s+/).filter(function (token) {
+            return token.length > 0;
+          });
+          for (var i = 0; i < tokens.length; i++) {
+            if (!ALLOWED_SANDBOX_TOKENS[tokens[i]]) {
+              return DEFAULT_SANDBOX;
+            }
+          }
+          return tokens.join(" ");
+        }
+
+        function allowAttribute(permissions) {
+          if (!permissions || typeof permissions !== "object") {
+            return "";
+          }
+          var features = [];
+          if (permissions.camera) {
+            features.push("camera");
+          }
+          if (permissions.microphone) {
+            features.push("microphone");
+          }
+          if (permissions.geolocation) {
+            features.push("geolocation");
+          }
+          if (permissions.clipboardWrite) {
+            features.push("clipboard-write");
+          }
+          return features.join("; ");
+        }
+
+        function loadResource(params) {
+          params = params || {};
+          inner.setAttribute("sandbox", sandboxAttribute(params.sandbox));
+          var allow = allowAttribute(params.permissions);
+          if (allow) {
+            inner.setAttribute("allow", allow);
+          } else {
+            inner.removeAttribute("allow");
+          }
+          if (typeof params.html !== "string") {
+            return;
+          }
+          // document.write keeps the inner document on this origin so the
+          // CSP delivered with this page applies to it. srcdoc is only used
+          // when the inner document is not reachable.
+          var doc =
+            inner.contentDocument ||
+            (inner.contentWindow && inner.contentWindow.document);
+          if (doc) {
+            doc.open();
+            doc.write(params.html);
+            doc.close();
+          } else {
+            inner.srcdoc = params.html;
+          }
+        }
+
+        window.addEventListener("message", function (event) {
+          if (event.source === window.parent) {
+            if (event.origin !== HOST_ORIGIN) {
+              return;
+            }
+            var data = event.data;
+            if (data && data.method === RESOURCE_READY_NOTIFICATION) {
+              loadResource(data.params);
+              return;
+            }
+            if (inner.contentWindow) {
+              inner.contentWindow.postMessage(data, "*");
+            }
+            return;
+          }
+          if (event.source === inner.contentWindow) {
+            if (event.origin !== OWN_ORIGIN) {
+              return;
+            }
+            window.parent.postMessage(event.data, HOST_ORIGIN);
+          }
+        });
+
+        window.parent.postMessage(
+          {
+            jsonrpc: "2.0",
+            method: PROXY_READY_NOTIFICATION,
+            params: {},
+          },
+          HOST_ORIGIN
+        );
+      })();
+    </script>
+  </body>
+</html>
