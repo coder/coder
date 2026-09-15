@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type { EditingTarget } from "../components/ChatConversation/types";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
@@ -11,21 +12,6 @@ import {
 
 export class BuiltInCommandPendingError extends Error {}
 
-/**
- * Thrown by the send and end-edit callbacks when the queued row being
- * edited was already sent or removed. The composer leaves edit mode
- * instead of retrying against a row that is gone.
- */
-export class QueuedEditTargetGoneError extends Error {}
-
-/**
- * The message the composer is editing. History rows and queued rows have
- * independent ID spaces, so the kind is required to interpret the ID.
- */
-export type EditingTarget =
-	| { kind: "history"; id: number }
-	| { kind: "queued"; id: number };
-
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
@@ -34,20 +20,10 @@ export function useConversationEditingState(deps: {
 		attachments?: readonly PendingAttachment[],
 		editingTarget?: EditingTarget,
 	) => Promise<void>;
-	// Ends the server-side edit of a queued row when its edit is cancelled.
-	// A rejection keeps the composer in edit mode; the callback owns error
-	// reporting.
-	onEndQueuedMessageEdit: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
-	const {
-		chatID,
-		onSend,
-		onEndQueuedMessageEdit,
-		chatInputRef,
-		inputValueRef,
-	} = deps;
+	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
@@ -94,7 +70,7 @@ export function useConversationEditingState(deps: {
 	const editingMessageId =
 		editingTarget?.kind === "history" ? editingTarget.id : null;
 
-	const loadEditIntoComposer = (
+	const handleBeginEdit = (
 		target: EditingTarget,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
@@ -122,26 +98,6 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
-	const handleEditUserMessage = (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly ChatMessagePart[],
-	) => {
-		loadEditIntoComposer({ kind: "history", id: messageId }, text, fileBlocks);
-	};
-
-	const handleEditQueuedMessage = (
-		queuedMessageId: number,
-		text: string,
-		fileBlocks?: readonly ChatMessagePart[],
-	) => {
-		loadEditIntoComposer(
-			{ kind: "queued", id: queuedMessageId },
-			text,
-			fileBlocks,
-		);
-	};
-
 	const restoreDraftBeforeEdit = () => {
 		const savedText = draftBeforeEdit?.text ?? "";
 		const savedState = draftBeforeEdit?.editorState;
@@ -157,24 +113,11 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Leaves queued edit mode. The composer text becomes the new draft, so
-	// the pre-edit draft is not restored.
-	const leaveQueuedEdit = () => {
+	// Leaves edit mode without restoring the pre-edit draft; the composer
+	// text stays as the new draft.
+	const leaveEdit = () => {
 		setEditingTarget(null);
 		setEditingFileBlocks([]);
-	};
-
-	const handleCancelEdit = async () => {
-		if (editingTarget?.kind === "queued") {
-			try {
-				await onEndQueuedMessageEdit(editingTarget.id);
-			} catch (error) {
-				if (!(error instanceof QueuedEditTargetGoneError)) {
-					return;
-				}
-			}
-		}
-		restoreDraftBeforeEdit();
 	};
 
 	// Clears the composer for an in-flight edit and returns a rollback
@@ -240,9 +183,6 @@ export function useConversationEditingState(deps: {
 				return;
 			}
 			rollback?.();
-			if (error instanceof QueuedEditTargetGoneError) {
-				leaveQueuedEdit();
-			}
 			throw error;
 		}
 
@@ -310,10 +250,9 @@ export function useConversationEditingState(deps: {
 		editingTarget,
 		editingMessageId,
 		editingFileBlocks,
-		handleEditUserMessage,
-		handleEditQueuedMessage,
-		handleCancelEdit,
-		leaveQueuedEdit,
+		handleBeginEdit,
+		handleCancelEdit: restoreDraftBeforeEdit,
+		leaveEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,

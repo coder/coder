@@ -14,7 +14,6 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import type { EditingTarget } from "../hooks/useConversationEditingState";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
 import {
@@ -58,6 +57,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
 import { buildStreamTools } from "./ChatConversation/streamState";
+import type { EditingTarget } from "./ChatConversation/types";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";

@@ -79,13 +79,27 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	const items = messages.map((message, index) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
+		const isUnderEdit = Boolean(message.editing_since);
+		const isWaitingBehindEdit = editingIndex !== -1 && index > editingIndex;
 		return {
 			id: message.id,
 			displayText,
 			attachmentCount,
 			hookNotices,
-			isUnderEdit: Boolean(message.editing_since),
-			isWaitingBehindEdit: editingIndex !== -1 && index > editingIndex,
+			isUnderEdit,
+			isWaitingBehindEdit,
+			badge: isUnderEdit
+				? {
+						label: "Editing",
+						tooltip:
+							"Not sent while being edited. Messages behind it wait too.",
+					}
+				: isWaitingBehindEdit
+					? {
+							label: "Waiting",
+							tooltip: "Waits behind a message that is being edited.",
+						}
+					: undefined,
 		};
 	});
 
@@ -140,60 +154,27 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	const clearBusyItem = (id: number) => {
+	// Delete and promote hide the row while the request is in flight and
+	// restore it on failure. Edit and end edit leave the row visible; the
+	// server's queue_update changes editing_since.
+	const runAction = async (
+		id: number,
+		action: QueuedMessageAction,
+		run: (id: number) => Promise<void> | void,
+	) => {
+		const hidesRow = action === "delete" || action === "promote";
+		setBusyItem({ id, action });
+		if (hidesRow) {
+			hideItemOptimistically(id);
+		}
+		try {
+			await run(id);
+		} catch {
+			if (hidesRow) {
+				restoreHiddenItem(id);
+			}
+		}
 		setBusyItem((current) => (current?.id === id ? null : current));
-	};
-
-	const handleDelete = async (id: number) => {
-		setBusyItem({ id, action: "delete" });
-		hideItemOptimistically(id);
-		try {
-			await onDelete(id);
-			clearBusyItem(id);
-		} catch {
-			restoreHiddenItem(id);
-			clearBusyItem(id);
-		}
-	};
-
-	const handlePromote = async (id: number) => {
-		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
-		try {
-			await onPromote(id);
-			clearBusyItem(id);
-		} catch {
-			restoreHiddenItem(id);
-			clearBusyItem(id);
-		}
-	};
-
-	// Edit and end edit are not optimistic: the row stays visible and the
-	// server's queue_update event changes editing_since.
-	const handleEdit = async (id: number) => {
-		if (!onEdit) {
-			return;
-		}
-		setBusyItem({ id, action: "edit" });
-		try {
-			await onEdit(id);
-			clearBusyItem(id);
-		} catch {
-			clearBusyItem(id);
-		}
-	};
-
-	const handleEndEdit = async (id: number) => {
-		if (!onEndEdit) {
-			return;
-		}
-		setBusyItem({ id, action: "end_edit" });
-		try {
-			await onEndEdit(id);
-			clearBusyItem(id);
-		} catch {
-			clearBusyItem(id);
-		}
 	};
 
 	const visibleItems = items.filter(
@@ -247,36 +228,20 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 								{item.displayText.split("\n")[0]}
 								{item.displayText.includes("\n") ? "…" : ""}
 							</span>
-							{item.isUnderEdit && (
+							{item.badge && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Badge
 											asChild
-											variant="warning"
+											variant={item.isUnderEdit ? "warning" : "default"}
 											size="xs"
 											className="shrink-0 cursor-default"
 										>
-											<button type="button">Editing</button>
+											<button type="button">{item.badge.label}</button>
 										</Badge>
 									</TooltipTrigger>
 									<TooltipContent side="top">
-										Not sent while being edited. Messages behind it wait too.
-									</TooltipContent>
-								</Tooltip>
-							)}
-							{item.isWaitingBehindEdit && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Badge
-											asChild
-											size="xs"
-											className="shrink-0 cursor-default"
-										>
-											<button type="button">Waiting</button>
-										</Badge>
-									</TooltipTrigger>
-									<TooltipContent side="top">
-										Waits behind a message that is being edited.
+										{item.badge.tooltip}
 									</TooltipContent>
 								</Tooltip>
 							)}
@@ -331,7 +296,9 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 												size="icon"
 												aria-label="Cancel edit"
 												disabled={isBusy}
-												onClick={() => void handleEndEdit(item.id)}
+												onClick={() =>
+													void runAction(item.id, "end_edit", onEndEdit)
+												}
 												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 											>
 												{renderActionIcon(
@@ -355,7 +322,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 												size="icon"
 												aria-label="Edit"
 												disabled={isBusy}
-												onClick={() => void handleEdit(item.id)}
+												onClick={() => void runAction(item.id, "edit", onEdit)}
 												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 											>
 												{renderActionIcon(
@@ -374,7 +341,9 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											size="icon"
 											aria-label="Send now"
 											disabled={isBusy}
-											onClick={() => void handlePromote(item.id)}
+											onClick={() =>
+												void runAction(item.id, "promote", onPromote)
+											}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 										>
 											{renderActionIcon(
@@ -392,7 +361,9 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											size="icon"
 											aria-label="Remove from queue"
 											disabled={isBusy}
-											onClick={() => void handleDelete(item.id)}
+											onClick={() =>
+												void runAction(item.id, "delete", onDelete)
+											}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
 										>
 											{renderActionIcon(

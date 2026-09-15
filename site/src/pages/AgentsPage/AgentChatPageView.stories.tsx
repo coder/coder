@@ -52,7 +52,7 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import type { EditingTarget } from "./hooks/useConversationEditingState";
+import type { EditingTarget } from "./components/ChatConversation/types";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";

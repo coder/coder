@@ -5,9 +5,7 @@ import {
 	MockChatQueuedMessage,
 	MockEditingChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { mockApiError } from "#/testHelpers/entities";
 import {
-	beginQueuedMessageEdit,
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
@@ -433,44 +431,6 @@ describe("submitEdit", () => {
 		expect(onError).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "boom" }),
 		);
-	});
-});
-
-describe("beginQueuedMessageEdit", () => {
-	const apiError = (status: number) => ({
-		...mockApiError({ message: "request failed" }),
-		status,
-	});
-
-	it("begins the edit of a row not under edit", async () => {
-		const beginEdit = vi.fn().mockResolvedValue({});
-		await expect(
-			beginQueuedMessageEdit({ ...MockChatQueuedMessage, id: 5 }, beginEdit),
-		).resolves.toEqual({ status: "editing" });
-		expect(beginEdit).toHaveBeenCalledWith(5);
-	});
-
-	it("skips the request for a row already under edit", async () => {
-		const beginEdit = vi.fn().mockResolvedValue({});
-		await expect(
-			beginQueuedMessageEdit(MockEditingChatQueuedMessage, beginEdit),
-		).resolves.toEqual({ status: "editing" });
-		expect(beginEdit).not.toHaveBeenCalled();
-	});
-
-	it("reports already_sent on a 404", async () => {
-		const beginEdit = vi.fn().mockRejectedValue(apiError(404));
-		await expect(
-			beginQueuedMessageEdit(MockChatQueuedMessage, beginEdit),
-		).resolves.toEqual({ status: "already_sent" });
-	});
-
-	it("reports other failures with the error", async () => {
-		const error = apiError(500);
-		const beginEdit = vi.fn().mockRejectedValue(error);
-		await expect(
-			beginQueuedMessageEdit(MockChatQueuedMessage, beginEdit),
-		).resolves.toEqual({ status: "failed", error });
 	});
 });
 

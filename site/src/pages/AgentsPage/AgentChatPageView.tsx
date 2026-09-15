@@ -41,6 +41,7 @@ import {
 } from "./components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
+import type { EditingTarget } from "./components/ChatConversation/types";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
@@ -59,7 +60,6 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
-import type { EditingTarget } from "./hooks/useConversationEditingState";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,

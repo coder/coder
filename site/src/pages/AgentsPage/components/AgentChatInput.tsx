@@ -64,7 +64,6 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import type { EditingTarget } from "../hooks/useConversationEditingState";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -83,6 +82,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,

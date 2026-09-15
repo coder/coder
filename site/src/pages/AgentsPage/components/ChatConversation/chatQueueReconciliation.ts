@@ -1,36 +1,5 @@
-import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
-
-type BeginQueuedMessageEditResult =
-	| { status: "editing" }
-	| { status: "already_sent" }
-	| { status: "failed"; error: unknown };
-
-/**
- * Begins the server-side edit of a queued row before the composer loads
- * it. A row already under edit needs no request. A 404 means the row was
- * promoted or deleted first, so editing must not start.
- *
- * @internal Exported for testing.
- */
-export const beginQueuedMessageEdit = async (
-	row: TypesGen.ChatQueuedMessage,
-	beginEdit: (id: number) => Promise<unknown>,
-): Promise<BeginQueuedMessageEditResult> => {
-	if (row.editing_since) {
-		return { status: "editing" };
-	}
-	try {
-		await beginEdit(row.id);
-		return { status: "editing" };
-	} catch (error) {
-		if (getErrorStatus(error) === 404) {
-			return { status: "already_sent" };
-		}
-		return { status: "failed", error };
-	}
-};
 
 /**
  * Decides from a queue snapshot whether the composer's queued edit target
