@@ -861,3 +861,49 @@ func TestParseFenceIgnoresIndentedCode(t *testing.T) {
 		t.Errorf("parseAnnotations() = %v, want the footer: the indented line opens no fence", got)
 	}
 }
+
+func TestCarryStopsOnValeRuleWording(t *testing.T) {
+	t.Parallel()
+
+	// The sentence gate and the carry stop must speak the same language: a
+	// clause that reasserts enforcement as "Vale rule `X`" stops a carried
+	// marker, exactly as "enforced by" does.
+	active, planned := activeCitations("*Planned Vale rules, `Coder.One`; Vale rule `Coder.Two` flags the plural.*")
+	assertSame(t, "active", active, []string{"Coder.Two"})
+	assertSame(t, "planned", planned, []string{"Coder.One"})
+}
+
+func TestSplitClausesGuards(t *testing.T) {
+	t.Parallel()
+
+	// A separator inside a code span or a parenthetical must not end a clause.
+	got := splitClauses("Enforced by `scripts/check_emdash.sh, and more` (planned, still) and `Coder.One`")
+	if len(got) != 2 {
+		t.Fatalf("splitClauses() = %q, want two clauses", got)
+	}
+	if !strings.Contains(got[0], "planned, still") {
+		t.Errorf("first clause = %q, want the parenthetical intact", got[0])
+	}
+	if !strings.Contains(got[0], "check_emdash.sh, and more") {
+		t.Errorf("first clause = %q, want the code span intact", got[0])
+	}
+}
+
+func TestParseFenceRejectsTabIndentation(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := parseFence("\t```"); ok {
+		t.Error("a tab-indented line is an indented code block, not a fence")
+	}
+}
+
+func TestCheckCoverageAnchor(t *testing.T) {
+	t.Parallel()
+
+	if findings := checkCoverageAnchor("## What the tooling checks, and what it doesn't\n"); len(findings) != 0 {
+		t.Errorf("checkCoverageAnchor() = %v, want no findings when the heading is present", findings)
+	}
+	if findings := checkCoverageAnchor("## Something else\n"); len(findings) != 1 {
+		t.Errorf("checkCoverageAnchor() = %v, want a finding when the heading is gone", findings)
+	}
+}

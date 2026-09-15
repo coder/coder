@@ -27,10 +27,14 @@ import (
 )
 
 const (
-	valeConfig  = ".vale.ini"
-	rulesDir    = "docs/.style/styles/Coder"
-	styleGuide  = "docs/.style/style-guide"
-	landingPage = "README.md"
+	valeConfig = ".vale.ini"
+	// coverageAnchor is the landing page heading anchor that `make lint/prose`
+	// points authors at. The checker verifies it resolves, so the pointer
+	// cannot rot when the section is renamed.
+	coverageAnchor = "what-the-tooling-checks-and-what-it-doesnt"
+	rulesDir       = "docs/.style/styles/Coder"
+	styleGuide     = "docs/.style/style-guide"
+	landingPage    = "README.md"
 	// demoPrefix marks the Demo*.yml files under rulesDir. Those are worked
 	// examples for rule authors, not enforced rules, so they carry no style
 	// guide section and must stay out of the rule set.
@@ -231,17 +235,50 @@ func run() ([]finding, error) {
 		return nil, err
 	}
 
+	findings := checkCoverageAnchor(string(landing))
+
 	pages, annotations, sources, err := subpages(styleGuide, string(landing))
 	if err != nil {
 		return nil, err
 	}
 
-	var findings []finding
 	for _, page := range pages {
 		findings = append(findings, checkFooterCoverage(page, sources[page])...)
 	}
 
 	return append(findings, checkClaims(pages, styles, rules, annotations, string(landing))...), nil
+}
+
+// checkCoverageAnchor reports a landing page that no longer carries the heading
+// `make lint/prose` sends authors to.
+func checkCoverageAnchor(landing string) []finding {
+	for _, line := range unfenced(landing) {
+		m := headingLine.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		if anchor(m[2]) == coverageAnchor {
+			return nil
+		}
+	}
+	return []finding{{
+		filepath.Join(styleGuide, landingPage), 0,
+		fmt.Sprintf("no heading resolves to #%s, which `make lint/prose` points authors at. Restore the heading, or update the Makefile.", coverageAnchor),
+	}}
+}
+
+// anchor renders the GitHub heading anchor for a heading's text.
+func anchor(heading string) string {
+	var b []rune
+	for _, r := range strings.ToLower(heading) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+			b = append(b, r)
+		case r == ' ':
+			b = append(b, '-')
+		}
+	}
+	return string(b)
 }
 
 // checkFooterCoverage reports a rule heading that carries no enforcement
@@ -331,9 +368,14 @@ func unfenced(src string) []string {
 	return out
 }
 
-// minFenceRun is CommonMark's minimum fence length: three or more of the fence
-// character open a block.
-const minFenceRun = 3
+const (
+	// minFenceRun is CommonMark's minimum fence length: three or more of the
+	// fence character open a block.
+	minFenceRun = 3
+	// maxFenceIndent is the deepest indentation a fence may carry. Four spaces,
+	// or a tab, make the line an indented code block instead.
+	maxFenceIndent = 3
+)
 
 // fence is a Markdown code fence delimiter.
 type fence struct {
@@ -344,9 +386,7 @@ type fence struct {
 
 // parseFence returns the fence a line opens or closes with.
 func parseFence(line string) (fence, bool) {
-	// CommonMark allows a fence up to 3 spaces of indentation; 4 or more makes
-	// the line an indented code block rather than a fence.
-	if len(line)-len(strings.TrimLeft(line, " ")) >= 4 {
+	if indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]; strings.Contains(indent, "\t") || len(indent) > maxFenceIndent {
 		return fence{}, false
 	}
 	trimmed := strings.TrimSpace(line)
@@ -577,7 +617,7 @@ func activeCitations(text string) (active, planned []string) {
 		// as "No Vale rule for this: `Google.Passive` is too noisy." stays one
 		// sentence and its citation reads as a claim. End a disclaimer with a
 		// period before naming a rule.
-		if !strings.Contains(lower, "enforc") && !strings.Contains(lower, "vale rule") {
+		if !claimsEnforcement(lower) {
 			continue
 		}
 		// A status marker binds to the citations in its own clause. A marker
@@ -594,7 +634,7 @@ func activeCitations(text string) (active, planned []string) {
 			case marked && introduces:
 				// The marker introduces the citations that follow it.
 				carry = true
-			case !marked && strings.Contains(lower, "enforc"):
+			case !marked && claimsEnforcement(lower):
 				// The clause asserts enforcement of its own citations.
 				carry = false
 			}
@@ -608,6 +648,14 @@ func activeCitations(text string) (active, planned []string) {
 		}
 	}
 	return active, planned
+}
+
+// claimsEnforcement reports whether text asserts that something enforces a
+// rule. The sentence gate and the clause-level carry stop share this vocabulary,
+// so a clause that reasserts enforcement in the format's own wording always
+// stops a carried marker.
+func claimsEnforcement(lower string) bool {
+	return strings.Contains(lower, "enforc") || strings.Contains(lower, "vale rule")
 }
 
 // splitClauses breaks a sentence into the clauses a status marker can bind to.
@@ -950,7 +998,7 @@ func checkCoverageTable(pages []string, landing string, counts map[string][4]int
 		if row.nums != want {
 			findings = append(findings, finding{
 				path, i + 1,
-				fmt.Sprintf("counts for %s are %v but the annotations give %v (rules, tool-checked, planned, documentation-only)", row.page, row.nums, want),
+				fmt.Sprintf("counts for %s are %v but the annotations give %v (rules, tool-checked, planned, documentation-only). Update the row.", row.page, row.nums, want),
 			})
 		}
 	}
@@ -961,7 +1009,7 @@ func checkCoverageTable(pages []string, landing string, counts map[string][4]int
 		}
 	}
 	if !seen["**Total**"] {
-		findings = append(findings, finding{path, 0, "coverage table has no total row"})
+		findings = append(findings, finding{path, 0, "coverage table has no total row. Add it."})
 	}
 	return findings
 }
