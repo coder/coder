@@ -20,7 +20,8 @@ type OAuth2ProviderApp struct {
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
 	// Scope is the space-separated list of scopes this app's tokens may be
-	// granted. Empty means unrestricted.
+	// granted. Empty means unrestricted. A non-empty value with no names is a
+	// configured allowlist that grants nothing.
 	Scope string `json:"scope"`
 
 	// ClientType is "confidential" or "public".

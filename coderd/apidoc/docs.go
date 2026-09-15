@@ -25353,7 +25353,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scope": {
-                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Empty means unrestricted.",
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Empty means unrestricted. A non-empty value with no names is a\nconfigured allowlist that grants nothing.",
                     "type": "string"
                 }
             }

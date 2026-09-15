@@ -136,8 +136,15 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 // store the caller's spelling as given, so this is where a stored allowlist
 // gets one display form. Unknown names are kept: this shows what is
 // configured, not what is grantable.
+//
+// A list with no names is returned as given. An empty allowlist means
+// unrestricted, but a whitespace-only one is configured and grants nothing,
+// so collapsing it to "" would report the opposite of how it authorizes.
 func CanonicalScopeList(raw string) string {
 	names := strings.Fields(raw)
+	if len(names) == 0 {
+		return raw
+	}
 	canonical := make([]string, 0, len(names))
 	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
