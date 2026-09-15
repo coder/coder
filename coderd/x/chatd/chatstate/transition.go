@@ -45,7 +45,7 @@ func (t Transition) String() string { return string(t) }
 //
 // A paused queue head (see queuePaused) is not promoted by FinishTurn
 // from R1, FinishInterruption from I1, or SendMessage from E1; from R1
-// and I1 the chat lands in P instead.
+// and I1 the chat transitions to P.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
