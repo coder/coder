@@ -972,7 +972,7 @@ func (tx *Tx) endOtherEdit(exceptID int64) error {
 }
 
 // resumeIfUnpaused leaves P when no pause condition remains: promotes
-// the head, or lands in W when no rows remain.
+// the head, or sets W when no rows remain.
 func (tx *Tx) resumeIfUnpaused(chat database.Chat) error {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1050,7 +1050,6 @@ type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
 	CancellationMessages []database.ChatMessage
-	ReorderedQueueOnly   bool
 }
 
 // PromoteQueuedMessage promotes the target queued message to the
