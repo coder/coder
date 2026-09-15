@@ -1,11 +1,12 @@
 import DOMPurify from "dompurify";
-import { TriangleAlertIcon } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { Maximize2Icon, TriangleAlertIcon } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useIsCodeFenceIncomplete } from "streamdown";
 import { getErrorMessage } from "#/api/errors";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useTheme } from "#/theme/context";
 import { generateUUID } from "#/utils/random";
+import { Lightbox } from "../Lightbox";
 
 type RenderState =
 	| { status: "pending" }
@@ -96,6 +97,8 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	const isDark = theme.palette.mode === "dark";
 	const isIncomplete = useIsCodeFenceIncomplete();
 	const [state, setState] = useState<RenderState>({ status: "pending" });
+	const [expanded, setExpanded] = useState(false);
+	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		if (isIncomplete) {
@@ -159,11 +162,56 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	}
 
 	return (
-		<div
-			className="my-4 overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary p-4 [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full"
-			// Output is sanitized by sanitizeDiagramSvg before it reaches
-			// React, so the only HTML here is Mermaid's own SVG markup.
-			dangerouslySetInnerHTML={{ __html: state.svg }}
-		/>
+		<>
+			<button
+				ref={triggerRef}
+				type="button"
+				aria-label="View diagram full size"
+				onClick={() => setExpanded(true)}
+				className="group relative my-4 block w-full cursor-zoom-in overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary p-4 text-left hover:border-border-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content-link"
+			>
+				<span
+					className="block [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full"
+					// Output is sanitized by DOMPurify before it reaches React, so
+					// the only HTML here is Mermaid's own SVG markup.
+					dangerouslySetInnerHTML={{ __html: state.svg }}
+				/>
+				<span
+					aria-hidden
+					className="absolute right-2 top-2 rounded-md border border-solid border-border-default bg-surface-secondary p-1 text-content-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+				>
+					<Maximize2Icon className="size-3.5" />
+				</span>
+			</button>
+			{expanded && (
+				<Lightbox
+					title="Diagram preview"
+					onClose={() => setExpanded(false)}
+					onCloseAutoFocus={() => triggerRef.current?.focus()}
+				>
+					<div
+						style={{ width: fittedWidth(state.svg) }}
+						className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border-default bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
+						dangerouslySetInnerHTML={{ __html: state.svg }}
+					/>
+				</Lightbox>
+			)}
+		</>
 	);
+};
+
+// Mermaid emits a viewBox, so the SVG scales with its container. The
+// lightbox sizes its padded (3rem) frame to the largest width that
+// keeps the whole diagram inside the 90vw by 85vh bounds.
+const fittedWidth = (svg: string): string | undefined => {
+	const viewBox = svg
+		.match(/viewBox="([^"]+)"/)?.[1]
+		.trim()
+		.split(/\s+/);
+	const width = Number(viewBox?.[2]);
+	const height = Number(viewBox?.[3]);
+	if (!(width > 0 && height > 0)) {
+		return undefined;
+	}
+	return `min(90vw, calc((85vh - 3rem) * ${width / height} + 3rem))`;
 };
