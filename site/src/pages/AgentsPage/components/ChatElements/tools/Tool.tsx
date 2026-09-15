@@ -70,6 +70,8 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	args?: unknown;
 	result?: unknown;
 	isError?: boolean;
+	/** Set when the server persisted the result as {data, mime_type, text}. */
+	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
 	subagentTitles?: Map<string, string>;
@@ -107,6 +109,7 @@ type ToolRendererProps = {
 	args: unknown;
 	result: unknown;
 	isError: boolean;
+	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
@@ -951,6 +954,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	isMedia,
 	mcpServerConfigId,
 	mcpServers,
 	modelIntent,
@@ -960,6 +964,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const toolInput = formatToolInput(args);
 	const rec = asRecord(result);
 	const imageResult =
+		isMedia &&
 		rec &&
 		typeof rec.data === "string" &&
 		rec.data.length > 0 &&
@@ -1224,6 +1229,7 @@ export const Tool = memo(
 		args,
 		result,
 		isError = false,
+		isMedia,
 		killedBySignal,
 		subagentTitles,
 		subagentVariants,
@@ -1272,6 +1278,7 @@ export const Tool = memo(
 						args={args}
 						result={result}
 						isError={isError}
+						isMedia={isMedia}
 						killedBySignal={killedBySignal}
 						subagentTitles={subagentTitles}
 						subagentVariants={subagentVariants}

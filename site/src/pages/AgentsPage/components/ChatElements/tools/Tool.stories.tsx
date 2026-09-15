@@ -1404,6 +1404,7 @@ export const MCPToolImageResult: Story = {
 	args: {
 		name: "playwright__browser_take_screenshot",
 		status: "completed",
+		isMedia: true,
 		args: { type: "jpeg" },
 		result: {
 			data: DESKTOP_SCREENSHOT_BASE64,
@@ -1425,6 +1426,33 @@ export const MCPToolImageOnlyResult: Story = {
 			data: DESKTOP_SCREENSHOT_BASE64,
 			mime_type: "image/jpeg",
 			text: "",
+		},
+	},
+	play: MCPToolImageResult.play,
+};
+
+export const MCPToolImageResultLightboxOpen: Story = {
+	args: MCPToolImageResult.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Image from tool result" }),
+		);
+		await within(document.body).findByRole("dialog");
+	},
+};
+
+// A text result that merely looks like a media payload stays in the
+// JSON viewer because the server did not flag it with is_media.
+export const MCPToolMediaShapedTextResult: Story = {
+	args: {
+		...MCPToolImageResult.args,
+		isMedia: false,
+		result: {
+			data: TEST_PNG_B64,
+			mime_type: "image/png",
+			source: "structured-content",
 		},
 	},
 	play: MCPToolImageResult.play,

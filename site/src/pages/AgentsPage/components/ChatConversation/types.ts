@@ -15,6 +15,7 @@ export type ParsedToolResult = {
 	name: string;
 	result?: unknown;
 	isError: boolean;
+	isMedia?: boolean;
 	mcpServerConfigId?: string;
 };
 
@@ -24,6 +25,7 @@ export type MergedTool = {
 	args?: unknown;
 	result?: unknown;
 	isError: boolean;
+	isMedia?: boolean;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;
@@ -98,6 +100,7 @@ type StreamToolResult = {
 	result?: unknown;
 	resultRaw?: string;
 	isError: boolean;
+	isMedia?: boolean;
 	/** True while result deltas are still accumulating before the final result. */
 	isStreaming?: boolean;
 	mcpServerConfigId?: string;
