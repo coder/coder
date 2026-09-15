@@ -259,23 +259,12 @@ jobs:
               repo: context.repo.repo,
             }
 
-            // Reconcile both directions here as a checkpoint. The
-            // concurrency group cancels queued runs, so individual
-            // labeled or edited events can be lost.
             if (action === "opened" || action === "reopened" || action === "ready_for_review") {
               if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
                 console.log('Add "%s" label', releaseLabels.breaking)
                 await github.rest.issues.addLabels({
                   ...params,
                   labels: [releaseLabels.breaking],
-                })
-              }
-
-              if (!isBreakingTitle && labels.includes(releaseLabels.breaking)) {
-                console.log('Rename title from "%s" to "%s"', title, toBreaking(title))
-                await github.rest.issues.update({
-                  ...params,
-                  title: toBreaking(title),
                 })
               }
             }
