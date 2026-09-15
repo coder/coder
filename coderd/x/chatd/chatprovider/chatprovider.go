@@ -2,7 +2,7 @@ package chatprovider
 
 import (
 	"context"
-	"mime"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -110,15 +111,40 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
+// ToolResultMediaOmission reports media unsupported by the transport or upstream
+// provider. configuredProvider supplies vendor limits hidden by a shared
+// OpenAI-compatible transport.
+func ToolResultMediaOmission(transportProvider, configuredProvider, mediaType string, size int) (string, bool) {
+	provider := NormalizeProvider(transportProvider)
+	if provider == fantasyopenaicompat.Name {
+		provider = NormalizeProvider(configuredProvider)
+	}
+	baseType := chatfiles.BaseMediaType(mediaType)
+	isImage := strings.HasPrefix(baseType, "image/")
+	accepted := true
+	switch provider {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		accepted = slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasyopenai.Name, fantasyazure.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasygoogle.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}, baseType)
+	}
+	if !accepted {
+		return fmt.Sprintf("[%s content omitted: unsupported tool result media type]", mediaType), true
+	}
+	if imageCap, hasCap := InlineImageCapBytes(provider); hasCap && size >= imageCap {
+		return fmt.Sprintf("[image omitted: %d bytes exceeds the inline image limit of %d bytes]", size, imageCap), true
+	}
+	return "", false
+}
+
 // AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
 // file content part rather than silently dropping it. Callers replace rejected
 // parts with text, so a false negative costs fidelity while a false positive
 // loses the attachment entirely. Unknown providers therefore return false.
 func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
-	baseType := mediaType
-	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
-		baseType = parsed
-	}
+	baseType := chatfiles.BaseMediaType(mediaType)
 	isImage := strings.HasPrefix(baseType, "image/")
 	isText := strings.HasPrefix(baseType, "text/")
 	// Audio types are included for matrix completeness but are not

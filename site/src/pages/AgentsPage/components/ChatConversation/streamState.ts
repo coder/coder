@@ -153,6 +153,7 @@ export const applyMessagePartToStreamState = (
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
 						isError: nextIsError,
+						isMedia: part.is_media || existing?.isMedia,
 						isStreaming: isStreaming || undefined,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
@@ -254,6 +255,7 @@ export const buildStreamTools = (
 			args: call.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
+			isMedia: result?.isMedia,
 			status: getStreamToolStatus(result),
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent: call.modelIntent,
@@ -269,6 +271,7 @@ export const buildStreamTools = (
 					name: result.name,
 					result: result.result,
 					isError: result.isError,
+					isMedia: result.isMedia,
 					status: getStreamToolStatus(result),
 					mcpServerConfigId: result.mcpServerConfigId,
 				});

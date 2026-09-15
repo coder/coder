@@ -36,6 +36,7 @@ import {
 } from "./subagentDescriptor";
 import { ToolCall } from "./ToolCall";
 import { ToolLabel } from "./ToolLabel";
+import { ToolResultMedia } from "./ToolResultMedia";
 import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
 	asNumber,
@@ -55,6 +56,7 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseMediaToolResult,
 	parseServerEditDiffText,
 	parseServerEditResults,
 	type ToolStatus,
@@ -69,6 +71,8 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	args?: unknown;
 	result?: unknown;
 	isError?: boolean;
+	/** Set when the server persisted the result as {data, mime_type, text}. */
+	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
 	subagentTitles?: Map<string, string>;
@@ -106,6 +110,7 @@ type ToolRendererProps = {
 	args: unknown;
 	result: unknown;
 	isError: boolean;
+	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
@@ -950,6 +955,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	isMedia,
 	mcpServerConfigId,
 	mcpServers,
 	modelIntent,
@@ -957,8 +963,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
-	const resultOutput = formatResultOutput(result);
-	const fileContent = getFileContentForViewer(name, args, result);
+	const mediaResult = isMedia ? parseMediaToolResult(result) : null;
+	// Media payloads are base64 blobs; keep them out of the text formatters.
+	const textResult = mediaResult ? undefined : result;
+	const resultOutput = formatResultOutput(textResult);
+	const fileContent = getFileContentForViewer(name, args, textResult);
 	const fileViewerOpts = getFileViewerOptions(isDark);
 	const fileContentOptions = fileContent
 		? {
@@ -973,7 +982,9 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(toolInput || fileContent || resultOutput);
+	const hasContent = Boolean(
+		toolInput || fileContent || resultOutput || mediaResult,
+	);
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 	const fallbackErrorMessage = getGenericToolErrorMessage({
@@ -1013,6 +1024,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					isDark={isDark}
 					resultOutput={resultOutput}
 				/>
+				{mediaResult && <ToolResultMedia media={mediaResult} />}
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);
@@ -1197,6 +1209,7 @@ export const Tool = memo(
 		args,
 		result,
 		isError = false,
+		isMedia,
 		killedBySignal,
 		subagentTitles,
 		subagentVariants,
@@ -1245,6 +1258,7 @@ export const Tool = memo(
 						args={args}
 						result={result}
 						isError={isError}
+						isMedia={isMedia}
 						killedBySignal={killedBySignal}
 						subagentTitles={subagentTitles}
 						subagentVariants={subagentVariants}

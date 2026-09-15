@@ -101,8 +101,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    trailing chunks cannot zero reported usage.
 // 8) go.mod replaces pointing anthropic-sdk-go and openai-go at the
 //    coder forks below.
-// See: https://github.com/coder/fantasy/commits/833854abc543
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260812122040-833854abc543
+// 9) coder/fantasy#58, pair Google media tool results with a text function
+//    response and sibling inline data.
+// 10) Keep OpenAI tool-result batches contiguous before attaching user media.
+//
+// See: https://github.com/coder/fantasy/commits/460d4fdd113b
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260915155828-460d4fdd113b
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.

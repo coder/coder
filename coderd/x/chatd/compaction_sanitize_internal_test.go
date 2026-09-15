@@ -72,7 +72,7 @@ func TestSanitizeCompactionPrompt_FlattensForeignProviderExecutedToolParts(t *te
 	}
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
 
 	require.Len(t, sanitized, 3)
 	// Provider-executed parts are flattened to text so the summary keeps
@@ -121,7 +121,7 @@ func TestSanitizeCompactionPrompt_DropsNonAssistantProviderExecutedParts(t *test
 	}
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
 
 	require.Len(t, sanitized, 1)
 	require.Equal(t, fantasy.MessageRoleUser, sanitized[0].Role)
@@ -151,7 +151,7 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedFileParts(t *testing.T) {
 	// placeholder while the prompt stays otherwise intact.
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "mistral", ModelName: "mistral-large"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)
@@ -163,6 +163,58 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedFileParts(t *testing.T) {
 	// The original prompt keeps its file part.
 	_, ok = prompt[0].Content[1].(fantasy.FilePart)
 	require.True(t, ok)
+}
+
+func TestSanitizeCompactionPrompt_ReplacesUnsupportedToolMedia(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name               string
+		transport          string
+		configuredProvider string
+		mediaType          string
+	}{
+		{name: "AnthropicAudio", transport: "anthropic", configuredProvider: "anthropic", mediaType: "audio/mpeg"},
+		{name: "OpenAISVG", transport: "openai", configuredProvider: "openai", mediaType: "image/svg+xml"},
+		{name: "OpenAIBMP", transport: "openai", configuredProvider: "openai", mediaType: "image/bmp"},
+		{name: "GoogleSVG", transport: "openai-compat", configuredProvider: "google", mediaType: "image/svg+xml"},
+		{name: "GoogleBMP", transport: "openai-compat", configuredProvider: "google", mediaType: "image/bmp"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			prompt := []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{
+						fantasy.ToolResultPart{
+							ToolCallID: "call-1",
+							Output: fantasy.ToolResultOutputContentMedia{
+								Data:      "AAAA",
+								MediaType: tc.mediaType,
+								Text:      "Tool output",
+							},
+						},
+					},
+				},
+			}
+
+			// Compaction must filter media even when both models share a provider instance.
+			compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: tc.transport, ModelName: "model"}, nil)
+			sharedProviderID := uuid.New()
+			sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, tc.configuredProvider, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+
+			require.Len(t, sanitized, 1)
+			result, ok := sanitized[0].Content[0].(fantasy.ToolResultPart)
+			require.True(t, ok)
+			text, ok := result.Output.(fantasy.ToolResultOutputContentText)
+			require.True(t, ok, "expected text output, got %T", result.Output)
+			require.Contains(t, text.Text, "Tool output")
+			require.Contains(t, text.Text, "["+tc.mediaType+" content omitted: unsupported tool result media type]")
+		})
+	}
 }
 
 func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *testing.T) {
@@ -191,7 +243,7 @@ func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *test
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)

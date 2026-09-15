@@ -1,9 +1,12 @@
 package chatloop
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
+	"image"
+	"image/png"
 	"iter"
 	"runtime"
 	"slices"
@@ -1444,6 +1447,80 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 		require.True(t, utf8.ValidString(textOutput.Text), "Text should be valid UTF-8")
 		require.Contains(t, textOutput.Text, "hello")
 		require.Contains(t, textOutput.Text, "world")
+	})
+}
+
+func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
+	t.Parallel()
+
+	metrics := NewMetrics(prometheus.NewRegistry())
+	logger := slog.Make()
+	var pngData bytes.Buffer
+	require.NoError(t, png.Encode(&pngData, image.NewRGBA(image.Rect(0, 0, 1, 1))))
+
+	run := func(t *testing.T, mediaType string, data []byte) fantasy.ToolResultContent {
+		tool := fantasy.NewAgentTool(
+			"screenshot",
+			"takes a screenshot",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Type:      "media",
+					Data:      data,
+					MediaType: mediaType,
+					Content:   "Ran Playwright code",
+				}, nil
+			},
+		)
+		return executeSingleTool(
+			context.Background(),
+			map[string]fantasy.AgentTool{"screenshot": tool},
+			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
+			metrics,
+			logger,
+			"openai", "model",
+			map[string]bool{},
+			[]string{"screenshot"},
+			nil,
+			map[string]struct{}{},
+			nil,
+			defaultToolResultBytes,
+			nil,
+		)
+	}
+	textOf := func(t *testing.T, result fantasy.ToolResultContent) string {
+		t.Helper()
+		text, ok := result.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok, "expected text result, got %T", result.Result)
+		return text.Text
+	}
+
+	t.Run("OversizedMediaKeepsText", func(t *testing.T) {
+		t.Parallel()
+		text := textOf(t, run(t, "image/png", make([]byte, codersdk.MaxChatFileSizeBytes+1)))
+		require.Contains(t, text, "Ran Playwright code\n")
+		require.Contains(t, text, "[image/png content omitted")
+	})
+
+	t.Run("NonImageBytesDeclaredAsImageKeepsText", func(t *testing.T) {
+		t.Parallel()
+		text := textOf(t, run(t, "image/png", []byte("<html>not an image</html>")))
+		require.Contains(t, text, "Ran Playwright code\n")
+		require.Contains(t, text, "[image omitted: payload declared as image/png is text/html")
+	})
+
+	t.Run("ImageTypeFollowsBytes", func(t *testing.T) {
+		t.Parallel()
+		media, ok := run(t, "image/jpeg", pngData.Bytes()).Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok)
+		require.Equal(t, "image/png", media.MediaType)
+		require.Equal(t, "Ran Playwright code", media.Text)
+	})
+
+	t.Run("NonImageMediaPassesThrough", func(t *testing.T) {
+		t.Parallel()
+		media, ok := run(t, "audio/mpeg", []byte{1, 2, 3}).Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok)
+		require.Equal(t, "audio/mpeg", media.MediaType)
 	})
 }
 
