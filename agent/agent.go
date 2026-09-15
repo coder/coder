@@ -145,6 +145,12 @@ type Client interface {
 	ConnectRPC210WithRole(ctx context.Context, role string) (
 		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
 	)
+	// ConnectRPC213WithRole returns a dRPC client to the agent API v2.13, which
+	// supports a client session ID in SSH connection logs. Pass role "agent" for
+	// workspace agents to enable connection monitoring.
+	ConnectRPC213WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient213, tailnetproto.DRPCTailnetClient28, error,
+	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
 }
@@ -424,7 +430,7 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
-		ReportConnection: func(id uuid.UUID, appName string, ip string) func(code int, reason string) {
+		ReportConnection: func(id uuid.UUID, appName string, ip, clientSessionID string) func(code int, reason string) {
 			var connectionType proto.Connection_Type
 			// Connection_Type is a fixed enum, stored as a database enum in
 			// the connection log, so it can only hold a family.
@@ -439,7 +445,7 @@ func (a *agent) init() {
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			}
 
-			return a.reportConnection(id, connectionType, ip)
+			return a.reportConnection(id, connectionType, ip, clientSessionID)
 		},
 
 		ExperimentalContainers: a.devcontainers,
@@ -520,7 +526,7 @@ func (a *agent) init() {
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
 		func(id uuid.UUID, ip string) func(code int, reason string) {
-			return a.reportConnection(id, proto.Connection_RECONNECTING_PTY, ip)
+			return a.reportConnection(id, proto.Connection_RECONNECTING_PTY, ip, "")
 		},
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
@@ -1047,7 +1053,7 @@ const (
 	reportConnectionBufferLimit = 2048
 )
 
-func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
+func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip, clientSessionID string) (disconnected func(code int, reason string)) {
 	// A blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
 	// still report it, and the recipient can handle a blank IP.
 	if ip != "" {
@@ -1076,17 +1082,19 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 			slog.F("connection_id", id),
 			slog.F("connection_type", connectionType),
 			slog.F("ip", ip),
+			slog.F("client_session_id", clientSessionID),
 		)
 	} else {
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
 			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_CONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: 0,
-				Reason:     nil,
+				Id:              id[:],
+				Action:          proto.Connection_CONNECT,
+				Type:            connectionType,
+				Timestamp:       timestamppb.New(time.Now()),
+				Ip:              ip,
+				StatusCode:      0,
+				Reason:          nil,
+				ClientSessionId: clientSessionID,
 			},
 		})
 		select {
@@ -1104,19 +1112,21 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 				slog.F("connection_id", id),
 				slog.F("connection_type", connectionType),
 				slog.F("ip", ip),
+				slog.F("client_session_id", clientSessionID),
 			)
 			return
 		}
 
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
 			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_DISCONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: int32(code), //nolint:gosec
-				Reason:     &reason,
+				Id:              id[:],
+				Action:          proto.Connection_DISCONNECT,
+				Type:            connectionType,
+				Timestamp:       timestamppb.New(time.Now()),
+				Ip:              ip,
+				StatusCode:      int32(code), //nolint:gosec
+				Reason:          &reason,
+				ClientSessionId: clientSessionID,
 			},
 		})
 		select {
@@ -1166,7 +1176,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC213WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1890,7 +1900,11 @@ func (a *agent) createTailnet(
 		return nil, xerrors.Errorf("update host signer: %w", err)
 	}
 
-	for _, port := range []int{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort} {
+	for _, port := range []int{
+		workspacesdk.AgentSSHPort,
+		workspacesdk.AgentStandardSSHPort,
+		workspacesdk.AgentPreambleSSHPort,
+	} {
 		sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(port))
 		if err != nil {
 			return nil, xerrors.Errorf("listen on the ssh port (%v): %w", port, err)

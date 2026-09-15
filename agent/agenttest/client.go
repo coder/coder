@@ -206,6 +206,23 @@ func (c *Client) ConnectRPC29(ctx context.Context) (
 	return agentproto.NewDRPCAgentClient(conn), proto.NewDRPCTailnetClient(conn), nil
 }
 
+func (c *Client) ConnectRPC213WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient213, proto.DRPCTailnetClient28, error,
+) {
+	aAPI, tAPI, err := c.ConnectRPC29(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The concrete drpcAgentClient implements every method on the generated
+	// DRPCAgentClient interface, so the assertion always succeeds for the
+	// fixture's own connections.
+	client, ok := aAPI.(agentproto.DRPCAgentClient213)
+	if !ok {
+		return nil, nil, xerrors.Errorf("agenttest: connection does not implement DRPCAgentClient213; got %T", aAPI)
+	}
+	return client, tAPI, nil
+}
+
 func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
 	return c.fakeAgentAPI.GetLifecycleStates()
 }

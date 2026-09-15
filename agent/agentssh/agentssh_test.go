@@ -53,7 +53,9 @@ func TestNewServer_ServeClient(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := s.Serve(ln)
+		err := s.Serve(&testTailnetListener{
+			listener: ln,
+		})
 		assert.Error(t, err) // Server is closed.
 	}()
 
@@ -171,7 +173,9 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			err := s.Serve(ln)
+			err := s.Serve(&testTailnetListener{
+				listener: ln,
+			})
 			assert.Error(t, err) // Server is closed.
 		}()
 
@@ -273,7 +277,9 @@ func TestNewServer_Signal(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			err := s.Serve(ln)
+			err := s.Serve(&testTailnetListener{
+				listener: ln,
+			})
 			assert.Error(t, err) // Server is closed.
 		}()
 		defer func() {
@@ -340,7 +346,9 @@ func TestNewServer_Signal(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			err := s.Serve(ln)
+			err := s.Serve(&testTailnetListener{
+				listener: ln,
+			})
 			assert.Error(t, err) // Server is closed.
 		}()
 		defer func() {
@@ -416,7 +424,9 @@ func TestSSHServer_ClosesStdin(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := s.Serve(ln)
+		err := s.Serve(&testTailnetListener{
+			listener: ln,
+		})
 		assert.Error(t, err) // Server is closed.
 	}()
 	defer func() {
@@ -501,3 +511,16 @@ func sshClient(t *testing.T, addr string) *ssh.Client {
 	})
 	return c
 }
+
+type testTailnetListener struct {
+	listener        net.Listener
+	clientSessionID string
+}
+
+func (ln *testTailnetListener) AcceptWithID() (net.Conn, string, error) {
+	conn, err := ln.listener.Accept()
+	return conn, ln.clientSessionID, err
+}
+func (ln *testTailnetListener) Accept() (net.Conn, error) { return ln.listener.Accept() }
+func (ln *testTailnetListener) Addr() net.Addr            { return ln.listener.Addr() }
+func (ln *testTailnetListener) Close() error              { return ln.listener.Close() }

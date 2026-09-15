@@ -157,9 +157,10 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 
 // @typescript-ignore AgentConnOptions
 type AgentConnOptions struct {
-	AgentID   uuid.UUID
-	CloseFunc func() error
-	Logger    slog.Logger
+	AgentID         uuid.UUID
+	CloseFunc       func() error
+	Logger          slog.Logger
+	ClientSessionID string
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -278,13 +279,17 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 }
 
 // SSH pipes the SSH protocol over the returned net.Conn.
-// This connects to the built-in SSH server in the workspace agent.
+// This connects to the built-in SSH server in the workspace agent on the
+// default port.
 func (c *agentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	return c.SSHOnPort(ctx, AgentSSHPort)
 }
 
-// SSHOnPort pipes the SSH protocol over the returned net.Conn.
-// This connects to the built-in SSH server in the workspace agent on the specified port.
+// SSHOnPort pipes the SSH protocol over the returned net.Conn.  This connects
+// to the built-in SSH server in the workspace agent on the specified port.
+//
+// If the port is the preamble port, send the preamble.  Using the preamble port
+// without setting a client session ID will result in an error.
 func (c *agentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
@@ -294,15 +299,29 @@ func (c *agentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn,
 	}
 
 	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
-	return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
+	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
+	if err != nil {
+		return nil, err
+	}
+	if port == AgentPreambleSSHPort {
+		err := tailnet.WritePreamble(conn, c.opts.ClientSessionID)
+		if err != nil {
+			cerr := conn.Close()
+			return conn, errors.Join(err, cerr)
+		}
+	}
+	return conn, err
 }
 
-// SSHClient calls SSH to create a client
+// SSHClient calls SSH to create a client on the default port.
 func (c *agentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
 	return c.SSHClientOnPort(ctx, AgentSSHPort)
 }
 
 // SSHClientOnPort calls SSH to create a client on a specific port
+//
+// If the port is the preamble port, send the preamble.  Using the preamble port
+// without setting a client session ID will result in an error.
 func (c *agentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()

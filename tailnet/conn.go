@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -43,6 +44,7 @@ import (
 	"tailscale.com/wgengine/router"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -53,6 +55,7 @@ const (
 	WorkspaceAgentSSHPort             = 1
 	WorkspaceAgentReconnectingPTYPort = 2
 	WorkspaceAgentSpeedtestPort       = 3
+	WorkspaceAgentPreambleSSHPort     = 5
 	WorkspaceAgentStandardSSHPort     = 22
 )
 
@@ -743,7 +746,7 @@ func (c *Conn) Node() *Node {
 // https://github.com/tailscale/tailscale/blob/c88bd53b1b7b2fcf7ba302f2e53dd1ce8c32dad4/tsnet/tsnet.go#L459-L494
 
 // Listen listens for connections only on the Tailscale network.
-func (c *Conn) Listen(network, addr string) (net.Listener, error) {
+func (c *Conn) Listen(network, addr string) (Listener, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, xerrors.Errorf("tailnet: split host port for listen: %w", err)
@@ -755,7 +758,7 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 		addr: addr,
 
 		closed: make(chan struct{}),
-		conn:   make(chan net.Conn),
+		conn:   make(chan *connWithID),
 	}
 	c.mutex.Lock()
 	if c.isClosed() {
@@ -792,17 +795,38 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 	if !ok {
 		return nil, nil, false
 	}
+
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
-	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == WorkspaceAgentStandardSSHPort {
+	if dst.Port() == WorkspaceAgentSSHPort ||
+		dst.Port() == WorkspaceAgentStandardSSHPort ||
+		dst.Port() == WorkspaceAgentPreambleSSHPort {
 		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
 		opts = append(opts, &opt)
 	}
 
 	return func(conn net.Conn) {
+		// On the preamble port, read in the preamble to get the client session ID.
+		clientSessionID := ""
+		if dst.Port() == WorkspaceAgentPreambleSSHPort {
+			logger.Info(context.Background(), "reading preamble")
+			var err error
+			clientSessionID, err = ReadPreamble(conn)
+			if err != nil {
+				logger.Info(context.Background(), "refusing connection",
+					slog.Error(err))
+				_ = conn.Close()
+				return
+			}
+		}
+		logger = logger.With(slog.F("client_session_id", clientSessionID))
+
 		t := time.NewTimer(time.Second)
 		defer t.Stop()
 		select {
-		case ln.conn <- conn:
+		case ln.conn <- &connWithID{
+			Conn:            conn,
+			clientSessionID: clientSessionID,
+		}:
 			logger.Info(context.Background(), "accepted connection")
 			return
 		case <-ln.closed:
@@ -983,22 +1007,44 @@ type listenKey struct {
 	port    string
 }
 
+type connWithID struct {
+	net.Conn
+	clientSessionID string
+}
+
+type Listener interface {
+	net.Listener
+	// AcceptWithID is like Accept, but it additionally includes the client
+	// session ID if the connection was made on the preamble port.
+	AcceptWithID() (net.Conn, string, error)
+}
+
 type listener struct {
 	s      *Conn
 	key    listenKey
 	addr   string
-	conn   chan net.Conn
+	conn   chan *connWithID
 	closed chan struct{}
 }
 
+func (ln *listener) AcceptWithID() (net.Conn, string, error) {
+	var c *connWithID
+	select {
+	case c = <-ln.conn:
+	case <-ln.closed:
+		return nil, "", xerrors.Errorf("tailnet: %w", net.ErrClosed)
+	}
+	return c.Conn, c.clientSessionID, nil
+}
+
 func (ln *listener) Accept() (net.Conn, error) {
-	var c net.Conn
+	var c *connWithID
 	select {
 	case c = <-ln.conn:
 	case <-ln.closed:
 		return nil, xerrors.Errorf("tailnet: %w", net.ErrClosed)
 	}
-	return c, nil
+	return c.Conn, nil
 }
 
 func (ln *listener) Addr() net.Addr { return addr{ln} }
@@ -1031,4 +1077,43 @@ func Logger(logger interface {
 		slog.Helper()
 		logger.Debug(context.Background(), fmt.Sprintf(format, args...))
 	})
+}
+
+// Preamble wire format:
+// - 1 byte: version
+// - 1 byte: length of the session ID
+// - length bytes: session ID
+const preambleVersion byte = 1
+
+func WritePreamble(w io.Writer, id string) error {
+	if !tracing.ValidSessionID(id) {
+		return xerrors.Errorf("invalid preamble session id: %s", id)
+	}
+	buf := make([]byte, 0, 2+len(id))
+	buf = append(buf, preambleVersion)
+	buf = append(buf, byte(len(id)))
+	buf = append(buf, id...)
+	_, err := w.Write(buf)
+	return err
+}
+
+func ReadPreamble(conn net.Conn) (string, error) {
+	header := make([]byte, 2)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return "", xerrors.Errorf("read preamble header: %w", err)
+	}
+	version := header[0]
+	if version != preambleVersion {
+		return "", xerrors.Errorf("invalid preamble version: got %d, expected %d",
+			version, preambleVersion)
+	}
+	idBytes := make([]byte, header[1])
+	if _, err := io.ReadFull(conn, idBytes); err != nil {
+		return "", xerrors.Errorf("read preamble session id: %w", err)
+	}
+	id := string(idBytes)
+	if !tracing.ValidSessionID(id) {
+		return "", xerrors.Errorf("invalid preamble session id %s", id)
+	}
+	return id, nil
 }

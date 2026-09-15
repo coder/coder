@@ -56,7 +56,9 @@ func TestServer_X11(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := s.Serve(ln)
+		err := s.Serve(&testTailnetListener{
+			listener: ln,
+		})
 		assert.Error(t, err) // Server is closed.
 	}()
 
@@ -161,7 +163,9 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 	require.NoError(t, err)
 
 	done := testutil.Go(t, func() {
-		err := s.Serve(ln)
+		err := s.Serve(&testTailnetListener{
+			listener: ln,
+		})
 		assert.Error(t, err)
 	})
 

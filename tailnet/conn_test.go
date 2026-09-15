@@ -3,6 +3,7 @@ package tailnet_test
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/netip"
 	"strings"
@@ -529,4 +530,95 @@ func TestSlogRemoteAddr(t *testing.T) {
 	logger := testutil.Logger(t)
 	var a net.Addr
 	logger.Info(context.Background(), "this should not segfault", slog.F("addr", a))
+}
+
+func TestPreamble(t *testing.T) {
+	t.Parallel()
+
+	sessionID := "0123456789abcdef0123456789abcdef"
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	go func() {
+		err := tailnet.WritePreamble(client, sessionID)
+		assert.NoError(t, err)
+		_, err = client.Write([]byte("ssh bytes"))
+		assert.NoError(t, err)
+	}()
+
+	got, err := tailnet.ReadPreamble(server)
+	require.NoError(t, err)
+	require.Equal(t, sessionID, got)
+
+	buf := make([]byte, len("ssh bytes"))
+	_, err = io.ReadFull(server, buf)
+	require.NoError(t, err)
+	require.Equal(t, []byte("ssh bytes"), buf)
+}
+
+func TestPreamble_WriteError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		id    string
+		error string
+	}{
+		{name: "EmptyID", id: "", error: "invalid preamble session id"},
+		{name: "BadID", id: "invalid", error: "invalid preamble session id"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, server := net.Pipe()
+			defer client.Close()
+			defer server.Close()
+
+			go func() {
+				_, _ = io.Copy(io.Discard, server)
+			}()
+
+			err := tailnet.WritePreamble(client, tc.id)
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.error)
+		})
+	}
+}
+
+func TestPreamble_ReadError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		bytes []byte
+		error string
+	}{
+		{name: "EOF", bytes: []byte("\x02"), error: "unexpected EOF"},
+		{name: "BadVersion", bytes: []byte("\x02\x05abcde"), error: "invalid preamble version"},
+		{name: "BadLength", bytes: []byte("\x01\x10abcde"), error: "read preamble session id"},
+		{name: "EmptyID", bytes: []byte("\x01\x00"), error: "invalid preamble session id"},
+		{name: "BadID", bytes: []byte("\x01\x05abcde"), error: "invalid preamble session id"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, server := net.Pipe()
+			defer client.Close()
+			defer server.Close()
+
+			go func() {
+				_, _ = client.Write(tc.bytes)
+				_ = client.Close()
+			}()
+
+			_, err := tailnet.ReadPreamble(server)
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.error)
+		})
+	}
 }
