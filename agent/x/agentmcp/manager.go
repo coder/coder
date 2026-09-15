@@ -911,15 +911,23 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 		cmd.Env = env
 		cmd.Dir = m.resolveWorkingDir()
 		return &mcp.CommandTransport{Command: cmd}, nil
-	case "http", "":
+	case "http", "streamable-http", "":
+		client, err := httpClientWithHeaders(cfg.URL, cfg.Headers)
+		if err != nil {
+			return nil, err
+		}
 		return &mcp.StreamableClientTransport{
 			Endpoint:   cfg.URL,
-			HTTPClient: httpClientWithHeaders(cfg.Headers),
+			HTTPClient: client,
 		}, nil
 	case "sse":
+		client, err := httpClientWithHeaders(cfg.URL, cfg.Headers)
+		if err != nil {
+			return nil, err
+		}
 		return &mcp.SSEClientTransport{
 			Endpoint:   cfg.URL,
-			HTTPClient: httpClientWithHeaders(cfg.Headers),
+			HTTPClient: client,
 		}, nil
 	default:
 		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
