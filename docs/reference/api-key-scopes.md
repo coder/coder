@@ -19,8 +19,8 @@ coder tokens create --scope coder:workspaces.access --scope template:read
 A token created without an explicit scope uses `coder:all`, which grants the full permissions of its owner.
 To create and revoke tokens, refer to [Sessions & API Tokens](../admin/users/sessions-tokens.md).
 
-This page lists every scope a token can request.
-Coder rejects any other scope name with a `400` response.
+This page lists every canonical scope a token can request and the deprecated names Coder accepts for backward compatibility.
+Coder rejects any scope name not listed on this page with a `400` response.
 
 ## Built-in scopes
 

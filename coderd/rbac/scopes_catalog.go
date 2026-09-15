@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"maps"
 	"sort"
 	"strings"
 )
@@ -119,11 +120,7 @@ func IsExternalScope(name ScopeName) bool {
 // ScopeAliases returns the backward-compatibility aliases and their canonical
 // scope names. The returned map is a copy and may be modified by the caller.
 func ScopeAliases() map[ScopeName]ScopeName {
-	aliases := make(map[ScopeName]ScopeName, len(scopeAliases))
-	for alias, canonical := range scopeAliases {
-		aliases[alias] = canonical
-	}
-	return aliases
+	return maps.Clone(scopeAliases)
 }
 
 // CanonicalScopeName maps the backward-compatibility aliases IsExternalScope
