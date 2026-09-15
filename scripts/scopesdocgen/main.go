@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -66,7 +67,7 @@ const lowLevelSection = `## Low-level scopes
 A low-level scope grants one action on one resource, written as ` + "`resource:action`" + `.
 Combine low-level scopes when no composite scope matches the task.
 
-The ` + "`resource:*`" + ` form grants every action listed for that resource.
+The ` + "`resource:*`" + ` form grants every action on that resource, including actions not listed on this page.
 
 `
 
@@ -126,7 +127,9 @@ func render(route docgenenv.Route) (string, error) {
 	}
 
 	_, _ = b.WriteString(deprecatedSection)
-	renderDeprecatedAliases(&b, rbac.ScopeAliases())
+	if err := renderDeprecatedAliases(&b, rbac.ScopeAliases()); err != nil {
+		return "", err
+	}
 
 	return strings.TrimRight(b.String(), "\n") + "\n", nil
 }
@@ -160,7 +163,11 @@ func renderBuiltin(b *strings.Builder, names []string) error {
 		if err != nil {
 			return xerrors.Errorf("expand builtin scope %q: %w", name, err)
 		}
-		_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", name, sentence(scope.DisplayName))
+		description := sentence(scope.DisplayName)
+		if err := validateTableCells(name, description); err != nil {
+			return xerrors.Errorf("render builtin scope %q: %w", name, err)
+		}
+		_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", name, description)
 	}
 	_, _ = b.WriteString("\n")
 	return nil
@@ -183,7 +190,11 @@ func renderComposite(b *strings.Builder, names []string) error {
 		for _, resource := range slices.Sorted(maps.Keys(byResource)) {
 			actions := byResource[resource]
 			slices.Sort(actions)
-			_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", resource, codeList(actions))
+			actionList := codeList(actions)
+			if err := validateTableCells(resource, actionList); err != nil {
+				return xerrors.Errorf("render composite scope %q: %w", name, err)
+			}
+			_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", resource, actionList)
 		}
 		_, _ = b.WriteString("\n")
 	}
@@ -212,6 +223,9 @@ func renderLowLevel(b *strings.Builder, names []string) error {
 			if err != nil {
 				return xerrors.Errorf("describe low-level scope %q: %w", scope, err)
 			}
+			if err := validateTableCells(scope, description); err != nil {
+				return xerrors.Errorf("render low-level scope %q: %w", scope, err)
+			}
 			_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", scope, description)
 		}
 		_, _ = b.WriteString("\n")
@@ -224,7 +238,7 @@ func renderLowLevel(b *strings.Builder, names []string) error {
 // described in terms of the resource it covers.
 func actionDescription(resource, action string) (string, error) {
 	if action == policy.WildcardSymbol {
-		return fmt.Sprintf("Every action listed for `%s`.", resource), nil
+		return fmt.Sprintf("Every action on `%s`, including actions not listed on this page.", resource), nil
 	}
 	def, ok := policy.RBACPermissions[resource]
 	if !ok {
@@ -238,8 +252,7 @@ func actionDescription(resource, action string) (string, error) {
 }
 
 // acronyms restores the capitalization of terms that the policy descriptions
-// spell in lower case. Only the first word of a description is rewritten,
-// because that is the word sentence capitalizes.
+// spell in lower case.
 var acronyms = map[string]string{
 	"api":  "API",
 	"cli":  "CLI",
@@ -250,6 +263,8 @@ var acronyms = map[string]string{
 	"url":  "URL",
 }
 
+var acronymPattern = regexp.MustCompile(`(?i)\b(` + strings.Join(slices.Sorted(maps.Keys(acronyms)), "|") + `)\b`)
+
 // sentence capitalizes the first word of a policy description and gives it
 // terminal punctuation, so table cells read as sentences.
 func sentence(s string) string {
@@ -258,12 +273,12 @@ func sentence(s string) string {
 		return s
 	}
 
+	s = acronymPattern.ReplaceAllStringFunc(s, func(word string) string {
+		return acronyms[strings.ToLower(word)]
+	})
+
 	first, rest, _ := strings.Cut(s, " ")
-	if upper, ok := acronyms[strings.ToLower(first)]; ok {
-		first = upper
-	} else {
-		first = stringutil.Capitalize(first)
-	}
+	first = stringutil.Capitalize(first)
 	s = strings.TrimSpace(first + " " + rest)
 
 	if !strings.HasSuffix(s, ".") {
@@ -289,9 +304,22 @@ func exampleCommand() string {
 	return "```shell\ncoder tokens create " + strings.Join(args, " ") + "\n```"
 }
 
-func renderDeprecatedAliases(b *strings.Builder, aliases map[rbac.ScopeName]rbac.ScopeName) {
+func renderDeprecatedAliases(b *strings.Builder, aliases map[rbac.ScopeName]rbac.ScopeName) error {
 	_, _ = b.WriteString("| Deprecated name | Canonical name |\n|-----------------|----------------|\n")
 	for _, alias := range slices.Sorted(maps.Keys(aliases)) {
+		if err := validateTableCells(string(alias), string(aliases[alias])); err != nil {
+			return xerrors.Errorf("render deprecated scope %q: %w", alias, err)
+		}
 		_, _ = fmt.Fprintf(b, "| `%s` | `%s` |\n", alias, aliases[alias])
 	}
+	return nil
+}
+
+func validateTableCells(values ...string) error {
+	for _, value := range values {
+		if strings.Contains(value, "|") {
+			return xerrors.Errorf("table cell contains a pipe: %q", value)
+		}
+	}
+	return nil
 }
