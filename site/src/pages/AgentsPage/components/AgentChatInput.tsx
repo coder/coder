@@ -219,6 +219,9 @@ export interface AttachedWorkspaceInfo {
 // label's natural width. Below the floor the +N overflow takes over.
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
+// Popovers that list tool badges (the +N overflow and the MCP group)
+// wrap the same pills the toolbar shows inline.
+const badgePopoverContentClasses = "flex w-auto max-w-64 flex-wrap gap-1 p-2";
 
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
@@ -251,9 +254,10 @@ const BadgeDismissButton: FC<{
 
 const MCPGroupBadge: FC<{
 	servers: readonly TypesGen.MCPServerConfig[];
-	mcpServerList: ComponentProps<typeof MCPServerToggleList>;
+	onRemoveMcp?: (serverId: string) => void;
+	isDisabled?: boolean;
 	className?: string;
-}> = ({ servers, mcpServerList, className }) => {
+}> = ({ servers, onRemoveMcp, isDisabled, className }) => {
 	const [open, setOpen] = useState(false);
 	const label = `${servers.length} MCPs`;
 
@@ -275,15 +279,19 @@ const MCPGroupBadge: FC<{
 					/>
 				</button>
 			</PopoverTrigger>
-			<PopoverContent side="top" align="start" className="w-56 p-1">
-				<MCPServerToggleList
-					{...mcpServerList}
-					servers={servers}
-					onDisconnect={(server) => {
-						setOpen(false);
-						mcpServerList.onDisconnect(server);
-					}}
-				/>
+			<PopoverContent
+				side="top"
+				align="start"
+				className={badgePopoverContentClasses}
+			>
+				{servers.map((server) => (
+					<ToolBadge
+						key={server.id}
+						badge={{ kind: "mcp", server }}
+						onRemoveMcp={onRemoveMcp}
+						isDisabled={isDisabled}
+					/>
+				))}
 			</PopoverContent>
 		</Popover>
 	);
@@ -291,7 +299,6 @@ const MCPGroupBadge: FC<{
 
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
-	mcpServerList: ComponentProps<typeof MCPServerToggleList>;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
@@ -301,7 +308,6 @@ const ToolBadge: FC<{
 	disableTooltip?: boolean;
 }> = ({
 	badge,
-	mcpServerList,
 	onRemoveWorkspace,
 	onRemoveMcp,
 	onRemovePlanning,
@@ -386,7 +392,8 @@ const ToolBadge: FC<{
 		return (
 			<MCPGroupBadge
 				servers={badge.servers}
-				mcpServerList={mcpServerList}
+				onRemoveMcp={onRemoveMcp}
+				isDisabled={isDisabled}
 				className={badgeCls}
 			/>
 		);
@@ -409,6 +416,7 @@ const ToolBadge: FC<{
 				<BadgeDismissButton
 					onClick={() => onRemoveMcp(badge.server.id)}
 					ariaLabel={`Remove ${badge.server.display_name}`}
+					isDisabled={isDisabled}
 				/>
 			)}
 		</span>
@@ -1526,7 +1534,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
-										mcpServerList={mcpServerListProps}
 										onRemovePlanning={
 											onPlanModeToggle ? handleDisablePlanMode : undefined
 										}
@@ -1556,7 +1563,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								<PopoverContent
 									side="top"
 									align="start"
-									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className={badgePopoverContentClasses}
 									onInteractOutside={(event) => {
 										// The workspace pill portals its menu outside
 										// this popover; dismissing would unmount the
@@ -1612,7 +1619,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}
-												mcpServerList={mcpServerListProps}
 												onRemovePlanning={
 													onPlanModeToggle ? handleDisablePlanMode : undefined
 												}
