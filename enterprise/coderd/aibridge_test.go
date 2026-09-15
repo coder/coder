@@ -4185,7 +4185,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
 				//nolint:gocritic // Owner role is irrelevant because the request is blocked before RBAC.
-				_, err := client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+				_, err := client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.OrganizationAISpendFilter{})
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
 				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
@@ -4464,7 +4464,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// the request fails instead of being shortened like the default period.
 		start := now.Add(-retention).Add(-time.Hour)
 
-		_, err := adminClient.ExportOrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{
+		_, err := adminClient.ExportOrganizationAISpend(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{
 			PeriodStart: start,
 			PeriodEnd:   now,
 		})
@@ -5303,7 +5303,7 @@ func TestExportOrganizationAISpendRoleAccess(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			body, err := tc.client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+			body, err := tc.client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.OrganizationAISpendFilter{})
 			if tc.wantStatus != 0 {
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
