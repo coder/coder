@@ -40,12 +40,6 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 			expectedRetryAfter: 5 * time.Second,
 		},
 		{
-			// Permanent: 502 api_error.
-			name:           "permanent_returns_502",
-			keyPoolErr:     &keypool.Error{Kind: keypool.ErrorKindPermanent},
-			expectedStatus: http.StatusBadGateway,
-		},
-		{
 			// Auth-failure exhaustion: 502, no Retry-After.
 			name:               "unauthorized_returns_502_without_retry_after",
 			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindUnauthorized, RetryAfter: 60 * time.Second},
