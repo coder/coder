@@ -3867,10 +3867,39 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	collected_at: "2023-03-06T19:12:55.211625Z",
 	next_update_at: "2023-03-06T19:20:55.211625Z",
 	session_count: {
-		vscode: 128,
+		vscode: 152,
 		jetbrains: 5,
 		ssh: 32,
 		reconnecting_pty: 15,
+		session_counts: {
+			cursor: 24,
+			vscode: 128,
+			jetbrains: 5,
+			ssh: 32,
+			reconnecting_pty: 15,
+		},
+		apps: {
+			cursor: {
+				display_name: "Cursor",
+				icon: "/icon/cursor.svg",
+			},
+			vscode: {
+				display_name: "VS Code",
+				icon: "/icon/code.svg",
+			},
+			jetbrains: {
+				display_name: "JetBrains",
+				icon: "/icon/jetbrains.svg",
+			},
+			ssh: {
+				display_name: "SSH",
+				icon: "/icon/terminal.svg",
+			},
+			reconnecting_pty: {
+				display_name: "Web Terminal",
+				icon: "/icon/terminal.svg",
+			},
+		},
 	},
 	workspaces: {
 		building: 15,

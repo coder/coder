@@ -154,9 +154,14 @@ func TestTelemetry(t *testing.T) {
 
 		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			ConnectionMedianLatencyMS: 1,
-			// Names from the same family, one of them an alias, so the fixed
-			// session count fields cover the app name folding.
-			SessionCounts: dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "cursor": 2, "zed": 3}),
+			// Preserve normalized per-app counts in telemetry while retaining the
+			// compatibility totals grouped by app family.
+			SessionCounts: dbgen.SessionCounts(t, map[string]int64{
+				"cursor":  2,
+				"vscode":  1,
+				"zed":     3,
+				"unknown": 4,
+			}),
 		})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
@@ -276,6 +281,12 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceBuilds, 1)
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
+		require.Equal(t, map[string]int64{
+			"cursor":  2,
+			"vscode":  1,
+			"zed":     3,
+			"unknown": 4,
+		}, snapshot.WorkspaceAgentStats[0].SessionCounts)
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountVSCode)
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountSSH)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
@@ -556,6 +567,58 @@ func TestTelemetry(t *testing.T) {
 		})
 		require.False(t, *deployment.SCIMEnabled)
 	})
+}
+
+func TestConvertWorkspaceAgentStatSessionCounts(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		sessionRaw json.RawMessage
+		want       map[string]int64
+		wantVSCode int64
+		wantSSH    int64
+		wantErr    bool
+	}{
+		{
+			name:       "counts",
+			sessionRaw: json.RawMessage(`{"cursor":2,"vscode":1,"unknown":4}`),
+			want: map[string]int64{
+				"cursor":  2,
+				"vscode":  1,
+				"unknown": 4,
+			},
+			wantVSCode: 3,
+		},
+		{name: "empty", sessionRaw: json.RawMessage(`{}`), want: map[string]int64{}},
+		{name: "absent", want: map[string]int64{}},
+		{name: "null", sessionRaw: json.RawMessage(`null`), want: map[string]int64{}},
+		{name: "malformed", sessionRaw: json.RawMessage(`{"cursor":`), wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stat, err := telemetry.ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow{
+				SessionCounts: tc.sessionRaw,
+			})
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, stat.SessionCounts)
+			require.Equal(t, tc.wantVSCode, stat.SessionCountVSCode)
+			require.Equal(t, tc.wantSSH, stat.SessionCountSSH)
+
+			wire, err := json.Marshal(stat)
+			require.NoError(t, err)
+			var wireStat map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(wire, &wireStat))
+			wantSessionCounts, err := json.Marshal(tc.want)
+			require.NoError(t, err)
+			require.JSONEq(t, string(wantSessionCounts), string(wireStat["session_counts"]))
+		})
+	}
 }
 
 // nolint:paralleltest

@@ -3,6 +3,7 @@ package metricscache
 import (
 	"context"
 	"database/sql"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -152,9 +153,17 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 
 	// The query sums sessions per app name, so a session reported under a name
 	// this version does not know about is counted here rather than dropped.
-	sessionCounts, err := codersdk.SessionCountsByFamilyJSON(agentStats.SessionCounts)
+	appCounts, err := codersdk.DecodeSessionCounts(agentStats.SessionCounts)
 	if err != nil {
-		return xerrors.Errorf("group deployment session counts by app family: %w", err)
+		return xerrors.Errorf("decode deployment session counts: %w", err)
+	}
+
+	sessionCounts := codersdk.SessionCountsByFamily(appCounts)
+	apps := make(map[string]codersdk.SessionCountApp)
+	for name := range appCounts {
+		if app, ok := codersdk.SessionCountAppMetadata(name); ok {
+			apps[name] = app
+		}
 	}
 
 	workspaceStats, err := c.database.GetDeploymentWorkspaceStats(ctx)
@@ -179,6 +188,8 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 			TxBytes: agentStats.WorkspaceTxBytes,
 		},
 		SessionCount: codersdk.SessionCountDeploymentStats{
+			SessionCounts:   appCounts,
+			Apps:            apps,
 			VSCode:          sessionCounts[codersdk.AppFamilyVSCode],
 			SSH:             sessionCounts[codersdk.AppFamilySSH],
 			JetBrains:       sessionCounts[codersdk.AppFamilyJetBrains],
@@ -287,5 +298,9 @@ func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
 	if deploymentStats == nil {
 		return codersdk.DeploymentStats{}, false
 	}
-	return *deploymentStats, true
+	// Keep caller mutations separate from the atomically published snapshot.
+	stats := *deploymentStats
+	stats.SessionCount.SessionCounts = maps.Clone(stats.SessionCount.SessionCounts)
+	stats.SessionCount.Apps = maps.Clone(stats.SessionCount.Apps)
+	return stats, true
 }

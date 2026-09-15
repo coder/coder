@@ -2,12 +2,16 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -52,13 +56,29 @@ func TestDeploymentValues(t *testing.T) {
 
 func TestDeploymentStats(t *testing.T) {
 	t.Parallel()
-	t.Log("This test is time-sensitive. It may fail if the deployment is not ready in time.")
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	client := coderdtest.New(t, &coderdtest.Options{})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		ConnectionMedianLatencyMS: 10,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "cursor": 2, "future_ide": 3}),
+	})
+	client := coderdtest.New(t, &coderdtest.Options{Database: db})
 	_ = coderdtest.CreateFirstUser(t, client)
-	assert.True(t, testutil.Eventually(ctx, t, func(tctx context.Context) bool {
+	require.True(t, testutil.Eventually(ctx, t, func(tctx context.Context) bool {
 		_, err := client.DeploymentStats(tctx)
 		return err == nil
 	}, testutil.IntervalMedium), "failed to get deployment stats in time")
+	resp, err := client.Request(ctx, http.MethodGet, "/api/v2/deployment/stats", nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body struct {
+		SessionCount json.RawMessage `json:"session_count"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.JSONEq(t, `{
+  "session_counts":{"vscode":1,"cursor":2,"future_ide":3},
+  "apps":{"vscode":{"display_name":"VS Code","icon":"/icon/code.svg"},"cursor":{"display_name":"Cursor","icon":"/icon/cursor.svg"}},
+  "vscode":3,"ssh":0,"jetbrains":0,"reconnecting_pty":0
+ }`, string(body.SessionCount))
 }

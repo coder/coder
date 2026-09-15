@@ -725,7 +725,7 @@ func TestAgentStats(t *testing.T) {
 	// and it doesn't depend on the real time.
 	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond, agentmetrics.LabelAll, false)
+	}), registry, db, time.Now().Add(-time.Minute), time.Hour, agentmetrics.LabelAll, false)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -737,7 +737,7 @@ func TestAgentStats(t *testing.T) {
 	require.NoError(t, err)
 
 	collected := map[string]int{}
-	var executionSeconds bool
+	var executionSeconds, perAppCounts bool
 	assert.Eventually(t, func() bool {
 		metrics, err := registry.Gather()
 		assert.NoError(t, err)
@@ -750,6 +750,19 @@ func TestAgentStats(t *testing.T) {
 			switch metric.GetName() {
 			case "coderd_prometheusmetrics_agentstats_execution_seconds":
 				executionSeconds = true
+			case "coderd_agentstats_session_count":
+				// Old-agent reports also populate the dynamic gauge.
+				perAppCounts = len(metric.Metric) == 12
+				for _, sample := range metric.Metric {
+					labels := map[string]string{}
+					for _, label := range sample.Label {
+						labels[label.GetName()] = label.GetValue()
+					}
+					key := labels["username"] + ":" + labels["workspace_name"] + ":" + labels["agent_name"] + ":coderd_agentstats_session_count_" + labels["app_name"]
+					if labels["family"] != labels["app_name"] || int(sample.Gauge.GetValue()) != golden[key] {
+						perAppCounts = false
+					}
+				}
 			case "coderd_agentstats_connection_count",
 				"coderd_agentstats_connection_median_latency_seconds",
 				"coderd_agentstats_rx_bytes",
@@ -766,7 +779,7 @@ func TestAgentStats(t *testing.T) {
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
-		return executionSeconds && reflect.DeepEqual(golden, collected)
+		return executionSeconds && perAppCounts && reflect.DeepEqual(golden, collected)
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Keep this assertion, so that "go test" can print differences instead of "Condition never satisfied"

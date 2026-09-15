@@ -2,6 +2,8 @@ package codersdk_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -310,5 +312,62 @@ func TestDecodeAppFamilyMap(t *testing.T) {
 			require.Equal(t, map[codersdk.AppFamilyName]int64{}, got)
 			require.Zero(t, got[codersdk.AppFamilySSH])
 		})
+	}
+}
+
+func TestDecodeSessionCounts(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		raw     json.RawMessage
+		want    map[string]int64
+		wantErr bool
+	}{
+		{"Counts", json.RawMessage(`{"cursor":2,"vscode":1,"future_ide":3}`), map[string]int64{"cursor": 2, "vscode": 1, "future_ide": 3}, false},
+		{"Absent", nil, map[string]int64{}, false},
+		{"Null", json.RawMessage(`null`), map[string]int64{}, false},
+		{"Empty", json.RawMessage(`{}`), map[string]int64{}, false},
+		{"Malformed", json.RawMessage(`{"cursor":`), nil, true},
+		{"Array", json.RawMessage(`[]`), nil, true},
+		{"StringCount", json.RawMessage(`{"cursor":"2"}`), nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := codersdk.DecodeSessionCounts(tc.raw)
+			if tc.wantErr {
+				require.Error(t, err)
+				require.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestSessionCountAppMetadata(t *testing.T) {
+	t.Parallel()
+	cursor, ok := codersdk.SessionCountAppMetadata("cursor")
+	require.True(t, ok)
+	require.Equal(t, codersdk.SessionCountApp{DisplayName: "Cursor", Icon: "/icon/cursor.svg"}, cursor)
+	vscode, ok := codersdk.SessionCountAppMetadata("vscode")
+	require.True(t, ok)
+	require.Equal(t, "VS Code", vscode.DisplayName)
+	for _, unknown := range []string{"future_ide", "../../cursor", "https://example.com/icon.svg"} {
+		metadata, ok := codersdk.SessionCountAppMetadata(unknown)
+		require.False(t, ok)
+		require.Empty(t, metadata)
+	}
+	for name := range codersdk.SessionCountAppFamilies() {
+		metadata, ok := codersdk.SessionCountAppMetadata(name)
+		require.True(t, ok, name)
+		require.NotEmpty(t, metadata.DisplayName, name)
+		if metadata.Icon == "" {
+			continue
+		}
+		require.True(t, strings.HasPrefix(metadata.Icon, "/icon/"), name)
+		require.Equal(t, filepath.Clean(metadata.Icon), metadata.Icon)
+		_, err := os.Stat(filepath.Join("..", "site", "static", metadata.Icon))
+		require.NoError(t, err, "icon for %s must be bundled", name)
 	}
 }

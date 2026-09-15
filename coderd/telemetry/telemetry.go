@@ -1155,10 +1155,11 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 // sessions per app name, so a session reported under a name this version does
 // not know about is counted here rather than dropped.
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
-	sessionCounts, err := codersdk.SessionCountsByFamilyJSON(stat.SessionCounts)
+	sessionCounts, err := codersdk.DecodeSessionCounts(stat.SessionCounts)
 	if err != nil {
 		return WorkspaceAgentStat{}, xerrors.Errorf("group session counts by app family: %w", err)
 	}
+	familySessionCounts := codersdk.SessionCountsByFamily(sessionCounts)
 	return WorkspaceAgentStat{
 		UserID:                      stat.UserID,
 		TemplateID:                  stat.TemplateID,
@@ -1169,10 +1170,11 @@ func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (Workspa
 		ConnectionLatency95:         stat.WorkspaceConnectionLatency95,
 		RxBytes:                     stat.WorkspaceRxBytes,
 		TxBytes:                     stat.WorkspaceTxBytes,
-		SessionCountVSCode:          sessionCounts[codersdk.AppFamilyVSCode],
-		SessionCountJetBrains:       sessionCounts[codersdk.AppFamilyJetBrains],
-		SessionCountReconnectingPTY: sessionCounts[codersdk.AppFamilyReconnectingPTY],
-		SessionCountSSH:             sessionCounts[codersdk.AppFamilySSH],
+		SessionCounts:               sessionCounts,
+		SessionCountVSCode:          familySessionCounts[codersdk.AppFamilyVSCode],
+		SessionCountJetBrains:       familySessionCounts[codersdk.AppFamilyJetBrains],
+		SessionCountReconnectingPTY: familySessionCounts[codersdk.AppFamilyReconnectingPTY],
+		SessionCountSSH:             familySessionCounts[codersdk.AppFamilySSH],
 	}, nil
 }
 
@@ -1647,19 +1649,20 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceAgentStat struct {
-	UserID                      uuid.UUID `json:"user_id"`
-	TemplateID                  uuid.UUID `json:"template_id"`
-	WorkspaceID                 uuid.UUID `json:"workspace_id"`
-	AggregatedFrom              time.Time `json:"aggregated_from"`
-	AgentID                     uuid.UUID `json:"agent_id"`
-	RxBytes                     int64     `json:"rx_bytes"`
-	TxBytes                     int64     `json:"tx_bytes"`
-	ConnectionLatency50         float64   `json:"connection_latency_50"`
-	ConnectionLatency95         float64   `json:"connection_latency_95"`
-	SessionCountVSCode          int64     `json:"session_count_vscode"`
-	SessionCountJetBrains       int64     `json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64     `json:"session_count_reconnecting_pty"`
-	SessionCountSSH             int64     `json:"session_count_ssh"`
+	UserID                      uuid.UUID        `json:"user_id"`
+	TemplateID                  uuid.UUID        `json:"template_id"`
+	WorkspaceID                 uuid.UUID        `json:"workspace_id"`
+	AggregatedFrom              time.Time        `json:"aggregated_from"`
+	AgentID                     uuid.UUID        `json:"agent_id"`
+	RxBytes                     int64            `json:"rx_bytes"`
+	TxBytes                     int64            `json:"tx_bytes"`
+	ConnectionLatency50         float64          `json:"connection_latency_50"`
+	ConnectionLatency95         float64          `json:"connection_latency_95"`
+	SessionCounts               map[string]int64 `json:"session_counts"`
+	SessionCountVSCode          int64            `json:"session_count_vscode"`
+	SessionCountJetBrains       int64            `json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64            `json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64            `json:"session_count_ssh"`
 }
 
 type WorkspaceAgentMemoryResourceMonitor struct {
