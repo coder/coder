@@ -211,6 +211,65 @@
 				}
 			}
 		},
+		"/api/experimental/organizations/{organization}/ai/spend/export/focus": {
+			"get": {
+				"description": "Returns AI Gateway usage and cost for the organization as a FOCUS v1.2-shaped CSV or Parquet document, rolled up into hourly fixed-width time buckets by default, or at raw, unrolled per-response, per-token-type granularity, or a different rollup width, when the granularity query parameter is set.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC, exactly as for the existing /export endpoint (see its own description for defaults and validation).\nThe optional format query parameter selects \"csv\" (default) or \"parquet\".\nThe optional granularity query parameter, in seconds, selects the row grain: 0 requests raw, unrolled per-response grain; a positive value (default 3600, i.e. hourly) rolls responses up into fixed-width UTC time buckets of that many seconds, up to a maximum of 86400 (one day).\nThis endpoint is experimental: it lives under /api/experimental and is gated behind the \"focus-export\" experiment (CODER_EXPERIMENTS=focus-export), off by default. Its FOCUS column set and semantics may still change.\nRequires organization-level administrator permissions.",
+				"produces": ["text/csv", "application/vnd.apache.parquet"],
+				"tags": ["Enterprise"],
+				"summary": "Export organization AI spend in FOCUS format",
+				"operationId": "export-organization-ai-focus",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Inclusive lower bound (RFC3339)",
+						"name": "period_start",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Exclusive upper bound (RFC3339)",
+						"name": "period_end",
+						"in": "query"
+					},
+					{
+						"enum": ["csv", "parquet"],
+						"type": "string",
+						"description": "Export format",
+						"name": "format",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Rollup bucket width in seconds. 0 for raw, unrolled per-response grain. Defaults to 3600 (hourly)",
+						"name": "granularity",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/users/email": {
 			"put": {
 				"consumes": ["application/json"],
