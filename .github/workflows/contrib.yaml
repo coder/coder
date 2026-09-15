@@ -13,7 +13,6 @@ on:
       - unlabeled
       - reopened
       - edited
-      # For jobs that don't run on draft PRs.
       - ready_for_review
 
 permissions:
@@ -225,8 +224,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    # Skip tagging for draft PRs.
-    if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'pull_request_target' }}
     steps:
       - name: release-labels
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -261,12 +259,23 @@ jobs:
               repo: context.repo.repo,
             }
 
+            // Reconcile both directions here as a checkpoint. The
+            // concurrency group cancels queued runs, so individual
+            // labeled or edited events can be lost.
             if (action === "opened" || action === "reopened" || action === "ready_for_review") {
               if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
                 console.log('Add "%s" label', releaseLabels.breaking)
                 await github.rest.issues.addLabels({
                   ...params,
                   labels: [releaseLabels.breaking],
+                })
+              }
+
+              if (!isBreakingTitle && labels.includes(releaseLabels.breaking)) {
+                console.log('Rename title from "%s" to "%s"', title, toBreaking(title))
+                await github.rest.issues.update({
+                  ...params,
+                  title: toBreaking(title),
                 })
               }
             }
