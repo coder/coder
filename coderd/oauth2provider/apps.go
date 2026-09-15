@@ -1,6 +1,7 @@
 package oauth2provider
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -77,6 +78,25 @@ func scopeAllowlist(raw string) sql.NullString {
 	}
 }
 
+// writeValidScopeAllowlist reports whether a request's scope list may be
+// stored, writing a validation error when it may not. The check is explicit
+// rather than a validate tag so the response names the limit instead of
+// echoing the oversized value back.
+func writeValidScopeAllowlist(ctx context.Context, rw http.ResponseWriter, raw string) bool {
+	err := codersdk.ValidateOAuth2ScopeList(raw)
+	if err == nil {
+		return true
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Invalid scope.",
+		Validations: []codersdk.ValidationError{{
+			Field:  "scope",
+			Detail: err.Error(),
+		}},
+	})
+	return false
+}
+
 // CreateApp returns an http.HandlerFunc that handles POST /oauth2-provider/apps
 func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -92,6 +112,9 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		defer commitAudit()
 		var req codersdk.PostOAuth2ProviderAppRequest
 		if !httpapi.Read(ctx, rw, r, &req) {
+			return
+		}
+		if !writeValidScopeAllowlist(ctx, rw, req.Scope) {
 			return
 		}
 		app, err := db.InsertOAuth2ProviderApp(ctx, database.InsertOAuth2ProviderAppParams{
@@ -155,6 +178,9 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		}
 		scope := app.Scope // Keep existing value
 		if req.Scope != nil {
+			if !writeValidScopeAllowlist(ctx, rw, *req.Scope) {
+				return
+			}
 			scope = scopeAllowlist(*req.Scope)
 		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{

@@ -3,6 +3,7 @@ package oauth2provider_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +49,22 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				req: codersdk.PostOAuth2ProviderAppRequest{
 					Name:        "too loooooooooooooooooooooooooong",
 					CallbackURL: "http://localhost:3000",
+				},
+			},
+			{
+				name: "ScopeTooManyNames",
+				req: codersdk.PostOAuth2ProviderAppRequest{
+					Name:        "foo",
+					CallbackURL: "http://localhost:3000",
+					Scope:       strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames+1),
+				},
+			},
+			{
+				name: "ScopeTooLong",
+				req: codersdk.PostOAuth2ProviderAppRequest{
+					Name:        "foo",
+					CallbackURL: "http://localhost:3000",
+					Scope:       strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes+1),
 				},
 			},
 			{
@@ -470,6 +487,20 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 			Name:        app.Name,
 			CallbackURL: app.CallbackURL,
 		})
+		require.NoError(t, err)
+		require.Equal(t, "coder:templates.author", app.Scope)
+
+		// An oversized scope on update is rejected and leaves the allowlist
+		// untouched.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+			Scope:       ptr.Ref(strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames+1)),
+		})
+		require.ErrorContains(t, err, "at most 100 names")
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.OAuth2ProviderApp(ctx, app.ID)
 		require.NoError(t, err)
 		require.Equal(t, "coder:templates.author", app.Scope)
 

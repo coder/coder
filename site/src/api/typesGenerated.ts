@@ -6789,6 +6789,20 @@ export const OAuth2RevocationTokenTypeHints: OAuth2RevocationTokenTypeHint[] = [
 	"refresh_token",
 ];
 
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2ScopeListMaxBytes bounds the length of an app's stored scope list.
+ * The full public catalog fits in well under this.
+ */
+export const OAuth2ScopeListMaxBytes = 4096;
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2ScopeListMaxNames bounds how many space-separated names an app's
+ * scope list may hold. The public catalog is about half this size.
+ */
+export const OAuth2ScopeListMaxNames = 100;
+
 // From codersdk/client.go
 /**
  * OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
