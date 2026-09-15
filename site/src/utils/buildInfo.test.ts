@@ -11,6 +11,7 @@ const baseBuildInfo: BuildInfoResponse = {
 	upgrade_message: "",
 	deployment_id: "test",
 	telemetry: false,
+	oauth2_provider: false,
 };
 
 describe("getPrereleaseFlag", () => {
