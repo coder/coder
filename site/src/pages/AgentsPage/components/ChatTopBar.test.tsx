@@ -151,4 +151,27 @@ describe("ChatTopBar PR chip", () => {
 			screen.queryByLabelText("View pull requests"),
 		).not.toBeInTheDocument();
 	});
+
+	it("ignores branch rows, which carry a tree URL rather than a PR", () => {
+		const primary = prStatus();
+		const branchOnly = prStatus({
+			url: "https://github.com/coder/coder/tree/feat/branch-only",
+			pull_request_title: "",
+			git_branch: "feat/branch-only",
+		});
+		renderTopBar({
+			...MockChat,
+			diff_statuses: [primary, branchOnly],
+		});
+
+		// The branch row must not turn the single PR into a dropdown
+		// with a branch link in it.
+		const link = screen.getByRole("link", {
+			name: /fix: resolve race condition/,
+		});
+		expect(link).toBeInTheDocument();
+		expect(
+			screen.queryByLabelText("View pull requests"),
+		).not.toBeInTheDocument();
+	});
 });

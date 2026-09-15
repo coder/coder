@@ -70,6 +70,8 @@ interface GitPanelProps {
 		prNumber: number;
 		chatId: string;
 	};
+	/** The chat whose remote diff is displayed. */
+	chatId: string;
 	/** Repository data from git watcher. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
@@ -117,6 +119,7 @@ type ViewItem =
 
 export const GitPanel: FC<GitPanelProps> = ({
 	prTab,
+	chatId,
 	repositories,
 	onRefresh,
 	onCommit,
@@ -126,16 +129,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	chatInputRef,
 	everDirty,
 }) => {
-	const hasRemoteDiff = Boolean(
-		remoteDiffStats?.some(
-			(s) =>
-				(s.changed_files ?? 0) > 0 ||
-				(s.additions ?? 0) > 0 ||
-				(s.deletions ?? 0) > 0,
-		),
-	);
-
-	const showRemoteTab = Boolean(prTab) || hasRemoteDiff;
+	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0 || Boolean(prTab);
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 	const isWaitingForGitStatus = !hasGitContext && isGitStatusLoading;
 
@@ -459,7 +453,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 			<div className="min-h-0 flex-1">
 				{effectiveView.type === "remote" ? (
 					<RemoteContent
-						prTab={prTab}
+						chatId={chatId}
 						hasGitContext={hasGitContext}
 						isGitStatusLoading={isWaitingForGitStatus}
 						isExpanded={isExpanded}
@@ -621,7 +615,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 // ---------------------------------------------------------------
 
 const RemoteContent: FC<{
-	prTab?: { prNumber: number; chatId: string };
+	chatId?: string;
 	hasGitContext: boolean;
 	isGitStatusLoading: boolean;
 	isExpanded?: boolean;
@@ -630,7 +624,7 @@ const RemoteContent: FC<{
 	diffStatus?: ChatDiffStatus;
 	remoteRef?: TypesGen.DiffStatusRef;
 }> = ({
-	prTab,
+	chatId,
 	hasGitContext,
 	isGitStatusLoading,
 	isExpanded,
@@ -639,7 +633,7 @@ const RemoteContent: FC<{
 	diffStatus,
 	remoteRef,
 }) => {
-	if (!prTab) {
+	if (!chatId) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
 				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
@@ -669,7 +663,7 @@ const RemoteContent: FC<{
 
 	return (
 		<RemoteDiffPanel
-			chatId={prTab.chatId}
+			chatId={chatId}
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}

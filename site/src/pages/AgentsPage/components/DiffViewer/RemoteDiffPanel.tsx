@@ -79,7 +79,10 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	const diffContentsQuery = useQuery({
 		...chatDiffContents(chatId, remoteRef),
-		enabled: Boolean(diffStatus?.url),
+		// A ref without a PR URL still has a fetchable branch diff.
+		enabled:
+			Boolean(diffStatus?.url) ||
+			Boolean(remoteRef?.remote_origin && remoteRef?.git_branch),
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;

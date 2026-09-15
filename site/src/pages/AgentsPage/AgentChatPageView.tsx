@@ -689,6 +689,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						prTab={
 							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
 						}
+						chatId={agentId}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
 						isGitStatusLoading={

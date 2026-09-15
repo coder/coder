@@ -154,9 +154,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 
 	// A chat tracks one status row per ref, ordered newest first.
-	// Rows without an open PR have no URL, so only rows with a link
-	// become chips. The first linked row is the primary.
-	const prStatuses = (chat?.diff_statuses ?? []).filter((status) => status.url);
+	// Only rows that point to a pull request become chips; branch
+	// rows carry a /tree URL instead of a PR URL. The first row is
+	// the primary.
+	const prStatuses = (chat?.diff_statuses ?? []).filter((status) =>
+		Boolean(status.pr_number ?? parsePullRequestUrl(status.url)),
+	);
 	const primaryStatus = prStatuses[0];
 	const hasMultiplePRs = prStatuses.length > 1;
 

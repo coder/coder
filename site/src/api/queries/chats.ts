@@ -530,13 +530,14 @@ const diffStatusesEqual = (
 	if (!a || !b || a.length !== b.length) {
 		return false;
 	}
-	const bByKey = new Map(b.map((s) => [diffStatusRefKey(s), s]));
-	return a.every((s) => diffStatusEqual(s, bByKey.get(diffStatusRefKey(s))));
+	// Order is part of the contract: the first row is the primary.
+	return a.every((s, i) => diffStatusEqual(s, b[i]));
 };
 
 const mergeDiffStatuses = (
 	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
 	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
+	primary?: TypesGen.ChatDiffStatus,
 ): TypesGen.ChatDiffStatus[] | undefined => {
 	if (!incoming || incoming.length === 0) {
 		return cached ? [...cached] : undefined;
@@ -548,7 +549,20 @@ const mergeDiffStatuses = (
 	for (const s of incoming) {
 		merged.set(diffStatusRefKey(s), s);
 	}
-	return [...merged.values()];
+	// The server orders the list: the first row is the primary. Keep
+	// the server order rather than the cache order.
+	const statuses = [...merged.values()];
+	const primaryKey = primary ? diffStatusRefKey(primary) : undefined;
+	if (primaryKey) {
+		const primaryIndex = statuses.findIndex(
+			(s) => diffStatusRefKey(s) === primaryKey,
+		);
+		if (primaryIndex > 0) {
+			const [row] = statuses.splice(primaryIndex, 1);
+			statuses.unshift(row);
+		}
+	}
+	return statuses;
 };
 
 /**
@@ -577,13 +591,15 @@ export const mergeWatchedChatSummary = (
 	// apply title_change payloads even when the chat summary timestamp is older.
 	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
 	// A diff_status_change carries the changed ref alone or the full
-	// list. Merge by ref key so other refs stay cached.
+	// list. Merge by ref key so other refs stay cached, and adopt the
+	// embedded primary so the first row keeps the server order.
 	const nextDiffStatuses = isDiffStatusEvent
 		? mergeDiffStatuses(
 				cachedChat.diff_statuses,
 				changedDiffStatus?.status
 					? [changedDiffStatus.status]
 					: watchedChat.diff_statuses,
+				watchedChat.diff_status,
 			)
 		: cachedChat.diff_statuses;
 	// Context drift is tracked outside chats.updated_at (it is driven by
