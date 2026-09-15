@@ -223,12 +223,11 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 				Role:          database.ChatMessageRoleUser,
 			})
-			_, err = db.InsertChatQueuedMessage(t.Context(), database.InsertChatQueuedMessageParams{
+			dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 				ChatID:        chat.ID,
 				Content:       json.RawMessage(`[]`),
 				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			})
-			require.NoError(t, err)
 
 			before, err := db.GetChatByID(t.Context(), chat.ID)
 			require.NoError(t, err)

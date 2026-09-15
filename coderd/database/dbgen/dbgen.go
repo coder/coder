@@ -115,6 +115,8 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	return chat
 }
 
+// ChatMessage inserts one chat message. It allocates a snapshot for the chat
+// in the same transaction, as every chat history write must.
 func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
 	t.Helper()
 
@@ -124,28 +126,61 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
 
-	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
-		ChatID:              seed.ChatID,
-		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
-		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
-		Role:                []database.ChatMessageRole{role},
-		Content:             []string{content},
-		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
-		Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
-		InputTokens:         []int64{seed.InputTokens.Int64},
-		OutputTokens:        []int64{seed.OutputTokens.Int64},
-		TotalTokens:         []int64{seed.TotalTokens.Int64},
-		ReasoningTokens:     []int64{seed.ReasoningTokens.Int64},
-		CacheCreationTokens: []int64{seed.CacheCreationTokens.Int64},
-		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
-		ContextLimit:        []int64{seed.ContextLimit.Int64},
-		Compressed:          []bool{seed.Compressed},
-		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
-	})
+	var msgs []database.InsertChatMessagesRow
+	err := db.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(genCtx, seed.ChatID); err != nil {
+			return xerrors.Errorf("allocate chat snapshot: %w", err)
+		}
+		var err error
+		msgs, err = tx.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
+			ChatID:              seed.ChatID,
+			CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
+			ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
+			ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
+			Role:                []database.ChatMessageRole{role},
+			Content:             []string{content},
+			ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
+			Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
+			InputTokens:         []int64{seed.InputTokens.Int64},
+			OutputTokens:        []int64{seed.OutputTokens.Int64},
+			TotalTokens:         []int64{seed.TotalTokens.Int64},
+			ReasoningTokens:     []int64{seed.ReasoningTokens.Int64},
+			CacheCreationTokens: []int64{seed.CacheCreationTokens.Int64},
+			CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
+			ContextLimit:        []int64{seed.ContextLimit.Int64},
+			Compressed:          []bool{seed.Compressed},
+			RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		})
+		return err
+	}, nil)
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
 	return database.ChatMessage(msgs[0])
+}
+
+// ChatQueuedMessage inserts one queued chat message. It allocates a snapshot
+// for the chat in the same transaction, as every chat queue write must.
+// CreatedBy defaults to the chat owner.
+func ChatQueuedMessage(t testing.TB, db database.Store, seed database.ChatQueuedMessage) database.ChatQueuedMessage {
+	t.Helper()
+
+	var queued database.ChatQueuedMessage
+	err := db.InTx(func(tx database.Store) error {
+		chat, err := tx.LockChatAndBumpSnapshotVersion(genCtx, seed.ChatID)
+		if err != nil {
+			return xerrors.Errorf("allocate chat snapshot: %w", err)
+		}
+		queued, err = tx.InsertChatQueuedMessageWithCreator(genCtx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:          seed.ChatID,
+			Content:         takeFirstSlice(seed.Content, json.RawMessage("[]")),
+			ModelConfigID:   seed.ModelConfigID,
+			ReasoningEffort: seed.ReasoningEffort,
+			CreatedBy:       takeFirst(seed.CreatedBy, chat.OwnerID),
+		})
+		return err
+	}, nil)
+	require.NoError(t, err, "insert chat queued message")
+	return queued
 }
 
 const (

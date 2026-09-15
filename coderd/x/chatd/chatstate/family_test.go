@@ -131,12 +131,10 @@ func TestSetFamilyArchivedRejectsInvalidStateEvenWhenAlreadyDesired(t *testing.T
 		codersdk.ChatMessageText("queued"),
 	})
 	require.NoError(t, err)
-	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:        child.ID,
-		Content:       rawContent.RawMessage,
-		ModelConfigID: uuid.NullUUID{},
+	dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
+		ChatID:  child.ID,
+		Content: rawContent.RawMessage,
 	})
-	require.NoError(t, err)
 
 	pub := newRecordingPubsub()
 	_, err = chatstate.SetFamilyArchived(ctx, db, pub, chatstate.SetFamilyArchivedInput{
