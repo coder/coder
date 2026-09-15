@@ -71,9 +71,14 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		fetched, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPaused, fetched.Status, "paused is visible on the chat itself")
-		// Beginning an edit on another row while paused is refused.
+		// Beginning an edit on another row while paused is refused, and
+		// so is archiving, with a message that names the paused state.
 		err = client.EditChatQueuedMessage(ctx, chat.ID, next.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)})
 		requireSDKError(t, err, http.StatusConflict)
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: boolPtr(true)})
+		require.Equal(t,
+			"Cannot archive a paused chat. Finish editing, send, or remove the queued message under edit first.",
+			requireSDKError(t, err, http.StatusConflict).Message)
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(false)}))
 		listed, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
