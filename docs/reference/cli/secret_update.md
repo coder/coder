@@ -52,7 +52,7 @@ Name of the workspace environment variable that this secret will set. Pass an em
 |------|---------------------|
 | Type | <code>string</code> |
 
-Workspace file path where this secret will be written. Must start with ~/ or /. Pass an empty string to clear it.
+Workspace file path for this secret. Must start with ~/ or /. Availability depends on deployment policy. Pass an empty string to clear it.
 
 ### --enabled
 
@@ -60,4 +60,4 @@ Workspace file path where this secret will be written. Must start with ~/ or /. 
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Whether the secret is injected into workspaces. An enabled secret must keep at least one of --env or --file; pass --enabled=false to stop injecting it without deleting it.
+Whether the secret is eligible for injection. Enabled secrets need an allowed target; use false to stop injecting without deleting.

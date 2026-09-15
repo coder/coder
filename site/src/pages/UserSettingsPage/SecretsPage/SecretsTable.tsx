@@ -231,31 +231,41 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 	const { canEnable } = getSecretInjectionSummary(secret, filePathEnabled);
 	const cannotEnable = !secret.enabled && !canEnable;
 
+	if (!cannotEnable) {
+		return (
+			<Switch
+				aria-label={`Toggle secret ${secret.name}`}
+				checked={secret.enabled}
+				disabled={isPending}
+				onCheckedChange={(checked) => onToggle(secret, checked)}
+			/>
+		);
+	}
+
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				{/*
-				 * Wrap the disabled Switch in a focusable span so the
-				 * tooltip can be triggered by keyboard and pointer.
-				 * biome-ignore lint/a11y/noNoninteractiveTabindex: needed to
-				 * surface the tooltip on a disabled control via keyboard focus.
-				 */}
-				<span tabIndex={0} className="inline-flex">
+				<span
+					role="switch"
+					aria-label={`Toggle secret ${secret.name}`}
+					aria-checked={secret.enabled}
+					aria-disabled="true"
+					tabIndex={0}
+					className="inline-flex"
+				>
 					<Switch
-						aria-label={`Toggle secret ${secret.name}`}
+						aria-hidden="true"
 						checked={secret.enabled}
-						disabled={isPending || cannotEnable}
-						onCheckedChange={(checked) => onToggle(secret, checked)}
+						disabled
+						tabIndex={-1}
 					/>
 				</span>
 			</TooltipTrigger>
-			{cannotEnable && (
-				<TooltipContent side="top">
-					{filePathEnabled
-						? "Add an environment variable or file path before enabling this secret."
-						: "Your administrator disabled file path delivery. Add an environment variable to enable this secret."}
-				</TooltipContent>
-			)}
+			<TooltipContent side="top">
+				{filePathEnabled
+					? "Add an environment variable or file path before enabling this secret."
+					: "Your administrator disabled file path delivery. Add an environment variable to enable this secret."}
+			</TooltipContent>
 		</Tooltip>
 	);
 };

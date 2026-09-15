@@ -930,7 +930,7 @@ export const ToggleEnabledDisabledForTargetlessSecret: Story = {
 			name: `Toggle secret ${secret.name}`,
 		});
 		await expect(toggle).not.toBeChecked();
-		await expect(toggle).toBeDisabled();
+		await expect(toggle).toHaveAttribute("aria-disabled", "true");
 	},
 };
 
@@ -948,6 +948,8 @@ export const FilePathDisabledStatusAndCreate: Story = {
 		onCreateSecret: fn(async (request) => createSecretFromRequest(request)),
 	},
 	play: async ({ canvasElement, args }) => {
+		const onCreateSecret = args.onCreateSecret as CreateSecretMock;
+		onCreateSecret.mockClear();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -985,8 +987,8 @@ export const FilePathDisabledStatusAndCreate: Story = {
 		await user.type(dialog.getByLabelText("Value"), PLACEHOLDER_INPUT);
 		await user.click(dialog.getByRole("button", { name: "Save" }));
 
-		await waitFor(() => expect(args.onCreateSecret).toHaveBeenCalledTimes(1));
-		expect(args.onCreateSecret).toHaveBeenCalledWith({
+		await waitFor(() => expect(onCreateSecret).toHaveBeenCalledTimes(1));
+		expect(onCreateSecret).toHaveBeenCalledWith({
 			name: "example-secret",
 			env_name: "EXAMPLE_SECRET",
 			value: PLACEHOLDER_INPUT,
@@ -1047,6 +1049,11 @@ export const FilePathDisabledBlockedEnableThenAddEnv: Story = {
 		onUpdateSecret: fn(async () => MockDisabledFileOnlyUserSecret),
 	},
 	play: async ({ canvasElement, args }) => {
+		const onToggleSecretEnabled =
+			args.onToggleSecretEnabled as ToggleSecretEnabledMock;
+		const onUpdateSecret = args.onUpdateSecret as UpdateSecretMock;
+		onToggleSecretEnabled.mockClear();
+		onUpdateSecret.mockClear();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -1055,17 +1062,17 @@ export const FilePathDisabledBlockedEnableThenAddEnv: Story = {
 		const toggle = canvas.getByRole("switch", {
 			name: `Toggle secret ${name}`,
 		});
-		await expect(toggle).toBeDisabled();
-		await user.click(toggle);
-		expect(args.onToggleSecretEnabled).not.toHaveBeenCalled();
-
-		await user.hover(toggle);
+		await expect(toggle).toHaveAttribute("aria-disabled", "true");
+		toggle.focus();
+		await expect(toggle).toHaveFocus();
 		await waitFor(() =>
 			expect(body.getByRole("tooltip")).toHaveTextContent(
 				/disabled file path delivery/,
 			),
 		);
-		await user.unhover(toggle);
+
+		await user.click(toggle);
+		expect(onToggleSecretEnabled).not.toHaveBeenCalled();
 
 		await user.click(
 			canvas.getByRole("button", { name: `Open secret actions for ${name}` }),
@@ -1081,8 +1088,8 @@ export const FilePathDisabledBlockedEnableThenAddEnv: Story = {
 		await waitFor(() => expect(envField).toHaveValue("LEGACY_KUBECONFIG"));
 		await user.click(dialog.getByRole("button", { name: "Update" }));
 
-		await waitFor(() => expect(args.onUpdateSecret).toHaveBeenCalledTimes(1));
-		expect(args.onUpdateSecret).toHaveBeenCalledWith(name, {
+		await waitFor(() => expect(onUpdateSecret).toHaveBeenCalledTimes(1));
+		expect(onUpdateSecret).toHaveBeenCalledWith(name, {
 			env_name: "LEGACY_KUBECONFIG",
 		});
 		await waitForDialogToClose(body);
