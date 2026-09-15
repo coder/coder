@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -34,6 +36,16 @@ func (a *MetadataAPI) now() time.Time {
 }
 
 func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
+	if req == nil {
+		return nil, drpcerr.WithCode(xerrors.New("metadata request is required"), uint64(codes.InvalidArgument))
+	}
+	// Validate the entire batch before trimming values or discarding excess keys.
+	for i, md := range req.Metadata {
+		if md.GetResult() == nil {
+			return nil, drpcerr.WithCode(xerrors.Errorf("metadata result at index %d is required", i), uint64(codes.InvalidArgument))
+		}
+	}
+
 	const (
 		// maxAllKeysLen is the maximum length of all metadata keys. This is
 		// 6144 to stay below the Postgres NOTIFY limit of 8000 bytes, with some
