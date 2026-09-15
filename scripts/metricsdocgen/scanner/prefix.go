@@ -202,7 +202,7 @@ func collectPrefixInputs(roots []string) (map[string]string, []parsedFile, error
 			}
 
 			dir := filepath.Dir(path)
-			for name, value := range stringConsts(file, func(string) bool { return true }, stringLiteral) {
+			for name, value := range stringConsts(file, func(string) bool { return true }, decodedStringLiteral) {
 				consts[dir+"."+name] = value
 			}
 			files = append(files, parsedFile{path: path, file: file, imports: fileImports(file)})
@@ -343,7 +343,7 @@ func wrapPrefix(expr ast.Expr, pf parsedFile, consts map[string]string) (string,
 // string constant, whether that constant is local or imported.
 func constString(expr ast.Expr, pf parsedFile, consts map[string]string) (string, bool) {
 	if literal, ok := expr.(*ast.BasicLit); ok {
-		return stringLiteral(literal)
+		return decodedStringLiteral(literal)
 	}
 	return resolveStringReference(
 		expr,
@@ -362,8 +362,8 @@ func constString(expr ast.Expr, pf parsedFile, consts map[string]string) (string
 	)
 }
 
-// stringLiteral resolves a string literal without changing its escapes.
-func stringLiteral(lit *ast.BasicLit) (string, bool) {
+// decodedStringLiteral decodes a string literal to its Go string value.
+func decodedStringLiteral(lit *ast.BasicLit) (string, bool) {
 	if lit.Kind != token.STRING {
 		return "", false
 	}

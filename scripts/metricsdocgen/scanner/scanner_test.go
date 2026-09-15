@@ -77,6 +77,8 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 		{"server/costcontrol", []string{"coder_ai_gateway_"}},
 		// Prefix resolved through an imported constant.
 		{"gateway/metrics", []string{"coder_ai_gateway_"}},
+		// Collector registered directly against the wrapped registerer.
+		{"gateway/keypool", []string{"coder_ai_gateway_"}},
 		// Alias registerer indexes only the canonical prefix.
 		{"proxy", []string{"coder_ai_gateway_proxy_"}},
 	}
@@ -148,7 +150,6 @@ func TestScanDirectoryAppliesPrefixes(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	dir := filepath.Join(root, "metrics")
 	path := writeGoFile(t, root, "metrics", "metrics.go", `package metrics
 
 import "github.com/prometheus/client_golang/prometheus"
@@ -160,16 +161,13 @@ var requests = prometheus.NewCounter(prometheus.CounterOpts{
 `)
 
 	metrics, err := scanDirectory(filepath.Join(root, "metrics"), prefixIndex{
-		dir: {"coder_ai_gateway_"},
-	})
+		filepath.Dir(path): {"coder_ai_gateway_"},
+	}, make(map[string]map[string]string))
 	if err != nil {
 		t.Fatalf("scanDirectory: %v", err)
 	}
 	if len(metrics) != 1 || metrics[0].Name != "coder_ai_gateway_requests_total" {
 		t.Fatalf("scanDirectory() = %v, want one prefixed metric", metrics)
-	}
-	if filepath.Dir(path) != dir {
-		t.Fatalf("test path directory %q, want %q", filepath.Dir(path), dir)
 	}
 }
 
@@ -207,7 +205,7 @@ const extra = "route"
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	decls := collectDecls(file)
+	decls := collectDecls(file, make(map[string]map[string]string))
 
 	cases := []struct {
 		name string

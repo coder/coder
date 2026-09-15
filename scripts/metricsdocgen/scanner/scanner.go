@@ -87,15 +87,10 @@ type metricOpts struct {
 
 // declarations holds const/var values collected from a file for resolving references.
 type declarations struct {
-	strings      map[string]string   // string constants/variables
-	stringSlices map[string][]string // []string variables
+	packageStrings map[string]map[string]string // exported strings by package
+	strings        map[string]string            // string constants/variables
+	stringSlices   map[string][]string          // []string variables
 }
-
-// packageDeclarations holds exported string constants collected from all scanned files,
-// keyed by package name. This allows resolving cross-file references.
-// Note: resolution depends on directory scan order in scanDirs, i.e.,
-// constants from later directories won't be available when scanning earlier ones.
-var packageDeclarations = make(map[string]map[string]string)
 
 // verbose controls whether informational messages are printed to
 // stderr. It is true when stdout is a terminal (interactive use)
@@ -124,7 +119,7 @@ func main() {
 	}
 	logf("resolved metric name prefixes for %d packages", len(prefixes))
 
-	metrics, err := scanAllDirs(prefixes)
+	metrics, err := scanAllDirs(prefixes, make(map[string]map[string]string))
 	if err != nil {
 		log.Fatalf("Failed to scan directories: %v", err)
 	}
@@ -150,11 +145,11 @@ func main() {
 }
 
 // scanAllDirs scans all configured directories for metric definitions.
-func scanAllDirs(prefixes prefixIndex) ([]Metric, error) {
+func scanAllDirs(prefixes prefixIndex, packageStrings map[string]map[string]string) ([]Metric, error) {
 	var allMetrics []Metric
 
 	for _, dir := range scanDirs {
-		metrics, err := scanDirectory(dir, prefixes)
+		metrics, err := scanDirectory(dir, prefixes, packageStrings)
 		if err != nil {
 			return nil, xerrors.Errorf("scanning %s: %w", dir, err)
 		}
@@ -167,7 +162,7 @@ func scanAllDirs(prefixes prefixIndex) ([]Metric, error) {
 }
 
 // scanDirectory recursively walks a directory and extracts metrics from all Go files.
-func scanDirectory(root string, prefixes prefixIndex) ([]Metric, error) {
+func scanDirectory(root string, prefixes prefixIndex, packageStrings map[string]map[string]string) ([]Metric, error) {
 	var metrics []Metric
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -189,7 +184,7 @@ func scanDirectory(root string, prefixes prefixIndex) ([]Metric, error) {
 			return nil
 		}
 
-		fileMetrics, err := scanFile(path, prefixes[filepath.Dir(path)])
+		fileMetrics, err := scanFile(path, prefixes[filepath.Dir(path)], packageStrings)
 		if err != nil {
 			return xerrors.Errorf("scanning %s: %w", path, err)
 		}
@@ -209,18 +204,18 @@ func scanDirectory(root string, prefixes prefixIndex) ([]Metric, error) {
 // definitions. When the declaring package's registerer is wrapped with one or
 // more name prefixes, each metric is emitted once per prefix, because that is
 // how many series the deployment publishes.
-func scanFile(path string, prefixes []string) ([]Metric, error) {
+func scanFile(path string, prefixes []string, packageStrings map[string]map[string]string) ([]Metric, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, xerrors.Errorf("parsing file: %w", err)
 	}
 
-	// Collect exported constants into the global package declarations map.
-	collectPackageConsts(file)
+	// Collect exported constants from earlier files so selectors can resolve.
+	collectPackageConsts(file, packageStrings)
 
 	// Collect file-local const and var declarations for resolving references.
-	decls := collectDecls(file)
+	decls := collectDecls(file, packageStrings)
 
 	var metrics []Metric
 
@@ -264,17 +259,17 @@ func applyPrefixes(metric Metric, prefixes []string) []Metric {
 	return prefixed
 }
 
-// collectPackageConsts collects exported string constants from a file into
-// the global packageDeclarations map, keyed by package name.
-func collectPackageConsts(file *ast.File) {
+// collectPackageConsts collects exported string constants from a file, keyed
+// by package name, so references in later scanned files can resolve.
+func collectPackageConsts(file *ast.File, packageStrings map[string]map[string]string) {
 	pkgName := file.Name.Name
 
-	if packageDeclarations[pkgName] == nil {
-		packageDeclarations[pkgName] = make(map[string]string)
+	if packageStrings[pkgName] == nil {
+		packageStrings[pkgName] = make(map[string]string)
 	}
 
-	for name, value := range stringConsts(file, ast.IsExported, scannerStringLiteral) {
-		packageDeclarations[pkgName][name] = value
+	for name, value := range stringConsts(file, ast.IsExported, rawStringLiteral) {
+		packageStrings[pkgName][name] = value
 	}
 }
 
@@ -285,7 +280,7 @@ func collectPackageConsts(file *ast.File) {
 //   - agentmetrics.LabelUsername: resolved from package constants (selector)
 func resolveStringExpr(expr ast.Expr, decls declarations) string {
 	if literal, ok := expr.(*ast.BasicLit); ok {
-		value, _ := scannerStringLiteral(literal)
+		value, _ := rawStringLiteral(literal)
 		return value
 	}
 	if binary, ok := expr.(*ast.BinaryExpr); ok {
@@ -298,16 +293,16 @@ func resolveStringExpr(expr ast.Expr, decls declarations) string {
 			return value, ok
 		},
 		func(pkg, name string) (string, bool) {
-			value, ok := packageDeclarations[pkg][name]
+			value, ok := decls.packageStrings[pkg][name]
 			return value, ok
 		},
 	)
 	return value
 }
 
-// scannerStringLiteral preserves the escaped form expected in Prometheus text
+// rawStringLiteral preserves the escaped form expected in Prometheus text
 // exposition. Prefix resolution uses decoded Go string values instead.
-func scannerStringLiteral(lit *ast.BasicLit) (string, bool) {
+func rawStringLiteral(lit *ast.BasicLit) (string, bool) {
 	if lit.Kind != token.STRING {
 		return "", false
 	}
@@ -369,10 +364,11 @@ func extractStringSlice(lit *ast.CompositeLit, decls declarations) []string {
 
 // collectDecls collects const and var declarations from a file.
 // This is used to resolve constant and variable references in metric definitions.
-func collectDecls(file *ast.File) declarations {
+func collectDecls(file *ast.File, packageStrings map[string]map[string]string) declarations {
 	decls := declarations{
-		strings:      make(map[string]string),
-		stringSlices: make(map[string][]string),
+		packageStrings: packageStrings,
+		strings:        make(map[string]string),
+		stringSlices:   make(map[string][]string),
 	}
 
 	for _, decl := range file.Decls {
