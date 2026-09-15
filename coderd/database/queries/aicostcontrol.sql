@@ -453,6 +453,7 @@ ORDER BY effective_group_id;
 -- @organization_id over the [period_start, period_end) window. Spend is
 -- attributed through the token usage's effective group, and rows are bucketed
 -- by the token usage created_at, matching how ai_user_daily_spend is derived.
+-- It must keep the same joins and predicates as ListOrganizationAISpendUsers.
 SELECT
 	ai.initiator_id AS user_id,
 	users.username AS username,
@@ -476,6 +477,18 @@ JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = @organization_id
 	AND tu.created_at >= @period_start::timestamptz
 	AND tu.created_at < @period_end::timestamptz
+	AND CASE
+		WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
+		ELSE true
+	END
+	AND CASE
+		WHEN @model::text != '' THEN ai.model = @model::text
+		ELSE true
+	END
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
+		ELSE true
+	END
 GROUP BY
 	ai.initiator_id,
 	users.username,

@@ -19178,9 +19178,20 @@ func TestUpdateUserEmail(t *testing.T) {
 	})
 }
 
-func TestListOrganizationAISpendUsers(t *testing.T) {
-	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
+// organizationAISpendFixture is the token usage shared by the organization AI
+// spend query tests. Within [start, end) and the organization it holds
+// alice 1500 priced plus one unpriced usage, bob 3000, carol 1500 (tying with
+// alice), and the deleted dave 100, so 4 users, 6100 priced, 1 unpriced.
+// Usage before the window, at its exclusive end, without an effective group,
+// and in the other organization must be excluded.
+type organizationAISpendFixture struct {
+	org, otherOrg           database.Organization
+	alice, bob, carol, dave database.User
+	start, end              time.Time
+}
+
+func seedOrganizationAISpend(t *testing.T, db database.Store) organizationAISpendFixture {
+	t.Helper()
 
 	start := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
@@ -19234,6 +19245,20 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		})
 	}
 
+	return organizationAISpendFixture{
+		org: org, otherOrg: otherOrg,
+		alice: alice, bob: bob, carol: carol, dave: dave,
+		start: start, end: end,
+	}
+}
+
+func TestListOrganizationAISpendUsers(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	f := seedOrganizationAISpend(t, db)
+	org, otherOrg := f.org, f.otherOrg
+	alice, bob, carol, dave := f.alice, f.bob, f.carol, f.dave
+
 	row := func(user database.User, cost, unpriced, count, totalCost, totalUnpriced int64) database.ListOrganizationAISpendUsersRow {
 		return database.ListOrganizationAISpendUsersRow{
 			UserID: user.ID, Username: user.Username, Name: user.Name, AvatarURL: user.AvatarURL, OrganizationID: org.ID,
@@ -19241,7 +19266,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			Count: count, TotalCostMicros: totalCost, TotalUnpricedUsageCount: totalUnpriced,
 		}
 	}
-	base := database.ListOrganizationAISpendUsersParams{OrganizationID: org.ID, PeriodStart: start, PeriodEnd: end}
+	base := database.ListOrganizationAISpendUsersParams{OrganizationID: org.ID, PeriodStart: f.start, PeriodEnd: f.end}
 
 	t.Run("AllUsers", func(t *testing.T) {
 		t.Parallel()
@@ -19361,5 +19386,135 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			UserID: bob.ID, Username: bob.Username, Name: bob.Name, AvatarURL: bob.AvatarURL, OrganizationID: otherOrg.ID,
 			CostMicros: 99_999, Count: 1, TotalCostMicros: 99_999,
 		}}, rows)
+	})
+}
+
+func TestExportOrganizationAISpend(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	f := seedOrganizationAISpend(t, db)
+	base := database.ExportOrganizationAISpendParams{OrganizationID: f.org.ID, PeriodStart: f.start, PeriodEnd: f.end}
+
+	type userCost struct {
+		username string
+		provider string
+		model    string
+		cost     int64
+	}
+	summarize := func(rows []database.ExportOrganizationAISpendRow) []userCost {
+		var got []userCost
+		for _, row := range rows {
+			got = append(got, userCost{username: row.Username, provider: row.ProviderName, model: row.Model, cost: row.CostMicros})
+		}
+		return got
+	}
+
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name   string
+			mutate func(*database.ExportOrganizationAISpendParams)
+			want   []userCost
+		}{
+			{
+				name:   "ProviderName",
+				mutate: func(p *database.ExportOrganizationAISpendParams) { p.ProviderName = "openai-prod" },
+				// The unpriced usage still contributes a row with its priced sibling.
+				want: []userCost{{username: "alice", provider: "openai-prod", model: "gpt-4", cost: 500}},
+			},
+			{
+				name:   "Model",
+				mutate: func(p *database.ExportOrganizationAISpendParams) { p.Model = "claude" },
+				want: []userCost{
+					{username: "alice", provider: "anthropic-prod", model: "claude", cost: 1000},
+					{username: "bob", provider: "anthropic-prod", model: "claude", cost: 3000},
+					{username: "carol", provider: "anthropic-prod", model: "claude", cost: 1500},
+					{username: "dave", provider: "anthropic-prod", model: "claude", cost: 100},
+				},
+			},
+			{
+				name:   "Client",
+				mutate: func(p *database.ExportOrganizationAISpendParams) { p.Client = "cursor" },
+				want: []userCost{
+					{username: "bob", provider: "anthropic-prod", model: "claude", cost: 3000},
+					{username: "carol", provider: "anthropic-prod", model: "claude", cost: 1500},
+				},
+			},
+			{
+				// A missing client is reported as Unknown, like the sessions list.
+				name:   "UnknownClient",
+				mutate: func(p *database.ExportOrganizationAISpendParams) { p.Client = "Unknown" },
+				want: []userCost{
+					{username: "alice", provider: "openai-prod", model: "gpt-4", cost: 500},
+					{username: "dave", provider: "anthropic-prod", model: "claude", cost: 100},
+				},
+			},
+			{
+				name:   "NoMatch",
+				mutate: func(p *database.ExportOrganizationAISpendParams) { p.Model = "missing" },
+				want:   nil,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				params := base
+				tc.mutate(&params)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				rows, err := db.ExportOrganizationAISpend(ctx, params)
+				require.NoError(t, err)
+				require.ElementsMatch(t, tc.want, summarize(rows))
+			})
+		}
+	})
+
+	// The CSV export and the per-user report are separate queries over the
+	// same predicates, so the export must add up to the report for every
+	// combination of filters.
+	t.Run("MatchesUserReport", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name         string
+			providerName string
+			model        string
+			client       string
+		}{
+			{name: "Unfiltered"},
+			{name: "ProviderName", providerName: "openai-prod"},
+			{name: "Model", model: "claude"},
+			{name: "Client", client: "cursor"},
+			{name: "UnknownClient", client: "Unknown"},
+			{name: "Combined", providerName: "anthropic-prod", model: "claude", client: "claude-code"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				exportRows, err := db.ExportOrganizationAISpend(ctx, database.ExportOrganizationAISpendParams{
+					OrganizationID: f.org.ID, PeriodStart: f.start, PeriodEnd: f.end,
+					ProviderName: tc.providerName, Model: tc.model, Client: tc.client,
+				})
+				require.NoError(t, err)
+				userRows, err := db.ListOrganizationAISpendUsers(ctx, database.ListOrganizationAISpendUsersParams{
+					OrganizationID: f.org.ID, PeriodStart: f.start, PeriodEnd: f.end,
+					ProviderName: tc.providerName, Model: tc.model, Client: tc.client,
+				})
+				require.NoError(t, err)
+
+				exportCost := map[uuid.UUID]int64{}
+				var exportTotal int64
+				for _, row := range exportRows {
+					exportCost[row.UserID] += row.CostMicros
+					exportTotal += row.CostMicros
+				}
+				reportCost := map[uuid.UUID]int64{}
+				for _, row := range userRows {
+					reportCost[row.UserID] = row.CostMicros
+					require.Equal(t, int64(len(userRows)), row.Count)
+					require.Equal(t, exportTotal, row.TotalCostMicros)
+				}
+				require.Equal(t, exportCost, reportCost)
+			})
+		}
 	})
 }
