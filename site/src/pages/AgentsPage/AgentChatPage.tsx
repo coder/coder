@@ -68,7 +68,6 @@ import {
 } from "./components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
-	beginQueuedMessageEdit,
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
@@ -83,6 +82,7 @@ import {
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { getEditableContentPayload } from "./components/ChatConversation/messageParsing";
+import type { EditingTarget } from "./components/ChatConversation/types";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
@@ -97,8 +97,6 @@ import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
 	BuiltInCommandPendingError,
-	type EditingTarget,
-	QueuedEditTargetGoneError,
 	useConversationEditingState,
 } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
@@ -617,28 +615,39 @@ const AgentChatPage: FC = () => {
 			onError: handleRequestError,
 		});
 
-	const handleEndQueuedMessageEdit = async (id: number) => {
+	// A 404 means the row was already sent or removed. The store drops it
+	// on the spot, which is how the composer learns its edit target is gone
+	// without waiting for a queue_update.
+	const patchQueuedMessage = async (
+		id: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+		failureMessage: string,
+	) => {
 		try {
-			await editQueuedMessage({
-				queuedMessageId: id,
-				req: { editing: false },
-			});
+			await editQueuedMessage({ queuedMessageId: id, req });
 		} catch (error) {
 			if (getErrorStatus(error) === 404) {
+				store.setQueuedMessages(
+					store.getSnapshot().queuedMessages.filter((row) => row.id !== id),
+				);
 				toast.error("Queued message was already sent or removed.");
-				throw new QueuedEditTargetGoneError();
+			} else {
+				toast.error(getErrorMessage(error, failureMessage));
 			}
-			toast.error(
-				getErrorMessage(error, "Failed to stop editing the queued message."),
-			);
 			throw error;
 		}
 	};
 
+	const handleEndQueuedMessageEdit = (id: number) =>
+		patchQueuedMessage(
+			id,
+			{ editing: false },
+			"Failed to stop editing the queued message.",
+		);
+
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
-		onEndQueuedMessageEdit: handleEndQueuedMessageEdit,
 		chatInputRef,
 		inputValueRef,
 	});
@@ -657,20 +666,38 @@ const AgentChatPage: FC = () => {
 		);
 		queuedEditSeenIDRef.current = next.seenID;
 		if (next.lost) {
-			editing.leaveQueuedEdit();
+			editing.leaveEdit();
 		}
-	}, [queuedEditTargetID, queuedEditRow, editing.leaveQueuedEdit]);
+	}, [queuedEditTargetID, queuedEditRow, editing.leaveEdit]);
 
-	const handleEditUserMessage = (
-		...args: Parameters<typeof editing.handleEditUserMessage>
+	// Leaving a queued edit for a history edit or cancel ends it on the
+	// server first. When that fails the composer stays where it is.
+	const endQueuedEditBeforeLeaving = async (): Promise<boolean> => {
+		if (queuedEditTargetID === null) {
+			return true;
+		}
+		try {
+			await handleEndQueuedMessageEdit(queuedEditTargetID);
+			return true;
+		} catch {
+			return false;
+		}
+	};
+
+	const handleEditUserMessage = async (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => {
-		// The composer leaves the queued edit, so its server-side edit ends
-		// too. A failure is toasted; the row stays under edit.
-		if (queuedEditTargetID !== null) {
-			handleEndQueuedMessageEdit(queuedEditTargetID).catch(() => undefined);
+		if (!(await endQueuedEditBeforeLeaving())) {
+			return;
 		}
 		isEditReasoningEffortDirtyRef.current = false;
-		editing.handleEditUserMessage(...args);
+		editing.handleBeginEdit(
+			{ kind: "history", id: messageId },
+			text,
+			fileBlocks,
+		);
 	};
 
 	const handleEditQueuedMessage = async (id: number) => {
@@ -680,24 +707,25 @@ const AgentChatPage: FC = () => {
 		if (!row || queuedEditTargetID === id) {
 			return;
 		}
-		const begun = await beginQueuedMessageEdit(row, (queuedMessageId) =>
-			editQueuedMessage({ queuedMessageId, req: { editing: true } }),
-		);
-		switch (begun.status) {
-			case "already_sent":
-				toast.error("Queued message was already sent or removed.");
-				return;
-			case "failed":
-				toast.error(
-					getErrorMessage(begun.error, "Failed to edit queued message."),
-				);
-				return;
-			case "editing":
-				break;
+		try {
+			await patchQueuedMessage(
+				id,
+				{ editing: true },
+				"Failed to edit queued message.",
+			);
+		} catch {
+			return;
 		}
 		const { text, fileBlocks } = getEditableContentPayload(row.content);
 		isEditReasoningEffortDirtyRef.current = false;
-		editing.handleEditQueuedMessage(id, text, fileBlocks);
+		editing.handleBeginEdit({ kind: "queued", id }, text, fileBlocks);
+	};
+
+	const handleCancelEdit = async () => {
+		if (!(await endQueuedEditBeforeLeaving())) {
+			return;
+		}
+		editing.handleCancelEdit();
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -895,18 +923,11 @@ const AgentChatPage: FC = () => {
 				reasoning_effort: editReasoningEffort,
 				editing: false,
 			};
-			try {
-				await editQueuedMessage({ queuedMessageId, req: request });
-			} catch (error) {
-				if (getErrorStatus(error) === 404) {
-					toast.error(
-						"Queued message was already sent or removed. Your edit is kept as a new draft.",
-					);
-					throw new QueuedEditTargetGoneError();
-				}
-				toast.error(getErrorMessage(error, "Failed to save queued message."));
-				throw error;
-			}
+			await patchQueuedMessage(
+				queuedMessageId,
+				request,
+				"Failed to save queued message.",
+			);
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
@@ -1157,7 +1178,7 @@ const AgentChatPage: FC = () => {
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleEditUserMessage }}
+					editing={{ ...editing, handleEditUserMessage, handleCancelEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}

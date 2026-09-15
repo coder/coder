@@ -345,11 +345,6 @@ export const getEditableContentPayload = (
 	};
 };
 
-export const getEditableUserMessagePayload = (
-	message: TypesGen.ChatMessage,
-): ReturnType<typeof getEditableContentPayload> =>
-	getEditableContentPayload(message.content);
-
 type ParseMessagesWithMergedToolsOptions = {
 	pendingToolCallIDs?: ReadonlySet<string>;
 };

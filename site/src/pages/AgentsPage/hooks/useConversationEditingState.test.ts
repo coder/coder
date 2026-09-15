@@ -4,10 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
-import {
-	QueuedEditTargetGoneError,
-	useConversationEditingState,
-} from "./useConversationEditingState";
+import { useConversationEditingState } from "./useConversationEditingState";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -76,7 +73,6 @@ describe("useConversationEditingState", () => {
 
 	const renderEditing = (...args: [] | [string | undefined]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
-		const onEndQueuedMessageEdit = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
 		const inputValueRef = { current: "" };
 		// createRef returns { current: null }, but we need it initialized
@@ -89,13 +85,12 @@ describe("useConversationEditingState", () => {
 			useConversationEditingState({
 				chatID: resolvedChatID,
 				onSend,
-				onEndQueuedMessageEdit,
 				chatInputRef,
 				inputValueRef,
 			}),
 		);
 
-		return { ...hook, onSend, onEndQueuedMessageEdit, inputValueRef };
+		return { ...hook, onSend, inputValueRef };
 	};
 
 	it("persists and removes drafts via handleContentChange", () => {
@@ -145,8 +140,8 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", async () => {
-		const { result, onEndQueuedMessageEdit, unmount } = renderEditing();
+	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
+		const { result, unmount } = renderEditing();
 
 		// Simulate the user typing a draft via handleContentChange.
 		act(() => {
@@ -160,7 +155,10 @@ describe("useConversationEditingState", () => {
 		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 
 		expect(result.current.editingMessageId).toBe(7);
@@ -170,11 +168,10 @@ describe("useConversationEditingState", () => {
 
 		const remountKeyAfterEdit = result.current.remountKey;
 
-		await act(async () => {
-			await result.current.handleCancelEdit();
+		act(() => {
+			result.current.handleCancelEdit();
 		});
 
-		expect(onEndQueuedMessageEdit).not.toHaveBeenCalled();
 		expect(result.current.editingMessageId).toBeNull();
 		expect(result.current.editingTarget).toBeNull();
 		expect(result.current.editorInitialValue).toBe("work in progress");
@@ -193,7 +190,10 @@ describe("useConversationEditingState", () => {
 		// edit and cancel flows. handleSendFromInput is the only
 		// path that calls focus and it skips on mobile viewports.
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 		expect(mockInput.focus).not.toHaveBeenCalled();
 
@@ -209,7 +209,10 @@ describe("useConversationEditingState", () => {
 		const { result, unmount } = renderEditing();
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 
 		act(() => {
@@ -233,7 +236,10 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 
 		act(() => {
@@ -252,7 +258,7 @@ describe("useConversationEditingState", () => {
 		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "hello");
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
@@ -264,7 +270,7 @@ describe("useConversationEditingState", () => {
 		const remountKeyAfterSend = result.current.remountKey;
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "hello");
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		// remountKey increments each time an edit is loaded, even for
@@ -285,7 +291,7 @@ describe("useConversationEditingState", () => {
 		];
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "hello");
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		await act(async () => {
@@ -320,7 +326,11 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+				fileBlocks,
+			);
 			result.current.handleContentChange("edited message", editorState, false);
 		});
 
@@ -604,7 +614,10 @@ describe("useConversationEditingState", () => {
 
 		// Start editing a history message.
 		act(() => {
-			result.current.handleEditUserMessage(42, "old message text");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 42 },
+				"old message text",
+			);
 		});
 
 		expect(result.current.editingMessageId).toBe(42);
@@ -638,7 +651,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(1, "editing");
+			result.current.handleBeginEdit({ kind: "history", id: 1 }, "editing");
 		});
 
 		act(() => {
@@ -663,7 +676,11 @@ describe("useConversationEditingState", () => {
 			const remountKeyBefore = result.current.remountKey;
 
 			act(() => {
-				result.current.handleEditQueuedMessage(42, "queued text", fileBlocks);
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
+					fileBlocks,
+				);
 			});
 
 			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 42 });
@@ -680,7 +697,10 @@ describe("useConversationEditingState", () => {
 
 			act(() => {
 				result.current.handleContentChange("draft", "draft", false);
-				result.current.handleEditQueuedMessage(42, "queued text");
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
+				);
 			});
 			act(() => {
 				result.current.handleContentChange("queued edit", "queued edit", false);
@@ -690,70 +710,18 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 
-		it("cancel ends the edit and then restores the prior draft", async () => {
-			const { result, onEndQueuedMessageEdit, unmount } = renderEditing();
-			const callOrder: string[] = [];
-			onEndQueuedMessageEdit.mockImplementation(async () => {
-				callOrder.push("end_edit");
-				callOrder.push(
-					`editing:${JSON.stringify(result.current.editingTarget)}`,
+		it("cancel restores the prior draft", () => {
+			const { result, unmount } = renderEditing();
+
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
 				);
 			});
-
 			act(() => {
-				result.current.handleContentChange("draft", "draft", false);
-				result.current.handleEditQueuedMessage(42, "queued text");
-			});
-
-			await act(async () => {
-				await result.current.handleCancelEdit();
-			});
-
-			expect(onEndQueuedMessageEdit).toHaveBeenCalledWith(42);
-			// The composer is still in edit mode while the request is in flight.
-			expect(callOrder).toEqual([
-				"end_edit",
-				'editing:{"kind":"queued","id":42}',
-			]);
-			expect(result.current.editingTarget).toBeNull();
-			expect(result.current.editorInitialValue).toBe("draft");
-			expect(result.current.inputValueRef.current).toBe("draft");
-			unmount();
-		});
-
-		it("cancel keeps edit mode when ending the edit fails", async () => {
-			const { result, onEndQueuedMessageEdit, unmount } = renderEditing();
-			onEndQueuedMessageEdit.mockRejectedValueOnce(new Error("boom"));
-
-			act(() => {
-				result.current.handleContentChange("draft", "draft", false);
-				result.current.handleEditQueuedMessage(42, "queued text");
-			});
-			const remountKeyAfterEdit = result.current.remountKey;
-
-			await act(async () => {
-				await result.current.handleCancelEdit();
-			});
-
-			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 42 });
-			expect(result.current.editorInitialValue).toBe("queued text");
-			expect(result.current.remountKey).toBe(remountKeyAfterEdit);
-			unmount();
-		});
-
-		it("cancel leaves edit mode when the queued row is gone", async () => {
-			const { result, onEndQueuedMessageEdit, unmount } = renderEditing();
-			onEndQueuedMessageEdit.mockRejectedValueOnce(
-				new QueuedEditTargetGoneError(),
-			);
-
-			act(() => {
-				result.current.handleContentChange("draft", "draft", false);
-				result.current.handleEditQueuedMessage(42, "queued text");
-			});
-
-			await act(async () => {
-				await result.current.handleCancelEdit();
+				result.current.handleCancelEdit();
 			});
 
 			expect(result.current.editingTarget).toBeNull();
@@ -762,21 +730,26 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 
-		it("send keeps the edited text as a new draft when the queued row is gone", async () => {
+		it("leaveEdit keeps the composer text as the new draft", async () => {
 			const { result, onSend, unmount } = renderEditing();
 			const mockInput = createMockChatInputHandle("queued edit");
 			result.current.chatInputRef.current = mockInput.handle;
-			onSend.mockRejectedValueOnce(new QueuedEditTargetGoneError());
+			onSend.mockRejectedValueOnce(new Error("gone"));
 
 			act(() => {
 				result.current.handleContentChange("draft", "draft", false);
-				result.current.handleEditQueuedMessage(42, "queued text");
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
+				);
 			});
-
 			await act(async () => {
 				await expect(
 					result.current.handleSendFromInput("queued edit"),
-				).rejects.toBeInstanceOf(QueuedEditTargetGoneError);
+				).rejects.toThrow("gone");
+			});
+			act(() => {
+				result.current.leaveEdit();
 			});
 
 			expect(result.current.editingTarget).toBeNull();
@@ -797,7 +770,10 @@ describe("useConversationEditingState", () => {
 
 			act(() => {
 				result.current.handleContentChange("draft", "draft", false);
-				result.current.handleEditQueuedMessage(42, "queued text");
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
+				);
 			});
 
 			await act(async () => {
@@ -825,7 +801,10 @@ describe("useConversationEditingState", () => {
 			onSend.mockRejectedValueOnce(new Error("boom"));
 
 			act(() => {
-				result.current.handleEditQueuedMessage(42, "queued text");
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
+				);
 			});
 
 			await act(async () => {

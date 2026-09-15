@@ -87,6 +87,14 @@ export type RetryState = {
 	retryingAt?: string;
 };
 
+/**
+ * The message the composer is editing. History rows and queued rows have
+ * independent ID spaces, so the kind is required to interpret the ID.
+ */
+export type EditingTarget =
+	| { kind: "history"; id: number }
+	| { kind: "queued"; id: number };
+
 type StreamToolCall = {
 	id: string;
 	name: string;
