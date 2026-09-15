@@ -146,6 +146,8 @@ Coder supports both secret-based methods for compatibility; existing integration
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
+Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
+
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
