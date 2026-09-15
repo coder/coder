@@ -1647,6 +1647,27 @@ func TestConvertCallResult_MixedContent(t *testing.T) {
 			wantContent: "Screenshots captured",
 		},
 		{
+			name: "EmptyImageError",
+			result: &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
+				&mcp.ImageContent{MIMEType: "image/png"},
+			}},
+			wantType: "text",
+		},
+		{
+			name: "MissingMIMEBlobError",
+			result: &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+					URI: "file:///document.bin", Blob: []byte("opaque"),
+				}},
+			}},
+			wantType: "text",
+		},
+		{
+			name:     "EmptyError",
+			result:   &mcp.CallToolResult{IsError: true},
+			wantType: "text",
+		},
+		{
 			name: "TextAndEmptyImageStaysText",
 			result: &mcp.CallToolResult{Content: []mcp.Content{
 				&mcp.TextContent{Text: "Screenshot captured"},

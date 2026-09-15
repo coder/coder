@@ -255,11 +255,7 @@ export type MediaToolResult = {
 	text: string;
 };
 
-/**
- * Parses a tool result the server flagged with is_media. The server
- * persists such results as {data, mime_type, text}, keeping the MIME type
- * exactly as the tool sent it, so it is normalized to a lowercase base type.
- */
+/** Parses a tool result the server flagged with is_media. */
 export const parseMediaToolResult = (
 	result: unknown,
 ): MediaToolResult | null => {

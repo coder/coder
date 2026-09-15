@@ -2,6 +2,8 @@ package chatd
 
 import (
 	"context"
+	"encoding/base64"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -10,38 +12,38 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
 
-// replaceUnsupportedToolMedia rewrites tool result media that the model's
-// transport rejects into the accompanying text plus an omission note, on a
-// copy of messages. It runs on every prompt build, so media recorded under
-// a more permissive provider stays replayable after a provider switch while
-// the persisted result keeps its payload for the UI. displayProvider is the
-// configured provider named in the note.
+// Filter at prompt build so provider switches do not invalidate stored media.
+// Leave the input unchanged because compaction can share the generation prompt.
 func replaceUnsupportedToolMedia(
 	ctx context.Context,
 	logger slog.Logger,
 	messages []fantasy.Message,
 	model chatprovider.Model,
-	displayProvider string,
+	configuredProvider string,
 ) []fantasy.Message {
 	replaced := 0
-	out := make([]fantasy.Message, 0, len(messages))
-	for _, msg := range messages {
-		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
-		for _, part := range msg.Content {
+	provider := model.Provider()
+	out := messages
+	for i, msg := range messages {
+		var parts []fantasy.MessagePart
+		for j, part := range msg.Content {
 			result, ok := part.(fantasy.ToolResultPart)
 			if !ok {
-				parts = append(parts, part)
 				continue
 			}
 			media, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
 			if !ok {
-				parts = append(parts, part)
 				continue
 			}
-			note, omit := chatprovider.ToolResultMediaOmission(model.Provider(), displayProvider, media.MediaType, base64DecodedLen(media.Data))
+			note, omit := chatprovider.ToolResultMediaOmission(provider, configuredProvider, media.MediaType, base64DecodedLen(media.Data))
 			if !omit {
-				parts = append(parts, part)
 				continue
+			}
+			if replaced == 0 {
+				out = slices.Clone(messages)
+			}
+			if parts == nil {
+				parts = slices.Clone(msg.Content)
 			}
 			replaced++
 			text := media.Text
@@ -49,29 +51,21 @@ func replaceUnsupportedToolMedia(
 				text += "\n"
 			}
 			result.Output = fantasy.ToolResultOutputContentText{Text: text + note}
-			parts = append(parts, result)
+			parts[j] = result
 		}
-		msg.Content = parts
-		out = append(out, msg)
+		if parts != nil {
+			out[i].Content = parts
+		}
 	}
 	if replaced > 0 {
 		logger.Debug(ctx, "replaced unsupported tool result media in prompt",
-			slog.F("provider", model.Provider()),
+			slog.F("provider", provider),
 			slog.F("replaced_parts", replaced),
 		)
 	}
 	return out
 }
 
-// base64DecodedLen returns the byte length of standard base64 data
-// without decoding it.
 func base64DecodedLen(data string) int {
-	n := len(data) / 4 * 3
-	if strings.HasSuffix(data, "==") {
-		return n - 2
-	}
-	if strings.HasSuffix(data, "=") {
-		return n - 1
-	}
-	return n
+	return base64.RawStdEncoding.DecodedLen(len(strings.TrimRight(data, "=")))
 }

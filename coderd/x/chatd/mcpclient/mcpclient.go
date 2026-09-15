@@ -878,10 +878,8 @@ func unwrapModelIntent(input string) string {
 	return input
 }
 
-// convertCallResult preserves all text alongside the first media item that
-// has both a payload and a MIME type in a fantasy.ToolResponse. Additional
-// binary items are dropped because fantasy supports only one media payload
-// per response.
+// fantasy permits one media payload per response, so only the first eligible
+// binary block is kept alongside the text.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -984,14 +982,9 @@ func convertCallResult(
 		binaryResult.Content = strings.Join(textParts, "\n")
 		return *binaryResult
 	}
-	if len(textParts) > 0 {
-		resp := fantasy.NewTextResponse(
-			strings.Join(textParts, "\n"),
-		)
-		resp.IsError = result.IsError
-		return resp
-	}
-	return fantasy.NewTextResponse("")
+	resp := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
+	resp.IsError = result.IsError
+	return resp
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh

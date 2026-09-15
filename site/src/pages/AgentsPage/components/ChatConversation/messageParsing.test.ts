@@ -299,8 +299,14 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "tool", id: "call-1" }]);
 	});
 
-	it("keeps the media flag on a tool-result block", () => {
+	it("keeps the media flag on matched and orphaned tool results", () => {
 		const result = parseMessageContent([
+			{
+				type: "tool-call",
+				tool_name: "playwright__browser_take_screenshot",
+				tool_call_id: "call-1",
+				args: {},
+			},
 			{
 				type: "tool-result",
 				tool_name: "playwright__browser_take_screenshot",
@@ -310,6 +316,10 @@ describe("parseMessageContent", () => {
 			},
 		]);
 		expect(result.toolResults[0].isMedia).toBe(true);
+		const matched = mergeTools(result.toolCalls, result.toolResults);
+		expect(matched[0].isMedia).toBe(true);
+		const orphaned = mergeTools([], result.toolResults);
+		expect(orphaned[0].isMedia).toBe(true);
 	});
 
 	it("handles interleaved text and tool blocks in correct order", () => {

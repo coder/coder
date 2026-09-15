@@ -3,7 +3,6 @@ package chatprovider
 import (
 	"context"
 	"fmt"
-	"mime"
 	"net/http"
 	"slices"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -111,40 +111,30 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
-// ToolResultMediaOmission reports whether the transportProvider rejects a
-// tool result media part of mediaType and size bytes, returning the note
-// the model sees in its place labeled with displayProvider. The two differ
-// when aibridge routes a configured provider such as Bedrock through the
-// Anthropic or OpenAI transport. The Anthropic transport renders tool
-// result media as image blocks, so it takes only the image formats the
-// Messages API accepts and only under the inline image cap. Other
-// transports substitute text placeholders for unsupported media themselves.
-func ToolResultMediaOmission(transportProvider, displayProvider, mediaType string, size int) (string, bool) {
-	normalized := NormalizeProvider(transportProvider)
-	if normalized != fantasyanthropic.Name && normalized != fantasybedrock.Name {
-		return "", false
+// ToolResultMediaOmission reports media unsupported by the transport or upstream
+// provider. configuredProvider supplies vendor limits hidden by a shared
+// OpenAI-compatible transport.
+func ToolResultMediaOmission(transportProvider, configuredProvider, mediaType string, size int) (string, bool) {
+	provider := NormalizeProvider(transportProvider)
+	if provider == fantasyopenaicompat.Name {
+		provider = NormalizeProvider(configuredProvider)
 	}
-	displayName := ProviderDisplayName(displayProvider)
-	baseType := mediaType
-	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
-		baseType = parsed
+	baseType := chatfiles.BaseMediaType(mediaType)
+	isImage := strings.HasPrefix(baseType, "image/")
+	accepted := true
+	switch provider {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		accepted = slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasyopenai.Name, fantasyazure.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasygoogle.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}, baseType)
 	}
-	switch baseType {
-	case "image/jpeg", "image/png", "image/gif", "image/webp":
-	default:
-		return fmt.Sprintf(
-			"[%s content omitted: %s tool results only carry JPEG, PNG, GIF, or WebP images]",
-			mediaType,
-			displayName,
-		), true
+	if !accepted {
+		return fmt.Sprintf("[%s content omitted: unsupported tool result media type]", mediaType), true
 	}
-	if imageCap, hasCap := InlineImageCapBytes(normalized); hasCap && size >= imageCap {
-		return fmt.Sprintf(
-			"[image omitted: %d bytes exceeds the %s inline image limit of %d bytes]",
-			size,
-			displayName,
-			imageCap,
-		), true
+	if imageCap, hasCap := InlineImageCapBytes(provider); hasCap && size >= imageCap {
+		return fmt.Sprintf("[image omitted: %d bytes exceeds the inline image limit of %d bytes]", size, imageCap), true
 	}
 	return "", false
 }
@@ -154,10 +144,7 @@ func ToolResultMediaOmission(transportProvider, displayProvider, mediaType strin
 // parts with text, so a false negative costs fidelity while a false positive
 // loses the attachment entirely. Unknown providers therefore return false.
 func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
-	baseType := mediaType
-	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
-		baseType = parsed
-	}
+	baseType := chatfiles.BaseMediaType(mediaType)
 	// No provider accepts SVG as a native part; it is inlined as text.
 	if baseType == string(codersdk.ChatAttachmentMediaTypeImageSVG) {
 		return false

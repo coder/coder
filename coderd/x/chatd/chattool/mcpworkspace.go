@@ -187,11 +187,8 @@ func (t *WorkspaceMCPTool) SetProviderOptions(
 	t.providerOpts = opts
 }
 
-// convertMCPToolResponse translates a workspace agent MCP tool
-// response into a fantasy.ToolResponse. All text blocks are kept
-// alongside the first binary block; additional binary blocks are
-// dropped because fantasy supports only one media payload per
-// response, matching the mcpclient conversion strategy.
+// fantasy permits one media payload per response, so only the first eligible
+// binary block is kept alongside the text.
 func convertMCPToolResponse(
 	resp workspacesdk.CallMCPToolResponse,
 ) fantasy.ToolResponse {

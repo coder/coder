@@ -22,14 +22,13 @@ func sameCompactionProviderIdentity(chatConfig, overrideConfig database.ChatMode
 
 // sanitizeCompactionPrompt adapts a prompt built for the chat model to a
 // differing compaction model. The input messages are never mutated; the
-// assistant generation keeps using the original prompt. displayProvider is
-// the configured provider of the compaction model, named in omission notes.
+// assistant generation keeps using the original prompt.
 func sanitizeCompactionPrompt(
 	ctx context.Context,
 	logger slog.Logger,
 	prompt []fantasy.Message,
 	compactionModel chatprovider.Model,
-	displayProvider string,
+	configuredProvider string,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
 ) []fantasy.Message {
@@ -38,7 +37,7 @@ func sanitizeCompactionPrompt(
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
 	}
 	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
-	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel, displayProvider)
+	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel, configuredProvider)
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
 		compactionModel.Provider(),
 		messages,

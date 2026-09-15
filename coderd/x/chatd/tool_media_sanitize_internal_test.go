@@ -57,21 +57,19 @@ func TestReplaceUnsupportedToolMedia(t *testing.T) {
 		require.True(t, stillMedia, "input must not be mutated")
 	})
 
-	// Bedrock Claude is routed through the Anthropic transport; the note
-	// still names the configured provider.
-	t.Run("OversizedImageBecomesTextOnBedrockClaude", func(t *testing.T) {
+	t.Run("OversizedImageBecomesTextOnAnthropic", func(t *testing.T) {
 		t.Parallel()
 		in := prompt(mediaPart("image/png", make([]byte, 5*1024*1024)))
-		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("anthropic"), "bedrock")
-		require.Contains(t, textOutput(t, out), "[image omitted: 5242880 bytes exceeds the AWS Bedrock inline image limit")
+		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("anthropic"), "anthropic")
+		require.Contains(t, textOutput(t, out), "[image omitted: 5242880 bytes exceeds the inline image limit")
 	})
 
-	// Bedrock non-Anthropic models are routed through the OpenAI transport.
-	t.Run("OversizedImageStaysMediaOnBedrockOpenAI", func(t *testing.T) {
+	t.Run("OversizedImageStaysMediaOnOpenAI", func(t *testing.T) {
 		t.Parallel()
 		in := prompt(mediaPart("image/png", make([]byte, 5*1024*1024)))
-		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("openai"), "bedrock")
+		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("openai"), "openai")
 		require.Equal(t, in, out)
+		require.Same(t, &in[0], &out[0])
 	})
 
 	t.Run("SmallImageStaysMediaOnAnthropic", func(t *testing.T) {
@@ -79,13 +77,30 @@ func TestReplaceUnsupportedToolMedia(t *testing.T) {
 		in := prompt(mediaPart("image/png", []byte{1, 2, 3}))
 		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("anthropic"), "anthropic")
 		require.Equal(t, in, out)
+		require.Same(t, &in[0], &out[0])
 	})
+
+	for _, transport := range []string{"openai", "google"} {
+		t.Run(transport+"UnsupportedImageKeepsText", func(t *testing.T) {
+			t.Parallel()
+			in := prompt(mediaPart("image/svg+xml", []byte("<svg/>")))
+			in[1].Content = append(in[1].Content, mediaPart("image/bmp", []byte("bitmap")))
+			out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn(transport), transport)
+			require.Contains(t, textOutput(t, out), "Ran Playwright code\n[image/svg+xml content omitted")
+			require.Len(t, out[1].Content, 2)
+			require.IsType(t, fantasy.ToolResultOutputContentText{}, out[1].Content[1].(fantasy.ToolResultPart).Output)
+			require.IsType(t, fantasy.ToolResultOutputContentMedia{}, in[1].Content[0].(fantasy.ToolResultPart).Output)
+			require.IsType(t, fantasy.ToolResultOutputContentMedia{}, in[1].Content[1].(fantasy.ToolResultPart).Output)
+			require.Equal(t, in[0], out[0])
+		})
+	}
 
 	t.Run("AudioStaysMediaOnOpenAI", func(t *testing.T) {
 		t.Parallel()
 		in := prompt(mediaPart("audio/mpeg", []byte{1, 2, 3}))
 		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("openai"), "openai")
 		require.Equal(t, in, out)
+		require.Same(t, &in[0], &out[0])
 	})
 }
 

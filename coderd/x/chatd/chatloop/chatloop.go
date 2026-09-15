@@ -1315,10 +1315,8 @@ func executeSingleTool(
 
 	result.ClientMetadata = resp.Metadata
 
-	// Cap tool output so a single oversized result (most often a large
-	// MCP response) cannot overflow the model's context window on the
-	// next request. Only the text payload is bounded here; media is
-	// checked by normalizeToolMedia below.
+	// Bound text so one tool result cannot overflow the model's context window.
+	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
 	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
@@ -1381,12 +1379,8 @@ func executeSingleTool(
 	return result
 }
 
-// normalizeToolMedia checks a media tool response before it is persisted
-// and replayed to every client: the payload must fit the chat attachment
-// cap, and bytes declared as an image must be an image. A declared image
-// type is replaced by the detected one so the stored media matches its
-// bytes. Provider-specific limits are applied later at prompt build. It
-// returns the note that stands in for rejected media.
+// normalizeToolMedia bounds persisted payloads and corrects image MIME types
+// by signature, not full image decoding. Transport limits apply at prompt build.
 func normalizeToolMedia(resp *fantasy.ToolResponse) (string, bool) {
 	if len(resp.Data) > codersdk.MaxChatFileSizeBytes {
 		return fmt.Sprintf(
