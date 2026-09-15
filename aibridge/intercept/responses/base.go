@@ -128,8 +128,6 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 			awssig.AppendPRMUserAgent(req)
 			return next(req)
 		}))
-		//nolint:bodyclose // Middleware forwards the response to the interceptor, which closes it.
-		opts = append(opts, option.WithMiddleware(awssig.BedrockMantleUnsafeHeadersMiddleware(i.logger)))
 		//nolint:bodyclose // SignMiddleware reads and closes only the request body.
 		opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
 	}

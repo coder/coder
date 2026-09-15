@@ -9,12 +9,9 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
-	"github.com/coder/coder/v2/testutil"
 )
 
 var testCreds = aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
@@ -131,72 +128,6 @@ func TestAppendPRMUserAgent(t *testing.T) {
 		awssig.AppendPRMUserAgent(req)
 		require.Empty(t, req.Header.Get("User-Agent"))
 	})
-}
-
-// TestBedrockMantleUnsafeHeadersMiddleware verifies that headers containing
-// underscores are removed before signing and that one warning names all of
-// the removed headers.
-func TestBedrockMantleUnsafeHeadersMiddleware(t *testing.T) {
-	t.Parallel()
-
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1", strings.NewReader(`{"model":"test"}`))
-	req.Header.Set("Anthropic-Version", "2023-06-01")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("session_id", "session")
-	req.Header.Set("x_client_request_id", "request")
-	req.Header.Set("X-Client-Request-Id", "safe")
-
-	sink := testutil.NewFakeSink(t)
-	logger := sink.Logger(slog.LevelDebug)
-
-	//nolint:bodyclose // The composed middleware returns http.NoBody.
-	unsafeHeaders := awssig.BedrockMantleUnsafeHeadersMiddleware(logger)
-	//nolint:bodyclose // The composed middleware returns http.NoBody.
-	signer := awssig.SignMiddleware(testCreds, "us-east-1", awssig.ServiceBedrockMantle)
-	var gotReq *http.Request
-	resp, err := unsafeHeaders(req, func(r *http.Request) (*http.Response, error) { //nolint:bodyclose // http.NoBody
-		return signer(r, func(r *http.Request) (*http.Response, error) {
-			gotReq = r
-			return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
-		})
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotNil(t, gotReq)
-
-	assert.Empty(t, gotReq.Header.Get("session_id"))
-	assert.Empty(t, gotReq.Header.Get("x_client_request_id"))
-	assert.Equal(t, "safe", gotReq.Header.Get("X-Client-Request-Id"))
-	assert.Equal(t, "2023-06-01", gotReq.Header.Get("Anthropic-Version"))
-
-	signedHeaders := extractSignedHeaders(t, gotReq.Header.Get("Authorization"))
-	assert.NotContains(t, signedHeaders, "session_id")
-	assert.NotContains(t, signedHeaders, "x_client_request_id")
-
-	warnings := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn })
-	require.Len(t, warnings, 1)
-	require.Equal(t, "stripping headers unsafe to sign for Bedrock Mantle", warnings[0].Message)
-	for _, field := range warnings[0].Fields {
-		if field.Name == "headers" {
-			assert.ElementsMatch(t, []string{"Session_id", "X_client_request_id"}, field.Value)
-			return
-		}
-	}
-	t.Fatal("warning did not include stripped header names")
-}
-
-func extractSignedHeaders(t *testing.T, authHeader string) []string {
-	t.Helper()
-
-	const marker = "SignedHeaders="
-	idx := strings.Index(authHeader, marker)
-	require.NotEqual(t, -1, idx, "missing SignedHeaders in Authorization header: %q", authHeader)
-
-	rest := authHeader[idx+len(marker):]
-	if end := strings.Index(rest, ","); end >= 0 {
-		rest = rest[:end]
-	}
-	return strings.Split(rest, ";")
 }
 
 func TestBaseURLForModel(t *testing.T) {

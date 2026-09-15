@@ -488,8 +488,6 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 			awssig.AppendPRMUserAgent(req)
 			return next(req)
 		}),
-		//nolint:bodyclose // Middleware forwards the response to the interceptor, which closes it.
-		option.WithMiddleware(awssig.BedrockMantleUnsafeHeadersMiddleware(i.logger)),
 	}
 
 	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
