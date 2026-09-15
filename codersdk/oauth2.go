@@ -20,6 +20,9 @@ type OAuth2ProviderApp struct {
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
 
+	// ClientType is "confidential" or "public".
+	ClientType OAuth2ClientType `json:"client_type"`
+
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
 	// a '/.well-known/openid-configuration' endpoint).
