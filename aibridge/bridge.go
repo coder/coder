@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -71,25 +70,17 @@ const (
 //
 // RequestBridge is safe for concurrent use.
 type RequestBridge struct {
-	mux    *http.ServeMux
-	logger slog.Logger
+	handler http.Handler
+	logger  slog.Logger
 
 	mcpProxy mcp.ServerProxier
 
-	inflightReqs atomic.Int32
-	inflightWG   sync.WaitGroup // For graceful shutdown.
-
-	// inflightMu orders inflightWG.Add (ServeHTTP, read-held) before
-	// close(b.closed) (Shutdown, write-held), so Add never races Wait.
-	inflightMu sync.RWMutex
-
-	inflightCtx    context.Context
-	inflightCancel func()
+	// inflight provides the shared admission and drain machinery.
+	inflight *InflightGate
 
 	clock quartz.Clock
 
 	shutdownOnce sync.Once
-	closed       chan struct{}
 }
 
 var _ http.Handler = &RequestBridge{}
@@ -191,20 +182,18 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		}
 	}
 
-	inflightCtx, cancel := context.WithCancel(context.Background())
 	b := &RequestBridge{
-		mux:            mux,
-		logger:         logger,
-		mcpProxy:       mcpProxy,
-		inflightCtx:    inflightCtx,
-		inflightCancel: cancel,
-		clock:          quartz.NewReal(),
-
-		closed: make(chan struct{}, 1),
+		logger:   logger,
+		mcpProxy: mcpProxy,
+		inflight: NewInflightGate(logger),
+		clock:    quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(b)
 	}
+	b.handler = b.inflight.Middleware(func() {
+		_ = b.clock.Now("serve_admission") // Trap point for deterministic race tests.
+	})(http.MaxBytesHandler(mux, maxRequestBodyBytes))
 	return b, nil
 }
 
@@ -412,64 +401,20 @@ func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	b.inflightMu.RLock()
-	select {
-	case <-b.closed:
-		b.inflightMu.RUnlock()
-		http.Error(rw, "server closed", http.StatusInternalServerError)
-		return
-	default:
-	}
-
-	// Trap point for deterministic race tests.
-	_ = b.clock.Now("serve_admission")
-
-	b.inflightReqs.Add(1)
-	b.inflightWG.Add(1)
-	b.inflightMu.RUnlock()
-	defer func() {
-		b.inflightReqs.Add(-1)
-		b.inflightWG.Done()
-	}()
-
-	// We want to abide by the context passed in without losing any of its
-	// functionality, but we still want to link our shutdown context to each
-	// request.
-	ctx := mergeContexts(r.Context(), b.inflightCtx)
-
-	// Enforce the request body size limit. MaxBytesReader counts bytes as
-	// they are read from the connection and fails when the limit is exceeded.
-	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
-	b.mux.ServeHTTP(rw, r.WithContext(ctx))
+	b.handler.ServeHTTP(rw, r)
 }
 
-// Shutdown will attempt to gracefully shutdown. This entails waiting for all requests to
-// complete, and shutting down the MCP server proxier.
-// TODO: add tests.
+// Shutdown drains requests until ctx expires, then cancels remaining requests
+// without waiting for their handlers to return. MCP cleanup is attempted even
+// while canceled handlers are still running.
 func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	var err error
 	b.shutdownOnce.Do(func() {
-		// Close under inflightMu so no ServeHTTP sits mid-admission (see inflightMu).
-		b.inflightMu.Lock()
-		close(b.closed)
-		b.inflightMu.Unlock()
-
-		// Wait for inflight requests to complete or context cancellation.
-		done := make(chan struct{})
-		go func() {
-			b.inflightWG.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-ctx.Done():
-			// Cancel all inflight requests, if any are still running.
-			b.logger.Debug(ctx, "shutdown context canceled; canceling inflight requests", slog.Error(ctx.Err()))
-			b.inflightCancel()
-			<-done
-			err = ctx.Err()
-		case <-done:
+		err = b.inflight.Shutdown(ctx)
+		if err != nil {
+			b.logger.Debug(ctx, "shutdown context canceled; canceling inflight requests", slog.Error(err))
 		}
+		b.inflight.Close()
 
 		if b.mcpProxy != nil {
 			// It's ok that we reuse the ctx here even if it's done, since the
@@ -480,25 +425,6 @@ func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	})
 
 	return err
-}
-
-func (b *RequestBridge) InflightRequests() int32 {
-	return b.inflightReqs.Load()
-}
-
-// mergeContexts merges two contexts together, so that if either is canceled
-// the returned context is canceled. The context values will only be used from
-// the first context.
-func mergeContexts(base, other context.Context) context.Context {
-	ctx, cancel := context.WithCancel(base)
-	go func() {
-		defer cancel()
-		select {
-		case <-base.Done():
-		case <-other.Done():
-		}
-	}()
-	return ctx
 }
 
 // extractAgentFirewallHeaders reads and parses the Agent Firewall
