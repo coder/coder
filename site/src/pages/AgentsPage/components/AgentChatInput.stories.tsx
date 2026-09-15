@@ -752,22 +752,7 @@ export const MCPGroupPopoverLongName: Story = {
 		mcpServers: [sentryMCP, linearMCP, longNameMCP],
 		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, longNameMCP.id],
 	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
-		);
-		const popover = await within(document.body).findByRole("dialog");
-		const remove = within(popover).getByRole("button", {
-			name: `Remove ${longNameMCP.display_name}`,
-		});
-		await waitFor(() => {
-			expect(remove).toBeVisible();
-		});
-		expect(popover.scrollWidth).toBeLessThanOrEqual(popover.clientWidth);
-		expect(remove.getBoundingClientRect().right).toBeLessThanOrEqual(
-			popover.getBoundingClientRect().right,
-		);
-	},
+	play: MCPGroupPopoverOpen.play,
 };
 
 export const PlusMenuAlwaysOnNeedingAuth: Story = {
