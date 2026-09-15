@@ -8543,11 +8543,50 @@ export interface ServiceBannerConfig {
 	readonly background_color?: string;
 }
 
+// From codersdk/appname.go
+/**
+ * SessionCountApp describes the presentation of a recognized session app.
+ */
+export interface SessionCountApp {
+	/**
+	 * DisplayName is the human-readable app name.
+	 */
+	readonly display_name: string;
+	/**
+	 * Icon is an optional path to a bundled icon, relative to the server root.
+	 */
+	readonly icon?: string;
+}
+
 // From codersdk/deployment.go
+/**
+ * SessionCountDeploymentStats contains current session counts by app.
+ */
 export interface SessionCountDeploymentStats {
+	/**
+	 * SessionCounts contains counts keyed by the full normalized app name.
+	 */
+	readonly session_counts: Record<string, number>;
+	/**
+	 * Apps contains presentation metadata for recognized names in SessionCounts.
+	 * Unrecognized names should be displayed as their raw identifier.
+	 */
+	readonly apps: Record<string, SessionCountApp>;
+	/**
+	 * @deprecated use SessionCounts. VSCode aggregates the VS Code family.
+	 */
 	readonly vscode: number;
+	/**
+	 * @deprecated use SessionCounts. SSH aggregates the SSH family.
+	 */
 	readonly ssh: number;
+	/**
+	 * @deprecated use SessionCounts. JetBrains aggregates the JetBrains family.
+	 */
 	readonly jetbrains: number;
+	/**
+	 * @deprecated use SessionCounts. ReconnectingPTY aggregates web terminals.
+	 */
 	readonly reconnecting_pty: number;
 }
 

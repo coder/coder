@@ -27679,19 +27679,51 @@ const docTemplate = `{
                 "ServerSentEventTypeError"
             ]
         },
+        "codersdk.SessionCountApp": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "description": "DisplayName is the human-readable app name.",
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon is an optional path to a bundled icon, relative to the server root.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.SessionCountDeploymentStats": {
             "type": "object",
             "properties": {
+                "apps": {
+                    "description": "Apps contains presentation metadata for recognized names in SessionCounts.\nUnrecognized names should be displayed as their raw identifier.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.SessionCountApp"
+                    }
+                },
                 "jetbrains": {
+                    "description": "Deprecated: use SessionCounts. JetBrains aggregates the JetBrains family.",
                     "type": "integer"
                 },
                 "reconnecting_pty": {
+                    "description": "Deprecated: use SessionCounts. ReconnectingPTY aggregates web terminals.",
                     "type": "integer"
                 },
+                "session_counts": {
+                    "description": "SessionCounts contains counts keyed by the full normalized app name.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
                 "ssh": {
+                    "description": "Deprecated: use SessionCounts. SSH aggregates the SSH family.",
                     "type": "integer"
                 },
                 "vscode": {
+                    "description": "Deprecated: use SessionCounts. VSCode aggregates the VS Code family.",
                     "type": "integer"
                 }
             }

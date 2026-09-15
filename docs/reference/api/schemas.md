@@ -7771,8 +7771,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "display_name": "string",
+        "icon": "string"
+      },
+      "property2": {
+        "display_name": "string",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
+    "session_counts": {
+      "property1": 0,
+      "property2": 0
+    },
     "ssh": 0,
     "vscode": 0
   },
@@ -13365,12 +13379,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------------------------|
 | `data`, `error`, `ping` |
 
+## codersdk.SessionCountApp
+
+```json
+{
+  "display_name": "string",
+  "icon": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                                              |
+|----------------|--------|----------|--------------|--------------------------------------------------------------------------|
+| `display_name` | string | false    |              | Display name is the human-readable app name.                             |
+| `icon`         | string | false    |              | Icon is an optional path to a bundled icon, relative to the server root. |
+
 ## codersdk.SessionCountDeploymentStats
 
 ```json
 {
+  "apps": {
+    "property1": {
+      "display_name": "string",
+      "icon": "string"
+    },
+    "property2": {
+      "display_name": "string",
+      "icon": "string"
+    }
+  },
   "jetbrains": 0,
   "reconnecting_pty": 0,
+  "session_counts": {
+    "property1": 0,
+    "property2": 0
+  },
   "ssh": 0,
   "vscode": 0
 }
@@ -13378,12 +13422,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `jetbrains`        | integer | false    |              |             |
-| `reconnecting_pty` | integer | false    |              |             |
-| `ssh`              | integer | false    |              |             |
-| `vscode`           | integer | false    |              |             |
+| Name               | Type                                                 | Required | Restrictions | Description                                                                                                                                |
+|--------------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `apps`             | object                                               | false    |              | Apps contains presentation metadata for recognized names in SessionCounts. Unrecognized names should be displayed as their raw identifier. |
+| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                                                                                                            |
+| `jetbrains`        | integer                                              | false    |              | Deprecated: use SessionCounts. JetBrains aggregates the JetBrains family.                                                                  |
+| `reconnecting_pty` | integer                                              | false    |              | Deprecated: use SessionCounts. ReconnectingPTY aggregates web terminals.                                                                   |
+| `session_counts`   | object                                               | false    |              | Session counts contains counts keyed by the full normalized app name.                                                                      |
+| » `[any property]` | integer                                              | false    |              |                                                                                                                                            |
+| `ssh`              | integer                                              | false    |              | Deprecated: use SessionCounts. SSH aggregates the SSH family.                                                                              |
+| `vscode`           | integer                                              | false    |              | Deprecated: use SessionCounts. VSCode aggregates the VS Code family.                                                                       |
 
 ## codersdk.SessionLifetime
 

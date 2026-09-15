@@ -5428,10 +5428,20 @@ type WorkspaceDeploymentStats struct {
 	TxBytes             int64                        `json:"tx_bytes"`
 }
 
+// SessionCountDeploymentStats contains current session counts by app.
 type SessionCountDeploymentStats struct {
-	VSCode          int64 `json:"vscode"`
-	SSH             int64 `json:"ssh"`
-	JetBrains       int64 `json:"jetbrains"`
+	// SessionCounts contains counts keyed by the full normalized app name.
+	SessionCounts map[string]int64 `json:"session_counts"`
+	// Apps contains presentation metadata for recognized names in SessionCounts.
+	// Unrecognized names should be displayed as their raw identifier.
+	Apps map[string]SessionCountApp `json:"apps"`
+	// Deprecated: use SessionCounts. VSCode aggregates the VS Code family.
+	VSCode int64 `json:"vscode"`
+	// Deprecated: use SessionCounts. SSH aggregates the SSH family.
+	SSH int64 `json:"ssh"`
+	// Deprecated: use SessionCounts. JetBrains aggregates the JetBrains family.
+	JetBrains int64 `json:"jetbrains"`
+	// Deprecated: use SessionCounts. ReconnectingPTY aggregates web terminals.
 	ReconnectingPTY int64 `json:"reconnecting_pty"`
 }
 

@@ -2,6 +2,7 @@ package codersdk_test
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -224,56 +225,6 @@ func TestSessionCountsByFamilyCoversEveryRegisteredFamily(t *testing.T) {
 	require.Equal(t, want, codersdk.SessionCountsByFamily(appCounts))
 }
 
-func TestSessionCountsByFamilyJSON(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name      string
-		appCounts json.RawMessage
-		want      map[codersdk.AppFamilyName]int64
-	}{
-		{"Counts", json.RawMessage(`{"cursor":2,"vscode":1,"ssh":4}`), map[codersdk.AppFamilyName]int64{
-			codersdk.AppFamilyVSCode: 3,
-			codersdk.AppFamilySSH:    4,
-		}},
-		{"UnknownApp", json.RawMessage(`{"some_future_ide":9}`), map[codersdk.AppFamilyName]int64{
-			codersdk.AppFamilyUnknown: 9,
-		}},
-		{"EmptyObject", json.RawMessage(`{}`), map[codersdk.AppFamilyName]int64{}},
-		// A query with no matching rows aggregates to SQL NULL, which is not
-		// an error, just no sessions.
-		{"JSONNull", json.RawMessage(`null`), map[codersdk.AppFamilyName]int64{}},
-		{"Absent", nil, map[codersdk.AppFamilyName]int64{}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := codersdk.SessionCountsByFamilyJSON(tc.appCounts)
-			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
-		})
-	}
-}
-
-func TestSessionCountsByFamilyJSONMalformed(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name      string
-		appCounts json.RawMessage
-	}{
-		{"Truncated", json.RawMessage(`{"vscode":`)},
-		{"NotAnObject", json.RawMessage(`["vscode"]`)},
-		{"NonNumericCount", json.RawMessage(`{"vscode":"1"}`)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := codersdk.SessionCountsByFamilyJSON(tc.appCounts)
-			require.Error(t, err)
-			require.Nil(t, got)
-		})
-	}
-}
-
 func TestDecodeAppFamilyMap(t *testing.T) {
 	t.Parallel()
 
@@ -310,5 +261,58 @@ func TestDecodeAppFamilyMap(t *testing.T) {
 			require.Equal(t, map[codersdk.AppFamilyName]int64{}, got)
 			require.Zero(t, got[codersdk.AppFamilySSH])
 		})
+	}
+}
+
+func TestDecodeSessionCounts(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		raw     json.RawMessage
+		want    map[string]int64
+		wantErr bool
+	}{
+		{"Counts", json.RawMessage(`{"cursor":2,"vscode":1,"future_ide":3}`), map[string]int64{"cursor": 2, "vscode": 1, "future_ide": 3}, false},
+		{"Absent", nil, map[string]int64{}, false},
+		{"Null", json.RawMessage(`null`), map[string]int64{}, false},
+		{"Empty", json.RawMessage(`{}`), map[string]int64{}, false},
+		{"Malformed", json.RawMessage(`{"cursor":`), nil, true},
+		{"Array", json.RawMessage(`[]`), nil, true},
+		{"StringCount", json.RawMessage(`{"cursor":"2"}`), nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := codersdk.DecodeSessionCounts(tc.raw)
+			if tc.wantErr {
+				require.Error(t, err)
+				require.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestSessionCountAppMetadata(t *testing.T) {
+	t.Parallel()
+	cursor, ok := codersdk.SessionCountAppMetadata("Cursor")
+	require.True(t, ok, "lookup must normalize like AppNameFamily")
+	require.Equal(t, codersdk.SessionCountApp{DisplayName: "Cursor", Icon: "/icon/cursor.svg"}, cursor)
+	metadata, ok := codersdk.SessionCountAppMetadata("../../cursor")
+	require.False(t, ok)
+	require.Empty(t, metadata)
+	// Every registered icon is a bundled, clean path so the frontend never
+	// renders an arbitrary URL.
+	for name := range codersdk.SessionCountAppFamilies() {
+		metadata, ok := codersdk.SessionCountAppMetadata(name)
+		require.True(t, ok, name)
+		require.NotEmpty(t, metadata.DisplayName, name)
+		if metadata.Icon == "" {
+			continue
+		}
+		require.True(t, strings.HasPrefix(metadata.Icon, "/icon/"), name)
+		require.Equal(t, filepath.Clean(metadata.Icon), metadata.Icon)
+		require.FileExists(t, filepath.Join("..", "site", "static", metadata.Icon), "icon for %s must be bundled", name)
 	}
 }
