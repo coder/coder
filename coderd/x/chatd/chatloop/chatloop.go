@@ -1220,7 +1220,7 @@ func exclusiveToolPolicyResults(
 }
 
 func exclusiveToolMustRunAloneErrorMessage(toolName string) string {
-	return toolName + " must be called alone, without other tools in the same batch. Retry with only the " + toolName + " call."
+	return toolName + " must be called alone, without other tools in the same batch. If you need more information to feed into the " + toolName + " call, execute the other tools first, then retry with only the " + toolName + " call."
 }
 
 func exclusiveToolSkippedErrorMessage(toolName string) string {
