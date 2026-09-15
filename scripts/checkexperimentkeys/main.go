@@ -3,8 +3,9 @@
 // The check recognizes only explicit enablement forms: --experiments=<key-list>
 // and CODER_EXPERIMENTS=<key-list>, where a key list is comma-separated. It
 // deliberately does not infer bare identifiers from prose, which would make
-// the check susceptible to false positives. Placeholder values such as
-// feature1, feature2, <experiment-key>, and * are ignored.
+// the check susceptible to false positives. Matching single- or double-quoted
+// values are accepted. Placeholders are *, the documented feature1 and
+// feature2 illustrative pair, and any angle-bracketed value.
 //
 // Usage:
 //
@@ -27,13 +28,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-var experimentAssignment = regexp.MustCompile(`(?:--experiments|CODER_EXPERIMENTS)=([a-zA-Z0-9_*<>,-]+)`)
-
-var placeholderKeys = map[string]bool{
-	"*":        true,
-	"feature1": true,
-	"feature2": true,
-}
+var (
+	experimentAssignment        = regexp.MustCompile(`(?:--experiments|CODER_EXPERIMENTS)=(?:"([a-zA-Z0-9_*<>,-]+)"|'([a-zA-Z0-9_*<>,-]+)'|([a-zA-Z0-9_*<>,-]+))`)
+	shellContinuationAssignment = regexp.MustCompile(`(?:--experiments|CODER_EXPERIMENTS)=[a-zA-Z0-9_*<>,-]*\\$`)
+)
 
 type finding struct {
 	path string
@@ -90,21 +88,59 @@ func runWithReadFile(roots []string, stderr io.Writer, readFile func(string) ([]
 
 func checkSource(path string, src []byte, known map[string]bool) []finding {
 	var findings []finding
-	for lineNumber, line := range strings.Split(string(src), "\n") {
-		for _, match := range experimentAssignment.FindAllStringSubmatch(line, -1) {
-			for _, key := range strings.Split(match[1], ",") {
+	for _, line := range shellLogicalLines(string(src)) {
+		for _, match := range experimentAssignment.FindAllStringSubmatch(line.text, -1) {
+			for _, key := range strings.Split(experimentValue(match), ",") {
 				if key == "" || known[key] || isPlaceholder(key) {
 					continue
 				}
-				findings = append(findings, finding{path: path, line: lineNumber + 1, key: key})
+				findings = append(findings, finding{path: path, line: line.number, key: key})
 			}
 		}
 	}
 	return findings
 }
 
+type logicalLine struct {
+	number int
+	text   string
+}
+
+func shellLogicalLines(src string) []logicalLine {
+	physicalLines := strings.Split(src, "\n")
+	logicalLines := make([]logicalLine, 0, len(physicalLines))
+	for lineIndex := 0; lineIndex < len(physicalLines); lineIndex++ {
+		line := physicalLines[lineIndex]
+		logicalLine := logicalLine{number: lineIndex + 1, text: line}
+
+		// Markdown also uses a trailing backslash as a hard line break. Only join
+		// a line ending in an explicit, unquoted assignment the recognizer accepts.
+		if shellContinuationAssignment.MatchString(logicalLine.text) {
+			for lineIndex+1 < len(physicalLines) {
+				lineIndex++
+				logicalLine.text = strings.TrimSuffix(logicalLine.text, "\\") + physicalLines[lineIndex]
+				if !strings.HasSuffix(logicalLine.text, "\\") {
+					break
+				}
+			}
+		}
+		logicalLines = append(logicalLines, logicalLine)
+	}
+	return logicalLines
+}
+
+func experimentValue(match []string) string {
+	for _, value := range match[1:] {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func isPlaceholder(key string) bool {
-	return placeholderKeys[key] || (strings.HasPrefix(key, "<") && strings.HasSuffix(key, ">"))
+	return key == "*" || key == "feature1" || key == "feature2" ||
+		(strings.HasPrefix(key, "<") && strings.HasSuffix(key, ">"))
 }
 
 func collectMarkdown(roots []string) ([]string, error) {

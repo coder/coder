@@ -14,8 +14,9 @@ func TestCheckSource(t *testing.T) {
 	t.Parallel()
 
 	known := map[string]bool{
-		"known":       true,
-		"another-key": true,
+		"known":         true,
+		"another-key":   true,
+		"notifications": true,
 	}
 
 	tests := []struct {
@@ -31,6 +32,42 @@ func TestCheckSource(t *testing.T) {
 			name: "unknown key fails",
 			src:  "CODER_EXPERIMENTS=unknown\n",
 			want: []finding{{path: "docs/example.md", line: 1, key: "unknown"}},
+		},
+		{
+			name: "double-quoted command value is checked",
+			src:  "To enable the preview, run `coder server --experiments=\"stale-key\"`.\n",
+			want: []finding{{path: "docs/example.md", line: 1, key: "stale-key"}},
+		},
+		{
+			name: "single-quoted assignment value is checked",
+			src:  "Set `CODER_EXPERIMENTS='another-stale-key'` in the service environment.\n",
+			want: []finding{{path: "docs/example.md", line: 1, key: "another-stale-key"}},
+		},
+		{
+			name: "exported double-quoted assignment value is checked",
+			src:  "For systemd, use `export CODER_EXPERIMENTS=\"third-stale-key\"`.\n",
+			want: []finding{{path: "docs/example.md", line: 1, key: "third-stale-key"}},
+		},
+		{
+			name: "mismatched quotes are not recognized as values",
+			src:  "Do not copy this malformed command: CODER_EXPERIMENTS=\"stale-key'.\n",
+		},
+		{
+			name: "shell continuation joins a split key from its first physical line",
+			src: "Configure the container environment:\n\n```sh\nCODER_EXPERIMENTS=notifi\\\n" +
+				"cations\n```\n",
+		},
+		{
+			name: "shell continuation checks every list key from its first physical line",
+			src: "Configure the container environment:\n\n```sh\nCODER_EXPERIMENTS=notifications,\\\n" +
+				"stale-key\n```\n",
+			want: []finding{{path: "docs/example.md", line: 4, key: "stale-key"}},
+		},
+		{
+			name: "placeholders are constrained to documented examples and angle brackets",
+			src: "Use a placeholder while drafting:\n\n```sh\nCODER_EXPERIMENTS=feature1,feature2,<key>,*\n" +
+				"CODER_EXPERIMENTS=feature3\n```\n",
+			want: []finding{{path: "docs/example.md", line: 5, key: "feature3"}},
 		},
 		{
 			name: "placeholder forms are ignored",
@@ -97,6 +134,20 @@ func TestCollectMarkdown(t *testing.T) {
 	files, err := collectMarkdown([]string{directory, nestedMarkdown, filepath.Join(directory, "ignored.txt")})
 	require.NoError(t, err)
 	require.Equal(t, []string{nestedMarkdown, topLevelMarkdown}, files)
+
+	t.Run("does not traverse directory symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		outsideDirectory := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(outsideDirectory, "outside.md"), nil, 0o600))
+
+		link := filepath.Join(directory, "linked-directory")
+		require.NoError(t, os.Symlink(outsideDirectory, link))
+
+		files, err := collectMarkdown([]string{directory})
+		require.NoError(t, err)
+		require.Equal(t, []string{nestedMarkdown, topLevelMarkdown}, files)
+	})
 }
 
 func TestRunReportsLocationAndRemediation(t *testing.T) {
