@@ -135,8 +135,6 @@ Users can attach files to chat messages by pasting from the clipboard, dragging 
 Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, JSON, SVG, and PDF files.
 Each upload can be up to 10&nbsp;MiB. A conversation keeps its 50 most recent attachments, and older attachments are removed automatically.
 Attachments are sent to the model as multimodal content alongside the text prompt.
-SVG and PDF attachments are download-only: the chat shows them as file cards instead of rendering them inline, because both formats can carry active content.
-The model receives SVG source as text rather than as an image.
 
 This is useful for sharing screenshots of errors, UI mockups, terminal output, logs, or other context that helps the agent understand the task.
 Messages can contain attachments alone or combined with text.
