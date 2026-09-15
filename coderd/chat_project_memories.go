@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -71,7 +72,8 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
 	}
-	count, err := api.Database.CountChatProjectMemoriesByProjectID(ctx, project.ID)
+	//nolint:gocritic // Create authorization was already performed against this memory resource.
+	count, err := api.Database.CountChatProjectMemoriesByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to count chat project memories.", Detail: err.Error()})
 		return
@@ -92,12 +94,10 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = memory
-	row, err := api.Database.GetChatProjectMemoryByID(ctx, memory.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to read chat project memory.", Detail: err.Error()})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProjectMemory(row))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProjectMemory(database.GetChatProjectMemoryByIDRow{
+		ChatProjectMemory: memory,
+		CreatedByUsername: httpmw.UserAuthorization(ctx).FriendlyName,
+	}))
 }
 
 // @Summary Get chat project memory
@@ -178,12 +178,10 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	aReq.New = updated
-	row, err := api.Database.GetChatProjectMemoryByID(ctx, updated.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to read chat project memory.", Detail: err.Error()})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProjectMemory(row))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProjectMemory(database.GetChatProjectMemoryByIDRow{
+		ChatProjectMemory: updated,
+		CreatedByUsername: memoryRow.CreatedByUsername,
+	}))
 }
 
 // @Summary Delete chat project memory

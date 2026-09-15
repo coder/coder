@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -26,9 +27,9 @@ const (
 	projectMemoryExtractionMaxOutputTokens    = 2048
 )
 
-// The extractor is deliberately upsert-only. Dogfooding showed a model
-// treating an assistant's "I don't know" as a contradiction and deleting a
-// correct memory; deletion stays with the main agent's tool and the UI.
+// The extractor is deliberately create-only. Dogfooding showed a model
+// treating an assistant's "I don't know" as a contradiction and overwriting a
+// correct memory; updates stay with the main agent's tool and the UI.
 const projectMemoryExtractionPrompt = "You review a completed coding-chat turn and record project memory the main agent did not save itself. " +
 	chattool.ProjectMemoryGuidance + " " +
 	"Record only facts the user stated or explicitly confirmed in this turn. " +
@@ -149,26 +150,21 @@ func applyProjectMemoryUpsert(ctx context.Context, store database.Store, chat da
 	if err != nil {
 		return err
 	}
-	name, description, body := normalized.Name, normalized.Description, normalized.Body
-	_, existingErr := store.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: name})
-	if existingErr == nil {
-		return xerrors.Errorf("memory %q already exists", name)
-	}
-	if !errors.Is(existingErr, sql.ErrNoRows) {
-		return xerrors.Errorf("look up project memory: %w", existingErr)
-	}
-	count, countErr := store.CountChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
-	if countErr != nil {
-		return xerrors.Errorf("count project memories: %w", countErr)
+	count, err := store.CountChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
+	if err != nil {
+		return xerrors.Errorf("count project memories: %w", err)
 	}
 	if count >= chattool.MaxProjectMemories {
 		return xerrors.New("project memory limit reached")
 	}
-	_, err = store.UpsertChatProjectMemoryByName(ctx, database.UpsertChatProjectMemoryByNameParams{
-		ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID,
-		Name: name, Description: description, Body: body,
+	_, err = store.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{
+		ID: uuid.NullUUID{}, ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID,
+		Name: normalized.Name, Description: normalized.Description, Body: normalized.Body,
 		SourceChatID: uuid.NullUUID{UUID: chat.ID, Valid: true}, CreatedBy: chat.OwnerID,
 	})
+	if database.IsUniqueViolation(err) {
+		return nil
+	}
 	return err
 }
 
@@ -195,8 +191,10 @@ func normalizeProjectMemoryExtraction(upsert projectMemoryExtractionUpsert) (nor
 }
 
 // turnUsedProjectMemoryTools reports whether the messages written after the
-// given history version contain a save or delete project memory tool call.
+// given history version contain a successful save or delete project memory tool
+// call.
 func turnUsedProjectMemoryTools(messages []database.ChatMessage, afterHistoryVersion int64) bool {
+	projectMemoryToolCallIDs := make(map[string]struct{})
 	for _, message := range messages {
 		if message.Revision <= afterHistoryVersion || message.Role != database.ChatMessageRoleAssistant {
 			continue
@@ -211,6 +209,26 @@ func turnUsedProjectMemoryTools(messages []database.ChatMessage, afterHistoryVer
 			}
 			switch part.ToolName {
 			case chattool.SaveProjectMemoryToolName, chattool.DeleteProjectMemoryToolName:
+				projectMemoryToolCallIDs[part.ToolCallID] = struct{}{}
+			}
+		}
+	}
+	if len(projectMemoryToolCallIDs) == 0 {
+		return false
+	}
+	for _, message := range messages {
+		if message.Revision <= afterHistoryVersion || message.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(message)
+		if err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.IsError {
+				continue
+			}
+			if _, ok := projectMemoryToolCallIDs[part.ToolCallID]; ok {
 				return true
 			}
 		}
@@ -249,5 +267,15 @@ func renderProjectMemoryTranscript(messages []database.ChatMessage, afterHistory
 	for len(strings.Join(lines, "\n")) > projectMemoryExtractionTranscriptMaxBytes && len(lines) > 1 {
 		lines = lines[1:]
 	}
-	return strings.Join(lines, "\n")
+	transcript := strings.Join(lines, "\n")
+	if len(transcript) <= projectMemoryExtractionTranscriptMaxBytes {
+		return transcript
+	}
+
+	const truncatedPrefix = "[truncated] "
+	tailStart := len(transcript) - (projectMemoryExtractionTranscriptMaxBytes - len(truncatedPrefix))
+	for tailStart < len(transcript) && !utf8.RuneStart(transcript[tailStart]) {
+		tailStart++
+	}
+	return truncatedPrefix + transcript[tailStart:]
 }
