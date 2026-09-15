@@ -114,7 +114,7 @@
 		},
 		{
 			"title": "Install",
-			"description": "Install the Coder control plane and CLI, then choose a deployment method for your infrastructure.",
+			"description": "Plan, prepare, install, validate, and operate a Coder deployment in your own infrastructure.",
 			"path": "./install/index.md",
 			"icon_path": "./images/icons/download.svg",
 			"children": [
@@ -136,8 +136,8 @@
 							"path": "./install/plan/architecture.md"
 						},
 						{
-							"title": "Validated Architectures",
-							"description": "Coder Validated Architectures with reference designs and best practices for large deployments.",
+							"title": "Coder Validated Architecture",
+							"description": "Reference designs and best practices for sizing a Coder deployment, from 1,000 to 10,000 users.",
 							"path": "./install/plan/sizing/index.md",
 							"children": [
 								{
