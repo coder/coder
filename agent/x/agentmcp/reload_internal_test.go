@@ -204,7 +204,7 @@ func TestSnapshotChanged(t *testing.T) {
 				checkPaths = tc.checkPaths(t, dir, paths)
 			}
 
-			changed := m.SnapshotChanged(checkPaths)
+			changed := m.SnapshotChanged(PathSources(checkPaths))
 			assert.Equal(t, tc.want, changed)
 		})
 	}
@@ -238,14 +238,14 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Both files unchanged.
-	assert.False(t, m.SnapshotChanged(paths),
+	assert.False(t, m.SnapshotChanged(PathSources(paths)),
 		"snapshot should not change when both files are unchanged")
 
 	// Mutate only the second file.
 	_, entry2b := fakeMCPServerConfig(t, "srv2b")
 	writeMCPConfig(t, dir2, map[string]mcpServerEntry{"srv2b": entry2b})
 
-	assert.True(t, m.SnapshotChanged(paths),
+	assert.True(t, m.SnapshotChanged(PathSources(paths)),
 		"snapshot should change when second file is mutated")
 
 	// Reload picks up the mutation.
@@ -284,7 +284,7 @@ func TestReload(t *testing.T) {
 		assert.Equal(t, "echo", tools[0].tool)
 
 		// Snapshot should be fresh.
-		assert.False(t, m.SnapshotChanged([]string{configPath}))
+		assert.False(t, m.SnapshotChanged(PathSources([]string{configPath})))
 	})
 
 	t.Run("ReloadAfterClose", func(t *testing.T) {
@@ -354,7 +354,7 @@ func TestReload(t *testing.T) {
 			m.mu.RLock()
 			firstSyncSettled := m.firstSyncSettled
 			m.mu.RUnlock()
-			return firstSyncSettled && !m.SnapshotChanged(paths)
+			return firstSyncSettled && !m.SnapshotChanged(PathSources(paths))
 		}, testutil.IntervalFast)
 	})
 
@@ -382,7 +382,7 @@ func TestReload(t *testing.T) {
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv2": entry2})
 
 		// Second reload detects the change.
-		assert.True(t, m.SnapshotChanged([]string{configPath}))
+		assert.True(t, m.SnapshotChanged(PathSources([]string{configPath})))
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
 		tools2 := m.connectedTools()
@@ -408,7 +408,7 @@ func TestReload(t *testing.T) {
 		// swallowed) and snapshot should update.
 		err := m.Reload(ctx, []string{path})
 		require.NoError(t, err)
-		assert.False(t, m.SnapshotChanged([]string{path}),
+		assert.False(t, m.SnapshotChanged(PathSources([]string{path})),
 			"snapshot should be updated even on per-server connect failure")
 	})
 
@@ -436,7 +436,7 @@ func TestReload(t *testing.T) {
 		assert.Empty(t, m.connectedTools(), "tools should be empty after config deleted")
 
 		// Subsequent reload finds snapshot unchanged.
-		assert.False(t, m.SnapshotChanged([]string{configPath}))
+		assert.False(t, m.SnapshotChanged(PathSources([]string{configPath})))
 	})
 }
 
@@ -638,10 +638,10 @@ func TestDifferentialReload(t *testing.T) {
 		_, err = m.CallTool(ctx, workspacesdk.CallMCPToolRequest{
 			ToolName: toolName,
 		})
-		// The fake server does not implement tools/call, so we
+		// The fake server rejects tools/call for "echo", so we
 		// expect an error from the server, but the call itself
 		// should reach the server (not ErrUnknownServer).
-		require.Error(t, err, "fake server does not implement tools/call")
+		require.Error(t, err, "fake server rejects tools/call for echo")
 		assert.NotErrorIs(t, err, ErrUnknownServer,
 			"tool call should reach the server, not fail with unknown server")
 	})
