@@ -4989,8 +4989,7 @@ export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,
 };
 
-// A representative slice of the deployment's scope catalog, in the sorted order
-// the endpoint returns.
+// Sorted, matching the endpoint's order.
 export const MockExternalAPIKeyScopes: TypesGen.ExternalAPIKeyScopes = {
 	external: [
 		"api_key:read",

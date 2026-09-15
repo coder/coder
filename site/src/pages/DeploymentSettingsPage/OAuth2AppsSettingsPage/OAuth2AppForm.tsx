@@ -31,11 +31,15 @@ type OAuth2AppFormValues = {
 	scope: string[];
 };
 
+// The create page sends this as a POST and the edit page as a PUT, so it has
+// to satisfy both request types, and a field added to either is a type error
+// here rather than a silently missing field.
+type OAuth2AppFormRequest = TypesGen.PostOAuth2ProviderAppRequest &
+	TypesGen.PutOAuth2ProviderAppRequest;
+
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (
-		data: TypesGen.PostOAuth2ProviderAppRequest,
-	) => void | Promise<void>;
+	onSubmit: (data: OAuth2AppFormRequest) => void | Promise<void>;
 	error?: unknown;
 	isUpdating: boolean;
 	defaultValues?: Partial<OAuth2AppFormValues>;
