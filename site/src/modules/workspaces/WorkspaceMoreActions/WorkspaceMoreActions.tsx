@@ -3,6 +3,7 @@ import {
 	DownloadIcon,
 	EllipsisVerticalIcon,
 	HistoryIcon,
+	RotateCcwIcon,
 	SettingsIcon,
 	SquareIcon,
 	TrashIcon,
@@ -44,6 +45,8 @@ type WorkspaceMoreActionsProps = {
 	disabled: boolean;
 	onStop?: () => void;
 	isStopping?: boolean;
+	onRestart?: () => void;
+	isRestarting?: boolean;
 	onActionSuccess?: () => Promise<void> | void;
 };
 
@@ -52,6 +55,8 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	disabled,
 	onStop,
 	isStopping,
+	onRestart,
+	isRestarting,
 	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
@@ -139,6 +144,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						<DropdownMenuItem onClick={onStop} disabled={isStopping}>
 							<SquareIcon />
 							Stop&hellip;
+						</DropdownMenuItem>
+					)}
+
+					{onRestart && (
+						<DropdownMenuItem onClick={onRestart} disabled={isRestarting}>
+							<RotateCcwIcon />
+							Restart&hellip;
 						</DropdownMenuItem>
 					)}
 
