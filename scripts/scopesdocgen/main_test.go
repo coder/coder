@@ -23,7 +23,7 @@ func TestSentence(t *testing.T) {
 		{"restores leading acronym", "ssh into a given workspace", "SSH into a given workspace."},
 		{"restores multi-case acronym", "api key details", "API key details."},
 		{"capitalizes a multibyte rune", "éclair", "Éclair."},
-		{"leaves inner words alone", "read api key details", "Read api key details."},
+		{"restores mid-sentence acronym", "read api key details", "Read API key details."},
 		{"empty stays empty", "", ""},
 	}
 	for _, tc := range cases {
@@ -47,12 +47,10 @@ func TestPartitionScopes(t *testing.T) {
 	if len(composite) == 0 || len(lowLevel) == 0 {
 		t.Fatalf("composite (%d) and low-level (%d) scopes must both be populated", len(composite), len(lowLevel))
 	}
-	for _, name := range composite {
-		if _, ok := rbac.CompositeSitePermissions(rbac.ScopeName(name)); !ok {
-			t.Errorf("composite scope %q has no permissions", name)
-		}
-	}
 	for _, name := range lowLevel {
+		if _, ok := rbac.CompositeSitePermissions(rbac.ScopeName(name)); ok {
+			t.Errorf("low-level scope %q is a composite scope", name)
+		}
 		if _, _, ok := rbac.ParseResourceAction(name); !ok {
 			t.Errorf("low-level scope %q is not a resource:action pair", name)
 		}
@@ -104,7 +102,8 @@ func TestActionDescription(t *testing.T) {
 
 		got, err := actionDescription("workspace", "*")
 		require.NoError(t, err)
-		require.Equal(t, "Every action listed for `workspace`.", got)
+		require.Equal(t, "Every action on `workspace`, including actions not listed on this page.", got)
+		require.NotContains(t, got, "listed for")
 	})
 
 	t.Run("policy action", func(t *testing.T) {
@@ -140,6 +139,13 @@ func TestRenderLowLevel(t *testing.T) {
 	b.Reset()
 	err = renderLowLevel(&b, []string{"missing_resource:read"})
 	require.ErrorContains(t, err, "describe low-level scope \"missing_resource:read\"")
+}
+
+func TestValidateTableCells(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, validateTableCells("read API key details"))
+	require.ErrorContains(t, validateTableCells("read | write"), "table cell contains a pipe")
 }
 
 func section(page, start, end string) string {

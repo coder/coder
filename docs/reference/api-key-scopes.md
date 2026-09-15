@@ -94,17 +94,17 @@ Each scope below grants the permissions in its table.
 A low-level scope grants one action on one resource, written as `resource:action`.
 Combine low-level scopes when no composite scope matches the task.
 
-The `resource:*` form grants every action listed for that resource.
+The `resource:*` form grants every action on that resource, including actions not listed on this page.
 
 ### `api_key`
 
-| Scope            | Description                                    |
-|------------------|------------------------------------------------|
-| `api_key:*`      | Every action listed for `api_key`.             |
-| `api_key:create` | Create an api key.                             |
-| `api_key:delete` | Delete an api key.                             |
-| `api_key:read`   | Read api key details (secrets are not stored). |
-| `api_key:update` | Update an api key, eg expires.                 |
+| Scope            | Description                                                           |
+|------------------|-----------------------------------------------------------------------|
+| `api_key:*`      | Every action on `api_key`, including actions not listed on this page. |
+| `api_key:create` | Create an API key.                                                    |
+| `api_key:delete` | Delete an API key.                                                    |
+| `api_key:read`   | Read API key details (secrets are not stored).                        |
+| `api_key:update` | Update an API key, for example its expiry.                            |
 
 ### `chat_model_config`
 
@@ -115,26 +115,26 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `file`
 
-| Scope         | Description                     |
-|---------------|---------------------------------|
-| `file:*`      | Every action listed for `file`. |
-| `file:create` | Create a file.                  |
-| `file:read`   | Read files.                     |
+| Scope         | Description                                                        |
+|---------------|--------------------------------------------------------------------|
+| `file:*`      | Every action on `file`, including actions not listed on this page. |
+| `file:create` | Create a file.                                                     |
+| `file:read`   | Read files.                                                        |
 
 ### `organization`
 
-| Scope                 | Description                             |
-|-----------------------|-----------------------------------------|
-| `organization:*`      | Every action listed for `organization`. |
-| `organization:delete` | Delete an organization.                 |
-| `organization:read`   | Read organizations.                     |
-| `organization:update` | Update an organization.                 |
+| Scope                 | Description                                                                |
+|-----------------------|----------------------------------------------------------------------------|
+| `organization:*`      | Every action on `organization`, including actions not listed on this page. |
+| `organization:delete` | Delete an organization.                                                    |
+| `organization:read`   | Read organizations.                                                        |
+| `organization:update` | Update an organization.                                                    |
 
 ### `template`
 
 | Scope             | Description                                                                                       |
 |-------------------|---------------------------------------------------------------------------------------------------|
-| `template:*`      | Every action listed for `template`.                                                               |
+| `template:*`      | Every action on `template`, including actions not listed on this page.                            |
 | `template:create` | Create a template.                                                                                |
 | `template:delete` | Delete a template.                                                                                |
 | `template:read`   | Read template.                                                                                    |
@@ -143,46 +143,46 @@ The `resource:*` form grants every action listed for that resource.
 
 ### `user`
 
-| Scope                  | Description                                                |
-|------------------------|------------------------------------------------------------|
-| `user:*`               | Every action listed for `user`.                            |
-| `user:read`            | Read user data.                                            |
-| `user:read_personal`   | Read personal user data like user settings and auth links. |
-| `user:update_personal` | Update personal data.                                      |
+| Scope                  | Description                                                        |
+|------------------------|--------------------------------------------------------------------|
+| `user:*`               | Every action on `user`, including actions not listed on this page. |
+| `user:read`            | Read user data.                                                    |
+| `user:read_personal`   | Read personal user data like user settings and auth links.         |
+| `user:update_personal` | Update personal data.                                              |
 
 ### `user_secret`
 
-| Scope                | Description                            |
-|----------------------|----------------------------------------|
-| `user_secret:*`      | Every action listed for `user_secret`. |
-| `user_secret:create` | Create a user secret.                  |
-| `user_secret:delete` | Delete a user secret.                  |
-| `user_secret:read`   | Read user secret metadata and value.   |
-| `user_secret:update` | Update user secret metadata and value. |
+| Scope                | Description                                                               |
+|----------------------|---------------------------------------------------------------------------|
+| `user_secret:*`      | Every action on `user_secret`, including actions not listed on this page. |
+| `user_secret:create` | Create a user secret.                                                     |
+| `user_secret:delete` | Delete a user secret.                                                     |
+| `user_secret:read`   | Read user secret metadata and value.                                      |
+| `user_secret:update` | Update user secret metadata and value.                                    |
 
 ### `user_skill`
 
-| Scope               | Description                             |
-|---------------------|-----------------------------------------|
-| `user_skill:*`      | Every action listed for `user_skill`.   |
-| `user_skill:create` | Create a user skill.                    |
-| `user_skill:delete` | Delete a user skill.                    |
-| `user_skill:read`   | Read user skill metadata and content.   |
-| `user_skill:update` | Update user skill metadata and content. |
+| Scope               | Description                                                              |
+|---------------------|--------------------------------------------------------------------------|
+| `user_skill:*`      | Every action on `user_skill`, including actions not listed on this page. |
+| `user_skill:create` | Create a user skill.                                                     |
+| `user_skill:delete` | Delete a user skill.                                                     |
+| `user_skill:read`   | Read user skill metadata and content.                                    |
+| `user_skill:update` | Update user skill metadata and content.                                  |
 
 ### `workspace`
 
-| Scope                           | Description                                                    |
-|---------------------------------|----------------------------------------------------------------|
-| `workspace:*`                   | Every action listed for `workspace`.                           |
-| `workspace:application_connect` | Connect to workspace apps via browser.                         |
-| `workspace:create`              | Create a new workspace.                                        |
-| `workspace:delete`              | Delete workspace.                                              |
-| `workspace:read`                | Read workspace data to view on the UI.                         |
-| `workspace:ssh`                 | SSH into a given workspace.                                    |
-| `workspace:start`               | Allows starting a workspace.                                   |
-| `workspace:stop`                | Allows stopping a workspace.                                   |
-| `workspace:update`              | Edit workspace settings (scheduling, permissions, parameters). |
+| Scope                           | Description                                                             |
+|---------------------------------|-------------------------------------------------------------------------|
+| `workspace:*`                   | Every action on `workspace`, including actions not listed on this page. |
+| `workspace:application_connect` | Connect to workspace apps via browser.                                  |
+| `workspace:create`              | Create a new workspace.                                                 |
+| `workspace:delete`              | Delete workspace.                                                       |
+| `workspace:read`                | Read workspace data to view on the UI.                                  |
+| `workspace:ssh`                 | SSH into a given workspace.                                             |
+| `workspace:start`               | Start a workspace.                                                      |
+| `workspace:stop`                | Stop a workspace.                                                       |
+| `workspace:update`              | Edit workspace settings (scheduling, permissions, parameters).          |
 
 ## Deprecated scope names
 
