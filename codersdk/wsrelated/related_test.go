@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/wsrelated"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 // TestAll verifies that All selects every node in the related-data hierarchy.
