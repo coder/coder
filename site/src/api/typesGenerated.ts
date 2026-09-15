@@ -1908,9 +1908,6 @@ export interface Chat {
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
-	/**
-	 * Mode marks chats with specialized tool sets. Empty for regular chats.
-	 */
 	readonly mode?: ChatMode;
 	readonly plan_mode?: ChatPlanMode;
 	readonly last_error?: ChatError;
@@ -3895,6 +3892,12 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * Orchestrator creates the caller's single orchestrator chat instead of a
+	 * regular chat. Requires the chat-orchestrator experiment. The chat has
+	 * no workspace, so workspace_id and plan_mode must be unset.
+	 */
+	readonly orchestrator?: boolean;
 }
 
 // From codersdk/users.go
@@ -3982,21 +3985,6 @@ export interface CreateMCPServerConfigRequest {
 	 * headers on every outgoing MCP request. See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * CreateOrchestratorChatRequest creates the caller's orchestrator chat with
- * its first message. Orchestrator chats never attach a workspace, so the
- * request omits workspace and plan mode fields.
- */
-export interface CreateOrchestratorChatRequest {
-	readonly organization_id: string;
-	readonly content: readonly ChatInputPart[];
-	readonly model_config_id?: string;
-	readonly reasoning_effort?: string;
-	readonly mcp_server_ids?: readonly string[];
-	readonly client_type?: ChatClientType;
 }
 
 // From codersdk/organizations.go
@@ -6994,6 +6982,13 @@ export const OptionTypes: OptionType[] = [
 	"number",
 	"string",
 ];
+
+// From codersdk/chats.go
+/**
+ * OrchestratorChatAlias may be used in place of a chat ID in chat routes to
+ * address the caller's own orchestrator chat.
+ */
+export const OrchestratorChatAlias = "orchestrator";
 
 // From codersdk/organizations.go
 /**

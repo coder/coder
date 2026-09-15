@@ -447,12 +447,13 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
-<!-- TODO(chat-orchestrator): document `GET|POST /api/v2/chats/orchestrator`
-(experiment `chat-orchestrator`). POST uses the same `Create(initialMessages)`
+<!-- TODO(chat-orchestrator): document `CreateChatRequest.orchestrator`
+(experiment `chat-orchestrator`). It uses the same `Create(initialMessages)`
 transition with `mode = 'orchestrator'` and a deterministic per-owner chat ID
-(`chatd.OrchestratorChatID`) so concurrent creates collide on the primary key.
-Orchestrator chats are excluded from `GetChats` and reject workspace and plan
-mode updates. -->
+(`codersdk.OrchestratorChatID`) so concurrent creates collide on the primary
+key. The literal `orchestrator` path segment is rewritten to that ID before
+`ExtractChatParam` on every `/chats/{chat}` route. Orchestrator chats are
+excluded from `GetChats` and reject workspace and plan mode updates. -->
 
 ### `PATCH /api/experimental/chats/{chat}`
 

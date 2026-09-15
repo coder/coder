@@ -15,16 +15,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestOrchestratorChatID(t *testing.T) {
-	t.Parallel()
-
-	owner := uuid.New()
-	require.Equal(t, OrchestratorChatID(owner), OrchestratorChatID(owner),
-		"the orchestrator ID must be stable for an owner")
-	require.NotEqual(t, OrchestratorChatID(owner), OrchestratorChatID(uuid.New()),
-		"different owners must not share an orchestrator ID")
-}
-
 // TestOrchestratorToolsOwnershipBoundary verifies read_chat and list_chats
 // only expose chats owned by the orchestrator's owner, even when another
 // user's chat ID is supplied directly.

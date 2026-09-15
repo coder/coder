@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -79,40 +78,66 @@ func TestOrchestratorChat(t *testing.T) {
 	_ = createChatModelWithBaseURL(t, client, baseURL)
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
-	// No orchestrator exists until the first message creates it.
-	_, err := client.OrchestratorChat(ctx)
+	// The "orchestrator" alias resolves to the caller's orchestrator chat
+	// on every chat route, and 404s until the first message creates it.
+	getByAlias := func() (codersdk.Chat, error) {
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/chats/"+codersdk.OrchestratorChatAlias, nil)
+		if err != nil {
+			return codersdk.Chat{}, err
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			return codersdk.Chat{}, codersdk.ReadBodyAsError(res)
+		}
+		var chat codersdk.Chat
+		return chat, codersdk.ReadBodyAsJSON(res, &chat)
+	}
+	_, err := getByAlias()
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
-	orchestrator, err := client.CreateOrchestratorChat(ctx, codersdk.CreateOrchestratorChatRequest{
+	orchestrator, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "Start a chat to investigate the flaky build, then list my chats.",
 		}},
-		ClientType: codersdk.ChatClientTypeUI,
+		ClientType:   codersdk.ChatClientTypeUI,
+		Orchestrator: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, chatd.OrchestratorChatID(firstUser.UserID), orchestrator.ID)
+	require.Equal(t, codersdk.OrchestratorChatID(firstUser.UserID), orchestrator.ID)
 	require.Equal(t, codersdk.ChatModeOrchestrator, orchestrator.Mode)
 	require.Equal(t, "Orchestrator", orchestrator.Title)
 	require.Nil(t, orchestrator.WorkspaceID)
 
-	fetched, err := client.OrchestratorChat(ctx)
+	fetched, err := getByAlias()
 	require.NoError(t, err)
 	require.Equal(t, orchestrator.ID, fetched.ID)
 
 	// A second create is rejected instead of producing a duplicate.
-	_, err = client.CreateOrchestratorChat(ctx, codersdk.CreateOrchestratorChatRequest{
+	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "again",
 		}},
+		Orchestrator: true,
 	})
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+
+	// Orchestrator creation rejects workspace and plan mode up front.
+	bogusWorkspace := uuid.New()
+	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "x"}},
+		WorkspaceID:    &bogusWorkspace,
+		Orchestrator:   true,
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 
 	// Orchestrators never attach a workspace or enter plan mode.
 	planMode := codersdk.ChatPlanModePlan

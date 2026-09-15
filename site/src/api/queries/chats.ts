@@ -11,7 +11,7 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ChatListSources } from "#/api/typesGenerated";
+import { ChatListSources, OrchestratorChatAlias } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
 import {
 	projectEditedConversationIntoCache,
@@ -1170,7 +1170,7 @@ export const chat = (chatId: string) => ({
 export const orchestratorChat = () =>
 	queryOptions({
 		queryKey: orchestratorChatKey,
-		queryFn: () => API.experimental.getOrchestratorChat(),
+		queryFn: () => API.experimental.getChat(OrchestratorChatAlias),
 		retry: false,
 	});
 
@@ -1713,18 +1713,10 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
-	onSuccess: () => {
-		void invalidateChatListQueries(queryClient);
-		void invalidateChatsByWorkspace(queryClient);
-		void invalidateChatSearches(queryClient);
-	},
-});
-
-export const createOrchestratorChat = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateOrchestratorChatRequest) =>
-		API.experimental.createOrchestratorChat(req),
-	onSuccess: (chat: TypesGen.Chat) => {
-		queryClient.setQueryData(orchestratorChatKey, chat);
+	onSuccess: (chat?: TypesGen.Chat) => {
+		if (chat?.mode === "orchestrator") {
+			queryClient.setQueryData(orchestratorChatKey, chat);
+		}
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatsByWorkspace(queryClient);
 		void invalidateChatSearches(queryClient);

@@ -2415,80 +2415,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v2/chats/orchestrator": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get orchestrator chat",
-                "operationId": "get-orchestrator-chat",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    },
-                    "404": {
-                        "description": "The caller has no orchestrator chat yet",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Create orchestrator chat",
-                "operationId": "create-orchestrator-chat",
-                "parameters": [
-                    {
-                        "description": "Create orchestrator chat request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateOrchestratorChatRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    },
-                    "409": {
-                        "description": "The caller already has an orchestrator chat",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/chats/watch": {
             "get": {
                 "produces": [
@@ -19528,12 +19454,7 @@ const docTemplate = `{
                     }
                 },
                 "mode": {
-                    "description": "Mode marks chats with specialized tool sets. Empty for regular chats.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatMode"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ChatMode"
                 },
                 "organization_id": {
                     "type": "string",
@@ -21789,6 +21710,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "orchestrator": {
+                    "description": "Orchestrator creates the caller's single orchestrator chat instead of a\nregular chat. Requires the chat-orchestrator experiment. The chat has\nno workspace, so workspace_id and plan_mode must be unset.",
+                    "type": "boolean"
+                },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
@@ -22021,38 +21946,6 @@ const docTemplate = `{
                     ]
                 },
                 "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.CreateOrchestratorChatRequest": {
-            "type": "object",
-            "properties": {
-                "client_type": {
-                    "$ref": "#/definitions/codersdk.ChatClientType"
-                },
-                "content": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatInputPart"
-                    }
-                },
-                "mcp_server_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
-                "model_config_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "reasoning_effort": {
                     "type": "string"
                 }
             }

@@ -95,11 +95,6 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 		r.Get("/", api.listChats)
 		r.Post("/", api.postChats)
 		r.Get("/watch", api.watchChats)
-		r.Route("/orchestrator", func(r chi.Router) {
-			r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatOrchestrator))
-			r.Get("/", api.getOrchestratorChat)
-			r.Post("/", api.postOrchestratorChat)
-		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(api.chatFilesRateLimitMW())
 			r.Post("/", api.postChatFile)
@@ -144,6 +139,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			}
 		})
 		r.Route("/{chat}", func(r chi.Router) {
+			r.Use(api.resolveOrchestratorChatAlias)
 			r.Use(httpmw.ExtractChatParam(api.Database))
 			r.Route("/acl", func(r chi.Router) {
 				r.Get("/", api.getChatACL)

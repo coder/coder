@@ -579,18 +579,10 @@ type CreateChatRequest struct {
 	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
-}
-
-// CreateOrchestratorChatRequest creates the caller's orchestrator chat with
-// its first message. Orchestrator chats never attach a workspace, so the
-// request omits workspace and plan mode fields.
-type CreateOrchestratorChatRequest struct {
-	OrganizationID  uuid.UUID       `json:"organization_id" format:"uuid"`
-	Content         []ChatInputPart `json:"content"`
-	ModelConfigID   *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
-	ReasoningEffort *string         `json:"reasoning_effort,omitempty"`
-	MCPServerIDs    []uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	ClientType      ChatClientType  `json:"client_type,omitempty"`
+	// Orchestrator creates the caller's single orchestrator chat instead of a
+	// regular chat. Requires the chat-orchestrator experiment. The chat has
+	// no workspace, so workspace_id and plan_mode must be unset.
+	Orchestrator bool `json:"orchestrator,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -642,6 +634,21 @@ const (
 	// inspects the user's other chats without workspace tools.
 	ChatModeOrchestrator ChatMode = "orchestrator"
 )
+
+// OrchestratorChatAlias may be used in place of a chat ID in chat routes to
+// address the caller's own orchestrator chat.
+const OrchestratorChatAlias = "orchestrator"
+
+// orchestratorChatNamespace seeds the deterministic per-owner orchestrator
+// chat ID so concurrent creates collide on the primary key instead of
+// producing two orchestrators for one user.
+var orchestratorChatNamespace = uuid.MustParse("6f3b1c2e-2c53-4e7a-9a3f-0d3f5a1b7c21")
+
+// OrchestratorChatID returns the deterministic chat ID for a user's
+// orchestrator chat.
+func OrchestratorChatID(ownerID uuid.UUID) uuid.UUID {
+	return uuid.NewSHA1(orchestratorChatNamespace, ownerID[:])
+}
 
 // ChatPlanMode represents the persistent plan mode state of a chat.
 type ChatPlanMode string
@@ -2769,36 +2776,6 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 		return Chat{}, ReadBodyAsError(res)
 	}
 	defer res.Body.Close()
-	var chat Chat
-	return chat, ReadBodyAsJSON(res, &chat)
-}
-
-// OrchestratorChat returns the caller's orchestrator chat. It returns a
-// 404 error until the chat is created with CreateOrchestratorChat.
-func (c *Client) OrchestratorChat(ctx context.Context) (Chat, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/orchestrator", nil)
-	if err != nil {
-		return Chat{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return Chat{}, ReadBodyAsError(res)
-	}
-	var chat Chat
-	return chat, ReadBodyAsJSON(res, &chat)
-}
-
-// CreateOrchestratorChat creates the caller's orchestrator chat with its
-// first message. It fails with 409 when the chat already exists.
-func (c *Client) CreateOrchestratorChat(ctx context.Context, req CreateOrchestratorChatRequest) (Chat, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/chats/orchestrator", req)
-	if err != nil {
-		return Chat{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return Chat{}, ReadBodyAsError(res)
-	}
 	var chat Chat
 	return chat, ReadBodyAsJSON(res, &chat)
 }

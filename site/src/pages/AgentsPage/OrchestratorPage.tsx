@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { getErrorStatus } from "#/api/errors";
-import { createOrchestratorChat, orchestratorChat } from "#/api/queries/chats";
+import { createChat, orchestratorChat } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
@@ -31,7 +31,7 @@ const OrchestratorPage: FC = () => {
 		...orchestratorChat(),
 		enabled: orchestratorEnabled,
 	});
-	const createMutation = useMutation(createOrchestratorChat(queryClient));
+	const createMutation = useMutation(createChat(queryClient));
 
 	const handleCreateChat = async ({
 		message,
@@ -54,6 +54,7 @@ const OrchestratorPage: FC = () => {
 		const createdChat = await createMutation.mutateAsync({
 			organization_id: organizationId,
 			content,
+			orchestrator: true,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			client_type: "ui",

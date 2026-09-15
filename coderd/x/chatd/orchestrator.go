@@ -29,17 +29,6 @@ const (
 	maxSearchChatsRunes   = 200
 )
 
-// orchestratorChatNamespace seeds the deterministic per-owner orchestrator
-// chat ID so concurrent creates collide on the primary key instead of
-// producing two orchestrators for one user.
-var orchestratorChatNamespace = uuid.MustParse("6f3b1c2e-2c53-4e7a-9a3f-0d3f5a1b7c21")
-
-// OrchestratorChatID returns the deterministic chat ID for a user's
-// orchestrator chat.
-func OrchestratorChatID(ownerID uuid.UUID) uuid.UUID {
-	return uuid.NewSHA1(orchestratorChatNamespace, ownerID[:])
-}
-
 // OrchestratorSystemPrompt replaces the deployment default for orchestrator
 // chats, which have no workspace and coordinate the user's other chats.
 const OrchestratorSystemPrompt = `You are the Coder orchestrator: a persistent chat that coordinates the user's other Coder agent chats.

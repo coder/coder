@@ -1259,6 +1259,34 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Orchestrator {
+		if !api.orchestratorChatEnabled() {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "The chat-orchestrator experiment is not enabled.",
+			})
+			return
+		}
+		if req.WorkspaceID != nil || req.PlanMode != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Orchestrator chats cannot attach a workspace or enter plan mode.",
+			})
+			return
+		}
+		if _, err := api.Database.GetOrchestratorChatByOwnerID(ctx, apiKey.UserID); err == nil {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "An orchestrator chat already exists.",
+				Detail:  codersdk.OrchestratorChatID(apiKey.UserID).String(),
+			})
+			return
+		} else if !xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to check for an existing orchestrator chat.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, r, req)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
@@ -1376,7 +1404,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+	createOpts := chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
 		OwnerID:                 apiKey.UserID,
 		WorkspaceID:             workspaceSelection.WorkspaceID,
@@ -1393,8 +1421,28 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		DynamicTools:            dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
-	})
+	}
+	if req.Orchestrator {
+		// The deterministic ID makes creation idempotent: a concurrent
+		// create collides on the primary key instead of producing two
+		// orchestrators. The title is fixed and never regenerated.
+		createOpts.ID = codersdk.OrchestratorChatID(apiKey.UserID)
+		createOpts.Title = orchestratorChatTitle
+		createOpts.TitleDerivedFromContent = false
+		createOpts.ChatMode = database.NullChatMode{
+			ChatMode: database.ChatModeOrchestrator,
+			Valid:    true,
+		}
+	}
+	chat, err := api.chatDaemon.CreateChat(ctx, createOpts)
 	if err != nil {
+		if req.Orchestrator && database.IsUniqueViolation(err) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "An orchestrator chat already exists.",
+				Detail:  createOpts.ID.String(),
+			})
+			return
+		}
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
@@ -1454,7 +1502,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
 	// on the first user turn.
-	api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
+	if !req.Orchestrator {
+		api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
+	}
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)

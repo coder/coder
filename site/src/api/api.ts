@@ -3243,12 +3243,6 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
-	getOrchestratorChat = async (): Promise<TypesGen.Chat> => {
-		const response = await this.axios.get<TypesGen.Chat>(
-			"/api/v2/chats/orchestrator",
-		);
-		return response.data;
-	};
 	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
 		const response = await this.axios.get<TypesGen.ChatCost>(
 			`/api/v2/chats/${chatId}/cost`,
@@ -3292,15 +3286,6 @@ class ExperimentalApiMethods {
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>("/api/v2/chats", req);
-		return response.data;
-	};
-	createOrchestratorChat = async (
-		req: TypesGen.CreateOrchestratorChatRequest,
-	): Promise<TypesGen.Chat> => {
-		const response = await this.axios.post<TypesGen.Chat>(
-			"/api/v2/chats/orchestrator",
-			req,
-		);
 		return response.data;
 	};
 

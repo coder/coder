@@ -62,7 +62,6 @@ import {
 	chatsByWorkspace,
 	createChat,
 	createChatMessage,
-	createOrchestratorChat,
 	deleteChatModel,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -128,7 +127,6 @@ vi.mock("#/api/api", () => ({
 		experimental: {
 			updateChat: vi.fn(),
 			createChat: vi.fn(),
-			createOrchestratorChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
@@ -1882,12 +1880,12 @@ describe("mutation invalidation scope", () => {
 		).not.toBe(true);
 	});
 
-	it("createOrchestratorChat caches the orchestrator and invalidates sidebar queries", async () => {
+	it("createChat caches an orchestrator chat and invalidates sidebar queries", async () => {
 		const queryClient = createTestQueryClient();
 		const chat = makeChat("orchestrator-chat", { mode: "orchestrator" });
 		seedAllActiveQueries(queryClient, chat.id);
 
-		const mutation = createOrchestratorChat(queryClient);
+		const mutation = createChat(queryClient);
 		mutation.onSuccess(chat);
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
