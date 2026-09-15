@@ -74,7 +74,7 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 		if s.Source == skillspkg.SourceWorkspace {
 			hasWorkspaceSkill = true
 		}
-		if s.Alias == skillspkg.QualifiedAlias(s.Source, s.Name) {
+		if s.Alias == s.QualifiedAlias() {
 			hasQualifiedAlias = true
 		}
 	}
