@@ -517,8 +517,16 @@ func (a *agent) init() {
 	// engine's catalog changes (startup connect, .mcp.json edits).
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
 	// Connect and disconnect plugin MCP servers as plugins appear in or
-	// vanish from the context snapshot. Tracked so Close waits for it.
-	if err := a.trackGoroutine(func() { a.runPluginMCPSync(a.gracefulCtx) }); err != nil {
+	// vanish from the context snapshot. The subscription is taken here,
+	// before the manager's Run loop starts, so no snapshot broadcast is
+	// missed while the goroutine is being scheduled. Tracked so Close
+	// waits for it.
+	pluginChanges, unsubPluginChanges := a.contextManager.SubscribeChanges()
+	if err := a.trackGoroutine(func() {
+		defer unsubPluginChanges()
+		a.runPluginMCPSync(a.gracefulCtx, pluginChanges)
+	}); err != nil {
+		unsubPluginChanges()
 		a.logger.Warn(a.gracefulCtx, "plugin MCP sync not started", slog.Error(err))
 	}
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
@@ -584,37 +592,35 @@ func (a *agent) mcpConfigSources() []agentmcp.ConfigSource {
 }
 
 // runPluginMCPSync reloads the MCP engine whenever the set of plugins
-// that declare MCP servers changes. Catalog changes re-trigger the
-// context resolver, which broadcasts a new snapshot; comparing the
-// plugin set before reloading keeps that cycle from repeating. A failed
-// reload leaves the set unrecorded so the next snapshot retries it.
-func (a *agent) runPluginMCPSync(ctx context.Context) {
-	ch, unsub := a.contextManager.SubscribeChanges()
-	defer unsub()
-
+// that declare MCP servers changes. The current snapshot is examined
+// before the first wait on changes, so a snapshot broadcast between
+// subscribing and entering the loop is not lost. Catalog changes
+// re-trigger the context resolver, which broadcasts a new snapshot;
+// comparing the plugin set before reloading keeps that cycle from
+// repeating. A failed reload leaves the set unrecorded so the next
+// snapshot retries it.
+func (a *agent) runPluginMCPSync(ctx context.Context, changes <-chan struct{}) {
 	var last []agentcontext.PluginInfo
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ch:
-		}
 		if ctx.Err() != nil {
 			return
 		}
 		current := a.contextManager.Snapshot().Plugins()
-		if slices.Equal(current, last) {
-			continue
+		if !slices.Equal(current, last) {
+			switch err := a.mcpManager.ReloadFrom(ctx, a.mcpConfigSources); {
+			case err == nil:
+				last = current
+			case errors.Is(err, context.Canceled), errors.Is(err, agentmcp.ErrManagerClosed):
+				return
+			default:
+				a.logger.Warn(ctx, "failed to reload plugin MCP servers", slog.Error(err))
+			}
 		}
-		err := a.mcpManager.ReloadFrom(ctx, a.mcpConfigSources)
-		if err == nil {
-			last = current
-			continue
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, agentmcp.ErrManagerClosed) {
+		select {
+		case <-ctx.Done():
 			return
+		case <-changes:
 		}
-		a.logger.Warn(ctx, "failed to reload plugin MCP servers", slog.Error(err))
 	}
 }
 
