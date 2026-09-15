@@ -372,7 +372,6 @@ func (server *Server) prepareGeneration(
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
-			pendingPrompt = replaceUnsupportedToolMedia(ctx, logger, pendingPrompt, model, providerType)
 		}
 		return nil
 	})

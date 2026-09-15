@@ -1,9 +1,12 @@
 package chatloop
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
+	"image"
+	"image/png"
 	"iter"
 	"runtime"
 	"slices"
@@ -1452,7 +1455,8 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 
 	metrics := NewMetrics(prometheus.NewRegistry())
 	logger := slog.Make()
-	pngHeader := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 13, 'I', 'H', 'D', 'R'}
+	var pngData bytes.Buffer
+	require.NoError(t, png.Encode(&pngData, image.NewRGBA(image.Rect(0, 0, 1, 1))))
 
 	run := func(t *testing.T, mediaType string, data []byte) fantasy.ToolResultContent {
 		tool := fantasy.NewAgentTool(
@@ -1506,7 +1510,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 
 	t.Run("ImageTypeFollowsBytes", func(t *testing.T) {
 		t.Parallel()
-		media, ok := run(t, "image/jpeg", pngHeader).Result.(fantasy.ToolResultOutputContentMedia)
+		media, ok := run(t, "image/jpeg", pngData.Bytes()).Result.(fantasy.ToolResultOutputContentMedia)
 		require.True(t, ok)
 		require.Equal(t, "image/png", media.MediaType)
 		require.Equal(t, "Ran Playwright code", media.Text)
