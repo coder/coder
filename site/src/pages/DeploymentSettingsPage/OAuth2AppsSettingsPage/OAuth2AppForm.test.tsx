@@ -100,6 +100,36 @@ describe("OAuth2AppForm", () => {
 		);
 	});
 
+	it("keeps a configured scope the catalog does not list", async () => {
+		vi.spyOn(API, "getExternalAPIKeyScopes").mockResolvedValue(
+			MockExternalAPIKeyScopes,
+		);
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={{ ...MockOAuth2ProviderApps[0], scope: "legacy:scope coder:all" }}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.type(screen.getByLabelText(/^name/i), "-updated");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					name: "foo-updated",
+					scope: "legacy:scope coder:all",
+				}),
+			),
+		);
+	});
+
 	it("keeps the configured scopes when the catalog fails to load", async () => {
 		vi.spyOn(API, "getExternalAPIKeyScopes").mockRejectedValue(
 			new Error("catalog unavailable"),
