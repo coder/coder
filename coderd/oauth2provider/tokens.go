@@ -274,8 +274,7 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 // returns the matched secret row. Every authentication failure returns
 // errBadSecret so the response does not reveal which step failed; a
 // datastore failure returns the underlying error. Callers skip it for public
-// clients, which have no secret and are bound by PKCE and the token's app id
-// instead.
+// clients, which have no secret.
 func authenticateClient(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, clientSecret string) (database.OAuth2ProviderAppSecret, error) {
 	secret, err := ParseFormattedSecret(clientSecret)
 	if err != nil {
