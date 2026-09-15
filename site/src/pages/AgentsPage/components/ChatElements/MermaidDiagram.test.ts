@@ -1,4 +1,4 @@
-import { sanitizeDiagramSvg, wrapInFence } from "./MermaidBlock";
+import { sanitizeDiagramSvg } from "./MermaidDiagram";
 
 describe("sanitizeDiagramSvg", () => {
 	it("keeps Mermaid's drawing primitives and styles", () => {
@@ -37,20 +37,5 @@ describe("sanitizeDiagramSvg", () => {
 		expect(result).not.toContain("<iframe");
 		expect(result).not.toContain("<script");
 		expect(result).not.toContain("<foreignObject");
-	});
-});
-
-describe("wrapInFence", () => {
-	it("uses a plain triple-backtick fence for ordinary source", () => {
-		expect(wrapInFence("flowchart LR\n  A --> B")).toBe(
-			"```mermaid\nflowchart LR\n  A --> B\n```",
-		);
-	});
-
-	it("extends the fence past the longest backtick run in the source", () => {
-		const source = 'flowchart LR\n  A["uses ```` in a label"]';
-		expect(wrapInFence(source)).toBe(
-			`\`\`\`\`\`mermaid\n${source}\n\`\`\`\`\``,
-		);
 	});
 });

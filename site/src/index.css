@@ -89,13 +89,6 @@
 	--color-input: hsl(var(--input));
 	--color-ring: hsl(var(--ring));
 
-	/* shadcn-compatible utilities used by streamdown's built-in controls. */
-	--color-background: hsl(var(--background));
-	--color-foreground: hsl(var(--foreground));
-	--color-muted: hsl(var(--muted));
-	--color-muted-foreground: hsl(var(--muted-foreground));
-	--color-sidebar: hsl(var(--sidebar));
-
 	--color-highlight-purple: hsl(var(--highlight-purple));
 	--color-highlight-green: hsl(var(--highlight-green));
 	--color-highlight-orange: hsl(var(--highlight-orange));
@@ -525,7 +518,6 @@
 		--foreground: var(--content-primary);
 		--muted: var(--surface-secondary);
 		--muted-foreground: var(--content-secondary);
-		--sidebar: var(--surface-secondary);
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
 		--avatar-lg: 2.5rem;
@@ -594,7 +586,6 @@
 		--foreground: var(--content-primary);
 		--muted: var(--surface-secondary);
 		--muted-foreground: var(--content-secondary);
-		--sidebar: var(--surface-secondary);
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
 	}
