@@ -20,9 +20,9 @@ Contains metrics that are not defined in Coder source code, such as:
 - `promhttp_*`: Prometheus HTTP handler metrics
 
 > [!Note]
-> This file also contains corrective metadata for source-defined metrics when the scanner cannot resolve it. For example, `coderd_agentstats_*` labels are configured at runtime. Static metrics take priority over generated metrics when both files contain the same metric name.
+> This file also contains corrective label metadata for source-defined metrics when the scanner cannot resolve it. For example, `coderd_agentstats_*` labels are configured at runtime. When a metric appears in both files, its generated name, type, and description take priority while the static labels override the generated labels.
 
-**Edit this file** to add metrics that should appear in the documentation but are not scanned from the Coder codebase, or to override scanner metadata that depends on runtime configuration. Do not add source-defined metrics solely because their registerer has a static prefix: the scanner resolves prefixes from `prometheus.WrapRegistererWithPrefix` and `prometheusmetrics.NewMetricAliasRegisterer`.
+**Edit this file** to add metrics that should appear in the documentation but are not scanned from the Coder codebase, or to override scanner labels that depend on runtime configuration. Do not add source-defined metrics solely because their registerer has a static prefix: the scanner resolves prefixes from `prometheus.WrapRegistererWithPrefix` and `prometheusmetrics.NewMetricAliasRegisterer`.
 
 ### `generated_metrics` (auto-generated)
 

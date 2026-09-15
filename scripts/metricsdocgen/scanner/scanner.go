@@ -35,17 +35,12 @@ var scanDirs = []string{
 	"tailnet",
 }
 
-// skipPaths previously listed files whose metrics could not be named without
-// resolving the prefix their registerer applies. That resolution now happens
-// in prefix.go, so every file under scanDirs is scanned except the trees
-// listed below.
-//
 // excludeDirs are subtrees whose metrics are not part of a deployment's
 // published surface. The scaletest harness registers metrics from a fake agent
 // it runs during load tests, so documenting them would tell operators to look
 // for series their deployment never exposes.
 var excludeDirs = []string{
-	"enterprise/scaletest",
+	"enterprise/scaletest/agentfake",
 }
 
 // excluded reports whether a path lies under an excluded subtree.
@@ -278,34 +273,8 @@ func collectPackageConsts(file *ast.File) {
 		packageDeclarations[pkgName] = make(map[string]string)
 	}
 
-	for _, decl := range file.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok || genDecl.Tok != token.CONST {
-			continue
-		}
-
-		for _, spec := range genDecl.Specs {
-			valueSpec, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-
-			for i, name := range valueSpec.Names {
-				if !ast.IsExported(name.Name) {
-					continue
-				}
-
-				if i >= len(valueSpec.Values) {
-					continue
-				}
-
-				if lit, ok := valueSpec.Values[i].(*ast.BasicLit); ok {
-					if lit.Kind == token.STRING {
-						packageDeclarations[pkgName][name.Name] = strings.Trim(lit.Value, `"`)
-					}
-				}
-			}
-		}
+	for name, value := range stringConsts(file, ast.IsExported, scannerStringLiteral) {
+		packageDeclarations[pkgName][name] = value
 	}
 }
 
@@ -315,23 +284,55 @@ func collectPackageConsts(file *ast.File) {
 //   - metricName: resolved value of metricName constant (identifier)
 //   - agentmetrics.LabelUsername: resolved from package constants (selector)
 func resolveStringExpr(expr ast.Expr, decls declarations) string {
-	switch e := expr.(type) {
-	case *ast.BasicLit:
-		return strings.Trim(e.Value, `"`)
-	case *ast.Ident:
-		return decls.strings[e.Name]
-	case *ast.BinaryExpr:
-		return resolveBinaryExpr(e, decls)
-	case *ast.SelectorExpr:
-		// Handle pkg.Const syntax.
-		if ident, ok := e.X.(*ast.Ident); ok {
-			if pkgConsts, ok := packageDeclarations[ident.Name]; ok {
-				return pkgConsts[e.Sel.Name]
-			}
-		}
+	if literal, ok := expr.(*ast.BasicLit); ok {
+		value, _ := scannerStringLiteral(literal)
+		return value
 	}
+	if binary, ok := expr.(*ast.BinaryExpr); ok {
+		return resolveBinaryExpr(binary, decls)
+	}
+	value, _ := resolveStringReference(
+		expr,
+		func(name string) (string, bool) {
+			value, ok := decls.strings[name]
+			return value, ok
+		},
+		func(pkg, name string) (string, bool) {
+			value, ok := packageDeclarations[pkg][name]
+			return value, ok
+		},
+	)
+	return value
+}
 
-	return ""
+// scannerStringLiteral preserves the escaped form expected in Prometheus text
+// exposition. Prefix resolution uses decoded Go string values instead.
+func scannerStringLiteral(lit *ast.BasicLit) (string, bool) {
+	if lit.Kind != token.STRING {
+		return "", false
+	}
+	return strings.Trim(lit.Value, `"`), true
+}
+
+// resolveStringReference resolves a local identifier or package selector.
+// Callers provide the declaration indexes for their scope.
+func resolveStringReference(
+	expr ast.Expr,
+	resolveIdent func(string) (string, bool),
+	resolveSelector func(pkg, name string) (string, bool),
+) (string, bool) {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return resolveIdent(e.Name)
+	case *ast.SelectorExpr:
+		pkg, ok := e.X.(*ast.Ident)
+		if !ok {
+			return "", false
+		}
+		return resolveSelector(pkg.Name, e.Sel.Name)
+	default:
+		return "", false
+	}
 }
 
 // resolveBinaryExpr resolves a binary expression (string concatenation) to a string.
@@ -351,12 +352,17 @@ func resolveBinaryExpr(expr *ast.BinaryExpr, decls declarations) string {
 // extractStringSlice extracts a []string from a composite literal.
 // Example:
 //   - []string{"a", "b", myConst}: ["a", "b", <resolved value of myConst>]
+//
+// A partial label list is worse than no list because it documents a metric
+// schema that cannot be queried correctly.
 func extractStringSlice(lit *ast.CompositeLit, decls declarations) []string {
-	var labels []string
+	labels := make([]string, 0, len(lit.Elts))
 	for _, elt := range lit.Elts {
-		if label := resolveStringExpr(elt, decls); label != "" {
-			labels = append(labels, label)
+		label := resolveStringExpr(elt, decls)
+		if label == "" {
+			return nil
 		}
+		labels = append(labels, label)
 	}
 	return labels
 }

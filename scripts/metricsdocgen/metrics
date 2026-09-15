@@ -1,15 +1,15 @@
 # HELP agent_scripts_executed_total Total number of scripts executed by the Coder agent. Includes cron scheduled scripts.
 # TYPE agent_scripts_executed_total counter
 agent_scripts_executed_total{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1
-# Agent statistics labels are configured at runtime, so this static metadata
-# overrides the scanner's incomplete label sets.
-# HELP coderd_agentstats_startup_script_seconds The number of seconds the startup script took to execute.
+# Agent statistics labels are configured at runtime. Static labels override
+# generated labels while source metadata remains authoritative.
+# HELP coderd_agentstats_startup_script_seconds Amount of time taken to run the startup script in seconds.
 # TYPE coderd_agentstats_startup_script_seconds gauge
 coderd_agentstats_startup_script_seconds{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1.969900304
 # HELP coderd_agentstats_connection_count The number of established connections by agent
 # TYPE coderd_agentstats_connection_count gauge
 coderd_agentstats_connection_count{agent_name="main",username="admin",workspace_name="workspace1"} 2
-# HELP coderd_agentstats_connection_median_latency_seconds The median agent connection latency
+# HELP coderd_agentstats_connection_median_latency_seconds The median agent connection latency in seconds
 # TYPE coderd_agentstats_connection_median_latency_seconds gauge
 coderd_agentstats_connection_median_latency_seconds{agent_name="main",username="admin",workspace_name="workspace1"} 0.001784
 # HELP coderd_agentstats_currently_reachable_peers The number of peers (e.g. clients) that are currently reachable over the encrypted network.

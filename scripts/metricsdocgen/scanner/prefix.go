@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -64,7 +63,7 @@ func buildPrefixIndex(roots []string) (prefixIndex, error) {
 	propagateThroughForwarders(index, files)
 
 	for dir := range index {
-		sort.Strings(index[dir])
+		slices.Sort(index[dir])
 		index[dir] = slices.Compact(index[dir])
 	}
 	return index, nil
@@ -79,7 +78,7 @@ func buildPrefixIndex(roots []string) (prefixIndex, error) {
 func propagateThroughForwarders(index prefixIndex, files []parsedFile) {
 	const maxRounds = 8
 
-	for range maxRounds {
+	for round := range maxRounds {
 		changed := false
 		for _, pf := range files {
 			dir := filepath.Dir(pf.path)
@@ -102,6 +101,9 @@ func propagateThroughForwarders(index prefixIndex, files []parsedFile) {
 		if !changed {
 			return
 		}
+		if round == maxRounds-1 {
+			warnf("metric prefix propagation did not converge after %d rounds", maxRounds)
+		}
 	}
 }
 
@@ -112,7 +114,7 @@ func forwardedPackages(pf parsedFile) []string {
 
 	for _, decl := range pf.file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Body == nil || !strings.HasPrefix(fn.Name.Name, "New") {
+		if !ok || fn.Body == nil {
 			continue
 		}
 
@@ -135,7 +137,7 @@ func forwardedPackages(pf parsedFile) []string {
 				return true
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || !strings.HasPrefix(sel.Sel.Name, "New") {
+			if !ok {
 				return true
 			}
 			pkgIdent, ok := sel.X.(*ast.Ident)
@@ -200,7 +202,7 @@ func collectPrefixInputs(roots []string) (map[string]string, []parsedFile, error
 			}
 
 			dir := filepath.Dir(path)
-			for name, value := range stringConsts(file) {
+			for name, value := range stringConsts(file, func(string) bool { return true }, stringLiteral) {
 				consts[dir+"."+name] = value
 			}
 			files = append(files, parsedFile{path: path, file: file, imports: fileImports(file)})
@@ -263,20 +265,17 @@ func indexFunc(index prefixIndex, pf parsedFile, fn *ast.FuncDecl, consts map[st
 		//	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 		if prefix, ok := wrapped[pkgIdent.Name]; ok && registerFuncs[sel.Sel.Name] {
 			for _, arg := range call.Args {
-				for _, dir := range constructorPackages(arg, pf) {
+				if dir, ok := constructorPackage(arg, pf); ok {
 					index[dir] = append(index[dir], prefix)
 				}
 			}
 			return true
 		}
 
-		// A constructor handed the wrapped registerer registers its metrics
+		// A package function handed the wrapped registerer registers its metrics
 		// through it:
 		//
 		//	metrics := aibridgedserver.NewMetrics(costControlReg)
-		if !strings.HasPrefix(sel.Sel.Name, "New") {
-			return true
-		}
 		dir, ok := pf.imports[pkgIdent.Name]
 		if !ok {
 			return true
@@ -301,30 +300,24 @@ var registerFuncs = map[string]bool{
 	"MustRegister": true,
 }
 
-// constructorPackages returns the package directories of constructor calls in
-// an expression, so a collector registered through a wrapped registerer can be
-// traced back to the package that declares its metric names.
-func constructorPackages(expr ast.Expr, pf parsedFile) []string {
-	var dirs []string
-	ast.Inspect(expr, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !strings.HasPrefix(sel.Sel.Name, "New") {
-			return true
-		}
-		pkgIdent, ok := sel.X.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		if dir, ok := pf.imports[pkgIdent.Name]; ok {
-			dirs = append(dirs, dir)
-		}
-		return true
-	})
-	return dirs
+// constructorPackage returns the package directory of the collector created
+// by expr. Only the top-level call is relevant because nested calls provide
+// constructor arguments, not collectors registered through the registerer.
+func constructorPackage(expr ast.Expr, pf parsedFile) (string, bool) {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return "", false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	pkgIdent, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	dir, ok := pf.imports[pkgIdent.Name]
+	return dir, ok
 }
 
 // wrapPrefix reports the prefix a registerer-wrapping call applies, if the
@@ -349,40 +342,46 @@ func wrapPrefix(expr ast.Expr, pf parsedFile, consts map[string]string) (string,
 // constString resolves a string literal or a reference to a package-level
 // string constant, whether that constant is local or imported.
 func constString(expr ast.Expr, pf parsedFile, consts map[string]string) (string, bool) {
-	switch e := expr.(type) {
-	case *ast.BasicLit:
-		if e.Kind != token.STRING {
-			return "", false
-		}
-		value, err := strconv.Unquote(e.Value)
-		if err != nil {
-			return "", false
-		}
-		return value, true
-
-	case *ast.Ident:
-		value, ok := consts[filepath.Dir(pf.path)+"."+e.Name]
-		return value, ok
-
-	case *ast.SelectorExpr:
-		pkgIdent, ok := e.X.(*ast.Ident)
-		if !ok {
-			return "", false
-		}
-		dir, ok := pf.imports[pkgIdent.Name]
-		if !ok {
-			return "", false
-		}
-		value, ok := consts[dir+"."+e.Sel.Name]
-		return value, ok
-
-	default:
-		return "", false
+	if literal, ok := expr.(*ast.BasicLit); ok {
+		return stringLiteral(literal)
 	}
+	return resolveStringReference(
+		expr,
+		func(name string) (string, bool) {
+			value, ok := consts[filepath.Dir(pf.path)+"."+name]
+			return value, ok
+		},
+		func(pkg, name string) (string, bool) {
+			dir, ok := pf.imports[pkg]
+			if !ok {
+				return "", false
+			}
+			value, ok := consts[dir+"."+name]
+			return value, ok
+		},
+	)
 }
 
-// stringConsts returns the file's package-level string constants.
-func stringConsts(file *ast.File) map[string]string {
+// stringLiteral resolves a string literal without changing its escapes.
+func stringLiteral(lit *ast.BasicLit) (string, bool) {
+	if lit.Kind != token.STRING {
+		return "", false
+	}
+	value, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", false
+	}
+	return value, true
+}
+
+// stringConsts returns the file's package-level string constants. include and
+// resolve select the constants and literal representation appropriate for each
+// caller's resolution scope.
+func stringConsts(
+	file *ast.File,
+	include func(name string) bool,
+	resolve func(*ast.BasicLit) (string, bool),
+) map[string]string {
 	consts := map[string]string{}
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
@@ -390,20 +389,20 @@ func stringConsts(file *ast.File) map[string]string {
 			continue
 		}
 		for _, spec := range gen.Specs {
-			value, ok := spec.(*ast.ValueSpec)
+			valueSpec, ok := spec.(*ast.ValueSpec)
 			if !ok {
 				continue
 			}
-			for i, name := range value.Names {
-				if i >= len(value.Values) {
+			for i, name := range valueSpec.Names {
+				if !include(name.Name) || i >= len(valueSpec.Values) {
 					continue
 				}
-				lit, ok := value.Values[i].(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
+				lit, ok := valueSpec.Values[i].(*ast.BasicLit)
+				if !ok {
 					continue
 				}
-				if unquoted, err := strconv.Unquote(lit.Value); err == nil {
-					consts[name.Name] = unquoted
+				if value, ok := resolve(lit); ok {
+					consts[name.Name] = value
 				}
 			}
 		}

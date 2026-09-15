@@ -1,7 +1,6 @@
 package main
 
 import (
-	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -25,29 +24,10 @@ func writeGoFile(t *testing.T, root, dir, name, src string) string {
 	return path
 }
 
-// inRoot runs fn with the working directory set to root, because the scanner
-// resolves package directories relative to the repository root.
-func inRoot(t *testing.T, root string, fn func()) {
-	t.Helper()
-
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(root); err != nil {
-		t.Fatalf("chdir %s: %v", root, err)
-	}
-	defer func() {
-		if err := os.Chdir(wd); err != nil {
-			t.Fatalf("restore wd: %v", err)
-		}
-	}()
-	fn()
-}
-
 //nolint:paralleltest // Changes the working directory, so it cannot run in parallel.
 func TestBuildPrefixIndex(t *testing.T) {
 	root := t.TempDir()
+	t.Chdir(root)
 
 	// A command package that wraps the registry and hands it to two
 	// constructors, one through a literal prefix and one through an imported
@@ -60,6 +40,8 @@ import (
 	"github.com/coder/coder/v2/server/costcontrol"
 	gwmetrics "github.com/coder/coder/v2/gateway/metrics"
 	"github.com/coder/coder/v2/gateway/keypool"
+	"github.com/coder/coder/v2/proxy"
+	prometheusmetrics "github.com/coder/coder/v2/prometheusmetrics"
 )
 
 func run(registry *prometheus.Registry) {
@@ -80,15 +62,12 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 `)
 	writeGoFile(t, root, "server/costcontrol", "metrics.go", "package costcontrol\n")
 	writeGoFile(t, root, "gateway/keypool", "collector.go", "package keypool\n")
+	writeGoFile(t, root, "proxy", "metrics.go", "package proxy\n")
 
-	var index prefixIndex
-	inRoot(t, root, func() {
-		var err error
-		index, err = buildPrefixIndex([]string{"cli", "gateway", "server"})
-		if err != nil {
-			t.Fatalf("buildPrefixIndex: %v", err)
-		}
-	})
+	index, err := buildPrefixIndex([]string{"cli", "gateway", "server"})
+	if err != nil {
+		t.Fatalf("buildPrefixIndex: %v", err)
+	}
 
 	cases := []struct {
 		dir  string
@@ -98,13 +77,16 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 		{"server/costcontrol", []string{"coder_ai_gateway_"}},
 		// Prefix resolved through an imported constant.
 		{"gateway/metrics", []string{"coder_ai_gateway_"}},
-		// Collector registered against the wrapped registerer.
-		{"gateway/keypool", []string{"coder_ai_gateway_"}},
+		// Alias registerer indexes only the canonical prefix.
+		{"proxy", []string{"coder_ai_gateway_proxy_"}},
 	}
 	for _, tc := range cases {
 		if got := index[tc.dir]; !slices.Equal(got, tc.want) {
 			t.Errorf("index[%q] = %v, want %v", tc.dir, got, tc.want)
 		}
+	}
+	if got := index["proxy"]; slices.Contains(got, "coder_legacy_") {
+		t.Errorf("index[\"proxy\"] = %v, must not include the legacy alias", got)
 	}
 }
 
@@ -115,6 +97,7 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 //nolint:paralleltest // Changes the working directory, so it cannot run in parallel.
 func TestBuildPrefixIndexFollowsForwarders(t *testing.T) {
 	root := t.TempDir()
+	t.Chdir(root)
 
 	writeGoFile(t, root, "cli", "server.go", `package cli
 
@@ -147,14 +130,10 @@ func NewMetrics(reg prometheus.Registerer, store db.Store) *metrics.Metrics {
 	writeGoFile(t, root, "bridge/metrics", "metrics.go", "package metrics\n")
 	writeGoFile(t, root, "bridge/other", "metrics.go", "package other\n")
 
-	var index prefixIndex
-	inRoot(t, root, func() {
-		var err error
-		index, err = buildPrefixIndex([]string{"cli", "bridge"})
-		if err != nil {
-			t.Fatalf("buildPrefixIndex: %v", err)
-		}
-	})
+	index, err := buildPrefixIndex([]string{"cli", "bridge"})
+	if err != nil {
+		t.Fatalf("buildPrefixIndex: %v", err)
+	}
 
 	want := []string{"coder_ai_gateway_"}
 	if got := index["bridge/metrics"]; !slices.Equal(got, want) {
@@ -162,6 +141,35 @@ func NewMetrics(reg prometheus.Registerer, store db.Store) *metrics.Metrics {
 	}
 	if got := index["bridge/other"]; len(got) != 0 {
 		t.Errorf("index[\"bridge/other\"] = %v, want no prefix for a forwarded non-registerer", got)
+	}
+}
+
+func TestScanDirectoryAppliesPrefixes(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	dir := filepath.Join(root, "metrics")
+	path := writeGoFile(t, root, "metrics", "metrics.go", `package metrics
+
+import "github.com/prometheus/client_golang/prometheus"
+
+var requests = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "requests_total",
+	Help: "Total requests.",
+})
+`)
+
+	metrics, err := scanDirectory(filepath.Join(root, "metrics"), prefixIndex{
+		dir: {"coder_ai_gateway_"},
+	})
+	if err != nil {
+		t.Fatalf("scanDirectory: %v", err)
+	}
+	if len(metrics) != 1 || metrics[0].Name != "coder_ai_gateway_requests_total" {
+		t.Fatalf("scanDirectory() = %v, want one prefixed metric", metrics)
+	}
+	if filepath.Dir(path) != dir {
+		t.Fatalf("test path directory %q, want %q", filepath.Dir(path), dir)
 	}
 }
 
@@ -186,7 +194,7 @@ func TestApplyPrefixes(t *testing.T) {
 	}
 }
 
-func TestExtractAppendedLabels(t *testing.T) {
+func TestExtractLabels(t *testing.T) {
 	t.Parallel()
 
 	src := `package metrics
@@ -211,6 +219,7 @@ const extra = "route"
 		{"no extras", `append(baseLabels)`, []string{"provider", "model"}},
 		{"unknown base", `append(otherLabels, "status")`, nil},
 		{"unresolvable extra", `append(baseLabels, someVar)`, nil},
+		{"unresolvable inline element", `[]string{"status", someVar}`, nil},
 		{"not append", `join(baseLabels, "status")`, nil},
 	}
 	for _, tc := range cases {
@@ -220,12 +229,8 @@ const extra = "route"
 			if err != nil {
 				t.Fatalf("parse expr: %v", err)
 			}
-			call, ok := expr.(*ast.CallExpr)
-			if !ok {
-				t.Fatalf("%q is not a call expression", tc.expr)
-			}
-			if got := extractAppendedLabels(call, decls); !slices.Equal(got, tc.want) {
-				t.Errorf("extractAppendedLabels(%q) = %v, want %v", tc.expr, got, tc.want)
+			if got := extractLabels(expr, decls); !slices.Equal(got, tc.want) {
+				t.Errorf("extractLabels(%q) = %v, want %v", tc.expr, got, tc.want)
 			}
 		})
 	}
@@ -236,7 +241,7 @@ func TestExcluded(t *testing.T) {
 
 	cases := map[string]bool{
 		"enterprise/scaletest/agentfake/metrics.go": true,
-		"enterprise/scaletest":                      true,
+		"enterprise/scaletest":                      false,
 		"enterprise/scaletestextra/metrics.go":      false,
 		"coderd/prometheusmetrics/metrics.go":       false,
 	}

@@ -13,6 +13,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
@@ -112,9 +113,23 @@ func readAndMergeMetrics() ([]*dto.MetricFamily, error) {
 		metricsByName[*m.Name] = m
 	}
 
-	// Static metrics overwrite generated metrics if they exist.
+	// Static metrics override only their labels, which may depend on runtime
+	// configuration. Generated source metadata remains authoritative.
 	for _, m := range staticMetrics {
-		metricsByName[*m.Name] = m
+		generated, ok := metricsByName[*m.Name]
+		if !ok {
+			metricsByName[*m.Name] = m
+			continue
+		}
+		if len(m.Metric) == 0 || len(generated.Metric) == 0 {
+			continue
+		}
+		merged, ok := proto.Clone(generated).(*dto.MetricFamily)
+		if !ok {
+			return nil, xerrors.Errorf("cloning metric family %q", *m.Name)
+		}
+		merged.Metric[0].Label = m.Metric[0].Label
+		metricsByName[*m.Name] = merged
 	}
 
 	// Convert back to slice and sort.
