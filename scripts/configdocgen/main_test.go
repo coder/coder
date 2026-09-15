@@ -343,6 +343,13 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		Env:         "CODER_PERMISSIONS",
 		Value:       serpent.EnumArrayOf(new([]string), "read", "write"),
 	}
+	singleChoiceEnumArray := serpent.Option{
+		Name:        "Allowed Permission",
+		Description: "The allowed permission.",
+		Flag:        "allowed-permission",
+		Env:         "CODER_ALLOWED_PERMISSION",
+		Value:       serpent.EnumArrayOf(new([]string), "only"),
+	}
 	secretWithYAML := secret
 	secretWithYAML.Name = "Invalid Secret"
 	secretWithYAML.YAML = "invalidSecret"
@@ -350,7 +357,7 @@ func TestRenderTypeAndSecret(t *testing.T) {
 	secretWithoutEnv.Name = "Secret Without Environment Variable"
 	secretWithoutEnv.Env = ""
 
-	got := render(buildTree(serpent.OptionSet{secret, plain, enum, singleChoiceEnum, enumArray, secretWithYAML, secretWithoutEnv}))
+	got := render(buildTree(serpent.OptionSet{secret, plain, enum, singleChoiceEnum, enumArray, singleChoiceEnumArray, secretWithYAML, secretWithoutEnv}))
 
 	wantContains := []string{
 		"- Type: `string`",
@@ -358,7 +365,9 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		"- Type: `enum`, one of `password`, `awsiamrds`",
 		"- Type: `enum`, must be `month`",
 		"- Type: `enum-array`, each value must be one of `read`, `write`",
+		"- Type: `enum-array`, each value must be `only`",
 		"- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.",
+		"### Secret without environment variable\n\nClient secret for the identity provider.\n\n- Type: `string`\n- CLI flag: [`--oidc-client-secret`](../../reference/cli/server.md#--oidc-client-secret)\n- Holds a secret: Coder never writes this option to a YAML configuration file.\n",
 	}
 	for _, w := range wantContains {
 		if !strings.Contains(got, w) {
@@ -366,10 +375,7 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		}
 	}
 
-	// Only an annotated secret with an environment variable and no YAML key
-	// carries the marker, so its reference to the environment variable above is
-	// always accurate.
-	if n := strings.Count(got, "Holds a secret"); n != 1 {
-		t.Errorf("secret marker rendered %d times, want 1", n)
+	if n := strings.Count(got, "Holds a secret"); n != 3 {
+		t.Errorf("secret marker rendered %d times, want 3", n)
 	}
 }
