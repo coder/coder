@@ -5005,6 +5005,20 @@ export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,
 };
 
+// Sorted, matching the endpoint's order.
+export const MockExternalAPIKeyScopes: TypesGen.ExternalAPIKeyScopes = {
+	external: [
+		"api_key:read",
+		"coder:all",
+		"coder:application_connect",
+		"coder:workspaces.access",
+		"coder:workspaces.create",
+		"template:read",
+		"workspace:read",
+		"workspace:ssh",
+	],
+};
+
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 	[
 		{

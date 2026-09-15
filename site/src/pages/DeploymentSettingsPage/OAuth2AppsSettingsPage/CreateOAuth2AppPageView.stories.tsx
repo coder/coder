@@ -2,7 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { externalScopesKey } from "#/api/queries/oauth2";
 import {
+	MockExternalAPIKeyScopes,
 	MockPermissions,
 	MockUserOwner,
 	mockApiError,
@@ -16,6 +18,7 @@ const meta = {
 	parameters: {
 		user: MockUserOwner,
 		permissions: MockPermissions,
+		queries: [{ key: externalScopesKey, data: MockExternalAPIKeyScopes }],
 		reactRouter: reactRouterParameters({
 			location: { path: "/deployment/oauth2-provider/apps/add" },
 			routing: [
