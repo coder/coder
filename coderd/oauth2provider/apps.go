@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -68,13 +67,12 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 	}
 }
 
-// scopeAllowlist turns a space-separated scope list from a request into the
-// value stored on the app. An empty list stores as an empty, valid string
-// (no allowlist configured), the same encoding a DCR-registered app gets
-// when it registers with no scope.
+// scopeAllowlist wraps a request's scope list for storage. The spelling is
+// stored as given, matching the DCR path; readers canonicalize. An empty list
+// stores as an empty, valid string, meaning no allowlist.
 func scopeAllowlist(raw string) sql.NullString {
 	return sql.NullString{
-		String: strings.Join(canonicalScopes(strings.Fields(raw)), " "),
+		String: raw,
 		Valid:  true,
 	}
 }
