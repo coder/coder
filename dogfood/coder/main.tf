@@ -223,7 +223,8 @@ provider "docker" {
 provider "coder" {}
 
 data "coder_external_auth" "github" {
-  id = "github"
+  id       = "github"
+  optional = true
 }
 
 data "coder_workspace" "me" {}
