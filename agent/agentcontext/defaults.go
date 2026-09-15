@@ -11,11 +11,8 @@ func defaultBuiltinRoots() []string {
 		// User-level Coder config.
 		"~/.coder",
 		"~/.coder/skills",
-		// Claude Code plugin cache, picked up by the plugin
-		// RFC follow-up. v1 ignores plugin manifests, but
-		// watching the directory now prevents a surprise
-		// dirty bit when the resolver eventually classifies
-		// them.
+		// Claude Code plugin cache. Claude's .claude-plugin
+		// manifests are not read.
 		"~/.claude/plugins/cache",
 	}
 }

@@ -104,6 +104,9 @@ type Manager struct {
 	// Guarded by mu.
 	ready bool
 
+	// pluginsEnabled is applied to every resolve pass. Guarded by mu.
+	pluginsEnabled bool
+
 	// running tracks Run lifetime.
 	running      bool
 	closed       bool
@@ -129,7 +132,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 	resolver := opts.Resolver
 	if resolver == nil {
-		resolver = &Resolver{}
+		resolver = &Resolver{Logger: opts.Logger.Named("resolver")}
 	}
 
 	m := &Manager{
@@ -454,6 +457,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
+	opts := m.resolveOptionsLocked()
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
@@ -461,7 +465,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveWithOptions(ctx, roots, opts)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot whose SnapshotError is set to
@@ -553,18 +557,48 @@ func (m *Manager) SetReady() {
 		return
 	}
 	m.ready = true
-	running := m.running
 	m.mu.Unlock()
 
+	m.requestResolve()
+}
+
+// SetPluginsEnabled turns Agent Plugins discovery on or off for
+// subsequent resolve passes. A change queues a re-resolve so the
+// published snapshot reflects the new setting; an unchanged value is
+// a no-op. Safe to call before SetReady, in which case the first
+// resolve already honors the flag.
+//
+//nolint:revive // The setting arrives as a bool from the agent manifest.
+func (m *Manager) SetPluginsEnabled(enabled bool) {
+	m.mu.Lock()
+	if m.pluginsEnabled == enabled || m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.pluginsEnabled = enabled
+	m.mu.Unlock()
+
+	m.requestResolve()
+}
+
+// requestResolve signals the Run loop, which owns the watcher, to
+// re-sync and resolve. When Run is not active it resolves inline,
+// which is a no-op until SetReady.
+func (m *Manager) requestResolve() {
+	m.mu.Lock()
+	running := m.running
+	m.mu.Unlock()
 	if running {
-		// The Run loop owns the watcher; signal it to re-sync and resolve
-		// with ready=true.
 		m.signal()
 		return
 	}
-	// No Run loop yet (embedders or tests driving the Manager directly):
-	// resolve inline.
 	m.resolveAndBroadcast(context.Background())
+}
+
+// resolveOptionsLocked returns the resolver options for the current
+// settings. m.mu must be held.
+func (m *Manager) resolveOptionsLocked() ResolveOptions {
+	return ResolveOptions{PluginsEnabled: m.pluginsEnabled}
 }
 
 // scanRootsLocked returns the list of ScanRoots to feed the
@@ -641,6 +675,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
+	opts := m.resolveOptionsLocked()
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
@@ -648,7 +683,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveWithOptions(ctx, roots, opts)
 	if err := ctx.Err(); err != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot. Publishing it would replace the live

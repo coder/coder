@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"context"
+	"slices"
 
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -19,13 +20,32 @@ import (
 // behavior is identical to invoking PushContextState directly:
 // per-request retries are handled by Manager.RunPush.
 type DRPCPusher struct {
-	client agentproto.DRPCAgentClient210
+	client         agentproto.DRPCAgentClient210
+	pluginsEnabled bool
+}
+
+// DRPCPusherOption configures a DRPCPusher.
+type DRPCPusherOption func(*DRPCPusher)
+
+// WithPluginsEnabled sets whether the pusher encodes Agent Plugins
+// data. When disabled, KindPlugin resources and resources with a
+// PluginName are omitted and the aggregate hash is recomputed
+// without them.
+func WithPluginsEnabled(enabled bool) DRPCPusherOption {
+	return func(p *DRPCPusher) {
+		p.pluginsEnabled = enabled
+	}
 }
 
 // NewDRPCPusher wraps the supplied drpc client. The client must
-// implement the v2.10 Agent API.
-func NewDRPCPusher(client agentproto.DRPCAgentClient210) *DRPCPusher {
-	return &DRPCPusher{client: client}
+// implement the v2.10 Agent API. Plugin encoding is off unless
+// WithPluginsEnabled(true) is supplied.
+func NewDRPCPusher(client agentproto.DRPCAgentClient210, opts ...DRPCPusherOption) *DRPCPusher {
+	p := &DRPCPusher{client: client}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
 }
 
 // PushContextState satisfies the Pusher interface.
@@ -38,7 +58,7 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 	if p == nil || p.client == nil {
 		return nil, xerrors.New("agentcontext: DRPCPusher has no client")
 	}
-	resp, err := p.client.PushContextState(ctx, pushRequestToProto(req))
+	resp, err := p.client.PushContextState(ctx, p.pushRequestToProto(req))
 	if err != nil {
 		if drpcerr.Code(err) == drpcerr.Unimplemented {
 			return nil, ErrPushUnimplemented
@@ -53,16 +73,25 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 // selects which body variant of the proto oneof is set; a body
 // is always set (zero-valued if necessary) so coderd can tell
 // the kind even when Status != OK.
-func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
+func (p *DRPCPusher) pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
+	resources := req.Resources
+	aggregateHash := req.AggregateHash
+	isPlugin := func(r Resource) bool { return r.Kind == KindPlugin || r.PluginName != "" }
+	if !p.pluginsEnabled && slices.ContainsFunc(resources, isPlugin) {
+		// The hash must describe the resources actually sent, so it is
+		// recomputed over the set with plugin data removed.
+		resources = slices.DeleteFunc(slices.Clone(resources), isPlugin)
+		aggregateHash = ComputeAggregateHash(driftResources(resources))
+	}
 	pb := &agentproto.PushContextStateRequest{
 		Version:       req.Version,
-		AggregateHash: append([]byte(nil), req.AggregateHash[:]...),
+		AggregateHash: append([]byte(nil), aggregateHash[:]...),
 		Initial:       req.Initial,
 		SnapshotError: req.SnapshotError,
-		Resources:     make([]*agentproto.ContextResource, 0, len(req.Resources)),
+		Resources:     make([]*agentproto.ContextResource, 0, len(resources)),
 	}
-	for i := range req.Resources {
-		r := req.Resources[i]
+	for i := range resources {
+		r := resources[i]
 		entry := &agentproto.ContextResource{
 			Source:      r.Source,
 			ContentHash: append([]byte(nil), r.ContentHash[:]...),
@@ -99,6 +128,7 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 				Meta:        append([]byte(nil), r.Payload...),
 				Name:        r.Name,
 				Description: r.Description,
+				PluginName:  r.PluginName,
 			},
 		}
 	case KindMCPConfig:
@@ -113,6 +143,15 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 				ServerName:  serverNameOrSource(r),
 				Description: r.Description,
 				Tools:       mcpToolsToProto(r.Tools),
+				PluginName:  r.PluginName,
+			},
+		}
+	case KindPlugin:
+		entry.Body = &agentproto.ContextResource_Plugin{
+			Plugin: &agentproto.PluginBody{
+				Name:        r.Name,
+				Version:     r.PluginVersion,
+				Description: r.Description,
 			},
 		}
 	}

@@ -1274,22 +1274,6 @@ func (a *agent) run() (retErr error) {
 	// gracefulShutdownBehaviorRemain.
 	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
 
-	// Push resolved workspace context (instructions, skills, MCP
-	// configs, MCP server tool lists) to coderd. The push loop
-	// uses gracefulShutdownBehaviorStop because the snapshot is
-	// only useful while chats are alive, and a stale snapshot at
-	// shutdown costs nothing. The coderd handler is a stub that
-	// returns Unimplemented today (CODAGT-569 lands persistence);
-	// DRPCPusher translates Unimplemented to ErrPushUnimplemented
-	// so the goroutine exits cleanly on older coderd deployments.
-	connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
-			pusher := agentcontext.NewDRPCPusher(aAPI)
-			return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
-				Logger: a.logger.Named("agentcontext-push"),
-			})
-		})
-
 	// channels to sync goroutines below
 	//  handle manifest
 	//       |
@@ -1310,6 +1294,23 @@ func (a *agent) run() (retErr error) {
 	manifestOK := newCheckpoint(a.logger)
 
 	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
+
+	// Push resolved workspace context to coderd. Stops on graceful
+	// shutdown because the snapshot is only useful while chats are
+	// alive. Plugin data is encoded only when this connection's
+	// manifest advertises support for it.
+	connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
+			if err := manifestOK.wait(ctx); err != nil {
+				return xerrors.Errorf("no manifest: %w", err)
+			}
+			manifest := a.manifest.Load()
+			pusher := agentcontext.NewDRPCPusher(aAPI,
+				agentcontext.WithPluginsEnabled(manifest.PluginsSupported))
+			return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
+				Logger: a.logger.Named("agentcontext-push"),
+			})
+		})
 
 	connMan.startAgentAPI("app health reporter", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
@@ -1436,6 +1437,17 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
+
+		// Set before SeedSources and Trigger so the resolves they
+		// cause use this manifest's plugin setting.
+		a.contextManager.SetPluginsEnabled(manifest.PluginsSupported)
+
+		if strings.TrimSpace(manifest.Directory) == "" {
+			a.logger.Warn(ctx, "agent directory is not set; skipping working-directory context",
+				slog.F("not_scanned", []string{"AGENTS.md", ".mcp.json", ".agents/skills", ".agents/plugins"}),
+				slog.F("hint", "set coder_agent.dir in the template, or place plugins under ~/.coder/plugins"),
+			)
+		}
 
 		// Manifest just landed; the agentcontext manager now has
 		// a working directory to scan and a known set of scan
