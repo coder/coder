@@ -107,7 +107,6 @@ func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standal
 		httpAddress: "127.0.0.1:0",
 
 		dialer: blockingStandaloneDaemonDialer,
-		pool:   pool,
 
 		logger: logger,
 		tracer: tracer,
@@ -118,6 +117,7 @@ func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standal
 
 	gateway, err := newStandaloneGateway(params)
 	require.NoError(t, err)
+	require.NoError(t, gateway.daemon.SetPoolForTest(testutil.Context(t, testutil.WaitShort), pool))
 
 	t.Cleanup(func() {
 		require.NoError(t, shutdownWithTimeout(gateway.daemon.Shutdown, testutil.WaitShort))
