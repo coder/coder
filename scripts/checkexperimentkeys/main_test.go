@@ -44,6 +44,30 @@ func TestCheckSource(t *testing.T) {
 			want: []finding{{path: "docs/example.md", line: 1, key: "unknown"}, {path: "docs/example.md", line: 1, key: "other-unknown"}},
 		},
 		{
+			name: "trailing comma after key list is ignored",
+			src:  "Set CODER_EXPERIMENTS=known, then restart.\n",
+		},
+		{
+			name: "sentence-final period after key list is ignored",
+			src:  "Set CODER_EXPERIMENTS=known. Then restart.\n",
+		},
+		{
+			name: "closing parenthesis after key list is ignored",
+			src:  "Set CODER_EXPERIMENTS=known) before restarting.\n",
+		},
+		{
+			name: "closing bracket after key list is ignored",
+			src:  "Set CODER_EXPERIMENTS=known] before restarting.\n",
+		},
+		{
+			name: "quote after key list is ignored",
+			src:  "Set CODER_EXPERIMENTS=known\" before restarting.\n",
+		},
+		{
+			name: "semicolon after key list is ignored",
+			src:  "Set CODER_EXPERIMENTS=known; then restart.\n",
+		},
+		{
 			name: "bare identifiers are ignored",
 			src:  "The unknown experiment is not an explicit enablement example.\n",
 		},
