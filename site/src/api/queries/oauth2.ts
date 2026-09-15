@@ -1,6 +1,7 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { disabledRefetchOptions } from "./util";
 
 const oauth2ProviderKey = ["oauth2-provider"];
 export const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
@@ -41,9 +42,11 @@ export const getApp = (id: string) => {
 	};
 };
 
-// The catalog is fixed for a deployment's binary, so nothing invalidates it.
+// The catalog is fixed for a deployment's binary, so a successful fetch is
+// kept for the session. A failed one still retries on the next mount.
 export const getExternalScopes = () => {
 	return {
+		...disabledRefetchOptions,
 		queryKey: externalScopesKey,
 		queryFn: () => API.getExternalAPIKeyScopes(),
 	};
