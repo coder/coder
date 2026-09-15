@@ -10,5 +10,5 @@ DROP INDEX chat_queued_messages_one_editing_per_chat;
 
 ALTER TABLE chat_queued_messages DROP COLUMN editing_since;
 
--- The enum value stays, as 000519 leaves `interrupting`.
+-- `paused` stays in the enum. Dropping a value requires recreating the type.
 UPDATE chats SET status = 'waiting' WHERE status = 'paused';
