@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestPartitionScopes(t *testing.T) {
 
 	builtin, composite, lowLevel := partitionScopes(rbac.ExternalScopeNames())
 
-	if want := []string{string(rbac.ScopeAll), string(rbac.ScopeApplicationConnect)}; !equal(builtin, want) {
+	if want := []string{string(rbac.ScopeAll), string(rbac.ScopeApplicationConnect)}; !slices.Equal(builtin, want) {
 		t.Errorf("builtin = %v, want %v", builtin, want)
 	}
 	if len(composite) == 0 || len(lowLevel) == 0 {
@@ -82,7 +83,7 @@ func TestRenderCoversEveryPublicScope(t *testing.T) {
 	}
 
 	for _, scope := range exampleScopes {
-		if !contains(rbac.ExternalScopeNames(), string(scope)) {
+		if !slices.Contains(rbac.ExternalScopeNames(), string(scope)) {
 			t.Errorf("example scope %q is not public", scope)
 		}
 	}
@@ -98,20 +99,47 @@ func TestRenderCoversEveryPublicScope(t *testing.T) {
 func TestActionDescription(t *testing.T) {
 	t.Parallel()
 
-	_, err := actionDescription("missing_resource", "read")
-	require.Error(t, err)
+	t.Run("wildcard", func(t *testing.T) {
+		t.Parallel()
 
-	_, err = actionDescription("workspace", "missing_action")
-	require.Error(t, err)
+		got, err := actionDescription("workspace", "*")
+		require.NoError(t, err)
+		require.Equal(t, "Every action listed for `workspace`.", got)
+	})
+
+	t.Run("policy action", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := actionDescription("workspace", "ssh")
+		require.NoError(t, err)
+		require.Equal(t, "SSH into a given workspace.", got)
+	})
+
+	t.Run("missing resource", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := actionDescription("missing_resource", "read")
+		require.Error(t, err)
+	})
+
+	t.Run("missing action", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := actionDescription("workspace", "missing_action")
+		require.Error(t, err)
+	})
 }
 
-func contains(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
+func TestRenderLowLevel(t *testing.T) {
+	t.Parallel()
+
+	var b strings.Builder
+	err := renderLowLevel(&b, []string{"not-a-scope"})
+	require.ErrorContains(t, err, "low-level scope \"not-a-scope\" is not a resource:action pair")
+
+	b.Reset()
+	err = renderLowLevel(&b, []string{"missing_resource:read"})
+	require.ErrorContains(t, err, "describe low-level scope \"missing_resource:read\"")
 }
 
 func section(page, start, end string) string {
@@ -125,16 +153,4 @@ func section(page, start, end string) string {
 		return page
 	}
 	return page[:endIndex]
-}
-
-func equal(got, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
 }

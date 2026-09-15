@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -44,8 +43,8 @@ Pass ` + "`--scope`" + ` once per scope when you create a token:
 A token created without an explicit scope uses ` + "`coder:all`" + `, which grants the full permissions of its owner.
 To create and revoke tokens, refer to [Sessions & API Tokens](../admin/users/sessions-tokens.md).
 
-This page lists every scope a token can request.
-Coder rejects any other scope name with a ` + "`400`" + ` response.
+This page lists every canonical scope a token can request and the deprecated names Coder accepts for backward compatibility.
+Coder rejects any scope name not listed on this page with a ` + "`400`" + ` response.
 
 `
 
@@ -132,22 +131,25 @@ func render(route docgenenv.Route) (string, error) {
 	return strings.TrimRight(b.String(), "\n") + "\n", nil
 }
 
-// partitionScopes splits the public scope names into the built-in scopes, the
-// composite coder:* scopes, and the low-level resource:action scopes.
+// partitionScopes splits the public scope names into the built-in scopes,
+// composite scopes, and low-level resource:action scopes.
 func partitionScopes(names []string) (builtin, composite, lowLevel []string) {
 	for _, name := range names {
-		switch {
-		case name == string(rbac.ScopeAll), name == string(rbac.ScopeApplicationConnect):
+		scope := rbac.ScopeName(name)
+		switch scope {
+		case rbac.ScopeAll, rbac.ScopeApplicationConnect:
 			builtin = append(builtin, name)
-		case strings.HasPrefix(name, "coder:"):
-			composite = append(composite, name)
 		default:
-			lowLevel = append(lowLevel, name)
+			if _, ok := rbac.CompositeSitePermissions(scope); ok {
+				composite = append(composite, name)
+			} else {
+				lowLevel = append(lowLevel, name)
+			}
 		}
 	}
-	sort.Strings(builtin)
-	sort.Strings(composite)
-	sort.Strings(lowLevel)
+	slices.Sort(builtin)
+	slices.Sort(composite)
+	slices.Sort(lowLevel)
 	return builtin, composite, lowLevel
 }
 
@@ -180,7 +182,7 @@ func renderComposite(b *strings.Builder, names []string) error {
 		_, _ = b.WriteString("| Resource | Actions |\n|----------|---------|\n")
 		for _, resource := range slices.Sorted(maps.Keys(byResource)) {
 			actions := byResource[resource]
-			sort.Strings(actions)
+			slices.Sort(actions)
 			_, _ = fmt.Fprintf(b, "| `%s` | %s |\n", resource, codeList(actions))
 		}
 		_, _ = b.WriteString("\n")
@@ -193,7 +195,7 @@ func renderLowLevel(b *strings.Builder, names []string) error {
 	for _, name := range names {
 		resource, _, ok := rbac.ParseResourceAction(name)
 		if !ok {
-			continue
+			return xerrors.Errorf("low-level scope %q is not a resource:action pair", name)
 		}
 		byResource[resource] = append(byResource[resource], name)
 	}
@@ -203,7 +205,7 @@ func renderLowLevel(b *strings.Builder, names []string) error {
 		_, _ = b.WriteString("| Scope | Description |\n|-------|-------------|\n")
 
 		scopes := byResource[resource]
-		sort.Strings(scopes)
+		slices.Sort(scopes)
 		for _, scope := range scopes {
 			_, action, _ := rbac.ParseResourceAction(scope)
 			description, err := actionDescription(resource, action)
