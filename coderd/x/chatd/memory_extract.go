@@ -132,7 +132,7 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 			logger.Debug(ctx, "failed to advance memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
 			return
 		}
-		p.maybeConsolidateMemoriesAsync(ctx, logger, chat)
+		p.runAfterMemoryExtraction(ctx, logger, chat)
 		return
 	}
 	entries, err := store.List(ctx)
@@ -167,6 +167,14 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 	}
 	if _, err := p.db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
 		logger.Debug(ctx, "failed to advance memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	p.runAfterMemoryExtraction(ctx, logger, chat)
+}
+
+func (p *Server) runAfterMemoryExtraction(ctx context.Context, logger slog.Logger, chat database.Chat) {
+	if p.afterMemoryExtraction != nil {
+		p.afterMemoryExtraction(ctx, logger, chat)
 		return
 	}
 	p.maybeConsolidateMemoriesAsync(ctx, logger, chat)

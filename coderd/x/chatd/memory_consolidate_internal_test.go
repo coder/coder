@@ -104,6 +104,13 @@ func (s *memoryConsolidationStore) Upsert(_ context.Context, input chattool.Memo
 	return memory, nil
 }
 
+func (s *memoryConsolidationStore) Insert(ctx context.Context, input chattool.MemoryInput) (chattool.Memory, error) {
+	if _, exists := s.memories[input.Name]; exists {
+		return chattool.Memory{}, chattool.ErrMemoryExists
+	}
+	return s.Upsert(ctx, input)
+}
+
 func (s *memoryConsolidationStore) Delete(_ context.Context, name string) error {
 	delete(s.memories, name)
 	return nil
@@ -165,6 +172,7 @@ func TestConsolidateMemories(t *testing.T) {
 			logger:                   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			clock:                    quartz.NewReal(),
 			configCache:              newChatConfigCache(t.Context(), db, quartz.NewReal()),
+			experiments:              codersdk.ExperimentsKnown,
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripper}),
 		}
 	}
@@ -681,7 +689,7 @@ func TestMaybeConsolidateMemoriesAsync(t *testing.T) {
 	t.Run("ParentChatSkips", func(t *testing.T) {
 		t.Parallel()
 
-		server := &Server{}
+		server := &Server{experiments: codersdk.ExperimentsKnown}
 		server.maybeConsolidateMemoriesAsync(t.Context(), slogtest.Make(t, nil), database.Chat{
 			ID:           uuid.New(),
 			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
@@ -711,6 +719,7 @@ func TestMaybeConsolidateMemoriesAsync(t *testing.T) {
 			logger:                   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			clock:                    quartz.NewReal(),
 			configCache:              newChatConfigCache(t.Context(), db, quartz.NewReal()),
+			experiments:              codersdk.ExperimentsKnown,
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(&aibridgeTestFactory{}),
 		}
 
