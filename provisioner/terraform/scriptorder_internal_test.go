@@ -5,6 +5,7 @@ import (
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestParseScriptOrderSelector(t *testing.T) {
@@ -21,7 +22,7 @@ func TestParseScriptOrderSelector(t *testing.T) {
 			expected: scriptOrderSelector{
 				kind:        scriptOrderSelectorScript,
 				name:        "setup",
-				instanceKey: "",
+				instanceKey: cty.NilVal,
 			},
 		},
 		{
@@ -30,7 +31,7 @@ func TestParseScriptOrderSelector(t *testing.T) {
 			expected: scriptOrderSelector{
 				kind:        scriptOrderSelectorScript,
 				name:        "setup",
-				instanceKey: "2",
+				instanceKey: cty.NumberIntVal(2),
 			},
 		},
 		{
@@ -39,7 +40,16 @@ func TestParseScriptOrderSelector(t *testing.T) {
 			expected: scriptOrderSelector{
 				kind:        scriptOrderSelectorScript,
 				name:        "setup",
-				instanceKey: `"api"`,
+				instanceKey: cty.StringVal("api"),
+			},
+		},
+		{
+			name: "ScriptUnicode",
+			raw:  "coder_script.π",
+			expected: scriptOrderSelector{
+				kind:        scriptOrderSelectorScript,
+				name:        "π",
+				instanceKey: cty.NilVal,
 			},
 		},
 		{
@@ -48,7 +58,16 @@ func TestParseScriptOrderSelector(t *testing.T) {
 			expected: scriptOrderSelector{
 				kind:        scriptOrderSelectorModule,
 				name:        "bootstrap",
-				instanceKey: "",
+				instanceKey: cty.NilVal,
+			},
+		},
+		{
+			name: "ModuleUnicode",
+			raw:  "module.开发",
+			expected: scriptOrderSelector{
+				kind:        scriptOrderSelectorModule,
+				name:        "开发",
+				instanceKey: cty.NilVal,
 			},
 		},
 	}
@@ -70,6 +89,7 @@ func TestParseScriptOrderSelectorRejectsUnsupportedSyntax(t *testing.T) {
 	for _, selector := range []string{
 		"",
 		"coder_script",
+		"coder_script[0]",
 		"coder_script.setup[",
 		"coder_script.setup[api]",
 		"coder_script.setup[true]",
@@ -161,6 +181,18 @@ func TestResolveScriptOrderSelector(t *testing.T) {
 			},
 		},
 		{
+			name: "EscapedForEachInstanceKey",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{
+					managedCoderScript(`coder_script.setup["api"]`, "setup"),
+				},
+			}},
+			selector: `coder_script.setup["\u0061pi"]`,
+			expected: scriptOrderSelectorResolution{
+				addresses: []string{`coder_script.setup["api"]`},
+			},
+		},
+		{
 			name: "MissingScriptInstance",
 			modules: []*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{
@@ -206,6 +238,22 @@ func TestResolveScriptOrderSelector(t *testing.T) {
 			selector:      "coder_script.setup",
 			expected: scriptOrderSelectorResolution{
 				addresses: []string{"module.outer.module.inner.coder_script.setup"},
+			},
+		},
+		{
+			name: "ScriptRelativeToUnicodeDeclaringModule",
+			modules: []*tfjson.StateModule{{
+				ChildModules: []*tfjson.StateModule{{
+					Address: "module.开发",
+					Resources: []*tfjson.StateResource{
+						managedCoderScript("module.开发.coder_script.π", "π"),
+					},
+				}},
+			}},
+			moduleAddress: "module.开发",
+			selector:      "coder_script.π",
+			expected: scriptOrderSelectorResolution{
+				addresses: []string{"module.开发.coder_script.π"},
 			},
 		},
 		{
@@ -281,6 +329,23 @@ func TestResolveScriptOrderSelector(t *testing.T) {
 					`module.bootstrap["primary"].coder_script.setup`,
 					`module.bootstrap["secondary"].coder_script.setup`,
 				},
+				moduleCallDeclared: true,
+			},
+		},
+		{
+			name: "UnicodeModule",
+			modules: []*tfjson.StateModule{{
+				ChildModules: []*tfjson.StateModule{{
+					Address: "module.开发",
+					Resources: []*tfjson.StateResource{
+						managedCoderScript("module.开发.coder_script.setup", "setup"),
+					},
+				}},
+			}},
+			config:   rootScriptOrderConfig("开发"),
+			selector: "module.开发",
+			expected: scriptOrderSelectorResolution{
+				addresses:          []string{"module.开发.coder_script.setup"},
 				moduleCallDeclared: true,
 			},
 		},
