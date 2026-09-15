@@ -36,6 +36,7 @@ import {
 } from "./subagentDescriptor";
 import { ToolCall } from "./ToolCall";
 import { ToolLabel } from "./ToolLabel";
+import { ToolResultImage } from "./ToolResultImage";
 import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
 	asNumber,
@@ -957,8 +958,19 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
-	const resultOutput = formatResultOutput(result);
-	const fileContent = getFileContentForViewer(name, args, result);
+	const rec = asRecord(result);
+	const imageResult =
+		rec &&
+		typeof rec.data === "string" &&
+		rec.data.length > 0 &&
+		typeof rec.mime_type === "string" &&
+		rec.mime_type.startsWith("image/")
+			? { data: rec.data, mimeType: rec.mime_type, text: asString(rec.text) }
+			: null;
+	const resultOutput = imageResult ? null : formatResultOutput(result);
+	const fileContent = imageResult
+		? null
+		: getFileContentForViewer(name, args, result);
 	const fileViewerOpts = getFileViewerOptions(isDark);
 	const fileContentOptions = fileContent
 		? {
@@ -973,8 +985,9 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(toolInput || fileContent || resultOutput);
-	const rec = asRecord(result);
+	const hasContent = Boolean(
+		toolInput || fileContent || resultOutput || imageResult,
+	);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 	const fallbackErrorMessage = getGenericToolErrorMessage({
 		name,
@@ -1013,6 +1026,20 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					isDark={isDark}
 					resultOutput={resultOutput}
 				/>
+				{imageResult && (
+					<>
+						<ToolResultImage
+							data={imageResult.data}
+							mimeType={imageResult.mimeType}
+							alt="Image from tool result"
+						/>
+						{imageResult.text && (
+							<pre className="mt-1.5 whitespace-pre-wrap break-words text-xs text-content-secondary">
+								{imageResult.text}
+							</pre>
+						)}
+					</>
+				)}
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);
