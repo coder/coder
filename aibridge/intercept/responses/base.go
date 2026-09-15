@@ -29,7 +29,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -50,7 +50,7 @@ type responsesInterceptionBase struct {
 	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
 	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
 	// using a key pool or BYOK secret.
-	bedrockMantle *bedrocksig.MantleConfig
+	bedrockMantle *awssig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -81,7 +81,7 @@ func sumUsage(ref responses.ResponseUsage, in responses.ResponseUsage) responses
 func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
 	var opts []option.RequestOption
 	if i.bedrockMantle != nil {
-		base, err := bedrocksig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
+		base, err := awssig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
 		if err != nil {
 			// Fail the request loudly: a malformed base URL is a provider
 			// misconfiguration, not a retryable upstream error.
@@ -122,8 +122,16 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// innermost (right before the HTTP send) and signs the request after all
 	// other headers are set.
 	if i.bedrockMantle != nil {
-		//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
-		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
+		// Bedrock traffic carries Coder's PRM attribution marker. This runs
+		// before SigV4 signing so the marker is covered by the signature.
+		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			awssig.AppendPRMUserAgent(req)
+			return next(req)
+		}))
+		//nolint:bodyclose // Middleware forwards the response to the interceptor, which closes it.
+		opts = append(opts, option.WithMiddleware(awssig.BedrockMantleUnsafeHeadersMiddleware(i.logger)))
+		//nolint:bodyclose // SignMiddleware reads and closes only the request body.
+		opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
 	}
 
 	return responses.NewResponseService(opts...)
