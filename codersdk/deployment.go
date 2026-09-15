@@ -1226,7 +1226,7 @@ type ExternalAuthConfig struct {
 	//
 	// Git clone makes use of this by parsing the URL from:
 	// 'Username for "https://github.com":'
-	// And sending it to the Coder server to match against the Regex.
+	// And sending it to the control plane to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
 	// APIBaseURL is the base URL for provider REST API calls
 	// (e.g., "https://api.github.com" for GitHub). Derived from

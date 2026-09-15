@@ -42,7 +42,7 @@ When API dumps are enabled, each replica writes its own [API dumps](./setup.md#a
 
 `coderd` remains required for standalone operation.
 A replica becomes unready when its control connection is unavailable, even if its HTTP listener remains healthy.
-AI Gateway Proxy remains part of `coder server` and can forward its intercepted traffic to either the embedded gateway or a standalone endpoint.
+AI Gateway Proxy remains part of `coderd` and can forward its intercepted traffic to either the embedded gateway or a standalone endpoint.
 
 ## Version compatibility
 

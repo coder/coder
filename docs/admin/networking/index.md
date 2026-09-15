@@ -2,15 +2,15 @@
 title: Networking
 ---
 
-Coder's network topology has three types of nodes: workspaces, coder servers,
-and users.
+Coder's network topology has three types of nodes: workspaces, the control
+plane, and users.
 
-The coder server must have an inbound address reachable by users and workspaces,
-but otherwise, all topologies _just work_ with Coder.
+The control plane must have an inbound address reachable by users and
+workspaces, but otherwise, all topologies _just work_ with Coder.
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connections are relayed through the coder server. All
+When NAT traversal fails, connections are relayed through the control plane. All
 user-workspace connections are end-to-end encrypted.
 
 [Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS
@@ -25,12 +25,12 @@ In order for clients and workspaces to be able to connect:
 > workspaces over a good quality, broadband network connection. The following
 > are minimum requirements:
 >
-> - better than 400ms round-trip latency to the Coder server and to their
+> - better than 400ms round-trip latency to the control plane and to their
 >   workspace
 > - better than 0.5% random packet loss
 
-- All clients and agents must be able to establish a connection to the Coder
-  server (`CODER_ACCESS_URL`) over HTTP/HTTPS.
+- All clients and agents must be able to establish a connection to the control
+  plane (`CODER_ACCESS_URL`) over HTTP/HTTPS.
 - Any reverse proxy or ingress between the Coder control plane and
   clients/agents must support WebSockets.
 
@@ -69,14 +69,14 @@ In order for clients to be able to establish direct connections:
     ephemeral (high) ports. If a firewall between the client and the agent
     blocks this UDP traffic, direct connections will not be possible.
 
-## coder server
+## Control plane
 
-Workspaces connect to the coder server via the server's external address, set
+Workspaces connect to the control plane via its external address, set
 via [`ACCESS_URL`](../../admin/setup/index.md#access-url). There must not be a
-NAT between workspaces and coder server.
+NAT between workspaces and the control plane.
 
-Users connect to the coder server's dashboard and API through its `ACCESS_URL`
-as well. There must not be a NAT between users and the coder server.
+Users connect to the control plane's dashboard and API through its `ACCESS_URL`
+as well. There must not be a NAT between users and the control plane.
 
 Template admins can overwrite the site-wide access URL at the template level by
 leveraging the `url` argument when
@@ -89,11 +89,11 @@ provider "coder" {
 ```
 
 This is useful when debugging connectivity issues between the workspace agent
-and the Coder server.
+and the control plane.
 
 ## Web Apps
 
-The coder servers relays dashboard-initiated connections between the user and
+The control plane relays dashboard-initiated connections between the user and
 the workspace. Web terminal <-> workspace connections are an exception and may
 be direct.
 
@@ -122,7 +122,7 @@ but this can be disabled or changed for
 
 ### Relayed connections
 
-By default, your Coder server also runs a built-in DERP relay which can be used
+By default, your control plane also runs a built-in DERP relay which can be used
 for both public and [Air-gapped deployments](../../install/airgap.md).
 
 However, Tailscale maintains a global fleet of [DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers) intended for their product, and has allowed Coder to access and use them.
@@ -168,8 +168,8 @@ coder server --derp-config-path derpmap.json
 ### Dashboard connections
 
 The dashboard (and web apps opened through the dashboard) are served from the
-coder server, so they can only be geo-distributed with High Availability mode in
-our Premium Edition. [Reach out to Sales](https://coder.com/contact) to learn
+control plane, so they can only be geo-distributed with High Availability mode
+in our Premium Edition. [Reach out to Sales](https://coder.com/contact) to learn
 more.
 
 ## Browser-only connections
@@ -205,7 +205,7 @@ There are three main types of latency metrics for your Coder deployment:
 
 - Dashboard-to-server latency:
 
-  The Coder UI measures round-trip time to the Coder server or workspace proxy using built-in browser timing capabilities.
+  The Coder UI measures round-trip time to the control plane or workspace proxy using built-in browser timing capabilities.
 
   This appears in the user interface next to your username, showing how responsive the dashboard is.
 
@@ -238,7 +238,7 @@ Latency measurements are color-coded in the dashboard:
 
 ### Factors that affect latency
 
-- **Geographic distance**: Physical distance between users, Coder server, and workspaces.
+- **Geographic distance**: Physical distance between users, the control plane, and workspaces.
 - **Network connectivity**: Quality of internet connections and routing.
 - **Infrastructure**: Cloud provider regions and network optimization.
 - **P2P connectivity**: Whether direct connections can be established or relays are needed.
@@ -247,9 +247,9 @@ Latency measurements are color-coded in the dashboard:
 
 To improve latency and user experience:
 
-- **Deploy workspace proxies**: Place [proxies](./workspace-proxies.md) in regions closer to users, connecting back to your single Coder server deployment.
+- **Deploy workspace proxies**: Place [proxies](./workspace-proxies.md) in regions closer to users, connecting back to your single control plane deployment.
 - **Use P2P connections**: Ensure network configurations permit direct connections.
-- **Strategic placement**: Deploy your Coder server in a region where most users work.
+- **Strategic placement**: Deploy your control plane in a region where most users work.
 - **Network configuration**: Optimize routing between users and workspaces.
 - **Check firewall rules**: Ensure they don't block necessary Coder connections.
 

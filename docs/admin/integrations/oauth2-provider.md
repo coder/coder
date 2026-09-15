@@ -12,7 +12,7 @@ Coder can act as an OAuth2 authorization server, allowing third-party applicatio
 ## Requirements
 
 - Admin privileges in Coder
-- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the Coder server
+- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the control plane
 - HTTPS recommended for production deployments
 
 ## Enable OAuth2 Provider
@@ -437,7 +437,7 @@ scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause answers
 `server_error` on `POST /oauth2/authorize`. Update the application's callback
 URL (see [Callback URL schemes](#callback-url-schemes)).
 
-The server log records the application ID and the stored value. The response
+The `coderd` log records the application ID and the stored value. The response
 does not, so a bad URL is never echoed back to a browser.
 
 ### "invalid_scope" returned to your callback
@@ -459,7 +459,7 @@ opens with the requested name that caused the rejection:
   deployment offers, so no request against it can succeed, including one
   that omits `scope`. Re-register the application with supported scopes. This
   description stands alone. Nothing validates a registered `scope`, so the
-  response never echoes it; the server log records the application ID.
+  response never echoes it; the `coderd` log records the application ID.
 
 Omitting `scope` requests the application's registered scopes, or full access
 if it was registered without any.
@@ -498,7 +498,7 @@ Two more descriptions can open the `error_description` here:
 
 A coverage comparison this deployment cannot decide answers HTTP 500 with
 `error=server_error` and `The requested scope could not be evaluated`; the
-scope that could not be compared is in the server logs, not the response.
+scope that could not be compared is in the `coderd` logs, not the response.
 
 Only the application itself can change its registered `scope`, through
 [Dynamic Client Registration](#dynamic-client-registration). No administrator
@@ -522,7 +522,7 @@ minutes. Authorizing again issues a code within the current registration.
 ### "invalid_scope" for a refresh that names a scope
 
 `POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh
-request names a `scope` the server will not grant. This is the token endpoint,
+request names a `scope` the control plane will not grant. This is the token endpoint,
 not the authorization endpoint above: there is no redirect, and the error is in
 the response body.
 
@@ -652,9 +652,9 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 - **Implement PKCE**: PKCE is mandatory for all authorization code clients
   (public and confidential)
 - **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
-  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
-  custom URI schemes for native apps (`myapp://`) are permitted, and public
-  clients additionally cannot use `mailto:`, `tel:`, or `sms:`
+  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the control
+  plane, custom URI schemes for native apps (`myapp://`) are permitted, and
+  public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 - **No CORS on the authorization endpoint**: `/oauth2/authorize` is reached
   only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
