@@ -403,7 +403,7 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		_ = b.clock.Now("serve_admission") // Trap point for deterministic race tests.
 	})
 	if !ok {
-		http.Error(rw, "server closed", http.StatusInternalServerError)
+		http.Error(rw, "AI Gateway is shutting down", http.StatusServiceUnavailable)
 		return
 	}
 	defer release()
@@ -420,8 +420,9 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	b.mux.ServeHTTP(rw, r)
 }
 
-// Shutdown drains requests until ctx expires, then cancels remaining requests.
-// MCP cleanup is attempted even if requests have not returned.
+// Shutdown drains requests until ctx expires, then cancels remaining requests
+// without waiting for their handlers to return. MCP cleanup is attempted even
+// while canceled handlers are still running.
 func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	var err error
 	b.shutdownOnce.Do(func() {

@@ -204,8 +204,8 @@ func TestRequestBridgeShutdownDoesNotWaitForCanceledHandler(t *testing.T) {
 			if withMCP {
 				proxy := mcpmock.NewMockServerProxier(gomock.NewController(t))
 				proxy.EXPECT().Shutdown(gomock.Any()).DoAndReturn(func(shutdownCtx context.Context) error {
-					require.ErrorIs(t, shutdownCtx.Err(), context.DeadlineExceeded)
-					require.EqualValues(t, 1, bridge.InflightRequests())
+					assert.ErrorIs(t, shutdownCtx.Err(), context.DeadlineExceeded)
+					assert.EqualValues(t, 1, bridge.InflightRequests())
 					return nil
 				})
 				bridge.mcpProxy = proxy
@@ -231,7 +231,8 @@ func TestRequestBridgeShutdownDoesNotWaitForCanceledHandler(t *testing.T) {
 			// Admission stays closed even though the old handler is still running.
 			rejected := httptest.NewRecorder()
 			bridge.ServeHTTP(rejected, httptest.NewRequest(http.MethodGet, "/", nil))
-			require.Equal(t, http.StatusInternalServerError, rejected.Code)
+			require.Equal(t, http.StatusServiceUnavailable, rejected.Code)
+			require.Equal(t, "AI Gateway is shutting down\n", rejected.Body.String())
 		})
 	}
 }

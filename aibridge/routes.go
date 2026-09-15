@@ -19,7 +19,7 @@ func newProviderMux(providers []Provider, logger slog.Logger) *http.ServeMux {
 		}
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.Warn(r.Context(), "route not supported", slog.F("path", r.URL.Path), slog.F("method", r.Method))
+		logger.Debug(r.Context(), "route not supported", slog.F("path", r.URL.Path), slog.F("method", r.Method))
 		http.Error(w, fmt.Sprintf("route not supported: %s %s", r.Method, r.URL.Path), http.StatusNotFound)
 	})
 	return mux

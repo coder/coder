@@ -223,7 +223,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 		return xerrors.New("nil MCP server configs response")
 	}
 
-	// When reverse-proxy experiment is disabled or MCP config is not empty use interception mode.
+	// MCP configuration requires interception mode.
 	if len(configs.GetExternalAuthMcpConfigs()) != 0 || configs.GetCoderMcpConfig() != nil {
 		s.logger.Info(ctx, "mcp configuration requires interception; restart to change gateway mode")
 		return s.initializeInterception()
@@ -376,7 +376,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				drainErr := s.inflight.Shutdown(ctx)
 				s.inflight.Close()
 				if drainErr != nil {
-					s.logger.Debug(ctx, "shutdown deadline passed; canceled in-flight proxy requests", slog.Error(drainErr))
+					s.logger.Debug(ctx, "shutdown deadline passed, canceled in-flight proxy requests", slog.Error(drainErr))
 				}
 			}
 		}
@@ -423,5 +423,5 @@ func (b *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func notReadyHandler(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "AI Gateway is not ready", http.StatusServiceUnavailable)
+	http.Error(w, "AI Gateway is starting up; retry shortly", http.StatusServiceUnavailable)
 }

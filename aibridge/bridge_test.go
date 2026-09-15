@@ -87,6 +87,12 @@ func TestRequestBridgeShutdownAdmissionRace(t *testing.T) {
 	_ = codertestutil.TryReceive(ctx, t, req1)
 	_ = codertestutil.TryReceive(ctx, t, req2)
 	_ = codertestutil.TryReceive(ctx, t, shutdown)
+
+	// New requests are refused after graceful shutdown.
+	rejected := httptest.NewRecorder()
+	bridge.ServeHTTP(rejected, httptest.NewRequest(http.MethodGet, "/openai/v1/conversations", nil))
+	require.Equal(t, http.StatusServiceUnavailable, rejected.Code)
+	require.Equal(t, "AI Gateway is shutting down\n", rejected.Body.String())
 }
 
 // TestRequestBridgeShutdownDeadlineCancels verifies that deadline cancellation

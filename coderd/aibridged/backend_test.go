@@ -201,6 +201,7 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	require.NoError(t, err, "the proxy backend must answer requests instead of erroring")
 	rec := serveHandler(t, h, "/openai/v1/chat/completions")
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code, "requests before the first snapshot must be refused")
+	require.Equal(t, "AI Gateway is starting up, retry shortly\n", rec.Body.String())
 	requireNoKeyPoolState(t, f.srv, "openai", "valid")
 
 	pool := singleKeyPool(t, "openai", "key")
@@ -482,6 +483,9 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 			waitReady(t, f.srv)
 
 			const workers = 8
+			registry := prometheus.NewRegistry()
+			require.NoError(t, registry.Register(f.srv.KeyPoolStateCollector()))
+			gatherErrors := make(chan error, workers)
 			var wg sync.WaitGroup
 			start := make(chan struct{})
 
@@ -504,7 +508,10 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 					for range 20 {
 						// Errors are expected once shutdown wins the race.
 						_ = f.srv.ReplaceProviders(ctx, providers)
-						_ = collectServerMetrics(t, f.srv)
+						if _, err := registry.Gather(); err != nil {
+							gatherErrors <- err
+							return
+						}
 					}
 				})
 			}
@@ -516,6 +523,10 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 
 			close(start)
 			wg.Wait()
+			close(gatherErrors)
+			for err := range gatherErrors {
+				require.NoError(t, err)
+			}
 
 			if tc.proxy {
 				h, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})

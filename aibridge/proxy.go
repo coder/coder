@@ -55,11 +55,5 @@ func (p *ProxyRouter) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 // KeyPools returns the non-nil key pools from this router's provider snapshot.
 func (p *ProxyRouter) KeyPools() []*keypool.Pool {
-	pools := make([]*keypool.Pool, 0, len(p.providers))
-	for _, prov := range p.providers {
-		if pool := prov.KeyPool(); pool != nil {
-			pools = append(pools, pool)
-		}
-	}
-	return pools
+	return CollectKeyPools(p.providers)
 }
