@@ -67,6 +67,16 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 	}
 }
 
+// scopeAllowlist wraps a request's scope list for storage. The spelling is
+// stored as given, matching the DCR path; readers canonicalize. An empty list
+// stores as an empty, valid string, meaning no allowlist.
+func scopeAllowlist(raw string) sql.NullString {
+	return sql.NullString{
+		String: raw,
+		Valid:  true,
+	}
+}
+
 // CreateApp returns an http.HandlerFunc that handles POST /oauth2-provider/apps
 func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -99,7 +109,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			GrantTypes:              []string{"authorization_code", "refresh_token"},
 			ResponseTypes:           []string{"code"},
 			TokenEndpointAuthMethod: sql.NullString{String: "client_secret_post", Valid: true},
-			Scope:                   sql.NullString{},
+			Scope:                   scopeAllowlist(req.Scope),
 			Contacts:                []string{},
 			ClientUri:               sql.NullString{},
 			LogoUri:                 sql.NullString{},
@@ -143,6 +153,10 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		scope := app.Scope // Keep existing value
+		if req.Scope != nil {
+			scope = scopeAllowlist(*req.Scope)
+		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,
 			UpdatedAt:               dbtime.Now(),
@@ -156,16 +170,16 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			GrantTypes:              app.GrantTypes,              // Keep existing value
 			ResponseTypes:           app.ResponseTypes,           // Keep existing value
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod, // Keep existing value
-			Scope:                   app.Scope,                   // Keep existing value
-			Contacts:                app.Contacts,                // Keep existing value
-			ClientUri:               app.ClientUri,               // Keep existing value
-			LogoUri:                 app.LogoUri,                 // Keep existing value
-			TosUri:                  app.TosUri,                  // Keep existing value
-			PolicyUri:               app.PolicyUri,               // Keep existing value
-			JwksUri:                 app.JwksUri,                 // Keep existing value
-			Jwks:                    app.Jwks,                    // Keep existing value
-			SoftwareID:              app.SoftwareID,              // Keep existing value
-			SoftwareVersion:         app.SoftwareVersion,         // Keep existing value
+			Scope:                   scope,
+			Contacts:                app.Contacts,        // Keep existing value
+			ClientUri:               app.ClientUri,       // Keep existing value
+			LogoUri:                 app.LogoUri,         // Keep existing value
+			TosUri:                  app.TosUri,          // Keep existing value
+			PolicyUri:               app.PolicyUri,       // Keep existing value
+			JwksUri:                 app.JwksUri,         // Keep existing value
+			Jwks:                    app.Jwks,            // Keep existing value
+			SoftwareID:              app.SoftwareID,      // Keep existing value
+			SoftwareVersion:         app.SoftwareVersion, // Keep existing value
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

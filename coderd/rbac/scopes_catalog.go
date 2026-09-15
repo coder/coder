@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -129,6 +130,22 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 		return canonical
 	}
 	return name
+}
+
+// CanonicalScopeList rewrites a space-separated scope list into its canonical
+// spelling and drops duplicates. Both app write paths store the caller's
+// spelling as given, so this is where a stored allowlist gets one display form.
+// Unknown names are kept: this shows what is configured, not what is grantable.
+func CanonicalScopeList(raw string) string {
+	names := strings.Fields(raw)
+	canonical := make([]string, 0, len(names))
+	for _, name := range names {
+		got := string(CanonicalScopeName(ScopeName(name)))
+		if !slices.Contains(canonical, got) {
+			canonical = append(canonical, got)
+		}
+	}
+	return strings.Join(canonical, " ")
 }
 
 // ExternalScopeNames returns a sorted list of all public scopes: the canonical
