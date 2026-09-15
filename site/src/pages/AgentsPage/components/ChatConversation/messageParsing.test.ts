@@ -3,7 +3,7 @@ import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
-	getEditableUserMessagePayload,
+	getEditableContentPayload,
 	getPendingToolCallIDs,
 	mergeTools,
 	parseMessageContent,
@@ -75,7 +75,7 @@ describe("parseToolResultIsError", () => {
 	});
 });
 
-describe("getEditableUserMessagePayload", () => {
+describe("getEditableContentPayload", () => {
 	it("keeps only editable stored attachments", () => {
 		const cases = [
 			{
@@ -150,7 +150,7 @@ describe("getEditableUserMessagePayload", () => {
 		];
 
 		for (const { message, want } of cases) {
-			expect(getEditableUserMessagePayload(message)).toEqual(want);
+			expect(getEditableContentPayload(message.content)).toEqual(want);
 		}
 	});
 
@@ -170,8 +170,15 @@ describe("getEditableUserMessagePayload", () => {
 				{ type: "text", text: "world" },
 			],
 		};
-		expect(getEditableUserMessagePayload(message)).toEqual({
+		expect(getEditableContentPayload(message.content)).toEqual({
 			text: "hello   world",
+			fileBlocks: undefined,
+		});
+	});
+
+	it("returns empty text and no attachments for missing content", () => {
+		expect(getEditableContentPayload(null)).toEqual({
+			text: "",
 			fileBlocks: undefined,
 		});
 	});

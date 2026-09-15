@@ -54,12 +54,22 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-export const chatQueuedMessagesEqualByID = (
+// Rows change in place, so editing_since, content and model are compared.
+export const chatQueuedMessagesEqual = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
 ): boolean =>
 	left.length === right.length &&
-	left.every((message, index) => message.id === right[index].id);
+	left.every((message, index) => {
+		const other = right[index];
+		return (
+			message.id === other.id &&
+			message.editing_since === other.editing_since &&
+			message.model_config_id === other.model_config_id &&
+			(message.content === other.content ||
+				JSON.stringify(message.content) === JSON.stringify(other.content))
+		);
+	});
 
 const retryStatesEqual = (
 	left: RetryState | null,
@@ -100,6 +110,11 @@ const reconnectStatesEqual = (
 export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
 ): boolean => status === "running" || status === "interrupting";
+
+// Statuses a turn ends in.
+export const isTurnFinishedChatStatus = (
+	status: TypesGen.ChatStatus | null | undefined,
+): boolean => status === "waiting" || status === "paused";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -398,10 +413,7 @@ export const createChatStore = (): ChatStore => {
 			const nextQueuedMessages = queuedMessages ?? [];
 			setState((current) => {
 				if (
-					chatQueuedMessagesEqualByID(
-						current.queuedMessages,
-						nextQueuedMessages,
-					)
+					chatQueuedMessagesEqual(current.queuedMessages, nextQueuedMessages)
 				) {
 					return current;
 				}
@@ -445,7 +457,7 @@ export const createChatStore = (): ChatStore => {
 					nextSuppressed.size === 0
 						? incoming
 						: incoming.filter((message) => !nextSuppressed.has(message.id));
-				const sameQueue = chatQueuedMessagesEqualByID(
+				const sameQueue = chatQueuedMessagesEqual(
 					current.queuedMessages,
 					filtered,
 				);
@@ -498,10 +510,7 @@ export const createChatStore = (): ChatStore => {
 					: incoming.filter((message) => !suppressed.has(message.id));
 			setState((current) => ({
 				...current,
-				queuedMessages: chatQueuedMessagesEqualByID(
-					current.queuedMessages,
-					applied,
-				)
+				queuedMessages: chatQueuedMessagesEqual(current.queuedMessages, applied)
 					? current.queuedMessages
 					: applied,
 				suppressedQueuedMessageIDs: suppressed,

@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
+import { describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { getQueuedMessageInfo } from "./QueuedMessagesList";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import {
+	MockChatQueuedMessage,
+	MockEditingChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
+import { getQueuedMessageInfo, QueuedMessagesList } from "./QueuedMessagesList";
 
 const buildMessage = (
 	content: ChatQueuedMessage["content"],
@@ -144,5 +151,108 @@ describe("getQueuedMessageInfo", () => {
 			attachmentCount: 2,
 			hookNotices: [],
 		});
+	});
+});
+
+describe("QueuedMessagesList", () => {
+	const renderList = (
+		messages: readonly ChatQueuedMessage[],
+		handlers: Partial<
+			Pick<
+				ComponentProps<typeof QueuedMessagesList>,
+				"onDelete" | "onPromote" | "onEdit" | "onEndEdit" | "chatPaused"
+			>
+		> = {},
+	) => {
+		const onDelete = vi.fn();
+		const onPromote = vi.fn();
+		const onEdit = vi.fn();
+		const onEndEdit = vi.fn();
+		render(
+			<TooltipProvider>
+				<QueuedMessagesList
+					messages={messages}
+					onDelete={onDelete}
+					onPromote={onPromote}
+					onEdit={onEdit}
+					onEndEdit={onEndEdit}
+					{...handlers}
+				/>
+			</TooltipProvider>,
+		);
+		return { onDelete, onPromote, onEdit, onEndEdit };
+	};
+
+	it("forwards Edit and Cancel edit with the row id", async () => {
+		const user = userEvent.setup();
+		const { onEdit, onEndEdit } = renderList([
+			{ ...MockEditingChatQueuedMessage, id: 9 },
+			{ ...MockChatQueuedMessage, id: 10 },
+		]);
+
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
+
+		const editButtons = screen.getAllByRole("button", { name: "Edit" });
+		await user.click(editButtons[0]);
+		await user.click(editButtons[1]);
+		expect(onEdit).toHaveBeenNthCalledWith(1, 9);
+		expect(onEdit).toHaveBeenNthCalledWith(2, 10);
+	});
+
+	it("offers Edit only on the row under edit while the chat is paused", async () => {
+		const user = userEvent.setup();
+		const { onEdit } = renderList(
+			[
+				{ ...MockEditingChatQueuedMessage, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ chatPaused: true },
+		);
+
+		// getByRole fails if the row behind the edit offered Edit too.
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+		expect(onEdit).toHaveBeenCalledWith(9);
+	});
+
+	it("still offers Send now and Remove on a row under edit", async () => {
+		const user = userEvent.setup();
+		const row = { ...MockEditingChatQueuedMessage, id: 9 };
+
+		const { onPromote } = renderList([row]);
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).toHaveBeenCalledWith(9);
+		cleanup();
+
+		const { onDelete } = renderList([row]);
+		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
+		expect(onDelete).toHaveBeenCalledWith(9);
+	});
+
+	it("disables row actions while onEdit is pending and re-enables them after it fails", async () => {
+		const user = userEvent.setup();
+		let rejectEdit: ((error: Error) => void) | undefined;
+		const onEdit = vi.fn(
+			() =>
+				new Promise<void>((_, reject) => {
+					rejectEdit = reject;
+				}),
+		);
+		const { onPromote } = renderList([{ ...MockChatQueuedMessage, id: 7 }], {
+			onEdit,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+		expect(onEdit).toHaveBeenCalledWith(7);
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).not.toHaveBeenCalled();
+
+		if (!rejectEdit) {
+			throw new Error("onEdit was not invoked");
+		}
+		rejectEdit(new Error("begin failed"));
+
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).toHaveBeenCalledWith(7);
 	});
 });

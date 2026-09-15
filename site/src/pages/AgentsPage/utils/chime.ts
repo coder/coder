@@ -1,3 +1,6 @@
+import type * as TypesGen from "#/api/typesGenerated";
+import { isTurnFinishedChatStatus } from "../components/ChatConversation/chatStore";
+
 const CHIME_PREFERENCE_KEY = "agents.chime-on-completion";
 
 export function getChimeEnabled(): boolean {
@@ -110,13 +113,13 @@ function playChime(chatID: string): void {
 
 /**
  * Check whether a chat status transition should trigger a chime
- * and play it if so. The chime fires on the running → waiting
- * transition (normal completion). The chime is suppressed when
+ * and play it if so. The chime fires when a running turn finishes
+ * (running → waiting or paused). The chime is suppressed when
  * the chat is currently visible to the user.
  */
 export function maybePlayChime(
-	prevStatus: string | undefined,
-	nextStatus: string,
+	prevStatus: TypesGen.ChatStatus | undefined,
+	nextStatus: TypesGen.ChatStatus,
 	chatID: string,
 	activeChatID: string | undefined,
 ): void {
@@ -124,8 +127,7 @@ export function maybePlayChime(
 		return;
 	}
 
-	// Terminal state that indicates the agent finished.
-	if (nextStatus !== "waiting") {
+	if (!isTurnFinishedChatStatus(nextStatus)) {
 		return;
 	}
 

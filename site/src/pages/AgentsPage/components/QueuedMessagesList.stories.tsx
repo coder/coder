@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockEditingChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 // Helper to build a ChatQueuedMessage with minimal boilerplate.
@@ -18,6 +21,8 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	args: {
 		onDelete: fn(),
 		onPromote: fn(),
+		onEdit: fn(),
+		onEndEdit: fn(),
 	},
 };
 
@@ -135,10 +140,61 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
-// Queued messages retain send and delete actions without exposing edit.
-export const ActionsExcludeEdit: Story = {
+// Queued messages retain send and delete actions and expose edit.
+export const ActionsIncludeEdit: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
+	},
+};
+
+// Without edit handlers (a read-only viewer) only send and delete render.
+export const ActionsWithoutEdit: Story = {
+	args: {
+		messages: [buildMessage(1, textContent("Run the linter"))],
+		onEdit: undefined,
+		onEndEdit: undefined,
+	},
+};
+
+// A row under edit in the middle of a busy chat's queue: the row ahead of
+// it is still sent, the row under edit offers Cancel edit, Edit, Send now
+// and Remove, and the rows behind it wait.
+export const RowUnderEditWithWaitingTail: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("Install dependencies")),
+			{
+				...MockEditingChatQueuedMessage,
+				id: 2,
+				content: textContent("Run database migrations"),
+			},
+			buildMessage(3, textContent("Start the dev server")),
+			buildMessage(4, textContent("Open the browser")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("Run database migrations"));
+	},
+};
+
+// The chat is paused: cancelling the head's edit sends it, and the row
+// behind it offers no Edit.
+export const PausedAtHead: Story = {
+	args: {
+		chatPaused: true,
+		messages: [
+			{
+				...MockEditingChatQueuedMessage,
+				id: 1,
+				content: textContent("Run the test suite"),
+			},
+			buildMessage(2, textContent("Open the browser")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByRole("button", { name: "Cancel edit" }));
 	},
 };
 

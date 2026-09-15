@@ -4,10 +4,13 @@ import {
 	CornerDownLeftIcon,
 	ImageIcon,
 	InfoIcon,
+	PencilIcon,
 	Trash2Icon,
+	XIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -20,6 +23,11 @@ interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
+	onEdit?: (id: number) => Promise<void> | void;
+	onEndEdit?: (id: number) => Promise<void> | void;
+	// While paused the server refuses edits on rows other than the head,
+	// and ending the head's edit sends it.
+	chatPaused?: boolean;
 	className?: string;
 }
 
@@ -53,23 +61,50 @@ export const getQueuedMessageInfo = (
 	};
 };
 
+type QueuedMessageAction = "delete" | "promote" | "edit" | "end_edit";
+
 export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
 	onPromote,
+	onEdit,
+	onEndEdit,
+	chatPaused = false,
 	className,
 }) => {
-	const items = messages.map((message) => {
+	const editingIndex = messages.findIndex((message) => message.editing_since);
+	const items = messages.map((message, index) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
+		const isUnderEdit = Boolean(message.editing_since);
+		const isWaitingBehindEdit = editingIndex !== -1 && index > editingIndex;
+		return {
+			id: message.id,
+			displayText,
+			attachmentCount,
+			hookNotices,
+			isUnderEdit,
+			isWaitingBehindEdit,
+			badge: isUnderEdit
+				? {
+						label: "Editing",
+						tooltip:
+							"Not sent while being edited. Messages behind it wait too.",
+					}
+				: isWaitingBehindEdit
+					? {
+							label: "Waiting",
+							tooltip: "Waits behind a message that is being edited.",
+						}
+					: undefined,
+		};
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	// Tracks which item has an async action in flight and what kind.
 	const [busyItem, setBusyItem] = useState<{
 		id: number;
-		action: "delete" | "promote";
+		action: QueuedMessageAction;
 	} | null>(null);
 	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
 		ReadonlySet<number>
@@ -116,28 +151,25 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	const handleDelete = async (id: number) => {
-		setBusyItem({ id, action: "delete" });
-		hideItemOptimistically(id);
-		try {
-			await onDelete(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
-		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+	// Delete and promote remove the row, so they hide it optimistically.
+	const runAction = async (
+		id: number,
+		action: QueuedMessageAction,
+		run: (id: number) => Promise<void> | void,
+	) => {
+		const hidesRow = action === "delete" || action === "promote";
+		setBusyItem({ id, action });
+		if (hidesRow) {
+			hideItemOptimistically(id);
 		}
-	};
-
-	const handlePromote = async (id: number) => {
-		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
 		try {
-			await onPromote(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			await run(id);
 		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			if (hidesRow) {
+				restoreHiddenItem(id);
+			}
 		}
+		setBusyItem((current) => (current?.id === id ? null : current));
 	};
 
 	const visibleItems = items.filter(
@@ -162,11 +194,25 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 				const isItemBusy = busyItem !== null && busyItem.id === item.id;
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
+				const renderActionIcon = (
+					action: QueuedMessageAction,
+					icon: React.ReactNode,
+				) =>
+					isItemBusy && busyItem.action === action ? (
+						<Spinner className="h-3.5 w-3.5" loading />
+					) : (
+						icon
+					);
 
 				return (
 					<div
 						key={item.id}
-						className="my-1 opacity-40 transition-opacity hover:opacity-80"
+						className={cn(
+							"my-1 transition-opacity",
+							item.isWaitingBehindEdit
+								? "opacity-25 hover:opacity-60"
+								: "opacity-40 hover:opacity-80",
+						)}
 						onMouseEnter={() => setHoveredID(item.id)}
 						onMouseLeave={() =>
 							setHoveredID((current) => (current === item.id ? null : current))
@@ -177,6 +223,23 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 								{item.displayText.split("\n")[0]}
 								{item.displayText.includes("\n") ? "…" : ""}
 							</span>
+							{item.badge && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge
+											asChild
+											variant={item.isUnderEdit ? "warning" : "default"}
+											size="xs"
+											className="shrink-0 cursor-default"
+										>
+											<button type="button">{item.badge.label}</button>
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										{item.badge.tooltip}
+									</TooltipContent>
+								</Tooltip>
+							)}
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
@@ -203,7 +266,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && (
+							{isFirst && !item.isUnderEdit && (
 								<span
 									className={cn(
 										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",
@@ -220,6 +283,52 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
+								{item.isUnderEdit && onEndEdit && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												variant="subtle"
+												size="icon"
+												aria-label="Cancel edit"
+												disabled={isBusy}
+												onClick={() =>
+													void runAction(item.id, "end_edit", onEndEdit)
+												}
+												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
+											>
+												{renderActionIcon(
+													"end_edit",
+													<XIcon className="size-3.5" />,
+												)}
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="top">
+											{chatPaused
+												? "Cancel edit and send this message as it is"
+												: "Cancel edit"}
+										</TooltipContent>
+									</Tooltip>
+								)}
+								{onEdit && (!chatPaused || item.isUnderEdit) && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												variant="subtle"
+												size="icon"
+												aria-label="Edit"
+												disabled={isBusy}
+												onClick={() => void runAction(item.id, "edit", onEdit)}
+												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
+											>
+												{renderActionIcon(
+													"edit",
+													<PencilIcon className="size-3.5" />,
+												)}
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="top">Edit</TooltipContent>
+									</Tooltip>
+								)}
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -227,13 +336,14 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											size="icon"
 											aria-label="Send now"
 											disabled={isBusy}
-											onClick={() => void handlePromote(item.id)}
+											onClick={() =>
+												void runAction(item.id, "promote", onPromote)
+											}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 										>
-											{isItemBusy && busyItem.action === "promote" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<ArrowUpIcon className="size-3.5" />
+											{renderActionIcon(
+												"promote",
+												<ArrowUpIcon className="size-3.5" />,
 											)}
 										</Button>
 									</TooltipTrigger>
@@ -246,13 +356,14 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											size="icon"
 											aria-label="Remove from queue"
 											disabled={isBusy}
-											onClick={() => void handleDelete(item.id)}
+											onClick={() =>
+												void runAction(item.id, "delete", onDelete)
+											}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
 										>
-											{isItemBusy && busyItem.action === "delete" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<Trash2Icon className="size-3.5" />
+											{renderActionIcon(
+												"delete",
+												<Trash2Icon className="size-3.5" />,
 											)}
 										</Button>
 									</TooltipTrigger>

@@ -30,9 +30,10 @@ import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
-	chatQueuedMessagesEqualByID,
+	chatQueuedMessagesEqual,
 	createChatStore,
 	isActiveChatStatus,
+	isTurnFinishedChatStatus,
 } from "./chatStore";
 import type { RetryState } from "./types";
 
@@ -52,7 +53,7 @@ const writeQueuedMessagesToCache = (
 		}
 		const firstPage = currentData.pages[0];
 		if (
-			chatQueuedMessagesEqualByID(firstPage.queued_messages, nextQueuedMessages)
+			chatQueuedMessagesEqual(firstPage.queued_messages, nextQueuedMessages)
 		) {
 			return currentData;
 		}
@@ -362,7 +363,7 @@ export const useChatStore = (
 		// An optimistic promotion cache write must not clear suppression before
 		// a stale pre-promotion queue_update arrives.
 		if (
-			chatQueuedMessagesEqualByID(
+			chatQueuedMessagesEqual(
 				store.getSnapshot().queuedMessages,
 				chatQueuedMessages ?? [],
 			)
@@ -426,13 +427,13 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
-		// Set when the stream reports "waiting", cleared by any other
+		// Set when the stream reports a finished turn, cleared by any other
 		// stream status. While set, parts are dropped: they are late
 		// leftovers from the finished turn. REST and optimistic
 		// statuses never set it, because they can lag a live turn.
-		let streamReportedWaiting = false;
+		let streamReportedTurnFinished = false;
 
-		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
+		const shouldKeepMessagePart = (): boolean => !streamReportedTurnFinished;
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
@@ -622,12 +623,12 @@ export const useChatStore = (
 								continue;
 							}
 
-							streamReportedWaiting = nextStatus === "waiting";
+							streamReportedTurnFinished = isTurnFinishedChatStatus(nextStatus);
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							const prevStatus = store.getSnapshot().chatStatus;
 							store.applyServerChatStatus(nextStatus);
-							if (nextStatus === "waiting") {
+							if (streamReportedTurnFinished) {
 								discardBufferedParts();
 							}
 							if (nextStatus !== "error") {
