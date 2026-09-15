@@ -1127,16 +1127,50 @@ func escapeCSVCell(value string) string {
 	return "'" + value
 }
 
-// aiSpendExportPeriod resolves the export window from the request. When neither
-// start nor end is supplied it defaults to the current UTC monthly budget
-// period, narrowed to the retention window. Both bounds must be supplied
-// together and are interpreted as UTC, and an explicit window must be non-empty,
-// span at most 31 days, and begin within the retention window. On invalid input
-// it writes the error response and returns ok=false.
-func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
+// aiSpendExportFilter is the parsed export request: the applied window plus
+// the optional provider, model, and client dimensions, where an empty
+// dimension matches every request.
+type aiSpendExportFilter struct {
+	start, end   time.Time
+	providerName string
+	model        string
+	client       string
+}
+
+// aiSpendExportFilter parses the export query parameters. When neither
+// period bound is supplied the window defaults to the current UTC monthly
+// budget period, narrowed to the retention window. Both bounds must be
+// supplied together and are interpreted as UTC, and an explicit window must be
+// non-empty, span at most 31 days, and begin within the retention window.
+// Unknown parameters are rejected. On invalid input it writes the error
+// response and returns ok=false.
+func (api *API) aiSpendExportFilter(ctx context.Context, rw http.ResponseWriter, r *http.Request) (filter aiSpendExportFilter, ok bool) {
 	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	filter.providerName = parser.String(query, "", "provider_name")
+	filter.model = parser.String(query, "", "model")
+	filter.client = parser.String(query, "", "client")
+
 	hasStart := query.Has("period_start")
 	hasEnd := query.Has("period_end")
+	if hasStart != hasEnd {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
+		})
+		return aiSpendExportFilter{}, false
+	}
+	if hasStart {
+		filter.start = parser.Time3339Nano(query, time.Time{}, "period_start")
+		filter.end = parser.Time3339Nano(query, time.Time{}, "period_end")
+	}
+	parser.ErrorExcessParams(query)
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return aiSpendExportFilter{}, false
+	}
 
 	// retentionStart is the oldest token usage still available, since anything
 	// older has been purged. A retention of zero disables purging.
@@ -1147,66 +1181,51 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 		retentionStart = api.Clock.Now().Add(-retention)
 	}
 
-	switch {
-	case !hasStart && !hasEnd:
+	if !hasStart {
 		// No period was requested, so start at the budget period or the
 		// retention window, whichever is later.
 		window, err := api.currentAIBudgetWindow()
 		if err != nil {
 			api.Logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
 			httpapi.InternalServerError(rw, err)
-			return time.Time{}, time.Time{}, false
+			return aiSpendExportFilter{}, false
 		}
-		start, end = window.Start, window.End
-		if hasRetention && start.Before(retentionStart) {
-			start = retentionStart
+		filter.start, filter.end = window.Start, window.End
+		if hasRetention && filter.start.Before(retentionStart) {
+			filter.start = retentionStart
 		}
-	case hasStart != hasEnd:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
-		})
-		return time.Time{}, time.Time{}, false
-	default:
-		// The caller asked for this period, so validate it.
-		parser := httpapi.NewQueryParamParser()
-		start = parser.Time3339Nano(query, time.Time{}, "period_start")
-		end = parser.Time3339Nano(query, time.Time{}, "period_end")
-		parser.ErrorExcessParams(query)
-		if len(parser.Errors) > 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message:     "Query parameters have invalid values.",
-				Validations: parser.Errors,
-			})
-			return time.Time{}, time.Time{}, false
-		}
-		if !start.Before(end) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query parameter \"period_start\" must be before \"period_end\".",
-			})
-			return time.Time{}, time.Time{}, false
-		}
-		if end.Sub(start) > maxAISpendExportPeriod {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query period must not exceed 31 days.",
-			})
-			return time.Time{}, time.Time{}, false
-		}
-		// Fail if the period starts before the oldest retained data
-		if hasRetention && start.Before(retentionStart) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
-			})
-			return time.Time{}, time.Time{}, false
-		}
+		return filter, true
 	}
 
-	return start, end, true
+	// The caller asked for this period, so validate it.
+	if !filter.start.Before(filter.end) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter \"period_start\" must be before \"period_end\".",
+		})
+		return aiSpendExportFilter{}, false
+	}
+	if filter.end.Sub(filter.start) > maxAISpendExportPeriod {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query period must not exceed 31 days.",
+		})
+		return aiSpendExportFilter{}, false
+	}
+	// Fail if the period starts before the oldest retained data
+	if hasRetention && filter.start.Before(retentionStart) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
+		})
+		return aiSpendExportFilter{}, false
+	}
+	return filter, true
 }
 
 // @Summary Export organization AI spend as CSV
 // @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 // @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+// @Description The optional provider_name, model, and client query parameters restrict the export to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
+// @Description Unknown query parameters are rejected.
 // @Description Requires organization-level administrator permissions.
 // @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
@@ -1215,6 +1234,9 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param provider_name query string false "Only include usage through this provider configuration name"
+// @Param model query string false "Only include usage of this model"
+// @Param client query string false "Only include usage from this client. Unknown matches usage without a recorded client."
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
@@ -1229,10 +1251,11 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	periodStart, periodEnd, ok := api.aiSpendExportPeriod(ctx, rw, r)
+	filter, ok := api.aiSpendExportFilter(ctx, rw, r)
 	if !ok {
 		return
 	}
+	periodStart, periodEnd := filter.start, filter.end
 	logger = logger.With(
 		slog.F("period_start", periodStart),
 		slog.F("period_end", periodEnd),
@@ -1242,9 +1265,9 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		OrganizationID: org.ID,
 		PeriodStart:    periodStart,
 		PeriodEnd:      periodEnd,
-		ProviderName:   "",
-		Model:          "",
-		Client:         "",
+		ProviderName:   filter.providerName,
+		Model:          filter.model,
+		Client:         filter.client,
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to export organization AI spend", slog.Error(err))

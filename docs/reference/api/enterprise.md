@@ -1976,15 +1976,20 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spen
 Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+The optional provider_name, model, and client query parameters restrict the export to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
+Unknown query parameters are rejected.
 Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name           | In    | Type              | Required | Description                     |
-|----------------|-------|-------------------|----------|---------------------------------|
-| `organization` | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start` | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+| Name            | In    | Type              | Required | Description                                                                           |
+|-----------------|-------|-------------------|----------|---------------------------------------------------------------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID                                                                       |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)                                                       |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)                                                       |
+| `provider_name` | query | string            | false    | Only include usage through this provider configuration name                           |
+| `model`         | query | string            | false    | Only include usage of this model                                                      |
+| `client`        | query | string            | false    | Only include usage from this client. Unknown matches usage without a recorded client. |
 
 ### Responses
 
