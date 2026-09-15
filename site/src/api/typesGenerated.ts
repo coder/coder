@@ -6681,7 +6681,8 @@ export interface OAuth2ProviderApp {
 	readonly icon: string;
 	/**
 	 * Scope is the space-separated list of scopes this app's tokens may be
-	 * granted. Empty means unrestricted.
+	 * granted. Empty means unrestricted. A non-empty value with no names is a
+	 * configured allowlist that grants nothing.
 	 */
 	readonly scope: string;
 	/**

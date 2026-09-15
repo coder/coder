@@ -337,7 +337,9 @@ func TestCanonicalScopeList(t *testing.T) {
 		want string
 	}{
 		{name: "empty", raw: "", want: ""},
-		{name: "whitespace_only", raw: "  \t\n ", want: ""},
+		// Whitespace-only is a configured allowlist that grants nothing, so it
+		// must not read back as the empty, unrestricted value.
+		{name: "whitespace_only", raw: "  \t\n ", want: "  \t\n "},
 		{name: "single", raw: "workspace:read", want: "workspace:read"},
 		{
 			name: "aliases_rewritten",
