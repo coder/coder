@@ -57,7 +57,7 @@ func subpages(dir, landing string) ([]string, map[string][]annotation, map[strin
 		return nil, nil, nil, err
 	}
 	covered := map[string]bool{}
-	for _, page := range coverageRows(landing) {
+	for _, page := range coveragePages(landing) {
 		covered[page] = true
 	}
 
@@ -84,10 +84,10 @@ func subpages(dir, landing string) ([]string, map[string][]annotation, map[strin
 	return pages, annotations, sources, nil
 }
 
-// coverageRows returns the section files the coverage table links. Discovery
+// coveragePages returns the section files the coverage table links. Discovery
 // and validation share coverageRow, so a row the table validates can never be
 // a row discovery ignores.
-func coverageRows(landing string) []string {
+func coveragePages(landing string) []string {
 	var pages []string
 	for _, line := range unfenced(landing) {
 		row, ok := coverageRow(line)
@@ -129,7 +129,7 @@ func coverageRow(line string) (tableRow, bool) {
 
 // annotationStart matches the opening of a rule section's enforcement
 // annotation. The annotation runs to the next line ending in an asterisk.
-var annotationStart = regexp.MustCompile(`^\*(Enforced|Documentation-only|Adapted|Vale rule|Periods|Alt-text)`)
+var annotationStart = regexp.MustCompile(`^\*(Enforced|Documentation-only|Adapted|Vale rule)`)
 
 // citation matches a backticked rule or tool name inside an annotation. A Vale
 // rule is `Style.Rule`; the style alternation is open so a citation to a style
@@ -368,7 +368,7 @@ func parseValeConfig(src string) (styles []string, sectionStyles map[string][]st
 	toggles = map[string]map[string]string{}
 	sectionStyles = map[string][]string{}
 	section := ""
-	for _, line := range strings.Split(src, "\n") {
+	for line := range strings.SplitSeq(src, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
 			continue
@@ -384,7 +384,7 @@ func parseValeConfig(src string) (styles []string, sectionStyles map[string][]st
 		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
 		if key == "BasedOnStyles" {
 			var loaded []string
-			for _, s := range strings.Split(value, ",") {
+			for s := range strings.SplitSeq(value, ",") {
 				if s = strings.TrimSpace(s); s != "" {
 					loaded = append(loaded, s)
 				}
@@ -429,7 +429,7 @@ func loadRules(dir string, sectionStyles map[string][]string, toggles map[string
 
 func newRule(name, yaml string, sectionStyles map[string][]string, toggles map[string]map[string]string) valeRule {
 	r := valeRule{name: name}
-	for _, line := range strings.Split(yaml, "\n") {
+	for line := range strings.SplitSeq(yaml, "\n") {
 		if rest, ok := strings.CutPrefix(line, "level:"); ok {
 			r.severity = strings.TrimSpace(rest)
 			break
@@ -499,6 +499,16 @@ func (r valeRule) scopeText() string {
 	return "`" + globalScope + "` except " + quote(r.disabledIn)
 }
 
+// underPath reports whether a glob sits inside a directory prefix, matching on
+// path segments so `docs/foo**` does not swallow `docs/foobar/**`.
+func underPath(glob, prefix string) bool {
+	prefix = strings.TrimSuffix(prefix, "/")
+	if prefix == "" {
+		return true
+	}
+	return glob == prefix || strings.HasPrefix(glob, prefix+"/")
+}
+
 // disabledOverlaps returns the disabling globs that fall inside a glob the rule
 // is enabled in, so the scope text mentions a disable only where the rule would
 // otherwise run. A glob ending in `*.md` covers one directory, so a disable in a
@@ -511,7 +521,7 @@ func (r valeRule) disabledOverlaps() []string {
 				continue
 			}
 			prefix, _, _ := strings.Cut(e, "**")
-			if strings.HasPrefix(d, prefix) {
+			if underPath(d, prefix) {
 				out = append(out, d)
 				break
 			}

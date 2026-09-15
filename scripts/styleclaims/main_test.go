@@ -787,3 +787,22 @@ func TestActiveCitationsBindsMarkersToClauses(t *testing.T) {
 		assertSame(t, tc.name+" planned", planned, tc.wantPlanned)
 	}
 }
+
+func TestUnderPathMatchesOnSegments(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		glob, prefix string
+		want         bool
+	}{
+		{"docs/foo/bar/**", "docs/foo/", true},
+		{"docs/foobar/**", "docs/foo", false},
+		{"docs/foo", "docs/foo", true},
+		{"docs/anything/**", "", true},
+	}
+	for _, tc := range cases {
+		if got := underPath(tc.glob, tc.prefix); got != tc.want {
+			t.Errorf("underPath(%q, %q) = %v, want %v", tc.glob, tc.prefix, got, tc.want)
+		}
+	}
+}

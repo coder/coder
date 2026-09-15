@@ -33,6 +33,11 @@ honest about.
   cell that omits or invents a path.
 - **A rule cited as enforcement while `.vale.ini` leaves it off.** A rule file
   can exist and still run nowhere.
+
+The checker verifies a `Coder.*` citation against the rule files, so a typo is
+caught. A third-party citation is verified only against the loaded styles: those
+rule files are vendored rather than kept in this repository, so the guarantee is
+weaker on that side.
 - **Coverage-table drift.** A per-section or total count that disagrees with the
   annotations.
 - **A rule heading with no footer.** A `##` or `###` heading that states a rule
@@ -88,8 +93,10 @@ scanned.
   cross-references a rule another section owns counts under that other section
   and no rule is counted twice. The match is case-sensitive; a lowercase
   "documentation-only" describes part of a section, not the section.
-- **Tool-checked**: cites an existing Coder rule, `markdownlint`, an `MD###`
-  rule, or `scripts/check_emdash.sh` as active.
+- **Tool-checked**: cites as active an enabled Coder rule, a third-party rule
+  whose style `.vale.ini` loads, `markdownlint`, an `MD###` rule, or
+  `scripts/check_emdash.sh`. A Coder rule that exists but is disabled everywhere
+  doesn't count: it checks no file.
 - **Planned**: cites only planned checkers.
 
 ## Usage
