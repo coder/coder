@@ -23,6 +23,9 @@ type OAuth2ProviderApp struct {
 	// granted. Empty means unrestricted.
 	Scope string `json:"scope"`
 
+	// ClientType is "confidential" or "public".
+	ClientType OAuth2ClientType `json:"client_type"`
+
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
 	// a '/.well-known/openid-configuration' endpoint).

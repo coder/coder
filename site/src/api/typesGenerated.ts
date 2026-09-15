@@ -6685,6 +6685,10 @@ export interface OAuth2ProviderApp {
 	 */
 	readonly scope: string;
 	/**
+	 * ClientType is "confidential" or "public".
+	 */
+	readonly client_type: OAuth2ClientType;
+	/**
 	 * Endpoints are included in the app response for easier discovery. The OAuth2
 	 * spec does not have a defined place to find these (for comparison, OIDC has
 	 * a '/.well-known/openid-configuration' endpoint).
