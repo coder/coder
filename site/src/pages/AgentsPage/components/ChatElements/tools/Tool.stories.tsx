@@ -1443,6 +1443,20 @@ export const MCPToolImageResultLightboxOpen: Story = {
 	},
 };
 
+export const MCPToolAudioResult: Story = {
+	args: {
+		...MCPToolImageResult.args,
+		name: "voice__synthesize",
+		args: { text: "Build finished" },
+		result: {
+			data: "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=",
+			mime_type: "audio/wav",
+			text: "Synthesized 1.2s of audio",
+		},
+	},
+	play: MCPToolImageResult.play,
+};
+
 // A text result that merely looks like a media payload stays in the
 // JSON viewer because the server did not flag it with is_media.
 export const MCPToolMediaShapedTextResult: Story = {
