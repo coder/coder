@@ -118,33 +118,32 @@ func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) E
 	if !exists {
 		return StateN
 	}
-	queueNonEmpty := queue.HasRows
 	switch {
-	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queue.HasRows:
 		return StateW
-	case chat.Status == database.ChatStatusPaused && !chat.Archived && queueNonEmpty && queue.Paused:
+	case chat.Status == database.ChatStatusPaused && !chat.Archived && queue.HasRows && queue.Paused:
 		return StateP
-	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queue.HasRows:
 		return StateXW
-	case chat.Status == database.ChatStatusError && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusError && !chat.Archived && !queue.HasRows:
 		return StateE0
-	case chat.Status == database.ChatStatusError && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusError && !chat.Archived && queue.HasRows:
 		return StateE1
-	case chat.Status == database.ChatStatusError && chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusError && chat.Archived && !queue.HasRows:
 		return StateXE0
-	case chat.Status == database.ChatStatusError && chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusError && chat.Archived && queue.HasRows:
 		return StateXE1
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusRunning && !chat.Archived && !queue.HasRows:
 		return StateR0
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusRunning && !chat.Archived && queue.HasRows:
 		return StateR1
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && !queue.HasRows:
 		return StateI0
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && queue.HasRows:
 		return StateI1
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && !queue.HasRows:
 		return StateA0
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && queue.HasRows:
 		return StateA1
 	}
 	return StateInvalid

@@ -17,9 +17,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Matrix cases for queued-message edits: the boundary transitions that can land
-// in P, EditQueuedMessage on the states that have rows, and P's own
-// row. The harness asserts the post-state and the snapshot bump; the
+// Matrix cases for queued-message edits: the boundary transitions that
+// can reach P, EditQueuedMessage on the states that have rows, and P's
+// own row. The harness asserts the post-state and the snapshot bump; the
 // cases below add only the fact that distinguishes each cell.
 
 const (
@@ -120,7 +120,7 @@ func applyEditQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, seed
 	return err
 }
 
-func applyEditingEdit(idx int, editing bool) applierFn {
+func applySetEditing(idx int, editing bool) applierFn {
 	return func(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 		t.Helper()
 		var err error
@@ -192,8 +192,8 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioInterrupt, applySendMessageInterrupt),
 		// P: content edit keeps the pause; ending the head's edit resumes.
 		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioEditingHead, seedP(0), applyContentEdit, allRows, 0),
-		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEndEdit, seedP(0), applyEditingEdit(0, false), noRows, -1),
-		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEndEdit, seedP(1), applyEditingEdit(0, false), tailRows, -1),
+		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEndEdit, seedP(0), applySetEditing(0, false), noRows, -1),
+		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEndEdit, seedP(1), applySetEditing(0, false), tailRows, -1),
 		// P: deleting the head resumes with the next row, or idles.
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateW, scenarioEditingHead, seedP(0), applyDeleteQueuedMessage, noRows, -1),
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEditingHead, seedP(1), applyDeleteQueuedMessage, noRows, -1),
@@ -211,9 +211,9 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 	// to another row, or ending it changes the marker but not the state.
 	for _, from := range []chatstate.ExecutionState{chatstate.StateE1, chatstate.StateR1, chatstate.StateI1, chatstate.StateA1} {
 		cases = append(cases,
-			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioEditingHead, seedEditing(from, 1), applyEditingEdit(0, true), allRows, 0),
-			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioMoveEdit, seedEditing(from, 1), applyEditingEdit(1, true), allRows, 1),
-			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioEndEdit, seedEditing(from, 1), applyEditingEdit(0, false), allRows, -1),
+			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioEditingHead, seedEditing(from, 1), applySetEditing(0, true), allRows, 0),
+			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioMoveEdit, seedEditing(from, 1), applySetEditing(1, true), allRows, 1),
+			editingCase(chatstate.TransitionEditQueuedMessage, from, from, scenarioEndEdit, seedEditing(from, 1), applySetEditing(0, false), allRows, -1),
 		)
 	}
 	// P refuses to move the edit off its head.
@@ -223,7 +223,7 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		want:       chatstate.StateP,
 		scenario:   scenarioRefused,
 		seed:       func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat { return seedPaused(t, f, 1) },
-		apply:      applyEditingEdit(1, true),
+		apply:      applySetEditing(1, true),
 		assertFailure: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error) {
 			require.ErrorIs(t, err, chatstate.ErrPausedQueuedHeadUnderEdit)
 			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
@@ -232,8 +232,8 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 	return cases
 }
 
-// sendBehindEditingCase: a send lands behind the head under edit; the
-// state does not change.
+// sendBehindEditingCase: a send is appended behind the head under edit;
+// the state does not change.
 func sendBehindEditingCase(from chatstate.ExecutionState, seed func(*testing.T, *testFixture) seededChat, sc scenario, apply applierFn) transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionSendMessage,
