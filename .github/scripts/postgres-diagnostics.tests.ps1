@@ -37,6 +37,7 @@ function Assert-NativeSample {
         }
     }
     Assert-True ($Sample.memory.commit_limit_bytes -gt 0 -and $Sample.disk.total_bytes -gt 0) 'Native resource capacity missing.'
+    Assert-True ($Sample.connect -is [Collections.IDictionary]) 'Native connection result must be one object.'
     Assert-True ($Sample.connect.status -in @('connected', 'error', 'timeout')) 'Native connection result missing.'
     Assert-True ($Sample.connect.elapsed_ms -is [long] -or $Sample.connect.elapsed_ms -is [int]) 'Native probe latency missing.'
     Assert-True ($Sample.connect.elapsed_ms -ge 0 -and $Sample.connect.elapsed_ms -lt 5000) 'Native probe exceeded its bounded completion allowance.'
@@ -132,9 +133,13 @@ try {
                 }
             }
             'Win32_PerfFormattedData_PerfOS_Memory' {
-                [pscustomobject]@{ AvailableBytes = 11; CommittedBytes = 22; CommitLimit = 33 }
+                throw 'SECRET_UNAVAILABLE_PERFORMANCE_CIM'
             }
         }
+    }
+    $nativeMemory = ${function:Get-WindowsMemoryInfo}
+    function Get-WindowsMemoryInfo {
+        [pscustomobject]@{ PageSize = [UIntPtr]4096; PhysicalAvailable = [UIntPtr]11; CommitTotal = [UIntPtr]22; CommitLimit = [UIntPtr]33 }
     }
     $sample = Get-PostgresDiagnosticSample -DatabasePath $directory
     Assert-True ($sample.tcp.listeners[0].pid -eq 41) 'Listener owner missing.'
@@ -144,13 +149,20 @@ try {
     Assert-True ($sample.processes.count -eq 40 -and $sample.processes.details.Count -eq 32) 'Process output was not bounded.'
     Assert-True ($sample.processes.working_set_bytes -eq 4000) 'Process totals excluded truncated details.'
     Assert-True ($sample.processes.details[0].parent_pid -eq 40) 'Process parent missing.'
-    Assert-True ($sample.memory.committed_bytes -eq 22 -and $sample.memory.commit_limit_bytes -eq 33) 'Commit pressure missing.'
+    Assert-True ($sample.memory.available_bytes -eq (11 * 4096) -and $sample.memory.committed_bytes -eq (22 * 4096) -and $sample.memory.commit_limit_bytes -eq (33 * 4096)) 'Commit pressure missing.'
     Assert-True ($sample.disk.total_bytes -gt 0) 'Disk capacity missing.'
     # Exercise the native verifier with fixtures too, without presenting this
     # as real Windows CIM validation. Missing fail-open data must fail the check.
     $sample.connect = @{ status = 'connected'; elapsed_ms = 1 }
     $validSample = $sample | ConvertTo-Json -Depth 8
     Assert-NativeSample ($validSample | ConvertFrom-Json -AsHashtable)
+    # Match the actual native artifact's leaked Task result, which property
+    # enumeration otherwise hides when checking status and latency.
+    $broken = $validSample | ConvertFrom-Json -AsHashtable
+    $broken.connect = '[{}, {"elapsed_ms":76,"status":"connected"}]' | ConvertFrom-Json -AsHashtable
+    $rejected = $false
+    try { Assert-NativeSample $broken } catch { $rejected = $true }
+    Assert-True $rejected 'Native verifier accepted an array connection observation.'
     foreach ($field in @('tcp', 'processes', 'memory', 'disk', 'connect')) {
         $broken = $validSample | ConvertFrom-Json -AsHashtable
         $broken[$field] = @{ error = @{ type = 'FixtureError'; hresult = 1 } }
@@ -207,10 +219,41 @@ try {
     $failure = Invoke-DiagnosticQuery { throw 'password=DO_NOT_LOG' }
     Assert-True ($null -ne $failure.error -and ($failure | ConvertTo-Json) -notmatch 'DO_NOT_LOG') 'Collector error was lost or leaked its message.'
 
+    $originalMemory = ${function:Get-WindowsMemoryInfo}
+    Add-Type @'
+using System.ComponentModel;
+public static class MemoryFailure {
+    public static object Read() { throw new Win32Exception(5, "SECRET_NATIVE_MEMORY_FAILURE"); }
+}
+'@
+    try {
+        # Exercise the actual wrapper with a C# failure at its static-call boundary.
+        ${function:Get-WindowsMemoryInfo} = [scriptblock]::Create($nativeMemory.ToString().Replace(
+            '[PostgresDiagnostics.Memory]::Read()', '[MemoryFailure]::Read()'))
+        $memoryFailure = Get-PostgresDiagnosticSample -DatabasePath $directory
+        Assert-True ($memoryFailure.memory.error.type -eq 'System.ComponentModel.Win32Exception' -and
+            $memoryFailure.memory.error.hresult -eq ([ComponentModel.Win32Exception]::new(5)).HResult -and
+            $memoryFailure.disk.total_bytes -gt 0 -and
+            ($memoryFailure | ConvertTo-Json -Depth 8) -notmatch 'SECRET_NATIVE_MEMORY_FAILURE') 'Native memory failure was not isolated and sanitized.'
+    } finally { ${function:Get-WindowsMemoryInfo} = $originalMemory }
+
     # Inject constructor failure into the actual probe body, not a duplicate
     # implementation or a production-only test seam. Later collectors must run.
     $originalProbe = ${function:Test-PostgresConnection}
+    Add-Type @'
+using System.Threading.Tasks;
+public static class ProbeCompletion {
+    public static async Task Complete() { await Task.Yield(); }
+}
+'@
     try {
+        # An asynchronous void Task can expose VoidTaskResult through PowerShell
+        # dispatch. It must not become an extra object in the probe observation.
+        ${function:Test-PostgresConnection} = [scriptblock]::Create($originalProbe.ToString().Replace(
+            "$" + "client.ConnectAsync('127.0.0.1', `$Port, `$cancel.Token).AsTask()", '[ProbeCompletion]::Complete()'))
+        $completionResult = @(Test-PostgresConnection)
+        Assert-True ($completionResult.Count -eq 1 -and $completionResult[0] -is [Collections.IDictionary] -and
+            $completionResult[0].status -eq 'connected') 'Task completion leaked into the probe observation.'
         foreach ($allocation in @('[Net.Sockets.TcpClient]::new()', '[Threading.CancellationTokenSource]::new($TimeoutMilliseconds)')) {
             $failureExpression = if ($allocation -like '*TcpClient*') {
                 '$(throw [Net.Sockets.SocketException]::new(10024))'
@@ -221,7 +264,7 @@ try {
                 ($null -ne $allocationSample.connect.socket_error -or $null -ne $allocationSample.connect.error.type)) 'Probe allocation failure escaped observation.'
             Assert-True (($allocationSample | ConvertTo-Json -Depth 8) -notmatch 'SECRET_ALLOCATION_FAILURE') 'Allocation failure leaked its message.'
             Assert-True ($allocationSample.tcp.listeners[0].pid -eq 41 -and $allocationSample.processes.count -eq 40 -and
-                $allocationSample.memory.committed_bytes -eq 22 -and $allocationSample.disk.total_bytes -gt 0) 'Probe allocation failure lost other collectors.'
+                $allocationSample.memory.committed_bytes -eq (22 * 4096) -and $allocationSample.disk.total_bytes -gt 0) 'Probe allocation failure lost other collectors.'
         }
     } finally { ${function:Test-PostgresConnection} = $originalProbe }
 

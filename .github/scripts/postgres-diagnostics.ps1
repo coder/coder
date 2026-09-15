@@ -29,7 +29,7 @@ function Test-PostgresConnection {
     try {
         $client = [Net.Sockets.TcpClient]::new()
         $cancel = [Threading.CancellationTokenSource]::new($TimeoutMilliseconds)
-        $client.ConnectAsync('127.0.0.1', $Port, $cancel.Token).AsTask().GetAwaiter().GetResult()
+        $null = $client.ConnectAsync('127.0.0.1', $Port, $cancel.Token).AsTask().GetAwaiter().GetResult()
         return @{ status = 'connected'; elapsed_ms = $timer.ElapsedMilliseconds }
     } catch {
         $cause = $_.Exception.GetBaseException()
@@ -45,6 +45,45 @@ function Test-PostgresConnection {
     } finally {
         if ($null -ne $client) { $client.Dispose() }
         if ($null -ne $cancel) { $cancel.Dispose() }
+    }
+}
+
+function Get-WindowsMemoryInfo {
+    # Read system memory directly, without the performance-counter CIM provider.
+    # Memory counts are pointer-sized pages; PageSize is measured in bytes.
+    if (-not ('PostgresDiagnostics.Memory' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+namespace PostgresDiagnostics {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PerformanceInformation {
+        public uint cb;
+        public UIntPtr CommitTotal, CommitLimit, CommitPeak;
+        public UIntPtr PhysicalTotal, PhysicalAvailable, SystemCache;
+        public UIntPtr KernelTotal, KernelPaged, KernelNonpaged, PageSize;
+        public uint HandleCount, ProcessCount, ThreadCount;
+    }
+    public static class Memory {
+        [DllImport("psapi.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetPerformanceInfo(out PerformanceInformation info, uint size);
+        public static PerformanceInformation Read() {
+            PerformanceInformation info;
+            if (!GetPerformanceInfo(out info, (uint)Marshal.SizeOf<PerformanceInformation>())) {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            return info;
+        }
+    }
+}
+'@ -ErrorAction Stop
+    }
+    try {
+        return [PostgresDiagnostics.Memory]::Read()
+    } catch {
+        throw $_.Exception.GetBaseException()
     }
 }
 
@@ -102,12 +141,12 @@ function Get-PostgresDiagnosticSample {
         @{ count = $processes.Count; working_set_bytes = $working; private_bytes = $private; details = $details }
     }
     $sample.memory = Invoke-DiagnosticQuery {
-        $memory = Get-CimInstance -ClassName Win32_PerfFormattedData_PerfOS_Memory `
-            -Property AvailableBytes, CommittedBytes, CommitLimit -OperationTimeoutSec 2 -ErrorAction Stop
+        $memory = Get-WindowsMemoryInfo
+        $pageSize = [long]$memory.PageSize.ToUInt64()
         @{
-            available_bytes = [long]$memory.AvailableBytes
-            committed_bytes = [long]$memory.CommittedBytes
-            commit_limit_bytes = [long]$memory.CommitLimit
+            available_bytes = [long]([long]$memory.PhysicalAvailable.ToUInt64() * $pageSize)
+            committed_bytes = [long]([long]$memory.CommitTotal.ToUInt64() * $pageSize)
+            commit_limit_bytes = [long]([long]$memory.CommitLimit.ToUInt64() * $pageSize)
         }
     }
     $sample.disk = Invoke-DiagnosticQuery {
