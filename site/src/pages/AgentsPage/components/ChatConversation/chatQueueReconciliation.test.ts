@@ -438,41 +438,33 @@ describe("trackQueuedEditTarget", () => {
 	const row = { ...MockChatQueuedMessage, id: 5 };
 	const rowUnderEdit = { ...MockEditingChatQueuedMessage, id: 5 };
 
-	it("tracks nothing while no queued row is being edited", () => {
-		expect(trackQueuedEditTarget(null, undefined, 5)).toEqual({
+	it("reports the edit lost only after a snapshot showed the row under edit", () => {
+		// The begin request's 204 can arrive before the queue_update that
+		// sets editing_since, so this first snapshot is stale, not lost.
+		let state = trackQueuedEditTarget(5, row, null);
+		expect(state.lost).toBe(false);
+
+		state = trackQueuedEditTarget(5, rowUnderEdit, state.seenID);
+		expect(state.lost).toBe(false);
+
+		// Another client ended or moved the edit.
+		state = trackQueuedEditTarget(5, row, state.seenID);
+		expect(state.lost).toBe(true);
+	});
+
+	it("reports the edit lost as soon as the row leaves the queue", () => {
+		expect(trackQueuedEditTarget(5, undefined, null).lost).toBe(true);
+	});
+
+	it("starts over when the target changes or clears", () => {
+		const { seenID } = trackQueuedEditTarget(5, rowUnderEdit, null);
+
+		// Row 6 has not been shown under edit yet, so it is not lost.
+		expect(trackQueuedEditTarget(6, { ...row, id: 6 }, seenID).lost).toBe(
+			false,
+		);
+		expect(trackQueuedEditTarget(null, undefined, seenID)).toEqual({
 			seenID: null,
-			lost: false,
-		});
-	});
-
-	it("does not treat a row as lost before a snapshot showed it under edit", () => {
-		expect(trackQueuedEditTarget(5, row, null)).toEqual({
-			seenID: null,
-			lost: false,
-		});
-	});
-
-	it("remembers the row once a snapshot shows it under edit", () => {
-		expect(trackQueuedEditTarget(5, rowUnderEdit, null)).toEqual({
-			seenID: 5,
-			lost: false,
-		});
-	});
-
-	it("reports the row lost when it is no longer under edit after being seen", () => {
-		expect(trackQueuedEditTarget(5, row, 5)).toEqual({ seenID: 5, lost: true });
-	});
-
-	it("reports the row lost when it left the queue", () => {
-		expect(trackQueuedEditTarget(5, undefined, null)).toEqual({
-			seenID: null,
-			lost: true,
-		});
-	});
-
-	it("does not carry a previous target's sighting over to a new target", () => {
-		expect(trackQueuedEditTarget(6, { ...row, id: 6 }, 5)).toEqual({
-			seenID: 5,
 			lost: false,
 		});
 	});

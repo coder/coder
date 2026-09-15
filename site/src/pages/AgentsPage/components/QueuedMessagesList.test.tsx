@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -183,21 +183,26 @@ describe("QueuedMessagesList", () => {
 		return { onDelete, onPromote, onEdit, onEndEdit };
 	};
 
-	it("calls onEdit with the row id", async () => {
+	it("forwards Edit and Cancel edit with the row id", async () => {
 		const user = userEvent.setup();
 		const { onEdit, onEndEdit } = renderList([
-			{ ...MockChatQueuedMessage, id: 7 },
+			{ ...MockEditingChatQueuedMessage, id: 9 },
+			{ ...MockChatQueuedMessage, id: 10 },
 		]);
 
-		await user.click(screen.getByRole("button", { name: "Edit" }));
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
 
-		expect(onEdit).toHaveBeenCalledWith(7);
-		expect(onEndEdit).not.toHaveBeenCalled();
+		const editButtons = screen.getAllByRole("button", { name: "Edit" });
+		await user.click(editButtons[0]);
+		await user.click(editButtons[1]);
+		expect(onEdit).toHaveBeenNthCalledWith(1, 9);
+		expect(onEdit).toHaveBeenNthCalledWith(2, 10);
 	});
 
-	it("calls onEndEdit and onEdit with the id of the row under edit", async () => {
+	it("offers Edit only on the row under edit while the chat is paused", async () => {
 		const user = userEvent.setup();
-		const { onEdit, onEndEdit } = renderList(
+		const { onEdit } = renderList(
 			[
 				{ ...MockEditingChatQueuedMessage, id: 9 },
 				{ ...MockChatQueuedMessage, id: 10 },
@@ -205,30 +210,26 @@ describe("QueuedMessagesList", () => {
 			{ chatPaused: true },
 		);
 
-		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		// getByRole fails if the row behind the edit offered Edit too.
 		await user.click(screen.getByRole("button", { name: "Edit" }));
-
-		expect(onEndEdit).toHaveBeenCalledWith(9);
 		expect(onEdit).toHaveBeenCalledWith(9);
 	});
 
-	it("keeps Send now and Remove on a row under edit", async () => {
+	it("still offers Send now and Remove on a row under edit", async () => {
 		const user = userEvent.setup();
-		const { onPromote, onDelete } = renderList([
-			{ ...MockEditingChatQueuedMessage, id: 9 },
-			{ ...MockChatQueuedMessage, id: 10 },
-		]);
+		const row = { ...MockEditingChatQueuedMessage, id: 9 };
 
-		await user.click(screen.getAllByRole("button", { name: "Send now" })[0]);
+		const { onPromote } = renderList([row]);
+		await user.click(screen.getByRole("button", { name: "Send now" }));
 		expect(onPromote).toHaveBeenCalledWith(9);
+		cleanup();
 
-		await user.click(
-			screen.getAllByRole("button", { name: "Remove from queue" })[0],
-		);
-		expect(onDelete).toHaveBeenCalledWith(10);
+		const { onDelete } = renderList([row]);
+		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
+		expect(onDelete).toHaveBeenCalledWith(9);
 	});
 
-	it("keeps the row visible while onEdit is pending and after it fails", async () => {
+	it("disables row actions while onEdit is pending and re-enables them after it fails", async () => {
 		const user = userEvent.setup();
 		let rejectEdit: ((error: Error) => void) | undefined;
 		const onEdit = vi.fn(
@@ -243,7 +244,6 @@ describe("QueuedMessagesList", () => {
 
 		await user.click(screen.getByRole("button", { name: "Edit" }));
 		expect(onEdit).toHaveBeenCalledWith(7);
-		// Other actions are disabled while the begin-edit request is in flight.
 		await user.click(screen.getByRole("button", { name: "Send now" }));
 		expect(onPromote).not.toHaveBeenCalled();
 
