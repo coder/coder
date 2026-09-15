@@ -42,8 +42,8 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionR
 		err = r.wrapped.RecordInterception(ctx, req)
 	}
 	interceptionLogs := logEntry{
-		success:              "recorded interception",
-		wrappedRecorderError: "failed to record interception",
+		success:       "recorded interception",
+		failureDetail: "failed to record interception",
 		fields: []slog.Field{
 			slog.F("id", req.ID),
 			slog.F("initiator_id", req.InitiatorID),
@@ -70,11 +70,10 @@ func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *Intercep
 		err = r.wrapped.RecordInterceptionEnded(ctx, req)
 	}
 	interceptionEndedLogs := logEntry{
-		success:              "recorded interception ended",
-		wrappedRecorderError: "failed to record that interception ended",
-		asyncRecorderError:   "failed to record interception end",
-		// [AsyncRecorder] labeled this record "prompt"; preserved as-is.
-		typ: "prompt",
+		success:       "recorded interception ended",
+		failure:       "failed to record interception end",
+		failureDetail: "failed to record that interception ended",
+		typ:           "prompt",
 		fields: []slog.Field{
 			slog.F("id", req.ID),
 			slog.F("credential_hint", req.CredentialHint),
@@ -92,10 +91,10 @@ func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRec
 		err = r.wrapped.RecordPromptUsage(ctx, req)
 	}
 	promptUsageLogs := logEntry{
-		success:              "recorded prompt usage",
-		wrappedRecorderError: "failed to record prompt usage",
-		asyncRecorderError:   "failed to record usage",
-		typ:                  "prompt",
+		success:       "recorded prompt usage",
+		failure:       "failed to record usage",
+		failureDetail: "failed to record prompt usage",
+		typ:           "prompt",
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
 			slog.F("msg_id", req.MsgID),
@@ -113,10 +112,10 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecor
 		err = r.wrapped.RecordTokenUsage(ctx, req)
 	}
 	tokenUsageLogs := logEntry{
-		success:              "recorded token usage",
-		wrappedRecorderError: "failed to record token usage",
-		asyncRecorderError:   "failed to record usage",
-		typ:                  "token",
+		success:       "recorded token usage",
+		failure:       "failed to record usage",
+		failureDetail: "failed to record token usage",
+		typ:           "token",
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
 			slog.F("msg_id", req.MsgID),
@@ -142,10 +141,10 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord)
 		invocationErr = req.InvocationError.Error()
 	}
 	toolUsageLogs := logEntry{
-		success:              "recorded tool usage",
-		wrappedRecorderError: "failed to record tool usage",
-		asyncRecorderError:   "failed to record usage",
-		typ:                  "tool",
+		success:       "recorded tool usage",
+		failure:       "failed to record usage",
+		failureDetail: "failed to record tool usage",
+		typ:           "tool",
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
 			slog.F("msg_id", req.MsgID),
@@ -168,10 +167,10 @@ func (r *LogRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtR
 		err = r.wrapped.RecordModelThought(ctx, req)
 	}
 	modelThoughtLogs := logEntry{
-		success:              "recorded model thought",
-		wrappedRecorderError: "failed to record model thought",
-		asyncRecorderError:   "failed to record model thought",
-		typ:                  "model_thought",
+		success:       "recorded model thought",
+		failure:       "failed to record model thought",
+		failureDetail: "failed to record model thought",
+		typ:           "model_thought",
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
 			slog.F("content", req.Content),
@@ -185,16 +184,11 @@ func (r *LogRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtR
 // logEntry defines a standard format for the messages logged for each
 // [Recorder] method.
 type logEntry struct {
-	// success is logged when the record was delegated successfully.
-	success string
-	// wrappedRecorderError is the failure message formerly logged by [WrappedRecorder].
-	wrappedRecorderError string
-	// asyncRecorderError is the failure message formerly logged by [AsyncRecorder]. It is
-	// empty for records which never passed through [AsyncRecorder].
-	asyncRecorderError string
-	// typ is the "type" field which accompanied generic.
-	typ    string
-	fields []slog.Field
+	success       string
+	failure       string
+	failureDetail string
+	typ           string
+	fields        []slog.Field
 }
 
 // logResult centralizes logging done throughout the [LogRecorder] for consistency.
@@ -209,9 +203,9 @@ func (r *LogRecorder) logResult(ctx context.Context, logs logEntry, payload any,
 		return nil
 	}
 
-	r.logger.Warn(ctx, logs.wrappedRecorderError, slog.Error(err))
-	if logs.asyncRecorderError != "" {
-		r.logger.Warn(ctx, logs.asyncRecorderError, slog.F("type", logs.typ), slog.Error(err), slog.F("payload", payload))
+	r.logger.Warn(ctx, logs.failureDetail, slog.Error(err))
+	if logs.failure != "" {
+		r.logger.Warn(ctx, logs.failure, slog.F("type", logs.typ), slog.Error(err), slog.F("payload", payload))
 	}
 	return err
 }
