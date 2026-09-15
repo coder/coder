@@ -91,7 +91,7 @@ export const InvalidCallbackURL: Story = {
 	},
 };
 
-export const AcceptsDynamicallyRegisteredValues: Story = {
+export const DynamicallyRegisteredValues: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(

@@ -47,7 +47,7 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 		if (url.protocol === "urn:") {
 			return url.href === "urn:ietf:wg:oauth:2.0:oob";
 		}
-		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol.toLowerCase())) {
+		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol)) {
 			return false;
 		}
 		if (
@@ -62,14 +62,17 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 	}
 };
 
+// Keep the UTF-8 byte limit aligned with codersdk.OAuth2AppNameValid.
+const MAX_NAME_BYTES = 64;
+
 const validationSchema = Yup.object({
 	name: Yup.string()
 		.trim()
 		.required("Please enter a name.")
 		.test(
 			"name-byte-length",
-			"Name cannot be longer than 64 UTF-8 bytes.",
-			(value) => new TextEncoder().encode(value).length <= 64,
+			`Name cannot be longer than ${MAX_NAME_BYTES} UTF-8 bytes.`,
+			(value) => new TextEncoder().encode(value).length <= MAX_NAME_BYTES,
 		),
 	callback_url: Yup.string()
 		.trim()
