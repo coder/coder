@@ -37,6 +37,8 @@ interface AgentPageHeaderProps {
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the mobile actions menu. */
 	mobileBack?: { to: To; label: string };
+	/** Controls rendered on mobile before the actions menu. */
+	mobileActions?: ReactNode;
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
 	webPush?: ReturnType<typeof useWebpushNotifications>;
@@ -46,6 +48,7 @@ interface AgentPageHeaderProps {
 export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	children,
 	mobileBack,
+	mobileActions,
 	chimeEnabled: controlledChimeEnabled,
 	onToggleChime,
 	webPush: controlledWebPush,
@@ -147,6 +150,9 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 			<div className="min-w-0 flex-1" />
 			{children && isDesktop && (
 				<div className="hidden items-center gap-2 sm:flex">{children}</div>
+			)}
+			{mobileActions && !isDesktop && (
+				<div className="flex items-center gap-1 sm:hidden">{mobileActions}</div>
 			)}
 			{/* Mobile: meatball menu with all actions */}
 			{!mobileBack && !isDesktop && (

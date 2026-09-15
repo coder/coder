@@ -425,23 +425,14 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				<div className="mx-2 pt-6 mb-1.5">
+				{/* On mobile the search and filter controls live in the page header,
+				so the heading row is hidden to save vertical space. */}
+				<div className="hidden mx-2 pt-6 mb-1.5 sm:block">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
 							{chatsHeadingLabel}
 						</h2>
 						<div className="flex items-center gap-1">
-							{onOpenSearchDialog && (
-								<Button
-									variant="subtle"
-									size="icon"
-									aria-label="Search chats"
-									onClick={onOpenSearchDialog}
-									className="size-7 sm:hidden"
-								>
-									<SearchIcon />
-								</Button>
-							)}
 							<FilterPopover
 								filters={sidebarFilters}
 								onFiltersChange={onSidebarFiltersChange}
