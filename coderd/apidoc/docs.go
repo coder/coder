@@ -6133,9 +6133,9 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
-                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nThe optional provider_name, model, and client query parameters restrict the export to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "description": "Returns aggregated AI spend for the organization, built from raw AI Gateway token usage. The representation depends on the Accept header: text/csv, or any request that lists neither text/csv nor application/json, returns CSV with one row per user, group, provider, and model; application/json returns a paginated report with one entry per user. The two representations account for the same token usage but differ in row grain by design.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and the response echoes the applied bounds.\nThe optional provider_name, model, and client query parameters restrict the result to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.\nlimit and offset page the JSON report and are rejected for CSV. Unknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
-                    "text/csv"
+                    "application/json"
                 ],
                 "tags": [
                     "Enterprise"
@@ -6182,11 +6182,26 @@ const docTemplate = `{
                         "description": "Only include usage from this client. Unknown matches usage without a recorded client.",
                         "name": "client",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size of the JSON report (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset of the JSON report",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationAISpendReport"
+                        }
                     }
                 },
                 "security": [
@@ -25724,6 +25739,66 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendReport": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of users with token usage matching the filter.",
+                    "type": "integer"
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "total_cost_micros": {
+                    "description": "TotalCostMicros is the priced spend of every matching user.",
+                    "type": "integer"
+                },
+                "total_unpriced_usage_count": {
+                    "description": "TotalUnpricedUsageCount is the number of token usage records without a\ncost across every matching user.",
+                    "type": "integer"
+                },
+                "users": {
+                    "description": "Users is the requested page, most expensive first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendUser"
+                    }
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "cost_micros": {
+                    "description": "CostMicros is the user's priced spend over the period.",
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "unpriced_usage_count": {
+                    "description": "UnpricedUsageCount is the number of the user's token usage records that\ncarry no cost because their model had no price when they were recorded.",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
