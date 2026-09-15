@@ -19,9 +19,7 @@ import "github.com/coder/coder/v2/apiversion"
 //     provider set when the provider configuration changes.
 //
 // API v1.3:
-//   - Adds workspace attribution to authorization and interception recording.
-//     workspace_id (field 18) in RecordInterceptionRequest and field 5 in
-//     IsAuthorizedResponse carry the bound workspace UUID when known.
+//   - Adds workspace_id to RecordInterceptionRequest and  IsAuthorizedResponse.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 3

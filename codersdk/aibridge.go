@@ -241,14 +241,7 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	// InterceptionAttributions maps every interception ID (UUID string) in this
-	// thread to its attribution, including tool-less rows. The inner map carries
-	// workspace_id when the interception can be attributed to a specific
-	// workspace, and is null when the workspace context is unknown. The outer
-	// map is always present (serializes as {}, never null) so callers can
-	// distinguish an empty thread from a missing field. Use this for
-	// per-interception attribution and audit rather than AgenticActions, which
-	// only covers interceptions that produced tool calls.
+	// InterceptionAttributions include per-interception attribution data.
 	InterceptionAttributions map[string]*AIBridgeAttribution `json:"interception_attributions"`
 	AgenticActions           []AIBridgeAgenticAction         `json:"agentic_actions"`
 	// ErrorType is the categorized terminal upstream error from the root

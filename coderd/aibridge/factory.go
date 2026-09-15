@@ -7,8 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Attribution carries trusted per-request AI Gateway attribution. The zero
-// value means no workspace is bound.
+// Attribution carries contextual per-request attribution data for a request.
 type Attribution struct {
 	// WorkspaceID is the workspace bound to the chat, or uuid.Nil when no
 	// workspace is bound.
