@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockMenu } from "#/components/Filter/storyHelpers";
 import { mockPaginationResultBase } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import {
 	MockAIGatewaySpendUser,
@@ -93,7 +92,7 @@ const meta = {
 		isEnabled: true,
 		dateRange: defaultDateRange,
 		dimensions: {},
-		filterMenus: { provider: MockMenu, client: MockMenu, model: MockMenu },
+		filterQuery: "",
 		searchFilter: "",
 		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
 		drillInUserId: null,
@@ -104,7 +103,7 @@ const meta = {
 		isSummaryLoading: false,
 		summaryError: undefined,
 		onDateRangeChange: fn(),
-		onSearchFilterChange: fn(),
+		onFilterQueryChange: fn(),
 		onDrillInUserRetry: fn(),
 		onClearSelectedUser: fn(),
 		onSummaryRetry: fn(),
@@ -305,17 +304,7 @@ export const DrillInFiltered: Story = {
 		drillInUser: mockUserProfile,
 		summaryData: MockAIGatewaySpendUserSummary,
 		dimensions: { provider_name: "anthropic-main", client: "Claude Code" },
-		filterMenus: {
-			provider: {
-				...MockMenu,
-				selectedOption: { label: "Anthropic", value: "anthropic-main" },
-			},
-			client: {
-				...MockMenu,
-				selectedOption: { label: "Claude Code", value: "Claude Code" },
-			},
-			model: MockMenu,
-		},
+		filterQuery: 'provider_name:anthropic-main client:"Claude Code"',
 	},
 };
 
