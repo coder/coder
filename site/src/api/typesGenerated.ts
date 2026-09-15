@@ -22,6 +22,13 @@ export interface AIBridgeAgenticAction {
 	readonly tool_calls: readonly AIBridgeToolCall[];
 }
 
+// From codersdk/aibridge.go
+/**
+ * AIBridgeAttribution contains the attribution fields recorded for one
+ * interception.
+ */
+export type AIBridgeAttribution = Record<string, string>;
+
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
@@ -214,6 +221,20 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * InterceptionAttributions maps every interception ID (UUID string) in this
+	 * thread to its attribution, including tool-less rows. The inner map carries
+	 * workspace_id when the interception can be attributed to a specific
+	 * workspace, and is null when the workspace context is unknown. The outer
+	 * map is always present (serializes as {}, never null) so callers can
+	 * distinguish an empty thread from a missing field. Use this for
+	 * per-interception attribution and audit rather than AgenticActions, which
+	 * only covers interceptions that produced tool calls.
+	 */
+	readonly interception_attributions: Record<
+		string,
+		AIBridgeAttribution | null
+	>;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
 	 * ErrorType is the categorized terminal upstream error from the root

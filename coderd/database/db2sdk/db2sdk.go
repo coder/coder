@@ -1439,6 +1439,23 @@ func buildAIBridgeThread(
 
 	thread.AgenticActions = actions
 
+	// Build the interceptions map keyed by interception ID string.
+	// Every interception is present, including tool-less rows. The inner
+	// map is nil (serializes as JSON null) when workspace attribution is
+	// unknown. The outer map is always non-nil so it serializes as {}
+	// rather than null for an empty thread.
+	refs := make(map[string]*codersdk.AIBridgeAttribution, len(interceptions))
+	for _, intc := range interceptions {
+		attribution := aiBridgeInterceptionAttribution(intc)
+		if attribution != nil {
+			value := codersdk.AIBridgeAttribution(attribution)
+			refs[intc.ID.String()] = &value
+			continue
+		}
+		refs[intc.ID.String()] = nil
+	}
+	thread.InterceptionAttributions = refs
+
 	// Aggregate thread-level token usage.
 	var threadTokens []database.AIBridgeTokenUsage
 	for _, intc := range interceptions {
@@ -1582,6 +1599,17 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 		})
 	}
 	return presets
+}
+
+// aiBridgeInterceptionAttribution builds attribution from the dedicated
+// interception columns. It returns nil when no workspace context is recorded.
+func aiBridgeInterceptionAttribution(intc database.AIBridgeInterception) map[string]string {
+	if !intc.WorkspaceID.Valid {
+		return nil
+	}
+	return map[string]string{
+		"workspace_id": intc.WorkspaceID.UUID.String(),
+	}
 }
 
 // sanitizeCredentialHint ensures the hint looks masked before exposing

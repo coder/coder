@@ -225,6 +225,10 @@ type AIBridgeSessionThreadsTokenUsage struct {
 	Metadata              map[string]any `json:"metadata"`
 }
 
+// AIBridgeAttribution contains the attribution fields recorded for one
+// interception.
+type AIBridgeAttribution map[string]string
+
 // AIBridgeThread represents a single thread within a session.
 // A thread groups interceptions by their thread_root_id.
 type AIBridgeThread struct {
@@ -237,7 +241,9 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// InterceptionAttributions include per-interception attribution data.
+	InterceptionAttributions map[string]*AIBridgeAttribution `json:"interception_attributions"`
+	AgenticActions           []AIBridgeAgenticAction         `json:"agentic_actions"`
 	// ErrorType is the categorized terminal upstream error from the root
 	// interception, or nil when the interception succeeded. See the
 	// aibridge_interception_error_type enum for possible values.
