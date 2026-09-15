@@ -165,6 +165,42 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedFileParts(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestSanitizeCompactionPrompt_ReplacesUnsupportedToolMedia(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleTool,
+			Content: []fantasy.MessagePart{
+				fantasy.ToolResultPart{
+					ToolCallID: "call-1",
+					Output: fantasy.ToolResultOutputContentMedia{
+						Data:      "AAAA",
+						MediaType: "audio/mpeg",
+						Text:      "Synthesized audio",
+					},
+				},
+			},
+		},
+	}
+
+	// The chat model kept the audio; an Anthropic compaction model can only
+	// take images in tool results, so the part must become text.
+	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude"}, nil)
+	sharedProviderID := uuid.New()
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+
+	require.Len(t, sanitized, 1)
+	result, ok := sanitized[0].Content[0].(fantasy.ToolResultPart)
+	require.True(t, ok)
+	text, ok := result.Output.(fantasy.ToolResultOutputContentText)
+	require.True(t, ok, "expected text output, got %T", result.Output)
+	require.Contains(t, text.Text, "Synthesized audio")
+	require.Contains(t, text.Text, "[audio/mpeg content omitted")
+}
+
 func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *testing.T) {
 	t.Parallel()
 

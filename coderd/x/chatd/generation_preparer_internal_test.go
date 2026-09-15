@@ -181,6 +181,100 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Nil(t, summaryCall.MaxOutputTokens)
 }
 
+func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeAnthropic,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "claude-sonnet-4-5",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+
+	// History recorded under a provider that accepted audio tool media.
+	const toolCallID = "call-audio-1"
+	mediaResult, err := json.Marshal(map[string]string{
+		"data":      "AAAA",
+		"mime_type": "audio/mpeg",
+		"text":      "Synthesized audio",
+	})
+	require.NoError(t, err)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall(toolCallID, "voice__synthesize", json.RawMessage(`{}`)),
+	})
+	require.NoError(t, err)
+	toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult(toolCallID, "voice__synthesize", mediaResult, false, true),
+	})
+	require.NoError(t, err)
+	message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
+		return chatstate.Message{
+			Role:           role,
+			Content:        content,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}
+	}
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "tool media after provider switch",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			message(database.ChatMessageRoleUser, mustMarshalText(t, "say hello")),
+			message(database.ChatMessageRoleAssistant, assistantContent),
+			message(database.ChatMessageRoleTool, toolContent),
+			message(database.ChatMessageRoleUser, mustMarshalText(t, "what did it say?")),
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	var sawToolResult bool
+	for _, msg := range prepared.Prompt {
+		for _, part := range msg.Content {
+			result, ok := part.(fantasy.ToolResultPart)
+			if !ok || result.ToolCallID != toolCallID {
+				continue
+			}
+			sawToolResult = true
+			text, ok := result.Output.(fantasy.ToolResultOutputContentText)
+			require.True(t, ok, "expected text output for Anthropic, got %T", result.Output)
+			require.Contains(t, text.Text, "Synthesized audio")
+			require.Contains(t, text.Text, "[audio/mpeg content omitted")
+		}
+	}
+	require.True(t, sawToolResult, "tool result missing from prompt")
+}
+
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
 	t.Parallel()
 

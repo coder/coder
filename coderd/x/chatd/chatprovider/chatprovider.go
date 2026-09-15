@@ -2,6 +2,7 @@ package chatprovider
 
 import (
 	"context"
+	"fmt"
 	"mime"
 	"net/http"
 	"slices"
@@ -110,17 +111,40 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
-// AcceptsToolResultMediaType reports whether provider can carry a tool
-// result media part of mediaType. Anthropic and Bedrock render tool result
-// media as image blocks, so the API rejects every other type; the remaining
-// providers substitute a text placeholder themselves.
-func AcceptsToolResultMediaType(provider, mediaType string) bool {
-	switch NormalizeProvider(provider) {
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		return strings.HasPrefix(mediaType, "image/")
-	default:
-		return true
+// ToolResultMediaOmission reports whether provider rejects a tool result
+// media part of mediaType and size bytes, returning the note the model
+// sees in its place. Anthropic and Bedrock render tool result media as
+// image blocks, so they take only the image formats the Messages API
+// accepts and only under the inline image cap. Other providers substitute
+// text placeholders for unsupported media themselves.
+func ToolResultMediaOmission(provider, mediaType string, size int) (string, bool) {
+	normalized := NormalizeProvider(provider)
+	if normalized != fantasyanthropic.Name && normalized != fantasybedrock.Name {
+		return "", false
 	}
+	displayName := ProviderDisplayName(normalized)
+	baseType := mediaType
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		baseType = parsed
+	}
+	switch baseType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+	default:
+		return fmt.Sprintf(
+			"[%s content omitted: %s tool results only carry JPEG, PNG, GIF, or WebP images]",
+			mediaType,
+			displayName,
+		), true
+	}
+	if imageCap, hasCap := InlineImageCapBytes(normalized); hasCap && size >= imageCap {
+		return fmt.Sprintf(
+			"[image omitted: %d bytes exceeds the %s inline image limit of %d bytes]",
+			size,
+			displayName,
+			imageCap,
+		), true
+	}
+	return "", false
 }
 
 // AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
