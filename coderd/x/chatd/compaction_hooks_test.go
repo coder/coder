@@ -146,11 +146,11 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			var compactionCalls atomic.Int32
 			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 				body := anthropicRequestBody(t, *req)
+				if strings.Contains(body, "You are performing a context compaction") {
+					compactionCalls.Add(1)
+					return anthropicCompactionResponse(t, req, "manual hook compaction summary")
+				}
 				if !req.Stream {
-					if strings.Contains(body, "You are performing a context compaction") {
-						compactionCalls.Add(1)
-						return anthropicCompactionResponse("manual hook compaction summary")
-					}
 					return chattest.AnthropicNonStreamingResponse("title")
 				}
 				// Low usage keeps automatic compaction out of the way, so
@@ -232,12 +232,12 @@ func startCompactionHookChat(
 	var streamCalls atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 		body := anthropicRequestBody(t, *req)
+		if strings.Contains(body, "You are performing a context compaction") {
+			compactionCalls.Add(1)
+			inspectCompaction(t, body)
+			return anthropicCompactionResponse(t, req, "hook compaction summary")
+		}
 		if !req.Stream {
-			if strings.Contains(body, "You are performing a context compaction") {
-				compactionCalls.Add(1)
-				inspectCompaction(t, body)
-				return anthropicCompactionResponse("hook compaction summary")
-			}
 			return chattest.AnthropicNonStreamingResponse("title")
 		}
 		if streamCalls.Add(1) == 1 {
