@@ -37,7 +37,6 @@ The agent scans the following:
 
 - The workspace working directory
 - `~/.coder` and `~/.coder/skills`
-- `~/.claude/plugins/cache`
 - Any additional source you declare through the agent's context sources API
 
 Declared sources contribute instruction files and skills only.

@@ -20,6 +20,10 @@ var SkillNamePattern = regexp.MustCompile(SkillNameRegex)
 // MaxPluginNameLength is the maximum length in bytes of an Agent Plugin name.
 const MaxPluginNameLength = 64
 
+// MaxContextErrorBytes is the largest snapshot or resource error, in
+// bytes, that PushContextState accepts; a longer one fails the push.
+const MaxContextErrorBytes = 4096
+
 // ValidatePluginName checks name against the Agent Plugins manifest name
 // grammar: 1 to MaxPluginNameLength bytes from [a-z0-9.-], starting and
 // ending with an alphanumeric character, with no "--" or ".." runs.

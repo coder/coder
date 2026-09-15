@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -34,11 +35,10 @@ type WatcherOptions struct {
 }
 
 // Watcher is a fixed-location fsnotify wrapper. It watches only
-// the directories that can hold recognized resources (each scan
-// root plus its skill containers and immediate skill dirs) rather
-// than walking the tree, mirroring the resolver's fixed-location
-// discovery. Inotify ENOSPC degrades the watcher into a poll-only
-// mode that still re-resolves on Sync calls.
+// the directories that can hold recognized resources (see
+// collectDirs) rather than walking the tree. Inotify
+// ENOSPC degrades the watcher into a poll-only mode that still
+// re-resolves on Sync calls.
 type Watcher struct {
 	logger   slog.Logger
 	clock    quartz.Clock
@@ -47,7 +47,7 @@ type Watcher struct {
 
 	mu        sync.Mutex
 	watcher   *fsnotify.Watcher
-	watched   map[string]struct{}
+	watched   map[string]dirRole
 	timer     *quartz.Timer
 	degraded  string // non-empty when the watcher dropped events
 	closed    bool
@@ -81,7 +81,7 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 			clock:     clock,
 			debounce:  debounce,
 			onChange:  opts.OnChange,
-			watched:   make(map[string]struct{}),
+			watched:   make(map[string]dirRole),
 			degraded:  "fsnotify init failed: " + err.Error(),
 			closedCh:  make(chan struct{}),
 			runDoneCh: closedChan(),
@@ -95,7 +95,7 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 		debounce:  debounce,
 		onChange:  opts.OnChange,
 		watcher:   w,
-		watched:   make(map[string]struct{}),
+		watched:   make(map[string]dirRole),
 		closedCh:  make(chan struct{}),
 		runDoneCh: make(chan struct{}),
 	}
@@ -121,9 +121,8 @@ func (w *Watcher) Degraded() string {
 	return w.degraded
 }
 
-// Sync replaces the set of watched directories with the fixed
-// locations that can hold recognized resources: each scan root,
-// its skill containers, and the immediate skill subdirectories.
+// Sync replaces the set of watched directories with the set
+// collectDirs returns for roots and opts.
 // Files are not watched directly; watching the parent directory
 // catches creates, renames, removes, and writes that touch any
 // recognized basename. Files that are themselves scan roots are
@@ -133,7 +132,7 @@ func (w *Watcher) Degraded() string {
 // released around the directory scan so concurrent Close,
 // schedule, and the run goroutine are not blocked by a slow
 // filesystem.
-func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
+func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot, opts ResolveOptions) {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -159,7 +158,7 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 	// scan root and skill container). Compute the desired set
 	// outside the mutex so it does not block the run goroutine,
 	// Close, or schedule.
-	desired := w.collectDirs(roots)
+	desired := w.collectDirs(roots, opts)
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -169,7 +168,8 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 
 	// Remove directories no longer wanted.
 	for path := range w.watched {
-		if _, ok := desired[path]; ok {
+		if role, ok := desired[path]; ok {
+			w.watched[path] = role
 			continue
 		}
 		_ = w.watcher.Remove(path)
@@ -179,7 +179,7 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 	// recovered ENOSPC clears the degraded marker.
 	addedAll := true
 	// Add directories that are new.
-	for path := range desired {
+	for path, role := range desired {
 		if _, ok := w.watched[path]; ok {
 			continue
 		}
@@ -199,7 +199,7 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 				slog.F("dir", path), slog.Error(err))
 			continue
 		}
-		w.watched[path] = struct{}{}
+		w.watched[path] = role
 	}
 	// Clear a previously-set ENOSPC mark when every Add in this
 	// pass succeeded. A user who bumps the kernel's inotify
@@ -275,10 +275,21 @@ func (w *Watcher) run() {
 // eventRelevant filters out events that cannot affect any
 // recognized resource. The check is conservative: any event on
 // a directory triggers a re-resolve so newly created subtrees
-// are picked up.
-func (*Watcher) eventRelevant(ev fsnotify.Event) bool {
+// are picked up. In a directory watched only as a plugin candidate,
+// only plugin.json and skills matter.
+func (w *Watcher) eventRelevant(ev fsnotify.Event) bool {
 	name := filepath.Base(ev.Name)
-	if recognizedInstructionFile(name) || name == mcpConfigFileName || name == skillMetaFileName {
+	w.mu.Lock()
+	parentRole := w.watched[filepath.Dir(ev.Name)]
+	w.mu.Unlock()
+	if parentRole == dirPluginCandidate {
+		return name == pluginManifestFileName || name == pluginSkillsDirName
+	}
+	switch name {
+	case mcpConfigFileName, skillMetaFileName, pluginManifestFileName:
+		return true
+	}
+	if recognizedInstructionFile(name) {
 		return true
 	}
 	// Directory create/remove flips re-resolve so new subtrees
@@ -311,14 +322,34 @@ func (w *Watcher) schedule() {
 	w.mu.Unlock()
 }
 
+// dirRole records why a directory is watched, as a bit set.
+type dirRole uint8
+
+const (
+	// dirGeneral marks a directory watched for any reason other than
+	// being a plugin candidate.
+	dirGeneral dirRole = 1 << iota
+	// dirPluginCandidate is an immediate subdirectory of a plugin
+	// container.
+	dirPluginCandidate
+)
+
 // collectDirs returns the set of directories to watch. Discovery
 // is fixed-location, mirroring the resolver: for each scan root we
-// watch the root directory itself (catching top-level instruction
-// and .mcp.json changes), plus every existing skill container and
-// its immediate skill subdirectories (catching skill add/remove
-// and SKILL.md writes). The watcher never recurses the tree.
-func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
-	out := make(map[string]struct{})
+// watch the root directory itself (catching top-level instruction,
+// .mcp.json, and plugin.json changes), every existing skill
+// container and its immediate skill subdirectories (catching skill
+// add/remove and SKILL.md writes), and, when opts.PluginsEnabled, every
+// existing plugin container with each immediate plugin directory, its
+// skills container, and that container's immediate subdirectories.
+// A scan root holding a plugin.json has its skills watched the same
+// way. Plugin skills are watched whenever plugin.json exists, whether
+// or not the resolver accepts it. A missing nested
+// plugin container's existing parent (such as .agents) is watched so
+// creating the container fires.
+// The watcher never recurses the tree.
+func (*Watcher) collectDirs(roots []ScanRoot, opts ResolveOptions) map[string]dirRole {
+	out := make(map[string]dirRole)
 	for _, root := range roots {
 		if root.Path == "" {
 			continue
@@ -328,26 +359,84 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 			// Watch the deepest existing ancestor so the
 			// root being created later still fires.
 			if ancestor := existingAncestor(root.Path); ancestor != "" {
-				out[ancestor] = struct{}{}
+				out[ancestor] |= dirGeneral
 			}
 			continue
 		}
 		if !info.IsDir() {
-			out[filepath.Dir(root.Path)] = struct{}{}
+			out[filepath.Dir(root.Path)] |= dirGeneral
 			continue
 		}
-		out[root.Path] = struct{}{}
+		out[root.Path] |= dirGeneral
 		for _, container := range skillContainersFor(root.Path) {
-			out[container] = struct{}{}
-			entries, err := os.ReadDir(container)
-			if err != nil {
+			collectContainerDirs(container, out)
+		}
+		if !opts.PluginsEnabled {
+			continue
+		}
+		collectPluginSkillDirs(root.Path, out)
+		containers := pluginContainersFor(root.Path)
+		for _, rel := range pluginContainerRelPaths {
+			container := filepath.Join(root.Path, rel)
+			parent := filepath.Dir(container)
+			if slices.Contains(containers, container) || parent == root.Path {
 				continue
 			}
-			for _, e := range entries {
-				if e.IsDir() {
-					out[filepath.Join(container, e.Name())] = struct{}{}
-				}
+			if info, err := os.Lstat(parent); err == nil && info.IsDir() {
+				out[parent] |= dirGeneral
 			}
+		}
+		for _, container := range containers {
+			out[container] |= dirGeneral
+			for _, pluginDir := range immediateSubdirs(container) {
+				out[pluginDir] |= dirPluginCandidate
+				collectPluginSkillDirs(pluginDir, out)
+			}
+		}
+	}
+	return out
+}
+
+// collectPluginSkillDirs adds, when pluginDir holds a plugin.json, its
+// skills container and the skill directories pluginSkillDirs lists
+// inside the plugin root.
+func collectPluginSkillDirs(pluginDir string, out map[string]dirRole) {
+	if _, err := os.Lstat(filepath.Join(pluginDir, pluginManifestFileName)); err != nil {
+		return
+	}
+	pluginRoot, err := canonicalExistingDir(pluginDir)
+	if err != nil {
+		return
+	}
+	container, dirs, _ := pluginSkillDirs(pluginDir, pluginRoot)
+	if container == "" {
+		return
+	}
+	out[container] |= dirGeneral
+	for _, dir := range dirs {
+		if dir.escapeErr == "" {
+			out[dir.path] |= dirGeneral
+		}
+	}
+}
+
+func collectContainerDirs(container string, out map[string]dirRole) {
+	out[container] |= dirGeneral
+	for _, dir := range immediateSubdirs(container) {
+		out[dir] |= dirGeneral
+	}
+}
+
+// immediateSubdirs omits symlinks, including symlinks to directories.
+func immediateSubdirs(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, filepath.Join(dir, e.Name()))
 		}
 	}
 	return out

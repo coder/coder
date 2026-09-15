@@ -44,7 +44,6 @@ const (
 	maxContextResourceBodyBytes  = 256 * 1024
 	maxContextAggregateBodyBytes = 4 * 1024 * 1024
 	maxContextSourceBytes        = 1024
-	maxContextErrorBytes         = 4096
 	maxContextHashBytes          = 64
 )
 
@@ -280,8 +279,8 @@ func validateContextPushRequest(req *agentproto.PushContextStateRequest) error {
 	if len(req.AggregateHash) > maxContextHashBytes {
 		return xerrors.Errorf("agentapi: PushContextState aggregate hash is %d bytes, exceeds %d byte cap", len(req.AggregateHash), maxContextHashBytes)
 	}
-	if len(req.SnapshotError) > maxContextErrorBytes {
-		return xerrors.Errorf("agentapi: PushContextState snapshot error is %d bytes, exceeds %d byte cap", len(req.SnapshotError), maxContextErrorBytes)
+	if len(req.SnapshotError) > workspacesdk.MaxContextErrorBytes {
+		return xerrors.Errorf("agentapi: PushContextState snapshot error is %d bytes, exceeds %d byte cap", len(req.SnapshotError), workspacesdk.MaxContextErrorBytes)
 	}
 	if len(req.Resources) > maxContextResourcesPerPush {
 		return xerrors.Errorf("agentapi: PushContextState has %d resources, exceeds %d resource cap", len(req.Resources), maxContextResourcesPerPush)
@@ -348,8 +347,8 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource)
 		if len(r.GetSourcePath()) > maxContextSourceBytes {
 			return nil, nil, xerrors.Errorf("resource %q: source path is %d bytes, exceeds %d byte cap", r.Source, len(r.GetSourcePath()), maxContextSourceBytes)
 		}
-		if len(r.Error) > maxContextErrorBytes {
-			return nil, nil, xerrors.Errorf("resource %q: error is %d bytes, exceeds %d byte cap", r.Source, len(r.Error), maxContextErrorBytes)
+		if len(r.Error) > workspacesdk.MaxContextErrorBytes {
+			return nil, nil, xerrors.Errorf("resource %q: error is %d bytes, exceeds %d byte cap", r.Source, len(r.Error), workspacesdk.MaxContextErrorBytes)
 		}
 		if len(r.ContentHash) > maxContextHashBytes {
 			return nil, nil, xerrors.Errorf("resource %q: content hash is %d bytes, exceeds %d byte cap", r.Source, len(r.ContentHash), maxContextHashBytes)
