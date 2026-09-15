@@ -1,6 +1,8 @@
 import { type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { chatProjectPermissionChecks } from "#/modules/permissions/chatProjects";
+import { checkAuthorization } from "./authCheck";
 import {
 	chatProjectKey,
 	chatProjectsFamilyKey,
@@ -20,6 +22,17 @@ export const chatProject = (projectId: string) =>
 		queryKey: chatProjectKey(projectId),
 		queryFn: () => API.experimental.getChatProject(projectId),
 		enabled: Boolean(projectId),
+	});
+
+export const chatProjectPermissions = (
+	projects: readonly Pick<
+		TypesGen.ChatProject,
+		"organization_id" | "created_by"
+	>[],
+) =>
+	queryOptions({
+		...checkAuthorization({ checks: chatProjectPermissionChecks(projects) }),
+		enabled: projects.length > 0,
 	});
 
 const invalidateChatProjects = (queryClient: QueryClient) =>

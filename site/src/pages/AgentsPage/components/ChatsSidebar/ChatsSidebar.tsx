@@ -2,6 +2,7 @@ import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useParams } from "react-router";
 import {
+	chatProjectPermissions,
 	chatProjects,
 	createChatProject,
 	deleteChatProject,
@@ -114,6 +115,11 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		...chatProjects(defaultOrganizationId),
 		enabled: chatProjectsEnabled && Boolean(defaultOrganizationId),
 	});
+	const projects = chatProjectsEnabled ? (projectsQuery.data ?? []) : [];
+	const projectPermissionsQuery = useQuery({
+		...chatProjectPermissions(projects),
+		enabled: chatProjectsEnabled && projects.length > 0,
+	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation(deleteChatProject(queryClient));
@@ -179,7 +185,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	return (
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
-				projects={chatProjectsEnabled ? (projectsQuery.data ?? []) : []}
+				projects={projects}
+				projectPermissions={projectPermissionsQuery.data}
 				isProjectsLoading={chatProjectsEnabled && projectsQuery.isLoading}
 				onOpenProjectDialog={
 					chatProjectsEnabled ? setProjectDialogProject : undefined

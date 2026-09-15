@@ -6,9 +6,14 @@ import {
 	useQueryClient,
 } from "react-query";
 import { Navigate, useParams } from "react-router";
-import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
+import {
+	chatProject,
+	chatProjectPermissions,
+	updateChatProject,
+} from "#/api/queries/chatProjects";
 import { infiniteChats } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { chatProjectPermissionsFor } from "#/modules/permissions/chatProjects";
 import { AgentProjectPageView } from "./AgentProjectPageView";
 import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 
@@ -22,6 +27,14 @@ const AgentProjectPage: FC = () => {
 		enabled: experiments.includes("chat-projects") && Boolean(projectId),
 	});
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const project = projectQuery.data;
+	const permissionsQuery = useQuery({
+		...chatProjectPermissions(project ? [project] : []),
+		enabled: Boolean(project),
+	});
+	const canEdit = project
+		? chatProjectPermissionsFor(project, permissionsQuery.data).canUpdate
+		: false;
 	const chatsQuery = useInfiniteQuery({
 		...infiniteChats({ projectId }),
 		enabled: experiments.includes("chat-projects") && Boolean(projectId),
@@ -35,17 +48,17 @@ const AgentProjectPage: FC = () => {
 	return (
 		<>
 			<AgentProjectPageView
-				project={projectQuery.data}
+				project={project}
 				chats={chats}
 				isLoading={projectQuery.isLoading || chatsQuery.isLoading}
 				error={projectQuery.error ?? chatsQuery.error}
-				onEdit={() => setIsEditing(true)}
+				onEdit={canEdit ? () => setIsEditing(true) : undefined}
 				newChatPath={`/agents?project=${encodeURIComponent(projectId)}`}
 			/>
 			<ChatProjectDialog
-				key={projectQuery.data?.id ?? (isEditing ? "new" : "closed")}
-				organizationId={projectQuery.data?.organization_id ?? ""}
-				project={projectQuery.data}
+				key={project?.id ?? (isEditing ? "new" : "closed")}
+				organizationId={project?.organization_id ?? ""}
+				project={project}
 				open={isEditing}
 				onOpenChange={setIsEditing}
 				onSubmit={async (request) => {

@@ -15,6 +15,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { chatProjectPermissionsFor } from "#/modules/permissions/chatProjects";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { getSectionToggleTestId } from "./ChatSectionHeader";
 
@@ -22,6 +23,7 @@ const PROJECTS_SECTION_KEY = "Projects";
 
 type ProjectsSectionProps = {
 	readonly projects: readonly ChatProject[];
+	readonly projectPermissions?: Record<string, boolean>;
 	readonly expanded: boolean;
 	readonly onToggle: () => void;
 	readonly onCreate: () => void;
@@ -31,6 +33,7 @@ type ProjectsSectionProps = {
 
 export const ProjectsSection: FC<ProjectsSectionProps> = ({
 	projects,
+	projectPermissions,
 	expanded,
 	onToggle,
 	onCreate,
@@ -66,22 +69,29 @@ export const ProjectsSection: FC<ProjectsSectionProps> = ({
 			</div>
 			{expanded && (
 				<div className="flex flex-col gap-0.5">
-					{projects.map((project) => (
-						<ContextMenu key={project.id}>
-							<ContextMenuTrigger asChild>
-								<div className="group relative flex items-center gap-1 rounded-md px-2 py-1 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:pl-[7px]">
-									<NavLink
-										to={{
-											pathname: buildAgentProjectPath(project.id),
-											search: location.search,
-										}}
-										className="min-w-0 flex-1 truncate text-[13px] text-content-primary no-underline"
-									>
-										{project.name}
-									</NavLink>
-									<span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs tabular-nums">
-										{project.chat_count}
-									</span>
+					{projects.map((project) => {
+						const { canUpdate, canDelete } = chatProjectPermissionsFor(
+							project,
+							projectPermissions,
+						);
+						const row = (
+							<div
+								key={project.id}
+								className="group relative flex items-center gap-1 rounded-md px-2 py-1 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:pl-[7px]"
+							>
+								<NavLink
+									to={{
+										pathname: buildAgentProjectPath(project.id),
+										search: location.search,
+									}}
+									className="min-w-0 flex-1 truncate text-[13px] text-content-primary no-underline"
+								>
+									{project.name}
+								</NavLink>
+								<span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs tabular-nums">
+									{project.chat_count}
+								</span>
+								{(canUpdate || canDelete) && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -94,32 +104,50 @@ export const ProjectsSection: FC<ProjectsSectionProps> = ({
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
-											<DropdownMenuItem onSelect={() => onEdit(project)}>
-												Edit project
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
-												onSelect={() => onDelete(project)}
-											>
-												Delete project
-											</DropdownMenuItem>
+											{canUpdate && (
+												<DropdownMenuItem onSelect={() => onEdit(project)}>
+													Edit project
+												</DropdownMenuItem>
+											)}
+											{canDelete && (
+												<DropdownMenuItem
+													className="text-content-destructive focus:text-content-destructive"
+													onSelect={() => onDelete(project)}
+												>
+													Delete project
+												</DropdownMenuItem>
+											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
-								</div>
-							</ContextMenuTrigger>
-							<ContextMenuContent>
-								<ContextMenuItem onSelect={() => onEdit(project)}>
-									Edit project
-								</ContextMenuItem>
-								<ContextMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									onSelect={() => onDelete(project)}
-								>
-									Delete project
-								</ContextMenuItem>
-							</ContextMenuContent>
-						</ContextMenu>
-					))}
+								)}
+							</div>
+						);
+
+						if (!canUpdate && !canDelete) {
+							return row;
+						}
+
+						return (
+							<ContextMenu key={project.id}>
+								<ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+								<ContextMenuContent>
+									{canUpdate && (
+										<ContextMenuItem onSelect={() => onEdit(project)}>
+											Edit project
+										</ContextMenuItem>
+									)}
+									{canDelete && (
+										<ContextMenuItem
+											className="text-content-destructive focus:text-content-destructive"
+											onSelect={() => onDelete(project)}
+										>
+											Delete project
+										</ContextMenuItem>
+									)}
+								</ContextMenuContent>
+							</ContextMenu>
+						);
+					})}
 				</div>
 			)}
 		</div>

@@ -127,6 +127,17 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 afterEach(() => server.resetHandlers());
 
 describe("ChatsSidebar projects", () => {
+	const grantProjectPermissions = (granted: boolean, onChecked?: () => void) =>
+		http.post("/api/v2/authcheck", async ({ request }) => {
+			const { checks } = (await request.json()) as {
+				checks: Record<string, unknown>;
+			};
+			onChecked?.();
+			return HttpResponse.json(
+				Object.fromEntries(Object.keys(checks).map((key) => [key, granted])),
+			);
+		});
+
 	it("deletes the selected project after confirmation", async () => {
 		const user = userEvent.setup();
 		let deletedProjectID: string | undefined;
@@ -134,6 +145,7 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
+			grantProjectPermissions(true),
 			http.delete("*", ({ request }) => {
 				deletedProjectID = request.url.split("/").at(-1);
 				return new HttpResponse(null, { status: 204 });
@@ -161,6 +173,32 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => {
 			expect(deletedProjectID).toBe(MockChatProject.id);
 		});
+	});
+
+	it("hides project actions the user is not allowed to perform", async () => {
+		let authChecked = false;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			grantProjectPermissions(false, () => {
+				authChecked = true;
+			}),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await screen.findByRole("link", { name: MockChatProject.name });
+		await waitFor(() => expect(authChecked).toBe(true));
+		expect(
+			screen.queryByRole("button", {
+				name: `Open actions for ${MockChatProject.name}`,
+			}),
+		).not.toBeInTheDocument();
 	});
 });
 

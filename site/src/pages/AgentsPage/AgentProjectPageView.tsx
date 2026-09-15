@@ -11,7 +11,7 @@ type AgentProjectPageViewProps = {
 	readonly chats: readonly Chat[];
 	readonly isLoading: boolean;
 	readonly error?: unknown;
-	readonly onEdit: () => void;
+	readonly onEdit?: () => void;
 	readonly newChatPath: string;
 };
 
@@ -59,9 +59,11 @@ export const AgentProjectPageView: FC<AgentProjectPageViewProps> = ({
 					)}
 				</div>
 				<div className="flex shrink-0 gap-2">
-					<Button variant="outline" onClick={onEdit}>
-						Edit
-					</Button>
+					{onEdit && (
+						<Button variant="outline" onClick={onEdit}>
+							Edit
+						</Button>
+					)}
 					<Button asChild>
 						<Link to={newChatPath}>New chat</Link>
 					</Button>

@@ -65,14 +65,6 @@ export const MockChatProject: TypesGen.ChatProject = {
 	updated_at: "2026-09-02T12:00:00Z",
 };
 
-export const MockChatProject2: TypesGen.ChatProject = {
-	...MockChatProject,
-	id: "chat-project-2",
-	name: "Maintenance",
-	description: "Chats for maintenance work.",
-	chat_count: 4,
-};
-
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [

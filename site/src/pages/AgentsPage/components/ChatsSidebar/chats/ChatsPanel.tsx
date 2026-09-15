@@ -66,6 +66,7 @@ const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 interface ChatsPanelProps {
 	readonly projects: readonly ChatProject[];
+	readonly projectPermissions?: Record<string, boolean>;
 	readonly isProjectsLoading: boolean;
 	readonly onOpenProjectDialog?: (project: ChatProject | null) => void;
 	readonly onDeleteProject?: (project: ChatProject) => void;
@@ -106,6 +107,7 @@ interface ChatsPanelProps {
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	projects,
+	projectPermissions,
 	isProjectsLoading,
 	onOpenProjectDialog,
 	onDeleteProject,
@@ -572,6 +574,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 											{onOpenProjectDialog && onDeleteProject && (
 												<ProjectsSection
 													projects={projects}
+													projectPermissions={projectPermissions}
 													expanded={!collapsedSections.Projects}
 													onToggle={() => toggleSection("Projects")}
 													onCreate={() => onOpenProjectDialog(null)}
