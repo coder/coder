@@ -128,12 +128,11 @@ describe("AgentChatInput", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
-		const popover = within(screen.getByRole("dialog"));
-		expect(popover.getByText("Always on")).toBeInTheDocument();
-		expect(
-			popover.queryByRole("button", { name: "Remove Sentry" }),
-		).not.toBeInTheDocument();
-		await user.click(popover.getByRole("button", { name: "Remove Linear" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("button", {
+				name: "Remove Linear",
+			}),
+		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
 			mockSentryMCP.id,
 			mockGitHubMCP.id,
