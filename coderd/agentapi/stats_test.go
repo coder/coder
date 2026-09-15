@@ -3,6 +3,9 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -666,6 +669,99 @@ func TestUpdateStats(t *testing.T) {
 		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})
+
+	for _, name := range []string{"RankAfterMerging", "AliasesFitWithoutFolding", "NonPositiveSuppressesFallback"} {
+		t.Run("SessionCounts/"+name, func(t *testing.T) {
+			t.Parallel()
+
+			counts := make(map[string]int64)
+			want := make(map[string]int64)
+			for i := range 300 {
+				counts["VSCode"+strings.Repeat(" ", i)] = 1
+			}
+			switch name {
+			case "RankAfterMerging":
+				// Known apps win even with smaller counts. Unknown aliases
+				// must merge before ranking, with name breaking count ties.
+				counts["SSH"] = 1
+				counts["unknown"] = -1_000
+				counts[" VSCODE"] = -1_000
+				counts["idle"] = 0
+				for i := range 300 {
+					counts[fmt.Sprintf("app-%03d", i)] = 2
+					counts["zzz-busy"+strings.Repeat(" ", i)] = 1
+				}
+				want = map[string]int64{"vscode": 300, "ssh": 1, "zzz_busy": 300, "unknown": 478}
+				for i := range 61 {
+					want[fmt.Sprintf("app_%03d", i)] = 2
+				}
+			case "AliasesFitWithoutFolding":
+				want["vscode"] = 300
+			case "NonPositiveSuppressesFallback":
+				for key := range counts {
+					counts[key] = -1
+				}
+				counts["unknown"] = 0
+			}
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			dbM := dbmock.NewMockStore(gomock.NewController(t))
+			inserted := make(chan database.InsertWorkspaceAgentStatsParams, 1)
+			dbM.EXPECT().InsertWorkspaceAgentStats(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, params database.InsertWorkspaceAgentStatsParams) error {
+					inserted <- params
+					return nil
+				})
+			batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+				workspacestats.BatcherWithStore(dbM),
+				workspacestats.BatcherWithLogger(testutil.Logger(t)),
+				workspacestats.BatcherWithInterval(time.Hour),
+			)
+			require.NoError(t, err)
+			t.Cleanup(closeBatcher)
+			api := agentapi.StatsAPI{
+				AgentID:   agent.ID,
+				AgentName: agent.Name,
+				Workspace: &workspaceAsCacheFields,
+				Database:  dbM,
+				StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+					StatsBatcher: batcher,
+				}),
+				AgentStatsRefreshInterval: 10 * time.Second,
+			}
+			_, err = api.UpdateStats(ctx, &agentproto.UpdateStatsRequest{Stats: &agentproto.Stats{
+				SessionCounts: counts,
+				// A present map must suppress deprecated fields even when
+				// every reported count is non-positive.
+				SessionCountVscode:        9,
+				ConnectionsByProto:        map[string]int64{"tcp": 1},
+				ConnectionMedianLatencyMs: 23,
+				RxPackets:                 120,
+				RxBytes:                   1000,
+				TxPackets:                 130,
+				TxBytes:                   2000,
+			}})
+			require.NoError(t, err)
+			closeBatcher() // Flush synchronously without waiting for a timer.
+
+			select {
+			case params := <-inserted:
+				var got []map[string]int64
+				require.NoError(t, json.Unmarshal(params.SessionCounts, &got))
+				require.Equal(t, []map[string]int64{want}, got)
+				// Capping sessions must not change the rest of the report.
+				require.JSONEq(t, `[{"tcp":1}]`, string(params.ConnectionsByProto))
+				require.Equal(t, []int64{0}, params.ConnectionCount)
+				require.Equal(t, []float64{23}, params.ConnectionMedianLatencyMS)
+				require.Equal(t, []int64{120}, params.RxPackets)
+				require.Equal(t, []int64{1000}, params.RxBytes)
+				require.Equal(t, []int64{130}, params.TxPackets)
+				require.Equal(t, []int64{2000}, params.TxBytes)
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for stats insertion")
+			}
+		})
+	}
 }
 
 func templateScheduleStorePtr(store schedule.TemplateScheduleStore) *atomic.Pointer[schedule.TemplateScheduleStore] {
