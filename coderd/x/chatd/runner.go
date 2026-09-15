@@ -190,7 +190,7 @@ func (r *runner) spawnForState(state runnerStateUpdate) {
 		r.spawnTaskIfNeeded(taskKindInterrupt, state)
 	case database.ChatStatusRequiresAction:
 		r.spawnTaskIfNeeded(taskKindRequiresActionTimeout, state)
-	case database.ChatStatusWaiting, database.ChatStatusPaused, database.ChatStatusError:
+	case database.ChatStatusWaiting, database.ChatStatusError, database.ChatStatusPaused:
 		r.spawnTaskIfNeeded(taskKindAbandon, state)
 	default:
 		r.spawnTaskIfNeeded(taskKindAbandon, state)
