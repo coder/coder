@@ -66,7 +66,9 @@ describe("WorkspacesPageView", () => {
 			/>,
 		);
 
-		await screen.findByText(/no results matched your search/i);
+		await screen.findByRole("heading", {
+			name: /no workspaces match your search\./i,
+		});
 		expect(
 			screen.queryByText(/don't have permission to create workspaces/i),
 		).not.toBeInTheDocument();
@@ -80,7 +82,9 @@ describe("WorkspacesPageView", () => {
 			<WorkspacesPageView {...defaultProps} filter={createFilter(true)} />,
 		);
 
-		await screen.findByText(/no results matched your search/i);
+		await screen.findByRole("heading", {
+			name: /no workspaces match your search\./i,
+		});
 		expect(
 			screen.queryByText(/don't have permission to create workspaces/i),
 		).not.toBeInTheDocument();

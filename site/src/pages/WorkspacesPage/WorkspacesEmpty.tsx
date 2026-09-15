@@ -8,6 +8,7 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	canCreateWorkspace: boolean;
@@ -15,6 +16,7 @@ interface WorkspacesEmptyProps {
 
 export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
+	onClearFilter,
 	templates,
 	canCreateTemplate,
 	canCreateWorkspace,
@@ -28,7 +30,16 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 		"A workspace is your personal, customizable development environment.";
 
 	if (isUsingFilter) {
-		return <EmptyState message="No results matched your search" />;
+		return (
+			<EmptyState
+				message="No workspaces match your search."
+				cta={
+					<Button variant="outline" onClick={onClearFilter}>
+						Clear all
+					</Button>
+				}
+			/>
+		);
 	}
 
 	if (!canCreateWorkspace) {
