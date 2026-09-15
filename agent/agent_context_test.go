@@ -2,8 +2,10 @@ package agent_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -70,6 +72,91 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 	for _, p := range pushes[1:] {
 		assert.False(t, p.GetInitial(), "only the first push must be Initial")
 	}
+}
+
+// TestAgent_PluginMCPServersLoaded verifies that a plugin discovered in
+// the working directory has its mcp.json loaded through the MCP engine
+// and that the resulting server resource is pushed with plugin
+// attribution. The declared command does not exist, so the server is
+// reported as unreadable; the attribution and the plugin-prefixed
+// source are what this test checks.
+func TestAgent_PluginMCPServersLoaded(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, ".agents", "plugins", "acme")
+	require.NoError(t, os.MkdirAll(pluginDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+		"name": "acme"
+	}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "mcp.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+		"mcpServers": {
+			"srv": {"type": "stdio", "command": "coder-test-missing-mcp-binary"}
+		}
+	}`), 0o600))
+
+	//nolint:dogsled // setupAgent returns a wide tuple; we only care about the client.
+	_, client, _, _, _ := setupAgent(t,
+		agentsdk.Manifest{Directory: dir, PluginsSupported: true},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ContextConfig = agentcontextconfig.Config{}
+		},
+	)
+
+	var (
+		plugin *agentproto.ContextResource
+		server *agentproto.ContextResource
+	)
+	pushed := assert.Eventually(t, func() bool {
+		plugin, server = nil, nil
+		for _, push := range client.ContextStatePushes() {
+			for _, r := range push.GetResources() {
+				if r.GetPlugin() != nil {
+					plugin = r
+				}
+				if r.GetMcpServer() != nil && r.GetMcpServer().GetPluginName() == "acme" {
+					server = r
+				}
+			}
+		}
+		return plugin != nil && server != nil
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	if !pushed {
+		t.Fatalf("expected plugin and plugin MCP server resources to be pushed; got %s",
+			describePushes(client.ContextStatePushes()))
+	}
+
+	assert.Equal(t, "acme", plugin.GetPlugin().GetName())
+	assert.Equal(t, agentproto.ContextResource_OK, plugin.GetStatus())
+	assert.Equal(t, "acme/srv", server.GetSource())
+	assert.Equal(t, "srv", server.GetMcpServer().GetServerName())
+	assert.Equal(t, agentproto.ContextResource_UNREADABLE, server.GetStatus())
+}
+
+// describePushes renders every pushed resource as "vN kind source status"
+// so a failed wait shows which stage of the discovery chain stalled.
+func describePushes(pushes []*agentproto.PushContextStateRequest) string {
+	var sb strings.Builder
+	for _, push := range pushes {
+		for _, r := range push.GetResources() {
+			kind := "other"
+			switch {
+			case r.GetPlugin() != nil:
+				kind = "plugin"
+			case r.GetMcpServer() != nil:
+				kind = "mcp_server"
+			case r.GetSkill() != nil:
+				kind = "skill"
+			case r.GetInstructionFile() != nil:
+				kind = "instruction_file"
+			}
+			_, _ = fmt.Fprintf(&sb, "[v%d %s %s %s] ", push.GetVersion(), kind, r.GetSource(), r.GetStatus())
+		}
+	}
+	return sb.String()
 }
 
 // logCapture records every message logged through it.

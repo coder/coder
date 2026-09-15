@@ -52,7 +52,10 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 	}
 	sorted := slices.Clone(servers)
 	slices.SortFunc(sorted, func(a, b MCPServerStatus) int {
-		return strings.Compare(a.Name, b.Name)
+		if c := strings.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+		return strings.Compare(a.PluginName, b.PluginName)
 	})
 
 	resources := make([]Resource, 0, len(sorted))
@@ -60,15 +63,16 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 		if s.Name == "" {
 			continue
 		}
+		source := mcpServerSource(s)
 		if !s.Connected {
 			errMsg := s.Err
 			if errMsg == "" {
 				errMsg = "failed to connect"
 			}
 			resources = append(resources, Resource{
-				ID:          resourceID(KindMCPServer, s.Name),
+				ID:          resourceID(KindMCPServer, source),
 				Kind:        KindMCPServer,
-				Source:      s.Name,
+				Source:      source,
 				Name:        s.Name,
 				Status:      StatusUnreadable,
 				Error:       errMsg,
@@ -85,9 +89,9 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 			return strings.Compare(a.Name, b.Name)
 		})
 		resources = append(resources, Resource{
-			ID:          resourceID(KindMCPServer, s.Name),
+			ID:          resourceID(KindMCPServer, source),
 			Kind:        KindMCPServer,
-			Source:      s.Name,
+			Source:      source,
 			Name:        s.Name,
 			Status:      StatusOK,
 			ContentHash: hashMCPServer(s.Name, serverTools),
@@ -135,4 +139,16 @@ func hashMCPServerError(server, errMsg string) [32]byte {
 	var sum [32]byte
 	copy(sum[:], h.Sum(nil))
 	return sum
+}
+
+// mcpServerSource is the resource locator for a server status. Servers
+// from workspace .mcp.json files use the bare server name. Servers
+// declared by a plugin are prefixed with the plugin name so a plugin
+// entry that lost a name collision still gets its own resource next to
+// the winner. The server name itself travels in the body.
+func mcpServerSource(s MCPServerStatus) string {
+	if s.PluginName == "" {
+		return s.Name
+	}
+	return s.PluginName + "/" + s.Name
 }
