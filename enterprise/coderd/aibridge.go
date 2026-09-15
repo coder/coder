@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -47,6 +48,9 @@ const (
 	// maxAISpendExportPeriod bounds an explicit AI spend export window to at
 	// most 31 days, matching the maximum length of the monthly default period.
 	maxAISpendExportPeriod = 31 * 24 * time.Hour
+	// The JSON spend report lists users, not events, so its pages are small.
+	defaultOrganizationAISpendLimit = 10
+	maxOrganizationAISpendLimit     = 100
 	// aiBridgeSessionNetworkCallsLimit caps the per-session network call list
 	// returned with session threads. The header count still reflects the full
 	// summary total, so the UI surfaces truncation when a session exceeds this.
@@ -1142,11 +1146,10 @@ type aiSpendExportFilter struct {
 // budget period, narrowed to the retention window. Both bounds must be
 // supplied together and are interpreted as UTC, and an explicit window must be
 // non-empty, span at most 31 days, and begin within the retention window.
-// Unknown parameters are rejected. On invalid input it writes the error
-// response and returns ok=false.
-func (api *API) aiSpendExportFilter(ctx context.Context, rw http.ResponseWriter, r *http.Request) (filter aiSpendExportFilter, ok bool) {
+// Parameters not consumed by the given parser or here are rejected. On
+// invalid input it writes the error response and returns ok=false.
+func (api *API) aiSpendExportFilter(ctx context.Context, rw http.ResponseWriter, r *http.Request, parser *httpapi.QueryParamParser) (filter aiSpendExportFilter, ok bool) {
 	query := r.URL.Query()
-	parser := httpapi.NewQueryParamParser()
 	filter.providerName = parser.String(query, "", "provider_name")
 	filter.model = parser.String(query, "", "model")
 	filter.client = parser.String(query, "", "client")
@@ -1220,16 +1223,38 @@ func (api *API) aiSpendExportFilter(ctx context.Context, rw http.ResponseWriter,
 	return filter, true
 }
 
+// aiSpendExportWantsJSON reports whether the Accept header selects the JSON
+// report. CSV wins whenever it is listed and is the default when neither
+// media type is, so the SDK, curl, and browser downloads keep receiving CSV
+// while Axios, which lists application/json by default, gets JSON. Quality
+// values are ignored.
+func aiSpendExportWantsJSON(accept string) bool {
+	wantsJSON := false
+	for _, part := range strings.Split(accept, ",") {
+		mediaType, _, err := mime.ParseMediaType(part)
+		if err != nil {
+			continue
+		}
+		switch mediaType {
+		case "text/csv":
+			return false
+		case "application/json":
+			wantsJSON = true
+		}
+	}
+	return wantsJSON
+}
+
 // @Summary Export organization AI spend as CSV
-// @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+// @Description Returns aggregated AI spend for the organization, built from raw AI Gateway token usage. The representation depends on the Accept header: text/csv, or any request that lists neither text/csv nor application/json, returns CSV with one row per user, group, provider, and model; application/json returns a paginated report with one entry per user. The two representations account for the same token usage but differ in row grain by design.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
-// @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
-// @Description The optional provider_name, model, and client query parameters restrict the export to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
-// @Description Unknown query parameters are rejected.
+// @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and the response echoes the applied bounds.
+// @Description The optional provider_name, model, and client query parameters restrict the result to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
+// @Description limit and offset page the JSON report and are rejected for CSV. Unknown query parameters are rejected.
 // @Description Requires organization-level administrator permissions.
 // @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
-// @Produce text/csv
+// @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
@@ -1237,12 +1262,15 @@ func (api *API) aiSpendExportFilter(ctx context.Context, rw http.ResponseWriter,
 // @Param provider_name query string false "Only include usage through this provider configuration name"
 // @Param model query string false "Only include usage of this model"
 // @Param client query string false "Only include usage from this client. Unknown matches usage without a recorded client."
-// @Success 200
+// @Param limit query int false "Page size of the JSON report (default 10, maximum 100)"
+// @Param offset query int false "Page offset of the JSON report"
+// @Success 200 {object} codersdk.OrganizationAISpendReport
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 	logger := api.Logger.With(slog.F("organization_id", org.ID))
+	rw.Header().Add("Vary", "Accept")
 
 	// The export aggregates the whole organization, so require organization-wide
 	// read rather than letting the per-row filter narrow it to the caller.
@@ -1251,7 +1279,23 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	filter, ok := api.aiSpendExportFilter(ctx, rw, r)
+	wantsJSON := aiSpendExportWantsJSON(strings.Join(r.Header.Values("Accept"), ","))
+	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	var page codersdk.Pagination
+	if wantsJSON {
+		// Leaving limit and offset unparsed for CSV makes the filter parser
+		// reject them as unknown parameters.
+		page.Limit = int(parser.PositiveInt32(query, defaultOrganizationAISpendLimit, "limit"))
+		page.Offset = int(parser.PositiveInt32(query, 0, "offset"))
+		if page.Limit < 1 || page.Limit > maxOrganizationAISpendLimit {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "limit",
+				Detail: fmt.Sprintf("Query param \"limit\" must be in range [1, %d].", maxOrganizationAISpendLimit),
+			})
+		}
+	}
+	filter, ok := api.aiSpendExportFilter(ctx, rw, r, parser)
 	if !ok {
 		return
 	}
@@ -1260,6 +1304,53 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		slog.F("period_start", periodStart),
 		slog.F("period_end", periodEnd),
 	)
+
+	if wantsJSON {
+		params := database.ListOrganizationAISpendUsersParams{
+			OrganizationID: org.ID,
+			PeriodStart:    periodStart,
+			PeriodEnd:      periodEnd,
+			ProviderName:   filter.providerName,
+			Model:          filter.model,
+			Client:         filter.client,
+			// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+			LimitOpt: int32(page.Limit),
+			// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+			OffsetOpt: int32(page.Offset),
+		}
+		rows, err := api.Database.ListOrganizationAISpendUsers(ctx, params)
+		if err != nil {
+			logger.Error(ctx, "failed to list organization AI spend users", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		// Every row carries the window totals, so a page past the last user
+		// has no row to carry them; read them from the first page instead.
+		totals := rows
+		if len(rows) == 0 && page.Offset > 0 {
+			params.LimitOpt, params.OffsetOpt = 1, 0
+			totals, err = api.Database.ListOrganizationAISpendUsers(ctx, params)
+			if err != nil {
+				logger.Error(ctx, "failed to read organization AI spend totals", slog.Error(err))
+				httpapi.InternalServerError(rw, err)
+				return
+			}
+		}
+		report := codersdk.OrganizationAISpendReport{
+			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: periodStart, PeriodEnd: periodEnd},
+			Users:               make([]codersdk.OrganizationAISpendUser, 0, len(rows)),
+		}
+		if len(totals) > 0 {
+			report.Count = totals[0].Count
+			report.TotalCostMicros = totals[0].TotalCostMicros
+			report.TotalUnpricedUsageCount = totals[0].TotalUnpricedUsageCount
+		}
+		for _, row := range rows {
+			report.Users = append(report.Users, db2sdk.OrganizationAISpendUser(row))
+		}
+		httpapi.Write(ctx, rw, http.StatusOK, report)
+		return
+	}
 
 	rows, err := api.Database.ExportOrganizationAISpend(ctx, database.ExportOrganizationAISpendParams{
 		OrganizationID: org.ID,

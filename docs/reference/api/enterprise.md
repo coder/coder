@@ -1968,16 +1968,17 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spend/export \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /api/v2/organizations/{organization}/ai/spend/export`
 
-Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+Returns aggregated AI spend for the organization, built from raw AI Gateway token usage. The representation depends on the Accept header: text/csv, or any request that lists neither text/csv nor application/json, returns CSV with one row per user, group, provider, and model; application/json returns a paginated report with one entry per user. The two representations account for the same token usage but differ in row grain by design.
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
-An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
-The optional provider_name, model, and client query parameters restrict the export to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
-Unknown query parameters are rejected.
+An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and the response echoes the applied bounds.
+The optional provider_name, model, and client query parameters restrict the result to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
+limit and offset page the JSON report and are rejected for CSV. Unknown query parameters are rejected.
 Requires organization-level administrator permissions.
 
 ### Parameters
@@ -1990,12 +1991,38 @@ Requires organization-level administrator permissions.
 | `provider_name` | query | string            | false    | Only include usage through this provider configuration name                           |
 | `model`         | query | string            | false    | Only include usage of this model                                                      |
 | `client`        | query | string            | false    | Only include usage from this client. Unknown matches usage without a recorded client. |
+| `limit`         | query | integer           | false    | Page size of the JSON report (default 10, maximum 100)                                |
+| `offset`        | query | integer           | false    | Page offset of the JSON report                                                        |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "total_cost_micros": 0,
+  "total_unpriced_usage_count": 0,
+  "users": [
+    {
+      "avatar_url": "string",
+      "cost_micros": 0,
+      "name": "string",
+      "unpriced_usage_count": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationAISpendReport](schemas.md#codersdkorganizationaispendreport) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
