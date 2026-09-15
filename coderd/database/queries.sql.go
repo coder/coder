@@ -2783,6 +2783,18 @@ JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = $1
 	AND tu.created_at >= $2::timestamptz
 	AND tu.created_at < $3::timestamptz
+	AND CASE
+		WHEN $4::text != '' THEN ai.provider_name = $4::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $5::text != '' THEN ai.model = $5::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $6::text != '' THEN COALESCE(ai.client, 'Unknown') = $6::text
+		ELSE true
+	END
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -2800,6 +2812,9 @@ type ExportOrganizationAISpendParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	PeriodStart    time.Time `db:"period_start" json:"period_start"`
 	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
 }
 
 type ExportOrganizationAISpendRow struct {
@@ -2823,8 +2838,16 @@ type ExportOrganizationAISpendRow struct {
 // @organization_id over the [period_start, period_end) window. Spend is
 // attributed through the token usage's effective group, and rows are bucketed
 // by the token usage created_at, matching how ai_user_daily_spend is derived.
+// It must keep the same joins and predicates as ListOrganizationAISpendUsers.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
-	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.ProviderName,
+		arg.Model,
+		arg.Client,
+	)
 	if err != nil {
 		return nil, err
 	}
