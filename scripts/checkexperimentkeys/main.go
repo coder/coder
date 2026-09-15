@@ -93,7 +93,7 @@ func checkSource(path string, src []byte, known map[string]bool) []finding {
 	for lineNumber, line := range strings.Split(string(src), "\n") {
 		for _, match := range experimentAssignment.FindAllStringSubmatch(line, -1) {
 			for _, key := range strings.Split(match[1], ",") {
-				if known[key] || isPlaceholder(key) {
+				if key == "" || known[key] || isPlaceholder(key) {
 					continue
 				}
 				findings = append(findings, finding{path: path, line: lineNumber + 1, key: key})
