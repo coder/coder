@@ -1,113 +1,122 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fireEvent, userEvent, within } from "storybook/test";
+import type {
+	DeploymentStats,
+	SessionCountDeploymentStats,
+} from "#/api/typesGenerated";
 import {
 	DeploymentHealthUnhealthy,
 	MockDeploymentStats,
 } from "#/testHelpers/entities";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
-const statsWithUnknownApp = {
+const statsWithSessionCount = (
+	sessionCount: Partial<SessionCountDeploymentStats> = {},
+): DeploymentStats => ({
 	...MockDeploymentStats,
 	session_count: {
-		...MockDeploymentStats.session_count,
-		vscode: 0,
-		jetbrains: 0,
-		ssh: 0,
-		reconnecting_pty: 0,
-		session_counts: {
-			unknown_app: 3,
-		},
-		apps: {},
-	},
-};
-
-const statsWithNoActiveConnections = {
-	...MockDeploymentStats,
-	session_count: {
-		...MockDeploymentStats.session_count,
 		vscode: 0,
 		jetbrains: 0,
 		ssh: 0,
 		reconnecting_pty: 0,
 		session_counts: {},
 		apps: {},
+		...sessionCount,
 	},
-};
+});
 
-const statsWithManyApps = {
-	...MockDeploymentStats,
-	session_count: {
-		...MockDeploymentStats.session_count,
-		ssh: 39,
-		session_counts: {
-			cursor: 24,
-			jetbrains: 5,
-			ssh: 32,
-			vscode: 128,
-			reconnecting_pty: 15,
-			zero_count: 0,
-			negative_count: -1,
-			zed: 7,
-		},
-		apps: {
-			...MockDeploymentStats.session_count.apps,
-			zed: {
-				display_name: "Zed",
-				icon: "/icon/zed.svg",
-			},
-		},
-	},
-};
+const statsWithUnknownApp = statsWithSessionCount({
+	session_counts: { unknown_app: 3 },
+});
 
-const statsWithLongAppNames = {
-	...MockDeploymentStats,
-	session_count: {
-		...MockDeploymentStats.session_count,
-		session_counts: {
-			long_name: 1,
-		},
-		apps: {
-			long_name: {
-				display_name:
-					"A workspace application with an intentionally long display name",
-			},
-		},
-	},
-};
+const statsWithNoActiveConnections = statsWithSessionCount({});
 
-const statsWithAppWithoutIcon = {
-	...MockDeploymentStats,
-	session_count: {
-		...MockDeploymentStats.session_count,
-		session_counts: {
-			vscodium: 4,
-			trae: 2,
-		},
-		apps: {
-			vscodium: {
-				display_name: "VSCodium",
-			},
-			trae: {
-				display_name: "Trae",
-			},
+const statsWithManyApps = statsWithSessionCount({
+	vscode: 152,
+	jetbrains: 5,
+	ssh: 39,
+	reconnecting_pty: 15,
+	session_counts: {
+		cursor: 24,
+		jetbrains: 5,
+		ssh: 32,
+		vscode: 128,
+		reconnecting_pty: 15,
+		zero_count: 0,
+		negative_count: -1,
+		zed: 7,
+	},
+	apps: {
+		...MockDeploymentStats.session_count.apps,
+		zed: {
+			display_name: "Zed",
+			icon: "/icon/zed.svg",
 		},
 	},
-};
-const statsWithBrokenIcon = {
-	...MockDeploymentStats,
-	session_count: {
-		...MockDeploymentStats.session_count,
-		session_counts: {
-			cursor: 24,
-		},
-		apps: {
-			cursor: {
-				display_name: "Cursor",
-				icon: "/icon/does-not-exist.svg",
-			},
+});
+
+const statsWithLongAppNames = statsWithSessionCount({
+	session_counts: { long_name: 1 },
+	apps: {
+		long_name: {
+			display_name:
+				"A workspace application with an intentionally long display name",
 		},
 	},
-};
+});
+
+const statsWithAppWithoutIcon = statsWithSessionCount({
+	vscode: 6,
+	session_counts: {
+		vscodium: 4,
+		trae: 2,
+	},
+	apps: {
+		vscodium: { display_name: "VSCodium" },
+		trae: { display_name: "Trae" },
+	},
+});
+
+const statsWithBrokenIcon = statsWithSessionCount({
+	vscode: 24,
+	session_counts: { cursor: 24 },
+	apps: {
+		cursor: {
+			display_name: "Cursor",
+			icon: "/icon/does-not-exist.svg",
+		},
+	},
+});
+
+const statsWithFourApps = statsWithSessionCount({
+	vscode: 152,
+	ssh: 32,
+	reconnecting_pty: 15,
+	session_counts: {
+		vscode: 128,
+		ssh: 32,
+		cursor: 24,
+		reconnecting_pty: 15,
+	},
+	apps: MockDeploymentStats.session_count.apps,
+});
+
+const statsWithTiedCounts = statsWithSessionCount({
+	session_counts: {
+		zulu: 2,
+		echo: 1,
+		delta: 1,
+		charlie: 1,
+		bravo: 1,
+		alpha: 1,
+	},
+});
+
+const statsWithLargeOverflow = statsWithSessionCount({
+	session_counts: Object.fromEntries(
+		Array.from({ length: 65 }, (_, i) => [`custom_application_${i}`, 65 - i]),
+	),
+});
 
 const meta: Meta<typeof DeploymentBannerView> = {
 	title: "modules/dashboard/DeploymentBannerView",
@@ -148,19 +157,7 @@ export const ManyApps: Story = {
 
 export const FourApps: Story = {
 	args: {
-		stats: {
-			...MockDeploymentStats,
-			session_count: {
-				...MockDeploymentStats.session_count,
-				jetbrains: 0,
-				session_counts: {
-					vscode: 128,
-					ssh: 32,
-					cursor: 24,
-					reconnecting_pty: 15,
-				},
-			},
-		},
+		stats: statsWithFourApps,
 	},
 };
 
@@ -242,46 +239,14 @@ export const UnknownAppFamilyTotals: Story = {
 
 export const TiedCounts: Story = {
 	args: {
-		stats: {
-			...MockDeploymentStats,
-			session_count: {
-				vscode: 0,
-				jetbrains: 0,
-				ssh: 0,
-				reconnecting_pty: 0,
-				session_counts: {
-					zulu: 2,
-					echo: 1,
-					delta: 1,
-					charlie: 1,
-					bravo: 1,
-					alpha: 1,
-				},
-				apps: {},
-			},
-		},
+		stats: statsWithTiedCounts,
 	},
 	play: OverflowOpen.play,
 };
 
 export const LargeOverflow: Story = {
 	args: {
-		stats: {
-			...MockDeploymentStats,
-			session_count: {
-				vscode: 0,
-				jetbrains: 0,
-				ssh: 0,
-				reconnecting_pty: 0,
-				session_counts: Object.fromEntries(
-					Array.from({ length: 65 }, (_, i) => [
-						`custom_application_${i}`,
-						65 - i,
-					]),
-				),
-				apps: {},
-			},
-		},
+		stats: statsWithLargeOverflow,
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(

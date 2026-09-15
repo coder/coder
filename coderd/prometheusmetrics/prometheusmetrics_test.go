@@ -751,7 +751,6 @@ func TestAgentStats(t *testing.T) {
 			case "coderd_prometheusmetrics_agentstats_execution_seconds":
 				executionSeconds = true
 			case "coderd_agentstats_session_count":
-				// Old-agent reports also populate the dynamic gauge.
 				perAppCounts = len(metric.Metric) == 12
 				for _, sample := range metric.Metric {
 					labels := map[string]string{}

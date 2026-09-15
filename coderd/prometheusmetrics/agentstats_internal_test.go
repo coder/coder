@@ -24,7 +24,9 @@ func TestStageAgentSessionCounts(t *testing.T) {
 		name              string
 		aggregateByLabels []string
 		stats             []database.GetWorkspaceAgentStatsAndLabelsRow
-		want              map[string]float64
+		want              []gaugeSample
+		emptySnapshot     bool
+		stages            bool
 	}{
 		{
 			name:              "app names families and unknown are labeled",
@@ -35,12 +37,13 @@ func TestStageAgentSessionCounts(t *testing.T) {
 				AgentName:     "agent",
 				SessionCounts: json.RawMessage(`{"cursor":2,"vscode":3,"zed":4,"my future editor":5}`),
 			}},
-			want: map[string]float64{
-				"agent:cursor:vscode:alice:workspace":            2,
-				"agent:vscode:vscode:alice:workspace":            3,
-				"agent:zed:ssh:alice:workspace":                  4,
-				"agent:my future editor:unknown:alice:workspace": 5,
+			want: []gaugeSample{
+				{map[string]string{"agent_name": "agent", "app_name": "cursor", "family": "vscode", "username": "alice", "workspace_name": "workspace"}, 2},
+				{map[string]string{"agent_name": "agent", "app_name": "my future editor", "family": "unknown", "username": "alice", "workspace_name": "workspace"}, 5},
+				{map[string]string{"agent_name": "agent", "app_name": "vscode", "family": "vscode", "username": "alice", "workspace_name": "workspace"}, 3},
+				{map[string]string{"agent_name": "agent", "app_name": "zed", "family": "ssh", "username": "alice", "workspace_name": "workspace"}, 4},
 			},
+			stages: true,
 		},
 		{
 			name:              "reduced identity labels sum collisions",
@@ -49,10 +52,11 @@ func TestStageAgentSessionCounts(t *testing.T) {
 				{Username: "alice", WorkspaceName: "one", AgentName: "one", SessionCounts: json.RawMessage(`{"cursor":2,"vscode":3}`)},
 				{Username: "alice", WorkspaceName: "two", AgentName: "two", SessionCounts: json.RawMessage(`{"cursor":7,"vscode":11}`)},
 			},
-			want: map[string]float64{
-				"cursor:vscode:alice": 9,
-				"vscode:vscode:alice": 14,
+			want: []gaugeSample{
+				{map[string]string{"app_name": "cursor", "family": "vscode", "username": "alice"}, 9},
+				{map[string]string{"app_name": "vscode", "family": "vscode", "username": "alice"}, 14},
 			},
+			stages: true,
 		},
 		{
 			name:              "empty session counts create no series",
@@ -61,7 +65,28 @@ func TestStageAgentSessionCounts(t *testing.T) {
 				Username:      "alice",
 				SessionCounts: json.RawMessage(`null`),
 			}},
-			want: map[string]float64{},
+			want:   []gaugeSample{},
+			stages: true,
+		},
+		{
+			name:              "malformed counts create no series",
+			aggregateByLabels: []string{agentmetrics.LabelUsername},
+			stats: []database.GetWorkspaceAgentStatsAndLabelsRow{{
+				Username:      "alice",
+				SessionCounts: json.RawMessage(`not-json`),
+			}},
+			want: []gaugeSample{},
+		},
+		{
+			name:              "empty snapshot removes series",
+			aggregateByLabels: []string{agentmetrics.LabelUsername},
+			stats: []database.GetWorkspaceAgentStatsAndLabelsRow{{
+				Username:      "alice",
+				SessionCounts: json.RawMessage(`{"cursor":2}`),
+			}},
+			want:          []gaugeSample{{map[string]string{"app_name": "cursor", "family": "vscode", "username": "alice"}, 2}},
+			emptySnapshot: true,
+			stages:        true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -69,50 +94,18 @@ func TestStageAgentSessionCounts(t *testing.T) {
 
 			gauge := newSessionCountGauge(tc.aggregateByLabels)
 			for _, stat := range tc.stats {
-				stageAgentSessionCounts(context.Background(), slogtest.Make(t, nil), stat, agentStatsLabelValues(stat, tc.aggregateByLabels), gauge)
+				_, stages := stageAgentSessionCounts(context.Background(), slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), stat, agentStatsLabelValues(stat, tc.aggregateByLabels), gauge)
+				require.Equal(t, tc.stages, stages)
 			}
 			gauge.Commit()
 
-			require.Equal(t, tc.want, collectGaugeValues(t, gauge))
-			if tc.name == "app names families and unknown are labeled" {
-				require.Equal(t, []map[string]string{
-					{"agent_name": "agent", "app_name": "cursor", "family": "vscode", "username": "alice", "workspace_name": "workspace"},
-					{"agent_name": "agent", "app_name": "my future editor", "family": "unknown", "username": "alice", "workspace_name": "workspace"},
-					{"agent_name": "agent", "app_name": "vscode", "family": "vscode", "username": "alice", "workspace_name": "workspace"},
-					{"agent_name": "agent", "app_name": "zed", "family": "ssh", "username": "alice", "workspace_name": "workspace"},
-				}, collectGaugeLabels(t, gauge))
+			require.Equal(t, tc.want, collectGaugeSamples(t, gauge))
+			if tc.emptySnapshot {
+				gauge.Commit()
+				require.Empty(t, collectGaugeSamples(t, gauge))
 			}
 		})
 	}
-}
-
-func TestStageAgentSessionCounts_MalformedStagesNoSessionMetrics(t *testing.T) {
-	t.Parallel()
-
-	gauge := newSessionCountGauge([]string{agentmetrics.LabelUsername})
-	_, ok := stageAgentSessionCounts(context.Background(), slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), database.GetWorkspaceAgentStatsAndLabelsRow{
-		Username:      "alice",
-		SessionCounts: json.RawMessage(`not-json`),
-	}, []string{"alice"}, gauge)
-	require.False(t, ok)
-	gauge.Commit()
-	require.Empty(t, collectGaugeValues(t, gauge))
-}
-
-func TestStageAgentSessionCounts_EmptySnapshotRemovesSeries(t *testing.T) {
-	t.Parallel()
-
-	gauge := newSessionCountGauge([]string{agentmetrics.LabelUsername})
-	stat := database.GetWorkspaceAgentStatsAndLabelsRow{
-		Username:      "alice",
-		SessionCounts: json.RawMessage(`{"cursor":2}`),
-	}
-	stageAgentSessionCounts(context.Background(), slogtest.Make(t, nil), stat, []string{"alice"}, gauge)
-	gauge.Commit()
-	require.Equal(t, map[string]float64{"cursor:vscode:alice": 2}, collectGaugeValues(t, gauge))
-
-	gauge.Commit()
-	require.Empty(t, collectGaugeValues(t, gauge))
 }
 
 func BenchmarkStageAgentSessionCounts(b *testing.B) {
@@ -177,7 +170,12 @@ func agentStatsLabelValues(agentStat database.GetWorkspaceAgentStatsAndLabelsRow
 	return labelValues
 }
 
-func collectGaugeLabels(t *testing.T, collector prometheus.Collector) []map[string]string {
+type gaugeSample struct {
+	labels map[string]string
+	value  float64
+}
+
+func collectGaugeSamples(t *testing.T, collector prometheus.Collector) []gaugeSample {
 	t.Helper()
 
 	registry := prometheus.NewRegistry()
@@ -185,47 +183,20 @@ func collectGaugeLabels(t *testing.T, collector prometheus.Collector) []map[stri
 	families, err := registry.Gather()
 	require.NoError(t, err)
 	if len(families) == 0 {
-		return nil
+		return []gaugeSample{}
 	}
 
-	labels := make([]map[string]string, 0, len(families[0].Metric))
+	samples := make([]gaugeSample, 0, len(families[0].Metric))
 	for _, metric := range families[0].Metric {
-		values := make(map[string]string, len(metric.Label))
+		labels := make(map[string]string, len(metric.Label))
 		for _, label := range metric.Label {
-			values[label.GetName()] = label.GetValue()
+			labels[label.GetName()] = label.GetValue()
 		}
-		labels = append(labels, values)
+		samples = append(samples, gaugeSample{labels, metric.GetGauge().GetValue()})
 	}
-	return labels
+	return samples
 }
 
-func collectGaugeValues(t *testing.T, collector prometheus.Collector) map[string]float64 {
-	t.Helper()
-
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(collector)
-	families, err := registry.Gather()
-	require.NoError(t, err)
-
-	values := make(map[string]float64)
-	if len(families) == 0 {
-		return values
-	}
-	for _, metric := range families[0].Metric {
-		key := ""
-		for i, label := range metric.Label {
-			if i > 0 {
-				key += ":"
-			}
-			key += label.GetValue()
-		}
-		values[key] = metric.GetGauge().GetValue()
-	}
-	return values
-}
-
-// sessionStatsStore gates each poll so snapshots are inspected before the next
-// refresh. Both query paths use the same responses.
 type sessionStatsStore struct {
 	database.Store
 	responses chan sessionStatsResponse

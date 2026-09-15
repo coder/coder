@@ -299,14 +299,16 @@ const ActiveConnections: FC<{
 }> = ({ sessionCount }) => {
 	const applications = Object.entries(sessionCount?.session_counts ?? {})
 		.filter(([, count]) => count > 0)
-		.map(([id, count]) => ({ id, count, app: sessionCount?.apps[id] }))
+		.map(([id, count]) => ({
+			id,
+			count,
+			app: sessionCount?.apps[id],
+			name: sessionCount?.apps[id]?.display_name || id,
+		}))
 		.sort(
 			(first, second) =>
 				second.count - first.count ||
-				(first.app?.display_name || first.id).localeCompare(
-					second.app?.display_name || second.id,
-					"en-US",
-				) ||
+				first.name.localeCompare(second.name, "en-US") ||
 				first.id.localeCompare(second.id, "en-US"),
 		);
 
@@ -390,12 +392,12 @@ const ActiveConnections: FC<{
 					applications.length > 0 ? (
 						applications
 							.slice(0, 4)
-							.map(({ id, count, app }, index) => (
+							.map(({ id, name, count, app }, index) => (
 								<ActiveConnection
 									key={`${id}:${app?.icon ?? ""}`}
 									app={app}
 									count={count}
-									id={id}
+									name={name}
 									showSeparator={index > 0}
 								/>
 							))
@@ -423,15 +425,13 @@ const ActiveConnections: FC<{
 							className="p-3 text-xs"
 						>
 							<ul className="m-0 grid list-none gap-3 p-0">
-								{applications.slice(4).map(({ id, count, app }) => (
+								{applications.slice(4).map(({ id, name, count, app }) => (
 									<li
 										key={`${id}:${app?.icon ?? ""}`}
 										className="flex items-center gap-2"
 									>
-										<AppIcon icon={app?.icon} name={app?.display_name || id} />
-										<span className="min-w-0 flex-1 break-words">
-											{app?.display_name || id}
-										</span>
+										<AppIcon icon={app?.icon} name={name} />
+										<span className="min-w-0 flex-1 break-words">{name}</span>
 										<span>{count}</span>
 									</li>
 								))}
@@ -447,11 +447,9 @@ const ActiveConnections: FC<{
 const ActiveConnection: FC<{
 	app?: DeploymentStats["session_count"]["apps"][string];
 	count: number;
-	id: string;
+	name: string;
 	showSeparator: boolean;
-}> = ({ app, count, id, showSeparator }) => {
-	const displayName = app?.display_name || id;
-	const accessibleName = `${displayName}: ${count} active connections`;
+}> = ({ app, count, name, showSeparator }) => {
 	const showName = !app?.icon?.startsWith("/icon/");
 
 	return (
@@ -461,20 +459,18 @@ const ActiveConnection: FC<{
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<div
-							aria-label={accessibleName}
+							aria-label={`${name}: ${count} active connections`}
 							className="flex items-center gap-1"
 							role="img"
 							// biome-ignore lint/a11y/noNoninteractiveTabindex: role="img" supplies a keyboard tooltip trigger for icon-only connection counts.
 							tabIndex={0}
 						>
-							<AppIcon icon={app?.icon} name={displayName} />
-							{showName && (
-								<span className="max-w-32 truncate">{displayName}</span>
-							)}
+							<AppIcon icon={app?.icon} name={name} />
+							{showName && <span className="max-w-32 truncate">{name}</span>}
 							{count}
 						</div>
 					</TooltipTrigger>
-					<TooltipContent>{displayName}</TooltipContent>
+					<TooltipContent>{name}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 		</>

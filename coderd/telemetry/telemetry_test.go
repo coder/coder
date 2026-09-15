@@ -154,8 +154,6 @@ func TestTelemetry(t *testing.T) {
 
 		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			ConnectionMedianLatencyMS: 1,
-			// Preserve normalized per-app counts in telemetry while retaining the
-			// compatibility totals grouped by app family.
 			SessionCounts: dbgen.SessionCounts(t, map[string]int64{
 				"cursor":  2,
 				"vscode":  1,

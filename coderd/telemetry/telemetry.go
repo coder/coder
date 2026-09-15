@@ -1151,9 +1151,7 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 	}
 }
 
-// ConvertWorkspaceAgentStat anonymizes a workspace agent stat. The query sums
-// sessions per app name, so a session reported under a name this version does
-// not know about is counted here rather than dropped.
+// ConvertWorkspaceAgentStat converts a stat to telemetry, retaining unknown apps.
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
 	sessionCounts, err := codersdk.DecodeSessionCounts(stat.SessionCounts)
 	if err != nil {

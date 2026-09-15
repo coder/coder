@@ -62,17 +62,13 @@ var sessionApps = map[string]struct {
 	"reconnecting_pty": {AppFamilyReconnectingPTY, SessionCountApp{"Web Terminal", "/icon/terminal.svg"}},
 }
 
-// SessionCountAppMetadata looks up presentation metadata for a normalized app
-// name. Unknown names have no curated metadata; callers display the identifier.
+// SessionCountAppMetadata returns metadata for a recognized, normalized app name.
 func SessionCountAppMetadata(appName string) (SessionCountApp, bool) {
 	app, ok := sessionApps[appName]
 	return app.SessionCountApp, ok
 }
 
-// SessionCountAppFamilies returns the app-to-family attribution registry: one
-// entry per known app name, mapped to the family it reports under. Callers
-// that need a fixed family value derive it from this map, so registering a
-// new app or family means editing sessionApps alone.
+// SessionCountAppFamilies returns a copy of the registry's app-to-family mapping.
 func SessionCountAppFamilies() map[string]AppFamilyName {
 	families := make(map[string]AppFamilyName, len(sessionApps))
 	for name, app := range sessionApps {
@@ -81,10 +77,8 @@ func SessionCountAppFamilies() map[string]AppFamilyName {
 	return families
 }
 
-// SessionCountAppFamiliesJSON is SessionCountAppFamilies marshaled as the
-// jsonb object of app name to family name that the minute aggregation queries
-// decompose with jsonb_each_text. Queries join it by app name, so no query
-// names a family and no family needs its own column or probe.
+// SessionCountAppFamiliesJSON returns the registry as JSON for query-side
+// family aggregation without hardcoded app names in SQL.
 func SessionCountAppFamiliesJSON() json.RawMessage {
 	// Marshaling a map with string-kinded keys and values cannot fail.
 	data, err := json.Marshal(SessionCountAppFamilies())
@@ -94,11 +88,7 @@ func SessionCountAppFamiliesJSON() json.RawMessage {
 	return data
 }
 
-// SessionCountsByFamily folds per-app session counts, as the session count
-// queries report them, into per-family totals. Counts are additive: an agent
-// running Cursor and VS Code at once contributes both to the VS Code family.
-// App names with no registry entry total under AppFamilyUnknown rather than
-// being dropped.
+// SessionCountsByFamily sums app counts by family, including AppFamilyUnknown.
 func SessionCountsByFamily(appCounts map[string]int64) map[AppFamilyName]int64 {
 	familyCounts := make(map[AppFamilyName]int64, len(appCounts))
 	for appName, count := range appCounts {
@@ -107,10 +97,8 @@ func SessionCountsByFamily(appCounts map[string]int64) map[AppFamilyName]int64 {
 	return familyCounts
 }
 
-// SessionCountsByFamilyJSON is SessionCountsByFamily over the jsonb object of
-// app name to session count that the session count queries return. An absent
-// or JSON null object means no sessions, not an error, because a query with
-// no matching rows aggregates to SQL NULL.
+// SessionCountsByFamilyJSON decodes and groups database counts by family.
+// Absent or JSON null payloads mean no sessions.
 func SessionCountsByFamilyJSON(appCounts json.RawMessage) (map[AppFamilyName]int64, error) {
 	counts, err := DecodeSessionCounts(appCounts)
 	if err != nil {
