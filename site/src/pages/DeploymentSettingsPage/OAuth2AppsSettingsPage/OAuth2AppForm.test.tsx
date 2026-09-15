@@ -72,6 +72,34 @@ describe("OAuth2AppForm", () => {
 		);
 	});
 
+	it("lets the admin retry a failed catalog load and then pick a scope", async () => {
+		vi.spyOn(API, "getExternalAPIKeyScopes")
+			.mockRejectedValueOnce(new Error("catalog unavailable"))
+			.mockResolvedValueOnce(MockExternalAPIKeyScopes);
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={MockOAuth2ProviderApps[0]}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: /retry/i }));
+		await selectScope(user, "workspace:ssh");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ scope: "workspace:ssh" }),
+			),
+		);
+	});
+
 	it("keeps the configured scopes when the catalog fails to load", async () => {
 		vi.spyOn(API, "getExternalAPIKeyScopes").mockRejectedValue(
 			new Error("catalog unavailable"),

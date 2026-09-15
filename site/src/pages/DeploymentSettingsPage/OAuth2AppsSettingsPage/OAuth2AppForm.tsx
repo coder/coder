@@ -213,12 +213,24 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 						}
 					/>
 					{scopesQuery.isError && (
-						<span className="text-xs text-content-destructive">
-							{getErrorMessage(
-								scopesQuery.error,
-								"Failed to load the list of scopes.",
-							)}
-						</span>
+						<div className="flex items-center gap-3">
+							<span className="text-xs text-content-destructive">
+								{getErrorMessage(
+									scopesQuery.error,
+									"Failed to load the list of scopes.",
+								)}
+							</span>
+							<Button
+								type="button"
+								variant="outline"
+								size="xs"
+								disabled={scopesQuery.isFetching}
+								onClick={() => void scopesQuery.refetch()}
+							>
+								<Spinner loading={scopesQuery.isFetching} />
+								Retry
+							</Button>
+						</div>
 					)}
 				</div>
 
