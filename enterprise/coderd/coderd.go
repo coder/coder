@@ -99,6 +99,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
+	if options.UsagePublishHealth == nil {
+		options.UsagePublishHealth = &usage.PublishHealth{}
+	}
 	if options.UsageInserter == nil {
 		options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
 	}
@@ -881,6 +884,7 @@ type Options struct {
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	LicenseKeys                map[string]ed25519.PublicKey
+	UsagePublishHealth         *usage.PublishHealth
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
