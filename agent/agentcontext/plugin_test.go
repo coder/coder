@@ -756,15 +756,20 @@ func TestManager_MCPCatalogPluginNamePassthrough(t *testing.T) {
 			return []agentcontext.MCPServerStatus{
 				{Name: "srv", Connected: true, PluginName: "p", Tools: []agentcontext.MCPTool{{Name: "echo"}}},
 				{Name: "down", Connected: false, PluginName: "p", Err: "boom"},
+				{Name: "srv", Connected: true, Tools: []agentcontext.MCPTool{{Name: "echo"}}},
 			}
 		},
 	})
 
+	// A plugin server and a workspace server share the name "srv".
 	snap := m.Snapshot()
-	up := findResource(t, snap.Resources, agentcontext.KindMCPServer, "srv")
+	up := findResource(t, snap.Resources, agentcontext.KindMCPServer, "p/srv")
 	require.Equal(t, "p", up.PluginName)
-	down := findResource(t, snap.Resources, agentcontext.KindMCPServer, "down")
+	require.Equal(t, "srv", up.Name)
+	down := findResource(t, snap.Resources, agentcontext.KindMCPServer, "p/down")
 	require.Equal(t, "p", down.PluginName)
+	plain := findResource(t, snap.Resources, agentcontext.KindMCPServer, "srv")
+	require.Empty(t, plain.PluginName)
 }
 
 func TestPlugin_SnapshotPluginsFollowScanRootOrder(t *testing.T) {

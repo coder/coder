@@ -52,7 +52,10 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 	}
 	sorted := slices.Clone(servers)
 	slices.SortFunc(sorted, func(a, b MCPServerStatus) int {
-		return strings.Compare(a.Name, b.Name)
+		if c := strings.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+		return strings.Compare(a.PluginName, b.PluginName)
 	})
 
 	resources := make([]Resource, 0, len(sorted))
@@ -60,15 +63,16 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 		if s.Name == "" {
 			continue
 		}
+		source := mcpServerSource(s)
 		if !s.Connected {
 			errMsg := s.Err
 			if errMsg == "" {
 				errMsg = "failed to connect"
 			}
 			resources = append(resources, Resource{
-				ID:          resourceID(KindMCPServer, s.Name),
+				ID:          resourceID(KindMCPServer, source),
 				Kind:        KindMCPServer,
-				Source:      s.Name,
+				Source:      source,
 				Name:        s.Name,
 				Status:      StatusUnreadable,
 				Error:       errMsg,
@@ -85,9 +89,9 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 			return strings.Compare(a.Name, b.Name)
 		})
 		resources = append(resources, Resource{
-			ID:          resourceID(KindMCPServer, s.Name),
+			ID:          resourceID(KindMCPServer, source),
 			Kind:        KindMCPServer,
-			Source:      s.Name,
+			Source:      source,
 			Name:        s.Name,
 			Status:      StatusOK,
 			ContentHash: hashMCPServer(s.Name, serverTools),
@@ -135,4 +139,14 @@ func hashMCPServerError(server, errMsg string) [32]byte {
 	var sum [32]byte
 	copy(sum[:], h.Sum(nil))
 	return sum
+}
+
+// mcpServerSource returns the bare server name, or "<plugin>/<name>"
+// for plugin servers so they keep their own resource when a name
+// collides with another server.
+func mcpServerSource(s MCPServerStatus) string {
+	if s.PluginName == "" {
+		return s.Name
+	}
+	return s.PluginName + "/" + s.Name
 }

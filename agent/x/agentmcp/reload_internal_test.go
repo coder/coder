@@ -750,3 +750,59 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 	err = m.Close()
 	assert.NoError(t, err, "Close should not propagate subprocess kill errors")
 }
+
+// TestReloadSources_ConcurrentCallerAppliesItsSources verifies that a
+// caller which joins another caller's in-flight reload still gets its
+// own source list applied once that reload settles.
+func TestReloadSources_ConcurrentCallerAppliesItsSources(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dirA := t.TempDir()
+	dirB := t.TempDir()
+
+	_, entryA := fakeMCPServerConfig(t, "alpha")
+	pathA := writeMCPConfig(t, dirA, map[string]mcpServerEntry{"alpha": entryA})
+	_, entryB := fakeMCPServerConfig(t, "beta")
+	pathB := writeMCPConfig(t, dirB, map[string]mcpServerEntry{"beta": entryB})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	var hookOnce sync.Once
+	m.mu.Lock()
+	m.connectStartedHook = func() {
+		hookOnce.Do(func() { close(reached) })
+		<-release
+	}
+	m.mu.Unlock()
+
+	// The first reload blocks inside connectAll while holding the
+	// singleflight slot.
+	firstDone := make(chan error, 1)
+	go func() { firstDone <- m.Reload(ctx, []string{pathA}) }()
+	testutil.TryReceive(ctx, t, reached)
+
+	// The second caller joins the in-flight body, which was started for
+	// pathA only.
+	secondDone := make(chan error, 1)
+	go func() { secondDone <- m.Reload(ctx, []string{pathA, pathB}) }()
+
+	close(release)
+	require.NoError(t, testutil.RequireReceive(ctx, t, firstDone))
+	require.NoError(t, testutil.RequireReceive(ctx, t, secondDone))
+
+	tools := m.connectedTools()
+	require.Equal(t, []catalogTool{
+		{server: "alpha", tool: "echo"},
+		{server: "beta", tool: "echo"},
+	}, tools)
+}
