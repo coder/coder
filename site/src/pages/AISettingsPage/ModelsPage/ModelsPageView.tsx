@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -54,6 +54,9 @@ import {
 
 const MODELS_PAGE_SIZE = 10;
 const ALL_PROVIDERS_VALUE = "all";
+const PROVIDER_PARAM = "provider";
+const SEARCH_PARAM = "search";
+const PAGE_PARAM = "page";
 
 const AddModelDropdown: FC<{
 	providerStates: readonly ProviderState[];
@@ -121,12 +124,26 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	canCreateModel,
 }) => {
 	const navigate = useNavigate();
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { organization, accessibleOrganizations } = useOrganizationModels();
-	const [page, setPage] = useState(1);
-	const [searchQuery, setSearchQuery] = useState("");
-	const [providerFilter, setProviderFilter] =
-		useState<string>(ALL_PROVIDERS_VALUE);
+
+	// Keep filter state in the URL so it persists across navigation.
+	const providerFilter =
+		searchParams.get(PROVIDER_PARAM) ?? ALL_PROVIDERS_VALUE;
+	const searchQuery = searchParams.get(SEARCH_PARAM) ?? "";
+	const rawPage = Number.parseInt(searchParams.get(PAGE_PARAM) ?? "1", 10);
+	const page = Number.isNaN(rawPage) || rawPage <= 0 ? 1 : rawPage;
+
+	const updateSearchParams = (mutate: (params: URLSearchParams) => void) => {
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				mutate(next);
+				return next;
+			},
+			{ replace: true },
+		);
+	};
 
 	const providerKeyByModelId = useMemo(() => {
 		const map = new Map<string, string>();
@@ -205,13 +222,35 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		searchQuery.trim().length > 0 || providerFilter !== ALL_PROVIDERS_VALUE;
 
 	const handleSearchChange = (value: string) => {
-		setSearchQuery(value);
-		setPage(1);
+		updateSearchParams((params) => {
+			if (value) {
+				params.set(SEARCH_PARAM, value);
+			} else {
+				params.delete(SEARCH_PARAM);
+			}
+			params.delete(PAGE_PARAM);
+		});
 	};
 
 	const handleProviderChange = (value: string) => {
-		setProviderFilter(value);
-		setPage(1);
+		updateSearchParams((params) => {
+			if (value && value !== ALL_PROVIDERS_VALUE) {
+				params.set(PROVIDER_PARAM, value);
+			} else {
+				params.delete(PROVIDER_PARAM);
+			}
+			params.delete(PAGE_PARAM);
+		});
+	};
+
+	const handlePageChange = (newPage: number) => {
+		updateSearchParams((params) => {
+			if (newPage <= 1) {
+				params.delete(PAGE_PARAM);
+			} else {
+				params.set(PAGE_PARAM, String(newPage));
+			}
+		});
 	};
 
 	return (
@@ -349,7 +388,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 							currentPage={clampedPage}
 							pageSize={MODELS_PAGE_SIZE}
 							totalRecords={filteredModels.length}
-							onPageChange={setPage}
+							onPageChange={handlePageChange}
 							hasPreviousPage={hasPreviousPage}
 							hasNextPage={hasNextPage}
 						/>

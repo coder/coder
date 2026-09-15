@@ -21,7 +21,7 @@
 		"front-matter": "4.0.2",
 		"hast-util-whitespace": "3.0.0",
 		"lodash": "4.18.1",
-		"next": "15.5.23",
+		"next": "15.5.24",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"react-icons": "5.7.0",

@@ -20,8 +20,12 @@
 		"tabindex-no-positive": "error",
 		"img-redundant-alt": "error",
 		"no-redundant-roles": "error",
+		"role-has-required-aria-props": "error",
+		"role-supports-aria-props": "error",
 		"alt-text": "error",
 		"anchor-has-content": "error",
+		"anchor-ambiguous-text": "error",
+		"heading-has-content": "error",
 		"aria-activedescendant-has-tabindex": "error",
 		"mouse-events-have-key-events": "error",
 		"anchor-is-valid": "error",
@@ -31,6 +35,7 @@
 		"autocomplete-valid": "error",
 		"html-has-lang": "error",
 		"lang": "error",
+		"media-has-caption": "error",
 
 		// --- complexity ---
 		"no-regex-spaces": "error",
@@ -117,6 +122,7 @@
 		// --- style (recommended) ---
 		"no-array-constructor": "error",
 		"prefer-exponentiation-operator": "error",
+		"consistent-type-imports": "error",
 		"consistent-type-exports": "error",
 		"prefer-literal-enum-member": "error",
 		"prefer-node-protocol": "error",
@@ -128,6 +134,7 @@
 		"one-var": ["error", "never"],
 		"prefer-number-properties": ["error", { "checkInfinity": true }],
 		"no-else-return": ["error", { "allowElseIf": false }],
+		"jsx-curly-brace-presence": "error",
 
 		// --- suspicious ---
 		"no-cond-assign": "error",
@@ -178,6 +185,8 @@
 		"no-export": "error",
 		"new-for-builtins": "error",
 		"no-explicit-any": "error",
+		"no-irregular-whitespace": "error",
+		"no-redeclare": "error",
 		"no-use-before-define": [
 			"error",
 			{ "functions": false, "classes": false, "variables": false }
@@ -198,22 +207,13 @@
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
-		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
-		"role-has-required-aria-props": "off", // a11y/useAriaPropsForRole (medium)
-		"no-irregular-whitespace": "off", // suspicious/noIrregularWhitespace (medium)
 		"no-inferrable-types": "off", // style/noInferrableTypes (medium, coder error rule)
-		"consistent-type-imports": "off", // style/useImportType (medium)
-		"jsx-curly-brace-presence": "off", // style/useConsistentCurlyBraces (medium, coder error rule)
-		"heading-has-content": "off", // a11y/useHeadingContent (medium)
-		"anchor-ambiguous-text": "off", // a11y/noAmbiguousAnchorText (medium)
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
-		"role-supports-aria-props": "off", // a11y/useAriaPropsSupportedByRole (small)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
 		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
-		"media-has-caption": "off", // a11y/useMediaCaption (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 		"prefer-template": "off", // style/useTemplate (small)

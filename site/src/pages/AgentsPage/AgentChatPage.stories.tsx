@@ -1552,9 +1552,6 @@ export const NoLocalModelDisablesGeneration: Story = {
 				name: "The model used by this chat is not available. Generation is disabled because no usable model is available.",
 			}),
 		).toBeVisible();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(sendSpy).not.toHaveBeenCalled();
 	},

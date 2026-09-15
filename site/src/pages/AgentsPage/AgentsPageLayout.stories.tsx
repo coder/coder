@@ -564,10 +564,13 @@ export const ResizableSidebar: Story = {
 
 		const sidebarWidth = () =>
 			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+		// Synthetic pointer events default isPrimary to false; a real mouse
+		// always reports true, and the handle ignores non-primary pointers.
+		const pointer = { pointerId: 1, isPrimary: true };
 		const dragSidebar = (fromX: number, toX: number) => {
-			fireEvent.pointerDown(handle, { clientX: fromX, pointerId: 1 });
-			fireEvent.pointerMove(handle, { clientX: toX, pointerId: 1 });
-			fireEvent.pointerUp(handle, { clientX: toX, pointerId: 1 });
+			fireEvent.pointerDown(handle, { ...pointer, clientX: fromX });
+			fireEvent.pointerMove(handle, { ...pointer, clientX: toX });
+			fireEvent.pointerUp(handle, { ...pointer, clientX: toX });
 		};
 
 		const initialWidth = clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
@@ -894,7 +897,7 @@ const agentsWithAgentChatPageRouting = {
 const WATCHED_CHAT_ID = "chat-watched";
 
 // MockChat is owned by MockUserOwner, so the page renders the owner view
-// (composer enabled unless archived) instead of the other-user banner.
+// instead of the other-user banner. Archived chats hide the composer.
 const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: WATCHED_CHAT_ID,
@@ -973,7 +976,6 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText("This agent has been archived and is read-only.");
-		await canvas.findByRole("textbox");
 	},
 };
 
@@ -988,8 +990,7 @@ export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Let the async watch event land; the archived banner unmounts.
-		await canvas.findByRole("textbox");
+		await canvas.findByRole("textbox", { name: "Chat message" });
 		await waitFor(
 			() =>
 				canvas.queryByText("This agent has been archived and is read-only.") ===

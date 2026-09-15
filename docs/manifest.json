@@ -1130,7 +1130,7 @@
 						},
 						{
 							"title": "Tasks to Chats API Migration",
-							"description": "Migrate your integrations from the deprecated Coder Tasks API to the Coder Agents Chats API.",
+							"description": "Migrate your integrations from the removed Coder Tasks API to the Coder Agents Chats API.",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
 						}
 					]
@@ -1145,6 +1145,12 @@
 							"title": "Agent Relay for Cursor",
 							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
 							"path": "./ai-coder/agent-relay/cursor.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Agent Relay for Claude Code",
+							"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
+							"path": "./ai-coder/agent-relay/claude-code.md",
 							"state": ["early access"]
 						}
 					]

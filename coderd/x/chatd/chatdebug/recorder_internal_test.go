@@ -141,8 +141,6 @@ func TestBeginStep_NilService(t *testing.T) {
 	handle, enriched := beginStep(ctx, nil, RecorderOptions{}, OperationGenerate, nil)
 	require.Nil(t, handle)
 	require.Nil(t, attemptSinkFromContext(enriched))
-	_, ok := StepFromContext(enriched)
-	require.False(t, ok)
 }
 
 func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
@@ -163,9 +161,7 @@ func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
 	require.NotNil(t, handle)
 	require.Equal(t, runChatID, handle.stepCtx.ChatID)
 
-	stepCtx, ok := StepFromContext(enriched)
-	require.True(t, ok)
-	require.Equal(t, runChatID, stepCtx.ChatID)
+	require.Same(t, handle.sink, attemptSinkFromContext(enriched))
 }
 
 func TestWrapModel_ReturnsDebugModel(t *testing.T) {

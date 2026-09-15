@@ -1,7 +1,6 @@
 package chattool
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -34,9 +33,6 @@ type SkillMeta struct {
 	// Dir is the absolute path to the skill directory inside
 	// the workspace filesystem.
 	Dir string
-	// MetaFile is the basename of the skill meta file (e.g.
-	// "SKILL.md"). When empty, DefaultSkillMetaFile is used.
-	MetaFile string
 	// Meta is the verbatim skill meta file (SKILL.md) content the
 	// agent pushed in the workspace context snapshot: front-matter
 	// plus body. When present, read_skill serves the body from it
@@ -213,7 +209,7 @@ func bestEffortSkillFiles(
 	if err != nil {
 		return nil
 	}
-	files, err := listSkillFiles(ctx, conn, skill.Dir, cmp.Or(skill.MetaFile, DefaultSkillMetaFile))
+	files, err := listSkillFiles(ctx, conn, skill.Dir, DefaultSkillMetaFile)
 	if err != nil {
 		return nil
 	}

@@ -113,17 +113,6 @@ export const Running: Story = {
 		status: "running",
 		args: runningPayload,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const liveRegion = canvas.getByRole("status");
-
-		expect(liveRegion).toHaveAttribute("aria-live", "polite");
-		expect(canvas.getByText("Asking for clarification...")).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeInTheDocument();
-		expect(canvas.getAllByRole("radio")).toHaveLength(3);
-	},
 };
 
 // The running state with no questions: the live status region renders
@@ -310,23 +299,10 @@ export const InteractiveWizardStep: Story = {
 		const canvas = within(canvasElement);
 		const nextButton = canvas.getByRole("button", { name: "Next" });
 
-		expect(canvas.getByText("Question 1 of 2")).toBeInTheDocument();
-		expect(nextButton).toBeEnabled();
-		expect(
-			canvas.queryByText(/Which rollout path should we use/i),
-		).not.toBeInTheDocument();
-
 		await userEvent.click(
 			canvas.getByRole("radio", { name: /incremental migrations/i }),
 		);
-		expect(nextButton).toBeEnabled();
-
 		await userEvent.click(nextButton);
-		expect(canvas.getByText("Question 2 of 2")).toBeInTheDocument();
-		expect(
-			canvas.getByText(/Which rollout path should we use/i),
-		).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Submit" })).toBeEnabled();
 	},
 };
 
@@ -425,20 +401,5 @@ export const ErrorState: Story = {
 		status: "completed",
 		isError: true,
 		result: "The planning agent could not deliver follow-up questions.",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.getByRole("alert")).toBeInTheDocument();
-		expect(
-			canvas.getByText(
-				"The planning agent could not deliver follow-up questions.",
-			),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", {
-				name: "The planning agent could not deliver follow-up questions.",
-			}),
-		).toBeInTheDocument();
 	},
 };

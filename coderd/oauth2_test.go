@@ -2237,3 +2237,48 @@ func TestOAuth2CoderClient(t *testing.T) {
 
 // NOTE: OAuth2 client registration validation tests have been migrated to
 // oauth2provider/validation_test.go for better separation of concerns
+
+// TestOAuth2AuthorizeNoCORS checks that the CORS middleware sits in front of
+// the OAuth2 routes and excludes the authorization endpoint.
+func TestOAuth2AuthorizeNoCORS(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+
+	preflight := func(t *testing.T, route, method string) http.Header {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodOptions, route, nil, func(r *http.Request) {
+			r.Header.Set("Origin", "https://app.example.com")
+			r.Header.Set("Access-Control-Request-Method", method)
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		return res.Header
+	}
+
+	t.Run("Authorize", func(t *testing.T) {
+		t.Parallel()
+		headers := preflight(t, "/oauth2/authorize", http.MethodGet)
+		require.Empty(t, headers.Get("Access-Control-Allow-Origin"))
+	})
+
+	// The router collapses repeated slashes, so this still reaches the
+	// authorize handler and must get the same CORS policy.
+	t.Run("AuthorizeRepeatedSlash", func(t *testing.T) {
+		t.Parallel()
+		headers := preflight(t, "/oauth2//authorize", http.MethodGet)
+		require.Empty(t, headers.Get("Access-Control-Allow-Origin"))
+	})
+
+	// The authorize cases only check that headers are absent, which an
+	// unmounted middleware would also satisfy. This case proves the
+	// middleware is wired in front of the router.
+	t.Run("Tokens", func(t *testing.T) {
+		t.Parallel()
+		headers := preflight(t, "/oauth2/tokens", http.MethodPost)
+		require.Equal(t, "*", headers.Get("Access-Control-Allow-Origin"))
+		require.Equal(t, http.MethodPost, headers.Get("Access-Control-Allow-Methods"))
+	})
+}
