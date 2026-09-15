@@ -19092,9 +19092,9 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
 	t.Helper()
-	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	counts, err := codersdk.DecodeSessionCounts(data)
 	require.NoError(t, err)
-	return counts
+	return codersdk.SessionCountsByFamily(counts)
 }
 
 func TestUpdateUserEmail(t *testing.T) {

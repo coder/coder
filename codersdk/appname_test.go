@@ -225,56 +225,6 @@ func TestSessionCountsByFamilyCoversEveryRegisteredFamily(t *testing.T) {
 	require.Equal(t, want, codersdk.SessionCountsByFamily(appCounts))
 }
 
-func TestSessionCountsByFamilyJSON(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name      string
-		appCounts json.RawMessage
-		want      map[codersdk.AppFamilyName]int64
-	}{
-		{"Counts", json.RawMessage(`{"cursor":2,"vscode":1,"ssh":4}`), map[codersdk.AppFamilyName]int64{
-			codersdk.AppFamilyVSCode: 3,
-			codersdk.AppFamilySSH:    4,
-		}},
-		{"UnknownApp", json.RawMessage(`{"some_future_ide":9}`), map[codersdk.AppFamilyName]int64{
-			codersdk.AppFamilyUnknown: 9,
-		}},
-		{"EmptyObject", json.RawMessage(`{}`), map[codersdk.AppFamilyName]int64{}},
-		// A query with no matching rows aggregates to SQL NULL, which is not
-		// an error, just no sessions.
-		{"JSONNull", json.RawMessage(`null`), map[codersdk.AppFamilyName]int64{}},
-		{"Absent", nil, map[codersdk.AppFamilyName]int64{}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := codersdk.SessionCountsByFamilyJSON(tc.appCounts)
-			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
-		})
-	}
-}
-
-func TestSessionCountsByFamilyJSONMalformed(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name      string
-		appCounts json.RawMessage
-	}{
-		{"Truncated", json.RawMessage(`{"vscode":`)},
-		{"NotAnObject", json.RawMessage(`["vscode"]`)},
-		{"NonNumericCount", json.RawMessage(`{"vscode":"1"}`)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := codersdk.SessionCountsByFamilyJSON(tc.appCounts)
-			require.Error(t, err)
-			require.Nil(t, got)
-		})
-	}
-}
-
 func TestDecodeAppFamilyMap(t *testing.T) {
 	t.Parallel()
 

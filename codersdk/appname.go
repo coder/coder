@@ -108,16 +108,6 @@ func SessionCountsByFamily(appCounts map[string]int64) map[AppFamilyName]int64 {
 	return familyCounts
 }
 
-// SessionCountsByFamilyJSON decodes and groups database counts by family.
-// Absent or JSON null payloads mean no sessions.
-func SessionCountsByFamilyJSON(appCounts json.RawMessage) (map[AppFamilyName]int64, error) {
-	counts, err := DecodeSessionCounts(appCounts)
-	if err != nil {
-		return nil, err
-	}
-	return SessionCountsByFamily(counts), nil
-}
-
 // DecodeSessionCounts decodes per-app counts returned by the database. Absent
 // and JSON null payloads return an empty map so APIs serialize them as objects.
 func DecodeSessionCounts(appCounts json.RawMessage) (map[string]int64, error) {
