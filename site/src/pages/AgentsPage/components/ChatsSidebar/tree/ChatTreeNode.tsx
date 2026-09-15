@@ -32,6 +32,7 @@ import {
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
+import { ChatNodePRIcon } from "./ChatNodePRIcon";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -131,10 +132,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		icon: StatusIcon,
 		className: statusClassName,
 		label: statusLabel,
-		prIcon,
+		prStatuses,
 		diffStatus,
 	} = getChatDisplayConfig(chat);
-	const PRIcon = prIcon?.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -257,26 +257,24 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
-												role="img"
-												aria-label={prIcon.label}
-												className={cn("size-3.5 shrink-0", prIcon.className)}
-											/>
+										{prStatuses.length > 0 && (
+											<ChatNodePRIcon chatID={chatID} prStatuses={prStatuses} />
 										)}
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-git-added-bright">
-													+{additions}
+										{prStatuses.length === 1 &&
+											hasLinkedDiffStatus &&
+											hasLineStats && (
+												<span
+													className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+													title={`${filesChangedLabel}, +${additions} -${deletions}`}
+												>
+													<span className="text-git-added-bright">
+														+{additions}
+													</span>
+													<span className="text-git-deleted-bright">
+														&minus;{deletions}
+													</span>
 												</span>
-												<span className="text-git-deleted-bright">
-													&minus;{deletions}
-												</span>
-											</span>
-										)}
+											)}
 										<div
 											className={cn(
 												"min-w-0 overflow-hidden text-[13px] leading-4",

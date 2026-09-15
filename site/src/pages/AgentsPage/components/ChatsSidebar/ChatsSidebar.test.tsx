@@ -5,7 +5,7 @@ import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatDiffStatus } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
@@ -561,6 +561,108 @@ describe("ChatsSidebar load-more behavior", () => {
 		// No observer should have been created since the sentinel
 		// is not rendered.
 		expect(observeCount).toBe(0);
+	});
+});
+
+describe("ChatsSidebar PR icon", () => {
+	const prStatus = (
+		overrides: Partial<ChatDiffStatus> = {},
+	): ChatDiffStatus => ({
+		chat_id: "chat-1",
+		pull_request_title: "",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions: 0,
+		deletions: 0,
+		changed_files: 0,
+		...overrides,
+	});
+
+	const multiPRChat = buildChat({
+		id: "multi-pr",
+		title: "Multiple pull requests",
+		diff_statuses: [
+			prStatus({
+				chat_id: "multi-pr",
+				remote_origin: "https://github.com/coder/coder",
+				git_branch: "feat/one",
+				url: "https://github.com/coder/coder/pull/1",
+				pr_number: 1,
+				pull_request_state: "open",
+				pull_request_title: "feat: add login page",
+			}),
+			prStatus({
+				chat_id: "multi-pr",
+				remote_origin: "https://github.com/coder/coder",
+				git_branch: "feat/two",
+				url: "https://github.com/coder/coder/pull/2",
+				pr_number: 2,
+				pull_request_state: "merged",
+				pull_request_title: "feat: add login tests",
+			}),
+		],
+	});
+
+	it("renders a plain PR icon when the chat tracks one pull request", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "one-pr",
+							title: "One pull request",
+							diff_statuses: [
+								prStatus({
+									chat_id: "one-pr",
+									url: "https://github.com/coder/coder/pull/1",
+									pull_request_state: "open",
+								}),
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByRole("img", { name: "Pull request open" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByTestId("chat-node-pr-trigger-one-pr"),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows a count next to the PR icon when the chat tracks multiple pull requests", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[multiPRChat]} />
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByRole("img", { name: "2 pull requests" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByTestId("chat-node-pr-trigger-multi-pr"),
+		).toHaveTextContent("2");
+	});
+
+	it("lists every pull request with number and title on hover", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[multiPRChat]} />
+			</Wrapper>,
+		);
+
+		await user.hover(screen.getByTestId("chat-node-pr-trigger-multi-pr"));
+
+		const list = await screen.findByTestId("chat-node-pr-list-multi-pr");
+		expect(list).toHaveTextContent("PR #1");
+		expect(list).toHaveTextContent("feat: add login page");
+		expect(list).toHaveTextContent("PR #2");
+		expect(list).toHaveTextContent("feat: add login tests");
 	});
 });
 
