@@ -188,8 +188,11 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
 		return
 	}
+	var applied []memoryConsolidationMutation
 	if err := store.InTx(func(txStore chattool.MemoryStore) error {
-		return applyMemoryConsolidationMutations(ctx, txStore, mutations)
+		var err error
+		applied, err = applyMemoryConsolidationMutations(ctx, txStore, mutations, memories, time.Now())
+		return err
 	}); err != nil {
 		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("apply mutations: %w", err))
 		return
@@ -199,16 +202,13 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("count consolidated memories: %w", err))
 		return
 	}
-	finish(database.ChatMemoryConsolidationStatusSucceeded, after, memoryConsolidationJournalMutations(mutations), nil)
+	finish(database.ChatMemoryConsolidationStatusSucceeded, after, memoryConsolidationJournalMutations(applied), nil)
 }
 
 // memoryConsolidationDebounced reports whether the scope was consolidated
 // recently. It takes the store explicitly so the transactional check runs
 // against the transaction that also inserts the running record.
 func memoryConsolidationDebounced(ctx context.Context, db database.Store, scope memoryConsolidationScope, count int64, now time.Time, logger slog.Logger) bool {
-	if count >= chattool.MaxMemories {
-		return false
-	}
 	var (
 		record database.ChatMemoryConsolidation
 		err    error
@@ -225,11 +225,10 @@ func memoryConsolidationDebounced(ctx context.Context, db database.Store, scope 
 		logger.Debug(ctx, "failed to load latest memory consolidation", slog.Error(err))
 		return true
 	}
-	window := memoryConsolidationDebounce
 	if record.Status == database.ChatMemoryConsolidationStatusRunning {
-		window = memoryConsolidationRunningStale
+		return now.Sub(record.StartedAt) < memoryConsolidationRunningStale
 	}
-	return now.Sub(record.StartedAt) < window
+	return count < chattool.MaxMemories && now.Sub(record.StartedAt) < memoryConsolidationDebounce
 }
 
 func (p *Server) finishMemoryConsolidation(ctx context.Context, scope memoryConsolidationScope, id uuid.UUID, status database.ChatMemoryConsolidationStatus, after int64, mutations []codersdk.ChatMemoryMutation, finishErr error) error {
@@ -279,7 +278,8 @@ func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation
 		switch mutation.Op {
 		case "merge":
 			mutation.Into = strings.ToLower(strings.TrimSpace(mutation.Into))
-			if err := chattool.ValidateMemoryName(mutation.Into); err != nil || len(mutation.From) < 2 {
+			intoMemory, intoExists := byName[mutation.Into]
+			if err := chattool.ValidateMemoryName(mutation.Into); err != nil || (!intoExists && len(mutation.From) < 2) {
 				continue
 			}
 			seen := map[string]struct{}{}
@@ -299,7 +299,7 @@ func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation
 				seen[name] = struct{}{}
 				mutation.From = append(mutation.From, name)
 			}
-			if len(mutation.From) < 2 {
+			if len(mutation.From) < 2 && !intoExists {
 				continue
 			}
 			description, body, ok := normalizeConsolidatedMemory(mutation.Description, mutation.Body)
@@ -308,8 +308,8 @@ func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation
 			}
 			mutation.Description, mutation.Body = description, body
 			touched = append(touched, mutation.From...)
-			if _, exists := byName[mutation.Into]; exists {
-				touched = append(touched, mutation.Into)
+			if intoExists {
+				touched = append(touched, intoMemory.Name)
 			}
 		case "update":
 			mutation.Name = strings.ToLower(strings.TrimSpace(mutation.Name))
@@ -373,29 +373,76 @@ func memoryConsolidationCount(count int64) int32 {
 	return int32(count)
 }
 
-func applyMemoryConsolidationMutations(ctx context.Context, store chattool.MemoryStore, mutations []memoryConsolidationMutation) error {
+func applyMemoryConsolidationMutations(ctx context.Context, store chattool.MemoryStore, mutations []memoryConsolidationMutation, snapshot []chattool.Memory, now time.Time) ([]memoryConsolidationMutation, error) {
+	byName := make(map[string]chattool.Memory, len(snapshot))
+	for _, memory := range snapshot {
+		byName[memory.Name] = memory
+	}
+
+	applied := make([]memoryConsolidationMutation, 0, len(mutations))
 	for _, mutation := range mutations {
+		current, err := memoryConsolidationMutationCurrent(ctx, store, mutation, byName, now)
+		if err != nil {
+			return nil, err
+		}
+		if !current {
+			continue
+		}
+
 		switch mutation.Op {
 		case "merge":
 			if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: mutation.Into, Description: mutation.Description, Body: mutation.Body}); err != nil {
-				return err
+				return nil, err
 			}
 			for _, from := range mutation.From {
 				if err := store.Delete(ctx, from); err != nil {
-					return err
+					return nil, err
 				}
 			}
 		case "update":
 			if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: mutation.Name, Description: mutation.Description, Body: mutation.Body}); err != nil {
-				return err
+				return nil, err
 			}
 		case "delete":
 			if err := store.Delete(ctx, mutation.Name); err != nil {
-				return err
+				return nil, err
 			}
 		}
+		applied = append(applied, mutation)
 	}
-	return nil
+	return applied, nil
+}
+
+func memoryConsolidationMutationCurrent(ctx context.Context, store chattool.MemoryStore, mutation memoryConsolidationMutation, snapshot map[string]chattool.Memory, now time.Time) (bool, error) {
+	touched := mutation.From
+	if mutation.Op != "merge" {
+		touched = []string{mutation.Name}
+	} else if _, exists := snapshot[mutation.Into]; exists {
+		touched = append(touched, mutation.Into)
+	} else {
+		_, err := store.Get(ctx, mutation.Into)
+		if err == nil {
+			return false, nil
+		}
+		if !errors.Is(err, chattool.ErrMemoryNotFound) {
+			return false, err
+		}
+	}
+
+	for _, name := range touched {
+		expected := snapshot[name]
+		memory, err := store.Get(ctx, name)
+		if errors.Is(err, chattool.ErrMemoryNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if !memory.UpdatedAt.Equal(expected.UpdatedAt) || now.Sub(memory.UpdatedAt) < memoryConsolidationProtectWindow {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func memoryConsolidationJournalMutations(mutations []memoryConsolidationMutation) []codersdk.ChatMemoryMutation {
