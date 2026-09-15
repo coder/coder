@@ -26,8 +26,11 @@ type Config struct {
 	// DialTimeout is how long to wait for websocket connection.
 	DialTimeout time.Duration `json:"dial_timeout"`
 
-	// ExpectedNotificationsIDs is the list of notification template IDs to expect.
-	ExpectedNotificationsIDs map[uuid.UUID]struct{} `json:"-"`
+	// ExpectedNotifications maps each notification template ID the runner should
+	// wait for to the number of notifications of that type it expects to receive.
+	// A template admin watching N template deletions expects N
+	// TemplateTemplateDeleted notifications.
+	ExpectedNotifications map[uuid.UUID]int `json:"-"`
 
 	Metrics *Metrics `json:"-"`
 
@@ -66,6 +69,12 @@ func (c Config) Validate() error {
 
 	if c.NotificationTimeout <= 0 {
 		return xerrors.New("notification_timeout must be greater than 0")
+	}
+
+	for id, count := range c.ExpectedNotifications {
+		if count < 1 {
+			return xerrors.Errorf("expected notification count for %s must be at least 1", id)
+		}
 	}
 
 	if c.SMTPApiURL != "" && c.SMTPRequestTimeout <= 0 {
