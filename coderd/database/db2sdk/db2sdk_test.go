@@ -321,11 +321,6 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
 }
 
-// TestOAuth2ProviderApp_ClientType guards the db-to-SDK mapping restored in
-// db2sdk.OAuth2ProviderApp: dbApp.ClientType was previously dropped between
-// the database row and the codersdk type, silently. This is the single
-// construction site for codersdk.OAuth2ProviderApp from a database row, so
-// this one test closes the whole class of regression.
 func TestOAuth2ProviderApp_ClientType(t *testing.T) {
 	t.Parallel()
 
