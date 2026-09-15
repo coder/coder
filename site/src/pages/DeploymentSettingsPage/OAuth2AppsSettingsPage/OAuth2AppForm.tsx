@@ -33,7 +33,8 @@ type OAuth2AppFormProps = {
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-// Reject unsafe callback schemes without restricting native-app schemes.
+// Mirror codersdk.ValidateRedirectURIScheme and httpapi's oauth2_callback_url.
+// The server remains authoritative for URL syntax differences between parsers.
 // oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
 const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
 
@@ -43,16 +44,16 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 	}
 	try {
 		const url = new URL(value);
-		if (!url.protocol) {
-			return false;
-		}
 		if (url.protocol === "urn:") {
-			return value === "urn:ietf:wg:oauth:2.0:oob";
+			return url.href === "urn:ietf:wg:oauth:2.0:oob";
 		}
 		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol.toLowerCase())) {
 			return false;
 		}
-		if ((url.protocol === "http:" || url.protocol === "https:") && !url.host) {
+		if (
+			(url.protocol === "http:" || url.protocol === "https:") &&
+			(!url.host || !/^https?:\/\/[^/\\\s]/i.test(value))
+		) {
 			return false;
 		}
 		return true;
@@ -65,13 +66,17 @@ const validationSchema = Yup.object({
 	name: Yup.string()
 		.trim()
 		.required("Please enter a name.")
-		.max(64, "Name cannot be longer than 64 characters."),
+		.test(
+			"name-byte-length",
+			"Name cannot be longer than 64 UTF-8 bytes.",
+			(value) => new TextEncoder().encode(value).length <= 64,
+		),
 	callback_url: Yup.string()
 		.trim()
 		.required("Please enter a callback URL.")
 		.test(
 			"valid-callback-url",
-			"Callback URL must be a valid URL and cannot use a dangerous scheme (e.g. javascript, data, file, ftp).",
+			"Please enter a valid callback URL with an allowed scheme.",
 			(value) => isValidCallbackURL(value),
 		),
 	icon: iconValidator,
@@ -97,7 +102,11 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		validateOnMount: true,
 		onSubmit: async (values) => {
 			didSubmit.current = true;
-			await onSubmit({ ...values, name: values.name.trim() });
+			await onSubmit({
+				...values,
+				name: values.name.trim(),
+				callback_url: values.callback_url.trim(),
+			});
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);

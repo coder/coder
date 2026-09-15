@@ -2,7 +2,10 @@ package oauth2provider_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -144,6 +147,61 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Cursor (MCP)", updated.Name)
 		require.Equal(t, "cursor://anysphere.cursor-mcp/oauth/callback", updated.CallbackURL)
+	})
+
+	t.Run("CallbackURLSchemes", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name        string
+			callbackURL string
+			valid       bool
+		}{
+			{name: "OpaqueLocalhost", callbackURL: "localhost:3000", valid: true},
+			{name: "NativeScheme", callbackURL: "vscode://coder.coder-remote/oauth/callback", valid: true},
+			{name: "UppercaseOOBURN", callbackURL: "URN:ietf:wg:oauth:2.0:oob", valid: true},
+			{name: "MalformedHTTP", callbackURL: "http:foo"},
+			{name: "DangerousSchemeMixedCase", callbackURL: "JaVaScRiPt:alert(1)"},
+			{name: "DangerousDataSchemeMixedCase", callbackURL: "DaTa:text/plain,invalid"},
+			{name: "DangerousFileSchemeMixedCase", callbackURL: "FiLe:///tmp/invalid"},
+			{name: "DangerousFTPSchemeMixedCase", callbackURL: "FtP://example.com/invalid"},
+			{name: "UnsupportedURN", callbackURL: "urn:example:invalid"},
+			{name: "UnsupportedURNMixedCase", callbackURL: "URN:example:invalid"},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, nil)
+				_ = coderdtest.CreateFirstUser(t, client)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+					Name:        testutil.GetRandomName(t),
+					CallbackURL: "localhost:3000",
+				})
+				require.NoError(t, err)
+
+				_, postErr := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+					Name:        testutil.GetRandomName(t),
+					CallbackURL: test.callbackURL,
+				})
+				if test.valid {
+					require.NoError(t, postErr)
+				} else {
+					requireCallbackURLValidationError(t, postErr)
+				}
+
+				_, putErr := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+					Name:        testutil.GetRandomName(t),
+					CallbackURL: test.callbackURL,
+				})
+				if test.valid {
+					require.NoError(t, putErr)
+				} else {
+					requireCallbackURLValidationError(t, putErr)
+				}
+			})
+		}
 	})
 
 	t.Run("DuplicateNames", func(t *testing.T) {
@@ -443,7 +501,17 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 	})
 }
 
-// Helper functions
+func requireCallbackURLValidationError(t *testing.T, err error) {
+	t.Helper()
+
+	require.Error(t, err)
+	var apiErr *codersdk.Error
+	require.True(t, errors.As(err, &apiErr))
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.True(t, slices.ContainsFunc(apiErr.Validations, func(validation codersdk.ValidationError) bool {
+		return validation.Field == "callback_url"
+	}), "expected callback_url validation error, got: %+v", apiErr.Validations)
+}
 
 type provisionedApps struct {
 	Default   codersdk.OAuth2ProviderApp

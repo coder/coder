@@ -69,11 +69,9 @@ func init() {
 		panic(err)
 	}
 
-	// oauth2_callback_url accepts any redirect URI scheme that DCR accepts
-	// (RFC 7591), including custom native-app schemes such as vscode://, so
-	// that DCR-registered clients stay editable via the admin OAuth2 app
-	// settings. Dangerous schemes (javascript, data, file, ftp) and
-	// unsupported URNs are still rejected.
+	// oauth2_callback_url checks for a safe redirect URI scheme and requires a
+	// host for HTTP(S) callback URLs. Custom native-app schemes such as vscode://
+	// may be opaque. It does not apply the full DCR redirect URI policy.
 	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
 		str, ok := fl.Field().Interface().(string)
 		if !ok {

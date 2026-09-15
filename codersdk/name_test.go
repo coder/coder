@@ -309,6 +309,8 @@ func TestOAuth2AppNameValid(t *testing.T) {
 		{" ", false},
 		{strings.Repeat("a", 64), true},
 		{strings.Repeat("a", 65), false},
+		{strings.Repeat("é", 32), true},
+		{strings.Repeat("é", 33), false},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
@@ -317,6 +319,9 @@ func TestOAuth2AppNameValid(t *testing.T) {
 			assert.Equal(t, testCase.Valid, err == nil,
 				"Test case %q failed: expected valid=%t but got error: %v",
 				testCase.Name, testCase.Valid, err)
+			if len(testCase.Name) > 64 {
+				assert.EqualError(t, err, "must be <= 64 bytes")
+			}
 		})
 	}
 }
