@@ -110,7 +110,9 @@ try {
         $accepted = $listener.AcceptTcpClient()
         $accepted.Dispose()
     } finally { $listener.Stop() }
-    $result = Test-PostgresConnection -Port $port
+    # Allow refusal classification to finish before cancellation on Windows.
+    # The sampler still uses the default 500 ms observation deadline.
+    $result = Test-PostgresConnection -Port $port -TimeoutMilliseconds 4000
     Assert-True ($result.status -eq 'error' -and $result.socket_error -eq 'ConnectionRefused') "Refusal was not preserved: $($result | ConvertTo-Json -Compress)"
     Assert-True ($result.elapsed_ms -lt 5000) 'Refused probe did not complete promptly.'
 
