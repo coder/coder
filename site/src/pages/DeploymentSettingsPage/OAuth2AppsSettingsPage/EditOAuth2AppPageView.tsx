@@ -60,16 +60,12 @@ export const EditOAuth2AppPageView: FC = () => {
 		...oauth2.getApp(appId ?? ""),
 		enabled: Boolean(appId),
 	});
-	// A public client authenticates with PKCE and has no client secret; its
-	// type is fixed at registration, so there is nothing to fetch or generate.
+	// Public clients have no secret, so this page hides the secrets UI.
 	const isPublicClient = appQuery.data?.client_type === "public";
 	const secretsQuery = useQuery({
 		...oauth2.getAppSecrets(appId ?? ""),
-		// appQuery.isSuccess is load-bearing. isPublicClient reads appQuery.data,
-		// which is undefined until the app resolves, so on the first render
-		// !isPublicClient is true and the secrets request would go out before the
-		// client type is known. Waiting on the app query costs nothing visible:
-		// this page renders a fullscreen loader until appQuery resolves anyway.
+		// Wait for the app to load. isPublicClient is false until then, so
+		// without isSuccess the request goes out before the type is known.
 		enabled:
 			Boolean(appId) &&
 			permissions.viewOAuth2AppSecrets &&

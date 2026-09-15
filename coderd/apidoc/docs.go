@@ -25327,7 +25327,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "client_type": {
-                    "description": "ClientType is \"confidential\" or \"public\". A public client has no client\nsecret: it authenticates with PKCE only, and its type is fixed at\nregistration. Admin-created apps are always confidential; public\nclients can only arrive through dynamic client registration.",
+                    "description": "ClientType is \"confidential\" or \"public\".",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.OAuth2ClientType"

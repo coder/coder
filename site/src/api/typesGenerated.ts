@@ -6680,10 +6680,7 @@ export interface OAuth2ProviderApp {
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
-	 * ClientType is "confidential" or "public". A public client has no client
-	 * secret: it authenticates with PKCE only, and its type is fixed at
-	 * registration. Admin-created apps are always confidential; public
-	 * clients can only arrive through dynamic client registration.
+	 * ClientType is "confidential" or "public".
 	 */
 	readonly client_type: OAuth2ClientType;
 	/**
