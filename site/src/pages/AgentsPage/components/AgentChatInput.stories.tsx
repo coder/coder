@@ -736,6 +736,40 @@ export const MCPGroupDisabled: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
+const longNameMCP = buildMCPServer({
+	id: "mcp-long-name",
+	display_name: "Coder Internal Documentation Search Server",
+	slug: "internal-docs",
+	availability: "default_on",
+	auth_type: "api_key",
+	enabled: true,
+});
+
+/** A long server name truncates inside the popover instead of pushing its X out of view. */
+export const MCPGroupPopoverLongName: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, longNameMCP],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, longNameMCP.id],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
+		);
+		const popover = await within(document.body).findByRole("dialog");
+		const remove = within(popover).getByRole("button", {
+			name: `Remove ${longNameMCP.display_name}`,
+		});
+		await waitFor(() => {
+			expect(remove).toBeVisible();
+		});
+		expect(popover.scrollWidth).toBeLessThanOrEqual(popover.clientWidth);
+		expect(remove.getBoundingClientRect().right).toBeLessThanOrEqual(
+			popover.getBoundingClientRect().right,
+		);
+	},
+};
+
 export const PlusMenuAlwaysOnNeedingAuth: Story = {
 	args: {
 		...WithMCPServers.args,
