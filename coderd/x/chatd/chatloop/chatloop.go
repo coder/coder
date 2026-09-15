@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -1342,24 +1340,10 @@ func executeSingleTool(
 			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
-		text := strings.ToValidUTF8(content, "\uFFFD")
-		if note, omitted := inlineMediaOmissionNote(provider, resp); omitted {
-			logger.Warn(ctx, "tool result media cannot be sent to the provider, keeping text only",
-				slog.F("tool_name", tc.ToolName),
-				slog.F("tool_call_id", tc.ToolCallID),
-				slog.F("media_type", resp.MediaType),
-				slog.F("media_bytes", len(resp.Data)),
-			)
-			if text != "" {
-				text += "\n"
-			}
-			result.Result = fantasy.ToolResultOutputContentText{Text: text + note}
-			break
-		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      text,
+			Text:      strings.ToValidUTF8(content, "\uFFFD"),
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
@@ -1379,32 +1363,6 @@ func executeSingleTool(
 		}
 	}
 	return result
-}
-
-// inlineMediaOmissionNote reports whether resp carries media the provider
-// rejects inline: a media type it cannot render in a tool result, or an
-// image over its documented cap. Such media would fail the next request
-// and, once persisted, every later turn of the chat, so the caller keeps
-// only the text plus the returned note.
-func inlineMediaOmissionNote(provider string, resp fantasy.ToolResponse) (string, bool) {
-	providerName := chatprovider.ProviderDisplayName(chatprovider.NormalizeProvider(provider))
-	if !chatprovider.AcceptsToolResultMediaType(provider, resp.MediaType) {
-		return fmt.Sprintf(
-			"[%s content omitted: %s tool results only carry images]",
-			resp.MediaType,
-			providerName,
-		), true
-	}
-	imageCap, hasCap := chatprovider.InlineImageCapBytes(provider)
-	if hasCap && strings.HasPrefix(resp.MediaType, "image/") && len(resp.Data) >= imageCap {
-		return fmt.Sprintf(
-			"[image omitted: %d bytes exceeds the %s inline image limit of %d bytes]",
-			len(resp.Data),
-			providerName,
-			imageCap,
-		), true
-	}
-	return "", false
 }
 
 func isToolActive(name string, activeTools []string) bool {

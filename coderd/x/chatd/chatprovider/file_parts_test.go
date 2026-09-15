@@ -8,26 +8,31 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestAcceptsToolResultMediaType(t *testing.T) {
+func TestToolResultMediaOmission(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
+		name      string
 		provider  string
 		mediaType string
-		want      bool
+		size      int
+		wantNote  string
 	}{
-		{provider: "anthropic", mediaType: "image/png", want: true},
-		{provider: "anthropic", mediaType: "audio/mpeg", want: false},
-		{provider: "anthropic", mediaType: "application/pdf", want: false},
-		{provider: "bedrock", mediaType: "audio/mpeg", want: false},
-		{provider: "openai", mediaType: "audio/mpeg", want: true},
-		{provider: "google", mediaType: "application/pdf", want: true},
+		{name: "anthropic png", provider: "anthropic", mediaType: "image/png", size: 1024},
+		{name: "anthropic jpeg with params", provider: "anthropic", mediaType: "image/jpeg; charset=binary", size: 1024},
+		{name: "anthropic svg", provider: "anthropic", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: Anthropic tool results only carry JPEG, PNG, GIF, or WebP images]"},
+		{name: "anthropic audio", provider: "anthropic", mediaType: "audio/mpeg", size: 1024, wantNote: "[audio/mpeg content omitted: Anthropic tool results only carry JPEG, PNG, GIF, or WebP images]"},
+		{name: "anthropic oversized png", provider: "anthropic", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes, wantNote: "[image omitted: 5242880 bytes exceeds the Anthropic inline image limit of 5242880 bytes]"},
+		{name: "bedrock pdf", provider: "bedrock", mediaType: "application/pdf", size: 1024, wantNote: "[application/pdf content omitted: AWS Bedrock tool results only carry JPEG, PNG, GIF, or WebP images]"},
+		{name: "openai audio", provider: "openai", mediaType: "audio/mpeg", size: 1024},
+		{name: "openai oversized png", provider: "openai", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes},
+		{name: "google pdf", provider: "google", mediaType: "application/pdf", size: 1024},
 	} {
-		t.Run(tc.provider+"/"+tc.mediaType, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatprovider.AcceptsToolResultMediaType(tc.provider, tc.mediaType)
-			if got != tc.want {
-				t.Fatalf("AcceptsToolResultMediaType(%q, %q) = %v, want %v", tc.provider, tc.mediaType, got, tc.want)
+			note, omit := chatprovider.ToolResultMediaOmission(tc.provider, tc.mediaType, tc.size)
+			if omit != (tc.wantNote != "") || note != tc.wantNote {
+				t.Fatalf("ToolResultMediaOmission(%q, %q, %d) = (%q, %v), want (%q, %v)", tc.provider, tc.mediaType, tc.size, note, omit, tc.wantNote, tc.wantNote != "")
 			}
 		})
 	}
