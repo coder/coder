@@ -925,14 +925,14 @@ func TestSearchTemplates(t *testing.T) {
 		},
 		{
 			Name:  "UseClassicParameterFlowTrue",
-			Query: "compatibility-mode:true",
+			Query: "compatibility_mode:true",
 			Expected: database.GetTemplatesWithFilterParams{
 				UseClassicParameterFlow: sql.NullBool{Bool: true, Valid: true},
 			},
 		},
 		{
 			Name:  "UseClassicParameterFlowFalse",
-			Query: "compatibility-mode:false",
+			Query: "compatibility_mode:false",
 			Expected: database.GetTemplatesWithFilterParams{
 				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: true},
 			},
