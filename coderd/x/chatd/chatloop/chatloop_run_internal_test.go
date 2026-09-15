@@ -1447,7 +1447,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 	})
 }
 
-func TestExecuteSingleTool_OversizedInlineImage(t *testing.T) {
+func TestExecuteSingleTool_InlineMediaOmission(t *testing.T) {
 	t.Parallel()
 
 	metrics := NewMetrics(prometheus.NewRegistry())
@@ -1455,15 +1455,15 @@ func TestExecuteSingleTool_OversizedInlineImage(t *testing.T) {
 	oversized := make([]byte, codersdk.AnthropicInlineImageCapBytes)
 	small := []byte{0x89, 'P', 'N', 'G'}
 
-	run := func(t *testing.T, provider string, data []byte) fantasy.ToolResultContent {
+	run := func(t *testing.T, provider, mediaType string, data []byte) fantasy.ToolResultContent {
 		tool := fantasy.NewAgentTool(
 			"screenshot",
 			"takes a screenshot",
 			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				return fantasy.ToolResponse{
-					Type:      "image",
+					Type:      "media",
 					Data:      data,
-					MediaType: "image/png",
+					MediaType: mediaType,
 					Content:   "Ran Playwright code",
 				}, nil
 			},
@@ -1485,10 +1485,10 @@ func TestExecuteSingleTool_OversizedInlineImage(t *testing.T) {
 		)
 	}
 
-	t.Run("CappedProviderKeepsTextOnly", func(t *testing.T) {
+	t.Run("CappedProviderKeepsTextForOversizedImage", func(t *testing.T) {
 		t.Parallel()
 
-		result := run(t, "anthropic", oversized)
+		result := run(t, "anthropic", "image/png", oversized)
 		text, ok := result.Result.(fantasy.ToolResultOutputContentText)
 		require.True(t, ok, "expected text result, got %T", result.Result)
 		require.Contains(t, text.Text, "Ran Playwright code")
@@ -1498,18 +1498,36 @@ func TestExecuteSingleTool_OversizedInlineImage(t *testing.T) {
 	t.Run("CappedProviderKeepsSmallImage", func(t *testing.T) {
 		t.Parallel()
 
-		result := run(t, "anthropic", small)
+		result := run(t, "anthropic", "image/png", small)
 		_, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
 		require.True(t, ok, "expected media result, got %T", result.Result)
+	})
+
+	t.Run("ImageOnlyProviderKeepsTextForAudio", func(t *testing.T) {
+		t.Parallel()
+
+		result := run(t, "anthropic", "audio/mpeg", small)
+		text, ok := result.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok, "expected text result, got %T", result.Result)
+		require.Contains(t, text.Text, "Ran Playwright code")
+		require.Contains(t, text.Text, "[audio/mpeg content omitted")
 	})
 
 	t.Run("UncappedProviderKeepsImage", func(t *testing.T) {
 		t.Parallel()
 
-		result := run(t, "openai", oversized)
+		result := run(t, "openai", "image/png", oversized)
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
 		require.True(t, ok, "expected media result, got %T", result.Result)
 		require.Equal(t, "Ran Playwright code", media.Text)
+	})
+
+	t.Run("UncappedProviderKeepsAudio", func(t *testing.T) {
+		t.Parallel()
+
+		result := run(t, "openai", "audio/mpeg", small)
+		_, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok, "expected media result, got %T", result.Result)
 	})
 }
 

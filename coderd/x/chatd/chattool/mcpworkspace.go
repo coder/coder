@@ -216,11 +216,10 @@ func convertMCPToolResponse(
 				continue
 			}
 			if binaryResult == nil {
-				// The chat loop only recognizes "image" and "media"
-				// response types, so audio is mapped to media.
-				responseType := "media"
-				if c.Type == "image" {
-					responseType = "image"
+				responseType := c.Type
+				if c.Type == "audio" {
+					// chatloop only recognizes "image" and "media".
+					responseType = "media"
 				}
 				r := fantasy.ToolResponse{
 					Type:      responseType,
