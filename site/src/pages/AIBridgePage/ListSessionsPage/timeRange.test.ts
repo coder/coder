@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { TimeRange } from "./timeRange";
 import {
 	defaultTimeRange,
+	formatTimeRangeQuery,
 	parseTimeRange,
+	parseTimeRangeQuery,
 	queryWithTimeRange,
 	toRFC3339,
 	withDefaultTimeRange,
@@ -14,6 +16,30 @@ describe("toRFC3339", () => {
 	it("serializes in UTC with second precision", () => {
 		expect(toRFC3339(new Date(Date.UTC(2026, 7, 13, 10, 0, 0, 500)))).toBe(
 			"2026-08-13T10:00:00Z",
+		);
+	});
+});
+
+describe("time range search formatting", () => {
+	it("formats explicit timestamp filters as a compact display range", () => {
+		expect(
+			formatTimeRangeQuery(
+				'initiator:me started_after:"2026-08-25T20:00:00Z" started_before:"2026-08-26T06:59:59Z"',
+			),
+		).toBe("initiator:me 2026/08/25/20:00 to 2026/08/26/06:59");
+	});
+
+	it("parses compact display ranges back into timestamp filters", () => {
+		expect(
+			parseTimeRangeQuery("initiator:me 2026/08/25/20:00 to 2026/08/26/06:59"),
+		).toBe(
+			'initiator:me started_after:"2026-08-25T20:00:00Z" started_before:"2026-08-26T06:59:59Z"',
+		);
+	});
+
+	it("leaves malformed compact ranges untouched", () => {
+		expect(parseTimeRangeQuery("2026/99/25/20:00 to 2026/08/26/06:59")).toBe(
+			"2026/99/25/20:00 to 2026/08/26/06:59",
 		);
 	});
 });
