@@ -195,7 +195,7 @@ describe("QueuedMessagesList", () => {
 		expect(onEndEdit).not.toHaveBeenCalled();
 	});
 
-	it("calls onEndEdit and onEdit with the head id while paused", async () => {
+	it("calls onEndEdit and onEdit with the id of the row under edit", async () => {
 		const user = userEvent.setup();
 		const { onEdit, onEndEdit } = renderList(
 			[
@@ -205,7 +205,7 @@ describe("QueuedMessagesList", () => {
 			{ chatPaused: true },
 		);
 
-		await user.click(screen.getByRole("button", { name: "Resume" }));
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
 		await user.click(screen.getByRole("button", { name: "Edit" }));
 
 		expect(onEndEdit).toHaveBeenCalledWith(9);

@@ -944,8 +944,8 @@ const buildPausedStore = () => {
 	return store;
 };
 
-/** The turn finished while the queue head was under edit. The head offers
- *  Resume and the composer queues a send. */
+/** The turn finished while the queue head was under edit. Cancelling the
+ *  head's edit sends it, and the composer queues a send. */
 export const PausedAtQueuedEdit: Story = {
 	render: () => (
 		<StoryAgentChatPageView
