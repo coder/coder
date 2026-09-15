@@ -285,6 +285,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Database:    opts.Database,
 		DirtyMarker: opts.ContextDirtyMarker,
 		Disabled:    opts.ContextSyncDisabled,
+		Experiments: opts.Experiments,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

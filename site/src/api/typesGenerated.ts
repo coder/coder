@@ -5512,6 +5512,7 @@ export type Experiment =
 	| "ai-gateway-reverse-proxy"
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
+	| "agent-plugins"
 	| "chat-advisor"
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
@@ -5592,6 +5593,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
+	"agent-plugins",
 	"chat-advisor",
 	"chat-inline-mcp-servers",
 	"chat-projects",
