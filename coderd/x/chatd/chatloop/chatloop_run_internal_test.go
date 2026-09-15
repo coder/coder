@@ -505,7 +505,7 @@ func TestExclusiveToolPolicy_MixedBatchErrors(t *testing.T) {
 	requireToolResultErrorMessage(
 		t,
 		results[0],
-		"advisor must be called alone, without other tools in the same batch. Retry with only the advisor call.",
+		"advisor must be called alone, without other tools in the same batch. If you need more information to feed into the advisor call, execute the other tools first, then retry with only the advisor call.",
 	)
 	requireToolResultErrorMessage(
 		t,
@@ -559,12 +559,12 @@ func TestExclusiveToolPolicy_MultipleExclusive(t *testing.T) {
 	requireToolResultErrorMessage(
 		t,
 		results[0],
-		"advisor must be called alone, without other tools in the same batch. Retry with only the advisor call.",
+		"advisor must be called alone, without other tools in the same batch. If you need more information to feed into the advisor call, execute the other tools first, then retry with only the advisor call.",
 	)
 	requireToolResultErrorMessage(
 		t,
 		results[1],
-		"advisor must be called alone, without other tools in the same batch. Retry with only the advisor call.",
+		"advisor must be called alone, without other tools in the same batch. If you need more information to feed into the advisor call, execute the other tools first, then retry with only the advisor call.",
 	)
 }
 

@@ -9,6 +9,7 @@ import {
 } from "#/api/queries/oauth2";
 import {
 	MockExternalAPIKeyScopes,
+	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderAppSecrets,
 	MockOAuth2ProviderApps,
 	MockPermissions,
@@ -157,6 +158,33 @@ export const DeleteDialogOpen: Story = {
 		await userEvent.click(deleteButton);
 		await expect(await screen.findByRole("dialog")).toBeInTheDocument();
 		await expect(await screen.findByText(/irreversible/i)).toBeInTheDocument();
+	},
+};
+
+export const PublicClient: Story = {
+	parameters: {
+		queries: [
+			{
+				key: oauth2ProviderAppKey(MockOAuth2ProviderAppPublic.id),
+				data: MockOAuth2ProviderAppPublic,
+			},
+		],
+		reactRouter: routingFor(
+			`/deployment/oauth2-provider/apps/${MockOAuth2ProviderAppPublic.id}`,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText(MockOAuth2ProviderAppPublic.name),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("table", { name: "OAuth2 client secrets" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: /generate secret/i }),
+		).not.toBeInTheDocument();
+		await expect(await canvas.findByText(/public client/i)).toBeVisible();
 	},
 };
 

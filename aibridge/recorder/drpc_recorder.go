@@ -1,4 +1,4 @@
-package aibridged
+package recorder
 
 import (
 	"context"
@@ -10,19 +10,18 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
 
-var _ aibridge.Recorder = &DRPCRecorder{}
+var _ Recorder = &DRPCRecorder{}
 
-// DRPCRecorder satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
+// DRPCRecorder satisfies the Recorder interface and translates calls into dRPC calls to aibridgedserver.
 type DRPCRecorder struct {
 	apiKeyID string
 	client   proto.DRPCRecorderClient
 }
 
-func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
+func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 		Id:                          req.ID,
 		ApiKeyId:                    t.apiKeyID,
@@ -44,7 +43,7 @@ func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *aibridge.Int
 	return err
 }
 
-func (t *DRPCRecorder) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
+func (t *DRPCRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) error {
 	endedReq := &proto.RecordInterceptionEndedRequest{
 		Id:             req.ID,
 		EndedAt:        timestamppb.New(req.EndedAt),
@@ -61,7 +60,7 @@ func (t *DRPCRecorder) RecordInterceptionEnded(ctx context.Context, req *aibridg
 	return err
 }
 
-func (t *DRPCRecorder) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRecord) error {
+func (t *DRPCRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) error {
 	_, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
 		InterceptionId: req.InterceptionID,
 		MsgId:          req.MsgID,
@@ -72,10 +71,10 @@ func (t *DRPCRecorder) RecordPromptUsage(ctx context.Context, req *aibridge.Prom
 	return err
 }
 
-func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
+func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
 	merged := req.Metadata
 	if merged == nil {
-		merged = aibridge.Metadata{}
+		merged = Metadata{}
 	}
 
 	// Merge remaining extra token types into metadata.
@@ -96,7 +95,7 @@ func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *aibridge.Token
 	return err
 }
 
-func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRecord) error {
+func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) error {
 	serialized, err := json.Marshal(req.Args)
 	if err != nil {
 		return xerrors.Errorf("serialize tool %q args: %w", req.Tool, err)
@@ -123,7 +122,7 @@ func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *aibridge.ToolUs
 	return err
 }
 
-func (t *DRPCRecorder) RecordModelThought(ctx context.Context, req *aibridge.ModelThoughtRecord) error {
+func (t *DRPCRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) error {
 	_, err := t.client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
 		InterceptionId: req.InterceptionID,
 		Content:        req.Content,
@@ -136,7 +135,7 @@ func (t *DRPCRecorder) RecordModelThought(ctx context.Context, req *aibridge.Mod
 // marshalForProto will attempt to convert from aibridge.Metadata into a proto-friendly map[string]*anypb.Any.
 // If any marshaling fails, rather return a map with the error details since we don't want to fail Record* funcs if metadata can't encode,
 // since it's, well, metadata.
-func marshalForProto(in aibridge.Metadata) map[string]*anypb.Any {
+func marshalForProto(in Metadata) map[string]*anypb.Any {
 	out := make(map[string]*anypb.Any, len(in))
 	if len(in) == 0 {
 		return out
@@ -166,4 +165,11 @@ func marshalForProto(in aibridge.Metadata) map[string]*anypb.Any {
 		out[k] = av
 	}
 	return out
+}
+
+func NewDRPCRecorder(aPIKeyID string, client proto.DRPCRecorderClient) *DRPCRecorder {
+	return &DRPCRecorder{
+		apiKeyID: aPIKeyID,
+		client:   client,
+	}
 }
