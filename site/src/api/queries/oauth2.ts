@@ -11,6 +11,7 @@ export const oauth2ProviderAppSecretsKey = (appId: string) =>
 
 const userAppsKey = (userId: string) => oauth2ProviderAppsKey.concat(userId);
 export const oauth2ProviderSettingsKey = oauth2ProviderKey.concat("settings");
+export const externalScopesKey = oauth2ProviderKey.concat("external-scopes");
 
 export const getGitHubDevice = () => {
 	return {
@@ -37,6 +38,14 @@ export const getApp = (id: string) => {
 	return {
 		queryKey: oauth2ProviderAppKey(id),
 		queryFn: () => API.getOAuth2ProviderApp(id),
+	};
+};
+
+// The catalog is fixed for a deployment's binary, so nothing invalidates it.
+export const getExternalScopes = () => {
+	return {
+		queryKey: externalScopesKey,
+		queryFn: () => API.getExternalAPIKeyScopes(),
 	};
 };
 

@@ -4989,6 +4989,21 @@ export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,
 };
 
+// A representative slice of the deployment's scope catalog, in the sorted order
+// the endpoint returns.
+export const MockExternalAPIKeyScopes: TypesGen.ExternalAPIKeyScopes = {
+	external: [
+		"api_key:read",
+		"coder:all",
+		"coder:application_connect",
+		"coder:workspaces.access",
+		"coder:workspaces.create",
+		"template:read",
+		"workspace:read",
+		"workspace:ssh",
+	],
+};
+
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 	[
 		{
