@@ -13,11 +13,7 @@ import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
-import {
-	getFormHelpers,
-	iconValidator,
-	onChangeTrimmed,
-} from "#/utils/formUtils";
+import { getFormHelpers, iconValidator } from "#/utils/formUtils";
 
 type OAuth2AppFormValues = {
 	name: string;
@@ -37,10 +33,8 @@ type OAuth2AppFormProps = {
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-// Dangerous URL schemes that are never valid redirect targets. Mirrors the
-// backend's ValidateRedirectURIScheme (coderd/oauth2provider) so the admin
-// form accepts the same custom native-app schemes (e.g. vscode://) that DCR
-// clients register.
+// Reject unsafe callback schemes without restricting native-app schemes.
+// oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
 const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
 
 const isValidCallbackURL = (value: string | undefined): boolean => {
@@ -58,8 +52,6 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol.toLowerCase())) {
 			return false;
 		}
-		// http(s) callback URLs must include a host; custom native-app schemes
-		// (e.g. vscode://) may be opaque.
 		if ((url.protocol === "http:" || url.protocol === "https:") && !url.host) {
 			return false;
 		}
@@ -69,8 +61,6 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 	}
 };
 
-// Keep in sync with codersdk.OAuth2AppNameValid and the DCR client_name rules
-// so values registered through Dynamic Client Registration remain editable.
 const validationSchema = Yup.object({
 	name: Yup.string()
 		.trim()
@@ -150,7 +140,6 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					label="Name"
 					description="The name of your Coder app."
 					disabled={formDisabled}
-					onChange={onChangeTrimmed(form)}
 					autoFocus
 					required
 				/>
