@@ -228,7 +228,7 @@ func connectAllWithHooks(
 					slog.F("server_slug", cfg.Slug),
 					slog.F("server_url", RedactURL(cfg.Url)),
 					slog.F("duration", duration),
-					slog.F("error", redactErrorURL(connectErr)),
+					slog.F("error", RedactErrorURL(connectErr)),
 				)
 			} else if duration >= slowConnectThreshold {
 				logger.Warn(ctx,
@@ -346,7 +346,7 @@ func connectOne(
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
-		if !isToolAllowed(
+		if !IsToolAllowed(
 			mcpTool.Name,
 			cfg.ToolAllowList,
 			cfg.ToolDenyList,
@@ -532,13 +532,13 @@ func buildAuthHeaders(
 	return headers
 }
 
-// isToolAllowed checks a tool name against the allow and deny
+// IsToolAllowed checks a tool name against the allow and deny
 // lists. When the allow list is non-empty only tools in it are
 // permitted and the deny list is ignored. When the allow list
 // is empty and the deny list is non-empty, tools in the deny
 // list are rejected. Both lists use exact string matching
 // against the original (non-prefixed) tool name.
-func isToolAllowed(
+func IsToolAllowed(
 	toolName string,
 	allowList []string,
 	denyList []string,
@@ -577,10 +577,10 @@ func RedactURL(rawURL string) string {
 	return u.String()
 }
 
-// redactErrorURL rewrites URLs in an error string to strip
+// RedactErrorURL rewrites URLs in an error string to strip
 // credentials. Go's net/http embeds the full request URL in
 // *url.Error messages, which can leak userinfo.
-func redactErrorURL(err error) string {
+func RedactErrorURL(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -603,7 +603,7 @@ const maxSummaryErrorLen = 512
 // credential-bearing URLs are redacted and the result is truncated
 // to maxSummaryErrorLen bytes on a rune boundary.
 func summaryError(err error) string {
-	msg := redactErrorURL(err)
+	msg := RedactErrorURL(err)
 	if len(msg) <= maxSummaryErrorLen {
 		return msg
 	}

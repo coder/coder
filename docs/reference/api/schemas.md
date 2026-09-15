@@ -2933,6 +2933,72 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------|
 | `file`, `file-reference`, `text` |
 
+## codersdk.ChatMCPAppResourceReadRequest
+
+```json
+{
+  "uri": "string"
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description                                    |
+|-------|--------|----------|--------------|------------------------------------------------|
+| `uri` | string | false    |              | Uri identifies the resource on the MCP server. |
+
+## codersdk.ChatMCPAppResourceReadResponse
+
+```json
+{
+  "result": [
+    0
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type             | Required | Restrictions | Description |
+|----------|------------------|----------|--------------|-------------|
+| `result` | array of integer | false    |              |             |
+
+## codersdk.ChatMCPAppToolCallRequest
+
+```json
+{
+  "arguments": {
+    "property1": null,
+    "property2": null
+  },
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                         |
+|--------------------|--------|----------|--------------|-----------------------------------------------------|
+| `arguments`        | object | false    |              | Arguments are passed through to the tool unchanged. |
+| » `[any property]` | any    | false    |              |                                                     |
+| `name`             | string | false    |              | Name is the tool name as listed by the MCP server.  |
+
+## codersdk.ChatMCPAppToolCallResponse
+
+```json
+{
+  "result": [
+    0
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type             | Required | Restrictions | Description |
+|----------|------------------|----------|--------------|-------------|
+| `result` | array of integer | false    |              |             |
+
 ## codersdk.ChatMessage
 
 ```json

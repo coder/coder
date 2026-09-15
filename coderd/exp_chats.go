@@ -8325,3 +8325,147 @@ func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Named("chat_stream_parts").Debug(ctx, "chat stream parts closed", slog.Error(err))
 	}
 }
+
+// @Summary Call MCP server tool for a chat MCP app
+// @ID call-mcp-server-tool-for-a-chat-mcp-app
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
+// @Param request body codersdk.ChatMCPAppToolCallRequest true "Request body"
+// @Success 200 {object} codersdk.ChatMCPAppToolCallResponse
+// @Router /api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call [post]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) postChatMCPAppToolCall(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat, cfg, ok := api.authorizeChatMCPAppRequest(rw, r)
+	if !ok {
+		return
+	}
+	var req codersdk.ChatMCPAppToolCallRequest
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatMCPAppRequestBytes, &req) {
+		return
+	}
+	result, err := api.chatDaemon.CallMCPAppTool(ctx, chat, cfg, req.Name, req.Arguments)
+	if !writeChatMCPAppError(ctx, rw, err) {
+		return
+	}
+	rw.Header().Set("Cache-Control", "no-store")
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMCPAppToolCallResponse{Result: result})
+}
+
+// @Summary Read MCP server resource for a chat MCP app
+// @ID read-mcp-server-resource-for-a-chat-mcp-app
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
+// @Param request body codersdk.ChatMCPAppResourceReadRequest true "Request body"
+// @Success 200 {object} codersdk.ChatMCPAppResourceReadResponse
+// @Router /api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/resources/read [post]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) postChatMCPAppResourceRead(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat, cfg, ok := api.authorizeChatMCPAppRequest(rw, r)
+	if !ok {
+		return
+	}
+	var req codersdk.ChatMCPAppResourceReadRequest
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatMCPAppRequestBytes, &req) {
+		return
+	}
+	result, err := api.chatDaemon.ReadMCPAppResource(ctx, chat, cfg, req.URI)
+	if !writeChatMCPAppError(ctx, rw, err) {
+		return
+	}
+	rw.Header().Set("Cache-Control", "no-store")
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMCPAppResourceReadResponse{Result: result})
+}
+
+// maxChatMCPAppRequestBytes bounds app-initiated MCP request bodies.
+const maxChatMCPAppRequestBytes = 1 << 20
+
+// authorizeChatMCPAppRequest applies the checks shared by the MCP app
+// proxy endpoints. Both endpoints trigger an outbound request with the
+// chat owner's credentials, so both require update on the chat and are
+// limited to the owner. The MCP server config must be readable by the
+// caller (its user and group ACLs apply), enabled, in the chat's
+// organization, and attached to the chat; any other outcome is a 404
+// so unattached configs cannot be probed.
+func (api *API) authorizeChatMCPAppRequest(rw http.ResponseWriter, r *http.Request) (database.Chat, database.MCPServerConfig, bool) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may use MCP apps in this chat.",
+		})
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot use MCP apps in an archived chat.",
+		})
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+
+	configID, parsed := httpmw.ParseUUIDParam(rw, r, "mcpserverconfig")
+	if !parsed {
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	if !slices.Contains(chat.MCPServerIDs, configID) {
+		httpapi.ResourceNotFound(rw)
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	// The explicit read check below owns authorization; the raw lookup
+	// keeps denied and missing rows indistinguishable.
+	//nolint:gocritic // See above.
+	cfg, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), configID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	if !api.Authorize(r, policy.ActionRead, cfg) || !cfg.Enabled || cfg.OrganizationID != chat.OrganizationID {
+		httpapi.ResourceNotFound(rw)
+		return database.Chat{}, database.MCPServerConfig{}, false
+	}
+	return chat, cfg, true
+}
+
+// writeChatMCPAppError writes err and reports whether the caller may
+// continue. Request-level failures map to 400 with the daemon's
+// message; anything else is a 500 with the message hidden.
+func writeChatMCPAppError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	if err == nil {
+		return true
+	}
+	if chatd.IsMCPAppRequestError(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: err.Error(),
+		})
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Failed to reach the MCP server.",
+		Detail:  err.Error(),
+	})
+	return false
+}

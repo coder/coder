@@ -560,6 +560,34 @@ type ChatInputPart struct {
 	Content string `json:"content,omitempty"`
 }
 
+// ChatMCPAppToolCallRequest is the body for
+// POST /chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call. It is
+// issued by an MCP App rendered in the chat to call a tool on the
+// server that provided the app.
+type ChatMCPAppToolCallRequest struct {
+	// Name is the tool name as listed by the MCP server.
+	Name string `json:"name"`
+	// Arguments are passed through to the tool unchanged.
+	Arguments map[string]any `json:"arguments,omitempty"`
+}
+
+// ChatMCPAppToolCallResponse carries the raw MCP CallToolResult.
+type ChatMCPAppToolCallResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+// ChatMCPAppResourceReadRequest is the body for
+// POST /chats/{chat}/mcp-servers/{mcpserverconfig}/resources/read.
+type ChatMCPAppResourceReadRequest struct {
+	// URI identifies the resource on the MCP server.
+	URI string `json:"uri"`
+}
+
+// ChatMCPAppResourceReadResponse carries the raw MCP ReadResourceResult.
+type ChatMCPAppResourceReadResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
 type SubmitToolResultsRequest struct {
 	Results []ToolResult `json:"results"`
@@ -3326,6 +3354,36 @@ func (c *Client) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req Su
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// CallChatMCPAppTool calls a tool on one of the chat's MCP servers on
+// behalf of an MCP App rendered from that server.
+func (c *ExperimentalClient) CallChatMCPAppTool(ctx context.Context, chatID, mcpServerConfigID uuid.UUID, req ChatMCPAppToolCallRequest) (ChatMCPAppToolCallResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/mcp-servers/%s/tools/call", chatID, mcpServerConfigID), req)
+	if err != nil {
+		return ChatMCPAppToolCallResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMCPAppToolCallResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatMCPAppToolCallResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ReadChatMCPAppResource reads a resource from one of the chat's MCP
+// servers on behalf of an MCP App rendered from that server.
+func (c *ExperimentalClient) ReadChatMCPAppResource(ctx context.Context, chatID, mcpServerConfigID uuid.UUID, req ChatMCPAppResourceReadRequest) (ChatMCPAppResourceReadResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/mcp-servers/%s/resources/read", chatID, mcpServerConfigID), req)
+	if err != nil {
+		return ChatMCPAppResourceReadResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMCPAppResourceReadResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatMCPAppResourceReadResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest

@@ -2626,6 +2626,53 @@ export const ChatListSources: ChatListSource[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatMCPAppResourceReadRequest is the body for
+ * POST /chats/{chat}/mcp-servers/{mcpserverconfig}/resources/read.
+ */
+export interface ChatMCPAppResourceReadRequest {
+	/**
+	 * URI identifies the resource on the MCP server.
+	 */
+	readonly uri: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMCPAppResourceReadResponse carries the raw MCP ReadResourceResult.
+ */
+export interface ChatMCPAppResourceReadResponse {
+	readonly result: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMCPAppToolCallRequest is the body for
+ * POST /chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call. It is
+ * issued by an MCP App rendered in the chat to call a tool on the
+ * server that provided the app.
+ */
+export interface ChatMCPAppToolCallRequest {
+	/**
+	 * Name is the tool name as listed by the MCP server.
+	 */
+	readonly name: string;
+	/**
+	 * Arguments are passed through to the tool unchanged.
+	 */
+	// empty interface{} type, falling back to unknown
+	readonly arguments?: Record<string, unknown>;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMCPAppToolCallResponse carries the raw MCP CallToolResult.
+ */
+export interface ChatMCPAppToolCallResponse {
+	readonly result: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
  * ChatMessage represents a single message in a chat.
  */
 export interface ChatMessage {

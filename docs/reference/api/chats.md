@@ -8,6 +8,110 @@ description: "REST endpoints for Coder Agents Chats API (programmatic agent sess
 
 Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
 
+## Read MCP server resource for a chat MCP app
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/resources/read \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/resources/read`
+
+> Body parameter
+
+```json
+{
+  "uri": "string"
+}
+```
+
+### Parameters
+
+| Name              | In   | Type                                                                                       | Required | Description          |
+|-------------------|------|--------------------------------------------------------------------------------------------|----------|----------------------|
+| `chat`            | path | string(uuid)                                                                               | true     | Chat ID              |
+| `mcpserverconfig` | path | string(uuid)                                                                               | true     | MCP server config ID |
+| `body`            | body | [codersdk.ChatMCPAppResourceReadRequest](schemas.md#codersdkchatmcpappresourcereadrequest) | true     | Request body         |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "result": [
+    0
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatMCPAppResourceReadResponse](schemas.md#codersdkchatmcpappresourcereadresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Call MCP server tool for a chat MCP app
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call`
+
+> Body parameter
+
+```json
+{
+  "arguments": {
+    "property1": null,
+    "property2": null
+  },
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name              | In   | Type                                                                               | Required | Description          |
+|-------------------|------|------------------------------------------------------------------------------------|----------|----------------------|
+| `chat`            | path | string(uuid)                                                                       | true     | Chat ID              |
+| `mcpserverconfig` | path | string(uuid)                                                                       | true     | MCP server config ID |
+| `body`            | body | [codersdk.ChatMCPAppToolCallRequest](schemas.md#codersdkchatmcpapptoolcallrequest) | true     | Request body         |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "result": [
+    0
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                               |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatMCPAppToolCallResponse](schemas.md#codersdkchatmcpapptoolcallresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Connect to chat workspace desktop via WebSockets
 
 ### Code samples

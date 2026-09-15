@@ -172,6 +172,16 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 				}
 			})
 			if experimental {
+				r.Route("/mcp-servers/{mcpserverconfig}", func(r chi.Router) {
+					r.Use(
+						httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatMCPApps),
+						api.chatFilesRateLimitMW(),
+					)
+					r.Post("/tools/call", api.postChatMCPAppToolCall)
+					r.Post("/resources/read", api.postChatMCPAppResourceRead)
+				})
+			}
+			if experimental {
 				r.Route("/debug", func(r chi.Router) {
 					r.Get("/runs", api.getChatDebugRuns)
 					r.Get("/runs/{debugRun}", api.getChatDebugRun)

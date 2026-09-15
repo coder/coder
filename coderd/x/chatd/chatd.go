@@ -23,6 +23,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -187,13 +188,17 @@ type Server struct {
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
-	debugSvc                       *chatdebug.Service
-	debugSvcFactory                func() *chatdebug.Service
-	debugSvcReady                  atomic.Bool
-	debugSvcInit                   sync.Once
-	configCache                    *chatConfigCache
-	configCacheUnsubscribe         func()
-	providerCacheUnsubscribe       func()
+	// mcpTokenRefreshes serializes OAuth refreshes per (config, user)
+	// so concurrent callers share one provider round trip instead of
+	// each presenting the same rotating refresh token.
+	mcpTokenRefreshes        singleflight.Group[string, database.MCPServerUserToken]
+	debugSvc                 *chatdebug.Service
+	debugSvcFactory          func() *chatdebug.Service
+	debugSvcReady            atomic.Bool
+	debugSvcInit             sync.Once
+	configCache              *chatConfigCache
+	configCacheUnsubscribe   func()
+	providerCacheUnsubscribe func()
 
 	usageTracker         *workspacestats.UsageTracker
 	clock                quartz.Clock
@@ -5066,8 +5071,23 @@ func (p *Server) refreshExpiredMCPTokens(
 // refreshMCPTokenIfNeeded delegates to mcpclient.RefreshOAuth2Token
 // and persists the result to the database when a refresh occurs.
 // The logger should carry chat-scoped fields so log lines can be
-// correlated with specific chat requests.
+// correlated with specific chat requests. Concurrent refreshes of the
+// same token share a single provider call; the shared call is detached
+// from the first caller's cancellation so a caller that gives up does
+// not fail the refresh for the others.
 func (p *Server) refreshMCPTokenIfNeeded(
+	ctx context.Context,
+	logger slog.Logger,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (database.MCPServerUserToken, error) {
+	key := cfg.ID.String() + ":" + tok.UserID.String()
+	return singleflightDoChan(ctx, &p.mcpTokenRefreshes, key, func() (database.MCPServerUserToken, error) {
+		return p.refreshMCPTokenIfNeededUnshared(context.WithoutCancel(ctx), logger, cfg, tok)
+	})
+}
+
+func (p *Server) refreshMCPTokenIfNeededUnshared(
 	ctx context.Context,
 	logger slog.Logger,
 	cfg database.MCPServerConfig,

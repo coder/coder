@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -270,4 +271,68 @@ func TestRefreshExpiredMCPTokensSkipsFailedTokens(t *testing.T) {
 	require.Len(t, result, 1)
 	require.Equal(t, tok, result[0])
 	require.EqualValues(t, 0, hits.Load(), "provider must not be called for failed tokens")
+}
+
+// TestRefreshMCPTokenConcurrentCallersShareOneRefresh verifies that
+// simultaneous refreshes of the same token perform a single provider
+// round trip and one persistence write.
+func TestRefreshMCPTokenConcurrentCallersShareOneRefresh(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int64
+	release := make(chan struct{})
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"fresh","refresh_token":"rotated","token_type":"Bearer","expires_in":3600}`))
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	cfg := database.MCPServerConfig{
+		ID:             uuid.New(),
+		Slug:           "shared",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2TokenURL: tokenSrv.URL,
+	}
+	tok := expiredMCPToken(cfg.ID)
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	updated := tok
+	updated.AccessToken = "fresh"
+	updated.RefreshToken = "rotated"
+	db.EXPECT().
+		UpdateMCPServerUserTokenFromRefresh(gomock.Any(), gomock.Any()).
+		Return(updated, nil).
+		Times(1)
+
+	server := loopbackMCPServer(db)
+	const callers = 4
+	var started sync.WaitGroup
+	started.Add(callers)
+	results := make(chan database.MCPServerUserToken, callers)
+	for range callers {
+		go func() {
+			started.Done()
+			result, err := server.refreshMCPTokenIfNeeded(context.Background(), slogtest.Make(t, nil), cfg, tok)
+			require.NoError(t, err)
+			results <- result
+		}()
+	}
+	// The provider call is held open until every caller has entered
+	// the refresh, so all of them join the single in-flight request.
+	started.Wait()
+	require.Eventually(t, func() bool { return hits.Load() == 1 }, time.Second, 10*time.Millisecond)
+	close(release)
+	for range callers {
+		select {
+		case result := <-results:
+			require.Equal(t, "fresh", result.AccessToken)
+		case <-time.After(5 * time.Second):
+			t.Fatal("caller did not return")
+		}
+	}
+	require.Equal(t, int64(1), hits.Load())
 }

@@ -154,6 +154,116 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/resources/read": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Read MCP server resource for a chat MCP app",
+                "operationId": "read-mcp-server-resource-for-a-chat-mcp-app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMCPAppResourceReadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMCPAppResourceReadResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Call MCP server tool for a chat MCP app",
+                "operationId": "call-mcp-server-tool-for-a-chat-mcp-app",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMCPAppToolCallRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMCPAppToolCallResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -20043,6 +20153,51 @@ const docTemplate = `{
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference"
             ]
+        },
+        "codersdk.ChatMCPAppResourceReadRequest": {
+            "type": "object",
+            "properties": {
+                "uri": {
+                    "description": "URI identifies the resource on the MCP server.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatMCPAppResourceReadResponse": {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatMCPAppToolCallRequest": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "description": "Arguments are passed through to the tool unchanged.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "description": "Name is the tool name as listed by the MCP server.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatMCPAppToolCallResponse": {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
         },
         "codersdk.ChatMessage": {
             "type": "object",
