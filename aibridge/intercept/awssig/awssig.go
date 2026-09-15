@@ -11,12 +11,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 // ServiceBedrockMantle is the AWS SigV4 service name for Bedrock Mantle.
@@ -81,6 +84,27 @@ func SignMiddleware(creds aws.CredentialsProvider, region, service string) func(
 		hash := sha256.Sum256(body)
 		if err := signer.SignHTTP(req.Context(), resolved, req, hex.EncodeToString(hash[:]), service, region, time.Now()); err != nil {
 			return nil, xerrors.Errorf("%s SigV4: sign request: %w", service, err)
+		}
+		return next(req)
+	}
+}
+
+// BedrockMantleUnsafeHeadersMiddleware removes headers whose names contain an
+// underscore before a Bedrock Mantle request is signed. Such headers can be
+// altered between signing and delivery, which causes AWS SigV4 verification to
+// fail. It logs one warning per request with all stripped header names.
+func BedrockMantleUnsafeHeadersMiddleware(logger slog.Logger) func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
+	return func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
+		var stripped []string
+		for name := range req.Header {
+			if strings.Contains(name, "_") {
+				stripped = append(stripped, name)
+				req.Header.Del(name)
+			}
+		}
+		if len(stripped) > 0 {
+			sort.Strings(stripped)
+			logger.Warn(req.Context(), "stripping headers unsafe to sign for Bedrock Mantle", slog.F("headers", stripped))
 		}
 		return next(req)
 	}
