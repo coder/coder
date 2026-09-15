@@ -110,7 +110,7 @@ try {
         $accepted.Dispose()
     } finally { $listener.Stop() }
     $result = Test-PostgresConnection -Port $port
-    Assert-True ($result.status -eq 'error' -and $result.socket_error -eq 'ConnectionRefused') 'Refusal was not preserved.'
+    Assert-True ($result.status -eq 'error' -and $result.socket_error -eq 'ConnectionRefused') "Refusal was not preserved: $($result | ConvertTo-Json -Compress)"
     Assert-True ($result.elapsed_ms -lt 5000) 'Refused probe did not complete promptly.'
 
     # Fixtures deliberately include fields that must never be serialized.
