@@ -83,6 +83,8 @@ interface DateRangePickerProps {
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
+	/** Longest range the calendar lets the user select, in inclusive days. */
+	maxDays?: number;
 }
 
 /**
@@ -91,7 +93,7 @@ interface DateRangePickerProps {
  * rounded up to the next hour (if it falls on today) or to the start of
  * the following day.
  */
-function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+export function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
 	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
 	const end = dayjs(to).isSame(currentTime, "day")
@@ -121,6 +123,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	maxDays,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
@@ -245,6 +248,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
+								max={maxDays === undefined ? undefined : maxDays - 1}
 								disabled={{ after: currentTime }}
 								today={currentTime}
 							/>
