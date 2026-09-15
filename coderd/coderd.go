@@ -625,12 +625,17 @@ func New(options *Options) *API {
 		}
 	}
 
+	// resumeKeycache is only created when no resume token provider is
+	// supplied. It owns a refresh timer, so the API closes it on shutdown or
+	// the timer keeps the API reachable until it fires.
+	var resumeKeycache cryptokeys.SigningKeycache
 	if options.CoordinatorResumeTokenProvider == nil {
 		fetcher := &cryptokeys.DBFetcher{
 			DB: options.Database,
 		}
 
-		resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
+		var err error
+		resumeKeycache, err = cryptokeys.NewSigningCache(ctx,
 			options.Logger,
 			fetcher,
 			codersdk.CryptoKeyFeatureTailnetResume,
@@ -712,13 +717,14 @@ func New(options *Options) *API {
 		safedial.WithAllowedPrefixes(options.MCPAllowedPrivateCIDRs...),
 	)
 	api := &API{
-		ctx:           ctx,
-		cancel:        cancel,
-		DeploymentID:  depID,
-		ID:            uuid.New(),
-		Options:       options,
-		mcpHTTPClient: mcpHTTPClient,
-		RootHandler:   r,
+		ctx:            ctx,
+		cancel:         cancel,
+		resumeKeycache: resumeKeycache,
+		DeploymentID:   depID,
+		ID:             uuid.New(),
+		Options:        options,
+		mcpHTTPClient:  mcpHTTPClient,
+		RootHandler:    r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -2276,6 +2282,9 @@ type API struct {
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 	wsWatcher                *httpapi.WSWatcher
+	// resumeKeycache is set when New created the tailnet resume token
+	// provider itself.
+	resumeKeycache cryptokeys.SigningKeycache
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
@@ -2383,6 +2392,9 @@ func (api *API) Close() error {
 	_ = api.AppEncryptionKeyCache.Close()
 	if api.NATSCACache != nil {
 		_ = api.NATSCACache.Close()
+	}
+	if api.resumeKeycache != nil {
+		_ = api.resumeKeycache.Close()
 	}
 	_ = api.UpdatesProvider.Close()
 	api.workspaceAgentConnWatcher.Close()

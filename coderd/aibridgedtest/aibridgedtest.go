@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // StartTestAIBridgeDaemon wires an in-process aibridged daemon onto the
@@ -66,7 +67,7 @@ func StartTestAIBridgeDaemonWithPubsub(
 	if err != nil {
 		t.Fatalf("create bridge pool: %v", err)
 	}
-	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
+	testutil.Cleanup(t, func() { _ = pool.Shutdown(context.Background()) })
 
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return api.CreateInMemoryAIBridgeServer(dialCtx)
@@ -74,7 +75,7 @@ func StartTestAIBridgeDaemonWithPubsub(
 	if err != nil {
 		t.Fatalf("create aibridged server: %v", err)
 	}
-	t.Cleanup(func() { _ = srv.Close() })
+	testutil.Cleanup(t, func() { _ = srv.Close() })
 
 	// The reloader fetches providers from coderd over srv's DRPC client; the
 	// subscription drives an initial load and refreshes on change events.
@@ -83,7 +84,7 @@ func StartTestAIBridgeDaemonWithPubsub(
 	if err != nil {
 		t.Fatalf("subscribe provider reload: %v", err)
 	}
-	t.Cleanup(unsubscribe)
+	testutil.Cleanup(t, unsubscribe)
 
 	api.RegisterInMemoryAIBridgedHTTPHandler(srv)
 }

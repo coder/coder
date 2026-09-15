@@ -1540,10 +1540,21 @@ endif
 
 TEST_PACKAGES ?= ./...
 
+# go test runs packages in argument order and drops duplicates, so name the
+# slowest packages first when testing everything. With ./... alone packages
+# run alphabetically and enterprise/coderd, one of the longest, only starts
+# near the end of the run and finishes last.
+TEST_PACKAGES_SLOWEST := ./coderd ./coderd/database ./cli ./coderd/database/migrations ./enterprise/coderd ./enterprise/cli ./enterprise ./coderd/x/chatd
+ifeq ($(TEST_PACKAGES),./...)
+TEST_PACKAGES_ORDERED := $(TEST_PACKAGES_SLOWEST) $(TEST_PACKAGES)
+else
+TEST_PACKAGES_ORDERED := $(TEST_PACKAGES)
+endif
+
 test:
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$(TEST_PACKAGES_ORDERED)" \
 		-- \
 		$(GOTEST_FLAGS)
 .PHONY: test
@@ -1554,7 +1565,7 @@ test-race:
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		--junitfile="gotests.xml" \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$(TEST_PACKAGES_ORDERED)" \
 		-- \
 		-race \
 		$(GOTEST_FLAGS)
@@ -1715,7 +1726,7 @@ test-timings:
 	set +e; \
 	GOTESTSUM_JSONFILE="$$tmp_json" $(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$(TEST_PACKAGES_ORDERED)" \
 		-- \
 		$(GOTEST_FLAGS); \
 	test_status=$$?; \
