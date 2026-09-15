@@ -8,7 +8,7 @@ air-gapped with Kubernetes or Docker.
 
 |                           | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                                        |
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Terraform binary          | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../../provisioner/terraform/install.go#L23-L24)                                                                                                                                                            |
+| Terraform binary          | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../../provisioner/terraform/install.go#L27-L28)                                                                                                                                                            |
 | Terraform registry        | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                                    |
 | STUN                      | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../../reference/cli/server.md#--derp-server-stun-addresses) users can still connect via [relayed connections](../../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../../reference/cli/server.md#--derp-server-stun-addresses) |
 | DERP                      | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../../admin/networking/index.md#relayed-connections).                                                                                                                          | By default, Coder's built-in DERP relay can be used, or [custom relays](../../admin/networking/index.md#custom-relays).                                                                                                                                                                                       |
@@ -35,7 +35,7 @@ following:
 
 > [!NOTE]
 > Coder includes the latest
-> [supported version](../../../provisioner/terraform/install.go#L23-L24)
+> [supported version](../../../provisioner/terraform/install.go#L27-L28)
 > of Terraform in the official Docker images. If you need to bundle a different
 > version of terraform, you can do so by customizing the image.
 
@@ -55,7 +55,7 @@ RUN mkdir -p /opt/terraform
 # See ../../scripts/Dockerfile.base#L15
 # If you need to install a different version of Terraform, you can do so here.
 # The below step is optional if you wish to keep the existing version.
-# See ../../provisioner/terraform/install.go#L23-L24
+# See ../../provisioner/terraform/install.go#L27-L28
 # for supported Terraform versions.
 ARG TERRAFORM_VERSION=1.11.0
 RUN apk update && \
