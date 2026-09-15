@@ -12,6 +12,11 @@ overrides:
   dompurify: 3.4.14
   qs: 6.16.0
 
+patchedDependencies:
+  '@shadcn/react@0.3.0':
+    hash: 77147bfa004907711000487d2a4888f305aa164765034dfa812fceb2afd96b6a
+    path: patches/@shadcn__react@0.3.0.patch
+
 importers:
 
   .:
@@ -69,7 +74,7 @@ importers:
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.4.3)
       '@shadcn/react':
         specifier: 0.3.0
-        version: 0.3.0(@types/react@19.2.18)(react@19.2.8)
+        version: 0.3.0(patch_hash=77147bfa004907711000487d2a4888f305aa164765034dfa812fceb2afd96b6a)(@types/react@19.2.18)(react@19.2.8)
       '@tanstack/react-query-devtools':
         specifier: 5.82.0
         version: 5.82.0(@tanstack/react-query@5.82.0(react@19.2.8))(react@19.2.8)
@@ -8457,7 +8462,7 @@ snapshots:
       estree-walker: 2.0.2
       picomatch: 4.0.7
 
-  '@shadcn/react@0.3.0(@types/react@19.2.18)(react@19.2.8)':
+  '@shadcn/react@0.3.0(patch_hash=77147bfa004907711000487d2a4888f305aa164765034dfa812fceb2afd96b6a)(@types/react@19.2.18)(react@19.2.8)':
     optionalDependencies:
       '@types/react': 19.2.18
       react: 19.2.8

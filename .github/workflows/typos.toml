@@ -68,4 +68,7 @@ extend-exclude = [
 	"aibridge/fixtures/**",
 	# go-vcr cassettes contain real API responses with 3rd-party content
 	"coderd/externalauth/gitprovider/testdata/**",
+	# pnpm patches embed minified third-party JavaScript whose short
+	# identifiers look like misspellings
+	"site/patches/**",
 ]
