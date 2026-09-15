@@ -90,8 +90,7 @@ interface EditingState {
 	initialEditorState: string | undefined;
 	remountKey: number;
 	editingTarget: EditingTarget | null;
-	// The history message being edited, for timeline highlighting. Null
-	// while composing or editing a queued row.
+	// Null unless a history message is being edited.
 	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (

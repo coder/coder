@@ -2,11 +2,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
 
 /**
- * Decides from a queue snapshot whether the composer's queued edit target
- * is lost: the row was promoted or deleted, or another client ended or
- * moved the edit. The begin request's 204 can arrive before the
- * queue_update that sets editing_since, so a row only counts as having
- * lost the edit after a snapshot showed it under edit (seenID).
+ * Reports whether the queued row under edit was sent, removed, or had its
+ * edit ended by another client. The begin request's 204 can arrive before
+ * the queue_update that sets editing_since, so a missing marker only
+ * counts once a snapshot has shown it (seenID).
  *
  * @internal Exported for testing.
  */

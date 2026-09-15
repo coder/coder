@@ -294,7 +294,6 @@ interface ChatPageInputProps {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
-	// Null while composing a new message.
 	editingTarget: EditingTarget | null;
 	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to

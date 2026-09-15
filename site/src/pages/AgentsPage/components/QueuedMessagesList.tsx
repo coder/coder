@@ -25,9 +25,8 @@ interface QueuedMessagesListProps {
 	onPromote: (id: number) => Promise<void> | void;
 	onEdit?: (id: number) => Promise<void> | void;
 	onEndEdit?: (id: number) => Promise<void> | void;
-	// While the chat is paused only the head, which is under edit, may be
-	// edited (the server refuses other rows), and cancelling its edit
-	// sends it.
+	// While paused the server refuses edits on rows other than the head,
+	// and ending the head's edit sends it.
 	chatPaused?: boolean;
 	className?: string;
 }
@@ -73,8 +72,6 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	chatPaused = false,
 	className,
 }) => {
-	// The row under edit and every row behind it wait; rows ahead of it
-	// are still sent.
 	const editingIndex = messages.findIndex((message) => message.editing_since);
 	const items = messages.map((message, index) => {
 		const { displayText, attachmentCount, hookNotices } =
@@ -154,9 +151,8 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	// Delete and promote hide the row while the request is in flight and
-	// restore it on failure. Edit and end edit leave the row visible; the
-	// server's queue_update changes editing_since.
+	// Only delete and promote remove the row, so only they hide it
+	// optimistically.
 	const runAction = async (
 		id: number,
 		action: QueuedMessageAction,
