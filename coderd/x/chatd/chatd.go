@@ -62,10 +62,10 @@ import (
 const (
 	// DefaultPendingChatAcquireInterval is the default time between attempts to
 	// acquire pending chats.
-	DefaultPendingChatAcquireInterval = time.Second
+	DefaultPendingChatAcquireInterval = 30 * time.Second
 	// DefaultInFlightChatStaleAfter is the default age after which a running
 	// chat is considered stale and should be recovered.
-	DefaultInFlightChatStaleAfter = 5 * time.Minute
+	DefaultInFlightChatStaleAfter = 30 * time.Second
 
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
@@ -80,7 +80,7 @@ const (
 	planPathLookupTimeout = defaultDialTimeout + 5*time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
-	DefaultChatHeartbeatInterval = 30 * time.Second
+	DefaultChatHeartbeatInterval = 9 * time.Second
 	maxChatSteps                 = 1200
 
 	// slowPrepareThreshold is the generation-preparation duration
