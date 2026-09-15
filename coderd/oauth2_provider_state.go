@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const oauth2ProviderDisabledWithAppsMessage = "The OAuth2 provider is disabled but OAuth2 applications are registered. Existing applications, secrets and user authorizations are preserved but cannot be used until the provider is enabled. Set CODER_OAUTH2_PROVIDER_ENABLE=true to enable it."
+const oauth2ProviderDisabledWithAppsMessage = "The OAuth2 provider is disabled but OAuth2 applications are registered. Existing applications, secrets and user authorizations are preserved, and new authorizations and token exchanges are blocked, but already-issued access tokens are not invalidated and remain usable until they expire or are revoked. Set CODER_OAUTH2_PROVIDER_ENABLE=true to re-enable the provider."
 
 // LogOAuth2ProviderState logs whether the OAuth2 provider is enabled so
 // every start leaves one line recording the value of
