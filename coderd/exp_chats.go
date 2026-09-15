@@ -6393,7 +6393,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
@@ -6443,7 +6443,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
 // @Router /api/v2/chats/files/{file} [get]
