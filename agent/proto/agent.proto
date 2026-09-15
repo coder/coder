@@ -100,6 +100,9 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	// plugins_supported is true when the agent-plugins experiment is
+	// enabled. When false, the agent must not discover or emit plugins.
+	bool plugins_supported = 20;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest
@@ -546,18 +549,21 @@ message UpdateAppStatusRequest {
 message UpdateAppStatusResponse {}
 
 // ContextResource is a single resolved workspace context
-// resource (instruction file, skill meta, MCP config, or live
-// MCP server tool list) pushed from the agent to coderd as part
-// of a PushContextStateRequest snapshot.
+// resource (instruction file, skill meta, MCP config, live
+// MCP server tool list, or Agent Plugin manifest) pushed from
+// the agent to coderd as part of a PushContextStateRequest
+// snapshot.
 //
 // The resource kind is conveyed by which variant of the body
-// oneof is set. Reserved variants for the Claude Code plugin
-// RFC (plugin/hook/subagent/command bodies) are not emitted by
-// v2.10 agents but will be added without renumbering.
+// oneof is set. coderd rejects the whole snapshot when a
+// resource carries a body variant it does not know, so agents
+// must not emit a new variant to a coderd that predates it.
 message ContextResource {
-	// source is the resource's own locator: a canonical file path
-	// for file-backed kinds, or the MCP server name for
-	// mcp_server resources.
+	// source is the resource's own locator and must be unique within
+	// a push: a canonical file path for file-backed kinds, the
+	// canonical plugin root directory for plugin resources, the MCP
+	// server name for mcp_server resources, or
+	// "<plugin_name>/<server_name>" for servers a plugin declares.
 	string source = 1;
 	// source_path is the user-declared scan root that produced
 	// this resource (empty for built-in roots, set to the owning
@@ -592,6 +598,7 @@ message ContextResource {
 		SkillMetaBody skill = 11;
 		MCPConfigBody mcp_config = 12;
 		MCPServerBody mcp_server = 13;
+		PluginBody plugin = 17;
 	}
 
 	// Reserved tags from the legacy v2.10 schema that carried
@@ -617,6 +624,25 @@ message SkillMetaBody {
 	bytes meta = 1;
 	string name = 2;
 	string description = 3;
+	// plugin_name is the Agent Plugin whose skills/ directory
+	// contains this skill, or empty. A non-empty value must pass
+	// workspacesdk.ValidatePluginName or coderd rejects the push.
+	string plugin_name = 4;
+}
+
+// PluginBody carries the validated fields of an Agent Plugins
+// (agent-plugins.org) plugin.json manifest. Skills and MCP servers
+// that belong to the plugin are separate resources that reference it
+// through their plugin_name field; coderd does not store one whose
+// plugin_name matches no OK plugin resource in the same push.
+//
+// name must pass workspacesdk.ValidatePluginName, may be empty only
+// when the resource status is not OK, and must be unique among OK
+// plugin resources in a push. coderd rejects the whole push otherwise.
+message PluginBody {
+	string name = 1;
+	string version = 2;
+	string description = 3;
 }
 
 // MCPConfigBody is intentionally empty: the .mcp.json content
@@ -633,6 +659,11 @@ message MCPServerBody {
 	string server_name = 1;
 	string description = 2;
 	repeated MCPTool tools = 3;
+	// plugin_name is the Agent Plugin whose mcp.json declares this
+	// server, or empty. A non-empty value must pass
+	// workspacesdk.ValidatePluginName and the resource source must be
+	// "<plugin_name>/<server_name>", or coderd rejects the push.
+	string plugin_name = 4;
 }
 
 // MCPTool mirrors the MCP server-reported tool surface. The
