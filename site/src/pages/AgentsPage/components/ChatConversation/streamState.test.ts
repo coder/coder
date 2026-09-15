@@ -221,8 +221,8 @@ describe("applyMessagePartToStreamState", () => {
 			result: { data: "AAAA", mime_type: "image/png", text: "done" },
 			is_media: true,
 		});
-		expect(state!.toolResults["tc-1"].isMedia).toBe(true);
-		expect(buildStreamTools({}, state!.toolResults)[0].isMedia).toBe(true);
+		expect(state?.toolResults["tc-1"].isMedia).toBe(true);
+		expect(buildStreamTools({}, state?.toolResults)[0].isMedia).toBe(true);
 	});
 
 	it("accumulates tool result deltas until a final result arrives", () => {
