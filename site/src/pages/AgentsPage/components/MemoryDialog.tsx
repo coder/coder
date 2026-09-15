@@ -1,6 +1,5 @@
 import { type FC, useId, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
-import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -16,16 +15,20 @@ import { Textarea } from "#/components/Textarea/Textarea";
 
 const memoryNamePattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
-type ChatProjectMemoryDialogProps = {
-	readonly memory?: TypesGen.ChatProjectMemory | null;
-	readonly open: boolean;
-	readonly onOpenChange: (open: boolean) => void;
-	readonly onSubmit: (
-		request: TypesGen.CreateChatProjectMemoryRequest,
-	) => Promise<void>;
+export type MemoryRequest = {
+	readonly name: string;
+	readonly description: string;
+	readonly body: string;
 };
 
-export const ChatProjectMemoryDialog: FC<ChatProjectMemoryDialogProps> = ({
+type MemoryDialogProps = {
+	readonly memory?: (MemoryRequest & { readonly id: string }) | null;
+	readonly open: boolean;
+	readonly onOpenChange: (open: boolean) => void;
+	readonly onSubmit: (request: MemoryRequest) => Promise<void>;
+};
+
+export const MemoryDialog: FC<MemoryDialogProps> = ({
 	memory,
 	open,
 	onOpenChange,

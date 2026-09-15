@@ -540,6 +540,11 @@ const (
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryUpdate             APIKeyScope = "chat_project_memory:update"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	ApiKeyScopeChatUserMemory                      APIKeyScope = "chat_user_memory:*"
+	ApiKeyScopeChatUserMemoryCreate                APIKeyScope = "chat_user_memory:create"
+	ApiKeyScopeChatUserMemoryRead                  APIKeyScope = "chat_user_memory:read"
+	ApiKeyScopeChatUserMemoryUpdate                APIKeyScope = "chat_user_memory:update"
+	ApiKeyScopeChatUserMemoryDelete                APIKeyScope = "chat_user_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -831,7 +836,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryUpdate,
-		ApiKeyScopeChatProjectMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeChatUserMemory,
+		ApiKeyScopeChatUserMemoryCreate,
+		ApiKeyScopeChatUserMemoryRead,
+		ApiKeyScopeChatUserMemoryUpdate,
+		ApiKeyScopeChatUserMemoryDelete:
 		return true
 	}
 	return false
@@ -1092,6 +1102,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryUpdate,
 		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeChatUserMemory,
+		ApiKeyScopeChatUserMemoryCreate,
+		ApiKeyScopeChatUserMemoryRead,
+		ApiKeyScopeChatUserMemoryUpdate,
+		ApiKeyScopeChatUserMemoryDelete,
 	}
 }
 
@@ -3699,6 +3714,7 @@ const (
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 	ResourceTypeChatProject                 ResourceType = "chat_project"
 	ResourceTypeChatProjectMemory           ResourceType = "chat_project_memory"
+	ResourceTypeChatUserMemory              ResourceType = "chat_user_memory"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3779,7 +3795,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeChatProject,
-		ResourceTypeChatProjectMemory:
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatUserMemory:
 		return true
 	}
 	return false
@@ -3829,6 +3846,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeChatProject,
 		ResourceTypeChatProjectMemory,
+		ResourceTypeChatUserMemory,
 	}
 }
 
@@ -5218,6 +5236,13 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// Per-chat cursors for memory extraction.
+type ChatMemoryCursor struct {
+	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
+	HistoryVersion int64     `db:"history_version" json:"history_version"`
+	ExtractedAt    time.Time `db:"extracted_at" json:"extracted_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -5303,13 +5328,6 @@ type ChatProjectMemory struct {
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
-// Per-chat cursors for project memory extraction.
-type ChatProjectMemoryCursor struct {
-	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
-	HistoryVersion int64     `db:"history_version" json:"history_version"`
-	ExtractedAt    time.Time `db:"extracted_at" json:"extracted_at"`
-}
-
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
@@ -5389,6 +5407,19 @@ type ChatUsageLimitConfig struct {
 	Period             string    `db:"period" json:"period"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// User-scoped durable memories for chat.
+type ChatUserMemory struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 type ChatUserModelOverride struct {

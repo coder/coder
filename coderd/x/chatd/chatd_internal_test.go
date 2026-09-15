@@ -1747,7 +1747,7 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 	t.Fatalf("field %q not found in log entry", name)
 }
 
-func TestProjectMemoryInSystemPrompt(t *testing.T) {
+func TestMemoryInSystemPrompt(t *testing.T) {
 	t.Parallel()
 
 	prompt := buildSystemPrompt(
@@ -1755,12 +1755,12 @@ func TestProjectMemoryInSystemPrompt(t *testing.T) {
 		"",
 		"chat instruction",
 		nil,
-		"<project-memory>\n- release [project]: Release process\n</project-memory>",
+		"<memory>\n- release: Release process\n</memory>",
 		"user prompt",
 		systemPromptBehaviorContext{},
 	)
 	text := systemPromptText(t, prompt)
-	memoryIndex := strings.Index(text, "<project-memory>")
+	memoryIndex := strings.Index(text, "<memory>")
 	require.Greater(t, memoryIndex, strings.Index(text, "chat instruction"))
 	require.Less(t, memoryIndex, strings.Index(text, "user prompt"))
 }

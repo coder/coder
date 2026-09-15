@@ -816,6 +816,7 @@ var (
 					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceChatUserMemory.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:         {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type:  {policy.ActionRead},
@@ -2058,6 +2059,13 @@ func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID)
 	return q.db.CountChatQueuedMessages(ctx, chatID)
 }
 
+func (q *querier) CountChatUserMemoriesByUserAndOrganization(ctx context.Context, arg database.CountChatUserMemoriesByUserAndOrganizationParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatUserMemoriesByUserAndOrganization(ctx, arg)
+}
+
 func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	// Just like the actual query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -2315,6 +2323,21 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	}
 	_ = chat
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
+}
+
+func (q *querier) DeleteChatUserMemoryByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetChatUserMemoryByID, q.db.DeleteChatUserMemoryByID)(ctx, id)
+}
+
+func (q *querier) DeleteChatUserMemoryByName(ctx context.Context, arg database.DeleteChatUserMemoryByNameParams) error {
+	memory, err := q.db.GetChatUserMemoryByName(ctx, database.GetChatUserMemoryByNameParams(arg))
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, memory); err != nil {
+		return err
+	}
+	return q.db.DeleteChatUserMemoryByName(ctx, arg)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -3469,6 +3492,17 @@ func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, 
 	return q.db.GetChatIncludeDefaultSystemPrompt(ctx)
 }
 
+func (q *querier) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatMemoryCursor, error) {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return database.ChatMemoryCursor{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMemoryCursor{}, err
+	}
+	return q.db.GetChatMemoryCursor(ctx, chatID)
+}
+
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	// ChatMessages are authorized through their parent Chat.
 	// We need to fetch the message first to get its chat_id.
@@ -3642,17 +3676,6 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return fetch(q.log, q.auth, q.db.GetChatProjectMemoryByName)(ctx, arg)
 }
 
-func (q *querier) GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatProjectMemoryCursor, error) {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.ChatProjectMemoryCursor{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatProjectMemoryCursor{}, err
-	}
-	return q.db.GetChatProjectMemoryCursor(ctx, chatID)
-}
-
 func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetChatProjectsByOrganizationIDRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOrganizationID)(ctx, organizationID)
 }
@@ -3743,6 +3766,18 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 		return database.GetChatSystemPromptConfigRow{}, ErrNoActor
 	}
 	return q.db.GetChatSystemPromptConfig(ctx)
+}
+
+func (q *querier) GetChatUserMemoriesByUserAndOrganization(ctx context.Context, arg database.GetChatUserMemoriesByUserAndOrganizationParams) ([]database.GetChatUserMemoriesByUserAndOrganizationRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatUserMemoriesByUserAndOrganization)(ctx, arg)
+}
+
+func (q *querier) GetChatUserMemoryByID(ctx context.Context, id uuid.UUID) (database.GetChatUserMemoryByIDRow, error) {
+	return fetch(q.log, q.auth, q.db.GetChatUserMemoryByID)(ctx, id)
+}
+
+func (q *querier) GetChatUserMemoryByName(ctx context.Context, arg database.GetChatUserMemoryByNameParams) (database.GetChatUserMemoryByNameRow, error) {
+	return fetch(q.log, q.auth, q.db.GetChatUserMemoryByName)(ctx, arg)
 }
 
 func (q *querier) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
@@ -5309,6 +5344,17 @@ func (q *querier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID uui
 	return q.db.GetUserChatDebugLoggingEnabled(ctx, userID)
 }
 
+func (q *querier) GetUserChatPersonalMemoryEnabled(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
+		return "", err
+	}
+	return q.db.GetUserChatPersonalMemoryEnabled(ctx, userID)
+}
+
 func (q *querier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	user, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -6272,6 +6318,10 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	}
 	_ = chat
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
+}
+
+func (q *querier) InsertChatUserMemory(ctx context.Context, arg database.InsertChatUserMemoryParams) (database.ChatUserMemory, error) {
+	return insert(q.log, q.auth, rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String()), q.db.InsertChatUserMemory)(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
@@ -7741,6 +7791,13 @@ func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateCh
 	return q.db.UpdateChatTitleByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatUserMemoryByID(ctx context.Context, arg database.UpdateChatUserMemoryByIDParams) (database.ChatUserMemory, error) {
+	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatUserMemoryByIDParams) (database.ChatUserMemory, error) {
+		row, err := q.db.GetChatUserMemoryByID(ctx, arg.ID)
+		return row.ChatUserMemory, err
+	}, q.db.UpdateChatUserMemoryByID)(ctx, arg)
+}
+
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
@@ -9141,6 +9198,17 @@ func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, incl
 	return q.db.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt)
 }
 
+func (q *querier) UpsertChatMemoryCursor(ctx context.Context, arg database.UpsertChatMemoryCursorParams) (database.ChatMemoryCursor, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMemoryCursor{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMemoryCursor{}, err
+	}
+	return q.db.UpsertChatMemoryCursor(ctx, arg)
+}
+
 func (q *querier) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID)); err != nil {
 		return err
@@ -9166,17 +9234,6 @@ func (q *querier) UpsertChatProjectMemoryByName(ctx context.Context, arg databas
 	return insert(q.log, q.auth, rbac.ResourceChatProjectMemory.InOrg(arg.OrganizationID), q.db.UpsertChatProjectMemoryByName)(ctx, arg)
 }
 
-func (q *querier) UpsertChatProjectMemoryCursor(ctx context.Context, arg database.UpsertChatProjectMemoryCursorParams) (database.ChatProjectMemoryCursor, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return database.ChatProjectMemoryCursor{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatProjectMemoryCursor{}, err
-	}
-	return q.db.UpsertChatProjectMemoryCursor(ctx, arg)
-}
-
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -9189,6 +9246,10 @@ func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) erro
 		return err
 	}
 	return q.db.UpsertChatSystemPrompt(ctx, value)
+}
+
+func (q *querier) UpsertChatUserMemoryByName(ctx context.Context, arg database.UpsertChatUserMemoryByNameParams) (database.ChatUserMemory, error) {
+	return insert(q.log, q.auth, rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String()), q.db.UpsertChatUserMemoryByName)(ctx, arg)
 }
 
 func (q *querier) UpsertChatUserModelOverride(ctx context.Context, arg database.UpsertChatUserModelOverrideParams) error {
@@ -9382,6 +9443,17 @@ func (q *querier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.UpsertUserChatDebugLoggingEnabled(ctx, arg)
+}
+
+func (q *querier) UpsertUserChatPersonalMemoryEnabled(ctx context.Context, arg database.UpsertUserChatPersonalMemoryEnabledParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserConfig{}, err
+	}
+	return q.db.UpsertUserChatPersonalMemoryEnabled(ctx, arg)
 }
 
 func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {

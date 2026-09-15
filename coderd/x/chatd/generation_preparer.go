@@ -461,17 +461,14 @@ func (server *Server) prepareGeneration(
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
-	projectMemoryIndex := ""
-	if chat.ProjectID.Valid && isRootChat && server.experiments.Enabled(codersdk.ExperimentChatProjects) {
-		memories, memoryErr := server.db.GetChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
+	memoryStore, memoryScope, hasMemoryScope := server.resolveMemoryScope(ctx, chat)
+	memoryIndex := ""
+	if hasMemoryScope {
+		entries, memoryErr := memoryStore.List(ctx)
 		if memoryErr != nil {
-			logger.Debug(ctx, "failed to load chat project memories", slog.F("chat_id", chat.ID), slog.Error(memoryErr))
+			logger.Debug(ctx, "failed to load chat memories", slog.F("chat_id", chat.ID), slog.Error(memoryErr))
 		} else {
-			entries := make([]chattool.ProjectMemoryIndexEntry, len(memories))
-			for i, memory := range memories {
-				entries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Description: memory.ChatProjectMemory.Description}
-			}
-			projectMemoryIndex = chattool.FormatProjectMemoryIndex(entries)
+			memoryIndex = chattool.FormatMemoryIndex(memoryScope, entries)
 		}
 	}
 
@@ -480,7 +477,7 @@ func (server *Server) prepareGeneration(
 		subagentInstruction,
 		instruction,
 		initialResolvedSkills,
-		projectMemoryIndex,
+		memoryIndex,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -582,9 +579,8 @@ func (server *Server) prepareGeneration(
 		return updated, changed
 	}
 	tools, _ = appendCurrentSkillTools(tools)
-	if chat.ProjectID.Valid && isRootChat && server.experiments.Enabled(codersdk.ExperimentChatProjects) {
-		memoryOpts := chattool.ProjectMemoryOptions{Store: server.db, ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID, ChatID: chat.ID, OwnerID: chat.OwnerID}
-		tools = append(tools, chattool.ReadProjectMemory(memoryOpts), chattool.SaveProjectMemory(memoryOpts), chattool.DeleteProjectMemory(memoryOpts))
+	if hasMemoryScope {
+		tools = append(tools, chattool.ReadMemory(memoryStore, memoryScope), chattool.SaveMemory(memoryStore, memoryScope), chattool.DeleteMemory(memoryStore, memoryScope))
 	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
@@ -877,7 +873,7 @@ func (server *Server) afterGenerationOutcome(
 		finalizeCtx := context.WithoutCancel(ctx)
 		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
 		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
-		server.maybeExtractProjectMemoriesAsync(finalizeCtx, logger, chat)
+		server.maybeExtractMemoriesAsync(finalizeCtx, logger, chat)
 	case runnerActionKindFinishError:
 		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:

@@ -214,6 +214,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_dark'
 RETURNING *;
 
+-- name: GetUserChatPersonalMemoryEnabled :one
+SELECT
+	value
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'chat_personal_memory_enabled';
+
+-- name: UpsertUserChatPersonalMemoryEnabled :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'chat_personal_memory_enabled', @value)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @value
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_personal_memory_enabled'
+RETURNING *;
+
 -- name: GetUserChatCustomPrompt :one
 SELECT
 	value as chat_custom_prompt

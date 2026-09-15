@@ -231,6 +231,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				showApiKeysItem={showApiKeysItem}
 				isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 				canManageAgentSettings={canManageAgentSettings}
+				showMemoryItem={chatProjectsEnabled}
 				location={location}
 				onCollapse={onCollapse}
 			/>

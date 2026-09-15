@@ -20,6 +20,7 @@ const (
 	ResourceChatModelConfig               RBACResource = "chat_model_config"
 	ResourceChatProject                   RBACResource = "chat_project"
 	ResourceChatProjectMemory             RBACResource = "chat_project_memory"
+	ResourceChatUserMemory                RBACResource = "chat_user_memory"
 	ResourceConnectionLog                 RBACResource = "connection_log"
 	ResourceCryptoKey                     RBACResource = "crypto_key"
 	ResourceDebugInfo                     RBACResource = "debug_info"
@@ -102,6 +103,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceChatProject:                   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceChatProjectMemory:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceChatUserMemory:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},
