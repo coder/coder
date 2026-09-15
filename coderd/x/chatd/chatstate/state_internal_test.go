@@ -28,6 +28,7 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 		status        database.ChatStatus
 		archived      bool
 		queueNonEmpty bool
+		paused        bool
 		exists        bool
 		want          ExecutionState
 	}{
@@ -44,6 +45,9 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 		{name: "XW", status: database.ChatStatusWaiting, archived: true, exists: true, want: StateXW},
 		{name: "XE0", status: database.ChatStatusError, archived: true, exists: true, want: StateXE0},
 		{name: "XE1", status: database.ChatStatusError, archived: true, queueNonEmpty: true, exists: true, want: StateXE1},
+		{name: "P", status: database.ChatStatusPaused, queueNonEmpty: true, paused: true, exists: true, want: StateP},
+		// A head under edit changes nothing outside paused.
+		{name: "R1Paused", status: database.ChatStatusRunning, queueNonEmpty: true, paused: true, exists: true, want: StateR1},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -53,7 +57,8 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 			if tc.exists {
 				chat = chatWithStatus(tc.status, tc.archived)
 			}
-			require.Equal(t, tc.want, ClassifyExecutionState(chat, tc.queueNonEmpty, tc.exists))
+			queue := QueueState{HasRows: tc.queueNonEmpty, Paused: tc.paused}
+			require.Equal(t, tc.want, ClassifyExecutionState(chat, queue, tc.exists))
 		})
 	}
 }
@@ -69,16 +74,21 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		status        database.ChatStatus
 		archived      bool
 		queueNonEmpty bool
+		paused        bool
 	}{
-		// Legacy statuses (pending/paused/completed) are invalid for
-		// the new state machine.
+		// Legacy statuses (pending/completed) are invalid.
 		{name: "LegacyPending", status: "pending"},
-		{name: "LegacyPaused", status: "paused"},
 		{name: "LegacyCompleted", status: "completed"},
 
-		// Waiting must always have an empty queue.
+		// Waiting never has rows.
 		{name: "WaitingWithQueue", status: database.ChatStatusWaiting, queueNonEmpty: true},
+		{name: "WaitingPaused", status: database.ChatStatusWaiting, queueNonEmpty: true, paused: true},
 		{name: "WaitingArchivedWithQueue", status: database.ChatStatusWaiting, archived: true, queueNonEmpty: true},
+
+		// Paused requires a pause condition and is never archived.
+		{name: "PausedNoRows", status: database.ChatStatusPaused},
+		{name: "PausedWithoutCondition", status: database.ChatStatusPaused, queueNonEmpty: true},
+		{name: "PausedArchived", status: database.ChatStatusPaused, archived: true, queueNonEmpty: true, paused: true},
 
 		// Archived busy statuses are invalid.
 		{name: "ArchivedRunning", status: database.ChatStatusRunning, archived: true},
@@ -89,15 +99,16 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ClassifyExecutionState(chatWithStatus(tc.status, tc.archived), tc.queueNonEmpty, true)
+			queue := QueueState{HasRows: tc.queueNonEmpty, Paused: tc.paused}
+			got := ClassifyExecutionState(chatWithStatus(tc.status, tc.archived), queue, true)
 			require.Equal(t, StateInvalid, got)
 		})
 	}
 }
 
 // TestClassifyExecutionState_RejectsAllUnlistedCombinations enumerates
-// every (status, archived, queueNonEmpty) tuple for an existing chat
-// and asserts exactly the expected valid tuples classify out of
+// every (status, archived, queue) tuple for an existing chat and
+// asserts that exactly the declared valid states classify out of
 // [StateInvalid]. Missing chats are handled separately via the N case
 // in [TestClassifyExecutionState_Valid].
 func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
@@ -108,21 +119,34 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 		database.ChatStatusRunning,
 		database.ChatStatusInterrupting,
 		database.ChatStatusRequiresAction,
-		"pending", "paused", "completed",
+		database.ChatStatusPaused,
+		"pending", "completed",
 	}
-	validCount := 0
+	tuplesByState := map[ExecutionState]int{}
 	for _, status := range allStatuses {
 		for _, archived := range []bool{false, true} {
-			for _, queueNonEmpty := range []bool{false, true} {
-				got := ClassifyExecutionState(chatWithStatus(status, archived), queueNonEmpty, true)
-				if got != StateInvalid {
-					validCount++
+			for _, hasRows := range []bool{false, true} {
+				for _, paused := range []bool{false, true} {
+					chat := chatWithStatus(status, archived)
+					queue := QueueState{HasRows: hasRows, Paused: paused}
+					tuplesByState[ClassifyExecutionState(chat, queue, true)]++
 				}
 			}
 		}
 	}
-	wantValid := len(AllExecutionStates) - 2 // Exclude StateN and StateInvalid.
-	require.Equal(t, wantValid, validCount, "valid existing-chat (status, archived, queue) tuples")
+	// Each valid state maps from one (status, archived, rows) tuple. Only
+	// P reads the pause condition, so every other state is reached with
+	// it both set and unset.
+	require.Zero(t, tuplesByState[StateN], "N requires a missing chat")
+	for _, state := range AllExecutionStates {
+		switch state {
+		case StateN, StateInvalid:
+		case StateP:
+			require.Equal(t, 1, tuplesByState[state], "%s", state)
+		default:
+			require.Equal(t, 2, tuplesByState[state], "%s", state)
+		}
+	}
 }
 
 // TestAllExecutionStates_Enumeration verifies AllExecutionStates
@@ -132,8 +156,8 @@ func TestAllExecutionStates_Enumeration(t *testing.T) {
 	want := map[ExecutionState]bool{
 		StateN: true, StateW: true, StateE0: true, StateE1: true,
 		StateR0: true, StateR1: true, StateI0: true, StateI1: true,
-		StateA0: true, StateA1: true, StateXW: true, StateXE0: true,
-		StateXE1: true, StateInvalid: true,
+		StateA0: true, StateA1: true, StateP: true, StateXW: true,
+		StateXE0: true, StateXE1: true, StateInvalid: true,
 	}
 	require.Len(t, AllExecutionStates, len(want))
 	seen := make(map[ExecutionState]bool, len(want))

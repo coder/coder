@@ -90,6 +90,9 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
+	// ChatStatusPaused: the chat is not running and its queued messages
+	// wait until it resumes. A send queues.
+	ChatStatusPaused ChatStatus = "paused"
 )
 
 // ChatClientType indicates whether a chat was created from the
@@ -1685,6 +1688,24 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	// EditingSince is set while the owner edits the message. A message
+	// under edit and every message behind it wait until the edit ends; a
+	// turn that ends at a message under edit pauses the chat.
+	EditingSince *time.Time `json:"editing_since,omitempty" format:"date-time"`
+}
+
+// EditChatQueuedMessageRequest edits a queued message. Omitted fields
+// are left unchanged; a request with no fields is rejected.
+type EditChatQueuedMessageRequest struct {
+	// Content replaces the queued content. An empty array is rejected.
+	Content []ChatInputPart `json:"content,omitempty"`
+	// ModelConfigID and ReasoningEffort apply only together with Content.
+	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
+	// Editing begins (true) or ends (false) an edit of the message. A
+	// chat has at most one message under edit; beginning another ends the
+	// first. Ending the edit of a paused chat's head sends it.
+	Editing *bool `json:"editing,omitempty"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -3155,6 +3176,29 @@ func (c *Client) EditChatMessage(
 	defer res.Body.Close()
 	var resp EditChatMessageResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// EditChatQueuedMessage edits a queued message's content or edit marker.
+func (c *Client) EditChatQueuedMessage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	queuedMessageID int64,
+	req EditChatQueuedMessageRequest,
+) error {
+	res, err := c.Request(
+		ctx,
+		http.MethodPatch,
+		fmt.Sprintf("/api/v2/chats/%s/queue/%d", chatID, queuedMessageID),
+		req,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.

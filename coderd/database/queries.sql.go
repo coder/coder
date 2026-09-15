@@ -7346,7 +7346,7 @@ WITH to_archive AS (
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < $1::timestamptz
       -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action')
+      AND c.status NOT IN ('running', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < $1::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
@@ -7706,8 +7706,6 @@ FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 `
 
-// Cheap queue-length check used by ChatMachine.Update when deciding
-// whether the chat is in a "1" sub-state.
 func (q *sqlQuerier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countChatQueuedMessages, chatID)
 	var count int64
@@ -7846,9 +7844,9 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats_expanded
 WHERE agent_id = $1::uuid
     AND archived = false
-    -- Active statuses only: waiting, running, requires_action.
+    -- Active statuses only: waiting, running, requires_action, paused.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC
 `
 
@@ -7943,7 +7941,8 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < $1::timestamptz
 ORDER BY chats_expanded.created_at ASC
@@ -9223,7 +9222,7 @@ func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQu
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
 WHERE id = $1::bigint AND chat_id = $2::uuid
 `
 
@@ -9244,12 +9243,13 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.EditingSince,
 	)
 	return i, err
 }
 
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 LIMIT 1
@@ -9268,14 +9268,15 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.EditingSince,
 	)
 	return i, err
 }
 
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY created_at ASC, id ASC
+ORDER BY position ASC, id ASC
 `
 
 func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
@@ -9296,6 +9297,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 			&i.Position,
 			&i.CreatedBy,
 			&i.ReasoningEffort,
+			&i.EditingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -9311,7 +9313,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 }
 
 const getChatQueuedMessagesByPosition = `-- name: GetChatQueuedMessagesByPosition :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 `
@@ -9335,6 +9337,7 @@ func (q *sqlQuerier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID
 			&i.Position,
 			&i.CreatedBy,
 			&i.ReasoningEffort,
+			&i.EditingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -10413,7 +10416,7 @@ WHERE
 //     disappeared).
 //  3. Waiting chats with a non-empty queue and stale updated_at
 //     (deferred-promote stranding when the worker dies before its
-//     post-cancel cleanup runs).
+//     post-cancel cleanup runs). Paused chats are excluded.
 func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getStaleChats, staleThreshold)
 	if err != nil {
@@ -11036,7 +11039,7 @@ SELECT
     chats.owner_id
 FROM chats
 WHERE chats.id = $1::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
 `
 
 type InsertChatQueuedMessageParams struct {
@@ -11066,6 +11069,7 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.EditingSince,
 	)
 	return i, err
 }
@@ -11079,7 +11083,7 @@ VALUES (
     $4::chat_reasoning_effort,
     $5::uuid
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
@@ -11111,6 +11115,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.EditingSince,
 	)
 	return i, err
 }
@@ -11394,7 +11399,7 @@ UPDATE chats
 SET context_dirty_since = $1
 WHERE agent_id = $2::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM $3
     AND context_dirty_since IS NULL
@@ -11509,7 +11514,7 @@ WHERE id = (
     ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
 `
 
 func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
@@ -11524,6 +11529,7 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.EditingSince,
 	)
 	return i, err
 }
@@ -13097,6 +13103,78 @@ func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatP
 		&i.ContextDirtyResources,
 		&i.ContextError,
 		&i.CompactionRequestedAt,
+	)
+	return i, err
+}
+
+const updateChatQueuedMessageContent = `-- name: UpdateChatQueuedMessageContent :one
+UPDATE chat_queued_messages
+SET content = $1::jsonb,
+    model_config_id = $2::uuid,
+    reasoning_effort = $3::chat_reasoning_effort
+WHERE id = $4::bigint AND chat_id = $5::uuid
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+`
+
+type UpdateChatQueuedMessageContentParams struct {
+	Content         json.RawMessage         `db:"content" json:"content"`
+	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	ID              int64                   `db:"id" json:"id"`
+	ChatID          uuid.UUID               `db:"chat_id" json:"chat_id"`
+}
+
+// Replaces the content and per-message overrides of a queued message.
+func (q *sqlQuerier) UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageContent,
+		arg.Content,
+		arg.ModelConfigID,
+		arg.ReasoningEffort,
+		arg.ID,
+		arg.ChatID,
+	)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.ModelConfigID,
+		&i.Position,
+		&i.CreatedBy,
+		&i.ReasoningEffort,
+		&i.EditingSince,
+	)
+	return i, err
+}
+
+const updateChatQueuedMessageEditing = `-- name: UpdateChatQueuedMessageEditing :one
+UPDATE chat_queued_messages
+SET editing_since = CASE WHEN $1::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
+WHERE id = $2::bigint AND chat_id = $3::uuid
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+`
+
+type UpdateChatQueuedMessageEditingParams struct {
+	Editing bool      `db:"editing" json:"editing"`
+	ID      int64     `db:"id" json:"id"`
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Sets or clears editing_since on one row; an existing value is kept.
+func (q *sqlQuerier) UpdateChatQueuedMessageEditing(ctx context.Context, arg UpdateChatQueuedMessageEditingParams) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageEditing, arg.Editing, arg.ID, arg.ChatID)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.ModelConfigID,
+		&i.Position,
+		&i.CreatedBy,
+		&i.ReasoningEffort,
+		&i.EditingSince,
 	)
 	return i, err
 }

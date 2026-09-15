@@ -16,6 +16,7 @@ const (
 	TransitionClearContext            Transition = "ClearContext"
 	TransitionDeleteQueuedMessage     Transition = "DeleteQueuedMessage"
 	TransitionPromoteQueuedMessage    Transition = "PromoteQueuedMessage"
+	TransitionEditQueuedMessage       Transition = "EditQueuedMessage"
 	TransitionInterrupt               Transition = "Interrupt"
 	TransitionCompleteRequiresAction  Transition = "CompleteRequiresAction"
 	TransitionAbandon                 Transition = "Abandon"
@@ -42,6 +43,10 @@ func (t Transition) String() string { return string(t) }
 // last queued message, or stays in E1 otherwise), which is why several
 // entries list more than one output.
 //
+// A paused queue head (see queuePaused) is not promoted by FinishTurn
+// from R1, FinishInterruption from I1, or SendMessage from E1; from R1
+// and I1 the chat transitions to P.
+//
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
 var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
@@ -65,10 +70,11 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
-		TransitionSendMessage:          {StateR1},
+		TransitionSendMessage:          {StateR1, StateE1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
+		TransitionEditQueuedMessage:    {StateE1},
 		TransitionRequestCompaction:    {StateR1},
 	},
 	StateR0: {
@@ -87,12 +93,13 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1},
 		TransitionPromoteQueuedMessage:    {StateI1},
+		TransitionEditQueuedMessage:       {StateR1},
 		TransitionInterrupt:               {StateI1},
 		TransitionRecordGenerationAttempt: {StateR1},
 		TransitionRecordRetryState:        {StateR1},
 		TransitionCommitStep:              {StateR1},
 		TransitionEnterRequiresAction:     {StateA1},
-		TransitionFinishTurn:              {StateR0, StateR1},
+		TransitionFinishTurn:              {StateR0, StateR1, StateP},
 		TransitionFinishError:             {StateE1},
 	},
 	StateI0: {
@@ -105,7 +112,8 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateI0, StateI1},
 		TransitionPromoteQueuedMessage: {StateI1},
-		TransitionFinishInterruption:   {StateR0, StateR1},
+		TransitionEditQueuedMessage:    {StateI1},
+		TransitionFinishInterruption:   {StateR0, StateR1, StateP},
 	},
 	StateA0: {
 		TransitionSendMessage:            {StateA1, StateR1},
@@ -119,9 +127,17 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEditMessage:            {StateR0},
 		TransitionDeleteQueuedMessage:    {StateA0, StateA1},
 		TransitionPromoteQueuedMessage:   {StateR0, StateR1},
+		TransitionEditQueuedMessage:      {StateA1},
 		TransitionInterrupt:              {StateR1},
 		TransitionCompleteRequiresAction: {StateR1},
 		TransitionCancelRequiresAction:   {StateR1},
+	},
+	StateP: {
+		TransitionSendMessage:          {StateP},
+		TransitionEditMessage:          {StateR0},
+		TransitionDeleteQueuedMessage:  {StateW, StateR0, StateR1},
+		TransitionPromoteQueuedMessage: {StateR0, StateR1},
+		TransitionEditQueuedMessage:    {StateP, StateR0, StateR1},
 	},
 	StateXW: {
 		TransitionSetArchived: {StateW},

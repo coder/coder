@@ -64,6 +64,8 @@ A chat's execution state lets the chat worker and the HTTP endpoints decide what
 
 The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, and then `1` or `0` indicate the presence or absence of queued messages.
 
+TODO: document the paused execution state `P`: `chats.status = paused`, not archived, non-empty queue for which a pause condition holds (`chatstate.StateP`, classified from `chatstate.QueueState{HasRows, Paused}` read by `chatstate.LoadQueueState`; `Paused` is `chatstate.queuePaused(head)`, the single place pause mechanisms register their condition; today: the head has `editing_since`). `paused` is a first-class status (in the `chat_status` enum since 000595) so every reader of `status` distinguishes it from idle without the queue. At most one queued message per chat carries `editing_since` (set while its owner edits it; beginning an edit on another ends the first). An edit changes no other state: busy states classify by row count. `waiting` with rows and `paused` without a pause condition are invalid. `P` is not runnable; a send to `P` queues at the tail. Status consumers that treat `paused` like `waiting`: the runner (abandon task), `interruptSubagent` (no turn to interrupt), and the end-of-turn label, summary, and push (`turnFinished`). SQL: `paused` is in the active-status lists of `MarkChatsContextDirtyByAgent` and `GetActiveChatsByAgentID` and excluded from both auto-archive queries; `GetStaleChats` never returns it.
+
 | Shorthand | Status | Queue | Archived | Meaning |
 | --- | --- | --- | --- | --- |
 | `N` | - | - | - | Chat does not exist |
@@ -118,6 +120,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
+
+TODO: document `EditQueuedMessage(qid, content?, editing?)`: rewrites a queued row's content and/or begins or ends its edit in one transition; beginning an edit on a row ends the chat's previous edit in the same transition. Admitted from `E1`, `R1`, `I1`, `A1` (same state) and from `P`. From `P`: ending the head's edit promotes it and the chat runs (`R0`/`R1`); beginning an edit on another row is refused (`ErrPausedQueuedHeadUnderEdit`). `DeleteQueuedMessage` from `P`: deleting the head promotes the row behind it (`R0`/`R1`) or idles the chat (`W`). `PromoteQueuedMessage` ends the target's edit before reordering and from `P` pops the target into history like `E1`/`A1`; "send now" on a row behind one under edit is not blocked by it. `SendMessage` from `P` queues (`P`); from `E1` with a head under edit it queues without promoting (`E1`). Not admitted from `P`: `SetArchived`, `ClearContext`, `RequestCompaction`, `Interrupt`, `FinishTurn`, `FinishError`.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
@@ -130,6 +134,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
 - `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
+
+TODO: document that `FinishTurn` from `R1` and `FinishInterruption` from `I1` check the queue head with `queuePaused`: a paused head is not promoted and the chat transitions to `P` (`paused`, queue intact). `P` is left through `resumeIfUnpaused`, which promotes the head once no pause condition remains, or sets `W` when no rows remain.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
 - `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
@@ -375,7 +381,7 @@ FOR EACH ROW
 EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update
-AFTER UPDATE OF content, model_config_id, position, created_by
+AFTER UPDATE OF content, model_config_id, position, created_by, editing_since
 ON chat_queued_messages
 FOR EACH ROW
 EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
@@ -544,6 +550,8 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 `PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
 
 No other input states are supported.
+
+TODO: update the `DELETE` and `promote` sections above for queued-message edits: both endpoints accept `P`; `DELETE` is owner-only like `promote` because deleting the head of a paused chat starts the row behind it. Add a section for `PATCH /api/experimental/chats/{chat}/queue/{queuedMessage}` (`EditQueuedMessage`): owner-only; request `content?`, `model_config_id?`, `reasoning_effort?`, `editing?` (at least one required, `content: []` rejected); content passes the same input validation, `user_prompt_submit` hook, model and effort checks, and file linking as a send; `204` response, outcome arrives through the stream; ending the edit of a paused chat's head sends it; beginning an edit on another row while paused is a `409`; state mappings per the `EditQueuedMessage` cells in `transition.go`. Note the client flow: `editing:true` to begin (ends any other edit), `{content, editing:false}` to save, `{editing:false}` to cancel, `404` on a row that was already promoted. Clients see `status: "paused"` on the chat and `editing_since` on the head row.
 
 ### `POST /api/experimental/chats/{chat}/interrupt`
 
@@ -1237,6 +1245,8 @@ Flow:
 Required invariant:
 
 - every client-visible queue insert, update, reorder, or delete advances `queue_version`.
+
+TODO: note that `editing_since` changes are client-visible queue updates: the update trigger lists `editing_since`, and the `queue_update` snapshot carries `editing_since` so every client can render the row under edit and the rows waiting behind it.
 
 ### Retry-state synchronization
 

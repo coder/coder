@@ -1,6 +1,13 @@
 package chatstate
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -30,6 +37,8 @@ const (
 	StateA0 ExecutionState = "A0"
 	// StateA1: requires_action, non-empty queue, not archived.
 	StateA1 ExecutionState = "A1"
+	// StateP: paused, non-empty queue, not archived.
+	StateP ExecutionState = "P"
 	// StateXW: archived waiting, empty queue.
 	StateXW ExecutionState = "XW"
 	// StateXE0: archived error, empty queue.
@@ -50,8 +59,8 @@ func (s ExecutionState) String() string { return string(s) }
 // IsRunnable returns true for the execution states that the chat
 // worker is allowed to acquire and drive forward: R0, R1, I0, I1,
 // A0, and A1. Requires-action states need worker ownership for
-// timeout processing. Other states are idle (W, E*, XW, XE*), absent
-// (N), or invalid.
+// timeout processing. Other states are idle (W, P, E*, XW, XE*),
+// absent (N), or invalid.
 func (s ExecutionState) IsRunnable() bool {
 	switch s {
 	case StateR0, StateR1, StateI0, StateI1, StateA0, StateA1:
@@ -61,10 +70,38 @@ func (s ExecutionState) IsRunnable() bool {
 	}
 }
 
-// ClassifyExecutionState turns the chat row, queue cardinality, and
-// whether the chat row exists into an [ExecutionState]. The caller is
+// QueueState is the queue input to [ClassifyExecutionState].
+type QueueState struct {
+	// HasRows is the "1" queue sub-state.
+	HasRows bool
+	// Paused is [queuePaused] of the head. Only P requires it.
+	Paused bool
+}
+
+// queuePaused reports whether a pause condition holds for the queue
+// head, so it must not be promoted. Each pause mechanism adds its
+// condition here.
+func queuePaused(head database.ChatQueuedMessage) bool {
+	return head.EditingSince.Valid
+}
+
+// LoadQueueState reads the queue head in the caller's transaction. An
+// empty queue yields the zero value.
+func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID) (QueueState, error) {
+	head, err := store.GetChatQueuedMessageHead(ctx, chatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return QueueState{}, nil
+	}
+	if err != nil {
+		return QueueState{}, xerrors.Errorf("get queue head: %w", err)
+	}
+	return QueueState{HasRows: true, Paused: queuePaused(head)}, nil
+}
+
+// ClassifyExecutionState turns the chat row, queue state, and whether
+// the chat row exists into an [ExecutionState]. The caller is
 // responsible for loading the chat under the row lock and reading the
-// queue count in the same transaction.
+// queue state in the same transaction.
 //
 // Callers that have no chat row (lookup returned sql.ErrNoRows)
 // should pass exists=false; the chat, status, and archive arguments
@@ -73,37 +110,40 @@ func (s ExecutionState) IsRunnable() bool {
 // The classifier is a single flat switch over the valid (status,
 // archived, queue) tuples in the chat execution state model. Anything
 // outside that set (archived busy states, waiting with a non-empty
-// queue, future enum values) falls through to [StateInvalid].
+// queue, paused without a pause condition, future enum values) falls
+// through to [StateInvalid].
 //
-//nolint:revive // queueNonEmpty/exists are simple classifier inputs.
-func ClassifyExecutionState(chat database.Chat, queueNonEmpty, exists bool) ExecutionState {
+//nolint:revive // exists is a simple classifier input.
+func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {
 	if !exists {
 		return StateN
 	}
 	switch {
-	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queue.HasRows:
 		return StateW
-	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusPaused && !chat.Archived && queue.HasRows && queue.Paused:
+		return StateP
+	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queue.HasRows:
 		return StateXW
-	case chat.Status == database.ChatStatusError && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusError && !chat.Archived && !queue.HasRows:
 		return StateE0
-	case chat.Status == database.ChatStatusError && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusError && !chat.Archived && queue.HasRows:
 		return StateE1
-	case chat.Status == database.ChatStatusError && chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusError && chat.Archived && !queue.HasRows:
 		return StateXE0
-	case chat.Status == database.ChatStatusError && chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusError && chat.Archived && queue.HasRows:
 		return StateXE1
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusRunning && !chat.Archived && !queue.HasRows:
 		return StateR0
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusRunning && !chat.Archived && queue.HasRows:
 		return StateR1
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && !queue.HasRows:
 		return StateI0
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && queue.HasRows:
 		return StateI1
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && !queueNonEmpty:
+	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && !queue.HasRows:
 		return StateA0
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && queueNonEmpty:
+	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && queue.HasRows:
 		return StateA1
 	}
 	return StateInvalid

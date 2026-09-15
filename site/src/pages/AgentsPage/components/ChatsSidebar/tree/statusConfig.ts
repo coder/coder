@@ -43,6 +43,11 @@ const statusConfig = {
 		className: "text-content-destructive",
 		label: "Error",
 	},
+	paused: {
+		icon: PauseIcon,
+		className: "text-content-warning",
+		label: "Paused",
+	},
 } as const satisfies Record<ChatStatus, ChatIconConfig>;
 
 const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
