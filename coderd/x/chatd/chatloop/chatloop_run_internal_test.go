@@ -1447,6 +1447,72 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 	})
 }
 
+func TestExecuteSingleTool_OversizedInlineImage(t *testing.T) {
+	t.Parallel()
+
+	metrics := NewMetrics(prometheus.NewRegistry())
+	logger := slog.Make()
+	oversized := make([]byte, codersdk.AnthropicInlineImageCapBytes)
+	small := []byte{0x89, 'P', 'N', 'G'}
+
+	run := func(t *testing.T, provider string, data []byte) fantasy.ToolResultContent {
+		tool := fantasy.NewAgentTool(
+			"screenshot",
+			"takes a screenshot",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Type:      "image",
+					Data:      data,
+					MediaType: "image/png",
+					Content:   "Ran Playwright code",
+				}, nil
+			},
+		)
+		return executeSingleTool(
+			context.Background(),
+			map[string]fantasy.AgentTool{"screenshot": tool},
+			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
+			metrics,
+			logger,
+			provider, "model",
+			map[string]bool{},
+			[]string{"screenshot"},
+			nil,
+			map[string]struct{}{},
+			nil,
+			defaultToolResultBytes,
+			nil,
+		)
+	}
+
+	t.Run("CappedProviderKeepsTextOnly", func(t *testing.T) {
+		t.Parallel()
+
+		result := run(t, "anthropic", oversized)
+		text, ok := result.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok, "expected text result, got %T", result.Result)
+		require.Contains(t, text.Text, "Ran Playwright code")
+		require.Contains(t, text.Text, "[image omitted")
+	})
+
+	t.Run("CappedProviderKeepsSmallImage", func(t *testing.T) {
+		t.Parallel()
+
+		result := run(t, "anthropic", small)
+		_, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok, "expected media result, got %T", result.Result)
+	})
+
+	t.Run("UncappedProviderKeepsImage", func(t *testing.T) {
+		t.Parallel()
+
+		result := run(t, "openai", oversized)
+		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok, "expected media result, got %T", result.Result)
+		require.Equal(t, "Ran Playwright code", media.Text)
+	})
+}
+
 func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 	t.Parallel()
 

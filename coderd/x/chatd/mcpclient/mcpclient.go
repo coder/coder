@@ -878,9 +878,9 @@ func unwrapModelIntent(input string) string {
 	return input
 }
 
-// convertCallResult preserves all text alongside the first media item in a
-// fantasy.ToolResponse. Additional binary items are dropped because fantasy
-// supports only one media payload per response.
+// convertCallResult preserves all text alongside the first non-empty media
+// item in a fantasy.ToolResponse. Additional binary items are dropped because
+// fantasy supports only one media payload per response.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -899,7 +899,7 @@ func convertCallResult(
 		case *mcp.ImageContent:
 			// The SDK decodes base64 payloads during unmarshal, so
 			// Data is raw bytes.
-			if binaryResult == nil {
+			if binaryResult == nil && len(c.Data) > 0 {
 				r := fantasy.ToolResponse{
 					Type:      "image",
 					Data:      c.Data,
@@ -909,7 +909,7 @@ func convertCallResult(
 				binaryResult = &r
 			}
 		case *mcp.AudioContent:
-			if binaryResult == nil {
+			if binaryResult == nil && len(c.Data) > 0 {
 				r := fantasy.ToolResponse{
 					Type:      "media",
 					Data:      c.Data,
@@ -928,7 +928,7 @@ func convertCallResult(
 					"[embedded resource with no contents]",
 				)
 			case c.Resource.Blob != nil:
-				if binaryResult == nil {
+				if binaryResult == nil && len(c.Resource.Blob) > 0 {
 					blobType := "media"
 					if strings.HasPrefix(c.Resource.MIMEType, "image/") {
 						blobType = "image"

@@ -1646,6 +1646,23 @@ func TestConvertCallResult_MixedContent(t *testing.T) {
 			wantType: "image", wantData: []byte("first-image"), wantMIME: "image/png",
 			wantContent: "Screenshots captured",
 		},
+		{
+			name: "TextAndEmptyImageStaysText",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.TextContent{Text: "Screenshot captured"},
+				&mcp.ImageContent{Data: nil, MIMEType: "image/png"},
+			}},
+			wantType:    "text",
+			wantContent: "Screenshot captured",
+		},
+		{
+			name: "EmptyImageThenRealImage",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.ImageContent{Data: []byte{}, MIMEType: "image/png"},
+				&mcp.ImageContent{Data: []byte("real-image"), MIMEType: "image/jpeg"},
+			}},
+			wantType: "image", wantData: []byte("real-image"), wantMIME: "image/jpeg",
+		},
 	}
 
 	for _, tt := range tests {
