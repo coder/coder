@@ -212,7 +212,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 						}
 						emptyIndicator={
 							<p className="text-center text-md text-content-primary">
-								All scopes selected
+								No matching scopes
 							</p>
 						}
 					/>
