@@ -125,110 +125,212 @@
 					"icon_path": "./images/icons/terminal.svg"
 				},
 				{
-					"title": "Docker",
-					"description": "Install and run Coder using the official Docker images for a quick single-machine deployment.",
-					"path": "./install/docker.md",
-					"icon_path": "./images/icons/docker.svg"
-				},
-				{
-					"title": "Kubernetes",
-					"description": "Install Coder on a Kubernetes cluster using the official Helm chart for production deployments.",
-					"path": "./install/kubernetes.md",
-					"icon_path": "./images/icons/kubernetes.svg",
+					"title": "1. Plan your deployment",
+					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
+					"path": "./install/plan/index.md",
+					"icon_path": "./images/icons/notes.svg",
 					"children": [
 						{
-							"title": "Deploy Coder on Azure with an Application Gateway",
-							"description": "Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.",
-							"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
+							"title": "Architecture",
+							"description": "Learn about Coder's architecture and the components that make up a deployment.",
+							"path": "./install/plan/architecture.md"
+						},
+						{
+							"title": "Validated Architectures",
+							"description": "Coder Validated Architectures with reference designs and best practices for large deployments.",
+							"path": "./install/plan/sizing/index.md",
+							"children": [
+								{
+									"title": "Up to 1,000 Users",
+									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users",
+									"path": "./install/plan/sizing/1k-users.md"
+								},
+								{
+									"title": "Up to 2,000 Users",
+									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users",
+									"path": "./install/plan/sizing/2k-users.md"
+								},
+								{
+									"title": "Up to 3,000 Users",
+									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
+									"path": "./install/plan/sizing/3k-users.md"
+								},
+								{
+									"title": "Up to 10,000 Users",
+									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
+									"path": "./install/plan/sizing/10k-users.md"
+								}
+							]
 						}
 					]
 				},
 				{
-					"title": "Rancher",
-					"description": "Deploy Coder on Rancher as a Kubernetes workload using the Rancher UI and Helm.",
-					"path": "./install/rancher.md",
-					"icon_path": "./images/icons/rancher.svg"
-				},
-				{
-					"title": "OpenShift",
-					"description": "Install Coder on a Red Hat OpenShift cluster using Helm, with the required security context settings.",
-					"path": "./install/openshift.md",
-					"icon_path": "./images/icons/openshift.svg"
-				},
-				{
-					"title": "Cloud Providers",
-					"description": "Install guides and example templates for deploying Coder on AWS, Google Cloud, and Azure.",
-					"path": "./install/cloud/index.md",
-					"icon_path": "./images/icons/cloud.svg",
+					"title": "2. Prepare prerequisites",
+					"description": "Gather the DNS records, certificates, database, license, and identity provider application a deployment needs.",
+					"path": "./install/prepare/index.md",
+					"icon_path": "./images/icons/dependency.svg",
 					"children": [
 						{
-							"title": "AWS Marketplace",
-							"description": "Deploy a Coder proof-of-concept on AWS using the listing available in the AWS Marketplace.",
-							"path": "./install/cloud/aws-marketplace.md"
+							"title": "Licensing",
+							"description": "Add and manage Coder licenses to unlock Premium and AI Governance features.",
+							"path": "./install/prepare/licensing.md",
+							"icon_path": "./images/icons/licensing.svg"
 						},
 						{
-							"title": "GCP Compute Engine",
-							"description": "Deploy the Coder control plane on a Google Cloud Compute Engine virtual machine.",
-							"path": "./install/cloud/compute-engine.md"
+							"title": "Air-gapped Deployments",
+							"description": "Run Coder in air-gapped, disconnected, or offline environments where all features remain supported.",
+							"path": "./install/prepare/airgap.md",
+							"icon_path": "./images/icons/lan.svg"
 						},
 						{
-							"title": "Azure VM",
-							"description": "Set up the Coder control plane on a Microsoft Azure virtual machine, step by step.",
-							"path": "./install/cloud/azure-vm.md"
+							"title": "Mirror Coder Registry with Artifactory",
+							"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
+							"path": "./install/prepare/registry-mirror.md"
 						}
 					]
 				},
 				{
-					"title": "Air-gapped Deployments",
-					"description": "Run Coder in air-gapped, disconnected, or offline environments where all features remain supported.",
-					"path": "./install/airgap.md",
-					"icon_path": "./images/icons/lan.svg"
-				},
-				{
-					"title": "Unofficial Install Methods",
-					"description": "Explore community-contributed, unofficial methods for installing Coder beyond the supported paths.",
-					"path": "./install/other/index.md",
-					"icon_path": "./images/icons/generic.svg"
-				},
-				{
-					"title": "Upgrading",
-					"description": "Learn how to upgrade your Coder deployment to a newer version, with steps for each install method.",
-					"path": "./install/upgrade.md",
-					"icon_path": "./images/icons/upgrade.svg",
+					"title": "3. Install the control plane",
+					"description": "Choose a platform and install the Coder control plane on it.",
+					"path": "./install/server/index.md",
+					"icon_path": "./images/icons/download.svg",
 					"children": [
 						{
-							"title": "Upgrading Best Practices",
-							"description": "Follow best practices and troubleshooting tips to plan and carry out Coder upgrades.",
-							"path": "./install/upgrade-best-practices.md"
+							"title": "Docker",
+							"description": "Install and run Coder using the official Docker images for a quick single-machine deployment.",
+							"path": "./install/server/docker.md",
+							"icon_path": "./images/icons/docker.svg"
+						},
+						{
+							"title": "Kubernetes",
+							"description": "Install Coder on a Kubernetes cluster using the official Helm chart for production deployments.",
+							"path": "./install/server/kubernetes.md",
+							"icon_path": "./images/icons/kubernetes.svg",
+							"children": [
+								{
+									"title": "Deploy Coder on Azure with an Application Gateway",
+									"description": "Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.",
+									"path": "./install/server/kubernetes/kubernetes-azure-app-gateway.md"
+								}
+							]
+						},
+						{
+							"title": "Rancher",
+							"description": "Deploy Coder on Rancher as a Kubernetes workload using the Rancher UI and Helm.",
+							"path": "./install/server/rancher.md",
+							"icon_path": "./images/icons/rancher.svg"
+						},
+						{
+							"title": "OpenShift",
+							"description": "Install Coder on a Red Hat OpenShift cluster using Helm, with the required security context settings.",
+							"path": "./install/server/openshift.md",
+							"icon_path": "./images/icons/openshift.svg"
+						},
+						{
+							"title": "Cloud Providers",
+							"description": "Install guides and example templates for deploying Coder on AWS, Google Cloud, and Azure.",
+							"path": "./install/server/cloud/index.md",
+							"icon_path": "./images/icons/cloud.svg",
+							"children": [
+								{
+									"title": "AWS Marketplace",
+									"description": "Deploy a Coder proof-of-concept on AWS using the listing available in the AWS Marketplace.",
+									"path": "./install/server/cloud/aws-marketplace.md"
+								},
+								{
+									"title": "GCP Compute Engine",
+									"description": "Deploy the Coder control plane on a Google Cloud Compute Engine virtual machine.",
+									"path": "./install/server/cloud/compute-engine.md"
+								},
+								{
+									"title": "Azure VM",
+									"description": "Set up the Coder control plane on a Microsoft Azure virtual machine, step by step.",
+									"path": "./install/server/cloud/azure-vm.md"
+								}
+							]
+						},
+						{
+							"title": "Unofficial Install Methods",
+							"description": "Explore community-contributed, unofficial methods for installing Coder beyond the supported paths.",
+							"path": "./install/server/unofficial.md",
+							"icon_path": "./images/icons/generic.svg"
 						}
 					]
 				},
 				{
-					"title": "Uninstall",
-					"description": "Learn how to uninstall your Coder deployment and remove its associated resources.",
-					"path": "./install/uninstall.md",
-					"icon_path": "./images/icons/trash.svg"
-				},
-				{
-					"title": "Releases",
-					"description": "Learn about Coder's release channels, versioning, and schedule so you can plan upgrades.",
-					"path": "./install/releases/index.md",
-					"icon_path": "./images/icons/star.svg",
+					"title": "4. Validate your deployment",
+					"description": "Harden the deployment, then prove it works and holds up under load.",
+					"path": "./install/validate/index.md",
+					"icon_path": "./images/icons/health.svg",
 					"children": [
 						{
-							"title": "Feature stages",
-							"description": "Understand Coder's feature stages, including early access, beta, and general availability.",
-							"path": "./install/releases/feature-stages.md"
+							"title": "Scale Testing",
+							"description": "Plan and run scale tests to make sure your Coder deployment can handle your organization's load.",
+							"path": "./install/validate/scale-testing.md",
+							"children": [
+								{
+									"title": "Scaling Utilities",
+									"description": "Use Coder's built-in scale-testing utility to benchmark and load-test your deployment.",
+									"path": "./install/validate/scale-testing/utility.md"
+								},
+								{
+									"title": "Scaling best practices",
+									"description": "Best practices for preparing and tuning a Coder deployment so it scales to many users.",
+									"path": "./tutorials/best-practices/scale-coder.md"
+								}
+							]
+						}
+					]
+				},
+				{
+					"title": "5. Operate and maintain",
+					"description": "Run the deployment day to day, add external provisioners, upgrade it, and remove it when needed.",
+					"path": "./install/operate/index.md",
+					"icon_path": "./images/icons/wrench.svg",
+					"children": [
+						{
+							"title": "External Provisioners",
+							"description": "Run external provisioner daemons to isolate builds and scale workspace provisioning.",
+							"path": "./install/operate/provisioners/index.md",
+							"icon_path": "./images/icons/key.svg",
+							"state": ["premium"],
+							"children": [
+								{
+									"title": "Manage Provisioner Jobs",
+									"description": "Monitor and manage provisioner jobs for workspace builds, including canceling stuck jobs.",
+									"path": "./install/operate/provisioners/manage-provisioner-jobs.md",
+									"state": ["premium"]
+								}
+							]
 						},
 						{
-							"title": "Upgrading from ESR 2.24 to 2.29",
-							"description": "A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.24 to 2.29.",
-							"path": "./install/releases/esr-2.24-2.29-upgrade.md"
+							"title": "Upgrading",
+							"description": "Learn how to upgrade your Coder deployment to a newer version, with steps for each install method.",
+							"path": "./install/operate/upgrade.md",
+							"icon_path": "./images/icons/upgrade.svg",
+							"children": [
+								{
+									"title": "Upgrading Best Practices",
+									"description": "Follow best practices and troubleshooting tips to plan and carry out Coder upgrades.",
+									"path": "./install/operate/upgrade/best-practices.md"
+								},
+								{
+									"title": "Upgrading from ESR 2.24 to 2.29",
+									"description": "A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.24 to 2.29.",
+									"path": "./install/operate/upgrade/esr-2.24-2.29-upgrade.md"
+								},
+								{
+									"title": "Upgrading from ESR 2.29 to 2.34",
+									"description": "A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.29 to 2.34.",
+									"path": "./install/operate/upgrade/esr-2.29-2.34-upgrade.md"
+								}
+							]
 						},
 						{
-							"title": "Upgrading from ESR 2.29 to 2.34",
-							"description": "A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.29 to 2.34.",
-							"path": "./install/releases/esr-2.29-2.34-upgrade.md"
+							"title": "Uninstall",
+							"description": "Learn how to uninstall your Coder deployment and remove its associated resources.",
+							"path": "./install/operate/uninstall.md",
+							"icon_path": "./images/icons/trash.svg"
 						}
 					]
 				}
@@ -438,61 +540,6 @@
 							"title": "Data Retention",
 							"description": "Configure retention policies that automatically purge old records from Coder database tables.",
 							"path": "./admin/setup/data-retention.md"
-						}
-					]
-				},
-				{
-					"title": "Infrastructure",
-					"description": "Learn how to plan, provision, and manage the infrastructure that runs your Coder deployment.",
-					"path": "./admin/infrastructure/index.md",
-					"icon_path": "./images/icons/container.svg",
-					"children": [
-						{
-							"title": "Architecture",
-							"description": "Learn about Coder's architecture and the components that make up a deployment.",
-							"path": "./admin/infrastructure/architecture.md"
-						},
-						{
-							"title": "Validated Architectures",
-							"description": "Coder Validated Architectures with reference designs and best practices for large deployments.",
-							"path": "./admin/infrastructure/validated-architectures/index.md",
-							"children": [
-								{
-									"title": "Up to 1,000 Users",
-									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users",
-									"path": "./admin/infrastructure/validated-architectures/1k-users.md"
-								},
-								{
-									"title": "Up to 2,000 Users",
-									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users",
-									"path": "./admin/infrastructure/validated-architectures/2k-users.md"
-								},
-								{
-									"title": "Up to 3,000 Users",
-									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
-									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
-								},
-								{
-									"title": "Up to 10,000 Users",
-									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
-									"path": "./admin/infrastructure/validated-architectures/10k-users.md"
-								}
-							]
-						},
-						{
-							"title": "Scale Testing",
-							"description": "Plan and run scale tests to make sure your Coder deployment can handle your organization's load.",
-							"path": "./admin/infrastructure/scale-testing.md"
-						},
-						{
-							"title": "Scaling Utilities",
-							"description": "Use Coder's built-in scale-testing utility to benchmark and load-test your deployment.",
-							"path": "./admin/infrastructure/scale-utility.md"
-						},
-						{
-							"title": "Scaling best practices",
-							"description": "Best practices for preparing and tuning a Coder deployment so it scales to many users.",
-							"path": "./tutorials/best-practices/scale-coder.md"
 						}
 					]
 				},
@@ -776,21 +823,6 @@
 					]
 				},
 				{
-					"title": "External Provisioners",
-					"description": "Run external provisioner daemons to isolate builds and scale workspace provisioning.",
-					"path": "./admin/provisioners/index.md",
-					"icon_path": "./images/icons/key.svg",
-					"state": ["premium"],
-					"children": [
-						{
-							"title": "Manage Provisioner Jobs",
-							"description": "Monitor and manage provisioner jobs for workspace builds, including canceling stuck jobs.",
-							"path": "./admin/provisioners/manage-provisioner-jobs.md",
-							"state": ["premium"]
-						}
-					]
-				},
-				{
 					"title": "External Authentication",
 					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
 					"path": "./admin/external-auth/index.md",
@@ -993,12 +1025,6 @@
 							"state": ["premium"]
 						}
 					]
-				},
-				{
-					"title": "Licensing",
-					"description": "Add and manage Coder licenses to unlock Premium and AI Governance features.",
-					"path": "./admin/licensing/index.md",
-					"icon_path": "./images/icons/licensing.svg"
 				}
 			]
 		},
@@ -1426,11 +1452,6 @@
 					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
-					"title": "Mirror Coder Registry with Artifactory",
-					"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
-					"path": "./install/registry-mirror-artifactory.md"
-				},
-				{
 					"title": "Istio Integration",
 					"description": "Use the Istio service mesh to secure and control your Coder workspace traffic.",
 					"path": "./admin/integrations/istio.md"
@@ -1458,7 +1479,7 @@
 				{
 					"title": "Deploy Coder on Azure with an Application Gateway",
 					"description": "Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.",
-					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
+					"path": "./install/server/kubernetes/kubernetes-azure-app-gateway.md"
 				},
 				{
 					"title": "Cloning Git Repositories",
@@ -1539,6 +1560,17 @@
 					"title": "Glossary",
 					"description": "Definitions of Coder terms and product names",
 					"path": "./reference/glossary.md"
+				},
+				{
+					"title": "Releases",
+					"description": "Learn about Coder's release channels, versioning, and schedule so you can plan upgrades.",
+					"path": "./reference/releases.md",
+					"icon_path": "./images/icons/star.svg"
+				},
+				{
+					"title": "Feature stages",
+					"description": "Understand Coder's feature stages, including early access, beta, and general availability.",
+					"path": "./reference/feature-stages.md"
 				},
 				{
 					"title": "REST API",

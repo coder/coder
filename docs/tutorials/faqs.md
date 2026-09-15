@@ -66,7 +66,7 @@ Visit <https://coder.com/trial> or contact
 
 </details>
 
-Visit the [licensing documentation](../admin/licensing/index.md) for more
+Visit the [licensing documentation](../install/prepare/licensing.md) for more
 information about licenses.
 
 ## I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websocket
@@ -334,7 +334,7 @@ References:
 ## Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
 Yes, Coder can be deployed in
-[air-gapped or offline mode](../install/airgap.md).
+[air-gapped or offline mode](../install/prepare/airgap.md).
 
 Our product bundles with the Terraform binary so assume access to terraform.io
 during installation. The docs outline rebuilding the Coder container with
