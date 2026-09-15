@@ -182,7 +182,7 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		return func(t *testing.T, f *testFixture) seededChat { return seedPaused(t, f, extra) }
 	}
 	cases := []transitionCaseSpec{
-		// Boundaries with a head under edit pause instead of promoting.
+		// Boundaries with a head under edit pause.
 		editingCase(chatstate.TransitionFinishTurn, chatstate.StateR1, chatstate.StateP, scenarioEditingHead, seedEditing(chatstate.StateR1, 0), applyFinishTurn, allRows, 0),
 		editingCase(chatstate.TransitionFinishInterruption, chatstate.StateI1, chatstate.StateP, scenarioEditingHead, seedEditing(chatstate.StateI1, 0), applyFinishInterruption, allRows, 0),
 		// A send queues behind the head under edit whatever its busy behavior.
