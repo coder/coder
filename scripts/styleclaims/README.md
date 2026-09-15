@@ -33,15 +33,15 @@ honest about.
   cell that omits or invents a path.
 - **A rule cited as enforcement while `.vale.ini` leaves it off.** A rule file
   can exist and still run nowhere.
+- **Coverage-table drift.** A per-section or total count that disagrees with the
+  annotations.
+- **A rule heading with no footer.** A `##` or `###` heading that states a rule
+  but carries no annotation, so the coverage table can't count it.
 
 The checker verifies a `Coder.*` citation against the rule files, so a typo is
 caught. A third-party citation is verified only against the loaded styles: those
 rule files are vendored rather than kept in this repository, so the guarantee is
 weaker on that side.
-- **Coverage-table drift.** A per-section or total count that disagrees with the
-  annotations.
-- **A rule heading with no footer.** A `##` or `###` heading that states a rule
-  but carries no annotation, so the coverage table can't count it.
 
 ## The annotation format it relies on
 

@@ -331,6 +331,10 @@ func unfenced(src string) []string {
 	return out
 }
 
+// minFenceRun is CommonMark's minimum fence length: three or more of the fence
+// character open a block.
+const minFenceRun = 3
+
 // fence is a Markdown code fence delimiter.
 type fence struct {
 	char   byte // '`' or '~'
@@ -357,7 +361,7 @@ func parseFence(line string) (fence, bool) {
 	for length < len(trimmed) && trimmed[length] == char {
 		length++
 	}
-	if length < 3 {
+	if length < minFenceRun {
 		return fence{}, false
 	}
 	return fence{char: char, length: length, info: strings.TrimSpace(trimmed[length:]) != ""}, true
@@ -985,16 +989,15 @@ func singleCoderRule(cell string) (string, bool) {
 }
 
 func linkedPage(cell string) (string, bool) {
-	open := strings.Index(cell, "](./")
-	if open < 0 {
+	_, rest, ok := strings.Cut(cell, "](./")
+	if !ok {
 		return "", false
 	}
-	rest := cell[open+4:]
-	end := strings.Index(rest, ")")
-	if end < 0 {
+	page, _, ok := strings.Cut(rest, ")")
+	if !ok {
 		return "", false
 	}
-	return rest[:end], true
+	return page, true
 }
 
 func fourInts(cells []string) ([4]int, bool) {
