@@ -399,6 +399,9 @@ func (server *Server) prepareGeneration(
 				server.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
+				mcpclient.ConnectOptions{
+					MCPApps: server.experiments.Enabled(codersdk.ExperimentChatMCPApps),
+				},
 			)
 			return nil
 		})

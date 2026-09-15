@@ -25,7 +25,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/safedial"
 )
@@ -128,10 +127,11 @@ func ConnectAll(
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
 	httpClient *http.Client,
+	opts ConnectOptions,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
-		httpClient, connectTimeout, connectHooks{},
+		httpClient, connectTimeout, opts, connectHooks{},
 	)
 }
 
@@ -154,6 +154,7 @@ func connectAllWithHooks(
 	coderHeaders map[string]string,
 	httpClient *http.Client,
 	timeout time.Duration,
+	opts ConnectOptions,
 	hooks connectHooks,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	// Index tokens by server config ID so auth header
@@ -199,7 +200,7 @@ func connectAllWithHooks(
 			start := time.Now()
 			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
-				httpClient, timeout, hooks,
+				httpClient, timeout, opts, hooks,
 			)
 			duration := time.Since(start)
 			summary := ConnectSummary{
@@ -332,104 +333,16 @@ func connectOne(
 	coderHeaders map[string]string,
 	httpClient *http.Client,
 	timeout time.Duration,
+	opts ConnectOptions,
 	hooks connectHooks,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
-
-	// When opted-in, merge Coder identity headers BEFORE the
-	// transport is created so any auth header already set above
-	// wins on a conflict. Conflict detection uses
-	// http.CanonicalHeaderKey because the upstream transport applies
-	// http.Header.Set, which canonicalizes keys; without that, an
-	// admin-configured header that differs only in case from a Coder
-	// identity header would land in the request map twice and the
-	// surviving value would be non-deterministic.
-	if cfg.ForwardCoderHeaders {
-		canonicalAuth := make(map[string]struct{}, len(headers))
-		for k := range headers {
-			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
-		}
-		for k, v := range coderHeaders {
-			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
-				continue
-			}
-			headers[k] = v
-		}
-	}
-
-	tr, err := createTransport(cfg, headers, httpClient)
+	session, toolsResult, err := dialAndListTools(
+		ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
+		httpClient, timeout, opts, hooks,
+	)
 	if err != nil {
-		return nil, nil, xerrors.Errorf(
-			"create transport: %w", err,
-		)
+		return nil, nil, err
 	}
-
-	mcpClient := mcp.NewClient(&mcp.Implementation{
-		Name:    "coder",
-		Version: buildinfo.Version(),
-	}, nil)
-
-	// The timeout covers the entire connect+list sequence, not
-	// each phase individually. The SDK negotiates the protocol
-	// version during Connect; the session outlives connectCtx.
-	connectCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	// Run the connect+list sequence in a goroutine and enforce the
-	// budget externally. The SDK's streamable transport detaches
-	// the context after starting HTTP requests, and its error-path
-	// session.Close blocks on those detached requests, so a
-	// black-holed server can block Connect far past connectCtx's
-	// deadline. The select below guarantees the caller gets an
-	// answer within the budget regardless.
-	type connectResult struct {
-		session *mcp.ClientSession
-		tools   *mcp.ListToolsResult
-		err     error
-	}
-	resCh := make(chan connectResult, 1)
-	go func() {
-		session, err := mcpClient.Connect(connectCtx, tr, nil)
-		if err != nil {
-			resCh <- connectResult{err: xerrors.Errorf("connect: %w", err)}
-			return
-		}
-		toolsResult, err := session.ListTools(connectCtx, nil)
-		if err != nil {
-			// Deliver the result before closing: Close sends a
-			// DELETE on the SDK's detached context and can wedge,
-			// which would otherwise convert a fast ListTools
-			// failure into a budget timeout for the caller.
-			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
-			_ = session.Close()
-			return
-		}
-		resCh <- connectResult{session: session, tools: toolsResult}
-	}()
-
-	var res connectResult
-	select {
-	case res = <-resCh:
-	case <-connectCtx.Done():
-		// Abandon the wedged goroutine; it exits once the
-		// transport's dial or response-header timeout fires. The
-		// reaper drains its late result and closes any session
-		// that still materialized so nothing leaks. It must not
-		// hold locks or block the caller.
-		go func() {
-			if late := <-resCh; late.session != nil {
-				_ = late.session.Close()
-			}
-			if hooks.reaperDone != nil {
-				hooks.reaperDone()
-			}
-		}()
-		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
-	}
-	if res.err != nil {
-		return nil, nil, res.err
-	}
-	session, toolsResult := res.session, res.tools
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
@@ -445,8 +358,20 @@ func connectOne(
 			continue
 		}
 
+		var uiMeta ToolUIMeta
+		if opts.MCPApps {
+			uiMeta = ParseToolUIMeta(mcpTool.Meta)
+			if !uiMeta.ModelVisible() {
+				logger.Debug(ctx, "skipping app-only MCP tool",
+					slog.F("server_slug", cfg.Slug),
+					slog.F("tool_name", mcpTool.Name),
+				)
+				continue
+			}
+		}
+
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent),
+			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent, uiMeta.ResourceURI),
 		)
 	}
 
@@ -706,6 +631,7 @@ type mcpToolWrapper struct {
 	parameters      map[string]any
 	required        []string
 	modelIntent     bool
+	uiResourceURI   string
 	session         *mcp.ClientSession
 	providerOptions fantasy.ProviderOptions
 }
@@ -716,6 +642,12 @@ func (t *mcpToolWrapper) MCPServerConfigID() uuid.UUID {
 	return t.configID
 }
 
+// MCPAppResourceURI returns the ui:// resource declared in the
+// tool's metadata, or "" when the tool has no UI.
+func (t *mcpToolWrapper) MCPAppResourceURI() string {
+	return t.uiResourceURI
+}
+
 // newMCPTool creates an mcpToolWrapper from an mcp.Tool
 // discovered on a remote server.
 func newMCPTool(
@@ -724,17 +656,19 @@ func newMCPTool(
 	tool *mcp.Tool,
 	session *mcp.ClientSession,
 	modelIntent bool,
+	uiResourceURI string,
 ) *mcpToolWrapper {
 	properties, required := splitInputSchema(tool.InputSchema)
 	return &mcpToolWrapper{
-		configID:     configID,
-		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
-		originalName: tool.Name,
-		description:  tool.Description,
-		parameters:   properties,
-		required:     required,
-		modelIntent:  modelIntent,
-		session:      session,
+		configID:      configID,
+		prefixedName:  truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
+		originalName:  tool.Name,
+		description:   tool.Description,
+		parameters:    properties,
+		required:      required,
+		modelIntent:   modelIntent,
+		uiResourceURI: uiResourceURI,
+		session:       session,
 	}
 }
 
@@ -835,7 +769,13 @@ func (t *mcpToolWrapper) Run(
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	return convertCallResult(result), nil
+	resp := convertCallResult(result)
+	if t.uiResourceURI != "" {
+		resp = fantasy.WithResponseMetadata(resp, appResultMetadata{
+			MCPApp: newAppResult(t.uiResourceURI, result),
+		})
+	}
+	return resp, nil
 }
 
 func (t *mcpToolWrapper) ProviderOptions() fantasy.ProviderOptions {

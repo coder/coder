@@ -35,7 +35,7 @@ func ConnectAllForTest(
 	))
 	return connectAllWithHooks(
 		ctx, logger, configs, nil, uuid.Nil, nil, nil, httpClient,
-		timeout, connectHooks{reaperDone: reaperDone},
+		timeout, ConnectOptions{}, connectHooks{reaperDone: reaperDone},
 	)
 }
 

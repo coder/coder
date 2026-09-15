@@ -153,7 +153,7 @@ func TestConnectAll_SlowServerStillConnects(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("slow", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient(), mcpclient.ConnectOptions{})
 	t.Cleanup(cleanup)
 
 	require.Equal(t, []string{"slow__echo"}, toolNames(tools))
@@ -247,7 +247,7 @@ func TestConnectAll_CleanupPromptWhenServerWedges(t *testing.T) {
 	t.Cleanup(release)
 
 	cfg := makeConfig("wedge", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient(), mcpclient.ConnectOptions{})
 	require.Equal(t, []string{"wedge__echo"}, toolNames(tools))
 
 	start := time.Now()
@@ -301,7 +301,7 @@ func TestConnectAll_NoToolsWedgedCloseWithinBudget(t *testing.T) {
 
 	cfg := makeConfig("notools", ts.URL)
 	start := time.Now()
-	tools, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
+	tools, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient(), mcpclient.ConnectOptions{})
 	elapsed := time.Since(start)
 	t.Cleanup(cleanup)
 
