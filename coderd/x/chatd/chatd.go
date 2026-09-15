@@ -3681,30 +3681,35 @@ type systemPromptBehaviorContext struct {
 	isRootChat           bool
 }
 
-func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
-	if len(workspaceSkills) == 0 {
-		return nil
-	}
-	resolved := make([]skillspkg.Skill, 0, len(workspaceSkills))
+// splitWorkspaceSkillsForResolution splits pinned skill metadata into
+// SourceWorkspace skills and SourcePlugin skills, the latter identified by
+// (plugin, name).
+func splitWorkspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) (workspace, plugin []skillspkg.Skill) {
 	for _, skill := range workspaceSkills {
-		resolved = append(resolved, skillspkg.Skill{
+		if skill.PluginName != "" {
+			plugin = append(plugin, skillspkg.Skill{
+				Name:        skill.Name,
+				Description: skill.Description,
+				Source:      skillspkg.SourcePlugin,
+				Plugin:      skill.PluginName,
+			})
+			continue
+		}
+		workspace = append(workspace, skillspkg.Skill{
 			Name:        skill.Name,
 			Description: skill.Description,
 			Source:      skillspkg.SourceWorkspace,
 		})
 	}
-	return resolved
+	return workspace, plugin
 }
 
 func mergeTurnSkills(
 	personalSkills []skillspkg.Skill,
 	workspaceSkills []chattool.SkillMeta,
 ) []skillspkg.ResolvedSkill {
-	return skillspkg.MergeSkills(
-		personalSkills,
-		workspaceSkillsForResolution(workspaceSkills),
-		nil,
-	)
+	workspace, plugin := splitWorkspaceSkillsForResolution(workspaceSkills)
+	return skillspkg.MergeSkills(personalSkills, workspace, plugin)
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed

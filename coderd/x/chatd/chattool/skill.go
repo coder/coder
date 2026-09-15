@@ -6,17 +6,29 @@ import (
 	"io"
 	"path"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
 	maxSkillMetaBytes = workspacesdk.MaxSkillMetaBytes
 	maxSkillFileBytes = 512 * 1024
+
+	// maxWorkspaceSkillDescriptionRunes caps a workspace or plugin skill
+	// description in the prompt index. It matches the Agent Skills
+	// specification's description limit.
+	maxWorkspaceSkillDescriptionRunes = 1024
+	// maxPersonalSkillDescriptionRunes caps a personal skill description in
+	// the prompt index. It equals the upload byte limit, so a description
+	// that passed upload validation is never truncated.
+	maxPersonalSkillDescriptionRunes = skillspkg.MaxPersonalSkillDescriptionBytes
 
 	// AvailableSkillsOpenTag is the XML start tag for the skill index block.
 	AvailableSkillsOpenTag = "<available-skills>"
@@ -30,6 +42,9 @@ const (
 type SkillMeta struct {
 	Name        string
 	Description string
+	// PluginName is the owning Agent Plugin's name, empty for a plain
+	// workspace skill. Together with Name it identifies the skill.
+	PluginName string
 	// Dir is the absolute path to the skill directory inside
 	// the workspace filesystem.
 	Dir string
@@ -58,6 +73,7 @@ type SkillContent struct {
 
 // FormatResolvedSkillIndex renders an XML block listing all source-aware
 // skills. Aliases are the names the model should pass to the skill tools.
+// Descriptions are sanitized for prompt rendering regardless of source.
 func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 	if len(resolved) == 0 {
 		return ""
@@ -65,33 +81,75 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 
 	entries := make([]skillIndexEntry, 0, len(resolved))
 	hasQualifiedAlias := false
-	hasWorkspaceSkill := false
+	hasQualifiedPluginAlias := false
+	hasFileBackedSkill := false
 	for _, s := range resolved {
-		entries = append(entries, skillIndexEntry{
+		entry := skillIndexEntry{
 			Alias:       s.Alias,
-			Description: s.Description,
-		})
-		if s.Source == skillspkg.SourceWorkspace {
-			hasWorkspaceSkill = true
+			Description: sanitizeSkillDescription(s.Description, descriptionRuneCap(s.Source)),
+		}
+		if s.Source == skillspkg.SourcePlugin {
+			entry.PluginName = s.Plugin
+		}
+		entries = append(entries, entry)
+		if s.Source == skillspkg.SourceWorkspace || s.Source == skillspkg.SourcePlugin {
+			hasFileBackedSkill = true
 		}
 		if s.Alias == s.QualifiedAlias() {
 			hasQualifiedAlias = true
+			if s.Source == skillspkg.SourcePlugin {
+				hasQualifiedPluginAlias = true
+			}
 		}
 	}
 	return renderSkillIndex(entries, skillIndexFormatOptions{
-		includeQualifiedAliasInstruction: hasQualifiedAlias,
-		includeReadSkillFileInstruction:  hasWorkspaceSkill,
+		includeQualifiedAliasInstruction:       hasQualifiedAlias,
+		includeQualifiedPluginAliasInstruction: hasQualifiedPluginAlias,
+		includeReadSkillFileInstruction:        hasFileBackedSkill,
 	})
+}
+
+func descriptionRuneCap(source skillspkg.Source) int {
+	if source == skillspkg.SourcePersonal {
+		return maxPersonalSkillDescriptionRunes
+	}
+	return maxWorkspaceSkillDescriptionRunes
+}
+
+// sanitizeSkillDescription reduces a skill description to a single line
+// that cannot alter the structure of the prompt block it is rendered in:
+// invisible runes are removed, control runes and whitespace runs collapse
+// to one space, angle brackets are escaped so the text cannot open or close
+// an XML tag, and the result is truncated to maxRunes with a trailing "...".
+func sanitizeSkillDescription(description string, maxRunes int) string {
+	description = codersdk.SanitizePromptText(description)
+	description = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, description)
+	description = strings.Join(strings.Fields(description), " ")
+	description = strings.ReplaceAll(description, "<", "&lt;")
+	description = strings.ReplaceAll(description, ">", "&gt;")
+	if utf8.RuneCountInString(description) <= maxRunes {
+		return description
+	}
+	runes := []rune(description)
+	return string(runes[:maxRunes]) + "..."
 }
 
 type skillIndexEntry struct {
 	Alias       string
 	Description string
+	// PluginName is rendered as a "(plugin: <name>)" label after the alias.
+	PluginName string
 }
 
 type skillIndexFormatOptions struct {
-	includeQualifiedAliasInstruction bool
-	includeReadSkillFileInstruction  bool
+	includeQualifiedAliasInstruction       bool
+	includeQualifiedPluginAliasInstruction bool
+	includeReadSkillFileInstruction        bool
 }
 
 func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) string {
@@ -112,8 +170,12 @@ func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) s
 		)
 	}
 	if opts.includeQualifiedAliasInstruction {
+		aliasForms := "personal/name or workspace/name"
+		if opts.includeQualifiedPluginAliasInstruction {
+			aliasForms = "personal/name, workspace/name, or plugin/pluginname/name"
+		}
 		_, _ = b.WriteString(
-			"When a skill is listed as personal/name or workspace/name, " +
+			"When a skill is listed as " + aliasForms + ", " +
 				"pass that qualified alias to read_skill.\n",
 		)
 	}
@@ -121,6 +183,11 @@ func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) s
 	for _, s := range entries {
 		_, _ = b.WriteString("- ")
 		_, _ = b.WriteString(s.Alias)
+		if s.PluginName != "" {
+			_, _ = b.WriteString(" (plugin: ")
+			_, _ = b.WriteString(s.PluginName)
+			_, _ = b.WriteString(")")
+		}
 		if s.Description != "" {
 			_, _ = b.WriteString(": ")
 			_, _ = b.WriteString(s.Description)
@@ -342,8 +409,8 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 					"body":  content.Body,
 					"files": []string{},
 				}), nil
-			case skillspkg.SourceWorkspace:
-				content, response, ok := readWorkspaceSkillBody(ctx, options, args.Name, resolved.Name)
+			case skillspkg.SourceWorkspace, skillspkg.SourcePlugin:
+				content, response, ok := readWorkspaceSkillBody(ctx, options, args.Name, resolved.Skill)
 				if ok {
 					return response, nil
 				}
@@ -397,11 +464,11 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 					"read_skill_file is not supported for personal skills (no supporting files)",
 				), nil
 			}
-			if resolved.Source != skillspkg.SourceWorkspace {
+			if resolved.Source != skillspkg.SourceWorkspace && resolved.Source != skillspkg.SourcePlugin {
 				return skillNotFoundResponse(args.Name), nil
 			}
 
-			skill, ok := findSkill(options.GetSkills, resolved.Name)
+			skill, ok := findSkill(options.GetSkills, resolved.Skill)
 			if !ok {
 				return skillNotFoundResponse(args.Name), nil
 			}
@@ -442,32 +509,51 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 	)
 }
 
+// resolveSkillAlias resolves a model-supplied name through the configured
+// alias resolver. Without one, the name is matched against the pinned skill
+// list by bare name and the first match wins.
 func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, error) {
 	if options.ResolveAlias != nil {
 		return options.ResolveAlias(name)
 	}
 
-	skill, ok := findSkill(options.GetSkills, name)
-	if !ok {
+	if options.GetSkills == nil {
 		return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
 	}
-	return skillspkg.ResolvedSkill{
-		Skill: skillspkg.Skill{
-			Name:        skill.Name,
-			Description: skill.Description,
-			Source:      skillspkg.SourceWorkspace,
-		},
-		Alias: skill.Name,
-	}, nil
+	for _, skill := range options.GetSkills() {
+		if skill.Name != name {
+			continue
+		}
+		return skillspkg.ResolvedSkill{
+			Skill: skillIdentity(skill),
+			Alias: skill.Name,
+		}, nil
+	}
+	return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
+}
+
+// skillIdentity maps a skill with a plugin name to SourcePlugin and any
+// other skill to SourceWorkspace.
+func skillIdentity(skill SkillMeta) skillspkg.Skill {
+	identity := skillspkg.Skill{
+		Name:        skill.Name,
+		Description: skill.Description,
+		Source:      skillspkg.SourceWorkspace,
+	}
+	if skill.PluginName != "" {
+		identity.Source = skillspkg.SourcePlugin
+		identity.Plugin = skill.PluginName
+	}
+	return identity
 }
 
 func readWorkspaceSkillBody(
 	ctx context.Context,
 	options ReadSkillOptions,
 	requestedName string,
-	canonicalName string,
+	resolved skillspkg.Skill,
 ) (SkillContent, fantasy.ToolResponse, bool) {
-	skill, ok := findSkill(options.GetSkills, canonicalName)
+	skill, ok := findSkill(options.GetSkills, resolved)
 	if !ok {
 		return SkillContent{}, skillNotFoundResponse(requestedName), true
 	}
@@ -508,16 +594,22 @@ func nonNilFiles(files []string) []string {
 	return files
 }
 
-// findSkill looks up a skill by name in the current skill list.
+// findSkill returns the pinned skill matching a resolved identity. A
+// SourcePlugin identity matches on both plugin name and skill name; any
+// other source matches a skill with no plugin name by skill name alone.
 func findSkill(
 	getSkills func() []SkillMeta,
-	name string,
+	resolved skillspkg.Skill,
 ) (SkillMeta, bool) {
 	if getSkills == nil {
 		return SkillMeta{}, false
 	}
+	wantPlugin := ""
+	if resolved.Source == skillspkg.SourcePlugin {
+		wantPlugin = resolved.Plugin
+	}
 	for _, s := range getSkills() {
-		if s.Name == name {
+		if s.Name == resolved.Name && s.PluginName == wantPlugin {
 			return s, true
 		}
 	}
