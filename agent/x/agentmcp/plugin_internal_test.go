@@ -50,14 +50,18 @@ var fakeServerFileName = "server" + func() string {
 // installFakeServer places the test binary inside the plugin root as
 // "server" so a ./-relative command resolves within the root. A hard
 // link is used when the filesystems allow it; otherwise the binary is
-// copied.
+// copied. Windows always copies: a hard link to the running test
+// executable cannot be deleted while the process is alive, which
+// breaks TempDir cleanup.
 func installFakeServer(t *testing.T, root string) {
 	t.Helper()
 	testBin, err := os.Executable()
 	require.NoError(t, err)
 	dst := filepath.Join(root, fakeServerFileName)
-	if err := os.Link(testBin, dst); err == nil {
-		return
+	if runtime.GOOS != "windows" {
+		if err := os.Link(testBin, dst); err == nil {
+			return
+		}
 	}
 	src, err := os.Open(testBin)
 	require.NoError(t, err)
@@ -339,7 +343,10 @@ func TestReloadSources_PluginStdioLaunch(t *testing.T) {
 	info, err := os.Stat(scope.DataDir)
 	require.NoError(t, err, "PLUGIN_DATA must be created before launch")
 	assert.True(t, info.IsDir())
-	assert.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		// Windows does not map directory ACLs onto Unix permission bits.
+		assert.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+	}
 
 	resp, err := m.CallTool(ctx, workspacesdk.CallMCPToolRequest{ToolName: "srv" + ToolNameSep + "env"})
 	require.NoError(t, err)

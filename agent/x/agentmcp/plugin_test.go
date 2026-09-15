@@ -1,6 +1,7 @@
 package agentmcp_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -123,6 +124,9 @@ func TestParseSource_PluginEntries(t *testing.T) {
 		// rejected.
 		want        func(scope agentmcp.PluginScope) agentmcp.ServerConfig
 		errContains string
+		// errNotExist requires the entry error to wrap fs.ErrNotExist.
+		// The OS-specific message text differs between platforms.
+		errNotExist bool
 		// symlink marks cases that create symlinks, which need
 		// privileges on Windows.
 		symlink bool
@@ -189,7 +193,7 @@ func TestParseSource_PluginEntries(t *testing.T) {
 		{
 			name:        "StdioRelativeCommandMissing",
 			entry:       map[string]any{"type": "stdio", "command": "./bin/missing"},
-			errContains: "no such file",
+			errNotExist: true,
 		},
 		{
 			name:        "StdioAbsoluteCommand",
@@ -284,7 +288,7 @@ func TestParseSource_PluginEntries(t *testing.T) {
 		{
 			name:        "StdioCwdMissing",
 			entry:       map[string]any{"type": "stdio", "command": "npx", "cwd": "./nope"},
-			errContains: "no such file",
+			errNotExist: true,
 		},
 		{
 			name:        "StdioCwdBarePath",
@@ -478,7 +482,11 @@ func TestParseSource_PluginEntries(t *testing.T) {
 			if tt.want == nil {
 				require.Empty(t, servers)
 				require.Contains(t, entryErrs, "srv")
-				assert.ErrorContains(t, entryErrs["srv"], tt.errContains)
+				if tt.errNotExist {
+					assert.ErrorIs(t, entryErrs["srv"], fs.ErrNotExist)
+				} else {
+					assert.ErrorContains(t, entryErrs["srv"], tt.errContains)
+				}
 				return
 			}
 			require.Empty(t, entryErrs)
