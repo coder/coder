@@ -26,8 +26,10 @@ import (
 const (
 	// MCPAppSandboxHostPrefix is the prefix of the wildcard app subdomain
 	// reserved for serving the MCP app sandbox proxy document. The full
-	// subdomain is this prefix followed by 32 lowercase hex characters.
-	MCPAppSandboxHostPrefix = "mcpapp-"
+	// subdomain is this prefix followed by 16 lowercase hex characters,
+	// short enough to stay within the 63-character DNS label limit when the
+	// wildcard pattern itself carries a long label suffix.
+	MCPAppSandboxHostPrefix = "mcp-"
 
 	// mcpAppSandboxMaxDomainsPerList caps the number of entries accepted in
 	// each list of the csp query parameter.
@@ -40,7 +42,7 @@ const (
 var (
 	// MCPAppSandboxHostRegex matches a wildcard app subdomain reserved for the
 	// MCP app sandbox proxy document.
-	MCPAppSandboxHostRegex = regexp.MustCompile("^" + MCPAppSandboxHostPrefix + "[0-9a-f]{32}$")
+	MCPAppSandboxHostRegex = regexp.MustCompile("^" + MCPAppSandboxHostPrefix + "[0-9a-f]{16}$")
 
 	// mcpAppSandboxDomainCharsRegex is the character set permitted in a raw
 	// CSP domain entry. Excluding whitespace, semicolons and quotes keeps a

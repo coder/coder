@@ -125,7 +125,7 @@ const renderBridge = (
 		view,
 		toolCallId: "call-1",
 		boundCall: completeCall,
-		sandboxOrigin: "https://mcpapp-abc.apps.example.com",
+		sandboxOrigin: "https://mcp-abc.apps.example.com",
 		onAppMessage,
 		onOpenLink,
 		closing: false,
@@ -468,7 +468,7 @@ describe("useMcpAppBridge", () => {
 
 			expect(result.current.phase).toBe("error");
 			expect(result.current.error).toContain(
-				"https://mcpapp-abc.apps.example.com",
+				"https://mcp-abc.apps.example.com",
 			);
 		} finally {
 			vi.useRealTimers();

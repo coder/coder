@@ -11,7 +11,7 @@ import {
 describe("sandboxHostLabel", () => {
 	it("returns the first 32 hex characters of a SHA-256 digest", async () => {
 		const label = await sandboxHostLabel("server-1", "chat-1");
-		expect(label).toMatch(/^[0-9a-f]{32}$/);
+		expect(label).toMatch(/^[0-9a-f]{16}$/);
 	});
 
 	it("is deterministic and depends on both inputs", async () => {
@@ -37,14 +37,14 @@ describe("buildSandboxUrl", () => {
 				label,
 				protocol: "https:",
 			}),
-		).toBe(`https://mcpapp-${label}.apps.example.com/`);
+		).toBe(`https://mcp-${label}.apps.example.com/`);
 		expect(
 			buildSandboxUrl({
 				wildcardHostname: "*-apps.example.com",
 				label,
 				protocol: "https:",
 			}),
-		).toBe(`https://mcpapp-${label}-apps.example.com/`);
+		).toBe(`https://mcp-${label}-apps.example.com/`);
 	});
 
 	it("encodes the declared csp as a query parameter", () => {
@@ -57,7 +57,7 @@ describe("buildSandboxUrl", () => {
 		});
 		expect(url).toBeDefined();
 		const parsed = new URL(url ?? "");
-		expect(parsed.origin).toBe(`https://mcpapp-${label}.apps.example.com`);
+		expect(parsed.origin).toBe(`https://mcp-${label}.apps.example.com`);
 		expect(JSON.parse(parsed.searchParams.get("csp") ?? "")).toEqual(csp);
 	});
 

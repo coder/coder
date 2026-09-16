@@ -19,7 +19,7 @@ import (
 
 // mcpAppSandboxTestHost is a valid reserved sandbox subdomain under the
 // default test wildcard pattern.
-const mcpAppSandboxTestHost = workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef0123456789abcdef.apps.test.coder.com"
+const mcpAppSandboxTestHost = workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef.apps.test.coder.com"
 
 func newMCPAppSandboxTestServer(t *testing.T, hostnamePattern, dashboardURL string) *workspaceapps.Server {
 	t.Helper()
@@ -73,17 +73,17 @@ func TestMCPAppSandboxHostRegex(t *testing.T) {
 		subdomain string
 		want      bool
 	}{
-		{subdomain: "mcpapp-0123456789abcdef0123456789abcdef", want: true},
-		{subdomain: "mcpapp-00000000000000000000000000000000", want: true},
-		{subdomain: "mcpapp-0123456789ABCDEF0123456789ABCDEF", want: false},
-		{subdomain: "mcpapp-0123456789abcdef0123456789abcde", want: false},
-		{subdomain: "mcpapp-0123456789abcdef0123456789abcdef0", want: false},
-		{subdomain: "mcpapp-0123456789abcdef0123456789abcdeg", want: false},
-		{subdomain: "mcpapp-xyz", want: false},
-		{subdomain: "mcpapp-", want: false},
+		{subdomain: "mcp-0123456789abcdef", want: true},
+		{subdomain: "mcp-0000000000000000", want: true},
+		{subdomain: "mcp-0123456789ABCDEF", want: false},
+		{subdomain: "mcp-0123456789abcde", want: false},
+		{subdomain: "mcp-0123456789abcdef0", want: false},
+		{subdomain: "mcp-0123456789abcdeg", want: false},
+		{subdomain: "mcp-xyz", want: false},
+		{subdomain: "mcp-", want: false},
 		{subdomain: "mcpapp", want: false},
-		{subdomain: "xmcpapp-0123456789abcdef0123456789abcdef", want: false},
-		{subdomain: "mcpapp-0123456789abcdef0123456789abcdef--app", want: false},
+		{subdomain: "xmcp-0123456789abcdef", want: false},
+		{subdomain: "mcp-0123456789abcdef--app", want: false},
 	}
 
 	for _, tc := range cases {
@@ -154,7 +154,7 @@ func TestServeMCPAppSandbox(t *testing.T) {
 		t.Parallel()
 
 		srv := newMCPAppSandboxTestServer(t, hostnamePattern, dashboardURL)
-		host := strings.ToUpper(workspaceapps.MCPAppSandboxHostPrefix+"0123456789abcdef0123456789abcdef") + ".apps.test.coder.com"
+		host := strings.ToUpper(workspaceapps.MCPAppSandboxHostPrefix+"0123456789abcdef") + ".apps.test.coder.com"
 		rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, host, "/")
 		require.False(t, nextCalled)
 		require.Equal(t, http.StatusOK, rec.Code)
@@ -209,7 +209,7 @@ func TestServeMCPAppSandbox(t *testing.T) {
 
 				srv := newMCPAppSandboxTestServer(t, tc.pattern, tc.dashboard)
 				suffix := strings.ToLower(strings.TrimPrefix(tc.pattern, "*."))
-				host := workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef0123456789abcdef." + suffix
+				host := workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef." + suffix
 				rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, host, "/")
 				require.False(t, nextCalled)
 				require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -223,7 +223,7 @@ func TestServeMCPAppSandbox(t *testing.T) {
 		t.Parallel()
 
 		srv := newMCPAppSandboxTestServer(t, "*.coder.example.com", "https://coder.example.com")
-		host := workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef0123456789abcdef.coder.example.com"
+		host := workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef.coder.example.com"
 		rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, host, "/")
 		require.False(t, nextCalled)
 		require.Equal(t, http.StatusOK, rec.Code)
@@ -235,7 +235,7 @@ func TestServeMCPAppSandbox(t *testing.T) {
 		t.Parallel()
 
 		srv := newMCPAppSandboxTestServer(t, "*.apps.example.com", "https://coder.example.com")
-		host := workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef0123456789abcdef.apps.example.com"
+		host := workspaceapps.MCPAppSandboxHostPrefix + "0123456789abcdef.apps.example.com"
 		rec, _ := doMCPAppSandboxRequest(t, srv, http.MethodGet, host, "/")
 		require.Equal(t, http.StatusOK, rec.Code)
 	})
@@ -380,11 +380,11 @@ func TestServeMCPAppSandbox(t *testing.T) {
 		t.Parallel()
 
 		srv := newMCPAppSandboxTestServer(t, hostnamePattern, dashboardURL)
-		// "mcpapp-xyz" is not a reserved subdomain, so it is parsed as a
+		// "mcp-xyz" is not a reserved subdomain, so it is parsed as a
 		// workspace app URL. It has no separators, so it is parsed as a
 		// single-segment app URL, which fails and renders the invalid app
 		// URL page instead of the sandbox document.
-		rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, "mcpapp-xyz.apps.test.coder.com", "/")
+		rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, "mcp-xyz.apps.test.coder.com", "/")
 		require.False(t, nextCalled)
 		require.NotEqual(t, http.StatusOK, rec.Code)
 		require.Empty(t, rec.Header().Get("Content-Security-Policy"))
@@ -393,7 +393,7 @@ func TestServeMCPAppSandbox(t *testing.T) {
 		// A subdomain that is a valid app URL continues into the normal
 		// workspace app flow (which redirects to login with the fake token
 		// provider) rather than serving the sandbox document.
-		rec, nextCalled = doMCPAppSandboxRequest(t, srv, http.MethodGet, "mcpapp-0123456789abcdef0123456789abcdef--ws--user.apps.test.coder.com", "/")
+		rec, nextCalled = doMCPAppSandboxRequest(t, srv, http.MethodGet, "mcp-0123456789abcdef--ws--user.apps.test.coder.com", "/")
 		require.False(t, nextCalled)
 		require.Empty(t, rec.Header().Get("Content-Security-Policy"))
 		require.NotContains(t, rec.Body.String(), "mcp-app-host-origin")
@@ -403,7 +403,7 @@ func TestServeMCPAppSandbox(t *testing.T) {
 		t.Parallel()
 
 		srv := newMCPAppSandboxTestServer(t, hostnamePattern, dashboardURL)
-		rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, "mcpapp-0123456789abcdef0123456789abcdef.other.example.com", "/")
+		rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, "mcp-0123456789abcdef.other.example.com", "/")
 		require.True(t, nextCalled)
 		require.Empty(t, rec.Header().Get("Content-Security-Policy"))
 	})

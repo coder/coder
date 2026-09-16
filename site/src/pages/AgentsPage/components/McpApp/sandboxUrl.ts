@@ -1,7 +1,7 @@
 /**
  * Sandbox origin and resource helpers for MCP Apps. The sandbox proxy
  * document is served by coderd on a reserved wildcard subdomain: the `*` of
- * the wildcard hostname is replaced by `mcpapp-<hex32>`, so every
+ * the wildcard hostname is replaced by `mcp-<hex16>`, so every
  * (server, chat) pair gets its own origin.
  */
 
@@ -73,10 +73,10 @@ export const sandboxHostLabel = async (
 		"SHA-256",
 		new TextEncoder().encode(`${mcpServerConfigId}:${chatId}`),
 	);
-	return hex(digest).slice(0, 32);
+	return hex(digest).slice(0, 16);
 };
 
-/** Replaces the wildcard label with the reserved `mcpapp-<label>` host label. */
+/** Replaces the wildcard label with the reserved `mcp-<label>` host label. */
 const sandboxHost = (
 	wildcardHostname: string,
 	label: string,
@@ -85,7 +85,7 @@ const sandboxHost = (
 	if (!trimmed.startsWith("*") || trimmed.length === 1) {
 		return undefined;
 	}
-	return `mcpapp-${label}${trimmed.slice(1)}`;
+	return `mcp-${label}${trimmed.slice(1)}`;
 };
 
 export const buildSandboxUrl = ({

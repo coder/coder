@@ -5,7 +5,7 @@ import {
 	OriginValidatedTransport,
 } from "./originValidatedTransport";
 
-const SANDBOX_ORIGIN = "https://mcpapp-abc.apps.example.com";
+const SANDBOX_ORIGIN = "https://mcp-abc.apps.example.com";
 
 const renderFrame = (): Window => {
 	render(<iframe title="sandbox" />);
