@@ -5,8 +5,8 @@ import { useSearchParams } from "react-router";
 import { paginatedOrganizationAISpend } from "#/api/queries/aiBridge";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type {
-	AISpendPeriodWindow,
 	OrganizationAISpendFilter,
+	OrganizationAISpendReport,
 } from "#/api/typesGenerated";
 import {
 	type DateRangeValue,
@@ -70,23 +70,27 @@ export const firstDayWithinRetention = (cutoff: Date, now: Date): Date => {
 
 /**
  * Represents the server-applied UTC window as the local calendar days the
- * picker edits. A start that is not at UTC midnight is the moving retention
- * cutoff; the range then starts at the first selectable day at or after it,
- * so re-committing the range never asks for a start before retention.
+ * picker edits. A start at or before the reported retention cutoff is that
+ * moving cutoff; the range then starts at the first selectable day at or
+ * after it, so re-committing the range never asks for a start before
+ * retention.
  */
 export const appliedWindowToDateRange = (
-	window: AISpendPeriodWindow,
+	window: Pick<
+		OrganizationAISpendReport,
+		"period_start" | "period_end" | "retention_start"
+	>,
 	now: Date,
 ): DateRangeValue => {
 	const start = new Date(window.period_start);
-	const startsAtMidnight =
-		start.getTime() ===
-		Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
 	const lastDay = localDayOf(
 		new Date(new Date(window.period_end).getTime() - 1),
 	);
 	let firstDay = localDayOf(start);
-	if (!startsAtMidnight) {
+	if (
+		window.retention_start !== undefined &&
+		start.getTime() <= Date.parse(window.retention_start)
+	) {
 		firstDay = firstDayWithinRetention(start, now);
 		if (firstDay > lastDay) {
 			firstDay = lastDay;
