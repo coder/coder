@@ -564,24 +564,28 @@ type runtimeTestClient struct {
 func (c *runtimeTestClient) GetImage(context.Context, string) (containerd.Image, error) {
 	return c.image, c.imageError
 }
+
 func (c *runtimeTestClient) LoadContainer(context.Context, string) (containerd.Container, error) {
 	if c.container == nil || c.container.deleted {
 		return nil, errdefs.ErrNotFound
 	}
 	return c.container, nil
 }
+
 func (c *runtimeTestClient) NewContainer(context.Context, string, ...containerd.NewContainerOpts) (containerd.Container, error) {
 	if c.newContainer == nil {
 		return nil, xerrors.New("unexpected container creation")
 	}
 	return c.newContainer, nil
 }
+
 func (c *runtimeTestClient) Containers(context.Context, ...string) ([]containerd.Container, error) {
 	if c.container == nil || c.container.deleted {
 		return nil, nil
 	}
 	return []containerd.Container{c.container}, nil
 }
+
 func (c *runtimeTestClient) SnapshotService(string) snapshots.Snapshotter {
 	if c.snapshotter != nil {
 		return c.snapshotter
@@ -635,6 +639,7 @@ type runtimeTestNetwork struct {
 func (n *runtimeTestNetwork) SetupSerially(context.Context, string, string, ...cni.NamespaceOpts) (*cni.Result, error) {
 	return &cni.Result{DNS: []cnitypes.DNS{{Nameservers: []string{"1.1.1.1"}}}}, n.setupError
 }
+
 func (n *runtimeTestNetwork) Remove(_ context.Context, _ string, path string, _ ...cni.NamespaceOpts) error {
 	n.removes++
 	n.removedPath = path
@@ -642,9 +647,11 @@ func (n *runtimeTestNetwork) Remove(_ context.Context, _ string, path string, _ 
 }
 
 func runtimeTestContainerFor(allocation RuntimeAllocation) *runtimeTestContainer {
-	return &runtimeTestContainer{info: containers.Container{ID: allocation.ID, Image: allocation.Image,
+	return &runtimeTestContainer{info: containers.Container{
+		ID: allocation.ID, Image: allocation.Image,
 		Runtime: containers.RuntimeInfo{Name: sandboxRuntime}, Snapshotter: sandboxSnapshotter,
-		SnapshotKey: allocation.ID, Labels: allocationLabels(allocation)}}
+		SnapshotKey: allocation.ID, Labels: allocationLabels(allocation),
+	}}
 }
 
 type runtimeTestContainer struct {
@@ -658,16 +665,19 @@ func (c *runtimeTestContainer) ID() string { return c.info.ID }
 func (c *runtimeTestContainer) Info(context.Context, ...containerd.InfoOpts) (containers.Container, error) {
 	return c.info, nil
 }
+
 func (c *runtimeTestContainer) Delete(context.Context, ...containerd.DeleteOpts) error {
 	c.deleted = true
 	return nil
 }
+
 func (c *runtimeTestContainer) Task(context.Context, cio.Attach) (containerd.Task, error) {
 	if c.task == nil {
 		return nil, errdefs.ErrNotFound
 	}
 	return c.task, nil
 }
+
 func (c *runtimeTestContainer) NewTask(context.Context, cio.Creator, ...containerd.NewTaskOpts) (containerd.Task, error) {
 	return c.task, nil
 }
@@ -688,6 +698,7 @@ func (*runtimeTestTask) Pid() uint32 { return 1234 }
 func (t *runtimeTestTask) Status(context.Context) (containerd.Status, error) {
 	return containerd.Status{Status: t.status}, nil
 }
+
 func (t *runtimeTestTask) Delete(context.Context, ...containerd.ProcessDeleteOpts) (*containerd.ExitStatus, error) {
 	return nil, t.deleteError
 }

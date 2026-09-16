@@ -38,12 +38,14 @@ func (f *fakeRuntime) Start(ctx context.Context, spec RuntimeSpec) error {
 	}
 	return nil
 }
+
 func (f *fakeRuntime) Inspect(_ context.Context, id string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	_, ok := f.allocations[id]
 	return ok, nil
 }
+
 func (f *fakeRuntime) Delete(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -56,6 +58,7 @@ func (f *fakeRuntime) Delete(ctx context.Context, id string) error {
 	delete(f.allocations, id)
 	return nil
 }
+
 func (f *fakeRuntime) List(_ context.Context, workspace string) ([]RuntimeAllocation, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -75,6 +78,7 @@ func testManifest(t *testing.T) Manifest {
 	require.NoError(t, err)
 	return m
 }
+
 func testMetadata() *proto.Metadata {
 	return &proto.Metadata{WorkspaceId: uuid.NewString(), WorkspaceBuildId: uuid.NewString(), WorkspaceBuildNumber: 1, CoderUrl: "http://127.0.0.1:3000", WorkspaceTransition: proto.WorkspaceTransition_START}
 }

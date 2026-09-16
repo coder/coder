@@ -290,7 +290,8 @@ func (*server) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, _ <-
 		resp.Resources = []*proto.Resource{{
 			Name: "sandbox", Type: "sandbox_container", DailyCost: m.DailyCost,
 			InstanceType: fmt.Sprintf("%g CPU / %d MiB", m.CPU, m.MemoryMiB),
-			Agents: []*proto.Agent{{Name: "main", OperatingSystem: "linux", Architecture: "amd64", Directory: m.Workdir,
+			Agents: []*proto.Agent{{
+				Name: "main", OperatingSystem: "linux", Architecture: "amd64", Directory: m.Workdir,
 				Auth: &proto.Agent_Token{Token: token}, ConnectionTimeoutSeconds: 30,
 				DisplayApps: &proto.DisplayApps{Vscode: true, WebTerminal: true, SshHelper: true, PortForwardingHelper: true},
 			}},

@@ -995,5 +995,7 @@ func removeNetworkNamespace(path string) error {
 }
 
 // Ensure the interface remains compatible with containerd's client.
-var _ runtimeClient = (*containerd.Client)(nil)
-var _ Runtime = (*containerdRuntime)(nil)
+var (
+	_ runtimeClient = (*containerd.Client)(nil)
+	_ Runtime       = (*containerdRuntime)(nil)
+)
