@@ -250,9 +250,9 @@
 							]
 						},
 						{
-							"title": "Unofficial Install Methods",
-							"description": "Explore community-contributed, unofficial methods for installing Coder beyond the supported paths.",
-							"path": "./install/server/unofficial.md",
+							"title": "Community install methods",
+							"description": "Community-contributed methods for installing Coder on platforms Coder doesn't package itself.",
+							"path": "./install/server/community.md",
 							"icon_path": "./images/icons/generic.svg"
 						}
 					]
