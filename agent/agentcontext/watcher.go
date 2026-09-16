@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -123,11 +124,12 @@ func (w *Watcher) Degraded() string {
 
 // Sync replaces the set of watched directories with the fixed
 // locations that can hold recognized resources: each scan root,
-// its skill containers, and the immediate skill subdirectories.
-// Files are not watched directly; watching the parent directory
-// catches creates, renames, removes, and writes that touch any
-// recognized basename. Files that are themselves scan roots are
-// handled by watching their parent.
+// its skill containers, the immediate skill subdirectories, and for
+// ChildProjects roots the child directories that hold a repository
+// or an instruction file. Files are not watched directly; watching
+// the parent directory catches creates, renames, removes, and
+// writes that touch any recognized basename. Files that are
+// themselves scan roots are handled by watching their parent.
 //
 // Sync is idempotent and safe to call repeatedly. The lock is
 // released around the directory scan so concurrent Close,
@@ -316,7 +318,11 @@ func (w *Watcher) schedule() {
 // watch the root directory itself (catching top-level instruction
 // and .mcp.json changes), plus every existing skill container and
 // its immediate skill subdirectories (catching skill add/remove
-// and SKILL.md writes). The watcher never recurses the tree.
+// and SKILL.md writes). ChildProjects roots also watch immediate
+// children that hold a .git marker or an instruction file; the
+// .git marker qualifies a fresh clone before its files are checked
+// out, so their later creation still triggers a rescan. The
+// watcher never recurses further.
 func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, root := range roots {
@@ -337,6 +343,27 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 			continue
 		}
 		out[root.Path] = struct{}{}
+		if root.ChildProjects {
+			entries, _ := os.ReadDir(root.Path)
+			projects := 0
+			for _, e := range entries {
+				if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+					continue
+				}
+				child := filepath.Join(root.Path, e.Name())
+				files, _ := os.ReadDir(child)
+				for _, file := range files {
+					if file.Name() == ".git" || (!file.IsDir() && recognizedInstructionFile(file.Name())) {
+						out[child] = struct{}{}
+						projects++
+						break
+					}
+				}
+				if projects == maxChildProjects {
+					break
+				}
+			}
+		}
 		for _, container := range skillContainersFor(root.Path) {
 			out[container] = struct{}{}
 			entries, err := os.ReadDir(container)
