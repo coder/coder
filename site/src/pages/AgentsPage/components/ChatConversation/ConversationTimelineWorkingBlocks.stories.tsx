@@ -7,11 +7,11 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildWorkingConversation,
+	MockCollapsedStepsPreferences,
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
 } from "./storyFixtures";
@@ -28,18 +28,6 @@ const meta: Meta<typeof ConversationTimeline> = {
 		subagentTitles: new Map(),
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
 		now: start + 13000,
-	},
-	parameters: {
-		queries: [
-			{
-				key: preferenceSettingsKey,
-				data: {
-					...MockUserPreferenceSettings,
-					shell_tool_display_mode: "always_collapsed",
-					collapse_assistant_steps: true,
-				},
-			},
-		],
 	},
 	decorators: [
 		(Story) => (
@@ -59,6 +47,11 @@ export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
 export const Completed: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const summary = canvas.getByRole("button", {
@@ -71,6 +64,11 @@ export const Completed: Story = {
 };
 
 export const Paginated: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [page, setPage] = useState(0);
 		return (
@@ -163,6 +161,11 @@ const longTurnPages = [
 // The last page also prepends the prompt row as a new scroller item, which the
 // scroller anchors on its own; both corrections have to add up.
 export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [page, setPage] = useState(0);
 		// The button follows the rows so the scroller sees the previous first
@@ -221,6 +224,11 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 };
 
 export const PreferenceChanges: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const client = useQueryClient();
 		return (
@@ -228,8 +236,7 @@ export const PreferenceChanges: Story = {
 				<Button
 					onClick={() =>
 						client.setQueryData(preferenceSettingsKey, {
-							...MockUserPreferenceSettings,
-							shell_tool_display_mode: "always_collapsed",
+							...MockCollapsedStepsPreferences,
 							collapse_assistant_steps: false,
 						})
 					}
@@ -238,11 +245,10 @@ export const PreferenceChanges: Story = {
 				</Button>
 				<Button
 					onClick={() =>
-						client.setQueryData(preferenceSettingsKey, {
-							...MockUserPreferenceSettings,
-							shell_tool_display_mode: "always_collapsed",
-							collapse_assistant_steps: true,
-						})
+						client.setQueryData(
+							preferenceSettingsKey,
+							MockCollapsedStepsPreferences,
+						)
 					}
 				>
 					Restore grouping
@@ -267,6 +273,11 @@ export const PreferenceChanges: Story = {
 };
 
 export const FailedStepCounted: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.map((message) =>
@@ -303,6 +314,11 @@ export const FailedStepCounted: Story = {
 };
 
 export const QuestionStaysVisible: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		isChatCompleted: true,
 		onSendAskUserQuestionResponse: fn(),
@@ -363,6 +379,11 @@ export const Mobile: Story = {
 };
 
 export const EditingPrecedingMessage: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [editing, setEditing] = useState(false);
 		return (
