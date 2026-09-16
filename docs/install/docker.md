@@ -88,15 +88,6 @@ docker run --rm -it \
 
 </div>
 
-## Install via Easypanel
-
-You can also deploy Coder with one click using the official [Easypanel](https://easypanel.io) template, a self-hosted Docker deployment platform:
-
-[![Deploy on Easypanel][easypanel-btn]][easypanel-deploy]
-
-[easypanel-btn]: https://easypanel.io/img/deploy-on-easypanel-40.svg
-[easypanel-deploy]: https://easypanel.io/templates/coder
-
 ## Install the preview release
 
 > [!TIP]
