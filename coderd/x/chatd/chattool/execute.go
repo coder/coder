@@ -88,6 +88,11 @@ type ExecuteResult struct {
 	Command             string                          `json:"command,omitempty"`
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
+	// TimedOut marks a foreground wait that expired without the
+	// process finishing. The process is not killed; it keeps running
+	// with BackgroundProcessID. Running is only set when a snapshot
+	// confirmed liveness, so its absence means unknown, not exited.
+	TimedOut bool `json:"timed_out,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.
@@ -319,6 +324,7 @@ func waitForProcess(
 				ExitCode:            -1,
 				Error:               errMsg,
 				BackgroundProcessID: processID,
+				TimedOut:            timedOut,
 			}
 		}
 
@@ -351,6 +357,8 @@ func waitForProcess(
 			Error:               errMsg,
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: processID,
+			Running:             true,
+			TimedOut:            timedOut,
 		}
 	}
 
@@ -371,6 +379,8 @@ func waitForProcess(
 			Error:               fmt.Sprintf("command timed out after %s", timeout),
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: processID,
+			Running:             true,
+			TimedOut:            true,
 		}
 	}
 
@@ -426,7 +436,7 @@ const (
 type ProcessOutputArgs struct {
 	ProcessID   string  `json:"process_id"`
 	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
-	ModelIntent *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing why you are checking this process. This is shown as the user's primary label for the action, so make it self-sufficient: the command itself is not displayed alongside it. Use plain English with no underscores or technical jargon. Do not restate the command or include a duration. Keep it under 100 characters. Good examples: \"Waiting for the dev server to be ready\", \"Confirming the tests still pass\"."`
+	ModelIntent *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing why you are checking this process. This is shown as the user's primary label for the action, with the process command shown alongside it, so make it self-sufficient. Use plain English with no underscores or technical jargon. Do not restate the command or include a duration. Keep it under 100 characters. Good examples: \"Waiting for the dev server to be ready\", \"Confirming the tests still pass\"."`
 }
 
 // ProcessOutput returns an AgentTool that retrieves the output

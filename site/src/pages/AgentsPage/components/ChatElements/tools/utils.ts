@@ -661,7 +661,7 @@ export function humanizeMCPToolName(
 
 // Re-export runtime type utils used by sub-components so they
 // can import from a single location.
-export { asNumber, asRecord, asString } from "../runtimeTypeUtils";
+export { asBoolean, asNumber, asRecord, asString } from "../runtimeTypeUtils";
 
 /**
  * Returns the tooltip label for a killed/terminated process signal.

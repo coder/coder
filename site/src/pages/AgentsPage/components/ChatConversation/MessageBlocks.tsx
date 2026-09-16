@@ -385,6 +385,8 @@ export const BlockList: FC<BlockListProps> = ({
 								}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
+								processId={tool.processId}
+								noNewOutput={tool.noNewOutput}
 								hookRewritten={tool.hookRewritten}
 							/>
 						);
@@ -447,6 +449,8 @@ export const BlockList: FC<BlockListProps> = ({
 					}
 					modelIntent={tool.modelIntent}
 					parsedCommands={tool.parsedCommands}
+					processId={tool.processId}
+					noNewOutput={tool.noNewOutput}
 					hookRewritten={tool.hookRewritten}
 				/>
 			))}

@@ -460,6 +460,60 @@ export const ExecuteBackgrounded: Story = {
 	},
 };
 
+/** A foreground wait expired; the process kept running in the workspace. */
+export const ExecuteTimedOutStillRunning: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "go test ./...", timeout: "30s" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			success: false,
+			exit_code: -1,
+			output: "=== RUN TestChatd\n=== RUN TestChattool",
+			error: "command timed out after 30s",
+			background_process_id: "376b2458-e318-4442-8b87-51a0f9727f0e",
+			running: true,
+			timed_out: true,
+		},
+	},
+};
+
+/** Timeout whose recovery snapshot failed too, so liveness is unknown. */
+export const ExecuteTimedOutStatusUnknown: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "make test", timeout: "10s" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			success: false,
+			exit_code: -1,
+			error:
+				"command timed out after 10s; failed to get output: agent disconnected",
+			background_process_id: "376b2458-e318-4442-8b87-51a0f9727f0e",
+			timed_out: true,
+		},
+	},
+};
+
+/** Old transcript without the timed_out field, classified by signature. */
+export const ExecuteTimedOutLegacy: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "make test" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			success: false,
+			exit_code: -1,
+			output: "ok  coderd/httpmw",
+			error: "command timed out after 10s",
+			background_process_id: "376b2458-e318-4442-8b87-51a0f9727f0e",
+		},
+	},
+};
+
 export const ExecuteAlwaysCollapsed: Story = {
 	args: {
 		name: "execute",
@@ -622,6 +676,75 @@ export const ProcessOutputStringError: Story = {
 		status: "error",
 		isError: true,
 		result: "permission denied",
+	},
+};
+
+/** A completed poll of a live process stays collapsed and quiet. */
+export const ProcessOutputPollStillRunning: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "376b2458-e318-4442-8b87-51a0f9727f0e" },
+		result: {
+			command: "go test ./...",
+			output:
+				"=== RUN TestChatd\n=== RUN TestChattool\n--- PASS: TestChatd (0.42s)",
+			running: true,
+			note: "process is still running",
+		},
+	},
+};
+
+/** The resolution poll: process exited, full output previewed. */
+export const ProcessOutputPollFinished: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "376b2458-e318-4442-8b87-51a0f9727f0e" },
+		result: {
+			command: "go test ./...",
+			output:
+				"=== RUN TestChatd\n--- PASS: TestChatd (0.42s)\n=== RUN TestChattool\n--- PASS: TestChattool (1.1s)\nPASS\nok\tgithub.com/coder/coder/v2/coderd/x/chatd\t1.842s",
+			running: false,
+			exit_code: 0,
+		},
+	},
+};
+
+/** A poll whose output matches the previous snapshot. */
+export const ProcessOutputPollNoNewOutput: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		noNewOutput: true,
+		args: { process_id: "376b2458-e318-4442-8b87-51a0f9727f0e" },
+		result: {
+			command: "go test ./...",
+			output: "=== RUN TestChatd\n=== RUN TestChattool",
+			running: true,
+			note: "process is still running",
+		},
+	},
+};
+
+/** A poll over a truncated head+tail buffer. */
+export const ProcessOutputPollTruncated: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "376b2458-e318-4442-8b87-51a0f9727f0e" },
+		result: {
+			command: "npm run build",
+			output: "first lines\n...snip...\nlast lines",
+			running: false,
+			exit_code: 0,
+			truncated: {
+				original_bytes: 1_200_000,
+				retained_bytes: 32_768,
+				omitted_bytes: 1_167_232,
+				strategy: "head-tail",
+			},
+		},
 	},
 };
 

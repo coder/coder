@@ -12,6 +12,7 @@ import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { ProcessChip } from "./ProcessChip";
 import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
@@ -35,6 +36,13 @@ type ExecuteToolProps = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
+	processId?: string;
+	/** A foreground wait expired without the process finishing. */
+	timedOut?: boolean;
+	/** Whether the result confirmed the process was still alive. */
+	processRunning?: boolean;
+	/** The model's requested wait limit, e.g. "30s". */
+	waitLimit?: string;
 };
 
 export const ExecuteTool: React.FC<ExecuteToolProps> = ({
@@ -49,6 +57,10 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	modelIntent,
 	parsedCommands,
 	shellToolDisplayMode,
+	processId,
+	timedOut = false,
+	processRunning = false,
+	waitLimit,
 }) => {
 	const hasTranscriptBlocks = transcriptBlocks.length > 0;
 	const autoDisplayState: AgentDisplayState =
@@ -59,7 +71,10 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			? "preview"
 			: "collapsed";
 	const isRunning = status === "running";
-	const durationLabel = isBackgrounded ? "" : formatShellDurationMs(durationMs);
+	// The wait-limit suffix is dropped for timeouts: it reads as a completed
+	// run duration, and wall time includes snapshot recovery beyond the limit.
+	const showDuration = !isBackgrounded && !(timedOut && !isRunning);
+	const durationLabel = showDuration ? formatShellDurationMs(durationMs) : "";
 	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,
 		modelIntent,
@@ -68,11 +83,24 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		isRunning,
 		isError,
 		isBackgrounded,
+		timedOut,
+		processRunning,
 	});
 	const defaultView = resolveAgentDisplayState(
 		shellToolDisplayMode,
 		autoDisplayState,
 	);
+	const showStillRunningChip = timedOut && processRunning && !isRunning;
+	const statusUnknown = timedOut && !processRunning;
+	const chipLabel = showStillRunningChip
+		? waitLimit
+			? `Stopped waiting after ${waitLimit}. The process kept running in the workspace.`
+			: "Stopped waiting. The process kept running in the workspace."
+		: statusUnknown
+			? waitLimit
+				? `Stopped waiting after ${waitLimit} and could not read the process state.`
+				: "Stopped waiting and could not read the process state."
+			: "";
 
 	return (
 		<ToolCall.Root
@@ -102,6 +130,35 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				<ToolCall.HeaderActions>
+					{showStillRunningChip && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span
+									aria-label={chipLabel}
+									role="img"
+									className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 font-mono text-2xs leading-none text-content-secondary"
+								>
+									Still running
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>{chipLabel}</TooltipContent>
+						</Tooltip>
+					)}
+					{statusUnknown && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span
+									aria-label={chipLabel}
+									role="img"
+									className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 font-mono text-2xs leading-none text-content-secondary"
+								>
+									Status unknown
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>{chipLabel}</TooltipContent>
+						</Tooltip>
+					)}
+					{processId && <ProcessChip processId={processId} />}
 					{killedBySignal && !isRunning && (
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -125,6 +182,8 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 					isRunning={isRunning}
+					timedOutStillRunning={showStillRunningChip}
+					waitLimit={waitLimit}
 				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
@@ -139,6 +198,8 @@ type ShellCommandLineInput = {
 	isRunning: boolean;
 	isError: boolean;
 	isBackgrounded: boolean;
+	timedOut: boolean;
+	processRunning: boolean;
 };
 
 const getShellCommandLine = ({
@@ -149,6 +210,8 @@ const getShellCommandLine = ({
 	isRunning,
 	isError,
 	isBackgrounded,
+	timedOut,
+	processRunning,
 }: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
 	const summary =
 		parsedCommands && parsedCommands.length > 0
@@ -164,7 +227,17 @@ const getShellCommandLine = ({
 	} else if (isBackgrounded) {
 		commandLabel = `Started ${commandDisplay} in the background`;
 	}
-	if (!isRunning && isError) {
+	// The timeout branch precedes the failure branch so a success:false
+	// timeout can never claim the command failed.
+	if (timedOut) {
+		commandLabel = intentLabel
+			? `${intentLabel} using ${commandDisplay}`
+			: `Started ${commandDisplay}`;
+		if (!processRunning) {
+			commandLabel = `Started ${commandDisplay}`;
+		}
+	}
+	if (!isRunning && isError && !timedOut) {
 		commandLabel = `Failed to run ${commandDisplay}`;
 	}
 
@@ -179,7 +252,16 @@ const ShellTranscriptBody: React.FC<{
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
 	isRunning: boolean;
-}> = ({ command, transcriptBlocks, isError, isRunning }) => {
+	timedOutStillRunning: boolean;
+	waitLimit?: string;
+}> = ({
+	command,
+	transcriptBlocks,
+	isError,
+	isRunning,
+	timedOutStillRunning,
+	waitLimit,
+}) => {
 	return (
 		<TerminalOutput
 			ariaLabel="Command output"
@@ -187,6 +269,13 @@ const ShellTranscriptBody: React.FC<{
 			className="col-start-1 col-span-2 mt-2"
 			streaming={isRunning}
 		>
+			{timedOutStillRunning && (
+				<p className="m-0 border-0 bg-transparent p-0 font-sans text-2xs leading-5 text-content-secondary">
+					{waitLimit
+						? `Reached the ${waitLimit} wait limit; the process was not stopped.`
+						: "Reached the wait limit; the process was not stopped."}
+				</p>
+			)}
 			{transcriptBlocks.map((block) => (
 				<pre
 					key={block.kind}

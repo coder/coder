@@ -92,6 +92,10 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	modelIntent?: string;
 	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
 	parsedCommands?: readonly string[][];
+	/** Tracked process ID for execute/process_output rows. */
+	processId?: string;
+	/** process_output snapshot identical to the previous one for this process. */
+	noNewOutput?: boolean;
 	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
@@ -120,6 +124,8 @@ type ToolRendererProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
+	processId?: string;
+	noNewOutput?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 };
@@ -241,6 +247,10 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			modelIntent={modelIntent}
 			parsedCommands={parsedCommands}
 			shellToolDisplayMode={shellToolDisplayMode}
+			processId={data.processId}
+			timedOut={data.timedOut}
+			processRunning={data.processRunning}
+			waitLimit={data.waitLimit}
 		/>
 	);
 };
@@ -252,6 +262,8 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	killedBySignal,
 	modelIntent,
 	shellToolDisplayMode,
+	processId,
+	noNewOutput,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
@@ -278,6 +290,9 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
+			processId={processId}
+			truncation={rec?.truncated}
+			noNewOutput={noNewOutput}
 		/>
 	);
 };
@@ -1211,6 +1226,8 @@ export const Tool = memo(
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
+		processId,
+		noNewOutput,
 		hookRewritten = false,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
@@ -1259,6 +1276,8 @@ export const Tool = memo(
 						previousResponseText={previousResponseText}
 						modelIntent={modelIntent}
 						parsedCommands={parsedCommands}
+						processId={processId}
+						noNewOutput={noNewOutput}
 						shellToolDisplayMode={shellToolDisplayMode}
 						codeDiffDisplayMode={codeDiffDisplayMode}
 					/>

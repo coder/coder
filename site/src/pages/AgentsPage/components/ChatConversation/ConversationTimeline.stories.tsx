@@ -2019,6 +2019,131 @@ export const ToolDisplayModesFromPreferences: Story = {
 };
 
 /**
+ * A foreground execute that hits its wait timeout, followed by the
+ * process_output re-attach flow: repeated polls while the process lives,
+ * then the final poll observing a clean exit. The execute row must read as
+ * started-and-still-running rather than failed, and the poll rows as
+ * checks on the same process, not new command executions.
+ */
+export const ExecuteTimeoutFollowedByPolls: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					thinking_display_mode: "auto" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "Running the test suite now.",
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "execute-1",
+						tool_name: "execute",
+						args: {
+							command: "go test ./coderd/x/chatd/...",
+							timeout: "30s",
+							model_intent: "Running the chatd tests",
+						},
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "execute-1",
+						tool_name: "execute",
+						result: {
+							success: false,
+							exit_code: -1,
+							output: "=== RUN TestChatd\n=== RUN TestChattool",
+							error: "command timed out after 30s",
+							background_process_id: "376b2458-e318-4442-8b87-51a0f9727f0e",
+							running: true,
+							timed_out: true,
+						},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "The suite is still running; checking on it.",
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "poll-1",
+						tool_name: "process_output",
+						args: {
+							process_id: "376b2458-e318-4442-8b87-51a0f9727f0e",
+							model_intent: "Waiting for the chatd tests to finish",
+						},
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "poll-1",
+						tool_name: "process_output",
+						result: {
+							command: "go test ./coderd/x/chatd/...",
+							output: "=== RUN TestChatd\n=== RUN TestChattool",
+							running: true,
+							note: "process is still running",
+						},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "poll-2",
+						tool_name: "process_output",
+						args: {
+							process_id: "376b2458-e318-4442-8b87-51a0f9727f0e",
+						},
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "poll-2",
+						tool_name: "process_output",
+						result: {
+							command: "go test ./coderd/x/chatd/...",
+							output:
+								"=== RUN TestChatd\n--- PASS: TestChatd (0.42s)\n=== RUN TestChattool\n--- PASS: TestChattool (1.1s)\nPASS\nok\tgithub.com/coder/coder/v2/coderd/x/chatd\t1.842s",
+							running: false,
+							exit_code: 0,
+						},
+					},
+					{
+						type: "text",
+						text: "All chatd tests pass.",
+					},
+				],
+			},
+		]),
+	},
+};
+
+/**
  * A completed thinking block with always_expanded mode should show
  * its content without user interaction.
  */

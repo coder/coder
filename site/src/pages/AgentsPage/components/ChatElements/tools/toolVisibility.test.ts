@@ -23,6 +23,10 @@ describe("toolVisibility", () => {
 				errorText: "",
 				durationMs: 47200,
 				isBackgrounded: true,
+				processId: "process-1",
+				timedOut: false,
+				processRunning: false,
+				waitLimit: undefined,
 			});
 		});
 
@@ -149,6 +153,116 @@ describe("toolVisibility", () => {
 					{ error: "  ", message: " auth required " },
 				).transcriptBlocks,
 			).toEqual([{ kind: "error", text: "auth required" }]);
+		});
+
+		describe("timeout classification", () => {
+			it("classifies a timeout with confirmed liveness from new fields", () => {
+				const data = getExecuteRenderData(
+					{ command: "go test ./...", timeout: "30s" },
+					{
+						success: false,
+						exit_code: -1,
+						output: "=== RUN TestFoo",
+						error: "command timed out after 30s",
+						background_process_id: "process-1",
+						running: true,
+						timed_out: true,
+					},
+				);
+				expect(data.timedOut).toBe(true);
+				expect(data.processRunning).toBe(true);
+				expect(data.processId).toBe("process-1");
+				expect(data.waitLimit).toBe("30s");
+				// The timeout string is control metadata, not process output,
+				// so it never renders as an error block.
+				expect(data.transcriptBlocks).toEqual([
+					{ kind: "output", text: "=== RUN TestFoo" },
+				]);
+			});
+
+			it("keeps the diagnostic as a neutral status when liveness is unknown", () => {
+				const data = getExecuteRenderData(
+					{ command: "go test ./...", timeout: "30s" },
+					{
+						success: false,
+						exit_code: -1,
+						error:
+							"command timed out after 30s; failed to get output: agent disconnected",
+						background_process_id: "process-1",
+						timed_out: true,
+					},
+				);
+				expect(data.timedOut).toBe(true);
+				expect(data.processRunning).toBe(false);
+				expect(data.transcriptBlocks).toEqual([
+					{
+						kind: "status",
+						text: "command timed out after 30s; failed to get output: agent disconnected",
+					},
+				]);
+			});
+
+			it("matches the legacy timeout signature only when structural evidence exists", () => {
+				const data = getExecuteRenderData(
+					{ command: "go test ./..." },
+					{
+						success: false,
+						exit_code: -1,
+						output: "=== RUN TestFoo",
+						error: "command timed out after 10s",
+						background_process_id: "process-1",
+					},
+				);
+				expect(data.timedOut).toBe(true);
+				expect(data.processRunning).toBe(true);
+				expect(data.transcriptBlocks).toEqual([
+					{ kind: "output", text: "=== RUN TestFoo" },
+				]);
+			});
+
+			it("does not let legacy args mark a timeout as backgrounded", () => {
+				const data = getExecuteRenderData(
+					{ command: "go test ./...", run_in_background: true },
+					{
+						success: false,
+						exit_code: -1,
+						error: "command timed out after 10s",
+						background_process_id: "process-1",
+					},
+				);
+				expect(data.isBackgrounded).toBe(true);
+				// A deliberate background launch carries no timeout evidence.
+				expect(data.timedOut).toBe(false);
+			});
+
+			it("does not classify a genuine failure as a timeout", () => {
+				const data = getExecuteRenderData(
+					{ command: "make build" },
+					{
+						success: false,
+						exit_code: 2,
+						error: "exit status 2",
+					},
+				);
+				expect(data.timedOut).toBe(false);
+				expect(data.transcriptBlocks).toEqual([
+					{ kind: "error", text: "exit status 2" },
+				]);
+			});
+
+			it("treats an explicit timed_out false as not timed out", () => {
+				const data = getExecuteRenderData(
+					{ command: "sleep 60" },
+					{
+						success: false,
+						exit_code: -1,
+						error: "command timed out after 10s",
+						background_process_id: "process-1",
+						timed_out: false,
+					},
+				);
+				expect(data.timedOut).toBe(false);
+			});
 		});
 	});
 
