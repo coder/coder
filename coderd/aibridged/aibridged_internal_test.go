@@ -36,7 +36,7 @@ func serveAsync(tracker *Server, next http.Handler) <-chan int {
 	done := make(chan int, 1)
 	go func() {
 		rec := httptest.NewRecorder()
-		handler := tracker.inflight.Middleware(nil)(next)
+		handler := tracker.inflight.Middleware(next)
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 		done <- rec.Code
 	}()
@@ -128,7 +128,7 @@ func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	handler := tracker.inflight.Middleware(nil)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	handler := tracker.inflight.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("request admitted after shutdown")
 	}))
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
@@ -145,7 +145,7 @@ func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 
 	handler, _, _ := blockingHandler()
 	rec := httptest.NewRecorder()
-	current := tracker.inflight.Middleware(nil)(handler)
+	current := tracker.inflight.Middleware(handler)
 	current.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Contains(t, rec.Body.String(), "shutting down")

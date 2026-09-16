@@ -140,7 +140,7 @@ func TestServerShutdownMode(t *testing.T) {
 			proxy := tc.selected && !tc.interception
 			if !proxy {
 				// An unused proxy gate must not delay interception or startup cleanup.
-				release, ok := server.inflight.Admit(nil)
+				release, ok := server.inflight.Admit()
 				require.True(t, ok)
 				defer release()
 			}
@@ -150,7 +150,7 @@ func TestServerShutdownMode(t *testing.T) {
 				expectedCalls = 1
 			}
 			require.Equal(t, expectedCalls, calls)
-			release, ok := server.inflight.Admit(nil)
+			release, ok := server.inflight.Admit()
 			require.Equal(t, !proxy, ok, "only proxy mode shuts down the proxy gate")
 			if ok {
 				release()

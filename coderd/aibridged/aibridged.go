@@ -329,7 +329,7 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}
-	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(nil)(router), keyPools: router.KeyPools})
+	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(router), keyPools: router.KeyPools})
 	return nil
 }
 
