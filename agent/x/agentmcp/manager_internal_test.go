@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -256,7 +257,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}}
+	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}, clock: quartz.NewReal()}
 	client, err := m.connectServer(ctx, cfg)
 	require.NoError(t, err, "connectServer should succeed")
 	t.Cleanup(func() { _ = client.Close() })
@@ -362,7 +363,13 @@ func TestResolveWorkingDir(t *testing.T) {
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
 // stdin/stdout, just enough for initialize + tools/list.
+// TEST_MCP_FAKE_SERVER_HANG=1 models a server that never answers the
+// handshake: it drains stdin until the client closes it.
 func runFakeMCPServer() {
+	if os.Getenv("TEST_MCP_FAKE_SERVER_HANG") == "1" {
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		return
+	}
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -397,20 +404,26 @@ func runFakeMCPServer() {
 			// No response needed for notifications.
 			continue
 		case "tools/list":
+			tools := []map[string]any{
+				{
+					"name":        "echo",
+					"description": "echoes input",
+					"inputSchema": map[string]any{
+						"type":       "object",
+						"properties": map[string]any{},
+					},
+				},
+			}
+			// TEST_MCP_FAKE_SERVER_TOOLS=none models a server that
+			// connects but exposes nothing.
+			if os.Getenv("TEST_MCP_FAKE_SERVER_TOOLS") == "none" {
+				tools = []map[string]any{}
+			}
 			resp = map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]any{
-					"tools": []map[string]any{
-						{
-							"name":        "echo",
-							"description": "echoes input",
-							"inputSchema": map[string]any{
-								"type":       "object",
-								"properties": map[string]any{},
-							},
-						},
-					},
+					"tools": tools,
 				},
 			}
 		default:

@@ -1,6 +1,8 @@
 package agentcontext
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,14 +53,34 @@ func TestBuildMCPServerResources(t *testing.T) {
 		require.Equal(t, "search", got[1].Tools[1].Name)
 	})
 
-	t.Run("ConnectedWithoutToolsSkipped", func(t *testing.T) {
+	t.Run("ConnectedWithoutToolsEmitted", func(t *testing.T) {
 		t.Parallel()
-		// A connected server that has not yet reported any tools is
-		// not surfaced; a later re-resolve picks it up once tools
-		// arrive.
-		require.Nil(t, buildMCPServerResources([]MCPServerStatus{
+		// A connected server with zero tools is still an OK resource,
+		// so an empty inventory is distinguishable from a server that
+		// has not been discovered yet.
+		got := buildMCPServerResources([]MCPServerStatus{
 			{Name: "fs", Connected: true},
-		}))
+		})
+		require.Len(t, got, 1)
+		require.Equal(t, StatusOK, got[0].Status)
+		require.Empty(t, got[0].Tools)
+		require.Empty(t, got[0].Error)
+	})
+
+	t.Run("WarningKeptOnOKRow", func(t *testing.T) {
+		t.Parallel()
+		got := buildMCPServerResources([]MCPServerStatus{
+			{Name: "fs", Connected: true, Warning: "reconnect failed", Tools: []MCPTool{{Name: "read"}}},
+		})
+		require.Len(t, got, 1)
+		require.Equal(t, StatusOK, got[0].Status)
+		require.Equal(t, "reconnect failed", got[0].Error)
+		require.Len(t, got[0].Tools, 1)
+		// The warning does not participate in the content hash; the
+		// live-sync compares error text separately.
+		require.Equal(t, got[0].ContentHash, buildMCPServerResources([]MCPServerStatus{
+			{Name: "fs", Connected: true, Tools: []MCPTool{{Name: "read"}}},
+		})[0].ContentHash)
 	})
 
 	t.Run("FailedServerSurfacesAsIssue", func(t *testing.T) {
@@ -150,5 +172,59 @@ func TestBuildMCPServerResources(t *testing.T) {
 		require.Equal(t, StatusUnreadable, got[0].Status)
 		require.Equal(t, "fs", got[1].Source)
 		require.Equal(t, StatusOK, got[1].Status)
+	})
+}
+
+func TestApplyMCPConfigErrors(t *testing.T) {
+	t.Parallel()
+
+	okConfig := func(path string) Resource {
+		return Resource{ID: resourceID(KindMCPConfig, path), Kind: KindMCPConfig, Source: path, Status: StatusOK}
+	}
+
+	t.Run("ExactPathMarksInvalid", func(t *testing.T) {
+		t.Parallel()
+		resources := []Resource{
+			okConfig("/w/.mcp.json"),
+			{ID: "instruction_file:/w/AGENTS.md", Kind: KindInstructionFile, Source: "/w/AGENTS.md", Status: StatusOK},
+		}
+		applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "server \"a\" has no command or url"}})
+		require.Equal(t, StatusInvalid, resources[0].Status)
+		require.Equal(t, "server \"a\" has no command or url", resources[0].Error)
+		require.Equal(t, StatusOK, resources[1].Status)
+	})
+
+	t.Run("KeepsFilesystemDiagnosis", func(t *testing.T) {
+		t.Parallel()
+		resources := []Resource{{
+			ID: resourceID(KindMCPConfig, "/w/.mcp.json"), Kind: KindMCPConfig, Source: "/w/.mcp.json",
+			Status: StatusOversize, Error: "too big",
+		}}
+		applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "parse"}})
+		require.Equal(t, StatusOversize, resources[0].Status)
+		require.Equal(t, "too big", resources[0].Error)
+	})
+
+	t.Run("UnknownPathIgnored", func(t *testing.T) {
+		t.Parallel()
+		resources := []Resource{okConfig("/w/.mcp.json")}
+		applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/elsewhere/.mcp.json", Err: "parse"}})
+		require.Equal(t, StatusOK, resources[0].Status)
+	})
+
+	t.Run("SymlinkedConfigMatchesTarget", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		target := filepath.Join(dir, "real", ".mcp.json")
+		require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+		require.NoError(t, os.WriteFile(target, []byte("{}"), 0o600))
+		link := filepath.Join(dir, ".mcp.json")
+		require.NoError(t, os.Symlink(target, link))
+
+		// The resolver walked the symlink; the engine reported the target.
+		resources := []Resource{okConfig(link)}
+		applyMCPConfigErrors(resources, []MCPConfigError{{Path: target, Err: "semantic"}})
+		require.Equal(t, StatusInvalid, resources[0].Status)
+		require.Equal(t, "semantic", resources[0].Error)
 	})
 }
