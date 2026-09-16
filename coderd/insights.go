@@ -540,12 +540,21 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+		appsUsage, err := convertTemplateInsightsApps(usage, appUsage)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error converting template app insights.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
 		resp.Report = &codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
 			EndTime:         endTime,
 			TemplateIDs:     usage.TemplateIDs,
 			ActiveUsers:     usage.ActiveUsers,
-			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
+			AppsUsage:       appsUsage,
 			ParametersUsage: parametersUsage,
 		}
 	}
@@ -564,27 +573,48 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// sessionFamilySFTP is the family historical sftp minutes are stored under. No
+// app name maps to it, so the registry never produces it, but the API has
+// always exposed sftp as a builtin app.
+const sessionFamilySFTP codersdk.AppFamilyName = "sftp"
+
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
-func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) []codersdk.TemplateAppUsage {
+func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
+	usageSeconds, err := codersdk.DecodeAppFamilyMap[int64](usage.SessionFamilyUsageSeconds)
+	if err != nil {
+		return nil, xerrors.Errorf("decode session family usage seconds: %w", err)
+	}
+	templateIDsByFamily, err := codersdk.DecodeAppFamilyMap[[]uuid.UUID](usage.SessionFamilyTemplateIds)
+	if err != nil {
+		return nil, xerrors.Errorf("decode session family template ids: %w", err)
+	}
+	// Keep serializing empty template lists as [] instead of null.
+	templateIDs := func(family codersdk.AppFamilyName) []uuid.UUID {
+		if ids := templateIDsByFamily[family]; ids != nil {
+			return ids
+		}
+		return []uuid.UUID{}
+	}
+
 	// Builtin apps.
 	apps := []codersdk.TemplateAppUsage{
 		{
-			TemplateIDs: usage.VscodeTemplateIds,
+			TemplateIDs: templateIDs(codersdk.AppFamilyVSCode),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
 			Icon:        "/icon/code.svg",
-			Seconds:     usage.UsageVscodeSeconds,
+			Seconds:     usageSeconds[codersdk.AppFamilyVSCode],
 		},
 		{
-			TemplateIDs: usage.JetbrainsTemplateIds,
+			TemplateIDs: templateIDs(codersdk.AppFamilyJetBrains),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
 			Icon:        "/icon/intellij.svg",
-			Seconds:     usage.UsageJetbrainsSeconds,
+			Seconds:     usageSeconds[codersdk.AppFamilyJetBrains],
 		},
 		// TODO(mafredri): We could take Web Terminal usage from appUsage since
 		// that should be more accurate. The difference is that this reflects
@@ -593,28 +623,28 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		// condition finding the corresponding app entry in appUsage is:
 		// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
 		{
-			TemplateIDs: usage.ReconnectingPtyTemplateIds,
+			TemplateIDs: templateIDs(codersdk.AppFamilyReconnectingPTY),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			Slug:        "reconnecting-pty",
 			Icon:        "/icon/terminal.svg",
-			Seconds:     usage.UsageReconnectingPtySeconds,
+			Seconds:     usageSeconds[codersdk.AppFamilyReconnectingPTY],
 		},
 		{
-			TemplateIDs: usage.SshTemplateIds,
+			TemplateIDs: templateIDs(codersdk.AppFamilySSH),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
 			Slug:        "ssh",
 			Icon:        "/icon/terminal.svg",
-			Seconds:     usage.UsageSshSeconds,
+			Seconds:     usageSeconds[codersdk.AppFamilySSH],
 		},
 		{
-			TemplateIDs: usage.SftpTemplateIds,
+			TemplateIDs: templateIDs(sessionFamilySFTP),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
 			Slug:        "sftp",
 			Icon:        "/icon/terminal.svg",
-			Seconds:     usage.UsageSftpSeconds,
+			Seconds:     usageSeconds[sessionFamilySFTP],
 		},
 	}
 
@@ -646,7 +676,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		})
 	}
 
-	return apps
+	return apps, nil
 }
 
 // parseInsightsStartAndEndTime parses the start and end time query parameters
