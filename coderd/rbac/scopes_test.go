@@ -375,17 +375,11 @@ func TestCanonicalScopeList(t *testing.T) {
 		})
 	}
 
-	// A large list of distinct names must come back intact and in order
-	// without the dedupe going quadratic.
+	// A large list of distinct names must come back intact and in order.
 	t.Run("large_distinct_list", func(t *testing.T) {
 		t.Parallel()
 
-		const count = 100_000
-		names := make([]string, 0, count)
-		for i := 0; i < count; i++ {
-			names = append(names, fmt.Sprintf("unknown:%d", i))
-		}
-		raw := strings.Join(names, " ")
+		raw := distinctScopeList(100_000)
 
 		got := rbac.CanonicalScopeList(raw)
 		require.Equal(t, raw, got)
@@ -394,6 +388,24 @@ func TestCanonicalScopeList(t *testing.T) {
 		got = rbac.CanonicalScopeList(raw + " " + raw)
 		require.Equal(t, raw, got)
 	})
+}
+
+// distinctScopeList returns count distinct unknown names, space separated.
+func distinctScopeList(count int) string {
+	names := make([]string, 0, count)
+	for i := range count {
+		names = append(names, fmt.Sprintf("unknown:%d", i))
+	}
+	return strings.Join(names, " ")
+}
+
+// BenchmarkCanonicalScopeList measures a list of many distinct names, the
+// input that made the dedupe quadratic before it used a set.
+func BenchmarkCanonicalScopeList(b *testing.B) {
+	raw := distinctScopeList(100_000)
+	for b.Loop() {
+		_ = rbac.CanonicalScopeList(raw)
+	}
 }
 
 // TestScopesCoverEveryExternalScope asserts the property the OAuth2 allowlist

@@ -3,6 +3,8 @@ package rbac
 import (
 	"sort"
 	"strings"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // externalLowLevel is the curated set of low-level scope names exposed to users.
@@ -146,16 +148,10 @@ func CanonicalScopeList(raw string) string {
 		return raw
 	}
 	canonical := make([]string, 0, len(names))
-	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
-		got := string(CanonicalScopeName(ScopeName(name)))
-		if _, dup := seen[got]; dup {
-			continue
-		}
-		seen[got] = struct{}{}
-		canonical = append(canonical, got)
+		canonical = append(canonical, string(CanonicalScopeName(ScopeName(name))))
 	}
-	return strings.Join(canonical, " ")
+	return strings.Join(slice.Unique(canonical), " ")
 }
 
 // ExternalScopeNames returns a sorted list of all public scopes: the canonical

@@ -15,7 +15,7 @@ func TestValidateOAuth2ScopeList(t *testing.T) {
 
 	names := func(n int) string {
 		parts := make([]string, 0, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			parts = append(parts, fmt.Sprintf("s%d", i))
 		}
 		return strings.Join(parts, " ")
