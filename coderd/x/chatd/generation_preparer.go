@@ -463,16 +463,17 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 	projectMemoryIndex := ""
+	var projectMemoryEntries []chattool.ProjectMemoryIndexEntry
 	if chat.ProjectID.Valid && isRootChat && server.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		memories, memoryErr := server.db.GetChatProjectMemoriesByProjectID(ctx, chat.ProjectID.UUID)
 		if memoryErr != nil {
 			logger.Debug(ctx, "failed to load chat project memories", slog.F("chat_id", chat.ID), slog.Error(memoryErr))
 		} else {
-			entries := make([]chattool.ProjectMemoryIndexEntry, len(memories))
+			projectMemoryEntries = make([]chattool.ProjectMemoryIndexEntry, len(memories))
 			for i, memory := range memories {
-				entries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Description: memory.ChatProjectMemory.Description}
+				projectMemoryEntries[i] = chattool.ProjectMemoryIndexEntry{Name: memory.ChatProjectMemory.Name, Description: memory.ChatProjectMemory.Description}
 			}
-			projectMemoryIndex = chattool.FormatProjectMemoryIndex(entries)
+			projectMemoryIndex = chattool.FormatProjectMemoryGuidance()
 		}
 	}
 
@@ -584,7 +585,7 @@ func (server *Server) prepareGeneration(
 	}
 	tools, _ = appendCurrentSkillTools(tools)
 	if chat.ProjectID.Valid && isRootChat && server.experiments.Enabled(codersdk.ExperimentChatProjects) {
-		memoryOpts := chattool.ProjectMemoryOptions{Store: server.db, ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID, ChatID: chat.ID, OwnerID: chat.OwnerID}
+		memoryOpts := chattool.ProjectMemoryOptions{Store: server.db, ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID, ChatID: chat.ID, OwnerID: chat.OwnerID, Index: projectMemoryEntries}
 		tools = append(tools, chattool.ReadProjectMemory(memoryOpts), chattool.SaveProjectMemory(memoryOpts), chattool.DeleteProjectMemory(memoryOpts))
 	}
 	if advisorRuntime != nil {

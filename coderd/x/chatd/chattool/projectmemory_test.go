@@ -28,7 +28,7 @@ func TestProjectMemoryValidationAndNormalization(t *testing.T) {
 	require.Equal(t, "keep", text)
 }
 
-func TestFormatProjectMemoryIndex(t *testing.T) {
+func TestFormatProjectMemoryGuidanceAndIndexForTool(t *testing.T) {
 	t.Parallel()
 
 	entries := make([]chattool.ProjectMemoryIndexEntry, chattool.MaxProjectMemoryIndexLines+1)
@@ -38,16 +38,24 @@ func TestFormatProjectMemoryIndex(t *testing.T) {
 			Description: strings.Repeat("description ", 20),
 		}
 	}
-	index := chattool.FormatProjectMemoryIndex(entries)
-	require.Contains(t, index, "<project-memory>")
+	// The prompt block carries only guidance so it is stable across turns.
+	guidance := chattool.FormatProjectMemoryGuidance()
+	require.Contains(t, guidance, "<project-memory>")
+	require.Contains(t, guidance, chattool.ProjectMemoryGuidance)
+	require.NotContains(t, guidance, "memory-")
+
+	index := chattool.FormatProjectMemoryIndexForTool(entries)
+	require.Contains(t, index, "Available memories (newest first):")
 	require.Contains(t, index, "more memories not shown.")
 	require.LessOrEqual(t, len(index), chattool.MaxProjectMemoryIndexBytes)
+	require.Equal(t, "No memories saved yet.", chattool.FormatProjectMemoryIndexForTool(nil))
+}
 
-	// A project with no memories still needs the guidance so the model
-	// knows when to save the first one.
-	empty := chattool.FormatProjectMemoryIndex(nil)
-	require.Contains(t, empty, chattool.ProjectMemoryGuidance)
-	require.Contains(t, empty, "No memories saved yet.")
+func TestReadProjectMemoryDescriptionIncludesIndex(t *testing.T) {
+	t.Parallel()
+	tool := chattool.ReadProjectMemory(chattool.ProjectMemoryOptions{Index: []chattool.ProjectMemoryIndexEntry{{Name: "release", Description: "Release process"}}})
+	require.Contains(t, tool.Info().Description, "Read a full project memory by name.")
+	require.Contains(t, tool.Info().Description, "- release: Release process")
 }
 
 func TestSaveProjectMemoryCapAndUpsert(t *testing.T) {

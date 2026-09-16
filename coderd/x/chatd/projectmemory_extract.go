@@ -123,7 +123,7 @@ func (p *Server) extractProjectMemories(ctx context.Context, logger slog.Logger,
 		return
 	}
 	call := resolved.newObjectCall("project_memory_extraction", "Record new project memories stated by the user in this turn.", projectMemoryExtractionMaxOutputTokens)
-	call.Prompt = quickgenPrompt(projectMemoryExtractionPrompt, fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatProjectMemoryIndex(entries), transcript))
+	call.Prompt = quickgenPrompt(projectMemoryExtractionPrompt, fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatProjectMemoryIndexForTool(entries), transcript))
 	modelCtx, cancelModel := context.WithTimeout(ctx, projectMemoryExtractionModelTimeout)
 	defer cancelModel()
 	result, err := generateQuickgenObject[projectMemoryExtraction](modelCtx, resolved.model.LanguageModel(), call)

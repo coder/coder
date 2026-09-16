@@ -541,17 +541,23 @@ func TestPrepareGenerationProjectMemory(t *testing.T) {
 			}
 			gotSystemPrompt := systemPrompt.String()
 			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<project-memory>"))
+			// The index lives in the read tool, not the prompt, so the
+			// prompt prefix stays stable across turns.
+			require.NotContains(t, gotSystemPrompt, "- release_notes: Durable release process")
 			if tt.wantMemoryBlock {
-				require.Contains(t, gotSystemPrompt, "- release_notes: Durable release process")
 				require.Less(t, strings.Index(gotSystemPrompt, "<project-memory>"), strings.Index(gotSystemPrompt, "<user-instructions>"))
 			}
 
-			toolNames := make(map[string]bool, len(prepared.Tools))
+			toolDescriptions := make(map[string]string, len(prepared.Tools))
 			for _, tool := range prepared.Tools {
-				toolNames[tool.Info().Name] = true
+				toolDescriptions[tool.Info().Name] = tool.Info().Description
 			}
 			for _, name := range []string{"read_project_memory", "save_project_memory", "delete_project_memory"} {
-				require.Equal(t, tt.wantMemoryTools, toolNames[name], name)
+				_, ok := toolDescriptions[name]
+				require.Equal(t, tt.wantMemoryTools, ok, name)
+			}
+			if tt.wantMemoryTools {
+				require.Contains(t, toolDescriptions["read_project_memory"], "- release_notes: Durable release process")
 			}
 		})
 	}

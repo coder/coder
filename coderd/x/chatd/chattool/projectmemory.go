@@ -36,6 +36,9 @@ type ProjectMemoryOptions struct {
 	OrganizationID uuid.UUID
 	ChatID         uuid.UUID
 	OwnerID        uuid.UUID
+	// Index is the current memory index, rendered into the read tool's
+	// description so it is rebuilt each turn without touching the prompt.
+	Index []ProjectMemoryIndexEntry
 }
 
 // ProjectMemoryIndexEntry is a compact memory entry for prompt injection.
@@ -102,22 +105,25 @@ const ProjectMemoryGuidance = "Project memory is durable context shared by every
 	"When a question might be answered by a memory in the index, call read_project_memory before answering or asking the user. " +
 	"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
 
-// FormatProjectMemoryIndex renders the compact project-memory index for the
-// system prompt. The guidance renders even when no memories exist so the
-// model knows when to save its first one.
-func FormatProjectMemoryIndex(entries []ProjectMemoryIndexEntry) string {
-	var b strings.Builder
-	_, _ = b.WriteString("<project-memory>\n")
-	_, _ = b.WriteString(ProjectMemoryGuidance)
-	_, _ = b.WriteString("\n\n")
+// FormatProjectMemoryGuidance renders the stable project-memory prompt
+// block. It carries no per-turn state so the system prompt prefix stays
+// identical across turns and remains cacheable; the live index is in the
+// read tool's description instead.
+func FormatProjectMemoryGuidance() string {
+	return "<project-memory>\n" + ProjectMemoryGuidance + "\n</project-memory>"
+}
+
+// FormatProjectMemoryIndexForTool renders the compact project-memory index
+// for the read_project_memory tool description.
+func FormatProjectMemoryIndexForTool(entries []ProjectMemoryIndexEntry) string {
 	if len(entries) == 0 {
-		_, _ = b.WriteString("No memories saved yet.\n")
-		_, _ = b.WriteString("</project-memory>")
-		return b.String()
+		return "No memories saved yet."
 	}
 
+	var b strings.Builder
+	_, _ = b.WriteString("Available memories (newest first):\n")
 	shown := 0
-	truncationReserve := len(fmt.Sprintf("%d more memories not shown.\n", len(entries))) + len("</project-memory>")
+	truncationReserve := len(fmt.Sprintf("%d more memories not shown.", len(entries)))
 	for _, entry := range entries {
 		if shown >= MaxProjectMemoryIndexLines {
 			break
@@ -131,10 +137,10 @@ func FormatProjectMemoryIndex(entries []ProjectMemoryIndexEntry) string {
 		shown++
 	}
 	if omitted := len(entries) - shown; omitted > 0 {
-		_, _ = b.WriteString(fmt.Sprintf("%d more memories not shown.\n", omitted))
+		_, _ = b.WriteString(fmt.Sprintf("%d more memories not shown.", omitted))
+		return b.String()
 	}
-	_, _ = b.WriteString("</project-memory>")
-	return b.String()
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 type readProjectMemoryArgs struct {
@@ -153,7 +159,7 @@ type deleteProjectMemoryArgs struct {
 
 // ReadProjectMemory returns a tool that reads a project's full memory body.
 func ReadProjectMemory(options ProjectMemoryOptions) fantasy.AgentTool {
-	return fantasy.NewAgentTool(ReadProjectMemoryToolName, "Read a full project memory by name.", func(ctx context.Context, args readProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	return fantasy.NewAgentTool(ReadProjectMemoryToolName, "Read a full project memory by name. "+FormatProjectMemoryIndexForTool(options.Index), func(ctx context.Context, args readProjectMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if options.Store == nil {
 			return fantasy.NewTextErrorResponse("project memory store is not configured"), nil
 		}
