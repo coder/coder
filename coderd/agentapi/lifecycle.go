@@ -205,6 +205,9 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 		ExpandedDirectory: req.Startup.ExpandedDirectory,
 		Subsystems:        dbSubsystems,
 		APIVersion:        apiVersion,
+		// Always overwritten so the row names the current process; legacy
+		// agents clear it to empty, which chatd treats as no guarantee.
+		AgentRunID: req.Startup.AgentRunId,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent startup in database: %w", err)

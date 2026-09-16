@@ -18100,6 +18100,105 @@ func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestWorkspaceAgentMCPDiscoveryRoundTrip verifies the agent run id and MCP
+// discovery phase persist on the agent row and the context snapshot, and
+// that UpdateWorkspaceAgentStartupByID always overwrites the run id,
+// including back to empty for legacy agents.
+func TestWorkspaceAgentMCPDiscoveryRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     tpl.ID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		JobID:             job.ID,
+		TemplateVersionID: tplVersion.ID,
+		Transition:        database.WorkspaceTransitionStart,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	require.Empty(t, agent.AgentRunID)
+
+	startup := func(runID string) {
+		require.NoError(t, db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
+			ID:         agent.ID,
+			Version:    "v1.2.3",
+			APIVersion: "2.0",
+			Subsystems: []database.WorkspaceAgentSubsystem{},
+			AgentRunID: runID,
+		}))
+	}
+
+	startup("run-a")
+	got, err := db.GetWorkspaceAgentByID(ctx, agent.ID)
+	require.NoError(t, err)
+	require.Equal(t, "run-a", got.AgentRunID)
+
+	snap, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID:  agent.ID,
+		Version:           1,
+		AggregateHash:     []byte{0x01},
+		ReceivedAt:        dbtime.Now(),
+		AgentRunID:        "run-a",
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhasePending,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "run-a", snap.AgentRunID)
+	require.Equal(t, database.WorkspaceAgentMcpDiscoveryPhasePending, snap.McpDiscoveryPhase)
+
+	// The upsert overwrites both columns in place.
+	snap, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID:  agent.ID,
+		Version:           2,
+		AggregateHash:     []byte{0x01},
+		ReceivedAt:        dbtime.Now(),
+		AgentRunID:        "run-a",
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete,
+	})
+	require.NoError(t, err)
+	latest, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agent.ID)
+	require.NoError(t, err)
+	require.Equal(t, snap, latest)
+	require.Equal(t, database.WorkspaceAgentMcpDiscoveryPhaseComplete, latest.McpDiscoveryPhase)
+
+	// A legacy snapshot leaves both columns at their defaults.
+	snap, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID:  agent.ID,
+		Version:           3,
+		AggregateHash:     []byte{0x01},
+		ReceivedAt:        dbtime.Now(),
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
+	})
+	require.NoError(t, err)
+	require.Empty(t, snap.AgentRunID)
+	require.Equal(t, database.WorkspaceAgentMcpDiscoveryPhaseUnspecified, snap.McpDiscoveryPhase)
+
+	// A legacy agent restart clears the run id rather than keeping a
+	// stale one that would make its snapshots look current forever.
+	startup("")
+	got, err = db.GetWorkspaceAgentByID(ctx, agent.ID)
+	require.NoError(t, err)
+	require.Empty(t, got.AgentRunID)
+}
+
 // TestSoftDeleteWorkspaceAgentsPurgesContext verifies that both agent
 // soft-delete queries hard-delete the agents' pushed context rows
 // (workspace_agent_context_snapshots and
@@ -18151,10 +18250,11 @@ func TestSoftDeleteWorkspaceAgentsPurgesContext(t *testing.T) {
 	pushContext := func(t *testing.T, agentID uuid.UUID) {
 		t.Helper()
 		_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
-			WorkspaceAgentID: agentID,
-			Version:          1,
-			AggregateHash:    []byte{0x01},
-			ReceivedAt:       dbtime.Now(),
+			WorkspaceAgentID:  agentID,
+			Version:           1,
+			AggregateHash:     []byte{0x01},
+			ReceivedAt:        dbtime.Now(),
+			McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
 		})
 		require.NoError(t, err)
 		_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{

@@ -4257,6 +4257,67 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+type WorkspaceAgentMcpDiscoveryPhase string
+
+const (
+	WorkspaceAgentMcpDiscoveryPhaseUnspecified WorkspaceAgentMcpDiscoveryPhase = "unspecified"
+	WorkspaceAgentMcpDiscoveryPhasePending     WorkspaceAgentMcpDiscoveryPhase = "pending"
+	WorkspaceAgentMcpDiscoveryPhaseComplete    WorkspaceAgentMcpDiscoveryPhase = "complete"
+)
+
+func (e *WorkspaceAgentMcpDiscoveryPhase) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentMcpDiscoveryPhase(s)
+	case string:
+		*e = WorkspaceAgentMcpDiscoveryPhase(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentMcpDiscoveryPhase: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentMcpDiscoveryPhase struct {
+	WorkspaceAgentMcpDiscoveryPhase WorkspaceAgentMcpDiscoveryPhase `json:"workspace_agent_mcp_discovery_phase"`
+	Valid                           bool                            `json:"valid"` // Valid is true if WorkspaceAgentMcpDiscoveryPhase is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentMcpDiscoveryPhase) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentMcpDiscoveryPhase, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentMcpDiscoveryPhase.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentMcpDiscoveryPhase) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentMcpDiscoveryPhase), nil
+}
+
+func (e WorkspaceAgentMcpDiscoveryPhase) Valid() bool {
+	switch e {
+	case WorkspaceAgentMcpDiscoveryPhaseUnspecified,
+		WorkspaceAgentMcpDiscoveryPhasePending,
+		WorkspaceAgentMcpDiscoveryPhaseComplete:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentMcpDiscoveryPhaseValues() []WorkspaceAgentMcpDiscoveryPhase {
+	return []WorkspaceAgentMcpDiscoveryPhase{
+		WorkspaceAgentMcpDiscoveryPhaseUnspecified,
+		WorkspaceAgentMcpDiscoveryPhasePending,
+		WorkspaceAgentMcpDiscoveryPhaseComplete,
+	}
+}
+
 type WorkspaceAgentMonitorState string
 
 const (
@@ -6427,6 +6488,8 @@ type WorkspaceAgent struct {
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
 	Deleted bool `db:"deleted" json:"deleted"`
+	// UUID the agent process generates once and reports in Startup. Stable across RPC reconnects, changes on process restart, empty for agents that predate the field. A context snapshot with the same agent_run_id was published by the current process.
+	AgentRunID string `db:"agent_run_id" json:"agent_run_id"`
 }
 
 // Per-resource state for the latest pushed workspace agent context snapshot.
@@ -6463,6 +6526,10 @@ type WorkspaceAgentContextSnapshot struct {
 	SnapshotError string `db:"snapshot_error" json:"snapshot_error"`
 	// Time at which coderd received the push.
 	ReceivedAt time.Time `db:"received_at" json:"received_at"`
+	// agent_run_id of the agent process that pushed this snapshot. Compared with workspace_agents.agent_run_id to tell whether the snapshot describes the current process. Empty for legacy agents.
+	AgentRunID string `db:"agent_run_id" json:"agent_run_id"`
+	// Workspace MCP discovery completeness for the pushing process: unspecified (legacy agent, no guarantee), pending (initial reload not finished), complete (initial reload reached a terminal result before this snapshot).
+	McpDiscoveryPhase WorkspaceAgentMcpDiscoveryPhase `db:"mcp_discovery_phase" json:"mcp_discovery_phase"`
 }
 
 // Workspace agent devcontainer configuration

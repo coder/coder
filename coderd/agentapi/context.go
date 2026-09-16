@@ -43,6 +43,9 @@ const (
 	maxContextSourceBytes        = 1024
 	maxContextErrorBytes         = 4096
 	maxContextHashBytes          = 64
+	// A run id is a 36-byte UUID string; the cap only bounds a
+	// misbehaving agent.
+	maxContextAgentRunIDBytes = 64
 )
 
 // ContextAPI implements the v2.10 PushContextState RPC. It persists
@@ -89,7 +92,12 @@ type ContextDirtyMarker interface {
 	// returns a callback that publishes the resulting dirty watch events;
 	// the caller invokes it only after the transaction commits. The
 	// callback is a no-op when nothing transitioned to dirty.
-	HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishDirty func(), err error)
+	//
+	// mcpDiscoveryChanged reports that this push changed the snapshot's
+	// MCP discovery phase or agent run id relative to the previously
+	// stored snapshot, so bound chats can be told even when no resource
+	// row or pinned hash changed.
+	HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, mcpDiscoveryChanged bool, now time.Time) (publishDirty func(), err error)
 }
 
 // PushContextState persists a snapshot pushed by the workspace
@@ -105,7 +113,12 @@ type ContextDirtyMarker interface {
 // replay or out-of-order resend: the agent's per-process version
 // counter is monotonic, and only an initial = true push from a
 // freshly-booted agent resets that baseline. Replays and stale
-// retransmits leave the stored state untouched.
+// retransmits leave the stored state untouched. A push whose
+// non-empty agent run id differs from the agent row's non-empty run id
+// is dropped the same way: within one agent process UpdateStartup
+// precedes SetReady and therefore the first push, so such a push can
+// only come from a previous process whose snapshot must not overwrite
+// the current one.
 //
 // Authorization happens in dbauthz: every query in the transaction
 // authorizes the actor (the agent's token subject) against the
@@ -155,7 +168,12 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	}
 	sort.Strings(activeSources)
 
-	var accepted bool
+	phase := mcpDiscoveryPhase(req.GetMcpDiscovery())
+
+	var (
+		accepted bool
+		staleRun bool
+	)
 	// publishDirty is captured from the final (committed) attempt and
 	// invoked after the transaction commits; ReadModifyUpdate may re-run
 	// the closure on serialization conflicts.
@@ -164,9 +182,27 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		// The closure re-runs on serialization conflicts; reset any
 		// state carried over from a rolled-back attempt.
 		accepted = false
+		staleRun = false
 		publishDirty = nil
 
+		// A concurrent UpdateStartup from a newer process that commits
+		// after this read is caught by the snapshot upsert: both
+		// processes write the same snapshot row, so repeatable read
+		// aborts the loser and this closure re-runs against the new
+		// run id.
+		if req.AgentRunId != "" {
+			agent, err := tx.GetWorkspaceAgentByID(ctx, a.AgentID)
+			if err != nil {
+				return xerrors.Errorf("get workspace agent: %w", err)
+			}
+			if agent.AgentRunID != "" && agent.AgentRunID != req.AgentRunId {
+				staleRun = true
+				return nil
+			}
+		}
+
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
+		mcpDiscoveryChanged := true
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			// No previous snapshot; first push always wins.
@@ -181,15 +217,18 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			if !req.Initial && req.Version <= uint64(existing.Version) {
 				return nil
 			}
+			mcpDiscoveryChanged = existing.AgentRunID != req.AgentRunId || existing.McpDiscoveryPhase != phase
 		}
 
 		_, err = tx.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
 			WorkspaceAgentID: a.AgentID,
 			//nolint:gosec // Bounded by validateContextPushRequest.
-			Version:       int64(req.Version),
-			AggregateHash: append([]byte(nil), req.AggregateHash...),
-			SnapshotError: req.SnapshotError,
-			ReceivedAt:    now,
+			Version:           int64(req.Version),
+			AggregateHash:     append([]byte(nil), req.AggregateHash...),
+			SnapshotError:     req.SnapshotError,
+			ReceivedAt:        now,
+			AgentRunID:        req.AgentRunId,
+			McpDiscoveryPhase: phase,
 		})
 		if err != nil {
 			return xerrors.Errorf("upsert snapshot: %w", err)
@@ -216,7 +255,7 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		// same transaction so a concurrent refresh cannot interleave with
 		// the version gate. Events are published only after commit.
 		if a.DirtyMarker != nil {
-			publishDirty, err = a.DirtyMarker.HydrateAndMarkChatsDirty(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
+			publishDirty, err = a.DirtyMarker.HydrateAndMarkChatsDirty(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, mcpDiscoveryChanged, now)
 			if err != nil {
 				return xerrors.Errorf("hydrate and mark chats dirty: %w", err)
 			}
@@ -230,10 +269,15 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	}
 
 	if !accepted {
-		a.Log.Debug(ctx, "PushContextState dropped: replay or out-of-order",
+		reason := "replay or out-of-order"
+		if staleRun {
+			reason = "previous agent run"
+		}
+		a.Log.Debug(ctx, "PushContextState dropped: "+reason,
 			slog.F("agent_id", a.AgentID),
 			slog.F("version", req.Version),
 			slog.F("initial", req.Initial),
+			slog.F("agent_run_id", req.AgentRunId),
 		)
 		return &agentproto.PushContextStateResponse{Accepted: false}, nil
 	}
@@ -253,6 +297,20 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	return &agentproto.PushContextStateResponse{Accepted: true}, nil
 }
 
+// mcpDiscoveryPhase maps the wire discovery phase to the stored enum.
+// A missing message and unknown values both store unspecified: the
+// agent gave no completeness guarantee chatd may rely on.
+func mcpDiscoveryPhase(d *agentproto.MCPDiscovery) database.WorkspaceAgentMcpDiscoveryPhase {
+	switch d.GetPhase() {
+	case agentproto.MCPDiscovery_PENDING:
+		return database.WorkspaceAgentMcpDiscoveryPhasePending
+	case agentproto.MCPDiscovery_COMPLETE:
+		return database.WorkspaceAgentMcpDiscoveryPhaseComplete
+	default:
+		return database.WorkspaceAgentMcpDiscoveryPhaseUnspecified
+	}
+}
+
 // validateContextPushRequest enforces the request-level caps: counts
 // and sizes a compromised workspace could otherwise inflate to DoS
 // coderd or bloat the database.
@@ -268,6 +326,9 @@ func validateContextPushRequest(req *agentproto.PushContextStateRequest) error {
 	}
 	if len(req.Resources) > maxContextResourcesPerPush {
 		return xerrors.Errorf("agentapi: PushContextState has %d resources, exceeds %d resource cap", len(req.Resources), maxContextResourcesPerPush)
+	}
+	if len(req.AgentRunId) > maxContextAgentRunIDBytes {
+		return xerrors.Errorf("agentapi: PushContextState agent run id is %d bytes, exceeds %d byte cap", len(req.AgentRunId), maxContextAgentRunIDBytes)
 	}
 	return nil
 }

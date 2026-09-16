@@ -662,10 +662,11 @@ func seedAgentMCPToolContext(
 	now := dbtime.Now()
 	hash := []byte(tool.ServerName + ":" + tool.ToolName)
 	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
-		WorkspaceAgentID: tool.AgentID,
-		Version:          1,
-		AggregateHash:    hash,
-		ReceivedAt:       now,
+		WorkspaceAgentID:  tool.AgentID,
+		Version:           1,
+		AggregateHash:     hash,
+		ReceivedAt:        now,
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
 	})
 	require.NoError(t, err)
 
@@ -703,10 +704,11 @@ func seedAgentInstructionContext(
 	now := dbtime.Now()
 	hash := []byte("instruction:" + source)
 	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
-		WorkspaceAgentID: agentID,
-		Version:          1,
-		AggregateHash:    hash,
-		ReceivedAt:       now,
+		WorkspaceAgentID:  agentID,
+		Version:           1,
+		AggregateHash:     hash,
+		ReceivedAt:        now,
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
 	})
 	require.NoError(t, err)
 
