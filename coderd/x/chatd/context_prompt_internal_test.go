@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -118,6 +119,34 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		require.Equal(t, []byte("# deploy"), skills[0].Meta)
 	})
 
+	t.Run("NamesOmittedFilesNextToRenderedOnes", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+			instructionResource(t, "/home/coder/CLAUDE.md", "too big", database.WorkspaceAgentContextResourceStatusOversize),
+		}
+		instruction, _, _ := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
+
+		// A partial list must not look complete either.
+		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
+		require.Contains(t, instruction, workspaceContextOmittedFilesNote+"/home/coder/CLAUDE.md (oversize).")
+		require.NotContains(t, instruction, "too big")
+	})
+
+	t.Run("BoundsOmittedFileNote", func(t *testing.T) {
+		t.Parallel()
+
+		var resources []database.ChatContextResource
+		for i := range maxOmittedInstructionFilesNamed + 5 {
+			resources = append(resources, instructionResource(t, fmt.Sprintf("/srv/%02d/AGENTS.md", i), "x", database.WorkspaceAgentContextResourceStatusExcluded))
+		}
+		instruction, _, _ := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
+
+		require.Contains(t, instruction, fmt.Sprintf("/srv/%02d/AGENTS.md (excluded), and 5 more.", maxOmittedInstructionFilesNamed-1))
+		require.NotContains(t, instruction, fmt.Sprintf("/srv/%02d/AGENTS.md", maxOmittedInstructionFilesNamed))
+	})
+
 	t.Run("SkipsNonOKStatus", func(t *testing.T) {
 		t.Parallel()
 
@@ -177,7 +206,8 @@ func TestContextResourcesToPrompt(t *testing.T) {
 
 		require.Empty(t, skills)
 		require.Equal(t, 1, malformed)
-		require.NotContains(t, instruction, "/home/coder/AGENTS.md")
+		require.NotContains(t, instruction, "Source: /home/coder/AGENTS.md")
+		require.Contains(t, instruction, workspaceContextOmittedFilesNote+"/home/coder/AGENTS.md (malformed).")
 		require.Contains(t, instruction, "Source: /home/coder/CLAUDE.md")
 		require.Contains(t, instruction, "good content")
 	})

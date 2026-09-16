@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -175,6 +176,10 @@ const (
 	workspaceContextUnpublishedNote        = "Workspace context has not been published yet; the workspace may still be starting."
 	workspaceContextNoInstructionFilesNote = "No instruction files (AGENTS.md, CLAUDE.md, .cursorrules) were found in the working directory or the other scanned locations."
 	workspaceContextOmittedFilesNote       = "Instruction files were found but could not be included: "
+	// maxOmittedInstructionFilesNamed bounds the omitted-file note; the
+	// resolver keeps every excluded resource, so a workspace with many
+	// sources could otherwise grow the prompt without limit.
+	maxOmittedInstructionFilesNamed = 20
 )
 
 // pinnedWorkspaceContext builds the system-prompt instruction block and
@@ -252,9 +257,9 @@ func (server *Server) resolveTurnWorkspaceContext(
 // other statuses, body kinds, and malformed bodies are skipped. malformed
 // counts OK resources whose body failed to decode, so the caller can surface
 // an otherwise silent drop. emptyNote replaces the file list when no
-// instruction file has content, so a skill-only pin still yields the header;
-// when the pin holds instruction files that cannot be rendered, they are
-// named instead so the model does not read the empty list as "no files".
+// instruction file has content, so a skill-only pin still yields the header.
+// Instruction files the pin holds but cannot render are always named, so
+// the model reads neither an empty nor a partial list as complete.
 func contextResourcesToPrompt(
 	resources []database.ChatContextResource,
 	operatingSystem, directory, emptyNote string,
@@ -308,10 +313,29 @@ func contextResourcesToPrompt(
 		}
 	}
 
-	if len(contextFileParts) == 0 && len(omitted) > 0 {
-		emptyNote = workspaceContextOmittedFilesNote + strings.Join(omitted, ", ") + "."
+	note := ""
+	switch {
+	case len(omitted) > 0:
+		note = omittedInstructionFilesNote(omitted)
+	case len(contextFileParts) == 0:
+		note = emptyNote
 	}
-	return formatSystemInstructions(operatingSystem, directory, emptyNote, contextFileParts), skills, malformed
+	return formatSystemInstructions(operatingSystem, directory, note, contextFileParts), skills, malformed
+}
+
+// omittedInstructionFilesNote names the pinned instruction files that could
+// not be rendered, bounded so the diagnostic itself cannot flood the prompt.
+func omittedInstructionFilesNote(omitted []string) string {
+	extra := 0
+	if len(omitted) > maxOmittedInstructionFilesNamed {
+		extra = len(omitted) - maxOmittedInstructionFilesNamed
+		omitted = omitted[:maxOmittedInstructionFilesNamed]
+	}
+	note := workspaceContextOmittedFilesNote + strings.Join(omitted, ", ")
+	if extra > 0 {
+		note += fmt.Sprintf(", and %d more", extra)
+	}
+	return note + "."
 }
 
 // ContextResources returns the chat's pinned context resource list (metadata
