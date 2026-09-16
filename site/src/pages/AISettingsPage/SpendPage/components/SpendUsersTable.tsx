@@ -25,6 +25,11 @@ interface SpendUsersTableProps {
 	usersQuery: SpendUsersQuery;
 }
 
+// A 1024px viewport leaves the table about 580px, which cannot hold five
+// columns at their comfortable widths, so the layout follows the wrapper's
+// container width rather than the viewport.
+const dimensionColumnClassName = "w-28 px-2 @3xl:w-40 @3xl:px-3";
+
 export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 	const retryButton = (
 		<Button
@@ -80,20 +85,32 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 									query={usersQuery}
 									paginationUnitLabel="users"
 								>
-									<Table aria-label="Spend by user">
+									<Table
+										aria-label="Spend by user"
+										className="table-fixed"
+										wrapperClassName="@container"
+									>
 										<TableHeader>
 											<TableRow>
 												<TableHead>User</TableHead>
-												<TableHead>Providers</TableHead>
-												<TableHead>Clients</TableHead>
-												<TableHead>Models</TableHead>
-												<TableHead className="text-right">Cost</TableHead>
+												<TableHead className={dimensionColumnClassName}>
+													Providers
+												</TableHead>
+												<TableHead className={dimensionColumnClassName}>
+													Clients
+												</TableHead>
+												<TableHead className={dimensionColumnClassName}>
+													Models
+												</TableHead>
+												<TableHead className="w-24 text-right @3xl:w-32">
+													Cost
+												</TableHead>
 											</TableRow>
 										</TableHeader>
 										<TableBody>
 											{usersQuery.data.users.map((user) => (
 												<TableRow key={user.user_id} className="text-xs">
-													<TableCell className="max-w-[200px] px-3 py-2">
+													<TableCell className="px-3 py-2">
 														<AvatarData
 															truncate
 															title={user.name || user.username}
@@ -102,13 +119,13 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 															imgFallbackText={user.username}
 														/>
 													</TableCell>
-													<TableCell className="w-40 max-w-40">
+													<TableCell className={dimensionColumnClassName}>
 														<ProvidersBadge providers={user.providers} />
 													</TableCell>
-													<TableCell className="w-40 max-w-40">
+													<TableCell className={dimensionColumnClassName}>
 														<ClientsBadge clients={user.clients} />
 													</TableCell>
-													<TableCell className="w-40 max-w-40">
+													<TableCell className={dimensionColumnClassName}>
 														<ModelsBadge models={user.models} />
 													</TableCell>
 													<CostCell
