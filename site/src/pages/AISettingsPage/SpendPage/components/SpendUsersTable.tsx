@@ -97,10 +97,10 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 													Providers
 												</TableHead>
 												<TableHead className={dimensionColumnClassName}>
-													Clients
+													Models
 												</TableHead>
 												<TableHead className={dimensionColumnClassName}>
-													Models
+													Clients
 												</TableHead>
 												<TableHead className="w-24 text-right @3xl:w-32">
 													Cost
@@ -123,10 +123,10 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 														<ProvidersBadge providers={user.providers} />
 													</TableCell>
 													<TableCell className={dimensionColumnClassName}>
-														<ClientsBadge clients={user.clients} />
+														<ModelsBadge models={user.models} />
 													</TableCell>
 													<TableCell className={dimensionColumnClassName}>
-														<ModelsBadge models={user.models} />
+														<ClientsBadge clients={user.clients} />
 													</TableCell>
 													<CostCell
 														costMicros={user.cost_micros}

@@ -45,8 +45,8 @@ export const clampSpendPeriod = (range: DateRangeValue): DateRangeValue => {
 
 export interface SpendFilterMenus {
 	provider: ProviderFilterMenu;
-	client: ClientFilterMenu;
 	model: ModelFilterMenu;
+	client: ClientFilterMenu;
 }
 
 interface SpendFiltersProps {
@@ -93,8 +93,8 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 				/>
 			)}
 			<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
-			<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
 			<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
+			<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
 			{dateRange ? (
 				<DateRangePicker
 					now={now}
