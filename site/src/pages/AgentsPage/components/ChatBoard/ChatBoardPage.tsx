@@ -2,6 +2,8 @@ import {
 	type CollisionDetection,
 	DndContext,
 	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
 	KeyboardSensor,
 	MouseSensor,
 	pointerWithin,
@@ -20,7 +22,7 @@ import { Input } from "#/components/Input/Input";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
 import { AgentChatPageSkeleton } from "../AgentsSkeletons";
-import type { DragData, DropData } from "./BoardCard";
+import { type DragData, DragGhost, type DropData } from "./BoardCard";
 import { BoardColumn } from "./BoardColumn";
 import { buildCards, buildColumns, INBOX_COLUMN } from "./boardLabels";
 import { useBoardStorage } from "./boardStorage";
@@ -59,6 +61,7 @@ const ChatBoardPage: FC = () => {
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search.trim(), 300);
 	const [addingColumn, setAddingColumn] = useState(false);
+	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
 
 	// Same query the sidebar uses, so both views share one cache.
 	const chatsQuery = useInfiniteQuery(infiniteChats({}));
@@ -97,7 +100,12 @@ const ChatBoardPage: FC = () => {
 		storage.emptyColumns,
 	);
 
+	const handleDragStart = ({ active }: DragStartEvent) => {
+		setActiveDrag((active.data.current as DragData | undefined) ?? null);
+	};
+
 	const handleDragEnd = ({ active, over }: DragEndEvent) => {
+		setActiveDrag(null);
 		const drag = active.data.current as DragData | undefined;
 		const drop = over?.data.current as DropData | undefined;
 		if (!drag || !drop) return;
@@ -196,7 +204,9 @@ const ChatBoardPage: FC = () => {
 				<DndContext
 					sensors={sensors}
 					collisionDetection={boardCollision}
+					onDragStart={handleDragStart}
 					onDragEnd={handleDragEnd}
+					onDragCancel={() => setActiveDrag(null)}
 				>
 					<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
 						{columns.map((column) => (
@@ -241,6 +251,10 @@ const ChatBoardPage: FC = () => {
 							)}
 						</div>
 					</div>
+					{/* Portaled above every column so the moving card is never clipped. */}
+					<DragOverlay dropAnimation={null}>
+						{activeDrag && <DragGhost drag={activeDrag} />}
+					</DragOverlay>
 				</DndContext>
 			</div>
 			{agentId && (
