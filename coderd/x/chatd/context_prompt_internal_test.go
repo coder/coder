@@ -84,12 +84,14 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
 		require.Empty(t, skills)
 		require.Contains(t, instruction, "<workspace-context>")
 		require.Contains(t, instruction, "Operating System: linux")
 		require.Contains(t, instruction, "Working Directory: /home/coder")
+		require.Contains(t, instruction, workspaceContextScopeLine)
+		require.NotContains(t, instruction, workspaceContextNoInstructionFilesNote)
 		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
 		require.Contains(t, instruction, "be helpful")
 		require.Contains(t, instruction, "</workspace-context>")
@@ -101,10 +103,12 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		// Skill-only pins emit no instruction header.
-		require.Empty(t, instruction)
+		// A skill-only pin keeps the header and explains the missing files.
+		require.Contains(t, instruction, "Working Directory: /home/coder")
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.NotContains(t, instruction, "Source:")
 		require.Len(t, skills, 1)
 		require.Equal(t, "deploy", skills[0].Name)
 		require.Equal(t, "Deploy the app", skills[0].Description)
@@ -121,9 +125,10 @@ func TestContextResourcesToPrompt(t *testing.T) {
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusInvalid),
 			skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOversize),
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		require.Empty(t, instruction)
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.NotContains(t, instruction, "Source:")
 		require.Empty(t, skills)
 	})
 
@@ -144,9 +149,10 @@ func TestContextResourcesToPrompt(t *testing.T) {
 				Status:   database.WorkspaceAgentContextResourceStatusOk,
 			},
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		require.Empty(t, instruction)
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.NotContains(t, instruction, "Source:")
 		require.Empty(t, skills)
 	})
 
@@ -162,7 +168,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 			},
 			instructionResource(t, "/home/coder/CLAUDE.md", "good content", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
 		require.Empty(t, skills)
 		require.Equal(t, 1, malformed)
@@ -183,9 +189,9 @@ func TestContextResourcesToPrompt(t *testing.T) {
 			},
 			skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		require.Empty(t, instruction)
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
 		require.Equal(t, 1, malformed)
 		require.Len(t, skills, 1)
 		require.Equal(t, "deploy", skills[0].Name)
@@ -199,9 +205,9 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			skillResource(t, "/home/coder/.coder/skills/nameless", "", "no name", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		require.Empty(t, instruction)
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
 		require.Empty(t, skills)
 		require.Zero(t, malformed)
 	})
@@ -210,14 +216,15 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		t.Parallel()
 
 		// Whitespace-only content sanitizes to empty, so the instruction file
-		// contributes no context-file part, emits no header, and is not counted
-		// as malformed.
+		// contributes no context-file part, leaves the note in place, and is
+		// not counted as malformed.
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "  \n\t  ", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		require.Empty(t, instruction)
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.NotContains(t, instruction, "Source: /home/coder/AGENTS.md")
 		require.Empty(t, skills)
 		require.Zero(t, malformed)
 	})
@@ -225,8 +232,9 @@ func TestContextResourcesToPrompt(t *testing.T) {
 	t.Run("EmptyInput", func(t *testing.T) {
 		t.Parallel()
 
-		instruction, skills, _ := contextResourcesToPrompt(nil, "linux", "/home/coder")
-		require.Empty(t, instruction)
+		instruction, skills, _ := contextResourcesToPrompt(nil, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
+		require.Contains(t, instruction, "Operating System: linux")
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
 		require.Empty(t, skills)
 	})
 
@@ -236,7 +244,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, _, _ := contextResourcesToPrompt(resources, "", "")
+		instruction, _, _ := contextResourcesToPrompt(resources, "", "", workspaceContextNoInstructionFilesNote)
 
 		require.Contains(t, instruction, "<workspace-context>")
 		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
@@ -271,7 +279,7 @@ func TestPinnedWorkspaceContext(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("NoRowsYieldsNothing", func(t *testing.T) {
+	t.Run("NoRowsUnpinnedExplainsUnpublished", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
@@ -281,10 +289,52 @@ func TestPinnedWorkspaceContext(t *testing.T) {
 			Return([]database.ChatContextResource{}, nil)
 		server := newPinServer(t, db)
 
+		agent := database.WorkspaceAgent{OperatingSystem: "linux", ExpandedDirectory: "/home/coder"}
+		instruction, skills, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, agent)
+		require.NoError(t, err)
+		require.Contains(t, instruction, "Working Directory: /home/coder")
+		require.Contains(t, instruction, workspaceContextUnpublishedNote)
+		require.NotContains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.Empty(t, skills)
+	})
+
+	t.Run("NoRowsPinnedExplainsNoFiles", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{}, nil)
+		server := newPinServer(t, db)
+
+		// A pinned hash with no rows means the agent published a snapshot
+		// without prompt resources.
+		chat := database.Chat{ID: chatID, ContextAggregateHash: []byte{0x01}}
+		instruction, skills, err := server.pinnedWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{})
+		require.NoError(t, err)
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.NotContains(t, instruction, workspaceContextUnpublishedNote)
+		require.Empty(t, skills)
+	})
+
+	t.Run("SkillOnlyRowsExplainNoFiles", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		server := newPinServer(t, db)
+
 		instruction, skills, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
 		require.NoError(t, err)
-		require.Empty(t, instruction)
-		require.Empty(t, skills)
+		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.NotContains(t, instruction, workspaceContextUnpublishedNote)
+		require.Len(t, skills, 1)
 	})
 
 	t.Run("RowsPresent", func(t *testing.T) {
@@ -421,7 +471,8 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 	require.Equal(t, "/home/coder/ws/.coder/skills/deploy", skills[0].Dir)
 
 	// A chat created after hydration keeps a NULL pinned hash and no pinned
-	// rows, so the pin yields no instruction or skills.
+	// rows, so the pin yields the header with the unpublished note and no
+	// skills.
 	unpinnedChat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
@@ -432,13 +483,16 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 	})
 	emptyInstruction, emptySkills, err := server.pinnedWorkspaceContext(ctx, unpinnedChat, agent)
 	require.NoError(t, err)
-	require.Empty(t, emptyInstruction)
+	require.Contains(t, emptyInstruction, "Working Directory: /home/coder/ws")
+	require.Contains(t, emptyInstruction, workspaceContextUnpublishedNote)
+	require.NotContains(t, emptyInstruction, "Source:")
 	require.Empty(t, emptySkills)
 }
 
 // TestResolveTurnWorkspaceContext covers the dispatch that prepareGeneration
-// wires up: the pinned copy when the chat has pinned rows, and nothing for a
-// non-workspace chat or a chat without pinned rows.
+// wires up: the pinned copy when the chat has pinned rows, the header with an
+// explanatory note for a workspace chat without pinned rows, and nothing for
+// a non-workspace chat.
 func TestResolveTurnWorkspaceContext(t *testing.T) {
 	t.Parallel()
 
@@ -479,20 +533,22 @@ func TestResolveTurnWorkspaceContext(t *testing.T) {
 		require.Equal(t, "deploy", skills[0].Name)
 	})
 
-	t.Run("NoPinYieldsNothing", func(t *testing.T) {
+	t.Run("NoPinExplainsUnpublished", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chat := workspaceChat()
-		// No pinned rows: the turn carries no context.
+		// No pinned rows and no pinned hash: the turn still carries the
+		// header so the model knows why nothing is listed.
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).
 			Return([]database.ChatContextResource{}, nil)
 		server := newPinServer(t, db)
 
-		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{})
+		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{ExpandedDirectory: "/home/coder"})
 		require.NoError(t, err)
-		require.Empty(t, instruction)
+		require.Contains(t, instruction, "Working Directory: /home/coder")
+		require.Contains(t, instruction, workspaceContextUnpublishedNote)
 		require.Empty(t, skills)
 	})
 

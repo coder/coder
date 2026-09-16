@@ -173,6 +173,13 @@ func TestDefaultSystemPromptContainsVersionControlSafety(t *testing.T) {
 	require.Contains(t, DefaultSystemPrompt, "Never treat the original request as confirmation")
 }
 
+func TestDefaultSystemPromptContainsWorkspaceContextGuidance(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, DefaultSystemPrompt, "Treat injected <workspace-context> files, including AGENTS.md, as read")
+	require.Contains(t, DefaultSystemPrompt, "If a repository you work in has an AGENTS.md or CLAUDE.md that <workspace-context> does not list, read it before making repository-specific changes.")
+}
+
 func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +278,7 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 	t.Run("HomeAndPwdWithAgentContext", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("linux", "/home/coder/project", []codersdk.ChatMessagePart{
+		got := formatSystemInstructions("linux", "/home/coder/project", "", []codersdk.ChatMessagePart{
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "home rules", ContextFilePath: "/home/coder/.coder/AGENTS.md"},
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "project rules", ContextFilePath: "/home/coder/project/AGENTS.md"},
 		})
@@ -287,7 +294,7 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 	t.Run("OnlyPwdFile", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("", "/home/coder/project", []codersdk.ChatMessagePart{
+		got := formatSystemInstructions("", "/home/coder/project", "", []codersdk.ChatMessagePart{
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "project rules", ContextFilePath: "/home/coder/project/AGENTS.md"},
 		})
 		require.Contains(t, got, "project rules")
@@ -297,7 +304,7 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 	t.Run("OnlyAgentContext", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("darwin", "/Users/dev/repo", nil)
+		got := formatSystemInstructions("darwin", "/Users/dev/repo", "", nil)
 		require.Contains(t, got, "Operating System: darwin")
 		require.Contains(t, got, "Working Directory: /Users/dev/repo")
 		require.NotContains(t, got, "Source:")
@@ -307,7 +314,7 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 	t.Run("OnlyHomeFile", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("", "", []codersdk.ChatMessagePart{
+		got := formatSystemInstructions("", "", "", []codersdk.ChatMessagePart{
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "home rules", ContextFilePath: "~/.coder/AGENTS.md"},
 		})
 		require.Contains(t, got, "Source: ~/.coder/AGENTS.md")
@@ -318,13 +325,13 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("", "", nil)
+		got := formatSystemInstructions("", "", "", nil)
 		require.Empty(t, got)
 	})
 
 	t.Run("TruncatedFile", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("windows", "", []codersdk.ChatMessagePart{
+		got := formatSystemInstructions("windows", "", "", []codersdk.ChatMessagePart{
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "rules", ContextFilePath: "/path/AGENTS.md", ContextFileTruncated: true},
 		})
 		require.Contains(t, got, "truncated to 64KiB")
@@ -333,7 +340,7 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 	t.Run("AgentContextBeforeFiles", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("linux", "/home/project", []codersdk.ChatMessagePart{
+		got := formatSystemInstructions("linux", "/home/project", "", []codersdk.ChatMessagePart{
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "home", ContextFilePath: "/home/.coder/AGENTS.md"},
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "pwd", ContextFilePath: "/home/project/AGENTS.md"},
 		})
@@ -348,11 +355,41 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 	t.Run("EmptySectionsIgnored", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("linux", "", []codersdk.ChatMessagePart{
+		got := formatSystemInstructions("linux", "", "", []codersdk.ChatMessagePart{
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "", ContextFilePath: "/empty"},
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "real", ContextFilePath: "/real/AGENTS.md"},
 		})
 		require.NotContains(t, got, "Source: /empty")
 		require.Contains(t, got, "Source: /real/AGENTS.md")
+	})
+
+	t.Run("ScopeLineBetweenHeaderAndFiles", func(t *testing.T) {
+		t.Parallel()
+		got := formatSystemInstructions("linux", "/home/project", "unused note", []codersdk.ChatMessagePart{
+			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "pwd", ContextFilePath: "/home/project/AGENTS.md"},
+		})
+		dirIdx := strings.Index(got, "Working Directory:")
+		scopeIdx := strings.Index(got, workspaceContextScopeLine)
+		sourceIdx := strings.Index(got, "Source: /home/project/AGENTS.md")
+		require.NotEqual(t, -1, scopeIdx)
+		require.Less(t, dirIdx, scopeIdx)
+		require.Less(t, scopeIdx, sourceIdx)
+		require.NotContains(t, got, "unused note")
+	})
+
+	t.Run("NoteReplacesFileList", func(t *testing.T) {
+		t.Parallel()
+		got := formatSystemInstructions("linux", "/home/project", "nothing here", nil)
+		require.Contains(t, got, "Working Directory: /home/project\nnothing here\n</workspace-context>")
+		require.NotContains(t, got, workspaceContextScopeLine)
+		require.NotContains(t, got, "Source:")
+	})
+
+	t.Run("NoteAloneStillEmitsBlock", func(t *testing.T) {
+		t.Parallel()
+		got := formatSystemInstructions("", "", "nothing here", []codersdk.ChatMessagePart{
+			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "", ContextFilePath: "/empty"},
+		})
+		require.Equal(t, "<workspace-context>\nnothing here\n</workspace-context>", got)
 	})
 }
