@@ -464,6 +464,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const [expandedBlocks, setExpandedBlocks] = useState<
 			ReadonlyMap<string, boolean>
 		>(new Map());
+		// Item keys blocks were rendered live with, kept once they complete so
+		// the handoff does not remount an open block. Entries are cached under
+		// the complete key, which paging never changes.
+		const [liveItemKeys, setLiveItemKeys] = useState<
+			ReadonlyMap<string, string>
+		>(new Map());
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
@@ -502,6 +508,24 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const groupedRows = new Set(
 			workingBlocks.flatMap((block) => block.rowIndices),
 		);
+		let nextLiveItemKeys = liveItemKeys;
+		for (const block of workingBlocks) {
+			if (nextLiveItemKeys.has(block.key)) {
+				continue;
+			}
+			const itemKey = block.isLive
+				? block.liveKey
+				: nextLiveItemKeys.get(block.liveKey);
+			if (itemKey === undefined) {
+				continue;
+			}
+			const next = new Map(nextLiveItemKeys);
+			next.set(block.key, itemKey);
+			nextLiveItemKeys = next;
+		}
+		if (nextLiveItemKeys !== liveItemKeys) {
+			setLiveItemKeys(nextLiveItemKeys);
+		}
 
 		if (renderRows.length === 0) {
 			return null;
@@ -623,7 +647,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				initialActiveTurnMaxMessageId !== undefined &&
 				message.id <= initialActiveTurnMaxMessageId;
 			const neighbors = userNeighborsByKey.get(row.key);
-			const isAfterEditingMessage = afterEditingMessageIds.has(message.id);
+			// A block's item dims and inerts its rows as a whole.
+			const isAfterEditingMessage =
+				!grouped && afterEditingMessageIds.has(message.id);
 			const content = (
 				<ChatMessageItem
 					organizationId={organizationId}
@@ -696,10 +722,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							expanded = decision;
 						}
 					}
+					const itemKey = nextLiveItemKeys.get(block.key) ?? block.key;
 					return (
 						<MessageScroller.Item
-							key={block.key}
-							messageId={block.key}
+							key={itemKey}
+							messageId={itemKey}
 							className={cn(
 								isAfterEditingMessage && "opacity-40 pointer-events-none",
 							)}

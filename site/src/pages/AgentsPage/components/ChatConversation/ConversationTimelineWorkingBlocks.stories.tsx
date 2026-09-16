@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useQueryClient } from "react-query";
 import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -12,6 +11,7 @@ import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildWorkingConversation,
 	MockCollapsedStepsPreferences,
+	MockLongTurnPages,
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
 } from "./storyFixtures";
@@ -109,53 +109,6 @@ export const Paginated: Story = {
 	},
 };
 
-const longTurnStep = (index: number): ChatMessage[] => [
-	{
-		...MockChatMessage,
-		id: 100 + index * 2,
-		role: "assistant",
-		created_at: time(index),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: `step-${index}`,
-				tool_name: "execute",
-				args: { command: `echo step-${index}` },
-				created_at: time(index),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 101 + index * 2,
-		role: "tool",
-		created_at: time(index),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: `step-${index}`,
-				tool_name: "execute",
-				result: { output: `step-${index}`, exit_code: "0" },
-				created_at: time(index),
-			},
-		],
-	},
-];
-const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
-	longTurnStep(index),
-).flat();
-const MockLongTurnPrompt: ChatMessage = {
-	...MockChatMessage,
-	id: 99,
-	created_at: time(-1),
-	content: [{ type: "text", text: "Run every step" }],
-};
-const longTurnPages = [
-	MockLongTurn.slice(60),
-	MockLongTurn.slice(30),
-	[MockLongTurnPrompt, ...MockLongTurn],
-];
-
 // Older rows join an expanded partial block inside one scroller item, so the
 // scroller cannot anchor them; the block keeps the reading position itself.
 // The last page also prepends the prompt row as a new scroller item, which the
@@ -176,7 +129,7 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 				<ConversationTimeline
 					{...args}
 					hasMoreMessages={page < 2}
-					parsedMessages={parseMessagesWithMergedTools(longTurnPages[page])}
+					parsedMessages={parseMessagesWithMergedTools(MockLongTurnPages[page])}
 				/>
 				<Button
 					className="fixed top-2 right-2 z-20"
@@ -397,6 +350,9 @@ export const EditingPrecedingMessage: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
+		);
 		await userEvent.click(canvas.getByRole("button", { name: "Edit prompt" }));
 	},
 };
