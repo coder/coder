@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { PencilIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
+import { Link } from "react-router";
 import { Button } from "#/components/Button/Button";
 
 interface InlineInputProps {
@@ -64,6 +65,8 @@ interface EditableTextProps {
 	readonly wrap?: boolean;
 	/** Tailwind group name whose hover reveals the pencil. */
 	readonly revealOn: "card" | "column" | "row";
+	/** Render the text as a link to this route. */
+	readonly href?: string;
 }
 
 /**
@@ -77,6 +80,7 @@ export const EditableText: FC<EditableTextProps> = ({
 	className,
 	wrap = false,
 	revealOn,
+	href,
 }) => {
 	const [editing, setEditing] = useState(false);
 
@@ -92,17 +96,21 @@ export const EditableText: FC<EditableTextProps> = ({
 		);
 	}
 
+	const textClass = cn(
+		"min-w-0 flex-1",
+		wrap ? "whitespace-normal wrap-anywhere" : "truncate",
+		className,
+	);
+
 	return (
 		<>
-			<span
-				className={cn(
-					"min-w-0 flex-1",
-					wrap ? "whitespace-normal wrap-anywhere" : "truncate",
-					className,
-				)}
-			>
-				{value}
-			</span>
+			{href ? (
+				<Link to={href} className={cn(textClass, "no-underline")}>
+					{value}
+				</Link>
+			) : (
+				<span className={textClass}>{value}</span>
+			)}
 			<Button
 				variant="subtle"
 				size="icon"
