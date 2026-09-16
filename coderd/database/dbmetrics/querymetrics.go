@@ -6312,6 +6312,14 @@ func (m queryMetricsStore) UpsertChatComputerUseProvider(ctx context.Context, pr
 	return r0
 }
 
+func (m queryMetricsStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatContextDiscoveredResource(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatContextDiscoveredResource").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatContextDiscoveredResource").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatDebugLoggingAllowUsers(ctx, allowUsers)

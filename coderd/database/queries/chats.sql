@@ -1596,8 +1596,9 @@ WHERE id = @id::uuid;
 -- a chat's pinned hash and pinned bodies are always written together.
 -- Runs as a side effect of an agent push and of chat-create hydration,
 -- so chats created before the agent was ready pick up the snapshot
--- without a dirty marker. The ON CONFLICT upsert is defensive: a
--- not-yet-hydrated chat has no pinned rows, so it normally inserts.
+-- without a dirty marker. The ON CONFLICT upsert covers rows chatd
+-- discovered from tool-touched directories before the agent's first push;
+-- the snapshot copy replaces them and clears the discovered flag.
 -- Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
 -- sets chat_context_resources.updated_at on the rows it rewrites.
 -- Returns the hydrated chat IDs so callers can notify watchers of every
@@ -1630,6 +1631,7 @@ copied AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        discovered = false,
         updated_at = now()
 )
 SELECT id FROM hydrated;
@@ -1746,8 +1748,11 @@ SELECT id FROM locked;
 -- either way so a concurrent refresh cannot overwrite the additions. An
 -- out-of-date chat whose pinned prompts have come level with the snapshot
 -- again (a changed file changed back) settles the same way with nothing to
--- add, since nothing else clears the marker. Changed chats are locked in ID
--- order like the MCP sync.
+-- add, since nothing else clears the marker. Rows chatd discovered from
+-- tool-touched directories are not part of the pinned snapshot: they do not
+-- count as already pinned or as divergent, and the snapshot copy replaces
+-- them once the agent publishes the same source. Changed chats are locked
+-- in ID order like the MCP sync.
 WITH agent_prompt AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
@@ -1770,6 +1775,7 @@ changed AS (
                         SELECT 1 FROM chat_context_resources ccr
                         WHERE ccr.chat_id = chats.id
                             AND ccr.source = p.source
+                            AND ccr.discovered = false
                     )
                 )
             )
@@ -1779,6 +1785,7 @@ changed AS (
                     SELECT 1 FROM chat_context_resources ccr
                     WHERE ccr.chat_id = chats.id
                         AND ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+                        AND ccr.discovered = false
                         AND NOT EXISTS (
                             SELECT 1 FROM agent_prompt p
                             WHERE p.source = ccr.source
@@ -1809,6 +1816,7 @@ added AS (
         SELECT 1 FROM chat_context_resources ccr
         WHERE ccr.chat_id = locked.id
             AND ccr.source = p.source
+            AND ccr.discovered = false
     )
     -- A skill whose name the chat already holds under another source is
     -- the agent's deduplication winner replacing the pinned one, so it is
@@ -1819,7 +1827,16 @@ added AS (
             AND ccr.body_kind = 'skill'
             AND ccr.body->>'name' = p.body->>'name'
     ))
-    ON CONFLICT (chat_id, source) DO NOTHING
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        discovered = false,
+        updated_at = now()
 ),
 divergent AS (
     SELECT locked.id
@@ -1828,6 +1845,7 @@ divergent AS (
         SELECT 1 FROM chat_context_resources ccr
         WHERE ccr.chat_id = locked.id
             AND ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+            AND ccr.discovered = false
             AND NOT EXISTS (
                 SELECT 1 FROM agent_prompt p
                 WHERE p.source = ccr.source
@@ -1880,6 +1898,26 @@ WHERE r.workspace_agent_id = @agent_id::uuid;
 -- has no snapshot.
 DELETE FROM chat_context_resources
 WHERE chat_id = @chat_id::uuid;
+
+-- name: UpsertChatContextDiscoveredResource :exec
+-- Pins an instruction file chatd resolved from a directory a tool touched
+-- during the chat. A row the snapshot already covers is left alone, so a
+-- discovered copy never shadows the watched one; a discovered row that
+-- exists is refreshed with the latest read.
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, discovered
+)
+VALUES (
+    @chat_id::uuid, @source, @body_kind, @body, @content_hash, @size_bytes, @status, @error, true
+)
+ON CONFLICT (chat_id, source) DO UPDATE SET
+    body = EXCLUDED.body,
+    content_hash = EXCLUDED.content_hash,
+    size_bytes = EXCLUDED.size_bytes,
+    status = EXCLUDED.status,
+    error = EXCLUDED.error,
+    updated_at = now()
+WHERE chat_context_resources.discovered = true;
 
 -- name: ListChatContextResourcesByChatID :many
 -- Lists a chat's pinned context resources, ordered deterministically by

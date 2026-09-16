@@ -1110,8 +1110,9 @@ type sqlcQuerier interface {
 	// a chat's pinned hash and pinned bodies are always written together.
 	// Runs as a side effect of an agent push and of chat-create hydration,
 	// so chats created before the agent was ready pick up the snapshot
-	// without a dirty marker. The ON CONFLICT upsert is defensive: a
-	// not-yet-hydrated chat has no pinned rows, so it normally inserts.
+	// without a dirty marker. The ON CONFLICT upsert covers rows chatd
+	// discovered from tool-touched directories before the agent's first push;
+	// the snapshot copy replaces them and clears the discovered flag.
 	// Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
 	// sets chat_context_resources.updated_at on the rows it rewrites.
 	// Returns the hydrated chat IDs so callers can notify watchers of every
@@ -1435,8 +1436,11 @@ type sqlcQuerier interface {
 	// either way so a concurrent refresh cannot overwrite the additions. An
 	// out-of-date chat whose pinned prompts have come level with the snapshot
 	// again (a changed file changed back) settles the same way with nothing to
-	// add, since nothing else clears the marker. Changed chats are locked in ID
-	// order like the MCP sync.
+	// add, since nothing else clears the marker. Rows chatd discovered from
+	// tool-touched directories are not part of the pinned snapshot: they do not
+	// count as already pinned or as divergent, and the snapshot copy replaces
+	// them once the agent publishes the same source. Changed chats are locked
+	// in ID order like the MCP sync.
 	// A divergent chat keeps its hash, but its row is still written: an
 	// already-dirty chat would otherwise gain rows with no chats version
 	// change, and a refresh that read the previous snapshot under repeatable
@@ -1712,6 +1716,11 @@ type sqlcQuerier interface {
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
 	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
+	// Pins an instruction file chatd resolved from a directory a tool touched
+	// during the chat. A row the snapshot already covers is left alone, so a
+	// discovered copy never shadows the watched one; a discovered row that
+	// exists is refreshed with the latest read.
+	UpsertChatContextDiscoveredResource(ctx context.Context, arg UpsertChatContextDiscoveredResourceParams) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error

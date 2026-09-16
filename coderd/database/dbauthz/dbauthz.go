@@ -9029,6 +9029,17 @@ func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider st
 	return q.db.UpsertChatComputerUseProvider(ctx, provider)
 }
 
+func (q *querier) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpsertChatContextDiscoveredResource(ctx, arg)
+}
+
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
