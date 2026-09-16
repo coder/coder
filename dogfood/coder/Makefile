@@ -36,11 +36,11 @@ else
   MISE_OCI := CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) $(REPO_ROOT)/scripts/dogfood/mise-oci-wrapper.sh
 endif
 
-.PHONY: build build-ubuntu-22.04 build-ubuntu-26.04 \
-	build-base-ubuntu-22.04 build-base-ubuntu-26.04 \
-	update-keys update-keys-ubuntu-22.04 update-keys-ubuntu-26.04
+.PHONY: build build-ubuntu-26.04 \
+	build-base-ubuntu-26.04 \
+	update-keys update-keys-ubuntu-26.04
 
-build: build-ubuntu-22.04 build-ubuntu-26.04
+build: build-ubuntu-26.04
 
 # Caveat: `build-ubuntu-*` requires the base image to be pullable from a
 # registry that `mise oci`'s HTTPS client can reach (ghcr.io, a local
@@ -50,32 +50,19 @@ build: build-ubuntu-22.04 build-ubuntu-26.04
 # host's local image store. The `build-base-ubuntu-*` targets on their
 # own work end to end without any registry. See
 # scripts/dogfood/mise-oci-wrapper.sh for the full story.
-build-base-ubuntu-22.04:
-	$(CONTAINER_RUNTIME) build $(PLATFORM_ARG) \
-		-f "$(REPO_ROOT)/dogfood/coder/ubuntu-22.04/Dockerfile.base" \
-		-t "coderdev/oss-dogfood-base:22.04-local" \
-		"$(REPO_ROOT)"
-
 build-base-ubuntu-26.04:
 	$(CONTAINER_RUNTIME) build $(PLATFORM_ARG) \
 		-f "$(REPO_ROOT)/dogfood/coder/ubuntu-26.04/Dockerfile.base" \
 		-t "coderdev/oss-dogfood-base:26.04-local" \
 		"$(REPO_ROOT)"
 
-build-ubuntu-22.04: build-base-ubuntu-22.04
-	$(MISE_OCI) build \
-		--from "coderdev/oss-dogfood-base:22.04-local" \
-		--tag "codercom/oss-dogfood:22.04-$(build_tag)"
 
 build-ubuntu-26.04: build-base-ubuntu-26.04
 	$(MISE_OCI) build \
 		--from "coderdev/oss-dogfood-base:26.04-local" \
 		--tag "codercom/oss-dogfood:26.04-$(build_tag)"
 
-update-keys: update-keys-ubuntu-22.04 update-keys-ubuntu-26.04
-
-update-keys-ubuntu-22.04:
-	./ubuntu-22.04/update-keys.sh
+update-keys: update-keys-ubuntu-26.04
 
 update-keys-ubuntu-26.04:
 	./ubuntu-26.04/update-keys.sh
