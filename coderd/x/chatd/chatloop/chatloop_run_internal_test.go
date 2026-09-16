@@ -231,42 +231,43 @@ func TestGenerateAssistant_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *te
 	}
 }
 
-func TestGuardedStream_PausesStreamWatchdog(t *testing.T) {
+func TestGuardedStream_KicksStreamWatchdog(t *testing.T) {
 	t.Parallel()
 
 	t.Run("open stream", func(t *testing.T) {
 		t.Parallel()
 
-		var events []string
-		ctx := WithStreamWatchdog(context.Background(),
-			func() { events = append(events, "pause") },
-			func() { events = append(events, "resume") },
-		)
+		var kicks []time.Duration
+		ctx := WithStreamWatchdog(context.Background(), func(silence time.Duration) {
+			kicks = append(kicks, silence)
+		})
 		attempt, err := guardedStream(ctx, "openai", "test-model", quartz.NewReal(), time.Hour,
 			func(context.Context) (fantasy.StreamResponse, error) {
-				return streamFromParts(nil), nil
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+				}), nil
 			}, NopMetrics())
 		require.NoError(t, err)
-		require.Equal(t, []string{"pause"}, events)
+		require.Equal(t, []time.Duration{time.Hour}, kicks, "arming the guard kicks once")
+		attempt.stream(func(fantasy.StreamPart) bool { return true })
 		attempt.release()
-		attempt.release()
-		require.Equal(t, []string{"pause", "resume"}, events)
+		require.Equal(t, []time.Duration{time.Hour, time.Hour, time.Hour}, kicks, "each part kicks once")
 	})
 
 	t.Run("open stream fails", func(t *testing.T) {
 		t.Parallel()
 
-		var events []string
-		ctx := WithStreamWatchdog(context.Background(),
-			func() { events = append(events, "pause") },
-			func() { events = append(events, "resume") },
-		)
+		var kicks []time.Duration
+		ctx := WithStreamWatchdog(context.Background(), func(silence time.Duration) {
+			kicks = append(kicks, silence)
+		})
 		_, err := guardedStream(ctx, "openai", "test-model", quartz.NewReal(), time.Hour,
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return nil, xerrors.New("open failed")
 			}, NopMetrics())
 		require.Error(t, err)
-		require.Equal(t, []string{"pause", "resume"}, events)
+		require.Equal(t, []time.Duration{time.Hour}, kicks)
 	})
 }
 

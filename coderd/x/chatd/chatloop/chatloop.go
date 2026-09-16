@@ -753,16 +753,13 @@ func classifyStreamSilenceTimeout(
 
 type streamWatchdogKey struct{}
 
-type streamWatchdog struct {
-	pause, resume func()
-}
-
-// WithStreamWatchdog returns a context whose guarded streams call pause
-// when they open and resume when they release. The silence guard bounds
-// the stream for that window, so a caller's wall-clock timeout would only
-// cancel legitimately long streams.
-func WithStreamWatchdog(ctx context.Context, pause, resume func()) context.Context {
-	return context.WithValue(ctx, streamWatchdogKey{}, streamWatchdog{pause: pause, resume: resume})
+// WithStreamWatchdog returns a context whose guarded streams call kick
+// with the silence timeout each time the guard arms or resets. A caller's
+// idle watchdog can use it to stay quiet until the guard has had its
+// chance to fire, so a silent stream fails through the guard and a
+// healthy long stream is not canceled as a hang.
+func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) context.Context {
+	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }
 
 func guardedStream(
@@ -774,17 +771,15 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
-	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
-	watchdog, _ := parent.Value(streamWatchdogKey{}).(streamWatchdog)
-	if watchdog.pause != nil {
-		watchdog.pause()
+	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
+	if kick == nil {
+		kick = func(time.Duration) {}
 	}
+	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
+	kick(timeout)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
-			if watchdog.resume != nil {
-				watchdog.resume()
-			}
 			guard.Disarm()
 			cancelAttempt(nil)
 		})
@@ -808,6 +803,7 @@ func guardedStream(
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
+				kick(timeout)
 				recordTTFT()
 				if !yield(part) {
 					return
