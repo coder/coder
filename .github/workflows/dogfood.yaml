@@ -39,7 +39,6 @@ on:
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
-      - "scripts/dogfood_test_image.sh"
   pull_request:
     paths:
       - "dogfood/**"
@@ -47,7 +46,6 @@ on:
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
-      - "scripts/dogfood_test_image.sh"
   workflow_dispatch:
 
 permissions:
@@ -79,7 +77,7 @@ jobs:
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
           # branch tip) available so lint/emdash, run inside the image via
-          # scripts/dogfood_test_image.sh, can diff against HEAD^1 without
+          # scripts/dogfood/test_image.sh, can diff against HEAD^1 without
           # fetching the base branch at runtime.
           fetch-depth: 2
           persist-credentials: false
@@ -204,7 +202,7 @@ jobs:
         if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
+        run: ./scripts/dogfood/test_image.sh "dogfood-test:${{ matrix.image-version }}"
 
       - name: Push final Ubuntu 26.04 image
         if: matrix.image-version == '26.04' && github.ref == 'refs/heads/main'
