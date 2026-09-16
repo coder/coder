@@ -18,5 +18,23 @@ describe("useChatBoardEnabled", () => {
 		expect(renderHook(() => useChatBoardEnabled()).result.current[0]).toBe(
 			true,
 		);
+
+		act(() => result.current[1](false));
+
+		expect(result.current[0]).toBe(false);
+		expect(localStorage.getItem("agents.exp.chat-board")).toBe("false");
+	});
+
+	it("turns off when another tab clears storage", () => {
+		localStorage.setItem("agents.exp.chat-board", "true");
+		const { result } = renderHook(() => useChatBoardEnabled());
+		expect(result.current[0]).toBe(true);
+
+		localStorage.clear();
+		act(() => {
+			window.dispatchEvent(new StorageEvent("storage", { key: null }));
+		});
+
+		expect(result.current[0]).toBe(false);
 	});
 });

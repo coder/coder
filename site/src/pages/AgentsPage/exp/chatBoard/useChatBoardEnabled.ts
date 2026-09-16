@@ -17,8 +17,10 @@ const listeners = new Set<() => void>();
 function subscribe(callback: () => void): () => void {
 	listeners.add(callback);
 
+	// A cleared storage area arrives with a null key, so treat that as a
+	// change to this flag too.
 	const onStorage = (e: StorageEvent) => {
-		if (e.key === KEY) {
+		if (e.key === KEY || e.key === null) {
 			callback();
 		}
 	};
