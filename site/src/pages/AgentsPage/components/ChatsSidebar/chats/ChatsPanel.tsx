@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { cn } from "cn";
 import {
+	LayoutDashboardIcon,
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -426,6 +427,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
+				<SettingsNavItem
+					icon={LayoutDashboardIcon}
+					label="Board"
+					active={location.pathname.startsWith("/agents/board")}
+					to={{ pathname: "/agents/board", search: locationSearch }}
+				/>
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">
