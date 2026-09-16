@@ -4205,7 +4205,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 				return
 			}
 			var conflict *chatd.ToolResultStatusConflictError
-			if errors.As(submitErr, &conflict) {
+			if errors.As(submitErr, &conflict) && submitErr.Error() == conflict.Error() {
 				conflicts.Add(1)
 				return
 			}

@@ -493,6 +493,10 @@ func (m *chatMutator) SubmitToolResults(
 		return nil
 	})
 	if updateErr != nil {
+		var conflict *ToolResultStatusConflictError
+		if errors.As(updateErr, &conflict) {
+			return conflict
+		}
 		return translateToolResultValidationError(updateErr)
 	}
 
