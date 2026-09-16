@@ -151,10 +151,14 @@ const ChatBoardPage: FC = () => {
 	const [addingColumn, setAddingColumn] = useState(false);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
 	const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-	// An unpinned window shown while the pointer rests on a chat.
-	const [preview, setPreview] = useState<ChatWindow | null>(null);
+	// An unpinned window shown while the pointer rests on a chat icon.
 	const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// One list for pinned windows and the hover preview (pinned: false), so
+	// pinning is a flag flip on the same element and a gesture in progress
+	// survives it. Every update is functional: gesture handlers hold stale
+	// closures by the time they commit.
 	const { windows } = storage;
+	const preview = windows.find((w) => !w.pinned);
 
 	const clearPreviewTimer = () => {
 		if (previewTimer.current) clearTimeout(previewTimer.current);
@@ -163,38 +167,61 @@ const ChatBoardPage: FC = () => {
 	const setWindows = (
 		next: (prev: readonly ChatWindow[]) => readonly ChatWindow[],
 	) => updateStorage((prev) => ({ windows: next(prev.windows) }));
-	// Pinning appends, so the newest window is frontmost.
+	const dropPreview = (list: readonly ChatWindow[]) =>
+		list.filter((w) => w.pinned);
+	// Pinned or raised windows move to the end, which is the front.
+	const toFront = (list: readonly ChatWindow[], win: ChatWindow) => [
+		...list.filter((w) => w.chatId !== win.chatId),
+		{ ...win, pinned: true },
+	];
 	const pinWindow = (win: ChatWindow) => {
 		clearPreviewTimer();
-		setPreview(null);
-		setWindows((prev) => [...prev.filter((w) => w.chatId !== win.chatId), win]);
+		setWindows((prev) => toFront(dropPreview(prev), win));
 	};
-	const raiseWindow = (chatId: string) =>
+	const interact = (chatId: string) => {
+		clearPreviewTimer();
 		setWindows((prev) => {
 			const win = prev.find((w) => w.chatId === chatId);
-			return win ? [...prev.filter((w) => w !== win), win] : prev;
+			return win ? toFront(prev, win) : prev;
 		});
+	};
+	const changeWindow = (next: ChatWindow) =>
+		setWindows((prev) =>
+			prev.map((w) =>
+				w.chatId === next.chatId ? { ...next, pinned: w.pinned } : w,
+			),
+		);
 	const closeWindow = (chatId: string) =>
 		setWindows((prev) => prev.filter((w) => w.chatId !== chatId));
 
 	const openChat = (chat: Chat, anchor: DOMRect) => {
-		if (windows.some((w) => w.chatId === chat.id)) raiseWindow(chat.id);
-		else
-			pinWindow(
-				preview?.chatId === chat.id ? preview : windowBeside(chat.id, anchor),
-			);
+		clearPreviewTimer();
+		setWindows((prev) =>
+			toFront(
+				dropPreview(prev),
+				prev.find((w) => w.chatId === chat.id) ??
+					windowBeside(chat.id, anchor, true),
+			),
+		);
 	};
 	const previewChat = (chat: Chat, anchor: DOMRect) => {
 		clearPreviewTimer();
 		if (windows.some((w) => w.chatId === chat.id)) return;
 		previewTimer.current = setTimeout(
-			() => setPreview(windowBeside(chat.id, anchor)),
+			() =>
+				setWindows((prev) => [
+					...dropPreview(prev),
+					windowBeside(chat.id, anchor, false),
+				]),
 			PREVIEW_OPEN_MS,
 		);
 	};
 	const endPreview = () => {
 		clearPreviewTimer();
-		previewTimer.current = setTimeout(() => setPreview(null), PREVIEW_CLOSE_MS);
+		previewTimer.current = setTimeout(
+			() => setWindows(dropPreview),
+			PREVIEW_CLOSE_MS,
+		);
 	};
 
 	// The route param is an "open this chat" request: it becomes a window
@@ -202,17 +229,14 @@ const ChatBoardPage: FC = () => {
 	useEffect(() => {
 		if (!agentId) return;
 		updateStorage((prev) => ({
-			windows: [
-				...prev.windows.filter((w) => w.chatId !== agentId),
-				windowCentered(agentId),
-			],
+			windows: toFront(dropPreview(prev.windows), windowCentered(agentId)),
 		}));
 		void navigate("/agents/board", { replace: true });
 	}, [agentId, navigate, updateStorage]);
 
 	// Escape dismisses the preview, else the frontmost window; the board stays.
 	useEffect(() => {
-		if (!preview && windows.length === 0) return;
+		if (windows.length === 0) return;
 		const onKey = (e: KeyboardEvent) => {
 			const target = e.target as HTMLElement | null;
 			const typing =
@@ -220,12 +244,13 @@ const ChatBoardPage: FC = () => {
 				target?.tagName === "TEXTAREA" ||
 				target?.isContentEditable;
 			if (e.key !== "Escape" || typing) return;
-			if (preview) setPreview(null);
-			else closeWindow(windows[windows.length - 1].chatId);
+			setWindows((prev) =>
+				prev.some((w) => !w.pinned) ? dropPreview(prev) : prev.slice(0, -1),
+			);
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [preview, windows]);
+	}, [windows]);
 
 	// Same query the sidebar uses, so both views share one cache.
 	const chatsQuery = useInfiniteQuery(infiniteChats({}));
@@ -255,10 +280,7 @@ const ChatBoardPage: FC = () => {
 
 	const chats = chatsQuery.data?.pages.flat() ?? [];
 	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
-	const openChatIds = new Set([
-		...windows.map((w) => w.chatId),
-		...(preview ? [preview.chatId] : []),
-	]);
+	const openChatIds = new Set(windows.map((w) => w.chatId));
 	const allCards = buildCards(chats);
 	const assistant = useCardAssistant(chats, allCards);
 	// A window wears its card's color, so a window and its card read as one thing.
@@ -283,7 +305,7 @@ const ChatBoardPage: FC = () => {
 
 	const handleDragStart = ({ active }: DragStartEvent) => {
 		clearPreviewTimer();
-		setPreview(null);
+		if (preview) setWindows(dropPreview);
 		setActiveDrag((active.data.current as DragData | undefined) ?? null);
 	};
 
@@ -406,24 +428,17 @@ const ChatBoardPage: FC = () => {
 		pinWindow(windowCentered(chatId));
 	};
 
-	const floating = (win: ChatWindow, isPreview: boolean) => (
+	const floating = (win: ChatWindow) => (
 		<FloatingChat
 			key={win.chatId}
 			window={win}
 			chat={chatsById.get(win.chatId)}
 			color={cardColorByChatId.get(win.chatId)}
-			preview={isPreview}
-			onChange={(next) =>
-				isPreview
-					? setPreview(next)
-					: setWindows((prev) =>
-							prev.map((w) => (w.chatId === next.chatId ? next : w)),
-						)
-			}
-			onClose={() => (isPreview ? setPreview(null) : closeWindow(win.chatId))}
-			onInteract={() => (isPreview ? pinWindow(win) : raiseWindow(win.chatId))}
-			onPointerEnter={isPreview ? clearPreviewTimer : () => {}}
-			onPointerLeave={isPreview ? endPreview : () => {}}
+			onChange={changeWindow}
+			onClose={() => closeWindow(win.chatId)}
+			onInteract={() => interact(win.chatId)}
+			onPreviewEnter={clearPreviewTimer}
+			onPreviewLeave={endPreview}
 		/>
 	);
 
@@ -438,7 +453,7 @@ const ChatBoardPage: FC = () => {
 					className="size-7 text-content-secondary"
 					// Leaving lands on the chat in front, or the agents home.
 					onClick={() => {
-						const reading = windows[windows.length - 1]?.chatId;
+						const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
 						void navigate(reading ? `/agents/${reading}` : "/agents");
 					}}
 				>
@@ -535,8 +550,7 @@ const ChatBoardPage: FC = () => {
 					{activeDrag && <DragGhost drag={activeDrag} />}
 				</DragOverlay>
 			</DndContext>
-			{windows.map((win) => floating(win, false))}
-			{preview && floating(preview, true)}
+			{windows.map(floating)}
 		</div>
 	);
 };
