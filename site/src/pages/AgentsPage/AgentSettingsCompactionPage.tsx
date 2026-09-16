@@ -14,7 +14,10 @@ import {
 	resolveOrganizationCompactionTrigger,
 } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { providerTypeByIDFromUserConfigs } from "./utils/modelOptions";
+import {
+	providerInfoByIDFromUserConfigs,
+	providerTypeByIDFromUserConfigs,
+} from "./utils/modelOptions";
 
 const AgentSettingsCompactionPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -48,6 +51,9 @@ const AgentSettingsCompactionPage: FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
+	const providerInfoByID = providerInfoByIDFromUserConfigs(
+		providerConfigsQuery.data,
+	);
 	const isCompactionOverridesLoading = compactionOverrideQueries.some(
 		(query) => query.isLoading,
 	);
@@ -64,6 +70,7 @@ const AgentSettingsCompactionPage: FC = () => {
 			organizationModels.models.filter(
 				(model) => model.organization_id === organization.id,
 			),
+			providerInfoByID,
 		);
 		if (trigger) {
 			compactionTriggersByOrganizationID.set(organization.id, trigger);
@@ -78,7 +85,9 @@ const AgentSettingsCompactionPage: FC = () => {
 			compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={
-				organizationModels.isLoading || isCompactionOverridesLoading
+				organizationModels.isLoading ||
+				providerConfigsQuery.isLoading ||
+				isCompactionOverridesLoading
 			}
 			compactionTriggersError={compactionOverridesError}
 			thresholds={thresholdsQuery.data?.thresholds}

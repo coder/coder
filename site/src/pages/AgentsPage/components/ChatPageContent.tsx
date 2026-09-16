@@ -21,7 +21,10 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
-import { getProviderForModelOption } from "../utils/modelOptions";
+import {
+	getProviderForModelOption,
+	providerInfoByIDFromDescriptors,
+} from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
@@ -255,7 +258,7 @@ export type PendingAttachment = {
 interface ChatPageInputProps {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -315,7 +318,7 @@ interface ChatPageInputProps {
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	modelCatalog,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -378,14 +381,15 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	);
 	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
 		modelOverridesQuery.data?.overrides,
-		models,
+		modelCatalog?.models,
+		providerInfoByIDFromDescriptors(modelCatalog?.providers),
 	);
 	const compactionThreshold =
 		modelOverridesQuery.data !== undefined
 			? resolveCompactionThreshold(
 					chat.last_model_config_id,
 					thresholdsQuery.data?.thresholds,
-					models,
+					modelCatalog?.models,
 					organizationCompactionTrigger,
 				)
 			: undefined;

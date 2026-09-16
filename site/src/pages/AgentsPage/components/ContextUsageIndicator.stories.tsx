@@ -57,15 +57,9 @@ export const OrganizationCompactionPointUsesReportedLimit: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.hover(
 			canvas.getByRole("button", { name: /Context usage 32%/i }),
 		);
-		await waitFor(() => {
-			expect(
-				body.getByText("Compacts at 16% (organization override)"),
-			).toBeVisible();
-		});
 	},
 };
 

@@ -1,4 +1,8 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	filterModelsWithEnabledProvider,
+	type ProviderInfo,
+} from "./utils/modelOptions";
 
 export interface CompactionTrigger {
 	readonly thresholdPercent: number;
@@ -65,14 +69,17 @@ export const bindingCompactionTriggerPoint = (
 export const resolveOrganizationCompactionTrigger = (
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined,
 	models: readonly TypesGen.ChatModel[] | null | undefined,
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 ): OrganizationCompactionTrigger | undefined => {
 	const override = overrides?.find(
 		(candidate) => candidate.context === "compaction",
 	);
-	const model = models?.find(
-		(candidate) => candidate.id === override?.model_config_id,
-	);
-	// Disabled override models fall back to the chat model on the backend.
+	const model = filterModelsWithEnabledProvider(
+		models ?? [],
+		providerInfoByID,
+	).find((candidate) => candidate.id === override?.model_config_id);
+	// Override models that are disabled or whose provider is disabled fall
+	// back to the chat model on the backend.
 	if (!model?.enabled) {
 		return undefined;
 	}

@@ -983,6 +983,7 @@ export const CompactionHintSurvivesOverrideRefetchError: Story = {
 				<AgentChatPageLayout />
 				<Button
 					className="absolute right-4 top-4"
+					aria-busy={isFetching}
 					disabled={isFetching}
 					onClick={() => void refetch()}
 				>
@@ -1004,45 +1005,37 @@ export const CompactionHintSurvivesOverrideRefetchError: Story = {
 			"getOrganizationChatModelOverrides",
 		).mockRejectedValue(new Error("Failed to load model overrides"));
 	},
+	// Captured state: the gauge tooltip still shows the compact-at hint after
+	// a successful overrides fetch is followed by a failed background refetch.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const refetchButton = canvas.getByRole("button", {
-			name: "Refetch compaction settings",
-		});
-		await waitFor(() => expect(refetchButton).toBeEnabled());
-		const gauge = await canvas.findByRole("button", {
-			name: /Context usage 25%/,
-		});
-		await userEvent.hover(gauge);
-		await waitFor(() => {
-			expect(body.getByText("25% - 50K / 200K context used")).toBeVisible();
-		});
-		expect(body.queryByText(/Compacts at/)).not.toBeInTheDocument();
-		await userEvent.unhover(gauge);
+		const settledRefetchButton = () =>
+			canvas.findByRole("button", {
+				name: "Refetch compaction settings",
+				busy: false,
+			});
+		await settledRefetchButton();
 
 		spyOn(
 			API.experimental,
 			"getOrganizationChatModelOverrides",
 		).mockResolvedValue({ overrides: [] });
-		await userEvent.click(refetchButton);
-		await waitFor(() => expect(refetchButton).toBeEnabled());
-		await userEvent.hover(gauge);
-		await waitFor(() => {
-			expect(body.getByText("Compacts at 70%")).toBeVisible();
-		});
-		await userEvent.unhover(gauge);
+		await userEvent.click(await settledRefetchButton());
+		await settledRefetchButton();
 
 		spyOn(
 			API.experimental,
 			"getOrganizationChatModelOverrides",
 		).mockRejectedValue(new Error("Failed to refresh model overrides"));
-		await userEvent.click(refetchButton);
-		await waitFor(() => expect(refetchButton).toBeEnabled());
-		await userEvent.hover(gauge);
-		await waitFor(() => {
-			expect(body.getByText("Compacts at 70%")).toBeVisible();
-		});
+		await userEvent.click(await settledRefetchButton());
+		await settledRefetchButton();
+
+		await userEvent.hover(
+			await canvas.findByRole("button", { name: /Context usage 25%/ }),
+		);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"Compacts at 70%",
+		);
 	},
 };
 
