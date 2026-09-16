@@ -1510,19 +1510,21 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enrich the lightweight context summary with the chat's pinned
-	// resources (metadata only). This detail is computed on read and only
-	// attached on the single-chat GET; list and watch payloads stay
-	// lightweight. A failure here is non-fatal: the chat is still usable
-	// without the detail, so we log and return the rest of the response.
+	// resources (metadata only) and workspace MCP discovery state. This
+	// detail is computed on read and only attached on the single-chat
+	// GET; list and watch payloads stay lightweight. A failure here is
+	// non-fatal: the chat is still usable without the detail, so we log
+	// and return the rest of the response.
 	if sdkChat.Context != nil && api.chatDaemon != nil {
-		resources, err := api.chatDaemon.ContextResources(ctx, chat)
+		detail, err := api.chatDaemon.ContextDetail(ctx, chat)
 		if err != nil {
 			api.Logger.Error(ctx, "failed to compute chat context resources",
 				slog.F("chat_id", chat.ID),
 				slog.Error(err),
 			)
 		} else {
-			sdkChat.Context.Resources = resources
+			sdkChat.Context.Resources = detail.Resources
+			sdkChat.Context.MCPDiscovery = detail.MCPDiscovery
 		}
 	}
 
@@ -2197,14 +2199,15 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	// post-refresh state. A failure here is non-fatal: the refresh already
 	// succeeded, so we log and return the rest of the response.
 	if sdkChat.Context != nil && api.chatDaemon != nil {
-		resources, err := api.chatDaemon.ContextResources(ctx, updated)
+		detail, err := api.chatDaemon.ContextDetail(ctx, updated)
 		if err != nil {
 			api.Logger.Error(ctx, "failed to compute chat context resources after refresh",
 				slog.F("chat_id", updated.ID),
 				slog.Error(err),
 			)
 		} else {
-			sdkChat.Context.Resources = resources
+			sdkChat.Context.Resources = detail.Resources
+			sdkChat.Context.MCPDiscovery = detail.MCPDiscovery
 		}
 	}
 

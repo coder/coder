@@ -19838,6 +19838,14 @@ const docTemplate = `{
                     "description": "Error is the snapshot-level error copied from the pinned snapshot\n(empty when healthy).",
                     "type": "string"
                 },
+                "mcp_discovery": {
+                    "description": "MCPDiscovery reports how far the bound agent's workspace MCP\ndiscovery has progressed and whether the pinned MCP rows are\ncurrent. Populated only on the single-chat GET response for chats\nbound to a workspace agent; nil otherwise.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatContextMCPDiscovery"
+                        }
+                    ]
+                },
                 "resources": {
                     "description": "Resources is the chat's pinned context (instruction files and\nskills) the prompt is built from, metadata only (no bodies). It is\npopulated only on the single-chat GET response; list and watch\npayloads leave it nil to stay lightweight.",
                     "type": "array",
@@ -19846,6 +19854,31 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.ChatContextMCPDiscovery": {
+            "type": "object",
+            "properties": {
+                "phase": {
+                    "$ref": "#/definitions/codersdk.ChatContextMCPDiscoveryPhase"
+                },
+                "stale": {
+                    "description": "Stale is true when the pinned MCP rows were published by a previous\nagent process (the snapshot's agent run id differs from the agent's\ncurrent run id). Their tools are withheld from the model until the\ncurrent process publishes.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatContextMCPDiscoveryPhase": {
+            "type": "string",
+            "enum": [
+                "unknown",
+                "pending",
+                "complete"
+            ],
+            "x-enum-varnames": [
+                "ChatContextMCPDiscoveryPhaseUnknown",
+                "ChatContextMCPDiscoveryPhasePending",
+                "ChatContextMCPDiscoveryPhaseComplete"
+            ]
         },
         "codersdk.ChatContextResource": {
             "type": "object",

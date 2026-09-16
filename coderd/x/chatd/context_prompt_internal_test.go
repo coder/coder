@@ -584,6 +584,23 @@ func TestPinnedContextResources(t *testing.T) {
 		}, out)
 	})
 
+	t.Run("KeepsWarningOnOKRows", func(t *testing.T) {
+		t.Parallel()
+
+		server := mcpServerResource(t, "fs", &agentproto.MCPServerBody{ServerName: "fs", Tools: []*agentproto.MCPTool{{Name: "read"}}}, database.WorkspaceAgentContextResourceStatusOk)
+		server.Error = "reconnect failed, tools are from the previous connection"
+		instruction := instructionResource(t, "/a/AGENTS.md", "rules", database.WorkspaceAgentContextResourceStatusOk)
+		instruction.Error = "trailing bytes ignored"
+
+		out := pinnedContextResources([]database.ChatContextResource{server, instruction})
+		require.Len(t, out, 2)
+		require.Equal(t, codersdk.ChatContextResourceStatusOK, out[0].Status)
+		require.Equal(t, "reconnect failed, tools are from the previous connection", out[0].Error)
+		require.Len(t, out[0].Tools, 1, "a warning does not hide the tools")
+		require.Equal(t, codersdk.ChatContextResourceStatusOK, out[1].Status)
+		require.Equal(t, "trailing bytes ignored", out[1].Error)
+	})
+
 	t.Run("IncludesMCPConfigAndServer", func(t *testing.T) {
 		t.Parallel()
 
@@ -632,7 +649,7 @@ func TestPinnedContextResources(t *testing.T) {
 	})
 }
 
-func TestContextResources(t *testing.T) {
+func TestContextDetail(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ReturnsPinnedResources", func(t *testing.T) {
@@ -647,11 +664,40 @@ func TestContextResources(t *testing.T) {
 			}, nil)
 		server := newPinServer(t, db)
 
-		resources, err := server.ContextResources(context.Background(), database.Chat{ID: chatID})
+		detail, err := server.ContextDetail(context.Background(), database.Chat{ID: chatID})
 		require.NoError(t, err)
-		require.Len(t, resources, 1)
-		require.Equal(t, "/home/coder/AGENTS.md", resources[0].Source)
-		require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, resources[0].Kind)
+		require.Len(t, detail.Resources, 1)
+		require.Equal(t, "/home/coder/AGENTS.md", detail.Resources[0].Source)
+		require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, detail.Resources[0].Kind)
+		require.Nil(t, detail.MCPDiscovery, "no bound agent, no discovery state")
+	})
+
+	t.Run("ReportsMCPDiscoveryForBoundAgent", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		agentID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).Return(nil, nil)
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+			Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-b"}, nil)
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{
+				AgentRunID:        "run-a",
+				McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete,
+			}, nil)
+		server := newPinServer(t, db)
+
+		detail, err := server.ContextDetail(context.Background(), database.Chat{
+			ID:      chatID,
+			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+			Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete,
+			Stale: true,
+		}, detail.MCPDiscovery)
 	})
 
 	t.Run("PinnedListError", func(t *testing.T) {
@@ -664,7 +710,7 @@ func TestContextResources(t *testing.T) {
 			Return(nil, xerrors.New("boom"))
 		server := newPinServer(t, db)
 
-		_, err := server.ContextResources(context.Background(), database.Chat{ID: chatID})
+		_, err := server.ContextDetail(context.Background(), database.Chat{ID: chatID})
 		require.Error(t, err)
 	})
 }
