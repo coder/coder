@@ -28,7 +28,8 @@ func TestInflightGate_Middleware(t *testing.T) {
 			admitted := false
 			var requestCtx context.Context
 			rec := httptest.NewRecorder()
-			handler := gate.Middleware(func() { admitted = true })(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := gate.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				admitted = true
 				requestCtx = r.Context()
 				require.NoError(t, requestCtx.Err())
 				gate.mu.Lock()
@@ -74,12 +75,9 @@ func TestInflightGate_Admission(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(sloghuman.Sink(&logs))
 	gate := NewInflightGate(logger)
-	calls := 0
-	onAdmit := func() { calls++ }
 
-	release, ok := gate.Admit(onAdmit)
+	release, ok := gate.Admit()
 	require.True(t, ok)
-	require.Equal(t, 1, calls)
 	release()
 	// Extra releases log an error without corrupting accounting or panicking.
 	release()
@@ -87,7 +85,7 @@ func TestInflightGate_Admission(t *testing.T) {
 	require.Contains(t, logs.String(), "released an unregistered request")
 	logs.Reset()
 
-	release, ok = gate.Admit(nil)
+	release, ok = gate.Admit()
 	require.True(t, ok)
 	require.Equal(t, 1, gate.active)
 	release()
@@ -96,10 +94,9 @@ func TestInflightGate_Admission(t *testing.T) {
 	require.Zero(t, gate.active)
 	require.Contains(t, logs.String(), "released an unregistered request")
 	require.NoError(t, gate.Shutdown(t.Context()))
-	release, ok = gate.Admit(onAdmit)
+	release, ok = gate.Admit()
 	require.False(t, ok)
 	require.Nil(t, release)
-	require.Equal(t, 1, calls, "rejected admission must not invoke the callback")
 }
 
 func TestInflightGate_RequestContext(t *testing.T) {
@@ -146,19 +143,19 @@ func TestInflightGate_Drain(t *testing.T) {
 			releases := make([]func(), tc.requests)
 			for i := range releases {
 				var ok bool
-				releases[i], ok = gate.Admit(nil)
+				releases[i], ok = gate.Admit()
 				require.True(t, ok)
 			}
 
 			if tc.close {
 				gate.Close()
 				gate.Close() // Repeated Close must be safe.
-				_, ok := gate.Admit(nil)
+				_, ok := gate.Admit()
 				require.False(t, ok, "Close must stop admission")
 			}
 			done := gate.stopAdmission()
 			require.Equal(t, done, gate.stopAdmission(), "stopping admission is idempotent")
-			_, ok := gate.Admit(nil)
+			_, ok := gate.Admit()
 			require.False(t, ok)
 
 			// Neither stopping admission nor cancellation releases requests.
@@ -189,7 +186,7 @@ func TestInflightGate_Shutdown(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			gate := NewInflightGate(slogtest.Make(t, nil))
-			release, ok := gate.Admit(nil)
+			release, ok := gate.Admit()
 			require.True(t, ok)
 			requestCtx, cleanup := gate.RequestContext(t.Context())
 			defer cleanup()
@@ -200,7 +197,7 @@ func TestInflightGate_Shutdown(t *testing.T) {
 				cancel()
 				require.ErrorIs(t, gate.Shutdown(ctx), context.Canceled)
 				require.NoError(t, requestCtx.Err(), "a canceled shutdown must leave requests running")
-				_, ok = gate.Admit(nil)
+				_, ok = gate.Admit()
 				require.False(t, ok)
 				release()
 				// Completed drainage takes precedence over an expired context.
@@ -223,7 +220,7 @@ func TestInflightGate_ConcurrentReleaseAndShutdown(t *testing.T) {
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for range 32 {
-		release, ok := gate.Admit(nil)
+		release, ok := gate.Admit()
 		require.True(t, ok)
 		wg.Go(func() {
 			<-start
@@ -241,6 +238,6 @@ func TestInflightGate_ConcurrentReleaseAndShutdown(t *testing.T) {
 	default:
 		t.Fatal("all requests released but gate is not drained")
 	}
-	_, ok := gate.Admit(nil)
+	_, ok := gate.Admit()
 	require.False(t, ok)
 }

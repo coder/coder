@@ -199,7 +199,7 @@ func TestRequestBridgeShutdownDoesNotWaitForCanceledHandler(t *testing.T) {
 				inflight: NewInflightGate(slogtest.Make(t, nil)),
 				logger:   slogtest.Make(t, nil),
 			}
-			bridge.handler = bridge.inflight.Middleware(nil)(mux)
+			bridge.handler = bridge.inflight.Middleware(mux)
 			// MCP cleanup must be attempted while the handler is still blocked.
 			if withMCP {
 				proxy := mcpmock.NewMockServerProxier(gomock.NewController(t))

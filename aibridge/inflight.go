@@ -6,12 +6,14 @@ import (
 	"sync"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/quartz"
 )
 
 // InflightGate counts admitted requests and links their contexts to Close.
 // It is safe for concurrent use. Must be created with NewInflightGate.
 type InflightGate struct {
 	logger slog.Logger
+	clock  quartz.Clock
 
 	// mu guards active, closed, and closure of drained.
 	// Reads and writes of active and closed must hold mu.
@@ -28,40 +30,34 @@ type InflightGate struct {
 // NewInflightGate returns a gate ready to admit requests.
 func NewInflightGate(logger slog.Logger) *InflightGate {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &InflightGate{logger: logger, drained: make(chan struct{}), ctx: ctx, cancel: cancel}
+	return &InflightGate{logger: logger, clock: quartz.NewReal(), drained: make(chan struct{}), ctx: ctx, cancel: cancel}
 }
 
 // Middleware admits requests and links their contexts to Close, or returns 503
-// after shutdown begins. onAdmit runs under the admission lock and must not
-// call other gate methods.
-func (g *InflightGate) Middleware(onAdmit func()) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			release, ok := g.Admit(onAdmit)
-			if !ok {
-				http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
-				return
-			}
-			defer release()
-			ctx, cleanup := g.RequestContext(r.Context())
-			defer cleanup()
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
+// after shutdown begins.
+func (g *InflightGate) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		release, ok := g.Admit()
+		if !ok {
+			http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
+			return
+		}
+		defer release()
+		ctx, cleanup := g.RequestContext(r.Context())
+		defer cleanup()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
-// Admit returns nil, false after shutdown begins. Otherwise, onAdmit runs
-// under the admission lock and release must be called exactly once when the
-// handler returns. onAdmit must not call other gate methods.
-func (g *InflightGate) Admit(onAdmit func()) (release func(), ok bool) {
+// Admit returns nil, false after shutdown begins. Otherwise, release must be
+// called exactly once when the handler returns.
+func (g *InflightGate) Admit() (release func(), ok bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.closed {
 		return nil, false
 	}
-	if onAdmit != nil {
-		onAdmit()
-	}
+	_ = g.clock.Now("serve_admission") // Trap point for deterministic race tests.
 	g.active++
 	return g.release, true
 }

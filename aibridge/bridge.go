@@ -78,8 +78,6 @@ type RequestBridge struct {
 	// inflight provides the shared admission and drain machinery.
 	inflight *InflightGate
 
-	clock quartz.Clock
-
 	shutdownOnce sync.Once
 }
 
@@ -186,21 +184,18 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		logger:   logger,
 		mcpProxy: mcpProxy,
 		inflight: NewInflightGate(logger),
-		clock:    quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(b)
 	}
-	b.handler = b.inflight.Middleware(func() {
-		_ = b.clock.Now("serve_admission") // Trap point for deterministic race tests.
-	})(http.MaxBytesHandler(mux, maxRequestBodyBytes))
+	b.handler = b.inflight.Middleware(http.MaxBytesHandler(mux, maxRequestBodyBytes))
 	return b, nil
 }
 
 type RequestBridgeOption func(*RequestBridge)
 
 func WithClock(clock quartz.Clock) RequestBridgeOption {
-	return func(b *RequestBridge) { b.clock = clock }
+	return func(b *RequestBridge) { b.inflight.clock = clock }
 }
 
 // disabledProviderHandler returns 503 with a body containing
