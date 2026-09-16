@@ -3,7 +3,6 @@ package chatd
 import (
 	"context"
 	"encoding/base64"
-	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -23,27 +22,24 @@ func replaceUnsupportedToolMedia(
 ) []fantasy.Message {
 	replaced := 0
 	provider := model.Provider()
-	out := messages
-	for i, msg := range messages {
-		var parts []fantasy.MessagePart
-		for j, part := range msg.Content {
+	out := make([]fantasy.Message, 0, len(messages))
+	for _, msg := range messages {
+		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+		for _, part := range msg.Content {
 			result, ok := part.(fantasy.ToolResultPart)
 			if !ok {
+				parts = append(parts, part)
 				continue
 			}
 			media, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
 			if !ok {
+				parts = append(parts, part)
 				continue
 			}
 			note, omit := chatprovider.ToolResultMediaOmission(provider, configuredProvider, media.MediaType, base64DecodedLen(media.Data))
 			if !omit {
+				parts = append(parts, part)
 				continue
-			}
-			if replaced == 0 {
-				out = slices.Clone(messages)
-			}
-			if parts == nil {
-				parts = slices.Clone(msg.Content)
 			}
 			replaced++
 			text := media.Text
@@ -51,11 +47,10 @@ func replaceUnsupportedToolMedia(
 				text += "\n"
 			}
 			result.Output = fantasy.ToolResultOutputContentText{Text: text + note}
-			parts[j] = result
+			parts = append(parts, result)
 		}
-		if parts != nil {
-			out[i].Content = parts
-		}
+		msg.Content = parts
+		out = append(out, msg)
 	}
 	if replaced > 0 {
 		logger.Debug(ctx, "replaced unsupported tool result media in prompt",

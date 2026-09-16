@@ -69,7 +69,6 @@ func TestReplaceUnsupportedToolMedia(t *testing.T) {
 		in := prompt(mediaPart("image/png", make([]byte, 5*1024*1024)))
 		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("openai"), "openai")
 		require.Equal(t, in, out)
-		require.Same(t, &in[0], &out[0])
 	})
 
 	t.Run("SmallImageStaysMediaOnAnthropic", func(t *testing.T) {
@@ -77,7 +76,6 @@ func TestReplaceUnsupportedToolMedia(t *testing.T) {
 		in := prompt(mediaPart("image/png", []byte{1, 2, 3}))
 		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("anthropic"), "anthropic")
 		require.Equal(t, in, out)
-		require.Same(t, &in[0], &out[0])
 	})
 
 	for _, transport := range []string{"openai", "google"} {
@@ -100,7 +98,6 @@ func TestReplaceUnsupportedToolMedia(t *testing.T) {
 		in := prompt(mediaPart("audio/mpeg", []byte{1, 2, 3}))
 		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("openai"), "openai")
 		require.Equal(t, in, out)
-		require.Same(t, &in[0], &out[0])
 	})
 }
 
