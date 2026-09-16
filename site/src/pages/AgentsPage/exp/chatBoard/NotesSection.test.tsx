@@ -1,7 +1,9 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
+import type { BoardCard } from "./boardLabels";
 import { NotesSection } from "./NotesSection";
 
 const notes = [
@@ -9,10 +11,20 @@ const notes = [
 	{ index: 3, timestamp: 2000, text: "later note" },
 ];
 
+const card: BoardCard = {
+	id: MockChat.id,
+	title: "Epic",
+	column: "Inbox",
+	color: undefined,
+	primary: MockChat,
+	members: [MockChat],
+	comments: notes,
+};
+
 const renderNotes = () => {
 	const handlers = { onAdd: vi.fn(), onEdit: vi.fn(), onRemove: vi.fn() };
 	renderComponent(
-		<NotesSection notes={notes} cardTitle="Epic" {...handlers} />,
+		<NotesSection card={card} noteDrop={undefined} {...handlers} />,
 	);
 	return handlers;
 };

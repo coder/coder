@@ -94,8 +94,16 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 		dropTarget?.kind === "insert" && dropTarget.column === column.name
 			? dropTarget.beforeCardId
 			: undefined;
+	// A note dropped on a card (not on one of its notes) is appended; the
+	// card shows the same ring as a merge target.
 	const mergeTargetId =
-		dropTarget?.kind === "merge" ? dropTarget.card.id : undefined;
+		dropTarget?.kind === "merge" || dropTarget?.kind === "noteCard"
+			? dropTarget.card.id
+			: undefined;
+	const noteDrop =
+		dropTarget?.kind === "note"
+			? { card: dropTarget.card.id, slot: dropTarget.slot }
+			: undefined;
 	const columnSide =
 		dropTarget?.kind === "column" && dropTarget.name === column.name
 			? dropTarget.side
@@ -173,6 +181,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 							card={card}
 							openChatIds={openChatIds}
 							isMergeTarget={mergeTargetId === card.id}
+							noteDrop={noteDrop?.card === card.id ? noteDrop.slot : undefined}
 							onSetTitle={(title) => onSetCardTitle(card, title)}
 							onSetColor={(color) => onSetCardColor(card, color)}
 							onRenameChat={onRenameChat}

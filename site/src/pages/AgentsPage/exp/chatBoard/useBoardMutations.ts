@@ -6,6 +6,7 @@ import type { Chat } from "#/api/typesGenerated";
 import {
 	addCommentLabels,
 	type BoardCard,
+	type BoardNote,
 	type CardColor,
 	commentLabels,
 	getTitleLabel,
@@ -14,6 +15,7 @@ import {
 	removeCommentLabels,
 	setColorLabel,
 	setColumnLabel,
+	setCommentsLabels,
 	setGroupLabel,
 	setPositionLabel,
 	setTitleLabel,
@@ -27,6 +29,9 @@ import { updateChatLabels } from "./updateChatLabels";
 const UNDO_MS = 10_000;
 
 type Write = { readonly chat: Chat; readonly labels: Record<string, string> };
+
+/** Where a moved note lands: before or after an existing note, or at the end. */
+export type NoteSlot = Readonly<{ index: number; side: "before" | "after" }>;
 
 /**
  * Every board action is a set of whole-label-map writes on the chats it
@@ -136,6 +141,39 @@ export const useBoardMutations = () => {
 		reported(
 			write(card.primary, removeCommentLabels(card.primary.labels, index)),
 		);
+
+	// Notes are renumbered on both cards so index stays the display order.
+	// Useful after a merge or ungroup, when a note belongs with another card.
+	const moveComment = (
+		from: BoardCard,
+		note: BoardNote,
+		to: BoardCard,
+		slot: NoteSlot | null,
+	) => {
+		const same = from.id === to.id;
+		const remaining = from.comments.filter((c) => c.index !== note.index);
+		const list = [...(same ? remaining : to.comments)];
+		const at = slot
+			? list.findIndex((c) => c.index === slot.index) +
+				(slot.side === "after" ? 1 : 0)
+			: list.length;
+		list.splice(at < 0 ? list.length : at, 0, note);
+		const writes: Write[] = [
+			{ chat: to.primary, labels: setCommentsLabels(to.primary.labels, list) },
+			...(same
+				? []
+				: [
+						{
+							chat: from.primary,
+							labels: setCommentsLabels(from.primary.labels, remaining),
+						},
+					]),
+		];
+		return commitUndoable(
+			writes,
+			same ? "Moved note" : `Moved note to "${to.title}"`,
+		);
+	};
 
 	// The side that keeps its primary: an existing group beats a single chat,
 	// then a titled card beats an untitled one, then the drop target. So a
@@ -266,6 +304,7 @@ export const useBoardMutations = () => {
 		addComment,
 		editComment,
 		removeComment,
+		moveComment,
 		mergeCards,
 		detachChat,
 		joinCard,
