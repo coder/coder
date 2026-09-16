@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -77,23 +76,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		u, err := url.Parse(str)
-		if err != nil {
-			return false
-		}
-		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
-			return false
-		}
-		if u.Scheme == "urn" {
-			return true
-		}
-		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
-			return false
-		}
-		if u.Opaque != "" || (u.Host == "" && u.Path == "") {
-			return false
-		}
-		return true
+		return codersdk.ValidateOAuth2CallbackURL(str) == nil
 	}
 	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
 	if err != nil {

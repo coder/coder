@@ -445,25 +445,20 @@ type authorizeResponse struct {
 	state    string
 }
 
-// registeredRedirectURIs returns the app's primary callback and its other
-// registered redirect URIs, parsed and deduplicated. CallbackURL is the primary
-// because admin-created apps have an empty RedirectUris list.
+// registeredRedirectURIs returns the app's registered redirect URIs, parsed,
+// with the primary first. It reads RegisteredRedirectURIs so enforcement and
+// the admin API agree on what is registered.
 func registeredRedirectURIs(app database.OAuth2ProviderApp) (primary *url.URL, alternates []*url.URL, err error) {
-	primary, err = url.Parse(app.CallbackURL)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("parse callback URL %q: %w", app.CallbackURL, err)
-	}
-	for _, s := range slice.Unique(app.RedirectUris) {
-		if s == app.CallbackURL {
-			continue
-		}
+	uris := app.RegisteredRedirectURIs()
+	parsed := make([]*url.URL, 0, len(uris))
+	for _, s := range uris {
 		u, err := url.Parse(s)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("parse registered redirect URI %q: %w", s, err)
 		}
-		alternates = append(alternates, u)
+		parsed = append(parsed, u)
 	}
-	return primary, alternates, nil
+	return parsed[0], parsed[1:], nil
 }
 
 // newAuthorizeResponse checks the app's registered redirect URIs, matches any
@@ -595,7 +590,7 @@ func logCorruptCallback(ctx context.Context, logger slog.Logger, app database.OA
 	logger.Error(ctx, "oauth2 app has an unusable registered callback URL",
 		slog.Error(err),
 		slog.F("app_id", app.ID.String()),
-		slog.F("callback_url", app.CallbackURL))
+		slog.F("redirect_uris", app.RegisteredRedirectURIs()))
 }
 
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.

@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 type WorkspaceStatus string
@@ -658,6 +659,15 @@ func (OAuth2ProviderApp) RBACObject() rbac.Object {
 // never skip client authentication by accident.
 func (a OAuth2ProviderApp) IsPublic() bool {
 	return a.ClientType == OAuth2ProviderAppClientTypePublic
+}
+
+// RegisteredRedirectURIs returns the redirect URIs the authorize and token
+// endpoints accept, primary first. RedirectUris is the source of truth.
+func (a OAuth2ProviderApp) RegisteredRedirectURIs() []string {
+	if len(a.RedirectUris) == 0 {
+		return []string{a.CallbackURL}
+	}
+	return slice.Unique(a.RedirectUris)
 }
 
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {

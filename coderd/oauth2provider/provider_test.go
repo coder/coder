@@ -14,6 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -214,7 +217,8 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 	t.Run("PublicDCRCallbackURLPolicy", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
 		_ = coderdtest.CreateFirstUser(t, client)
 		oauth2providertest.EnableDCR(t, client)
 
@@ -260,6 +264,11 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.callbackURL, updated.CallbackURL)
 				require.Equal(t, codersdk.OAuth2ClientTypePublic, updated.ClientType)
+
+				// The edit replaces the registered URI rather than adding to it.
+				stored, err := db.GetOAuth2ProviderAppByID(ctx, appID)
+				require.NoError(t, err)
+				require.Equal(t, []string{test.callbackURL}, stored.RedirectUris)
 			})
 		}
 	})
@@ -476,7 +485,8 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 	t.Run("BasicOperations", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
 		owner := coderdtest.CreateFirstUser(t, client)
 		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
@@ -513,6 +523,12 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.Equal(t, req.CallbackURL, newApp.CallbackURL)
 		require.Equal(t, req.Icon, newApp.Icon)
 		require.Equal(t, expectedApps.Default.ID, newApp.ID)
+
+		// The callback is stored as the app's only redirect URI.
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, newApp.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{req.CallbackURL}, stored.RedirectUris)
+		require.Equal(t, req.CallbackURL, stored.CallbackURL)
 
 		// Should be able to update name.
 		req = codersdk.PutOAuth2ProviderAppRequest{
@@ -605,4 +621,151 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 			create("app-y", "http://10.localhost:3000"),
 		},
 	}
+}
+
+// TestOAuth2ProviderAppRedirectURIs covers how the admin API reads and writes
+// an app's registered redirect URIs now that the list is the source of truth.
+func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
+	t.Parallel()
+
+	const (
+		first  = "https://a.example.com/callback"
+		second = "https://b.example.com/callback"
+		third  = "https://c.example.com/callback"
+	)
+
+	// A callback-only update replaces the previous primary and keeps the
+	// other registered URIs, so editing the callback moves it rather than
+	// adding to the set.
+	t.Run("LegacyCallbackMovesPrimary", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		registered := oauth2providertest.RegisterPublicClientWithRedirectURIs(t, client, "move-primary", first, second)
+		appID := uuid.MustParse(registered.ClientID)
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, []string{first, second}, stored.RedirectUris)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, appID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "move-primary",
+			CallbackURL: third,
+		})
+		require.NoError(t, err)
+		require.Equal(t, third, updated.CallbackURL)
+
+		stored, err = db.GetOAuth2ProviderAppByID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, []string{third, second}, stored.RedirectUris)
+		require.Equal(t, third, stored.CallbackURL)
+
+		// Sending the current primary again changes nothing.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, appID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: third,
+		})
+		require.NoError(t, err)
+
+		stored, err = db.GetOAuth2ProviderAppByID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, []string{third, second}, stored.RedirectUris)
+
+		// Choosing an existing alternate as the callback makes it primary
+		// and drops the previous one.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, appID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: second,
+		})
+		require.NoError(t, err)
+
+		stored, err = db.GetOAuth2ProviderAppByID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, []string{second}, stored.RedirectUris)
+	})
+
+	// callback_url is read from the list, never from the column.
+	t.Run("ColumnIsIgnoredOnRead", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			CallbackURL:  "https://stale.example.com/callback",
+			RedirectUris: []string{first, second},
+		})
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		got, err := client.OAuth2ProviderApp(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, first, got.CallbackURL)
+	})
+
+	// A created app stores its callback as the whole list, and both columns
+	// agree.
+	t.Run("CreateStoresCallbackAsList", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "create-list",
+			CallbackURL: first,
+		})
+		require.NoError(t, err)
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{first}, stored.RedirectUris)
+		require.Equal(t, first, stored.CallbackURL)
+	})
+
+	// An oversized callback is refused before it is parsed, on both create
+	// and update.
+	t.Run("OversizedCallback", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		prefix := "https://example.com/"
+		long := prefix + strings.Repeat("a", codersdk.OAuth2RedirectURIMaxBytes-len(prefix)+1)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "too-long",
+			CallbackURL: long,
+		})
+		requireCallbackURLValidationError(t, err)
+		require.ErrorContains(t, err, "at most 2048 bytes")
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "too-long",
+			CallbackURL: first,
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "too-long",
+			CallbackURL: long,
+		})
+		requireCallbackURLValidationError(t, err)
+	})
 }

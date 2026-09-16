@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -16,8 +17,81 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// resolveRedirectURIs returns the redirect URIs an app should have after a
+// create or update request. The first entry is the primary.
+//
+// If the request has redirectURIs, that list is used. If it also has
+// callbackURL, callbackURL is moved to the front of the list.
+// If the request has only callbackURL, an update replaces the first stored
+// URI with callbackURL and keeps the rest. A create uses callbackURL alone.
+// If the request has neither, the stored list is kept.
+// stored is nil on a create.
+func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
+	list := slice.Unique(redirectURIs)
+	if len(list) == 0 && len(stored) > 0 {
+		if callbackURL == "" {
+			return stored
+		}
+		list = stored[1:]
+	}
+	if callbackURL != "" {
+		list = slices.DeleteFunc(slices.Clone(list), func(s string) bool { return s == callbackURL })
+		list = append([]string{callbackURL}, list...)
+	}
+	return list
+}
+
+// validateRedirectURIs checks each URI the same way callback_url is checked:
+// it must parse, use an allowed scheme, and name a target. For a public app,
+// the redirect URI rules from dynamic client registration also apply.
+func validateRedirectURIs(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string) []codersdk.ValidationError {
+	field := func(uri string) string {
+		if uri != "" && uri == fromCallback {
+			return "callback_url"
+		}
+		return "redirect_uris"
+	}
+	if len(uris) == 0 {
+		return []codersdk.ValidationError{{
+			Field:  "redirect_uris",
+			Detail: "at least one redirect URI is required",
+		}}
+	}
+	if len(uris) > codersdk.OAuth2RedirectURIsMaxCount {
+		return []codersdk.ValidationError{{
+			Field:  "redirect_uris",
+			Detail: fmt.Sprintf("at most %d redirect URIs are allowed", codersdk.OAuth2RedirectURIsMaxCount),
+		}}
+	}
+	for i, uri := range uris {
+		if len(uri) > codersdk.OAuth2RedirectURIMaxBytes {
+			return []codersdk.ValidationError{{
+				Field:  field(uri),
+				Detail: fmt.Sprintf("redirect URI at index %d must be at most %d bytes", i, codersdk.OAuth2RedirectURIMaxBytes),
+			}}
+		}
+		if err := codersdk.ValidateOAuth2CallbackURL(uri); err != nil {
+			return []codersdk.ValidationError{{
+				Field:  field(uri),
+				Detail: fmt.Sprintf("redirect URI at index %d %s", i, err.Error()),
+			}}
+		}
+		if clientType != codersdk.OAuth2ClientTypePublic {
+			continue
+		}
+		if err := codersdk.ValidateRedirectURI(uri, clientType); err != nil {
+			return []codersdk.ValidationError{{
+				Field:  field(uri),
+				Detail: fmt.Sprintf("redirect URI at index %d: %s", i, err.Error()),
+			}}
+		}
+	}
+	return nil
+}
 
 // ListApps returns an http.HandlerFunc that handles GET /oauth2-provider/apps
 func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
@@ -84,14 +158,22 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, nil)
+		if errs := validateRedirectURIs(redirectURIs, codersdk.OAuth2ClientTypeConfidential, req.CallbackURL); errs != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Validation failed.",
+				Validations: errs,
+			})
+			return
+		}
 		app, err := db.InsertOAuth2ProviderApp(ctx, database.InsertOAuth2ProviderAppParams{
 			ID:                      uuid.New(),
 			CreatedAt:               dbtime.Now(),
 			UpdatedAt:               dbtime.Now(),
 			Name:                    req.Name,
 			Icon:                    req.Icon,
-			CallbackURL:             req.CallbackURL,
-			RedirectUris:            []string{},
+			CallbackURL:             redirectURIs[0],
+			RedirectUris:            redirectURIs,
 			ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
 			DynamicallyRegistered:   sql.NullBool{Bool: false, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{},
@@ -143,25 +225,25 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		clientType := codersdk.OAuth2ClientTypeConfidential
 		if app.IsPublic() {
-			if err := codersdk.ValidateRedirectURIs([]string{req.CallbackURL}, codersdk.OAuth2ClientTypePublic); err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Validation failed.",
-					Validations: []codersdk.ValidationError{{
-						Field:  "callback_url",
-						Detail: err.Error(),
-					}},
-				})
-				return
-			}
+			clientType = codersdk.OAuth2ClientTypePublic
+		}
+		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, app.RegisteredRedirectURIs())
+		if errs := validateRedirectURIs(redirectURIs, clientType, req.CallbackURL); errs != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Validation failed.",
+				Validations: errs,
+			})
+			return
 		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,
 			UpdatedAt:               dbtime.Now(),
 			Name:                    req.Name,
 			Icon:                    req.Icon,
-			CallbackURL:             req.CallbackURL,
-			RedirectUris:            app.RedirectUris,            // Keep existing value
+			CallbackURL:             redirectURIs[0],
+			RedirectUris:            redirectURIs,
 			ClientType:              app.ClientType,              // Keep existing value
 			DynamicallyRegistered:   app.DynamicallyRegistered,   // Keep existing value
 			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,   // Keep existing value
