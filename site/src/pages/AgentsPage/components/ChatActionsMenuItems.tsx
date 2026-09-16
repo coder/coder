@@ -13,11 +13,12 @@ import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
 } from "#/components/ContextMenu/ContextMenu";
-import type {
+import {
 	DropdownMenuItem,
-	DropdownMenuSeparator,
+	type DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatProjectActions } from "./ChatProjectActions";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -149,6 +150,10 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 						</Item>
 					)}
 					{subagentToggle}
+					<ChatProjectActions
+						chat={chat}
+						menu={Item === DropdownMenuItem ? "dropdown" : "context"}
+					/>
 					{showArchiveActions && (
 						<>
 							{(onOpenRenameDialog || showPinAction || showSubagentsToggle) && (

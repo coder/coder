@@ -1,14 +1,19 @@
-import { type FC, useState } from "react";
+import { XIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProject } from "#/api/queries/chatProjects";
 import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -25,12 +30,40 @@ const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
+	const projectId = searchParams.get("project") ?? "";
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: experiments.includes("chat-projects") && Boolean(projectId),
+	});
+	const selectedProject = projectQuery.data;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+
+	useEffect(() => {
+		if (
+			!projectId ||
+			!experiments.includes("chat-projects") ||
+			!isApiError(projectQuery.error) ||
+			projectQuery.error.response.status !== 404
+		) {
+			return;
+		}
+		const nextSearchParams = new URLSearchParams(searchParams);
+		nextSearchParams.delete("project");
+		setSearchParams(nextSearchParams, { replace: true });
+	}, [
+		experiments,
+		projectId,
+		projectQuery.error,
+		searchParams,
+		setSearchParams,
+	]);
 
 	const handleCreateChat = async ({
 		message,
@@ -52,7 +85,7 @@ const AgentCreatePage: FC = () => {
 			}
 		}
 		const createRequest: TypesGen.CreateChatRequest = {
-			organization_id: organizationId,
+			organization_id: selectedProject?.organization_id ?? organizationId,
 			content,
 			workspace_id: workspaceId,
 			mcp_server_ids:
@@ -61,6 +94,7 @@ const AgentCreatePage: FC = () => {
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+			...(selectedProject ? { project_id: selectedProject.id } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
@@ -103,6 +137,26 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
+			{selectedProject && (
+				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
+					<Badge size="sm" className="w-fit">
+						Project: {selectedProject.name}
+						<Button
+							variant="subtle"
+							size="icon"
+							className="-my-1 size-5 min-w-0"
+							aria-label="Remove project"
+							onClick={() => {
+								const nextSearchParams = new URLSearchParams(searchParams);
+								nextSearchParams.delete("project");
+								setSearchParams(nextSearchParams);
+							}}
+						>
+							<XIcon className="size-3" />
+						</Button>
+					</Badge>
+				</div>
+			)}
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
 				isCreating={createMutation.isPending}
