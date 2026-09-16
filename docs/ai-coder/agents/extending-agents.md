@@ -55,6 +55,14 @@ Only instruction files are read from these subdirectories, not skills or `.mcp.j
 The agent skips symlinked child directories, never scans deeper for instruction files, and never climbs to a parent directory.
 To pick up context in another directory, declare that directory as its own source.
 
+### Nested instruction files
+
+A repository often keeps extra instruction files below its root, such as a `site/AGENTS.md` for the frontend.
+The snapshot does not include them, so the chat loads them on demand instead.
+When the agent reads, writes, or edits a file, or runs a command in an explicit working directory, the chat looks for instruction files in that directory and in each parent directory up to the workspace working directory, and adds any it finds to that chat only.
+These files are pinned like other resources: they appear in the chat's context list and are read again when you select **Refresh context**.
+Edits to a nested file do not mark the chat out of date, because the agent does not watch nested directories.
+
 ### Snapshot limits
 
 A snapshot is capped so a large workspace cannot flood a chat's prompt:

@@ -18,9 +18,12 @@ type ReadFileArgs struct {
 	Limit  *int64 `json:"limit,omitempty"`
 }
 
+// ReadFileToolName is the registered name of the read_file tool.
+const ReadFileToolName = "read_file"
+
 func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"read_file",
+		ReadFileToolName,
 		"Read a file from the workspace. Returns line-numbered content. "+
 			"The offset parameter is a 1-based line number (default: 1). "+
 			"The limit parameter is the number of lines to return (default: 2000). "+

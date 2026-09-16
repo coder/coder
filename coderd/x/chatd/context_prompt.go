@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -320,6 +321,14 @@ func contextResourcesToPrompt(
 	case len(contextFileParts) == 0:
 		note = emptyNote
 	}
+	// Root files come before the nested files that refine them, whatever
+	// order the rows were pinned in.
+	slices.SortStableFunc(contextFileParts, func(a, b codersdk.ChatMessagePart) int {
+		if da, db := strings.Count(a.ContextFilePath, "/"), strings.Count(b.ContextFilePath, "/"); da != db {
+			return da - db
+		}
+		return strings.Compare(a.ContextFilePath, b.ContextFilePath)
+	})
 	return formatSystemInstructions(operatingSystem, directory, note, contextFileParts), skills, malformed
 }
 

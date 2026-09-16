@@ -17,19 +17,18 @@ import (
 	reflect "reflect"
 	time "time"
 
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-	ssh "golang.org/x/crypto/ssh"
-	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	ipnstate "tailscale.com/ipn/ipnstate"
-	speedtest "tailscale.com/net/speedtest"
-
 	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
 	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
 	tailnet "github.com/coder/coder/v2/tailnet"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
+	ssh "golang.org/x/crypto/ssh"
+	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	ipnstate "tailscale.com/ipn/ipnstate"
+	speedtest "tailscale.com/net/speedtest"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -467,6 +466,21 @@ func (m *MockAgentConn) RecreateDevcontainer(ctx context.Context, devcontainerID
 func (mr *MockAgentConnMockRecorder) RecreateDevcontainer(ctx, devcontainerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecreateDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).RecreateDevcontainer), ctx, devcontainerID)
+}
+
+// ResolveContextInstructions mocks base method.
+func (m *MockAgentConn) ResolveContextInstructions(ctx context.Context, req workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveContextInstructions", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.ResolveContextInstructionsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveContextInstructions indicates an expected call of ResolveContextInstructions.
+func (mr *MockAgentConnMockRecorder) ResolveContextInstructions(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveContextInstructions", reflect.TypeOf((*MockAgentConn)(nil).ResolveContextInstructions), ctx, req)
 }
 
 // ResolvePath mocks base method.

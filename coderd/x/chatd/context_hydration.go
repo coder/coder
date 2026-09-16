@@ -299,7 +299,9 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 // (hash, error, and resource bodies) and clears the dirty marker. It backs
 // PUT /chats/{chat}/context (no body). A chat with no bound agent, or whose
 // agent has no snapshot, simply has its pinned hash, dirty marker, and
-// resources cleared.
+// resources cleared. Instruction files discovered from tool-touched
+// directories are re-read through the agent afterwards so they come back at
+// their current contents.
 //
 // The snapshot read and the re-pin run in one repeatable-read transaction so a
 // concurrent push cannot land between them and leave the chat pinned to a
@@ -307,6 +309,13 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (database.Chat, error) {
 	//nolint:gocritic // Chatd re-pins the chat as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
+
+	// The clear-then-copy below drops discovered rows, so capture their
+	// directories first. A read failure only costs the re-discovery.
+	var discoveredDirs []string
+	if rows, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID); err == nil {
+		discoveredDirs = discoveredInstructionDirs(rows)
+	}
 
 	var updated database.Chat
 	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
@@ -331,5 +340,6 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 	if err != nil {
 		return database.Chat{}, err
 	}
+	p.rediscoverInstructionContext(ctx, updated, discoveredDirs)
 	return updated, nil
 }

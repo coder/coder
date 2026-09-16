@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -173,4 +176,87 @@ func TestAPI_AddSourceMalformedBody(t *testing.T) {
 
 	status, _ := doRequest(t, http.MethodPost, srv.URL+"/sources", bytes.NewReader([]byte("{not json")))
 	require.Equal(t, http.StatusBadRequest, status)
+}
+
+func TestAPI_ResolveInstructions(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	root := testutil.TempDirResolved(t)
+	outside := testutil.TempDirResolved(t)
+	mustWriteFile(t, filepath.Join(root, "site", "AGENTS.md"), "site rules")
+	mustWriteFile(t, filepath.Join(root, "site", "CLAUDE.md"), "claude rules")
+	mustWriteFile(t, filepath.Join(root, "site", "agents.md"), "wrong case")
+	mustWriteFile(t, filepath.Join(root, "plain", "README.md"), "no instructions")
+	mustWriteFile(t, filepath.Join(root, "big", "AGENTS.md"), "this file is too large")
+	mustWriteFile(t, filepath.Join(outside, "AGENTS.md"), "outside")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "linked"), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(outside, "AGENTS.md"), filepath.Join(root, "linked", "AGENTS.md")))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "dirnamed", "AGENTS.md"), 0o755))
+
+	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return root },
+		Resolver:   &agentcontext.Resolver{MaxResourceBytes: 16},
+	})
+	resolve := func(dirs ...string) (int, workspacesdk.ResolveContextInstructionsResponse) {
+		t.Helper()
+		body, err := json.Marshal(workspacesdk.ResolveContextInstructionsRequest{Directories: dirs})
+		require.NoError(t, err)
+		status, raw := doRequest(t, http.MethodPost, srv.URL+"/instructions", bytes.NewReader(body))
+		var resp workspacesdk.ResolveContextInstructionsResponse
+		if status == http.StatusOK {
+			require.NoError(t, json.Unmarshal(raw, &resp))
+		}
+		return status, resp
+	}
+
+	status, resp := resolve(
+		filepath.Join(root, "site"),
+		filepath.Join(root, "plain"),
+		filepath.Join(root, "missing"),
+		filepath.Join(root, "big"),
+		filepath.Join(root, "linked"),
+		filepath.Join(root, "dirnamed"),
+		filepath.Join(root, "site", "..", "site"),
+	)
+	require.Equal(t, http.StatusOK, status)
+	bySource := make(map[string]workspacesdk.ContextInstructionFile, len(resp.Files))
+	for _, file := range resp.Files {
+		bySource[file.Source] = file
+	}
+	require.Len(t, bySource, 4, "plain, missing, and directory-named entries contribute nothing: %+v", resp.Files)
+	require.Len(t, resp.Files, 6, "a directory listed twice is read twice")
+
+	site := bySource[filepath.Join(root, "site", "AGENTS.md")]
+	require.Equal(t, filepath.Join(root, "site"), site.Directory)
+	require.Equal(t, "ok", site.Status)
+	require.Equal(t, "site rules", site.Content)
+	require.EqualValues(t, len("site rules"), site.SizeBytes)
+	require.Len(t, site.ContentHash, 64, "sha256 hex")
+	require.Equal(t, "claude rules", bySource[filepath.Join(root, "site", "CLAUDE.md")].Content)
+
+	big := bySource[filepath.Join(root, "big", "AGENTS.md")]
+	require.Equal(t, "oversize", big.Status)
+	require.Empty(t, big.Content)
+	require.NotEmpty(t, big.Error)
+
+	linked := bySource[filepath.Join(root, "linked", "AGENTS.md")]
+	require.Equal(t, "invalid", linked.Status)
+	require.Empty(t, linked.Content, "an escaping symlink target is never shipped")
+	require.Contains(t, linked.Error, "escapes scan root")
+
+	status, _ = resolve("relative/dir")
+	require.Equal(t, http.StatusBadRequest, status)
+
+	tooMany := make([]string, 0, workspacesdk.MaxContextInstructionDirectories+1)
+	for range workspacesdk.MaxContextInstructionDirectories + 1 {
+		tooMany = append(tooMany, filepath.Join(root, "site"))
+	}
+	status, _ = resolve(tooMany...)
+	require.Equal(t, http.StatusBadRequest, status)
+
+	status, resp = resolve()
+	require.Equal(t, http.StatusOK, status)
+	require.Empty(t, resp.Files)
 }

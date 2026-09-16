@@ -444,6 +444,23 @@ func directoryEntryNames(dir string) map[string]struct{} {
 	return names
 }
 
+// ResolveInstructionFiles reads the instruction files that sit directly
+// in dir, applying the same name, symlink-containment, and size rules as
+// snapshot discovery with dir as the containment root. It backs the
+// on-demand instructions endpoint chatd calls for directories a tool
+// touched, so nested files match what a scan root would have produced.
+// A missing or non-directory dir yields nothing.
+func (r *Resolver) ResolveInstructionFiles(dir string) []Resource {
+	r = r.normalize()
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+	var out []Resource
+	r.readInstructionFilesIn(dir, &out, make(map[string]int))
+	return out
+}
+
 // appendResource adds res to out unless an earlier resource already claimed
 // its ID. A valid occurrence replaces an earlier invalid one because the same
 // path can be outside a narrow scan root but valid inside a later broader root.
