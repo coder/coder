@@ -101,6 +101,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
@@ -890,6 +891,10 @@ func New(options *Options) *API {
 		if maxChatsPerAcquire < math.MinInt32 {
 			maxChatsPerAcquire = math.MinInt32
 		}
+		streamSilenceTimeout := options.DeploymentValues.AI.Chat.StreamSilenceTimeout.Value()
+		if streamSilenceTimeout == 0 {
+			streamSilenceTimeout = chatloop.StreamSilenceTimeoutDisabled
+		}
 
 		var oidcMCPSrc mcpclient.UserOIDCTokenSource
 		if options.OIDCConfig != nil {
@@ -946,7 +951,7 @@ func New(options *Options) *API {
 				AllowBYOKSet:                   true,
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
-				StreamSilenceTimeout:           options.DeploymentValues.AI.Chat.StreamSilenceTimeout.Value(),
+				StreamSilenceTimeout:           streamSilenceTimeout,
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,

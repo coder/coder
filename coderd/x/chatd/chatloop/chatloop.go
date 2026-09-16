@@ -39,7 +39,11 @@ const (
 	// the attempt is canceled and retried. Callers may override it
 	// with GenerateAssistantOptions.StreamSilenceTimeout.
 	DefaultStreamSilenceTimeout = 10 * time.Minute
-	streamSilenceGuardTimerTag  = "streamSilenceGuard"
+	// StreamSilenceTimeoutDisabled turns the silence guard off. A
+	// silent stream then only ends when the provider or the caller
+	// ends it. Any negative timeout has the same effect.
+	StreamSilenceTimeoutDisabled time.Duration = -1
+	streamSilenceGuardTimerTag                 = "streamSilenceGuard"
 )
 
 var (
@@ -278,7 +282,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
-	if opts.StreamSilenceTimeout <= 0 {
+	if opts.StreamSilenceTimeout == 0 {
 		opts.StreamSilenceTimeout = DefaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
@@ -692,6 +696,9 @@ func newStreamSilenceGuard(
 		cancel:  cancel,
 		timeout: timeout,
 	}
+	if timeout < 0 {
+		return guard
+	}
 	guard.timer = clock.AfterFunc(
 		timeout,
 		guard.onTimeout,
@@ -720,14 +727,14 @@ func (g *streamSilenceGuard) onTimeout() {
 func (g *streamSilenceGuard) Reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.settled {
+	if g.settled || g.timer == nil {
 		return
 	}
 	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
 }
 
 func (g *streamSilenceGuard) Disarm() {
-	if !g.settle() {
+	if !g.settle() || g.timer == nil {
 		return
 	}
 	g.timer.Stop()
@@ -757,7 +764,8 @@ type streamWatchdogKey struct{}
 // with the silence timeout each time the guard arms or resets. A caller's
 // idle watchdog can use it to stay quiet until the guard has had its
 // chance to fire, so a silent stream fails through the guard and a
-// healthy long stream is not canceled as a hang.
+// healthy long stream is not canceled as a hang. A negative silence
+// means the guard is disabled and nothing bounds the stream.
 func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) context.Context {
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }

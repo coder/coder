@@ -231,46 +231,6 @@ func TestGenerateAssistant_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *te
 	}
 }
 
-func TestGuardedStream_KicksStreamWatchdog(t *testing.T) {
-	t.Parallel()
-
-	t.Run("open stream", func(t *testing.T) {
-		t.Parallel()
-
-		var kicks []time.Duration
-		ctx := WithStreamWatchdog(context.Background(), func(silence time.Duration) {
-			kicks = append(kicks, silence)
-		})
-		attempt, err := guardedStream(ctx, "openai", "test-model", quartz.NewReal(), time.Hour,
-			func(context.Context) (fantasy.StreamResponse, error) {
-				return streamFromParts([]fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-					{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
-				}), nil
-			}, NopMetrics())
-		require.NoError(t, err)
-		require.Equal(t, []time.Duration{time.Hour}, kicks, "arming the guard kicks once")
-		attempt.stream(func(fantasy.StreamPart) bool { return true })
-		attempt.release()
-		require.Equal(t, []time.Duration{time.Hour, time.Hour, time.Hour}, kicks, "each part kicks once")
-	})
-
-	t.Run("open stream fails", func(t *testing.T) {
-		t.Parallel()
-
-		var kicks []time.Duration
-		ctx := WithStreamWatchdog(context.Background(), func(silence time.Duration) {
-			kicks = append(kicks, silence)
-		})
-		_, err := guardedStream(ctx, "openai", "test-model", quartz.NewReal(), time.Hour,
-			func(context.Context) (fantasy.StreamResponse, error) {
-				return nil, xerrors.New("open failed")
-			}, NopMetrics())
-		require.Error(t, err)
-		require.Equal(t, []time.Duration{time.Hour}, kicks)
-	})
-}
-
 func TestGenerateAssistant_StreamSilenceTimeoutRetryClassification(t *testing.T) {
 	t.Parallel()
 

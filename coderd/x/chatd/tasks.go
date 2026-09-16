@@ -164,7 +164,13 @@ func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) 
 	// Each stream part defers the watchdog past the silence guard, so a
 	// silent stream fails through chat retry handling rather than as a
 	// generic task hang, and a healthy long stream is never cut off.
+	// With the guard disabled nothing bounds the stream, so the watchdog
+	// stops for the rest of the attempt.
 	attemptCtx = chatloop.WithStreamWatchdog(attemptCtx, func(silence time.Duration) {
+		if silence < 0 {
+			timer.Stop()
+			return
+		}
 		timer.Reset(max(defaultTaskTimeout, silence+taskTimeoutMargin), "chatworker", tag)
 	})
 	return attemptCtx, func() {

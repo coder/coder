@@ -17,7 +17,8 @@ type RuntimeConfig struct {
 	MaxUsesPerRun   int
 	MaxOutputTokens int64
 	// StreamSilenceTimeout bounds how long a nested advisor stream may stay
-	// silent. Zero uses chatloop.DefaultStreamSilenceTimeout.
+	// silent. Zero uses chatloop.DefaultStreamSilenceTimeout and
+	// chatloop.StreamSilenceTimeoutDisabled turns the bound off.
 	StreamSilenceTimeout time.Duration
 }
 

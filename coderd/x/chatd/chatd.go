@@ -3003,7 +3003,8 @@ type Config struct {
 
 	// StreamSilenceTimeout bounds how long a model stream may stay silent
 	// before the attempt is canceled and retried. Zero uses
-	// chatloop.DefaultStreamSilenceTimeout.
+	// chatloop.DefaultStreamSilenceTimeout and
+	// chatloop.StreamSilenceTimeoutDisabled turns the bound off.
 	StreamSilenceTimeout time.Duration
 }
 
@@ -3034,7 +3035,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	}
 
 	streamSilenceTimeout := cfg.StreamSilenceTimeout
-	if streamSilenceTimeout <= 0 {
+	if streamSilenceTimeout == 0 {
 		streamSilenceTimeout = chatloop.DefaultStreamSilenceTimeout
 	}
 
