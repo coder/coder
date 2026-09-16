@@ -940,9 +940,10 @@ func (s *taskStarter) executeLocalTools(
 	}
 	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
 	// Pin nested instruction files before the step commits so the next
-	// preparation reads them; only executed calls count, so the denied
-	// results appended below are excluded.
-	if prepared.DiscoverInstructions != nil {
+	// preparation reads them. Only executed calls count: an exclusively
+	// rejected batch holds synthetic policy errors for calls that never ran,
+	// and the denied results appended below are excluded.
+	if prepared.DiscoverInstructions != nil && !exclusiveRejected {
 		prepared.DiscoverInstructions(ctx, allowed, outcome.Content)
 	}
 	for _, result := range denied {

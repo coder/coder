@@ -106,9 +106,21 @@ func TestLazyInstructionDiscoveryInjectsBeforeNextStep(t *testing.T) {
 		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
 	// Only the nested directory is probed: the working directory itself is a
 	// scan root, and the file's own directory (site/src) is probed alongside.
+	// A second file the agent could not fit into the response is reported
+	// as excluded and pinned without a body.
+	excludedSource := discoveryNestedDir + "/CLAUDE.md"
+	probe := instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules")
+	probe.Files = append(probe.Files, workspacesdk.ContextInstructionFile{
+		Directory:   discoveryNestedDir,
+		Source:      excludedSource,
+		ContentHash: probe.Files[0].ContentHash,
+		SizeBytes:   1 << 16,
+		Status:      "excluded",
+		Error:       "response content cap exceeded",
+	})
 	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
 		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
-	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules"), nil)
+	}).Return(probe, nil)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -138,6 +150,8 @@ func TestLazyInstructionDiscoveryInjectsBeforeNextStep(t *testing.T) {
 	require.NotEqual(t, -1, nestedIdx, "the discovered file is in the next model request")
 	require.Less(t, rootIdx, nestedIdx, "root files precede nested ones")
 	require.Contains(t, prompt, "site rules")
+	require.Contains(t, prompt, excludedSource+" (excluded)", "the model is told about the file it could not receive")
+	require.NotContains(t, prompt, "Source: "+excludedSource)
 
 	//nolint:gocritic // Reading chat-owned rows as the chatd subject.
 	rows, err := db.ListChatContextResourcesByChatID(dbauthz.AsChatd(ctx), chat.ID)
@@ -146,9 +160,93 @@ func TestLazyInstructionDiscoveryInjectsBeforeNextStep(t *testing.T) {
 	for _, row := range rows {
 		bySource[row.Source] = row
 	}
-	require.Len(t, bySource, 2)
+	require.Len(t, bySource, 3)
 	require.False(t, bySource[discoveryRootSource].Discovered)
 	require.True(t, bySource[discoveryNestedSource].Discovered, "the nested file is pinned as a discovered row")
+	require.True(t, bySource[excludedSource].Discovered)
+	require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, bySource[excludedSource].Status, "an excluded file is part of the inventory")
+}
+
+// TestLazyInstructionDiscoveryReconcilesRemovedFiles checks that a
+// directory the step wrote an instruction file into is probed again and
+// that a discovered row the probe no longer returns is dropped, so a
+// deleted or renamed nested file does not keep steering the chat.
+func TestLazyInstructionDiscoveryReconcilesRemovedFiles(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	replacementSource := discoveryNestedDir + "/CLAUDE.md"
+	var modelCalls atomic.Int32
+	thirdPrompt := make(chan string, 1)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		switch modelCalls.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		case 2:
+			require.Contains(t, systemPromptContaining(req), "Source: "+discoveryNestedSource)
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("write_file", `{"path":"`+replacementSource+`","content":"new rules"}`))
+		case 3:
+			thirdPrompt <- systemPromptContaining(req)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	//nolint:gocritic // Seeding agent context as the chatd subject.
+	seedAgentInstructionContext(dbauthz.AsChatd(ctx), t, db, dbAgent.ID, discoveryRootSource, "root rules")
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	mockConn.EXPECT().WriteFile(gomock.Any(), replacementSource, gomock.Any()).Return(nil)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules"), nil)
+	// Writing CLAUDE.md makes site stale, so it is probed again despite its
+	// pinned row; the answer no longer lists AGENTS.md.
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir},
+	}).Return(instructionFileResponse(discoveryNestedDir, replacementSource, "new rules"), nil)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-removed",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("swap the rules file"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	prompt := testutil.RequireReceive(ctx, t, thirdPrompt)
+	require.Contains(t, prompt, "Source: "+replacementSource)
+	require.NotContains(t, prompt, discoveryNestedSource, "the removed file is gone from the next model request")
+
+	//nolint:gocritic // Reading chat-owned rows as the chatd subject.
+	rows, err := db.ListChatContextResourcesByChatID(dbauthz.AsChatd(ctx), chat.ID)
+	require.NoError(t, err)
+	sources := make([]string, 0, len(rows))
+	for _, row := range rows {
+		sources = append(sources, row.Source)
+	}
+	require.ElementsMatch(t, []string{discoveryRootSource, replacementSource}, sources)
 }
 
 // TestLazyInstructionDiscoveryNeverFailsStep checks that an agent that

@@ -1,12 +1,20 @@
 package chatd
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTouchedPaths(t *testing.T) {
@@ -73,6 +81,12 @@ func TestCandidateInstructionDirs(t *testing.T) {
 		t.Parallel()
 		got := candidateInstructionDirs([]string{"C:/repo/site/src/App.tsx", "D:/other/x/y.txt"}, nil, "C:\\repo")
 		require.Equal(t, []string{"D:/other", "C:/repo/site", "D:/other/x", "C:/repo/site/src"}, got, "the walk stops at the drive root and below the working directory")
+
+		// Windows file systems are case-insensitive, so a differently cased
+		// drive or directory is still inside the working directory, and two
+		// spellings of one directory are one candidate.
+		got = candidateInstructionDirs([]string{"c:/Repo/site/src/App.tsx", "C:/repo/SITE/a.ts"}, nil, "C:\\repo")
+		require.Equal(t, []string{"c:/Repo/site", "c:/Repo/site/src"}, got)
 	})
 
 	t.Run("OutsideWorkingDirStopsBelowRoot", func(t *testing.T) {
@@ -101,14 +115,14 @@ func TestCandidateInstructionDirs(t *testing.T) {
 		require.Len(t, got, maxInstructionAncestorDepth)
 	})
 
-	t.Run("RequestCap", func(t *testing.T) {
+	t.Run("NoRequestCap", func(t *testing.T) {
 		t.Parallel()
 		var dirs []string
 		for i := range 50 {
 			dirs = append(dirs, "/tmp/"+string(rune('a'+i%26))+string(rune('a'+i/26)))
 		}
 		got := candidateInstructionDirs(nil, dirs, workingDir)
-		require.Len(t, got, 32)
+		require.Len(t, got, 51, "candidates are batched at request time, not truncated here")
 		require.Equal(t, "/tmp", got[0], "the shared parent sorts first")
 	})
 }
@@ -132,6 +146,58 @@ func TestSelectInstructionProbes(t *testing.T) {
 		pinned, stale, negative,
 	)
 	require.Equal(t, []string{"/repo/site", "/repo/site/src", "/repo/pkg", "/repo/lib"}, got)
+
+	// A pinned Windows directory matches however the tool spelled it.
+	got = selectInstructionProbes([]string{"c:/Repo/site", "C:/repo/docs"}, map[string]struct{}{"c:/repo/site": {}}, nil, func(string) bool { return false })
+	require.Equal(t, []string{"C:/repo/docs"}, got)
+}
+
+func TestRemovedDiscoveredSources(t *testing.T) {
+	t.Parallel()
+
+	rows := []database.ChatContextResource{
+		{Source: "/repo/site/AGENTS.md", Discovered: true},
+		{Source: "/repo/site/CLAUDE.md", Discovered: true},
+		{Source: "/repo/pkg/AGENTS.md", Discovered: true},
+		{Source: "/repo/lib/AGENTS.md", Discovered: true},
+		{Source: "/repo/docs/AGENTS.md", Discovered: true},
+		{Source: "/repo/AGENTS.md", Discovered: false},
+		{Source: "C:\\repo\\win\\AGENTS.md", Discovered: true},
+	}
+	stale := staleInstructionDirs([]string{"/repo/site/CLAUDE.md", "/repo/AGENTS.md"}, []string{"/repo/pkg", "/repo/lib", "c:/repo/win"})
+	probed := []string{"/repo/site", "/repo/pkg", "/repo/docs", "C:/repo/win"}
+	returned := map[string]struct{}{"/repo/site/CLAUDE.md": {}}
+
+	// site: AGENTS.md vanished, CLAUDE.md was returned. pkg: stale and probed,
+	// nothing returned. lib: stale but its batch failed, so it is kept. docs:
+	// probed but not stale, so a missing answer is not evidence. The root
+	// row is a snapshot copy, never touched. The Windows row matches its
+	// directory case-insensitively.
+	require.Equal(t, []string{"/repo/site/AGENTS.md", "/repo/pkg/AGENTS.md", "C:\\repo\\win\\AGENTS.md"}, removedDiscoveredSources(rows, stale, probed, returned))
+}
+
+// TestResolveInstructionDirsBatches checks that a probe larger than one
+// request is split at the agent limit and that a failed batch keeps the
+// answers and the coverage of the batches before it.
+func TestResolveInstructionDirsBatches(t *testing.T) {
+	t.Parallel()
+
+	dirs := make([]string, 0, 40)
+	for i := range 40 {
+		dirs = append(dirs, "/tmp/"+string(rune('a'+i%26))+string(rune('a'+i/26)))
+	}
+	found := workspacesdk.ContextInstructionFile{Directory: dirs[0], Source: dirs[0] + "/AGENTS.md", Status: "ok"}
+
+	ctrl := gomock.NewController(t)
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{Directories: dirs[:32]}).
+		Return(workspacesdk.ResolveContextInstructionsResponse{Files: []workspacesdk.ContextInstructionFile{found}}, nil)
+	conn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{Directories: dirs[32:]}).
+		Return(workspacesdk.ResolveContextInstructionsResponse{}, xerrors.New("agent gone"))
+
+	files, probed := resolveInstructionDirs(context.Background(), testutil.Logger(t), conn, dirs)
+	require.Equal(t, []workspacesdk.ContextInstructionFile{found}, files)
+	require.Equal(t, dirs[:32], probed, "only the directories the agent answered for count as probed")
 }
 
 func TestInstructionProbeCache(t *testing.T) {
@@ -150,6 +216,11 @@ func TestInstructionProbeCache(t *testing.T) {
 	cache.forget(agentID, []string{"/tmp/repo"})
 	require.False(t, cache.negative(now, agentID, "/tmp/repo"))
 	require.True(t, cache.negative(now, agentID, "/tmp"))
+
+	cache.markNegative(now, agentID, []string{"C:/Repo/site"})
+	require.True(t, cache.negative(now, agentID, "c:/repo/site"), "Windows directories match case-insensitively")
+	cache.forget(agentID, []string{"c:/REPO/site"})
+	require.False(t, cache.negative(now, agentID, "C:/Repo/site"))
 
 	// Filling the cache past its bound resets it instead of growing.
 	many := make([]string, 0, maxInstructionProbeEntries)

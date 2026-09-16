@@ -310,14 +310,10 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 	//nolint:gocritic // Chatd re-pins the chat as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
 
-	// The clear-then-copy below drops discovered rows, so capture their
-	// directories first. A read failure only costs the re-discovery.
-	var discoveredDirs []string
-	if rows, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID); err == nil {
-		discoveredDirs = discoveredInstructionDirs(rows)
-	}
-
-	var updated database.Chat
+	var (
+		updated        database.Chat
+		discoveredDirs []string
+	)
 	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
 		// Re-read the chat inside the transaction so a serialization-conflict
 		// retry re-pins against the chat's current agent. Using the AgentID
@@ -327,6 +323,15 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 		if err != nil {
 			return xerrors.Errorf("get chat for refresh: %w", err)
 		}
+		// The clear-then-copy below drops discovered rows, so capture their
+		// directories on the same snapshot it deletes from: a row a running
+		// step discovers meanwhile is either listed here or survives the
+		// delete, never lost.
+		rows, err := tx.ListChatContextResourcesByChatID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("list chat context resources for refresh: %w", err)
+		}
+		discoveredDirs = discoveredInstructionDirs(rows)
 		if err := repinChatContext(ctx, tx, current.ID, current.AgentID); err != nil {
 			return err
 		}

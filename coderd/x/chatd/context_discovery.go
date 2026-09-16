@@ -39,6 +39,10 @@ const (
 	// maxInstructionProbeEntries bounds the negative cache across all
 	// agents; the cache is reset when it fills.
 	maxInstructionProbeEntries = 4096
+	// maxInstructionProbesPerStep bounds the directories one step asks the
+	// agent about once pinned and cached-negative ones are filtered, so a
+	// step that touches many trees costs at most a few round trips.
+	maxInstructionProbesPerStep = 4 * workspacesdk.MaxContextInstructionDirectories
 )
 
 // instructionFileNames mirrors the agent resolver's recognized names so a
@@ -65,7 +69,7 @@ type instructionProbeKey struct {
 func (c *instructionProbeCache) negative(now time.Time, agentID uuid.UUID, dir string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	expiry, ok := c.entries[instructionProbeKey{agentID: agentID, dir: dir}]
+	expiry, ok := c.entries[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}]
 	return ok && now.Before(expiry)
 }
 
@@ -89,7 +93,7 @@ func (c *instructionProbeCache) markNegative(now time.Time, agentID uuid.UUID, d
 		}
 	}
 	for _, dir := range dirs {
-		c.entries[instructionProbeKey{agentID: agentID, dir: dir}] = now.Add(instructionProbeTTL)
+		c.entries[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}] = now.Add(instructionProbeTTL)
 	}
 }
 
@@ -97,7 +101,7 @@ func (c *instructionProbeCache) forget(agentID uuid.UUID, dirs []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, dir := range dirs {
-		delete(c.entries, instructionProbeKey{agentID: agentID, dir: dir})
+		delete(c.entries, instructionProbeKey{agentID: agentID, dir: pathKey(dir)})
 	}
 }
 
@@ -106,6 +110,16 @@ func (c *instructionProbeCache) forget(agentID uuid.UUID, dirs []string) {
 // Windows agent paths alike. Windows accepts forward slashes on the way back.
 func agentPath(p string) string {
 	return path.Clean(strings.ReplaceAll(p, "\\", "/"))
+}
+
+// pathKey is the comparison form of a normalized path. Windows file systems
+// are case-insensitive by default, so drive-rooted paths compare folded;
+// POSIX paths compare as they are.
+func pathKey(p string) string {
+	if len(p) >= 2 && p[1] == ':' {
+		return strings.ToLower(p)
+	}
+	return p
 }
 
 // isAbsAgentPath accepts a POSIX root or a Windows drive root such as C:/.
@@ -178,21 +192,22 @@ func touchedPaths(calls []fantasy.ToolCallContent, results []fantasy.Content) (f
 // ancestors, stopping below the working directory (its own files and those
 // of its child projects arrive through the snapshot) and below the root.
 // Directories above the working directory are not candidates either; only
-// nested files refine the pinned ones. The result is deduplicated, ordered
-// shallowest first, and capped at the agent request limit.
+// nested files refine the pinned ones. The result is deduplicated and
+// ordered shallowest first.
 func candidateInstructionDirs(files, dirs []string, workingDir string) []string {
-	workingDir = agentPath(workingDir)
+	workingKey := pathKey(agentPath(workingDir))
 	seen := make(map[string]struct{})
 	var out []string
 	visit := func(dir string) {
 		for depth := 0; depth < maxInstructionAncestorDepth; depth++ {
-			if isRootAgentPath(dir) || dir == workingDir || (workingDir != "/" && strings.HasPrefix(workingDir+"/", dir+"/")) {
+			key := pathKey(dir)
+			if isRootAgentPath(dir) || key == workingKey || (workingKey != "/" && strings.HasPrefix(workingKey+"/", key+"/")) {
 				return
 			}
-			if _, ok := seen[dir]; ok {
+			if _, ok := seen[key]; ok {
 				return
 			}
-			seen[dir] = struct{}{}
+			seen[key] = struct{}{}
 			out = append(out, dir)
 			dir = path.Dir(dir)
 		}
@@ -209,24 +224,22 @@ func candidateInstructionDirs(files, dirs []string, workingDir string) []string 
 		}
 		return strings.Compare(a, b)
 	})
-	if len(out) > workspacesdk.MaxContextInstructionDirectories {
-		out = out[:workspacesdk.MaxContextInstructionDirectories]
-	}
 	return out
 }
 
-// staleInstructionDirs lists the directories whose instruction files may
-// have changed during the step: those an instruction file was written to,
-// and explicit execute workdirs, where a command may have created one.
+// staleInstructionDirs lists, by pathKey, the directories whose instruction
+// files may have changed during the step: those an instruction file was
+// written to, and explicit execute workdirs, where a command may have
+// created or removed one.
 func staleInstructionDirs(files, dirs []string) map[string]struct{} {
 	stale := make(map[string]struct{}, len(dirs))
 	for _, file := range files {
 		if slices.Contains(instructionFileNames, path.Base(file)) {
-			stale[path.Dir(file)] = struct{}{}
+			stale[pathKey(path.Dir(file))] = struct{}{}
 		}
 	}
 	for _, dir := range dirs {
-		stale[dir] = struct{}{}
+		stale[pathKey(dir)] = struct{}{}
 	}
 	return stale
 }
@@ -234,20 +247,50 @@ func staleInstructionDirs(files, dirs []string) map[string]struct{} {
 // selectInstructionProbes picks the candidates worth asking the agent
 // about. A stale directory is always probed; otherwise a directory that
 // already contributed a pinned instruction file, or that is a fresh
-// negative, is skipped.
+// negative, is skipped. pinnedDirs and stale are keyed by pathKey.
 func selectInstructionProbes(candidates []string, pinnedDirs, stale map[string]struct{}, negative func(dir string) bool) []string {
 	probe := make([]string, 0, len(candidates))
 	for _, dir := range candidates {
-		if _, touched := stale[dir]; touched {
+		key := pathKey(dir)
+		if _, touched := stale[key]; touched {
 			probe = append(probe, dir)
 			continue
 		}
-		if _, ok := pinnedDirs[dir]; ok || negative(dir) {
+		if _, ok := pinnedDirs[key]; ok || negative(dir) {
 			continue
 		}
 		probe = append(probe, dir)
 	}
 	return probe
+}
+
+// removedDiscoveredSources lists the discovered rows in stale, probed
+// directories whose source the probe did not return: files the step removed
+// or renamed. stale and returned are keyed by pathKey.
+func removedDiscoveredSources(rows []database.ChatContextResource, stale map[string]struct{}, probed []string, returned map[string]struct{}) []string {
+	probedKeys := make(map[string]struct{}, len(probed))
+	for _, dir := range probed {
+		probedKeys[pathKey(dir)] = struct{}{}
+	}
+	var out []string
+	for _, row := range rows {
+		if !row.Discovered {
+			continue
+		}
+		source := agentPath(row.Source)
+		dirKey := pathKey(path.Dir(source))
+		if _, ok := stale[dirKey]; !ok {
+			continue
+		}
+		if _, ok := probedKeys[dirKey]; !ok {
+			continue
+		}
+		if _, ok := returned[pathKey(source)]; ok {
+			continue
+		}
+		out = append(out, row.Source)
+	}
+	return out
 }
 
 func agentWorkingDirectory(agent database.WorkspaceAgent) string {
@@ -300,7 +343,7 @@ func (p *Server) discoverInstructionContext(
 	pinnedDirs := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		if row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile {
-			pinnedDirs[path.Dir(agentPath(row.Source))] = struct{}{}
+			pinnedDirs[pathKey(path.Dir(agentPath(row.Source)))] = struct{}{}
 		}
 	}
 	now := p.clock.Now()
@@ -310,24 +353,26 @@ func (p *Server) discoverInstructionContext(
 	if len(probe) == 0 {
 		return
 	}
+	if len(probe) > maxInstructionProbesPerStep {
+		probe = probe[:maxInstructionProbesPerStep]
+	}
 
 	conn, err := workspaceCtx.getWorkspaceConn(ctx)
 	if err != nil {
 		logger.Debug(ctx, "connect to agent for instruction discovery", slog.Error(err))
 		return
 	}
-	resp, err := p.resolveInstructionBatch(ctx, conn, probe)
-	if err != nil {
-		// Older agents answer 404; either way the step proceeds without
-		// nested files.
-		logger.Debug(ctx, "resolve instruction files through agent", slog.Error(err))
+	resolved, probed := resolveInstructionDirs(ctx, logger, conn, probe)
+	if len(probed) == 0 {
 		return
 	}
 
-	found := make(map[string]struct{}, len(resp.Files))
+	returned := make(map[string]struct{}, len(resolved))
+	foundDirs := make(map[string]struct{}, len(resolved))
 	pinned := 0
-	for _, file := range resp.Files {
-		found[agentPath(file.Directory)] = struct{}{}
+	for _, file := range resolved {
+		returned[pathKey(agentPath(file.Source))] = struct{}{}
+		foundDirs[pathKey(agentPath(file.Directory))] = struct{}{}
 		ok, err := p.pinDiscoveredInstructionFile(dbCtx, chat.ID, file)
 		if err != nil {
 			logger.Warn(ctx, "pin discovered instruction file", slog.F("source", file.Source), slog.Error(err))
@@ -337,17 +382,25 @@ func (p *Server) discoverInstructionContext(
 			pinned++
 		}
 	}
-	negatives := make([]string, 0, len(probe))
-	for _, dir := range probe {
-		if _, ok := found[dir]; !ok {
+	removed := 0
+	for _, source := range removedDiscoveredSources(rows, stale, probed, returned) {
+		if err := p.db.DeleteChatContextDiscoveredResource(dbCtx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chat.ID, Source: source}); err != nil {
+			logger.Warn(ctx, "delete removed instruction file", slog.F("source", source), slog.Error(err))
+			continue
+		}
+		removed++
+	}
+	negatives := make([]string, 0, len(probed))
+	for _, dir := range probed {
+		if _, ok := foundDirs[pathKey(dir)]; !ok {
 			negatives = append(negatives, dir)
 		}
 	}
 	p.instructionProbes.markNegative(now, agent.ID, negatives)
-	if pinned == 0 {
+	if pinned == 0 && removed == 0 {
 		return
 	}
-	logger.Debug(ctx, "pinned discovered instruction files", slog.F("count", pinned))
+	logger.Debug(ctx, "reconciled discovered instruction files", slog.F("pinned", pinned), slog.F("removed", removed))
 	updated, err := p.db.GetChatByID(dbCtx, chat.ID)
 	if err != nil {
 		logger.Warn(ctx, "read chat after instruction discovery", slog.Error(err))
@@ -357,12 +410,17 @@ func (p *Server) discoverInstructionContext(
 }
 
 // pinDiscoveredInstructionFile stores one resolved file as a discovered row.
-// Only readable and oversize results are worth pinning: both tell the model
-// the file exists, and an oversize row keeps the directory from being
+// Readable results are pinned with their body; oversize and excluded ones
+// (past the per-file or the per-response cap) without it, so the model and
+// the inventory still learn the file exists and the directory is not
 // re-probed. Other statuses are transient read failures.
 func (p *Server) pinDiscoveredInstructionFile(ctx context.Context, chatID uuid.UUID, file workspacesdk.ContextInstructionFile) (bool, error) {
 	status := database.WorkspaceAgentContextResourceStatus(file.Status)
-	if status != database.WorkspaceAgentContextResourceStatusOk && status != database.WorkspaceAgentContextResourceStatusOversize {
+	switch status {
+	case database.WorkspaceAgentContextResourceStatusOk,
+		database.WorkspaceAgentContextResourceStatusOversize,
+		database.WorkspaceAgentContextResourceStatusExcluded:
+	default:
 		return false, nil
 	}
 	if file.SizeBytes > math.MaxInt64 {
@@ -406,28 +464,33 @@ func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database
 		return
 	}
 	defer release()
-	// A long chat can hold discovered files from more directories than one
-	// request may name, so the list is sent in request-sized batches.
-	for batch := range slices.Chunk(dirs, workspacesdk.MaxContextInstructionDirectories) {
-		resp, err := p.resolveInstructionBatch(ctx, conn, batch)
-		if err != nil {
-			logger.Debug(ctx, "re-resolve discovered instruction files", slog.Error(err))
-			return
-		}
-		for _, file := range resp.Files {
-			if _, err := p.pinDiscoveredInstructionFile(ctx, chat.ID, file); err != nil {
-				logger.Warn(ctx, "re-pin discovered instruction file", slog.F("source", file.Source), slog.Error(err))
-			}
+	resolved, _ := resolveInstructionDirs(ctx, logger, conn, dirs)
+	for _, file := range resolved {
+		if _, err := p.pinDiscoveredInstructionFile(ctx, chat.ID, file); err != nil {
+			logger.Warn(ctx, "re-pin discovered instruction file", slog.F("source", file.Source), slog.Error(err))
 		}
 	}
 }
 
-// resolveInstructionBatch asks the agent for one request's worth of
-// directories under the discovery timeout.
-func (*Server) resolveInstructionBatch(ctx context.Context, conn workspacesdk.AgentConn, dirs []string) (workspacesdk.ResolveContextInstructionsResponse, error) {
-	resolveCtx, cancel := context.WithTimeout(ctx, instructionDiscoveryTimeout)
-	defer cancel()
-	return conn.ResolveContextInstructions(resolveCtx, workspacesdk.ResolveContextInstructionsRequest{Directories: dirs})
+// resolveInstructionDirs asks the agent about dirs in request-sized batches,
+// each under the discovery timeout. It returns every file the agent
+// reported and the directories it was actually asked about: a failed batch
+// ends the round without discarding earlier answers, and an older agent
+// that lacks the endpoint fails the first batch, so the step proceeds
+// without nested files.
+func resolveInstructionDirs(ctx context.Context, logger slog.Logger, conn workspacesdk.AgentConn, dirs []string) (files []workspacesdk.ContextInstructionFile, probed []string) {
+	for batch := range slices.Chunk(dirs, workspacesdk.MaxContextInstructionDirectories) {
+		resolveCtx, cancel := context.WithTimeout(ctx, instructionDiscoveryTimeout)
+		resp, err := conn.ResolveContextInstructions(resolveCtx, workspacesdk.ResolveContextInstructionsRequest{Directories: batch})
+		cancel()
+		if err != nil {
+			logger.Debug(ctx, "resolve instruction files through agent", slog.Error(err))
+			return files, probed
+		}
+		files = append(files, resp.Files...)
+		probed = append(probed, batch...)
+	}
+	return files, probed
 }
 
 // discoveredInstructionDirs lists the directories of a chat's discovered

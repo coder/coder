@@ -8032,8 +8032,11 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		setupToolExecutionAgentConn(t, mockConn)
+		// The strict setup has no permissive instructions probe: the rejected
+		// read never ran, so its path must not seed discovery either.
+		setupDiscoveryAgentConn(mockConn)
 		mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+		mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).Times(0)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))

@@ -62,6 +62,7 @@ The snapshot does not include them, so the chat loads them on demand instead.
 When the agent reads, writes, or edits a file, or runs a command in an explicit working directory, the chat looks for instruction files in that directory and in each parent directory up to the workspace working directory, and adds any it finds to that chat only.
 These files are pinned like other resources: they appear in the chat's context list and are read again when you select **Refresh context**.
 Edits to a nested file do not mark the chat out of date, because the agent does not watch nested directories.
+When the agent writes an instruction file or runs a command in a directory it already loaded from, that directory is read again: new files are added and files that no longer exist are dropped from the chat.
 
 ### Snapshot limits
 
