@@ -33,7 +33,6 @@ import {
 } from "#/components/HelpPopover/HelpPopover";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
-import { Link } from "#/components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
@@ -48,7 +47,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { IdpSyncEmptyState } from "#/modules/idpSync/IdpSyncEmptyState";
 import { IdpUnseenClaimWarning } from "#/modules/idpSync/IdpUnseenClaimWarning";
 import { docs } from "#/utils/docs";
 import { isUUID } from "#/utils/uuid";
@@ -393,6 +392,16 @@ interface IdpMappingTableProps {
 }
 
 const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
+	if (isEmpty) {
+		return (
+			<IdpSyncEmptyState
+				title="Set up organization mapping"
+				description="Automatically assign users to organizations based on their identity provider groups."
+				docsHref={docs("/admin/users/idp-sync#organization-sync")}
+			/>
+		);
+	}
+
 	return (
 		<Table>
 			<TableHeader>
@@ -402,21 +411,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 					<TableHead className="w-auto" />
 				</TableRow>
 			</TableHeader>
-			<TableBody>
-				{isEmpty ? (
-					<TableEmpty
-						message="No organization mappings"
-						isCompact
-						cta={
-							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
-								How to set up IdP organization sync
-							</Link>
-						}
-					/>
-				) : (
-					children
-				)}
-			</TableBody>
+			<TableBody>{children}</TableBody>
 		</Table>
 	);
 };
