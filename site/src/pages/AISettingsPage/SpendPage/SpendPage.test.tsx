@@ -180,20 +180,6 @@ it("applies a date preset and resets pagination", async () => {
 	expect(searchParam(router, "page")).toBeNull();
 });
 
-it("offers only date presets that start within the retention window", async () => {
-	const user = userEvent.setup();
-	renderSpend(initialSearch, {
-		retention_start: fixedNow.subtract(10, "day").toISOString(),
-	});
-	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(
-		screen.getByRole("button", { name: /Feb 10, 2026.*Mar 11, 2026/ }),
-	);
-	await screen.findByRole("button", { name: "Last 7 days" });
-	expect(screen.queryByRole("button", { name: "Last 14 days" })).toBeNull();
-	expect(screen.queryByRole("button", { name: "Last 30 days" })).toBeNull();
-});
-
 it("opens the count badge lists from the pointer and the keyboard", async () => {
 	const user = userEvent.setup();
 	renderSpend();

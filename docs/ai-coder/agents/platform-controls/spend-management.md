@@ -58,7 +58,7 @@ Spend is also shown where it is actionable:
 
 - **Admin settings** > **AI** > **Spend**: AI Gateway spend for one organization at a time, as a total and per user with the providers, clients, and models each user spent through, over a date range of up to 31&nbsp;days within the retention period.
   Spend is attributed through each user's budget group, so it matches the CSV export and daily budget accounting.
-  Visible to users who can view AI sessions, and requires the AI Gateway entitlement.
+  Visible to users who can view AI sessions, for the organizations whose group members they can read, and requires the AI Gateway entitlement.
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
 - **Group settings**: each member's spend against the group's budget, for admins who can manage the group.
 - **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
@@ -78,7 +78,7 @@ user_id,username,group_id,group_name,organization_id,organization_name,model,pro
 ```
 
 The `users` endpoint beside it, `/api/v2/organizations/$ORGANIZATION/ai/spend/users`, returns a paginated per-user JSON report over the same token usage.
-The **Spend** page reads that report, so its numbers reconcile with the CSV.
+The **Spend** page reads that report, so for the same period without dimension filters its numbers reconcile with the CSV.
 
 The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.
 

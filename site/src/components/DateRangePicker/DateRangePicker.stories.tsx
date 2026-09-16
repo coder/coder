@@ -61,6 +61,21 @@ export const Open: Story = {
 	},
 };
 
+export const RetentionLimited: Story = {
+	args: {
+		value: {
+			startDate: fixedNow.subtract(3, "day").toDate(),
+			endDate: fixedNow.toDate(),
+		},
+		minDate: fixedNow.subtract(10, "day").toDate(),
+		onChange: () => {},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+		await screen.findByRole("button", { name: "Apply" });
+	},
+};
+
 export const SelectPreset: Story = {
 	render: function SelectPresetStory() {
 		const [value, setValue] = useState<DateRangeValue>(defaultValue);

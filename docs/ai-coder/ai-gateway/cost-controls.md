@@ -308,12 +308,12 @@ Prometheus metrics report enforcement and pricing gaps.
 
 Visibility follows the viewer's role:
 
-| Who                                                  | Sees                                                                 |
-|------------------------------------------------------|----------------------------------------------------------------------|
-| Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu |
-| Members of a group                                   | The group's spend and budget, and their own member row               |
-| Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
-| Users who can view AI sessions                       | An organization's total and per-user spend on the **Spend** page     |
+| Who                                                                     | Sees                                                                 |
+|-------------------------------------------------------------------------|----------------------------------------------------------------------|
+| Every user                                                              | Their own spend and budget, or unlimited state, in their avatar menu |
+| Members of a group                                                      | The group's spend and budget, and their own member row               |
+| Owners, User Admins, and organization administrators                    | Spend and budgets for every group and every member                   |
+| Users who can view AI sessions and read an organization's group members | That organization's total and per-user spend on the **Spend** page   |
 
 - The **Spend** page under **Admin settings** > **AI** shows AI Gateway spend for one organization at a time: the total for the period and, for each user, their cost and the providers, clients, and models they spent through, filterable by provider, model, and client.
   It opens on the current budget period and accepts a date range of up to 31&nbsp;days within the AI Gateway [retention period](./monitoring.md#data-retention).
@@ -354,7 +354,7 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 The `users` endpoint accepts the same period parameters and returns one page of per-user spend as JSON, with each user's cost, providers, clients, and models, plus the period total and a count of usage that could not be priced.
 To narrow the report, pass `provider_name`, `model`, or `client` as exact matches; requests whose client is unknown match `client=Unknown`.
 `limit` (default 10, at most 100) and `offset` select the page.
-The **Spend** page reads this report, so its numbers reconcile with the CSV.
+The **Spend** page reads this report, so for the same period without dimension filters its numbers reconcile with the CSV; a filtered report narrows the totals, while the export always covers the whole organization.
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \

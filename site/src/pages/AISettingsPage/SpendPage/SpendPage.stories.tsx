@@ -138,6 +138,25 @@ export const FilteredByProvider: Story = {
 	},
 };
 
+export const RetentionLimitedPicker: Story = {
+	beforeEach: () => {
+		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
+			...MockOrganizationAISpendReport,
+			retention_start: fixedNow.subtract(10, "day").toISOString(),
+			count: users.length,
+			users: users.slice(0, 10),
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await userEvent.click(canvas.getByRole("button", { name: /Feb 10, 2026/ }));
+		await within(canvasElement.ownerDocument.body).findByRole("button", {
+			name: "Apply",
+		});
+	},
+};
+
 export const SecondPage: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

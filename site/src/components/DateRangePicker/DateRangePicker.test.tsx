@@ -30,8 +30,9 @@ it("restarts the calendar selection when a range exceeds maxDays", async () => {
 	});
 });
 
-it("disables days before minDate and hides presets that start before it", async () => {
+it("ignores days before minDate", async () => {
 	const user = userEvent.setup();
+	const onChange = vi.fn();
 	const now = new Date(2025, 2, 15, 12);
 	render(
 		<DateRangePicker
@@ -41,19 +42,21 @@ it("disables days before minDate and hides presets that start before it", async 
 				startDate: new Date(2025, 2, 12),
 				endDate: new Date(2025, 2, 14),
 			}}
-			onChange={vi.fn()}
+			onChange={onChange}
 		/>,
 	);
 
 	await user.click(screen.getByRole("button", { name: /Mar 12, 2025/ }));
-	expect(
+	await user.click(
 		await screen.findByRole("button", { name: /March 9th, 2025/ }),
-	).toBeDisabled();
-	expect(
-		screen.getByRole("button", { name: /March 10th, 2025/ }),
-	).toBeEnabled();
-	expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
-	expect(screen.getByRole("button", { name: "Yesterday" })).toBeInTheDocument();
-	expect(screen.queryByRole("button", { name: "Last 7 days" })).toBeNull();
-	expect(screen.queryByRole("button", { name: "Last 30 days" })).toBeNull();
+	);
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onChange).not.toHaveBeenCalled();
+
+	await user.click(screen.getByRole("button", { name: /March 10th, 2025/ }));
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onChange).toHaveBeenCalledTimes(1);
+	expect(onChange).toHaveBeenCalledWith(
+		expect.objectContaining({ startDate: new Date(2025, 2, 10) }),
+	);
 });
