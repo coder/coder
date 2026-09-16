@@ -20,8 +20,8 @@ interface NotesSectionProps {
 }
 
 /**
- * Notes are the operator's status log for a card, newest first, with a
- * plain composer line at the bottom of the card.
+ * Notes are the operator's status log for a card, oldest first, with a
+ * plain composer line at the bottom that appends.
  */
 export const NotesSection: FC<NotesSectionProps> = ({
 	notes,
@@ -30,7 +30,8 @@ export const NotesSection: FC<NotesSectionProps> = ({
 	onEdit,
 	onRemove,
 }) => {
-	const ordered = [...notes].sort((a, b) => b.timestamp - a.timestamp);
+	// Oldest first, so the composer line below continues the log.
+	const ordered = [...notes].sort((a, b) => a.timestamp - b.timestamp);
 	return (
 		// Typing and selecting text must not start a card drag.
 		<div className="flex flex-col" onPointerDown={(e) => e.stopPropagation()}>

@@ -3,17 +3,15 @@ import {
 	type CollisionDetection,
 	DndContext,
 	type DragEndEvent,
-	type DragOverEvent,
+	type DragMoveEvent,
 	DragOverlay,
 	type DragStartEvent,
 	KeyboardSensor,
-	MouseSensor,
+	PointerSensor,
 	pointerWithin,
-	TouchSensor,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { cn } from "cn";
 import {
 	ChevronLeftIcon,
 	ChevronUpIcon,
@@ -46,6 +44,7 @@ import {
 } from "./boardLabels";
 import { type ChatPane, useBoardStorage } from "./boardStorage";
 import { ChatPanes, closeTab, openTab } from "./ChatPanes";
+import { useBlockSelectionWhileDragging } from "./dragHandle";
 import { useBoardMutations } from "./useBoardMutations";
 
 const hasOpenChats = (panes: readonly ChatPane[]) => panes.length > 0;
@@ -198,12 +197,10 @@ const ChatBoardPage: FC = () => {
 		enabled: debouncedSearch.length > 0,
 	});
 	const sensors = useSensors(
-		useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-		useSensor(TouchSensor, {
-			activationConstraint: { delay: 150, tolerance: 5 },
-		}),
+		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
 		useSensor(KeyboardSensor),
 	);
+	useBlockSelectionWhileDragging(activeDrag !== null);
 	const matchingIds =
 		debouncedSearch && searchQuery.data
 			? new Set(searchQuery.data.map((chat) => chat.id))
@@ -232,7 +229,9 @@ const ChatBoardPage: FC = () => {
 		(collisions?.[0]?.data as { target?: DropTarget } | undefined)?.target ??
 		null;
 
-	const handleDragOver = ({ collisions }: DragOverEvent) => {
+	// onDragOver only fires when the droppable id changes, but the zone within
+	// one card (insert above, merge, insert below) changes without that.
+	const handleDragMove = ({ collisions }: DragMoveEvent) => {
 		setDropTarget(targetOf(collisions));
 	};
 
@@ -397,20 +396,14 @@ const ChatBoardPage: FC = () => {
 					sensors={sensors}
 					collisionDetection={boardCollision}
 					onDragStart={handleDragStart}
-					onDragOver={handleDragOver}
+					onDragMove={handleDragMove}
 					onDragEnd={handleDragEnd}
 					onDragCancel={() => {
 						setActiveDrag(null);
 						setDropTarget(null);
 					}}
 				>
-					{/* No text selection while something is being dragged across cards. */}
-					<div
-						className={cn(
-							"flex min-h-0 flex-1 gap-4 overflow-x-auto bg-surface-secondary px-5 pt-4 pb-3",
-							activeDrag && "select-none",
-						)}
-					>
+					<div className="flex min-h-0 flex-1 gap-4 overflow-x-auto bg-surface-secondary px-5 pt-4 pb-3">
 						{columns.map((column) => (
 							<BoardColumn
 								key={column.name}
