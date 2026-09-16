@@ -517,38 +517,24 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	}
 
 	// Sharding mode: each replica targets a disjoint subset of the running
-	// workspaces. Assignment is a pure function of the workspace's stable ID and
-	// shardCount (workspaceShardIndex), independent of how many workspaces exist,
-	// their ordering, their running status, or when each replica queries. So as
-	// long as shardCount is fixed for the run, a given workspace always maps to
-	// the same shard: replicas need not observe the same set, and a workspace
-	// that stops or disappears never shifts another's assignment (worst case it
-	// simply receives no load, never double). Only running workspaces are
-	// considered so load isn't wasted on workspaces that failed to start.
+	// workspaces, assigned by stable ID hash (see shardWorkspaces). Assignment is
+	// independent of how many workspaces exist, their ordering, their running
+	// status, or when each replica queries, so replicas need not observe the same
+	// set and a workspace that stops or disappears never shifts another's
+	// assignment (worst case it simply receives no load, never double).
 	if shardingRequested {
-		running := make([]codersdk.Workspace, 0, len(workspaces))
-		for _, ws := range workspaces {
-			if ws.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
-				running = append(running, ws)
-			}
-		}
-		if len(running) == 0 {
+		shard, running := shardWorkspaces(workspaces, f.shardIndex, f.shardCount)
+		if running == 0 {
 			if f.allowEmpty {
 				return nil, nil
 			}
 			return nil, xerrors.New("no running scaletest workspaces exist")
 		}
-		shard := make([]codersdk.Workspace, 0, len(running)/int(f.shardCount)+1)
-		for _, ws := range running {
-			if workspaceShardIndex(ws.ID, f.shardCount) == f.shardIndex {
-				shard = append(shard, ws)
-			}
-		}
 		// Emit a per-shard diagnostic so an empty or unexpectedly small shard is
 		// visible instead of a silent no-op: a pod that targets zero workspaces
 		// (e.g. the running count dropped below shard-count) still exits 0.
 		_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces\n",
-			f.shardIndex, f.shardCount, len(shard), len(running))
+			f.shardIndex, f.shardCount, len(shard), running)
 		return shard, nil
 	}
 
@@ -570,6 +556,26 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Return the sliced workspaces
 	return workspaces[targetStart:targetEnd], nil
+}
+
+// shardWorkspaces returns the running workspaces assigned to shardIndex (of
+// shardCount), plus the total number of running workspaces. Non-running
+// workspaces are excluded so load is not wasted on workspaces that failed to
+// start. Assignment is by stable ID hash (workspaceShardIndex), so the union of
+// shardWorkspaces over all indices in [0, shardCount) is exactly the running
+// set with no overlap, regardless of input ordering or which workspaces are
+// present. shardCount must be >= 1 (guaranteed by getTargetedWorkspaces).
+func shardWorkspaces(workspaces []codersdk.Workspace, shardIndex, shardCount int64) (shard []codersdk.Workspace, running int) {
+	for _, ws := range workspaces {
+		if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+			continue
+		}
+		running++
+		if workspaceShardIndex(ws.ID, shardCount) == shardIndex {
+			shard = append(shard, ws)
+		}
+	}
+	return shard, running
 }
 
 // workspaceShardIndex maps a workspace to one of shardCount shards using a hash

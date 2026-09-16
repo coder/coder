@@ -121,6 +121,68 @@ func TestWorkspaceShardIndex(t *testing.T) {
 	}
 }
 
+// TestShardWorkspaces exercises the running-status filter plus shard assignment
+// as a unit, without a coderd client: it builds mixed-status workspaces, runs
+// shardWorkspaces for every shard index, and asserts that non-running
+// workspaces are excluded and the union of shards is exactly the running set
+// with no overlap.
+func TestShardWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	statuses := []codersdk.WorkspaceStatus{
+		codersdk.WorkspaceStatusRunning,
+		codersdk.WorkspaceStatusStopped,
+		codersdk.WorkspaceStatusFailed,
+		codersdk.WorkspaceStatusStarting,
+		codersdk.WorkspaceStatusPending,
+	}
+
+	workspaces := make([]codersdk.Workspace, 0, 600)
+	runningIDs := make(map[uuid.UUID]struct{})
+	for i := 0; i < 600; i++ {
+		status := statuses[i%len(statuses)]
+		ws := codersdk.Workspace{ID: uuid.New()}
+		ws.LatestBuild.Status = status
+		workspaces = append(workspaces, ws)
+		if status == codersdk.WorkspaceStatusRunning {
+			runningIDs[ws.ID] = struct{}{}
+		}
+	}
+
+	for _, shardCount := range []int64{1, 4, 27} {
+		t.Run(fmt.Sprintf("count=%d", shardCount), func(t *testing.T) {
+			t.Parallel()
+
+			seen := make(map[uuid.UUID]struct{})
+			for idx := int64(0); idx < shardCount; idx++ {
+				shard, running := shardWorkspaces(workspaces, idx, shardCount)
+
+				// Total running is reported consistently on every call.
+				require.Equal(t, len(runningIDs), running)
+
+				for _, ws := range shard {
+					// Only running workspaces are selected.
+					_, isRunning := runningIDs[ws.ID]
+					require.True(t, isRunning, "non-running workspace must not be targeted")
+					// This workspace really belongs to this shard.
+					require.Equal(t, idx, workspaceShardIndex(ws.ID, shardCount))
+					// No workspace appears in more than one shard.
+					_, dup := seen[ws.ID]
+					require.False(t, dup, "workspace assigned to more than one shard")
+					seen[ws.ID] = struct{}{}
+				}
+			}
+
+			// The union of all shards is exactly the running set.
+			require.Len(t, seen, len(runningIDs))
+			for id := range runningIDs {
+				_, ok := seen[id]
+				require.True(t, ok, "every running workspace must be covered by some shard")
+			}
+		})
+	}
+}
+
 // TestWorkspaceShardIndexStable asserts that removing workspaces from the set
 // does not change the shard any surviving workspace maps to (the property that
 // makes replicas tolerant of a churning running set).
