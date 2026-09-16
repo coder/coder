@@ -1394,5 +1394,9 @@ func (b *Builder) usingDynamicParameters() bool {
 	if err != nil {
 		return false // Let another part of the code get this error
 	}
-	return !tpl.UseClassicParameterFlow
+	if tpl.UseClassicParameterFlow {
+		return false
+	}
+
+	return true
 }

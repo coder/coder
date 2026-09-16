@@ -123,6 +123,9 @@ function terraform_apply() {
 EOL
 }
 
+# TODO: remove
+echo "$@" >>/tmp/blah
+
 case "$1" in
 version)
 	terraform_version
