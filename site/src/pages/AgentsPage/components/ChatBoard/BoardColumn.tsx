@@ -1,9 +1,8 @@
 import { useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
-import { Trash2Icon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
+import { ActionsMenu } from "./ActionsMenu";
 import { BoardCard, type DropData } from "./BoardCard";
 import type {
 	BoardCard as BoardCardModel,
@@ -12,7 +11,7 @@ import type {
 } from "./boardLabels";
 import { columnColor, INBOX_COLUMN } from "./boardLabels";
 import type { DropTarget } from "./ChatBoardPage";
-import { EditableText, InlineInput } from "./InlineText";
+import { InlineInput } from "./InlineText";
 
 const columnDropId = (name: string) => `column:${name}`;
 
@@ -68,6 +67,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 			: undefined;
 	const mergeTargetId =
 		dropTarget?.kind === "merge" ? dropTarget.card.id : undefined;
+	const [renaming, setRenaming] = useState(false);
 
 	return (
 		<section
@@ -77,29 +77,27 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 		>
 			<header className={columnHeaderClass}>
 				<ColumnDot name={column.name} />
-				{isInbox ? (
-					<span className="min-w-0 flex-1 truncate">{column.name}</span>
-				) : (
-					<EditableText
+				{renaming ? (
+					<InlineInput
 						value={column.name}
 						onSave={onRename}
+						onDone={() => setRenaming(false)}
 						ariaLabel={`${column.name} column name`}
-						revealOn="column"
+						className="flex-1"
 					/>
+				) : (
+					<span className="min-w-0 flex-1 truncate">{column.name}</span>
 				)}
 				<span className="font-mono text-[11px] text-content-secondary/70 tabular-nums">
 					{column.cards.length}
 				</span>
 				{!isInbox && (
-					<Button
-						variant="subtle"
-						size="icon"
-						aria-label={`Delete ${column.name} column`}
-						className="size-6 text-content-secondary opacity-0 group-hover/column:opacity-100 focus-visible:opacity-100"
-						onClick={onDelete}
-					>
-						<Trash2Icon className="size-3.5" />
-					</Button>
+					<ActionsMenu
+						label={`${column.name} column`}
+						revealOn="column"
+						onRename={() => setRenaming(true)}
+						onDelete={{ label: "Delete column", run: onDelete }}
+					/>
 				)}
 			</header>
 			<div className="flex min-h-16 flex-1 flex-col overflow-y-auto pb-2">

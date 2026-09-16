@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import { useQuery } from "react-query";
@@ -6,8 +7,8 @@ import type { Chat } from "#/api/typesGenerated";
 import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
-	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
@@ -21,45 +22,52 @@ interface ChatInfoPopoverProps {
 /**
  * The Summary tab's data next to a chat row. Hover previews it after a short
  * delay and it stays while the pointer is on trigger or content; a click
- * pins it. Portaled, so it never pushes card content around or clips.
+ * pins it, a second click closes it. Portaled, so it never pushes card
+ * content around or clips. The button is an anchor, not a Radix trigger,
+ * because the trigger's own click toggle would fight the hover state.
  */
 export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
-	const [open, setOpen] = useState(false);
-	const [pinned, setPinned] = useState(false);
+	const [state, setState] = useState<"closed" | "hover" | "pinned">("closed");
+	const button = useRef<HTMLButtonElement>(null);
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const later = (fn: () => void, ms: number) => {
 		if (timer.current) clearTimeout(timer.current);
 		timer.current = setTimeout(fn, ms);
 	};
-	const hoverIn = () => later(() => setOpen(true), 300);
-	const hoverOut = () => {
-		if (!pinned) later(() => setOpen(false), 200);
-	};
+	const hoverIn = () =>
+		later(() => setState((s) => (s === "closed" ? "hover" : s)), 300);
+	const hoverOut = () =>
+		later(() => setState((s) => (s === "hover" ? "closed" : s)), 200);
+	const open = state !== "closed";
 
 	return (
 		<Popover
 			open={open}
 			onOpenChange={(next) => {
-				setOpen(next);
-				if (!next) setPinned(false);
+				if (!next) setState("closed");
 			}}
 		>
-			<PopoverTrigger asChild>
+			<PopoverAnchor asChild>
 				<button
+					ref={button}
 					type="button"
 					aria-label={`Details for ${chat.title}`}
-					className="grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:bg-content-link/10 hover:text-content-link data-[state=open]:text-content-link"
+					aria-expanded={open}
+					className={cn(
+						"grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:bg-content-link/10 hover:text-content-link",
+						state === "pinned" && "bg-content-link/10 text-content-link",
+					)}
 					onPointerEnter={hoverIn}
 					onPointerLeave={hoverOut}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={() => {
-						setPinned(true);
-						setOpen(true);
+						if (timer.current) clearTimeout(timer.current);
+						setState((s) => (s === "pinned" ? "closed" : "pinned"));
 					}}
 				>
 					<InfoIcon className="size-3.5" />
 				</button>
-			</PopoverTrigger>
+			</PopoverAnchor>
 			<PopoverContent
 				side="right"
 				align="start"
@@ -69,9 +77,13 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 				onPointerEnter={hoverIn}
 				onPointerLeave={hoverOut}
 				onPointerDown={(e) => e.stopPropagation()}
+				// The anchor is outside the content; its clicks are handled above.
+				onInteractOutside={(e) => {
+					if (button.current?.contains(e.target as Node)) e.preventDefault();
+				}}
 				// A hover preview must not steal focus from what the user is doing.
 				onOpenAutoFocus={(e) => {
-					if (!pinned) e.preventDefault();
+					if (state !== "pinned") e.preventDefault();
 				}}
 			>
 				{open && <ChatInfoBody chat={chat} />}
