@@ -317,6 +317,18 @@ const stripCommentLabels = (
 ): Record<string, string> =>
 	withoutKeys(labels, (k) => k.startsWith(COMMENT_PREFIX));
 
+/** Replaces a card's notes with `notes` in the given order, renumbered from 0. Index is display order. */
+export const setCommentsLabels = (
+	labels: Record<string, string>,
+	notes: readonly Pick<BoardNote, "text" | "timestamp">[],
+): Record<string, string> => {
+	const out = stripCommentLabels(labels);
+	for (const [index, note] of notes.entries()) {
+		Object.assign(out, commentLabels(index, note.text, note.timestamp));
+	}
+	return out;
+};
+
 /** Removes card-level data (title, comments) from a chat that stops being a primary. */
 export const stripCardLabels = (
 	labels: Record<string, string>,
