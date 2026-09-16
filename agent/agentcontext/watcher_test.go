@@ -2,6 +2,7 @@ package agentcontext_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -110,6 +111,42 @@ func TestWatcher_FiresOnChildRepoInstructionFile(t *testing.T) {
 				require.Fail(t, "expected callback after child AGENTS.md create")
 			}
 		})
+	}
+}
+
+// TestWatcher_ChildCapPrefersInstructionFiles fills the child cap with
+// repositories that have no instruction file yet and checks that a later
+// child the resolver would publish is still watched.
+func TestWatcher_ChildCapPrefersInstructionFiles(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for i := range 64 {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, fmt.Sprintf("clone-%02d", i), ".git"), 0o755))
+	}
+	published := filepath.Join(dir, "zz-published")
+	mustWriteFile(t, filepath.Join(published, "AGENTS.md"), "rules")
+
+	fired := make(chan struct{}, 1)
+	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
+		Logger:   testutil.Logger(t).Named("watcher"),
+		Debounce: 10 * time.Millisecond,
+		OnChange: func() {
+			select {
+			case fired <- struct{}{}:
+			default:
+			}
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+	mustWriteFile(t, filepath.Join(published, "AGENTS.md"), "edited rules")
+	select {
+	case <-fired:
+	case <-ctx.Done():
+		require.Fail(t, "expected callback after editing a published child's AGENTS.md")
 	}
 }
 

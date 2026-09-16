@@ -313,15 +313,69 @@ func (w *Watcher) schedule() {
 	w.mu.Unlock()
 }
 
+// hasInstructionFile reports whether dir directly holds a recognized
+// instruction file, probing the fixed names rather than listing dir.
+func hasInstructionFile(dir string) bool {
+	for _, name := range instructionFileNames {
+		if info, err := os.Lstat(filepath.Join(dir, name)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+// hasGitMarker reports whether dir holds a .git directory or file.
+func hasGitMarker(dir string) bool {
+	_, err := os.Lstat(filepath.Join(dir, ".git"))
+	return err == nil
+}
+
+// childProjectDirs lists the immediate children of root worth watching,
+// capped at maxChildProjects. Children with an instruction file come
+// first, in the resolver's order, so every child the resolver publishes is
+// watched; children with only a .git marker (a fresh clone before its files
+// are checked out) fill the remaining slots. Fixed names are probed instead
+// of listing each child, so a large non-project child such as node_modules
+// costs a few stats rather than a directory read.
+func childProjectDirs(root string) []string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	var withInstructions, gitOnly []string
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		child := filepath.Join(root, e.Name())
+		switch {
+		case hasInstructionFile(child):
+			withInstructions = append(withInstructions, child)
+		case hasGitMarker(child):
+			gitOnly = append(gitOnly, child)
+		}
+		if len(withInstructions) == maxChildProjects {
+			break
+		}
+	}
+	dirs := withInstructions
+	for _, child := range gitOnly {
+		if len(dirs) == maxChildProjects {
+			break
+		}
+		dirs = append(dirs, child)
+	}
+	return dirs
+}
+
 // collectDirs returns the set of directories to watch. Discovery
 // is fixed-location, mirroring the resolver: for each scan root we
 // watch the root directory itself (catching top-level instruction
 // and .mcp.json changes), plus every existing skill container and
 // its immediate skill subdirectories (catching skill add/remove
-// and SKILL.md writes). ChildProjects roots also watch immediate
-// children that hold a .git marker or an instruction file; the
-// .git marker qualifies a fresh clone before its files are checked
-// out, so their later creation still triggers a rescan. The
+// and SKILL.md writes). ChildProjects roots also watch the children
+// childProjectDirs selects; a child that gains its first marker later
+// is picked up by the next resync or by any watched event. The
 // watcher never recurses further.
 func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	out := make(map[string]struct{})
@@ -344,24 +398,8 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 		}
 		out[root.Path] = struct{}{}
 		if root.ChildProjects {
-			entries, _ := os.ReadDir(root.Path)
-			projects := 0
-			for _, e := range entries {
-				if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-					continue
-				}
-				child := filepath.Join(root.Path, e.Name())
-				files, _ := os.ReadDir(child)
-				for _, file := range files {
-					if file.Name() == ".git" || (!file.IsDir() && recognizedInstructionFile(file.Name())) {
-						out[child] = struct{}{}
-						projects++
-						break
-					}
-				}
-				if projects == maxChildProjects {
-					break
-				}
+			for _, child := range childProjectDirs(root.Path) {
+				out[child] = struct{}{}
 			}
 		}
 		for _, container := range skillContainersFor(root.Path) {
