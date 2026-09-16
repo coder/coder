@@ -1226,6 +1226,179 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		})
 	})
 
+	t.Run("WorkspaceApplicationAnnotations", func(t *testing.T) {
+		t.Parallel()
+
+		const htmlBody = "<html><body><p>app</p></body></html>"
+		const htmlETag = `"v1"`
+
+		type appRequest struct {
+			rawQuery string
+			header   http.Header
+		}
+
+		withAnnotate := func(u *url.URL, value string) *url.URL {
+			q := u.Query()
+			q.Set(workspaceapps.AnnotationQueryParam, value)
+			u.RawQuery = q.Encode()
+			return u
+		}
+
+		setup := func(t *testing.T) (*Details, *appRequest) {
+			var (
+				mu   sync.Mutex
+				last appRequest
+			)
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					mu.Lock()
+					last = appRequest{rawQuery: r.URL.RawQuery, header: r.Header.Clone()}
+					mu.Unlock()
+					if strings.HasSuffix(r.URL.Path, "/data.json") {
+						w.Header().Set("Content-Type", "application/json")
+						_, _ = w.Write([]byte(`{"ok":true}`))
+						return
+					}
+					// Like any well-behaved app, revalidate rather than resend.
+					if r.Header.Get("If-None-Match") == htmlETag {
+						w.WriteHeader(http.StatusNotModified)
+						return
+					}
+					w.Header().Set("Content-Type", "text/html; charset=utf-8")
+					w.Header().Set("ETag", htmlETag)
+					_, _ = w.Write([]byte(htmlBody))
+				}),
+			})
+			return appDetails, &last
+		}
+
+		get := func(ctx context.Context, t *testing.T, appDetails *Details, u *url.URL, opts ...codersdk.RequestOption) (http.Header, string) {
+			opts = append(opts, func(r *http.Request) {
+				r.Header.Set("Accept-Encoding", "gzip")
+			})
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil, opts...)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			return resp.Header, string(body)
+		}
+
+		t.Run("InjectsIntoHTML", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails, last := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			u := withAnnotate(appDetails.SubdomainAppURL(appDetails.Apps.Owner), "1")
+			headers, body := get(ctx, t, appDetails, u)
+
+			require.Equal(t, 1, strings.Count(body, "/annotator.js"), body)
+			require.Contains(t, body, `data-coder-origin="`+appDetails.SDKClient.URL.Scheme+"://"+appDetails.SDKClient.URL.Host+`"`)
+			require.True(t, strings.HasPrefix(body, "<html><body><p>app</p>"), body)
+			require.True(t, strings.HasSuffix(body, "</body></html>"), body)
+			require.Equal(t, strconv.Itoa(len(body)), headers.Get("Content-Length"))
+			require.Empty(t, headers.Get("Content-Encoding"))
+			require.Empty(t, headers.Get("ETag"), "validators describe the upstream bytes, not the rewritten page")
+			require.NotContains(t, last.rawQuery, workspaceapps.AnnotationQueryParam, "marker param must not reach the app")
+			require.Equal(t, appDetails.Apps.Owner.Query, last.rawQuery, "other query params must survive")
+		})
+
+		t.Run("NeverSatisfiedFromCache", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails, last := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// A copy cached before injection was in play still carries the
+			// upstream's validators. Revalidating it would get a 304, which
+			// has no body to inject into, so the request must not be
+			// conditional by the time it reaches the app.
+			conditional := func(r *http.Request) {
+				r.Header.Set("If-None-Match", htmlETag)
+				r.Header.Set("If-Modified-Since", "Mon, 01 Jan 2024 00:00:00 GMT")
+			}
+			u := withAnnotate(appDetails.SubdomainAppURL(appDetails.Apps.Owner), "1")
+			_, body := get(ctx, t, appDetails, u, conditional)
+			require.Equal(t, 1, strings.Count(body, "/annotator.js"), body)
+			require.Empty(t, last.header.Get("If-None-Match"))
+			require.Empty(t, last.header.Get("If-Modified-Since"))
+
+			// Without the marker the app keeps its say over caching.
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Owner).String(), nil, conditional)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusNotModified, resp.StatusCode)
+		})
+
+		t.Run("SurvivesDefaultQueryRedirect", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails, last := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// The app has a default query, so a bare request is normalised
+			// with a redirect. The marker must ride along on that redirect
+			// or the overlay is silently never injected.
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
+			u.RawQuery = workspaceapps.AnnotationQueryParam + "=1"
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			location, err := resp.Location()
+			require.NoError(t, err)
+			require.Equal(t, appDetails.Apps.Owner.Query+"&"+workspaceapps.AnnotationQueryParam+"=1", location.RawQuery)
+
+			_, body := get(ctx, t, appDetails, u.ResolveReference(location))
+			require.Equal(t, 1, strings.Count(body, "/annotator.js"), body)
+			require.Equal(t, appDetails.Apps.Owner.Query, last.rawQuery, "the app gets its default query and nothing else")
+		})
+
+		t.Run("LeavesNonHTMLAlone", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails, last := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			u := withAnnotate(appDetails.SubdomainAppURL(appDetails.Apps.Owner), "1")
+			u.Path += "data.json"
+			_, body := get(ctx, t, appDetails, u)
+
+			require.Equal(t, `{"ok":true}`, body)
+			require.NotContains(t, last.rawQuery, workspaceapps.AnnotationQueryParam)
+		})
+
+		t.Run("RequiresMarkerParam", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails, last := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
+			_, body := get(ctx, t, appDetails, u)
+			require.Equal(t, htmlBody, body)
+
+			_, body = get(ctx, t, appDetails, withAnnotate(u, "0"))
+			require.Equal(t, htmlBody, body)
+			require.NotContains(t, last.rawQuery, workspaceapps.AnnotationQueryParam)
+		})
+
+		t.Run("SubdomainOnly", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails, last := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			u := withAnnotate(appDetails.PathAppURL(appDetails.Apps.Owner), "1")
+			_, body := get(ctx, t, appDetails, u)
+
+			require.Equal(t, htmlBody, body)
+			require.NotContains(t, last.rawQuery, workspaceapps.AnnotationQueryParam, "marker param is proxy-owned")
+		})
+	})
+
 	t.Run("WorkspaceAppsProxySubdomain", func(t *testing.T) {
 		t.Parallel()
 
