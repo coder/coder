@@ -1,11 +1,11 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
-import { CopyIcon } from "lucide-react";
+import { BotIcon, CopyIcon, PencilIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
+import { ActionsMenu } from "./ActionsMenu";
 import {
 	type BoardCard as BoardCardModel,
 	CARD_COLOR_CLASS,
@@ -14,12 +14,13 @@ import {
 } from "./boardLabels";
 import { ChatInfoPopover } from "./ChatInfo";
 import { dragHandleListeners } from "./dragHandle";
-import { InlineInput } from "./InlineText";
+import { InlineEdit } from "./InlineText";
 import { NotesSection } from "./NotesSection";
 
 export type DragData =
 	| { type: "card"; card: BoardCardModel }
-	| { type: "chat"; chat: Chat; card: BoardCardModel };
+	| { type: "chat"; chat: Chat; card: BoardCardModel }
+	| { type: "column"; name: string };
 
 export type DropData =
 	| { type: "column"; name: string }
@@ -29,16 +30,24 @@ const cardDragId = (card: BoardCardModel) => `card:${card.id}`;
 const chatDragId = (chat: Chat) => `chat:${chat.id}`;
 const cardDropId = (card: BoardCardModel) => `drop-card:${card.id}`;
 
-// Chats open in a pane below are marked by their title alone, no chrome.
+// Chats open in a floating window are marked by their title alone, no chrome.
 const OPEN_TITLE_CLASS = "font-medium text-highlight-purple";
 
-interface BoardCardProps {
+/** How a card hands a chat to the board: with the element to place a window beside. */
+export interface ChatOpenHandlers {
+	readonly onOpen: (chat: Chat, anchor: DOMRect) => void;
+	readonly onPreview: (chat: Chat, anchor: DOMRect) => void;
+	readonly onPreviewEnd: () => void;
+}
+
+interface BoardCardProps extends ChatOpenHandlers {
 	readonly card: BoardCardModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly isMergeTarget: boolean;
 	readonly onSetTitle: (title: string) => void;
 	readonly onSetColor: (color: CardColor | undefined) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
+	readonly onAssistant: () => void;
 	readonly onAddNote: (text: string) => void;
 	readonly onEditNote: (index: number, text: string) => void;
 	readonly onRemoveNote: (index: number) => void;
@@ -51,6 +60,10 @@ export const BoardCard: FC<BoardCardProps> = ({
 	onSetTitle,
 	onSetColor,
 	onRenameChat,
+	onAssistant,
+	onOpen,
+	onPreview,
+	onPreviewEnd,
 	onAddNote,
 	onEditNote,
 	onRemoveNote,
@@ -82,6 +95,10 @@ export const BoardCard: FC<BoardCardProps> = ({
 	const leadDisplay = getChatDisplayConfig(lead);
 	const LeadIcon = leadDisplay.icon;
 	const colors = card.color ? CARD_COLOR_CLASS[card.color] : undefined;
+	const titleClass = cn(
+		"text-[14px] font-medium leading-[19px] tracking-[-0.005em]",
+		single && openChatIds.has(lead.id) && OPEN_TITLE_CLASS,
+	);
 	return (
 		<article
 			ref={setRefs}
@@ -105,8 +122,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 			  Same anatomy for every card: [icon] title [meta]. A single chat is
 			  its own card, so its title is the chat title and there are no rows;
 			  a group shows a stack icon, the card title, and one row per chat.
-			  Click the title text to rename it; click anywhere else on a single
-			  card's header to open the chat. The band is washed with the accent.
+			  Click the title text to rename it; hover or click anywhere else on a
+			  single card's header to open the chat. The band is washed with the accent.
 			*/}
 			<header
 				className={cn(
@@ -118,7 +135,15 @@ export const BoardCard: FC<BoardCardProps> = ({
 				{...attributes}
 				ref={setActivatorNodeRef}
 			>
-				{single && <OpenChatLink chat={lead} isDragging={isDragging} />}
+				{single && (
+					<OpenChatSurface
+						chat={lead}
+						isDragging={isDragging}
+						onOpen={onOpen}
+						onPreview={onPreview}
+						onPreviewEnd={onPreviewEnd}
+					/>
+				)}
 				<span className="flex h-[19px] items-center justify-center">
 					{single ? (
 						<LeadIcon
@@ -135,10 +160,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 				<EditableTitle
 					value={card.title}
 					renaming={renaming}
-					className={cn(
-						"text-[14px] font-medium leading-[19px] tracking-[-0.005em]",
-						single && openChatIds.has(lead.id) && OPEN_TITLE_CLASS,
-					)}
+					className={titleClass}
 					onEdit={() => setRenaming(true)}
 					onRenamed={(title) => {
 						setRenaming(false);
@@ -159,6 +181,18 @@ export const BoardCard: FC<BoardCardProps> = ({
 							{card.members.length} chats
 						</span>
 					)}
+					<ActionsMenu
+						label={card.title}
+						permanent
+						items={[
+							{ label: "Assistant", icon: BotIcon, onSelect: onAssistant },
+							{
+								label: "Rename",
+								icon: PencilIcon,
+								onSelect: () => setRenaming(true),
+							},
+						]}
+					/>
 				</div>
 				{pickingColor && (
 					<ColorSwatches
@@ -186,6 +220,9 @@ export const BoardCard: FC<BoardCardProps> = ({
 							draggable={chat.id !== card.id}
 							open={openChatIds.has(chat.id)}
 							onRename={(title) => onRenameChat(chat, title)}
+							onOpen={onOpen}
+							onPreview={onPreview}
+							onPreviewEnd={onPreviewEnd}
 						/>
 					))}
 				</ul>
@@ -216,33 +253,43 @@ const Age: FC<{ readonly at: string }> = ({ at }) => (
 	</span>
 );
 
-interface OpenChatLinkProps {
+interface OpenChatSurfaceProps extends ChatOpenHandlers {
 	readonly chat: Chat;
 	readonly isDragging: boolean;
 }
 
 /**
- * Invisible link under a card header or row, so a click that lands on no
- * control opens the chat. Controls that must keep their own click sit above
- * it with `relative z-[1]`.
+ * Invisible surface under a card header or row: hovering previews the chat
+ * in a floating window, a click that lands on no control pins it. Controls
+ * that keep their own click sit above it with `relative z-[1]`.
  */
-const OpenChatLink: FC<OpenChatLinkProps> = ({ chat, isDragging }) => {
+const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
+	chat,
+	isDragging,
+	onOpen,
+	onPreview,
+	onPreviewEnd,
+}) => {
 	// A drop that ends where the drag began also fires a click; only a
-	// plain click may navigate.
+	// plain click may open.
 	const dragged = useRef(false);
 	useEffect(() => {
 		if (isDragging) dragged.current = true;
 	}, [isDragging]);
+	const anchorOf = (el: HTMLElement) =>
+		(el.parentElement ?? el).getBoundingClientRect();
 	return (
-		<Link
-			to={`/agents/board/${chat.id}`}
+		<button
+			type="button"
 			aria-label={`Open ${chat.title}`}
-			className="absolute inset-0"
+			className="absolute inset-0 cursor-pointer border-0 bg-transparent p-0"
 			onPointerDown={() => {
 				dragged.current = false;
 			}}
+			onPointerEnter={(e) => onPreview(chat, anchorOf(e.currentTarget))}
+			onPointerLeave={onPreviewEnd}
 			onClick={(e) => {
-				if (dragged.current) e.preventDefault();
+				if (!dragged.current) onOpen(chat, anchorOf(e.currentTarget));
 			}}
 		/>
 	);
@@ -257,7 +304,7 @@ interface EditableTitleProps {
 	readonly onCancel: () => void;
 }
 
-/** Two-line title; clicking the text edits it in place. */
+/** Two-line title; clicking the text (only the text) edits it in place. */
 const EditableTitle: FC<EditableTitleProps> = ({
 	value,
 	renaming,
@@ -268,12 +315,12 @@ const EditableTitle: FC<EditableTitleProps> = ({
 }) => {
 	if (renaming) {
 		return (
-			<InlineInput
+			<InlineEdit
 				value={value}
 				onSave={onRenamed}
 				onDone={onCancel}
 				ariaLabel="title"
-				className={cn("relative z-[1] w-full text-content-primary", className)}
+				className={cn("relative z-[1] text-content-primary", className)}
 			/>
 		);
 	}
@@ -282,7 +329,7 @@ const EditableTitle: FC<EditableTitleProps> = ({
 			type="button"
 			title="Click to rename"
 			className={cn(
-				"relative z-[1] m-0 min-w-0 cursor-text border-0 bg-transparent p-0 text-left text-content-primary",
+				"relative z-[1] m-0 w-fit max-w-full min-w-0 cursor-text justify-self-start border-0 bg-transparent p-0 text-left text-content-primary",
 				className,
 			)}
 			onClick={onEdit}
@@ -389,8 +436,15 @@ interface DragGhostProps {
 	readonly drag: DragData;
 }
 
-/** Compact stand-in rendered in the DragOverlay while a card or chat moves. */
+/** Compact stand-in rendered in the DragOverlay while a card, chat, or column moves. */
 export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
+	if (drag.type === "column") {
+		return (
+			<div className="w-[300px] cursor-grabbing rounded-md border border-content-link bg-surface-primary px-3 py-1.5 text-[13px] font-medium text-content-primary shadow-lg">
+				{drag.name}
+			</div>
+		);
+	}
 	const title = drag.type === "card" ? drag.card.title : drag.chat.title;
 	const detail =
 		drag.type === "card" && drag.card.members.length > 1
@@ -413,7 +467,7 @@ export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
 	);
 };
 
-interface ChatRowProps {
+interface ChatRowProps extends ChatOpenHandlers {
 	readonly chat: Chat;
 	readonly card: BoardCardModel;
 	readonly draggable: boolean;
@@ -427,6 +481,9 @@ const ChatRow: FC<ChatRowProps> = ({
 	draggable,
 	open,
 	onRename,
+	onOpen,
+	onPreview,
+	onPreviewEnd,
 }) => {
 	const dragData: DragData = { type: "chat", chat, card };
 	const { setNodeRef, setActivatorNodeRef, listeners, attributes, isDragging } =
@@ -447,7 +504,13 @@ const ChatRow: FC<ChatRowProps> = ({
 				isDragging && "opacity-40",
 			)}
 		>
-			<OpenChatLink chat={chat} isDragging={isDragging} />
+			<OpenChatSurface
+				chat={chat}
+				isDragging={isDragging}
+				onOpen={onOpen}
+				onPreview={onPreview}
+				onPreviewEnd={onPreviewEnd}
+			/>
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
 				ref={draggable ? setActivatorNodeRef : undefined}

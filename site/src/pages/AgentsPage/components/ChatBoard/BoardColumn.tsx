@@ -1,9 +1,15 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
+import { Trash2Icon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { ActionsMenu } from "./ActionsMenu";
-import { BoardCard, type DropData } from "./BoardCard";
+import {
+	BoardCard,
+	type ChatOpenHandlers,
+	type DragData,
+	type DropData,
+} from "./BoardCard";
 import type {
 	BoardCard as BoardCardModel,
 	BoardColumn as BoardColumnModel,
@@ -11,17 +17,19 @@ import type {
 } from "./boardLabels";
 import { columnColor, INBOX_COLUMN } from "./boardLabels";
 import type { DropTarget } from "./ChatBoardPage";
-import { InlineInput } from "./InlineText";
+import { dragHandleListeners } from "./dragHandle";
+import { InlineEdit } from "./InlineText";
 
 const columnDropId = (name: string) => `column:${name}`;
+const columnDragId = (name: string) => `column-drag:${name}`;
 
-const columnClass = "flex w-[300px] shrink-0 flex-col min-h-0";
+const columnClass = "relative flex w-[300px] shrink-0 flex-col min-h-0";
 // The header is its own hover group so its controls do not light up while
-// hovering cards below it.
+// hovering cards below it. It is also the handle for reordering columns.
 const columnHeaderClass =
 	"group/column flex items-center gap-2 px-1.5 pt-0.5 pb-2.5 text-[13px] font-medium text-content-primary";
 
-interface BoardColumnProps {
+interface BoardColumnProps extends ChatOpenHandlers {
 	readonly column: BoardColumnModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
@@ -33,6 +41,7 @@ interface BoardColumnProps {
 		color: CardColor | undefined,
 	) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
+	readonly onAssistant: (card: BoardCardModel) => void;
 	readonly onAddNote: (card: BoardCardModel, text: string) => void;
 	readonly onEditNote: (
 		card: BoardCardModel,
@@ -51,6 +60,10 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	onSetCardTitle,
 	onSetCardColor,
 	onRenameChat,
+	onAssistant,
+	onOpen,
+	onPreview,
+	onPreviewEnd,
 	onAddNote,
 	onEditNote,
 	onRemoveNote,
@@ -60,6 +73,20 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 		id: columnDropId(column.name),
 		data: dropData,
 	});
+	const dragData: DragData = { type: "column", name: column.name };
+	// The header is both the draggable node and its handle; without a node
+	// rect dnd-kit measures nothing and never runs collision detection.
+	const {
+		setNodeRef: setDragNodeRef,
+		setActivatorNodeRef,
+		listeners,
+		attributes,
+		isDragging,
+	} = useDraggable({ id: columnDragId(column.name), data: dragData });
+	const setHeaderRefs = (node: HTMLElement | null) => {
+		setDragNodeRef(node);
+		setActivatorNodeRef(node);
+	};
 	const isInbox = column.name === INBOX_COLUMN;
 	const insertBefore =
 		dropTarget?.kind === "insert" && dropTarget.column === column.name
@@ -67,18 +94,39 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 			: undefined;
 	const mergeTargetId =
 		dropTarget?.kind === "merge" ? dropTarget.card.id : undefined;
+	const columnSide =
+		dropTarget?.kind === "column" && dropTarget.name === column.name
+			? dropTarget.side
+			: undefined;
 	const [renaming, setRenaming] = useState(false);
 
 	return (
 		<section
 			ref={setNodeRef}
 			aria-label={`${column.name} column`}
-			className={columnClass}
+			className={cn(columnClass, isDragging && "opacity-40")}
 		>
-			<header className={columnHeaderClass}>
+			{/* Occupies the column gap, so showing it does not shift layout. */}
+			{columnSide && (
+				<div
+					className={cn(
+						"absolute inset-y-0 w-0.5 rounded bg-content-link",
+						columnSide === "before" ? "-left-[9px]" : "-right-[9px]",
+					)}
+				/>
+			)}
+			<header
+				ref={setHeaderRefs}
+				className={cn(
+					columnHeaderClass,
+					"cursor-grab touch-none active:cursor-grabbing",
+				)}
+				{...dragHandleListeners(listeners)}
+				{...attributes}
+			>
 				<ColumnDot name={column.name} />
 				{renaming ? (
-					<InlineInput
+					<InlineEdit
 						value={column.name}
 						onSave={onRename}
 						onDone={() => setRenaming(false)}
@@ -92,19 +140,26 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 					<button
 						type="button"
 						title="Click to rename"
-						className="m-0 min-w-0 flex-1 cursor-text truncate border-0 bg-transparent p-0 text-left text-inherit"
+						className="m-0 max-w-full min-w-0 cursor-text truncate border-0 bg-transparent p-0 text-left text-inherit"
 						onClick={() => setRenaming(true)}
 					>
 						{column.name}
 					</button>
 				)}
-				<span className="text-[11px] text-content-secondary/70 tabular-nums">
+				<span className="ml-auto text-[11px] text-content-secondary/70 tabular-nums">
 					{column.cards.length}
 				</span>
 				{!isInbox && (
 					<ActionsMenu
 						label={`${column.name} column`}
-						onDelete={{ label: "Delete column", run: onDelete }}
+						items={[
+							{
+								label: "Delete column",
+								icon: Trash2Icon,
+								destructive: true,
+								onSelect: onDelete,
+							},
+						]}
 					/>
 				)}
 			</header>
@@ -119,6 +174,10 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 							onSetTitle={(title) => onSetCardTitle(card, title)}
 							onSetColor={(color) => onSetCardColor(card, color)}
 							onRenameChat={onRenameChat}
+							onAssistant={() => onAssistant(card)}
+							onOpen={onOpen}
+							onPreview={onPreview}
+							onPreviewEnd={onPreviewEnd}
 							onAddNote={(text) => onAddNote(card, text)}
 							onEditNote={(index, text) => onEditNote(card, index, text)}
 							onRemoveNote={(index) => onRemoveNote(card, index)}
@@ -159,8 +218,9 @@ export const NewColumn: FC<NewColumnProps> = ({ onCreate, onCancel }) => (
 	<section aria-label="New column" className={cn(columnClass, "min-h-24")}>
 		<header className={columnHeaderClass}>
 			<span className="size-2 shrink-0 rounded-[2px] bg-content-secondary/40" />
-			<InlineInput
+			<InlineEdit
 				value=""
+				placeholder="Column name"
 				ariaLabel="New column name"
 				className="flex-1"
 				onSave={onCreate}
