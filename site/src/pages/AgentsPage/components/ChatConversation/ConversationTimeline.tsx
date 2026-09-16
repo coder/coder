@@ -471,11 +471,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			ReadonlyMap<string, string>
 		>(new Map());
 		// A live block anchored on the head is re-keyed when paging loads its
-		// turn's prompt. Its oldest member stays in the block, so that member
-		// identifies the re-keyed block and lets it keep its item.
+		// turn's prompt. Its oldest member and its stream both outlive the
+		// re-key, so either identifies the block and lets it keep its item.
 		const [liveBlockIdentity, setLiveBlockIdentity] = useState<{
 			itemKey: string;
-			firstMemberId: number;
+			firstMemberId: number | undefined;
+			streamStartedAt: string | undefined;
 		} | null>(null);
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
@@ -517,14 +518,20 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		);
 		let nextLiveItemKeys = liveItemKeys;
 		let nextLiveBlockIdentity = liveBlockIdentity;
+		const streamStartedAt = streamState?.startedAt;
 		for (const block of workingBlocks) {
 			let itemKey = nextLiveItemKeys.get(block.key);
 			if (itemKey === undefined) {
-				if (
-					nextLiveBlockIdentity &&
-					block.memberIds.includes(nextLiveBlockIdentity.firstMemberId)
-				) {
-					itemKey = nextLiveBlockIdentity.itemKey;
+				const identity = nextLiveBlockIdentity;
+				const continuesLiveBlock =
+					identity !== null &&
+					((identity.firstMemberId !== undefined &&
+						block.memberIds.includes(identity.firstMemberId)) ||
+						(block.isLive &&
+							identity.streamStartedAt !== undefined &&
+							identity.streamStartedAt === streamStartedAt));
+				if (continuesLiveBlock) {
+					itemKey = identity.itemKey;
 				} else if (block.isLive) {
 					itemKey = block.liveKey;
 				} else {
@@ -540,10 +547,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const firstMemberId = block.memberIds[0];
 			if (
 				block.isLive &&
-				firstMemberId !== undefined &&
-				nextLiveBlockIdentity?.itemKey !== itemKey
+				(nextLiveBlockIdentity?.itemKey !== itemKey ||
+					nextLiveBlockIdentity.firstMemberId !== firstMemberId ||
+					nextLiveBlockIdentity.streamStartedAt !== streamStartedAt)
 			) {
-				nextLiveBlockIdentity = { itemKey, firstMemberId };
+				nextLiveBlockIdentity = { itemKey, firstMemberId, streamStartedAt };
 			}
 		}
 		if (nextLiveItemKeys !== liveItemKeys) {
@@ -735,20 +743,21 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					// follows the same steps through the live-to-complete handoff and
 					// through prepends, even when the turn's prompt is not loaded.
 					// The live row is excluded: it would carry the choice into the
-					// next turn. liveKey covers a block that has no persisted row
-					// yet. The newest decision wins.
+					// next turn. The item key covers a block that has no persisted
+					// row yet and follows it when paging re-keys it. The newest
+					// decision wins.
 					const memberKeys = block.rowIndices
 						.map((rowIndex) => renderRows[rowIndex])
 						.filter((member) => member.type === "message")
 						.map((member) => member.key);
-					let expanded = expandedBlocks.get(block.liveKey) ?? false;
+					const itemKey = nextLiveItemKeys.get(block.key) ?? block.key;
+					let expanded = expandedBlocks.get(itemKey) ?? false;
 					for (const memberKey of memberKeys) {
 						const decision = expandedBlocks.get(memberKey);
 						if (decision !== undefined) {
 							expanded = decision;
 						}
 					}
-					const itemKey = nextLiveItemKeys.get(block.key) ?? block.key;
 					return (
 						<MessageScroller.Item
 							key={itemKey}
@@ -765,7 +774,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								onExpandedChange={(value) =>
 									setExpandedBlocks((previous) => {
 										const next = new Map(previous);
-										next.set(block.liveKey, value);
+										next.set(itemKey, value);
 										for (const memberKey of memberKeys) {
 											next.set(memberKey, value);
 										}
