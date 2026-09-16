@@ -74,7 +74,8 @@ export const firstDayWithinRetention = (cutoff: Date, now: Date): Date => {
  * retention cutoff (the start is the cutoff itself, or a budget boundary
  * whose local midnight falls earlier), the range starts at the first
  * selectable day at or after the cutoff instead, so re-committing the range
- * never asks for a start before retention.
+ * never asks for a start before retention. When that day is past the window's
+ * last day, the range is that single day.
  */
 export const appliedWindowToDateRange = (
 	window: Pick<
@@ -84,9 +85,7 @@ export const appliedWindowToDateRange = (
 	now: Date,
 ): DateRangeValue => {
 	const start = new Date(window.period_start);
-	const lastDay = localDayOf(
-		new Date(new Date(window.period_end).getTime() - 1),
-	);
+	let lastDay = localDayOf(new Date(new Date(window.period_end).getTime() - 1));
 	let firstDay = localDayOf(start);
 	if (
 		window.retention_start !== undefined &&
@@ -94,7 +93,7 @@ export const appliedWindowToDateRange = (
 	) {
 		firstDay = firstDayWithinRetention(new Date(window.retention_start), now);
 		if (firstDay > lastDay) {
-			firstDay = lastDay;
+			lastDay = firstDay;
 		}
 	}
 	return toBoundary(firstDay, lastDay, now);

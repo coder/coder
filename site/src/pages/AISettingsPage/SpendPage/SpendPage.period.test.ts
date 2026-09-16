@@ -64,6 +64,17 @@ it("keeps a budget start whose local midnight precedes the cutoff inside retenti
 	expectFirstLocalMidnightAfter(startDate, cutoff);
 });
 
+it("shows the first selectable day when no whole day of the window remains", () => {
+	const lateNow = new Date("2026-03-31T23:30:00Z");
+	const cutoff = new Date("2026-03-31T22:30:00Z");
+	const { startDate, endDate } = appliedWindowToDateRange(
+		clampedToRetention(cutoff, "2026-04-01T00:00:00Z"),
+		lateNow,
+	);
+	expect(startDate).toEqual(firstDayWithinRetention(cutoff, lateNow));
+	expect(endDate.getTime()).toBeGreaterThan(startDate.getTime());
+});
+
 it("starts today when retention is shorter than a day", () => {
 	const cutoff = new Date(now.getTime() - 60 * 60 * 1000);
 	const { startDate } = appliedWindowToDateRange(
