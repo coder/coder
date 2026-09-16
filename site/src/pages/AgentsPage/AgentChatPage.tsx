@@ -1000,31 +1000,33 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
+	const loadingView = (
+		<AgentChatPageLoadingView
+			inputRef={editing.chatInputRef}
+			initialValue={editing.editorInitialValue}
+			initialEditorState={editing.initialEditorState}
+			remountKey={editing.remountKey}
+			onContentChange={editing.handleLoadingDraftChange}
+			isInputDisabled={isInputDisabled}
+			effectiveSelectedModel={effectiveSelectedModel}
+			setSelectedModel={setSelectedModel}
+			modelOptions={modelOptions}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			hasModelOptions={hasModelOptions}
+			isModelCatalogLoading={isModelDataPending}
+			planModeEnabled={planModeEnabled}
+			onPlanModeToggle={handlePlanModeToggle}
+			showRightPanel={showSidebarPanel}
+		/>
+	);
+
 	return (
 		<>
 			<title>
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
-			{chatQuery.isLoading ||
-			chatMessagesQuery.isLoading ||
-			preferencesQuery.isLoading ? (
-				<AgentChatPageLoadingView
-					inputRef={editing.chatInputRef}
-					initialValue={editing.editorInitialValue}
-					initialEditorState={editing.initialEditorState}
-					remountKey={editing.remountKey}
-					onContentChange={editing.handleLoadingDraftChange}
-					isInputDisabled={isInputDisabled}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
-					planModeEnabled={planModeEnabled}
-					onPlanModeToggle={handlePlanModeToggle}
-					showRightPanel={showSidebarPanel}
-				/>
+			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
+				loadingView
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
@@ -1047,6 +1049,8 @@ const AgentChatPage: FC = () => {
 				)
 			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
 				<AgentChatPageNotFoundView />
+			) : preferencesQuery.isLoading ? (
+				loadingView
 			) : (
 				<AgentChatPageView
 					key={agentId}
