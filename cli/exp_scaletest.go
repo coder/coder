@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math/rand"
 	"net/http"
@@ -447,7 +448,7 @@ func (f *workspaceTargetFlags) attachSharding(opts *serpent.OptionSet) {
 			Flag:        "shard-count",
 			Env:         "CODER_SCALETEST_SHARD_COUNT",
 			Default:     "0",
-			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each shard targets a disjoint, evenly-sized slice of the running workspaces. Requires --shard-index and is mutually exclusive with --target-workspaces.",
+			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each running workspace is assigned to exactly one shard by a stable hash of its ID, so shards are disjoint and roughly even. Requires --shard-index and is mutually exclusive with --target-workspaces.",
 			Value:       serpent.Int64Of(&f.shardCount),
 		},
 	)
@@ -515,14 +516,15 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 		cliui.Warnf(warnWriter, "CODER_DISABLE_OWNER_WORKSPACE_ACCESS is set on the deployment.\n\t%d workspace(s) were skipped due to ownership mismatch.\n\tSet --use-host-login to only target workspaces you own.", numSkipped)
 	}
 
-	// Sharding mode: each replica targets a disjoint, evenly-sized slice of the
-	// running workspaces. Only running workspaces are considered so load is
-	// balanced even if some workspaces failed to start. This slice is disjoint
-	// and complete across replicas only when every replica observes the same
-	// running set; the traffic jobs guarantee that by starting after workspace
-	// creation has settled (a churning running set produces load-measurement
-	// skew, not per-pod memory growth, since each pod still bounds its own slice
-	// width to ~n/count).
+	// Sharding mode: each replica targets a disjoint subset of the running
+	// workspaces. Assignment is a pure function of the workspace's stable ID and
+	// shardCount (workspaceShardIndex), independent of how many workspaces exist,
+	// their ordering, their running status, or when each replica queries. So as
+	// long as shardCount is fixed for the run, a given workspace always maps to
+	// the same shard: replicas need not observe the same set, and a workspace
+	// that stops or disappears never shifts another's assignment (worst case it
+	// simply receives no load, never double). Only running workspaces are
+	// considered so load isn't wasted on workspaces that failed to start.
 	if shardingRequested {
 		running := make([]codersdk.Workspace, 0, len(workspaces))
 		for _, ws := range workspaces {
@@ -536,13 +538,18 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 			}
 			return nil, xerrors.New("no running scaletest workspaces exist")
 		}
-		start, end := shardBounds(len(running), int(f.shardIndex), int(f.shardCount))
-		// Emit a per-shard diagnostic so an empty or unexpectedly small slice is
+		shard := make([]codersdk.Workspace, 0, len(running)/int(f.shardCount)+1)
+		for _, ws := range running {
+			if workspaceShardIndex(ws.ID, f.shardCount) == f.shardIndex {
+				shard = append(shard, ws)
+			}
+		}
+		// Emit a per-shard diagnostic so an empty or unexpectedly small shard is
 		// visible instead of a silent no-op: a pod that targets zero workspaces
-		// (e.g. running count dropped below shard-count) still exits 0.
-		_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces (indices [%d, %d))\n",
-			f.shardIndex, f.shardCount, end-start, len(running), start, end)
-		return running[start:end], nil
+		// (e.g. the running count dropped below shard-count) still exits 0.
+		_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces\n",
+			f.shardIndex, f.shardCount, len(shard), len(running))
+		return shard, nil
 	}
 
 	// Adjust targetEnd if not specified
@@ -565,14 +572,18 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	return workspaces[targetStart:targetEnd], nil
 }
 
-// shardBounds returns the [start, end) bounds of the slice belonging to shard
-// index of count total shards partitioning n items. The remainder is
-// distributed so that shard sizes differ by at most one, and the union of all
-// shards exactly covers [0, n) with no overlap.
-func shardBounds(n, index, count int) (start, end int) {
-	start = index * n / count
-	end = (index + 1) * n / count
-	return start, end
+// workspaceShardIndex maps a workspace to one of shardCount shards using a hash
+// of its stable ID. The assignment depends only on the workspace ID and
+// shardCount, so it is identical across replicas and stable as the running set
+// churns: a workspace that still exists always maps to the same shard, and
+// workspaces stopping or disappearing never reassign the others. shardCount
+// must be >= 1 (guaranteed by getTargetedWorkspaces validation).
+func workspaceShardIndex(id uuid.UUID, shardCount int64) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write(id[:])
+	// #nosec G115 -- shardCount is validated >= 1; the modulo result is in
+	// [0, shardCount) and always fits in int64.
+	return int64(h.Sum64() % uint64(shardCount))
 }
 
 func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {

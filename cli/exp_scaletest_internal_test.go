@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -77,64 +78,73 @@ func scaletestUser(username, email string) codersdk.User {
 	}
 }
 
-// TestShardBounds verifies that partitioning n items across count shards yields
-// disjoint slices that cover [0, n) exactly, with sizes differing by at most
-// one (relatively even distribution).
-func TestShardBounds(t *testing.T) {
+// TestWorkspaceShardIndex verifies that hash-based shard assignment is
+// deterministic, in range, disjoint-and-complete over a set, and stable when
+// the set changes (a workspace's shard depends only on its ID and the shard
+// count, not on the other workspaces present).
+func TestWorkspaceShardIndex(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		n     int
-		count int
-	}{
-		{n: 0, count: 1},
-		{n: 1, count: 1},
-		{n: 10, count: 1},
-		{n: 10, count: 3},
-		{n: 10, count: 10},
-		{n: 6667, count: 27}, // 20k scenario, per region.
-		{n: 200, count: 7},
-		{n: 3, count: 5}, // more shards than items: some shards are empty.
+	counts := []int64{1, 2, 3, 7, 27}
+
+	// A fixed pool of workspace IDs.
+	ids := make([]uuid.UUID, 1000)
+	for i := range ids {
+		ids[i] = uuid.New()
 	}
 
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("n=%d,count=%d", tc.n, tc.count), func(t *testing.T) {
+	for _, count := range counts {
+		t.Run(fmt.Sprintf("count=%d", count), func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				covered  int
-				prevEnd  int
-				minSize  = -1
-				maxSize  int
-				baseSize = tc.n / tc.count
-			)
-			for i := 0; i < tc.count; i++ {
-				start, end := shardBounds(tc.n, i, tc.count)
+			perShard := make([]int, count)
+			for _, id := range ids {
+				idx := workspaceShardIndex(id, count)
 
-				require.LessOrEqual(t, start, end, "start must not exceed end")
-				require.GreaterOrEqual(t, start, 0)
-				require.LessOrEqual(t, end, tc.n)
-				// Shards must be contiguous: this shard starts where the
-				// previous one ended.
-				require.Equal(t, prevEnd, start, "shards must be contiguous and non-overlapping")
-				prevEnd = end
+				// In range.
+				require.GreaterOrEqual(t, idx, int64(0))
+				require.Less(t, idx, count)
 
-				size := end - start
-				covered += size
-				if minSize == -1 || size < minSize {
-					minSize = size
-				}
-				if size > maxSize {
-					maxSize = size
-				}
+				// Deterministic: same inputs, same output.
+				require.Equal(t, idx, workspaceShardIndex(id, count))
+
+				perShard[idx]++
 			}
 
-			// The union of shards covers every item exactly once.
-			require.Equal(t, tc.n, covered, "shards must cover all items")
-			require.Equal(t, tc.n, prevEnd, "last shard must end at n")
-			// Sizes differ by at most one and straddle the floor size.
-			require.LessOrEqual(t, maxSize-minSize, 1, "shard sizes must differ by at most one")
-			require.GreaterOrEqual(t, maxSize, baseSize)
+			// Disjoint and complete: every ID counted exactly once across shards.
+			total := 0
+			for _, n := range perShard {
+				total += n
+			}
+			require.Equal(t, len(ids), total)
 		})
+	}
+}
+
+// TestWorkspaceShardIndexStable asserts that removing workspaces from the set
+// does not change the shard any surviving workspace maps to (the property that
+// makes replicas tolerant of a churning running set).
+func TestWorkspaceShardIndexStable(t *testing.T) {
+	t.Parallel()
+
+	const count = 12
+	ids := make([]uuid.UUID, 500)
+	for i := range ids {
+		ids[i] = uuid.New()
+	}
+
+	// Baseline assignment for every ID.
+	want := make(map[uuid.UUID]int64, len(ids))
+	for _, id := range ids {
+		want[id] = workspaceShardIndex(id, count)
+	}
+
+	// Drop half the workspaces; the survivors must map to the same shard.
+	for i, id := range ids {
+		if i%2 == 0 {
+			continue // pretend this workspace disappeared
+		}
+		require.Equal(t, want[id], workspaceShardIndex(id, count),
+			"assignment must not depend on which other workspaces are present")
 	}
 }
