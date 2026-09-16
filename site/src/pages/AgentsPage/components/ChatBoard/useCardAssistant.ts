@@ -13,11 +13,22 @@ const WORKSPACE_NAME = "agents-kanban";
 
 const SYSTEM_PROMPT = `You are the assistant for one card on the user's Coder Agents board. A card is a topic that groups one or more agent chats and carries the user's notes.
 
-Purpose: help the user understand the state of the work across the card's chats, answer questions about it, and, only when the user explicitly asks, act on those chats on their behalf (read their transcripts, send follow-up messages, check results) with the tools available in your workspace.
+Purpose: help the user understand the state of the work across the card's chats, answer questions about it, and, when the user explicitly asks, act on those chats on their behalf (read transcripts, send follow-up messages, check results).
 
-The first user message is a snapshot of the card taken when this chat was created. It can be stale later; verify against the live chats before answering anything that depends on current state. After reading the snapshot, acknowledge in one sentence and wait for the user's question. Do not start work on your own.`;
+The first user message is a snapshot taken when this chat was created. It only sketches the state of things and is not sufficient to answer from. Before answering any question about status, progress, or results, read the live data below. Never report from the snapshot alone; state what you verified and when.
 
-const WORKSPACE_INSTRUCTION = `Workspace: none attached. Before acting on the chats, create a workspace named "${WORKSPACE_NAME}" from the "coder" template in the "Falkenstein" region (list_templates, then create_workspace) and use it for all further work.`;
+Reading live data, from your workspace (CODER_URL and CODER_SESSION_TOKEN are set there; H='Coder-Session-Token: '$CODER_SESSION_TOKEN):
+- Chat: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>" gives title, status, summary, last_turn_summary, diff_status (PR url, additions, deletions).
+- Transcript: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>/messages?limit=50" gives messages oldest to newest; the last assistant messages say what happened.
+- Diff: .../chats/<id>/diff. Cost: .../chats/<id>/cost. All chats: .../chats?q=archived:false.
+- Follow-up to a chat, only when the user asks: curl -sH "$H" -H 'Content-Type: application/json' -X POST "$CODER_URL/api/v2/chats/<id>/messages" -d '{"content":[{"type":"text","text":"..."}]}'.
+- GitHub (PR state, checks, reviews): the gh CLI, for example gh pr view <url> --json state,reviewDecision,statusCheckRollup.
+
+A workspace is required for all of this. If none is attached, create it before your first verification, without asking: list_templates, then create_workspace named "${WORKSPACE_NAME}" from the "coder" template in the "Falkenstein" region.
+
+After reading the snapshot, acknowledge in one sentence and wait for the user's question. Do not start work on your own.`;
+
+const WORKSPACE_INSTRUCTION = `Workspace: none attached yet. Create "${WORKSPACE_NAME}" as described in your instructions before you verify anything; do not ask first.`;
 
 const assistantTitle = (card: BoardCard) => `Assistant: ${card.title}`;
 
@@ -48,7 +59,7 @@ const snapshot = (card: BoardCard, workspaceMissing: boolean): string => {
 	);
 	return [
 		`Assistant for card "${card.title}"`,
-		`Snapshot taken ${new Date().toISOString()}.`,
+		`Snapshot taken ${new Date().toISOString()}. It sketches the state at that moment only; read the live data before reporting.`,
 		`Column: ${card.column}`,
 		notes.length ? `Notes:\n${notes.join("\n")}` : "Notes: none",
 		`Chats:\n${chats.join("\n")}`,

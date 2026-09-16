@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
-import { BotIcon, CopyIcon, PencilIcon } from "lucide-react";
+import { BotIcon, CopyIcon, MessageSquareIcon, PencilIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { shortRelativeTime } from "#/utils/time";
@@ -122,8 +122,9 @@ export const BoardCard: FC<BoardCardProps> = ({
 			  Same anatomy for every card: [icon] title [meta]. A single chat is
 			  its own card, so its title is the chat title and there are no rows;
 			  a group shows a stack icon, the card title, and one row per chat.
-			  Click the title text to rename it; hover or click anywhere else on a
-			  single card's header to open the chat. The band is washed with the accent.
+			  Click the title text to rename it; click anywhere else on a single
+			  card's header to open the chat, or rest on its chat icon to preview
+			  it. The band is washed with the accent.
 			*/}
 			<header
 				className={cn(
@@ -140,8 +141,6 @@ export const BoardCard: FC<BoardCardProps> = ({
 						chat={lead}
 						isDragging={isDragging}
 						onOpen={onOpen}
-						onPreview={onPreview}
-						onPreviewEnd={onPreviewEnd}
 					/>
 				)}
 				<span className="flex h-[19px] items-center justify-center">
@@ -175,6 +174,12 @@ export const BoardCard: FC<BoardCardProps> = ({
 							{lead.has_unread && <UnreadDot />}
 							<Age at={lead.updated_at} />
 							<ChatInfoPopover chat={lead} />
+							<ChatOpener
+								chat={lead}
+								onOpen={onOpen}
+								onPreview={onPreview}
+								onPreviewEnd={onPreviewEnd}
+							/>
 						</>
 					) : (
 						<span className="text-[11px] text-content-secondary/70">
@@ -253,22 +258,21 @@ const Age: FC<{ readonly at: string }> = ({ at }) => (
 	</span>
 );
 
-interface OpenChatSurfaceProps extends ChatOpenHandlers {
+interface OpenChatSurfaceProps {
 	readonly chat: Chat;
 	readonly isDragging: boolean;
+	readonly onOpen: (chat: Chat, anchor: DOMRect) => void;
 }
 
 /**
- * Invisible surface under a card header or row: hovering previews the chat
- * in a floating window, a click that lands on no control pins it. Controls
- * that keep their own click sit above it with `relative z-[1]`.
+ * Invisible surface under a card header or row: a click that lands on no
+ * control opens the chat. Controls that keep their own click sit above it
+ * with `relative z-[1]`.
  */
 const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
 	chat,
 	isDragging,
 	onOpen,
-	onPreview,
-	onPreviewEnd,
 }) => {
 	// A drop that ends where the drag began also fires a click; only a
 	// plain click may open.
@@ -276,8 +280,6 @@ const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
 	useEffect(() => {
 		if (isDragging) dragged.current = true;
 	}, [isDragging]);
-	const anchorOf = (el: HTMLElement) =>
-		(el.parentElement ?? el).getBoundingClientRect();
 	return (
 		<button
 			type="button"
@@ -286,14 +288,41 @@ const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
 			onPointerDown={() => {
 				dragged.current = false;
 			}}
-			onPointerEnter={(e) => onPreview(chat, anchorOf(e.currentTarget))}
-			onPointerLeave={onPreviewEnd}
 			onClick={(e) => {
 				if (!dragged.current) onOpen(chat, anchorOf(e.currentTarget));
 			}}
 		/>
 	);
 };
+
+// The header or row the control sits in; the window opens beside it.
+const anchorOf = (el: HTMLElement) =>
+	(el.closest("header, li") ?? el).getBoundingClientRect();
+
+interface ChatOpenerProps extends ChatOpenHandlers {
+	readonly chat: Chat;
+}
+
+/** The chat icon: resting on it previews the chat, clicking it pins the window. */
+const ChatOpener: FC<ChatOpenerProps> = ({
+	chat,
+	onOpen,
+	onPreview,
+	onPreviewEnd,
+}) => (
+	<button
+		type="button"
+		aria-label={`Open ${chat.title}`}
+		title="Open chat"
+		className="relative z-[1] grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:text-content-primary"
+		onPointerDown={(e) => e.stopPropagation()}
+		onPointerEnter={(e) => onPreview(chat, anchorOf(e.currentTarget))}
+		onPointerLeave={onPreviewEnd}
+		onClick={(e) => onOpen(chat, anchorOf(e.currentTarget))}
+	>
+		<MessageSquareIcon className="size-3.5" />
+	</button>
+);
 
 interface EditableTitleProps {
 	readonly value: string;
@@ -504,13 +533,7 @@ const ChatRow: FC<ChatRowProps> = ({
 				isDragging && "opacity-40",
 			)}
 		>
-			<OpenChatSurface
-				chat={chat}
-				isDragging={isDragging}
-				onOpen={onOpen}
-				onPreview={onPreview}
-				onPreviewEnd={onPreviewEnd}
-			/>
+			<OpenChatSurface chat={chat} isDragging={isDragging} onOpen={onOpen} />
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
 				ref={draggable ? setActivatorNodeRef : undefined}
@@ -549,6 +572,12 @@ const ChatRow: FC<ChatRowProps> = ({
 				{chat.has_unread && <UnreadDot />}
 				<Age at={chat.updated_at} />
 				<ChatInfoPopover chat={chat} />
+				<ChatOpener
+					chat={chat}
+					onOpen={onOpen}
+					onPreview={onPreview}
+					onPreviewEnd={onPreviewEnd}
+				/>
 			</div>
 		</li>
 	);
