@@ -368,6 +368,92 @@ describe("useMcpAppBridge", () => {
 		});
 	});
 
+	it("reuses the running view when a newer call binds to the same resource", async () => {
+		const fake = await createFakeView();
+		const { result, update } = renderBridge({ transport: fake.hostTransport });
+		await bootView(fake);
+		await waitFor(() => {
+			expect(
+				fake.notificationsFor("ui/notifications/tool-result"),
+			).toHaveLength(1);
+		});
+		const generation = result.current.generation;
+		const secondCall: BoundCall = {
+			args: { title: "Review PR" },
+			argsComplete: true,
+			result: { content: [{ type: "text", text: "added again" }] },
+			cancelled: false,
+		};
+
+		act(() => {
+			update({ toolCallId: "call-2", boundCall: secondCall });
+		});
+
+		await waitFor(() => {
+			expect(
+				fake.notificationsFor("ui/notifications/tool-result"),
+			).toHaveLength(2);
+		});
+		expect(result.current.phase).toBe("initialized");
+		expect(result.current.generation).toBe(generation);
+		expect(
+			fake.received.some(
+				(message) =>
+					isRequest(message) && message.method === "ui/resource-teardown",
+			),
+		).toBe(false);
+		const inputs = fake.notificationsFor("ui/notifications/tool-input");
+		expect(inputs).toHaveLength(2);
+		expect("params" in inputs[1] && inputs[1].params).toEqual({
+			arguments: secondCall.args,
+		});
+		const results = fake.notificationsFor("ui/notifications/tool-result");
+		expect("params" in results[1] && results[1].params).toEqual(
+			secondCall.result,
+		);
+		// The second call's input precedes its result.
+		expect(fake.received.indexOf(inputs[1])).toBeLessThan(
+			fake.received.indexOf(results[1]),
+		);
+	});
+
+	it("tears the view down and reloads when the bound resource changes", async () => {
+		const fake = await createFakeView();
+		const { result, update } = renderBridge({ transport: fake.hostTransport });
+		await bootView(fake);
+		await waitFor(() => {
+			expect(
+				fake.notificationsFor("ui/notifications/tool-result"),
+			).toHaveLength(1);
+		});
+		const generation = result.current.generation;
+
+		act(() => {
+			update({
+				toolCallId: "call-2",
+				resourceUri: "ui://taskboard/details",
+			});
+		});
+
+		const teardown = await waitFor(() => {
+			const request = fake.received.find(
+				(message): message is JSONRPCRequest =>
+					isRequest(message) && message.method === "ui/resource-teardown",
+			);
+			expect(request).toBeDefined();
+			return request;
+		});
+		expect(result.current.generation).toBe(generation);
+		await fake.respond(teardown?.id, {});
+		await waitFor(() => {
+			expect(result.current.generation).toBe(generation + 1);
+		});
+		expect(result.current.phase).toBe("booting");
+		expect(fake.notificationsFor("ui/notifications/tool-result")).toHaveLength(
+			1,
+		);
+	});
+
 	it("rejects ui/message when the chat cannot accept app messages", async () => {
 		const fake = await createFakeView();
 		renderBridge({ transport: fake.hostTransport, onAppMessage: undefined });

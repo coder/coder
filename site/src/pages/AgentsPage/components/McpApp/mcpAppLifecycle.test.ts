@@ -15,7 +15,7 @@ const run = (
 
 describe("mcpAppLifecycleReducer", () => {
 	it("walks idle -> loading_resource -> booting -> initialized", () => {
-		const bound = run([{ type: "bind" }]);
+		const bound = run([{ type: "bind", reload: true }]);
 		expect(bound).toMatchObject({ phase: "loading_resource", generation: 0 });
 
 		const booting = run([{ type: "resourceLoaded" }], bound);
@@ -33,20 +33,23 @@ describe("mcpAppLifecycleReducer", () => {
 	});
 
 	it("returns the same state when the resource is reported loaded again", () => {
-		const loaded = run([{ type: "bind" }, { type: "resourceLoaded" }]);
+		const loaded = run([
+			{ type: "bind", reload: true },
+			{ type: "resourceLoaded" },
+		]);
 		expect(mcpAppLifecycleReducer(loaded, { type: "resourceLoaded" })).toBe(
 			loaded,
 		);
 	});
 
-	it("rebinding after the first bind bumps the generation", () => {
+	it("reloading rebind after initialization bumps the generation", () => {
 		const first = run([
-			{ type: "bind" },
+			{ type: "bind", reload: true },
 			{ type: "resourceLoaded" },
 			{ type: "sandboxReady" },
 			{ type: "initialized" },
 		]);
-		const rebound = run([{ type: "bind" }], first);
+		const rebound = run([{ type: "bind", reload: true }], first);
 		expect(rebound).toMatchObject({
 			generation: 1,
 			// The HTML was already fetched, so the view goes straight to boot.
@@ -54,17 +57,47 @@ describe("mcpAppLifecycleReducer", () => {
 		});
 	});
 
+	it("non-reloading rebind keeps an initialized view untouched", () => {
+		const first = run([
+			{ type: "bind", reload: true },
+			{ type: "resourceLoaded" },
+			{ type: "sandboxReady" },
+			{ type: "initialized" },
+		]);
+		expect(mcpAppLifecycleReducer(first, { type: "bind", reload: false })).toBe(
+			first,
+		);
+	});
+
+	it("non-reloading rebind before initialization still restarts", () => {
+		const booting = run([
+			{ type: "bind", reload: true },
+			{ type: "resourceLoaded" },
+		]);
+		expect(
+			mcpAppLifecycleReducer(booting, { type: "bind", reload: false }),
+		).toMatchObject({ phase: "booting", generation: 1 });
+	});
+
 	it("rebinding before the resource loaded stays in loading_resource", () => {
-		expect(run([{ type: "bind" }, { type: "bind" }])).toMatchObject({
+		expect(
+			run([
+				{ type: "bind", reload: true },
+				{ type: "bind", reload: true },
+			]),
+		).toMatchObject({
 			phase: "loading_resource",
 			generation: 1,
 		});
 	});
 
 	it("records failures and clears them on rebind", () => {
-		const failed = run([{ type: "bind" }, { type: "fail", message: "boom" }]);
+		const failed = run([
+			{ type: "bind", reload: true },
+			{ type: "fail", message: "boom" },
+		]);
 		expect(failed).toMatchObject({ phase: "error", error: "boom" });
-		const rebound = run([{ type: "bind" }], failed);
+		const rebound = run([{ type: "bind", reload: true }], failed);
 		expect(rebound.error).toBeUndefined();
 		expect(rebound.phase).toBe("loading_resource");
 		expect(rebound.generation).toBe(1);

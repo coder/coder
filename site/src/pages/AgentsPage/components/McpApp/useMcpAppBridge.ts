@@ -140,7 +140,10 @@ export type UseMcpAppBridgeOptions = {
 	transport: Transport | undefined;
 	/** Undefined until the view resource has been read. */
 	view: McpAppView | undefined;
-	/** Tool call this tab renders; a change tears down and reloads the view. */
+	/**
+	 * Tool call this tab renders. A change is forwarded to an initialized view
+	 * of the same resource; otherwise the view is torn down and reloaded.
+	 */
 	toolCallId: string | undefined;
 	boundCall: BoundCall | undefined;
 	/** Named in the boot timeout message. */
@@ -183,7 +186,9 @@ export const useMcpAppBridge = ({
 		initialMcpAppLifecycleState,
 	);
 	const sessionRef = useRef<BridgeSession | null>(null);
-	const boundToolCallIdRef = useRef<string | undefined>(undefined);
+	const boundRef = useRef<{ toolCallId: string; resourceUri: string } | null>(
+		null,
+	);
 	const { mutateAsync: callTool } = useMutation(
 		callChatMCPAppTool(chatId, mcpServerConfigId),
 	);
@@ -314,29 +319,51 @@ export const useMcpAppBridge = ({
 		},
 	);
 
-	// A change of bound tool call tears the current view down first so the
-	// generation bump (and iframe reload) happens after the view had its
-	// chance to persist state.
+	// Binding a new tool call to an initialized view of the same resource
+	// keeps the iframe and the connection: only the per-call bookkeeping is
+	// reset so the next flush sends the new call's input and result. Any other
+	// change tears the current view down first, then bumps the generation so
+	// the iframe reloads.
 	useEffect(() => {
-		if (!toolCallId || boundToolCallIdRef.current === toolCallId) {
+		if (!toolCallId) {
+			return;
+		}
+		const bound = boundRef.current;
+		if (bound?.toolCallId === toolCallId && bound.resourceUri === resourceUri) {
+			return;
+		}
+		const session = sessionRef.current;
+		if (
+			bound?.resourceUri === resourceUri &&
+			session?.initialized &&
+			!session.tornDown
+		) {
+			boundRef.current = { toolCallId, resourceUri };
+			session.sent = {
+				input: false,
+				result: false,
+				cancelled: false,
+				partialArgs: undefined,
+			};
+			dispatch({ type: "bind", reload: false });
+			flushBoundCall(session);
 			return;
 		}
 		let cancelled = false;
 		const rebind = async () => {
-			const session = sessionRef.current;
 			if (session) {
 				await teardownSession(session);
 			}
 			if (!cancelled) {
-				boundToolCallIdRef.current = toolCallId;
-				dispatch({ type: "bind" });
+				boundRef.current = { toolCallId, resourceUri };
+				dispatch({ type: "bind", reload: true });
 			}
 		};
 		void rebind();
 		return () => {
 			cancelled = true;
 		};
-	}, [toolCallId]);
+	}, [toolCallId, resourceUri]);
 
 	// Closing tears the view down while the panel is still mounted, then
 	// reports back so the tab can be removed.

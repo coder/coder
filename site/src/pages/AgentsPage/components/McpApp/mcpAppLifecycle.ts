@@ -12,7 +12,7 @@ type McpAppPhase =
 
 export type McpAppLifecycleState = {
 	phase: McpAppPhase;
-	/** Incremented on every rebind so the iframe remounts and stale boots are ignored. */
+	/** Incremented on every reloading bind so the iframe remounts. */
 	generation: number;
 	/** True once the view HTML has been fetched for this tab. */
 	resourceLoaded: boolean;
@@ -20,7 +20,8 @@ export type McpAppLifecycleState = {
 };
 
 export type McpAppLifecycleAction =
-	| { type: "bind" }
+	/** `reload` is false when the bound call changes inside a running view. */
+	| { type: "bind"; reload: boolean }
 	| { type: "resourceLoaded" }
 	| { type: "sandboxReady" }
 	| { type: "initialized" }
@@ -38,10 +39,13 @@ export const mcpAppLifecycleReducer = (
 ): McpAppLifecycleState => {
 	switch (action.type) {
 		case "bind":
+			if (!action.reload && state.phase === "initialized") {
+				return state;
+			}
 			return {
 				...state,
-				// Only the first bind keeps the generation: later binds replace a
-				// view that already started and must reload the iframe.
+				// Only the first bind keeps the generation: later reloading binds
+				// replace a view that already started and must remount the iframe.
 				generation:
 					state.phase === "idle" ? state.generation : state.generation + 1,
 				phase: state.resourceLoaded ? "booting" : "loading_resource",
