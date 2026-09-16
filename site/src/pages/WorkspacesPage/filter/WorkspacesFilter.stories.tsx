@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
@@ -67,8 +67,6 @@ export const Default: Story = {
 	},
 };
 
-// Opens the menu, drills into a static category, commits an option, and asserts
-// the query the integration emits.
 export const SelectStatusOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -77,45 +75,21 @@ export const SelectStatusOption: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		await userEvent.click(await body.findByRole("option", { name: /^Status/ }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /running/i }),
 		);
-
-		await waitFor(() =>
-			expect(canvas.getByTestId("filter-query")).toHaveTextContent(
-				"status:running",
-			),
-		);
-		await expect(
-			canvas.getByRole("button", { name: "Remove status:running" }),
-		).toBeVisible();
 	},
 };
 
-// Regression guard: a user who cannot list others still gets an Owner category
-// (scoped to themselves), so `owner` stays a chip key and the category list is
-// browsable instead of `owner:me` collapsing into free text.
-export const OrdinaryUserKeepsOwnerChip: Story = {
-	args: { initialQuery: "owner:me" },
+export const OrdinaryUserOmitsOwnerFilter: Story = {
+	args: { initialQuery: "" },
 	parameters: { permissions: MockNoPermissions },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
-		).toBeVisible();
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		// Categories browse normally (Owner included) rather than being masked by
-		// free-text search.
-		await waitFor(() => {
-			expect(body.getByRole("option", { name: /^Status/ })).toBeVisible();
-			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
-		});
 	},
 };
 

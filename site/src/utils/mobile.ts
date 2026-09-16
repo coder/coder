@@ -5,8 +5,12 @@
  * virtual keyboard to pop up unexpectedly.
  */
 export const isMobileViewport = (): boolean => {
-	return window.matchMedia("(max-width: 639px)").matches;
+	return window.matchMedia(mobileViewportMediaQuery).matches;
 };
+
+export const mobileViewportMediaQuery = "(max-width: 639px)";
+
+export const coarsePointerMediaQuery = "(pointer: coarse)";
 
 export const belowMdViewportMediaQuery = "(max-width: 767px)";
 

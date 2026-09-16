@@ -32,6 +32,14 @@ export type FilterCategory = {
 	 * round-trips them as chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
+	/** Render this category's options as top-level toggle rows instead of a submenu. */
+	inlineOptions?: boolean;
+	/** Heading shown above top-level options. Defaults to `${label} is…`. */
+	inlineOptionsLabel?: string;
+	/** Keep option icons when rendering the category as top-level rows. */
+	inlineOptionIcons?: boolean;
+	/** Selecting an option replaces another selected option from this category. */
+	inlineOptionsExclusive?: boolean;
 };
 
 /** Live resource preview row shown while typing free-text search. */

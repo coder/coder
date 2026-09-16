@@ -8,6 +8,7 @@ import {
 	type ReactNode,
 	type RefObject,
 	useContext,
+	useEffect,
 	useRef,
 	useState,
 } from "react";
@@ -63,6 +64,7 @@ type FilterComboboxRootProps = {
 	inputValue?: string;
 	onInputValueChange?: (value: string) => void;
 	onItemHighlighted?: (value: string | undefined) => void;
+	highlightResetVersion?: number;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
 	children?: ReactNode;
@@ -86,6 +88,7 @@ export function FilterComboboxRoot({
 	inputValue = "",
 	onInputValueChange,
 	onItemHighlighted,
+	highlightResetVersion = 0,
 	label,
 	children,
 }: FilterComboboxRootProps) {
@@ -93,6 +96,9 @@ export function FilterComboboxRoot({
 	// cmdk only reports highlight changes through `onValueChange` when its value
 	// is controlled, so track the highlighted row here and surface it to callers.
 	const [highlightedValue, setHighlightedValue] = useState("");
+	useEffect(() => {
+		setHighlightedValue("");
+	}, [highlightResetVersion]);
 
 	const state: FilterComboboxStateValue = {
 		inputValue,
@@ -245,26 +251,6 @@ export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 			// The first header relies on the list's own padding for its top space.
 			className={cn(
 				"px-2 pt-4 pb-2 text-xs text-content-secondary group-first/combobox-group:pt-0",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-type FilterComboboxEmptyProps = ComponentPropsWithRef<"div">;
-
-export const FilterComboboxEmpty: FC<FilterComboboxEmptyProps> = ({
-	className,
-	...props
-}) => {
-	// Visibility is driven by the `data-empty` group set on
-	// `FilterComboboxContent`.
-	return (
-		<div
-			data-slot="combobox-empty"
-			className={cn(
-				"hidden w-full justify-center py-6 text-center text-sm text-content-secondary group-data-[empty]/combobox-content:flex",
 				className,
 			)}
 			{...props}

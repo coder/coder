@@ -5,21 +5,16 @@ import {
 	TagIcon,
 	UserIcon,
 } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import { type FC, useMemo } from "react";
 import { useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
 import {
 	getValidationErrorMessage,
 	hasError,
 	isApiValidationError,
 } from "#/api/errors";
-import { workspaces } from "#/api/queries/workspaces";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
-import type {
-	FilterCategory,
-	SearchResult,
-} from "#/components/Filter/FilterCombobox/types";
+import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
@@ -27,12 +22,9 @@ import {
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
 	getOwnerFilterOptions,
-	getSelfOwnerFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
 } from "./categoryOptions";
-
-const WORKSPACE_PREVIEW_LIMIT = 5;
 
 type WorkspaceFilterProps = Readonly<{
 	filter: UseFilterResult;
@@ -53,27 +45,28 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	const canFilterDormant =
 		entitlements.features.advanced_template_scheduling.enabled;
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
 
 	const categories = useMemo(() => {
-		const next: FilterCategory[] = [
-			// Always expose Owner so `owner` stays a recognized chip key and the
-			// page's default `owner:me` renders as a chip rather than free text.
-			// Users who cannot list others only see themselves.
-			{
+		const next: FilterCategory[] = [];
+
+		if (canListUsers) {
+			next.push({
 				key: "owner",
 				label: "Owner",
 				aliases: ["user"],
 				hint: "me",
 				icon: <UserIcon />,
-				getOptions: canListUsers
-					? (query) => getOwnerFilterOptions(query, me, queryClient)
-					: (query) => getSelfOwnerFilterOptions(query, me),
-			},
+				getOptions: (query) => getOwnerFilterOptions(query, me, queryClient),
+			});
+		}
+
+		next.push(
 			{
 				key: "status",
 				label: "Status",
 				icon: <CircleDotIcon />,
+				inlineOptions: true,
+				inlineOptionIcons: true,
 				getOptions: getStatusFilterOptions,
 			},
 			{
@@ -84,6 +77,9 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
 				chipKeys: ATTRIBUTE_CHIP_KEYS,
+				inlineOptions: true,
+				inlineOptionsLabel: "Workspace is…",
+				inlineOptionsExclusive: true,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
@@ -93,12 +89,12 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
-		];
+		);
 
 		if (showOrganizations) {
 			next.push({
 				key: "organization",
-				label: "Organization",
+				label: "Organizations",
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
@@ -107,54 +103,21 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 		return next;
 	}, [canListUsers, canFilterDormant, me, showOrganizations, queryClient]);
 
-	const getSearchResults = useCallback(
-		async (query: string): Promise<SearchResult[]> => {
-			const response = await queryClient.fetchQuery(
-				workspaces({
-					q: query,
-					limit: WORKSPACE_PREVIEW_LIMIT,
-					offset: 0,
-				}),
-			);
-
-			return response.workspaces.map((workspace) => ({
-				value: workspace.id,
-				label: workspace.name,
-				imageUrl: workspace.owner_avatar_url,
-				href: `/@${workspace.owner_name}/${workspace.name}`,
-			}));
-		},
-		[queryClient],
-	);
-
-	const onSearchResultSelect = useCallback(
-		(result: SearchResult) => {
-			if (result.href) {
-				navigate(result.href);
-			}
-		},
-		[navigate],
-	);
-
 	// The page hides its ErrorAlert for API validation errors, so the filter
 	// owns surfacing the actionable "invalid query" message.
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex min-w-0 flex-col gap-2">
 			<FilterCombobox
 				value={filter.query}
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
-				// Starts at a compact width and widens to fit chips before wrapping.
-				className="w-auto min-w-lg max-w-full self-start"
+				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}
-				getSearchResults={getSearchResults}
-				onSearchResultSelect={onSearchResultSelect}
-				searchResultsLabel="Jump to workspace"
 			/>
 		</div>
 	);

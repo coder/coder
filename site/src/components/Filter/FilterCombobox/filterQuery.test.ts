@@ -225,7 +225,12 @@ describe("filterQuery", () => {
 			collectValueSuggestions("test", categories, optionsByKey, [
 				"owner:testuser01",
 			]),
-		).toEqual([]);
+		).toEqual([
+			expect.objectContaining({
+				selected: true,
+				token: "owner:testuser01",
+			}),
+		]);
 	});
 
 	it("uses an option's explicit token when suggesting values", () => {
@@ -245,12 +250,16 @@ describe("filterQuery", () => {
 				(suggestion) => suggestion.token,
 			),
 		).toEqual(["outdated:true"]);
-		// An already-applied attribute chip is filtered out by its token.
 		expect(
 			collectValueSuggestions("dormant", categories, optionsByKey, [
 				"dormant:true",
 			]),
-		).toEqual([]);
+		).toEqual([
+			expect.objectContaining({
+				selected: true,
+				token: "dormant:true",
+			}),
+		]);
 	});
 });
 
