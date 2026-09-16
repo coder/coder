@@ -22,7 +22,6 @@ const tab: McpAppTab = {
 	mcpServerConfigId: MockMCPServerConfig.id,
 	resourceUri: RESOURCE_URI,
 	toolCallId: TOOL_CALL_ID,
-	label: MockMCPServerConfig.display_name,
 };
 
 const taskboardServer = {
@@ -105,6 +104,7 @@ const meta: Meta<typeof McpAppPanel> = {
 	args: {
 		chatId: MockChat.id,
 		tab,
+		label: taskboardServer.display_name,
 		store: storeWith(toolCallMessages),
 		chatStatus: "waiting",
 		mcpServer: taskboardServer,

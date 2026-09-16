@@ -5,9 +5,11 @@ import { createChatStore } from "../ChatConversation/chatStore";
 import {
 	applyMcpAppTabUpserts,
 	collectMcpAppToolCalls,
+	humanizeResourceUri,
 	type McpAppTab,
 	type McpAppToolCallRef,
 	mcpAppTabId,
+	mcpAppTabLabel,
 	planMcpAppTabs,
 } from "./mcpAppTab";
 
@@ -19,7 +21,6 @@ const ref = (toolCallId: string): McpAppToolCallRef => ({
 	toolCallId,
 	mcpServerConfigId: SERVER,
 	resourceUri: URI,
-	toolName: "add_task",
 });
 
 const appTab = (toolCallId: string): McpAppTab => ({
@@ -28,7 +29,6 @@ const appTab = (toolCallId: string): McpAppTab => ({
 	mcpServerConfigId: SERVER,
 	resourceUri: URI,
 	toolCallId,
-	label: "Task board",
 });
 
 const terminalTab: UserRightPanelTab = {
@@ -107,6 +107,59 @@ describe("collectMcpAppToolCalls", () => {
 	});
 });
 
+describe("humanizeResourceUri", () => {
+	it.each([
+		["ui://taskboard/board", "Board"],
+		["ui://taskboard/task-board_view", "Task board view"],
+		["ui://taskboard/board/", "Board"],
+		["ui://taskboard/board?x=1#top", "Board"],
+		["ui://taskboard", "Taskboard"],
+		["ui://", "ui://"],
+		["ui://taskboard/---", "ui://taskboard/---"],
+	])("%s -> %s", (uri, expected) => {
+		expect(humanizeResourceUri(uri)).toBe(expected);
+	});
+});
+
+describe("mcpAppTabLabel", () => {
+	const server = { display_name: "Task board", slug: "taskboard" };
+
+	it("uses the server display name for a single app tab", () => {
+		expect(mcpAppTabLabel({ server, resourceUri: URI, siblingCount: 1 })).toBe(
+			"Task board",
+		);
+	});
+
+	it("appends the resource name when the server has several app tabs", () => {
+		expect(mcpAppTabLabel({ server, resourceUri: URI, siblingCount: 2 })).toBe(
+			"Task board: Board",
+		);
+	});
+
+	it("falls back to the slug when the display name is empty", () => {
+		expect(
+			mcpAppTabLabel({
+				server: { ...server, display_name: "" },
+				resourceUri: URI,
+				siblingCount: 1,
+			}),
+		).toBe("taskboard");
+	});
+
+	it("names an unknown server's tab after the resource", () => {
+		expect(
+			mcpAppTabLabel({ server: undefined, resourceUri: URI, siblingCount: 2 }),
+		).toBe("Board");
+		expect(
+			mcpAppTabLabel({
+				server: undefined,
+				resourceUri: "ui://",
+				siblingCount: 1,
+			}),
+		).toBe("ui://");
+	});
+});
+
 describe("planMcpAppTabs", () => {
 	const plan = (
 		overrides: Partial<Parameters<typeof planMcpAppTabs>[0]> = {},
@@ -118,7 +171,6 @@ describe("planMcpAppTabs", () => {
 			seen: new Map(),
 			initial: false,
 			selectedTabId: "terminal-1",
-			labelFor: () => "Task board",
 			...overrides,
 		});
 

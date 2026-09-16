@@ -39,7 +39,6 @@ describe("Tool", () => {
 			mcpServerConfigId: taskboardServer.id,
 			resourceUri: "ui://taskboard/board",
 			toolCallId: "call-1",
-			label: "Task board",
 		});
 	});
 });

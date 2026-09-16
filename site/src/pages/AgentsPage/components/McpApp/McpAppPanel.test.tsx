@@ -30,7 +30,6 @@ const tab: McpAppTab = {
 	mcpServerConfigId: taskboardServer.id,
 	resourceUri: RESOURCE_URI,
 	toolCallId: TOOL_CALL_ID,
-	label: "Task board",
 };
 
 const toolCallMessage: ChatMessage = {
@@ -87,6 +86,7 @@ const renderPanel = async (
 			<McpAppPanel
 				chatId={MockChat.id}
 				tab={tab}
+				label="Task board"
 				store={store}
 				chatStatus="waiting"
 				mcpServer={taskboardServer}
@@ -99,7 +99,7 @@ const renderPanel = async (
 		</QueryClientProvider>,
 	);
 
-	const frame = await screen.findByTitle("Task board app");
+	const frame = await screen.findByTitle("Task board");
 	if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) {
 		throw new Error("sandbox iframe did not mount");
 	}

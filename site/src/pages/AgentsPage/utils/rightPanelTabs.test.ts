@@ -177,7 +177,6 @@ describe("right-panel tab validation", () => {
 			mcpServerConfigId: "mcp-1",
 			resourceUri: "ui://taskboard/board",
 			toolCallId: "call-1",
-			label: "Task board",
 		};
 
 		it("keeps app tabs without a workspace when the server is enabled", () => {
@@ -350,12 +349,18 @@ describe("right-panel tab storage", () => {
 				mcpServerConfigId: "mcp-1",
 				resourceUri: "ui://taskboard/board",
 				toolCallId: "call-1",
-				label: "Task board",
 			},
 		];
 
 		savePersistedRightPanelTabs("chat-1", tabs);
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+
+		// Entries saved with the former `label` field still load.
+		localStorage.setItem(
+			`${rightPanelTabStorageKeyPrefix}chat-3`,
+			JSON.stringify([{ ...tabs[0], label: "taskboard__list_tasks" }]),
+		);
+		expect(getPersistedRightPanelTabs("chat-3")).toMatchObject(tabs);
 
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-2`,

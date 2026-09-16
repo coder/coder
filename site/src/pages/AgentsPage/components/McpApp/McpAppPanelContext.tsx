@@ -4,7 +4,6 @@ export interface OpenMcpAppRequest {
 	mcpServerConfigId: string;
 	resourceUri: string;
 	toolCallId: string;
-	label: string;
 }
 
 interface McpAppPanelContextValue {

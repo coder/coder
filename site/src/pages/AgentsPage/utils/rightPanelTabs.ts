@@ -73,7 +73,6 @@ export type UserRightPanelTab =
 			resourceUri: string;
 			/** Newest tool call whose result this app renders. */
 			toolCallId: string;
-			label: string;
 	  };
 
 type ValidateUserRightPanelTabsOptions = {
@@ -131,8 +130,7 @@ export function isUserRightPanelTab(
 		return (
 			typeof record.mcpServerConfigId === "string" &&
 			typeof record.resourceUri === "string" &&
-			typeof record.toolCallId === "string" &&
-			typeof record.label === "string"
+			typeof record.toolCallId === "string"
 		);
 	}
 

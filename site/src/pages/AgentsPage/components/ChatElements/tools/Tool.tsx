@@ -7,6 +7,7 @@ import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { useMcpAppPanel } from "../../McpApp/McpAppPanelContext";
+import { mcpAppTabLabel } from "../../McpApp/mcpAppTab";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
@@ -992,7 +993,13 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		name,
 		mcpSlug: mcpServer?.slug,
 	});
-	const appServerName = mcpServer?.display_name || mcpServer?.slug || "MCP";
+	const appLabel = mcpAppResourceUri
+		? mcpAppTabLabel({
+				server: mcpServer,
+				resourceUri: mcpAppResourceUri,
+				siblingCount: 1,
+			})
+		: undefined;
 
 	return (
 		<>
@@ -1040,12 +1047,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 							mcpServerConfigId,
 							resourceUri: mcpAppResourceUri,
 							toolCallId,
-							label: appServerName,
 						})
 					}
 				>
 					<LayoutPanelTopIcon />
-					Open {appServerName} app
+					Open {appLabel} app
 				</Button>
 			)}
 		</>

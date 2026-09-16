@@ -9,12 +9,57 @@ export const mcpAppTabId = (
 	resourceUri: string,
 ): string => `mcp_app:${mcpServerConfigId}:${resourceUri}`;
 
+/**
+ * Turns the last path segment of a resource URI into a readable name:
+ * `ui://taskboard/task-board` becomes "Task board". Returns the whole URI
+ * when it has no non-empty segment.
+ */
+export const humanizeResourceUri = (resourceUri: string): string => {
+	const segment = resourceUri
+		.split(/[?#]/)[0]
+		.split("/")
+		.filter((part) => part !== "")
+		.at(-1);
+	if (!segment || segment.endsWith(":")) {
+		return resourceUri;
+	}
+	const words = segment.replace(/[-_]+/g, " ").trim();
+	if (words === "") {
+		return resourceUri;
+	}
+	return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/**
+ * Label for an app tab, derived at render time so server renames apply.
+ * Named after the server; when the server has other app tabs open
+ * (`siblingCount` above one) the resource name is appended to tell them
+ * apart. Falls back to the resource name when the server is unknown.
+ */
+export const mcpAppTabLabel = ({
+	server,
+	resourceUri,
+	siblingCount,
+}: {
+	server: Pick<TypesGen.MCPServerConfig, "display_name" | "slug"> | undefined;
+	resourceUri: string;
+	/** Open app tabs for the same server, including this one. */
+	siblingCount: number;
+}): string => {
+	const serverName = server?.display_name || server?.slug;
+	if (!serverName) {
+		return humanizeResourceUri(resourceUri);
+	}
+	return siblingCount > 1
+		? `${serverName}: ${humanizeResourceUri(resourceUri)}`
+		: serverName;
+};
+
 /** A tool call that renders an MCP App, in transcript order. */
 export type McpAppToolCallRef = {
 	toolCallId: string;
 	mcpServerConfigId: string;
 	resourceUri: string;
-	toolName: string;
 };
 
 const collectFromParts = (
@@ -32,7 +77,6 @@ const collectFromParts = (
 				toolCallId: part.tool_call_id,
 				mcpServerConfigId: part.mcp_server_config_id,
 				resourceUri: part.mcp_app_resource_uri,
-				toolName: part.tool_name || "Tool",
 			});
 		}
 	}
@@ -91,7 +135,6 @@ export const collectMcpAppToolCalls = (
 				toolCallId: call.id,
 				mcpServerConfigId: call.mcpServerConfigId,
 				resourceUri: call.mcpAppResourceUri,
-				toolName: call.name,
 			});
 		}
 	}
@@ -129,7 +172,6 @@ export const planMcpAppTabs = ({
 	seen,
 	initial,
 	selectedTabId,
-	labelFor,
 }: {
 	refs: readonly McpAppToolCallRef[];
 	tabs: readonly UserRightPanelTab[];
@@ -137,7 +179,6 @@ export const planMcpAppTabs = ({
 	seen: ReadonlyMap<string, string>;
 	initial: boolean;
 	selectedTabId: string | null;
-	labelFor: (ref: McpAppToolCallRef) => string;
 }): McpAppTabPlan => {
 	const newestByTab = new Map<string, McpAppToolCallRef>();
 	for (const ref of refs) {
@@ -173,7 +214,6 @@ export const planMcpAppTabs = ({
 			mcpServerConfigId: ref.mcpServerConfigId,
 			resourceUri: ref.resourceUri,
 			toolCallId: ref.toolCallId,
-			label: existing?.label ?? labelFor(ref),
 		});
 		if (!initial && selectedTabId !== tabId) {
 			plan.badgeTabIds.push(tabId);

@@ -43,6 +43,8 @@ import { type McpAppContainerSize, useMcpAppBridge } from "./useMcpAppBridge";
 interface McpAppPanelProps {
 	chatId: string;
 	tab: McpAppTab;
+	/** Tab label, shown in the panel header and as the iframe title. */
+	label: string;
 	store: ChatStore;
 	/** Used while the store has not reported a status yet. */
 	chatStatus: ChatStatus;
@@ -127,6 +129,7 @@ const selectViewResource = (data: ChatMCPAppResourceReadResponse) =>
 const McpAppPanel: FC<McpAppPanelProps> = ({
 	chatId,
 	tab,
+	label,
 	store,
 	chatStatus: fallbackChatStatus,
 	mcpServer,
@@ -174,7 +177,7 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 		chatStatus,
 	);
 
-	const label = useSandboxHostLabel(tab.mcpServerConfigId, chatId);
+	const sandboxLabel = useSandboxHostLabel(tab.mcpServerConfigId, chatId);
 
 	const [transport, setTransport] = useState<Transport | undefined>();
 	const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -247,8 +250,12 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 	}, [store, tab.id]);
 
 	const sandboxUrl =
-		label !== undefined
-			? buildSandboxUrl({ wildcardHostname, label, csp: view?.csp })
+		sandboxLabel !== undefined
+			? buildSandboxUrl({
+					wildcardHostname,
+					label: sandboxLabel,
+					csp: view?.csp,
+				})
 			: undefined;
 
 	// The iframe only mounts once the resource and the bound call exist, so
@@ -293,10 +300,10 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 				description="The tool call this app was opened from is not in the loaded conversation."
 			/>
 		);
-	} else if (resourceQuery.isLoading || label === undefined) {
+	} else if (resourceQuery.isLoading || sandboxLabel === undefined) {
 		body = (
 			<div className="flex h-full items-center justify-center">
-				<Spinner loading label={`Loading ${serverName} app`} />
+				<Spinner loading label={`Loading ${label} app`} />
 			</div>
 		);
 	} else if (resourceQuery.isError) {
@@ -336,7 +343,7 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 				<McpAppFrame
 					key={lifecycle.generation}
 					sandboxUrl={sandboxUrl}
-					title={`${serverName} app`}
+					title={label}
 					permissions={view?.permissions}
 					onTransportChange={setTransport}
 				/>
@@ -352,7 +359,7 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 					name={serverName}
 					className="size-5"
 				/>
-				<span className="truncate text-content-primary">{serverName}</span>
+				<span className="truncate text-content-primary">{label}</span>
 				<span className="truncate">{tab.resourceUri}</span>
 				{canRender && (isClosing || lifecycle.phase !== "initialized") && (
 					<Spinner

@@ -63,6 +63,7 @@ import {
 	type McpAppTab,
 	type McpAppToolCallRef,
 	mcpAppTabId,
+	mcpAppTabLabel,
 	planMcpAppTabs,
 } from "./components/McpApp/mcpAppTab";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
@@ -224,6 +225,8 @@ const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
 
 interface UserTabContentProps {
 	tab: UserRightPanelTab;
+	/** Label shown on the sidebar tab for `tab`. */
+	label: string;
 	chatId: string;
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
@@ -245,6 +248,7 @@ interface UserTabContentProps {
 
 const UserTabContent: FC<UserTabContentProps> = ({
 	tab,
+	label,
 	chatId,
 	workspace,
 	workspaceAgent,
@@ -322,6 +326,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 					<McpAppPanel
 						chatId={chatId}
 						tab={tab}
+						label={label}
 						store={store}
 						chatStatus={chatStatus}
 						mcpServer={mcpServers.find(
@@ -611,19 +616,43 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
 			),
 	);
+	// App tabs of the same server are told apart by their resource name.
+	const mcpAppSiblingCounts = new Map<string, number>();
+	for (const tab of validatedUserRightPanelTabs) {
+		if (tab.kind === "mcp_app") {
+			mcpAppSiblingCounts.set(
+				tab.mcpServerConfigId,
+				(mcpAppSiblingCounts.get(tab.mcpServerConfigId) ?? 0) + 1,
+			);
+		}
+	}
+	const userTabLabel = (tab: UserRightPanelTab): string => {
+		switch (tab.kind) {
+			case "mcp_app":
+				return mcpAppTabLabel({
+					server: mcpServers.find(
+						(server) => server.id === tab.mcpServerConfigId,
+					),
+					resourceUri: tab.resourceUri,
+					siblingCount: mcpAppSiblingCounts.get(tab.mcpServerConfigId) ?? 1,
+				});
+			case "terminal": {
+				if (tab.label !== undefined) {
+					return tab.label;
+				}
+				const terminalNumber = terminalNumbers.get(tab.id);
+				return terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`;
+			}
+			default:
+				return tab.label;
+		}
+	};
 	const sidebarTabConfigs = [
 		...builtInSidebarTabConfigs,
-		// Only unlabeled terminal tabs fall through to the numbered label;
-		// every other tab kind has a required label.
-		...validatedUserRightPanelTabs.map((tab) => {
-			const terminalNumber = terminalNumbers.get(tab.id);
-			return {
-				id: tab.id,
-				label:
-					tab.label ??
-					(terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`),
-			};
-		}),
+		...validatedUserRightPanelTabs.map((tab) => ({
+			id: tab.id,
+			label: userTabLabel(tab),
+		})),
 	];
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
@@ -780,10 +809,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
-	const mcpServerLabel = (mcpServerConfigId: string, fallback: string) =>
-		mcpServers.find((server) => server.id === mcpServerConfigId)
-			?.display_name || fallback;
-
 	const handleOpenMcpApp = (request: OpenMcpAppRequest) => {
 		const tab: McpAppTab = {
 			id: mcpAppTabId(request.mcpServerConfigId, request.resourceUri),
@@ -815,7 +840,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			seen: seenAppToolCallsRef.current,
 			initial,
 			selectedTabId: sidebarTabId,
-			labelFor: (ref) => mcpServerLabel(ref.mcpServerConfigId, ref.toolName),
 		});
 		seenAppToolCallsRef.current = plan.seen;
 		if (plan.upserts.length > 0) {
@@ -931,6 +955,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				return userTab ? (
 					<UserTabContent
 						tab={userTab}
+						label={userTabLabel(userTab)}
 						chatId={agentId}
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
