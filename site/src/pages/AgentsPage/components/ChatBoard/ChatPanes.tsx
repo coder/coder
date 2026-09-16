@@ -1,6 +1,8 @@
 import {
 	DndContext,
 	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
 	MouseSensor,
 	pointerWithin,
 	TouchSensor,
@@ -10,8 +12,8 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { cn } from "cn";
-import { XIcon } from "lucide-react";
-import { type FC, lazy, Suspense, useState } from "react";
+import { ChevronDownIcon, XIcon } from "lucide-react";
+import { type FC, lazy, type ReactNode, Suspense, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { AgentChatPageSkeleton } from "../AgentsSkeletons";
@@ -64,6 +66,7 @@ interface ChatPanesProps {
 	readonly focusedPane: number;
 	readonly chatsById: ReadonlyMap<string, Chat>;
 	readonly onChange: (panes: readonly ChatPane[], focusedPane: number) => void;
+	readonly onCollapse: () => void;
 }
 
 /** Chats open below the board as tabs; a tab dragged to the right edge splits into a second pane. */
@@ -72,8 +75,9 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 	focusedPane,
 	chatsById,
 	onChange,
+	onCollapse,
 }) => {
-	const [dragging, setDragging] = useState(false);
+	const [dragging, setDragging] = useState<TabDrag | null>(null);
 	const sensors = useSensors(
 		useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
 		useSensor(TouchSensor, {
@@ -81,8 +85,12 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 		}),
 	);
 
+	const handleDragStart = ({ active }: DragStartEvent) => {
+		setDragging((active.data.current as TabDrag | undefined) ?? null);
+	};
+
 	const handleDragEnd = ({ active, over }: DragEndEvent) => {
-		setDragging(false);
+		setDragging(null);
 		const drag = active.data.current as TabDrag | undefined;
 		const drop = over?.data.current as TabDrop | undefined;
 		if (!drag || !drop) return;
@@ -102,8 +110,8 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 		<DndContext
 			sensors={sensors}
 			collisionDetection={pointerWithin}
-			onDragStart={() => setDragging(true)}
-			onDragCancel={() => setDragging(false)}
+			onDragStart={handleDragStart}
+			onDragCancel={() => setDragging(null)}
 			onDragEnd={handleDragEnd}
 		>
 			<div className="flex min-h-0 flex-1">
@@ -126,10 +134,31 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 						onClose={(chatId) =>
 							onChange(closeTab(panes, chatId), Math.min(focusedPane, index))
 						}
+						// The collapse control lives once, at the far right of the tab row.
+						tabBarEnd={
+							index === panes.length - 1 ? (
+								<Button
+									variant="subtle"
+									size="icon"
+									aria-label="Hide chats"
+									className="ml-auto size-7 shrink-0 self-center text-content-secondary"
+									onClick={onCollapse}
+								>
+									<ChevronDownIcon className="size-4" />
+								</Button>
+							) : undefined
+						}
 					/>
 				))}
 				{dragging && panes.length < MAX_PANES && <SplitDropZone />}
 			</div>
+			<DragOverlay dropAnimation={null}>
+				{dragging && (
+					<div className="max-w-56 truncate rounded border border-content-link bg-surface-primary px-2 py-1 text-xs text-content-primary shadow-lg">
+						{chatsById.get(dragging.chatId)?.title ?? "Chat"}
+					</div>
+				)}
+			</DragOverlay>
 		</DndContext>
 	);
 };
@@ -142,6 +171,7 @@ interface PaneViewProps {
 	readonly onFocus: () => void;
 	readonly onActivate: (chatId: string) => void;
 	readonly onClose: (chatId: string) => void;
+	readonly tabBarEnd?: ReactNode;
 }
 
 const PaneView: FC<PaneViewProps> = ({
@@ -152,6 +182,7 @@ const PaneView: FC<PaneViewProps> = ({
 	onFocus,
 	onActivate,
 	onClose,
+	tabBarEnd,
 }) => {
 	const dropData: TabDrop = { kind: "pane", paneIndex: index };
 	const { setNodeRef, isOver } = useDroppable({
@@ -170,7 +201,7 @@ const PaneView: FC<PaneViewProps> = ({
 				ref={setNodeRef}
 				role="tablist"
 				className={cn(
-					"flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-border bg-surface-secondary/60",
+					"flex h-8 shrink-0 select-none items-stretch overflow-x-auto border-b border-border bg-surface-secondary/60",
 					isOver && "bg-surface-tertiary",
 				)}
 			>
@@ -187,6 +218,7 @@ const PaneView: FC<PaneViewProps> = ({
 						onClose={() => onClose(chatId)}
 					/>
 				))}
+				{tabBarEnd}
 			</div>
 			<div className="flex min-h-0 flex-1 flex-col">
 				<Suspense fallback={<AgentChatPageSkeleton />}>
@@ -232,7 +264,7 @@ const Tab: FC<TabProps> = ({
 			aria-selected={active}
 			tabIndex={active ? 0 : -1}
 			className={cn(
-				"group/tab flex max-w-56 min-w-0 shrink-0 cursor-default items-center gap-1 border-r border-border px-2 text-xs",
+				"group/tab flex max-w-56 min-w-0 shrink-0 cursor-default select-none touch-none items-center gap-1 border-r border-border px-2 text-xs",
 				active
 					? "bg-surface-primary text-content-primary"
 					: "text-content-secondary hover:bg-surface-tertiary/60",

@@ -41,6 +41,7 @@ import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
+import { BoardGroupEntry } from "../tree/BoardGroupEntry";
 import {
 	ChatTreeContext,
 	type ChatTreeContextValue,
@@ -49,6 +50,7 @@ import { ChatTreeNode } from "../tree/ChatTreeNode";
 import {
 	buildChatTree,
 	type ChatTree,
+	collectBoardGroups,
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
@@ -160,8 +162,17 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const sharedWithYouChats = unpinnedChats.filter(
 		(chat) => chat.shared && chat.owner_id !== currentUserId,
 	);
-	const unpinnedOwnedChats = unpinnedChats.filter(
+	const ownedUnpinned = unpinnedChats.filter(
 		(chat) => !chat.shared || chat.owner_id === currentUserId,
+	);
+	// Board group members render inside their primary's box, so they leave
+	// their own slot only when the primary is in this same list.
+	const boardGroups = collectBoardGroups(ownedUnpinned);
+	const boardMemberIDs = new Set(
+		[...boardGroups.values()].flat().map((chat) => chat.id),
+	);
+	const unpinnedOwnedChats = ownedUnpinned.filter(
+		(chat) => !boardMemberIDs.has(chat.id),
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -609,7 +620,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
 																{section.chats.map((chat) => (
-																	<ChatTreeNode key={chat.id} chat={chat} />
+																	<BoardGroupEntry
+																		key={chat.id}
+																		chat={chat}
+																		members={boardGroups.get(chat.id)}
+																	/>
 																))}
 															</div>
 														)}

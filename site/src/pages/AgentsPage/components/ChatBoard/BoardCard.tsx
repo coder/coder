@@ -56,6 +56,7 @@ const SWATCH_CLASS: Record<CardColor, string> = {
 interface BoardCardProps {
 	readonly card: BoardCardModel;
 	readonly openChatIds: ReadonlySet<string>;
+	readonly isMergeTarget: boolean;
 	readonly onSetTitle: (title: string) => void;
 	readonly onSetColor: (color: CardColor | undefined) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
@@ -67,6 +68,7 @@ interface BoardCardProps {
 export const BoardCard: FC<BoardCardProps> = ({
 	card,
 	openChatIds,
+	isMergeTarget,
 	onSetTitle,
 	onSetColor,
 	onRenameChat,
@@ -83,16 +85,14 @@ export const BoardCard: FC<BoardCardProps> = ({
 		attributes,
 		isDragging,
 	} = useDraggable({ id: cardDragId(card), data: dragData });
-	const {
-		setNodeRef: setDropRef,
-		isOver,
-		active,
-	} = useDroppable({ id: cardDropId(card), data: dropData });
+	const { setNodeRef: setDropRef } = useDroppable({
+		id: cardDropId(card),
+		data: dropData,
+	});
 	const setRefs = (node: HTMLElement | null) => {
 		setDragRef(node);
 		setDropRef(node);
 	};
-	const isMergeTarget = isOver && active?.id !== cardDragId(card);
 
 	// The moving copy is drawn by DragGhost inside DragOverlay; the source
 	// stays put so column layout does not shift mid-drag.

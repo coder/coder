@@ -67,43 +67,36 @@ export const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 		.map((chat) => chat.id)
 		.filter((chatID) => !parentById.get(chatID));
 
-	return attachBoardGroups({
+	return {
 		rootIds,
 		chatById,
 		childrenById,
 		parentById,
-	});
+	};
 };
 
-/** True when the chat is a board group member rendered under another chat. */
+/** True when the chat belongs to a board group led by another chat. */
 export const isBoardGroupMember = (chat: Chat): boolean =>
 	getGroupLabel(chat) !== chat.id;
 
-// Board groups move together in the list: members leave their own section
-// and render as children of the primary, wherever the primary sorts.
-const attachBoardGroups = (tree: ChatTree): ChatTree => {
-	const rootSet = new Set(tree.rootIds);
-	const moved = new Set<string>();
-	const childrenById = new Map(
-		[...tree.childrenById].map(([id, children]) => [id, [...children]]),
-	);
-	const parentById = new Map(tree.parentById);
-	for (const rootID of tree.rootIds) {
-		const chat = tree.chatById.get(rootID);
-		if (!chat) continue;
+/**
+ * Board groups drawn in one list: members keyed by their primary, only when
+ * both are in `chats`. Members whose primary is elsewhere stay where they
+ * are, so grouping never removes a chat from view.
+ */
+export const collectBoardGroups = (
+	chats: readonly Chat[],
+): ReadonlyMap<string, readonly Chat[]> => {
+	const ids = new Set(chats.map((chat) => chat.id));
+	const members = new Map<string, Chat[]>();
+	for (const chat of chats) {
 		const primaryID = getGroupLabel(chat);
-		if (primaryID === rootID || !rootSet.has(primaryID)) continue;
-		parentById.set(rootID, primaryID);
-		childrenById.get(primaryID)?.push(rootID);
-		moved.add(rootID);
+		if (primaryID === chat.id || !ids.has(primaryID)) continue;
+		const list = members.get(primaryID) ?? [];
+		list.push(chat);
+		members.set(primaryID, list);
 	}
-	if (moved.size === 0) return tree;
-	return {
-		rootIds: tree.rootIds.filter((id) => !moved.has(id)),
-		chatById: tree.chatById,
-		childrenById,
-		parentById,
-	};
+	return members;
 };
 
 export const collectVisibleChatIDs = ({
