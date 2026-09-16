@@ -89,7 +89,9 @@ const AgentSettingsCompactionPage: FC = () => {
 				providerConfigsQuery.isLoading ||
 				isCompactionOverridesLoading
 			}
-			compactionTriggersError={compactionOverridesError}
+			compactionTriggersError={
+				compactionOverridesError ?? providerConfigsQuery.error
+			}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}
