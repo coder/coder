@@ -1,11 +1,17 @@
 import type { Transport } from "@modelcontextprotocol/client";
 import { type FC, useEffect, useEffectEvent, useRef } from "react";
 import { OriginValidatedTransport } from "./originValidatedTransport";
-import { MCP_APP_INNER_SANDBOX } from "./useMcpAppBridge";
+import {
+	buildIframeAllow,
+	MCP_APP_PROXY_FRAME_SANDBOX,
+	type McpAppPermissions,
+} from "./sandboxUrl";
 
 interface McpAppFrameProps {
 	sandboxUrl: string;
 	title: string;
+	/** Permissions the view declared; forwarded as the iframe `allow` policy. */
+	permissions: McpAppPermissions | undefined;
 	/**
 	 * Receives a transport pinned to this iframe's window and origin once
 	 * mounted, and `undefined` on unmount.
@@ -21,6 +27,7 @@ interface McpAppFrameProps {
 export const McpAppFrame: FC<McpAppFrameProps> = ({
 	sandboxUrl,
 	title,
+	permissions,
 	onTransportChange,
 }) => {
 	const frameRef = useRef<HTMLIFrameElement>(null);
@@ -42,7 +49,8 @@ export const McpAppFrame: FC<McpAppFrameProps> = ({
 			ref={frameRef}
 			src={sandboxUrl}
 			title={title}
-			sandbox={MCP_APP_INNER_SANDBOX}
+			sandbox={MCP_APP_PROXY_FRAME_SANDBOX}
+			allow={buildIframeAllow(permissions)}
 			className="size-full border-0 bg-transparent"
 		/>
 	);

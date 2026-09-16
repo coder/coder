@@ -1,11 +1,27 @@
 /**
  * Sandbox origin and resource helpers for MCP Apps. The sandbox proxy
- * document is served by coderd on a reserved wildcard subdomain
- * `mcpapp-<hex32>.<wildcard suffix>`, so every (server, chat) pair gets its
- * own origin.
+ * document is served by coderd on a reserved wildcard subdomain: the `*` of
+ * the wildcard hostname is replaced by `mcpapp-<hex32>`, so every
+ * (server, chat) pair gets its own origin.
  */
 
+import { asRecord } from "../ChatElements/runtimeTypeUtils";
+
 export const MCP_APP_MIME_TYPE = "text/html;profile=mcp-app";
+
+/**
+ * Sandbox flags for the proxy iframe rendered by the dashboard. The proxy
+ * document runs its own script and must keep its origin for the CSP header
+ * and the origin check on the message channel.
+ */
+export const MCP_APP_PROXY_FRAME_SANDBOX = "allow-scripts allow-same-origin";
+
+/**
+ * Sandbox flags the proxy applies to the inner view iframe, sent in
+ * `ui/notifications/sandbox-resource-ready`. Forms are deliberately not
+ * allowed.
+ */
+export const MCP_APP_VIEW_SANDBOX = "allow-scripts allow-same-origin";
 
 export type McpAppCsp = {
 	connectDomains?: string[];
@@ -19,6 +35,28 @@ export type McpAppPermissions = {
 	microphone?: object;
 	geolocation?: object;
 	clipboardWrite?: object;
+};
+
+const PERMISSION_POLICY_FEATURES: ReadonlyArray<
+	[key: keyof McpAppPermissions, feature: string]
+> = [
+	["camera", "camera"],
+	["microphone", "microphone"],
+	["geolocation", "geolocation"],
+	["clipboardWrite", "clipboard-write"],
+];
+
+/** Builds the iframe `allow` attribute for the permissions a view declared. */
+export const buildIframeAllow = (
+	permissions: McpAppPermissions | undefined,
+): string | undefined => {
+	if (!permissions) {
+		return undefined;
+	}
+	const features = PERMISSION_POLICY_FEATURES.filter(
+		([key]) => permissions[key] !== undefined,
+	).map(([, feature]) => feature);
+	return features.length > 0 ? features.join("; ") : undefined;
 };
 
 const hex = (bytes: ArrayBuffer): string =>
@@ -38,14 +76,16 @@ export const sandboxHostLabel = async (
 	return hex(digest).slice(0, 32);
 };
 
-/** Strips the leading `*.` from a wildcard hostname such as `*.apps.dev`. */
-const wildcardSuffix = (wildcardHostname: string): string | undefined => {
+/** Replaces the wildcard label with the reserved `mcpapp-<label>` host label. */
+const sandboxHost = (
+	wildcardHostname: string,
+	label: string,
+): string | undefined => {
 	const trimmed = wildcardHostname.trim();
-	if (!trimmed) {
+	if (!trimmed.startsWith("*") || trimmed.length === 1) {
 		return undefined;
 	}
-	const suffix = trimmed.startsWith("*.") ? trimmed.slice(2) : trimmed;
-	return suffix || undefined;
+	return `mcpapp-${label}${trimmed.slice(1)}`;
 };
 
 export const buildSandboxUrl = ({
@@ -59,14 +99,14 @@ export const buildSandboxUrl = ({
 	csp?: McpAppCsp;
 	protocol?: string;
 }): string | undefined => {
-	const suffix = wildcardHostname
-		? wildcardSuffix(wildcardHostname)
+	const host = wildcardHostname
+		? sandboxHost(wildcardHostname, label)
 		: undefined;
-	if (!suffix) {
+	if (!host) {
 		return undefined;
 	}
 	const query = csp ? `?csp=${encodeURIComponent(JSON.stringify(csp))}` : "";
-	return `${protocol}//mcpapp-${label}.${suffix}/${query}`;
+	return `${protocol}//${host}/${query}`;
 };
 
 type McpAppViewResource =
@@ -78,16 +118,14 @@ type McpAppViewResource =
 	  }
 	| { error: string };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
-
 const stringArray = (value: unknown): string[] | undefined =>
 	Array.isArray(value) && value.every((item) => typeof item === "string")
 		? value
 		: undefined;
 
-const parseCsp = (value: unknown): McpAppCsp | undefined => {
-	if (!isRecord(value)) {
+const parseCsp = (rawValue: unknown): McpAppCsp | undefined => {
+	const value = asRecord(rawValue);
+	if (!value) {
 		return undefined;
 	}
 	const csp: McpAppCsp = {};
@@ -102,16 +140,17 @@ const parseCsp = (value: unknown): McpAppCsp | undefined => {
 	return Object.keys(csp).length > 0 ? csp : undefined;
 };
 
-const parsePermissions = (value: unknown): McpAppPermissions | undefined => {
-	if (!isRecord(value)) {
+const parsePermissions = (rawValue: unknown): McpAppPermissions | undefined => {
+	const value = asRecord(rawValue);
+	if (!value) {
 		return undefined;
 	}
 	const permissions: McpAppPermissions = {};
-	if (isRecord(value.camera)) permissions.camera = value.camera;
-	if (isRecord(value.microphone)) permissions.microphone = value.microphone;
-	if (isRecord(value.geolocation)) permissions.geolocation = value.geolocation;
-	if (isRecord(value.clipboardWrite)) {
-		permissions.clipboardWrite = value.clipboardWrite;
+	for (const [key] of PERMISSION_POLICY_FEATURES) {
+		const declared = asRecord(value[key]);
+		if (declared) {
+			permissions[key] = declared;
+		}
 	}
 	return Object.keys(permissions).length > 0 ? permissions : undefined;
 };
@@ -133,12 +172,14 @@ const decodeBase64Utf8 = (blob: string): string | undefined => {
 export const resolveViewResource = (
 	readResourceResult: unknown,
 ): McpAppViewResource => {
-	if (!isRecord(readResourceResult)) {
+	const result = asRecord(readResourceResult);
+	if (!result) {
 		return { error: "The MCP server returned an invalid resource." };
 	}
-	const contents = readResourceResult.contents;
-	const first = Array.isArray(contents) ? contents[0] : undefined;
-	if (!isRecord(first)) {
+	const first = Array.isArray(result.contents)
+		? asRecord(result.contents[0])
+		: null;
+	if (!first) {
 		return { error: "The MCP server returned no resource contents." };
 	}
 	if (first.mimeType !== MCP_APP_MIME_TYPE) {
@@ -157,8 +198,7 @@ export const resolveViewResource = (
 	if (html === undefined) {
 		return { error: "The MCP app resource has no HTML content." };
 	}
-	const ui = isRecord(first._meta) ? first._meta.ui : undefined;
-	const meta = isRecord(ui) ? ui : {};
+	const meta = asRecord(asRecord(first._meta)?.ui) ?? {};
 	return {
 		html,
 		csp: parseCsp(meta.csp),

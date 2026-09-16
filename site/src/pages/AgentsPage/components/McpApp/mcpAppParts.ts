@@ -62,16 +62,10 @@ export const buildMcpAppContextInputParts = (
 /**
  * Removes the pending app contexts from the store and returns them as input
  * parts together with a `restore` that puts them back if the send fails.
- * Edits and slash commands never carry app context, so those callers get no
- * parts and the store is left untouched.
  */
 export const takeMcpAppContextInputParts = (
 	store: Pick<ChatStore, "takeMcpAppContexts" | "restoreMcpAppContexts">,
-	{ isNewSend }: { isNewSend: boolean },
 ): { parts: ChatInputPart[]; restore: () => void } => {
-	if (!isNewSend) {
-		return { parts: [], restore: () => {} };
-	}
 	const entries = store.takeMcpAppContexts();
 	return {
 		parts: buildMcpAppContextInputParts(entries),

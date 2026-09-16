@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import boardHtml from "#/testHelpers/mcpAppBoard.html?raw";
 import {
+	buildIframeAllow,
 	buildSandboxUrl,
 	MCP_APP_MIME_TYPE,
 	resolveViewResource,
@@ -29,7 +30,7 @@ describe("sandboxHostLabel", () => {
 describe("buildSandboxUrl", () => {
 	const label = "0123456789abcdef0123456789abcdef";
 
-	it("builds the reserved subdomain under the wildcard suffix", () => {
+	it("replaces the wildcard label with the reserved host label", () => {
 		expect(
 			buildSandboxUrl({
 				wildcardHostname: "*.apps.example.com",
@@ -37,6 +38,13 @@ describe("buildSandboxUrl", () => {
 				protocol: "https:",
 			}),
 		).toBe(`https://mcpapp-${label}.apps.example.com/`);
+		expect(
+			buildSandboxUrl({
+				wildcardHostname: "*-apps.example.com",
+				label,
+				protocol: "https:",
+			}),
+		).toBe(`https://mcpapp-${label}-apps.example.com/`);
 	});
 
 	it("encodes the declared csp as a query parameter", () => {
@@ -58,7 +66,20 @@ describe("buildSandboxUrl", () => {
 			undefined,
 		);
 		expect(buildSandboxUrl({ wildcardHostname: "", label })).toBe(undefined);
-		expect(buildSandboxUrl({ wildcardHostname: "*.", label })).toBe(undefined);
+		expect(buildSandboxUrl({ wildcardHostname: "*", label })).toBe(undefined);
+		expect(
+			buildSandboxUrl({ wildcardHostname: "apps.example.com", label }),
+		).toBe(undefined);
+	});
+});
+
+describe("buildIframeAllow", () => {
+	it("maps declared permissions to Permission Policy features", () => {
+		expect(
+			buildIframeAllow({ camera: {}, clipboardWrite: {}, geolocation: {} }),
+		).toBe("camera; geolocation; clipboard-write");
+		expect(buildIframeAllow({})).toBeUndefined();
+		expect(buildIframeAllow(undefined)).toBeUndefined();
 	});
 });
 

@@ -1,15 +1,15 @@
 import type { Transport } from "@modelcontextprotocol/client";
 import { cn } from "cn";
-import { type FC, type ReactNode, useEffect, useState } from "react";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { chatMCPAppResource } from "#/api/queries/chats";
 import type {
 	ChatMCPAppResourceReadResponse,
+	ChatStatus,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -20,6 +20,10 @@ import {
 	useChatSelector,
 } from "../ChatConversation/chatStore";
 import { MCPIcon } from "../MCPServerPicker";
+import {
+	McpAppConsentDialog,
+	type McpAppConsentRequest,
+} from "./McpAppConsentDialog";
 import { McpAppFrame } from "./McpAppFrame";
 import { deriveBoundCall } from "./mcpAppLifecycle";
 import {
@@ -40,11 +44,20 @@ interface McpAppPanelProps {
 	chatId: string;
 	tab: McpAppTab;
 	store: ChatStore;
+	/** Used while the store has not reported a status yet. */
+	chatStatus: ChatStatus;
 	mcpServer: MCPServerConfig | undefined;
 	/** Primary region wildcard hostname such as `*.apps.example.com`. */
 	wildcardHostname: string | undefined;
-	/** Sends a user message on behalf of the app after the user confirms. */
-	submitAppMessage: (text: string) => Promise<void>;
+	/**
+	 * Sends a user message on behalf of the app after the user confirms.
+	 * Undefined when the chat cannot accept messages from this user.
+	 */
+	submitAppMessage: ((text: string) => Promise<void>) | undefined;
+	/** True once the tab close started; the view is torn down first. */
+	isClosing: boolean;
+	/** Called after teardown finished so the tab can be removed. */
+	onClosed: () => void;
 }
 
 const PanelMessage: FC<{ message: string; description?: string }> = ({
@@ -115,9 +128,12 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 	chatId,
 	tab,
 	store,
+	chatStatus: fallbackChatStatus,
 	mcpServer,
 	wildcardHostname,
 	submitAppMessage,
+	isClosing,
+	onClosed,
 }) => {
 	const theme = useTheme();
 	const { buildInfo } = useDashboard();
@@ -131,7 +147,8 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 	const resolved = resourceQuery.data;
 	const view = resolved && !("error" in resolved) ? resolved : undefined;
 
-	const chatStatus = useChatSelector(store, selectChatStatus);
+	const chatStatus =
+		useChatSelector(store, selectChatStatus) ?? fallbackChatStatus;
 	const durable = useChatSelector(
 		store,
 		selectDurableToolParts(tab.toolCallId),
@@ -163,38 +180,76 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 	const [container, setContainer] = useState<HTMLDivElement | null>(null);
 	const containerSize = useContainerSize(container);
 
-	// The ui/message request stays open until the user confirms or declines,
-	// so the view receives the real outcome as its JSON-RPC response.
-	const [pendingMessage, setPendingMessage] = useState<{
-		text: string;
+	// One consent request at a time. The JSON-RPC request behind it stays
+	// open until the user confirms or declines, so the view receives the real
+	// outcome as its response.
+	const pendingHandlersRef = useRef<{
 		resolve: () => void;
 		reject: (error: Error) => void;
 	} | null>(null);
+	const [pendingRequest, setPendingRequest] =
+		useState<McpAppConsentRequest | null>(null);
+	const settlePendingRequest = (error?: Error) => {
+		const handlers = pendingHandlersRef.current;
+		pendingHandlersRef.current = null;
+		setPendingRequest(null);
+		if (!handlers) {
+			return;
+		}
+		if (error) {
+			handlers.reject(error);
+		} else {
+			handlers.resolve();
+		}
+	};
+	const requestConsent = (request: McpAppConsentRequest) =>
+		new Promise<void>((resolve, reject) => {
+			if (pendingHandlersRef.current) {
+				reject(new Error("Another request is awaiting confirmation"));
+				return;
+			}
+			pendingHandlersRef.current = { resolve, reject };
+			setPendingRequest(request);
+		});
 	const sendAppMessage = useMutation({
-		mutationFn: (text: string) => submitAppMessage(text),
-		onSuccess: () => {
-			pendingMessage?.resolve();
-			setPendingMessage(null);
+		mutationFn: (text: string) => {
+			if (!submitAppMessage) {
+				return Promise.reject(new Error("This chat is read-only."));
+			}
+			return submitAppMessage(text);
 		},
+		onSuccess: () => settlePendingRequest(),
 		onError: (error: unknown) => {
 			toast.error(getErrorMessage(error, "Failed to send the app message."));
-			pendingMessage?.reject(
+			settlePendingRequest(
 				error instanceof Error ? error : new Error(getErrorMessage(error, "")),
 			);
-			setPendingMessage(null);
 		},
 	});
-	const requestAppMessage = (text: string) =>
-		new Promise<void>((resolve, reject) => {
-			setPendingMessage((current) => {
-				current?.reject(new Error("Superseded by a newer message"));
-				return { text, resolve, reject };
-			});
-		});
-	const declineAppMessage = () => {
-		pendingMessage?.reject(new Error("The user declined to send the message"));
-		setPendingMessage(null);
+	const confirmPendingRequest = () => {
+		if (!pendingRequest) {
+			return;
+		}
+		if (pendingRequest.kind === "open-link") {
+			window.open(pendingRequest.url, "_blank", "noopener,noreferrer");
+			settlePendingRequest();
+			return;
+		}
+		sendAppMessage.mutate(pendingRequest.text);
 	};
+	const declinePendingRequest = () => {
+		settlePendingRequest(new Error("The user declined the request"));
+	};
+
+	// Context reported by this view is only meaningful while it is shown.
+	useEffect(() => {
+		return () => store.clearMcpAppContext(tab.id);
+	}, [store, tab.id]);
+
+	const sandboxUrl =
+		label !== undefined
+			? buildSandboxUrl({ wildcardHostname, label, csp: view?.csp })
+			: undefined;
 
 	// The iframe only mounts once the resource and the bound call exist, so
 	// the transport is only ever set while these hold.
@@ -212,13 +267,14 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 		view,
 		toolCallId: canRender ? tab.toolCallId : undefined,
 		boundCall,
-		onAppMessage: requestAppMessage,
+		sandboxOrigin: sandboxUrl ? new URL(sandboxUrl).origin : undefined,
+		onAppMessage: submitAppMessage
+			? (text) => requestConsent({ kind: "message", text })
+			: undefined,
+		onOpenLink: (url) => requestConsent({ kind: "open-link", url }),
+		closing: isClosing,
+		onClosed,
 	});
-
-	const sandboxUrl =
-		label !== undefined
-			? buildSandboxUrl({ wildcardHostname, label, csp: view?.csp })
-			: undefined;
 
 	let body: ReactNode;
 	if (!wildcardHostname) {
@@ -281,6 +337,7 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 					key={lifecycle.generation}
 					sandboxUrl={sandboxUrl}
 					title={`${serverName} app`}
+					permissions={view?.permissions}
 					onTransportChange={setTransport}
 				/>
 			</div>
@@ -297,40 +354,22 @@ const McpAppPanel: FC<McpAppPanelProps> = ({
 				/>
 				<span className="truncate text-content-primary">{serverName}</span>
 				<span className="truncate">{tab.resourceUri}</span>
-				{canRender && lifecycle.phase !== "initialized" && (
+				{canRender && (isClosing || lifecycle.phase !== "initialized") && (
 					<Spinner
 						loading
 						size="sm"
 						className="ml-auto"
-						label="Connecting to app"
+						label={isClosing ? "Closing app" : "Connecting to app"}
 					/>
 				)}
 			</div>
 			{body}
-			<ConfirmDialog
-				open={pendingMessage !== null}
-				type="info"
-				hideCancel={false}
-				title={`Send message from ${serverName}?`}
-				description={
-					<div className="flex flex-col gap-2">
-						<p className="m-0">
-							The {serverName} app wants to send this message to the chat as
-							you:
-						</p>
-						<pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-surface-secondary p-2 text-xs">
-							{pendingMessage?.text}
-						</pre>
-					</div>
-				}
-				confirmText="Send"
+			<McpAppConsentDialog
+				request={pendingRequest}
+				serverName={serverName}
 				confirmLoading={sendAppMessage.isPending}
-				onClose={declineAppMessage}
-				onConfirm={() => {
-					if (pendingMessage !== null) {
-						sendAppMessage.mutate(pendingMessage.text);
-					}
-				}}
+				onConfirm={confirmPendingRequest}
+				onDecline={declinePendingRequest}
 			/>
 		</div>
 	);

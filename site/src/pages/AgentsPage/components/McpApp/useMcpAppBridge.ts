@@ -23,12 +23,14 @@ import {
 	mcpAppLifecycleReducer,
 } from "./mcpAppLifecycle";
 import { flattenModelContext } from "./mcpAppParts";
-import type { McpAppCsp, McpAppPermissions } from "./sandboxUrl";
-
-/** Spec-required sandbox flags for the inner view iframe. */
-export const MCP_APP_INNER_SANDBOX = "allow-scripts allow-same-origin";
+import {
+	MCP_APP_VIEW_SANDBOX,
+	type McpAppCsp,
+	type McpAppPermissions,
+} from "./sandboxUrl";
 
 const TEARDOWN_TIMEOUT_MS = 2_000;
+const BOOT_TIMEOUT_MS = 15_000;
 
 type McpAppView = {
 	html: string;
@@ -42,6 +44,7 @@ type BridgeSession = {
 	bridge: AppBridge;
 	initialized: boolean;
 	tornDown: boolean;
+	bootTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Which snapshot pieces this view instance has already received. */
 	sent: {
 		input: boolean;
@@ -66,6 +69,7 @@ const teardownSession = async (session: BridgeSession): Promise<void> => {
 };
 
 const closeSession = async (session: BridgeSession): Promise<void> => {
+	clearTimeout(session.bootTimer);
 	await teardownSession(session);
 	await session.bridge.close().catch(() => undefined);
 };
@@ -139,7 +143,15 @@ export type UseMcpAppBridgeOptions = {
 	/** Tool call this tab renders; a change tears down and reloads the view. */
 	toolCallId: string | undefined;
 	boundCall: BoundCall | undefined;
-	onAppMessage: (text: string) => Promise<void>;
+	/** Named in the boot timeout message. */
+	sandboxOrigin: string | undefined;
+	/** Undefined when the chat cannot accept messages; ui/message is then rejected. */
+	onAppMessage: ((text: string) => Promise<void>) | undefined;
+	/** Resolves once the user let the link open; rejects when declined. */
+	onOpenLink: (url: string) => Promise<void>;
+	/** When true the view is torn down and `onClosed` fires once that finished. */
+	closing: boolean;
+	onClosed: () => void;
 };
 
 /**
@@ -160,13 +172,18 @@ export const useMcpAppBridge = ({
 	view,
 	toolCallId,
 	boundCall,
+	sandboxOrigin,
 	onAppMessage,
+	onOpenLink,
+	closing,
+	onClosed,
 }: UseMcpAppBridgeOptions): McpAppLifecycleState => {
 	const [lifecycle, dispatch] = useReducer(
 		mcpAppLifecycleReducer,
 		initialMcpAppLifecycleState,
 	);
 	const sessionRef = useRef<BridgeSession | null>(null);
+	const boundToolCallIdRef = useRef<string | undefined>(undefined);
 	const { mutateAsync: callTool } = useMutation(
 		callChatMCPAppTool(chatId, mcpServerConfigId),
 	);
@@ -181,7 +198,7 @@ export const useMcpAppBridge = ({
 		dispatch({ type: "sandboxReady" });
 		void session.bridge.sendSandboxResourceReady({
 			html: view.html,
-			sandbox: MCP_APP_INNER_SANDBOX,
+			sandbox: MCP_APP_VIEW_SANDBOX,
 			...(view.csp ? { csp: view.csp } : {}),
 			...(view.permissions ? { permissions: view.permissions } : {}),
 		});
@@ -222,6 +239,7 @@ export const useMcpAppBridge = ({
 			return;
 		}
 		session.initialized = true;
+		clearTimeout(session.bootTimer);
 		dispatch({ type: "initialized" });
 		session.bridge.setHostContext(buildHostContext({ theme, containerSize }));
 		flushBoundCall(session);
@@ -262,7 +280,26 @@ export const useMcpAppBridge = ({
 		},
 	);
 
-	const handleMessage = useEffectEvent((text: string) => onAppMessage(text));
+	const handleMessage = useEffectEvent(async (text: string) => {
+		if (!onAppMessage) {
+			throw new Error("This chat does not accept messages from apps");
+		}
+		await onAppMessage(text);
+	});
+
+	const handleOpenLink = useEffectEvent((url: string) => onOpenLink(url));
+
+	const handleBootTimeout = useEffectEvent((session: BridgeSession) => {
+		if (sessionRef.current !== session || session.initialized) {
+			return;
+		}
+		dispatch({
+			type: "fail",
+			message: `The app did not start within ${BOOT_TIMEOUT_MS / 1000} seconds. Check that the wildcard access URL is configured and that ${sandboxOrigin ?? "the sandbox host"} resolves to this deployment.`,
+		});
+	});
+
+	const finishClose = useEffectEvent(() => onClosed());
 
 	const handleFailure = useEffectEvent(
 		(session: BridgeSession, error: unknown) => {
@@ -281,7 +318,7 @@ export const useMcpAppBridge = ({
 	// generation bump (and iframe reload) happens after the view had its
 	// chance to persist state.
 	useEffect(() => {
-		if (!toolCallId) {
+		if (!toolCallId || boundToolCallIdRef.current === toolCallId) {
 			return;
 		}
 		let cancelled = false;
@@ -291,7 +328,8 @@ export const useMcpAppBridge = ({
 				await teardownSession(session);
 			}
 			if (!cancelled) {
-				dispatch({ type: "bind", toolCallId });
+				boundToolCallIdRef.current = toolCallId;
+				dispatch({ type: "bind" });
 			}
 		};
 		void rebind();
@@ -299,6 +337,28 @@ export const useMcpAppBridge = ({
 			cancelled = true;
 		};
 	}, [toolCallId]);
+
+	// Closing tears the view down while the panel is still mounted, then
+	// reports back so the tab can be removed.
+	useEffect(() => {
+		if (!closing) {
+			return;
+		}
+		let cancelled = false;
+		const close = async () => {
+			const session = sessionRef.current;
+			if (session) {
+				await teardownSession(session);
+			}
+			if (!cancelled) {
+				finishClose();
+			}
+		};
+		void close();
+		return () => {
+			cancelled = true;
+		};
+	}, [closing]);
 
 	useEffect(() => {
 		if (view) {
@@ -332,6 +392,7 @@ export const useMcpAppBridge = ({
 			bridge,
 			initialized: false,
 			tornDown: false,
+			bootTimer: undefined,
 			sent: {
 				input: false,
 				result: false,
@@ -347,7 +408,7 @@ export const useMcpAppBridge = ({
 			if (!isHttpUrl(url)) {
 				throw new Error("Only http(s) links can be opened");
 			}
-			window.open(url, "_blank", "noopener,noreferrer");
+			await handleOpenLink(url);
 			return {};
 		};
 		bridge.onmessage = async ({ content }) => {
@@ -368,6 +429,10 @@ export const useMcpAppBridge = ({
 		bridge.connect(transport).catch((error: unknown) => {
 			handleFailure(session, error);
 		});
+		session.bootTimer = setTimeout(
+			() => handleBootTimeout(session),
+			BOOT_TIMEOUT_MS,
+		);
 
 		return () => {
 			if (sessionRef.current === session) {

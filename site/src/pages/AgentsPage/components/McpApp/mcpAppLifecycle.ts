@@ -1,33 +1,30 @@
 import type { ChatStatus } from "#/api/typesGenerated";
 import { isActiveChatStatus } from "../ChatConversation/chatStore";
 import type { MergedTool } from "../ChatConversation/types";
+import { asRecord } from "../ChatElements/runtimeTypeUtils";
 
 type McpAppPhase =
 	| "idle"
 	| "loading_resource"
 	| "booting"
 	| "initialized"
-	| "torn_down"
 	| "error";
 
 export type McpAppLifecycleState = {
 	phase: McpAppPhase;
-	/** Incremented on every rebind so callbacks from a stale boot are ignored. */
+	/** Incremented on every rebind so the iframe remounts and stale boots are ignored. */
 	generation: number;
-	boundToolCallId?: string;
 	/** True once the view HTML has been fetched for this tab. */
 	resourceLoaded: boolean;
 	error?: string;
 };
 
 export type McpAppLifecycleAction =
-	| { type: "bind"; toolCallId: string }
+	| { type: "bind" }
 	| { type: "resourceLoaded" }
 	| { type: "sandboxReady" }
 	| { type: "initialized" }
-	| { type: "tornDown" }
-	| { type: "fail"; message: string }
-	| { type: "reset" };
+	| { type: "fail"; message: string };
 
 export const initialMcpAppLifecycleState: McpAppLifecycleState = {
 	phase: "idle",
@@ -40,19 +37,16 @@ export const mcpAppLifecycleReducer = (
 	action: McpAppLifecycleAction,
 ): McpAppLifecycleState => {
 	switch (action.type) {
-		case "bind": {
-			if (state.boundToolCallId === action.toolCallId) {
-				return state;
-			}
-			const rebinding = state.boundToolCallId !== undefined;
+		case "bind":
 			return {
 				...state,
-				boundToolCallId: action.toolCallId,
-				generation: rebinding ? state.generation + 1 : state.generation,
+				// Only the first bind keeps the generation: later binds replace a
+				// view that already started and must reload the iframe.
+				generation:
+					state.phase === "idle" ? state.generation : state.generation + 1,
 				phase: state.resourceLoaded ? "booting" : "loading_resource",
 				error: undefined,
 			};
-		}
 		case "resourceLoaded":
 			if (state.phase === "loading_resource") {
 				return { ...state, resourceLoaded: true, phase: "booting" };
@@ -64,26 +58,14 @@ export const mcpAppLifecycleReducer = (
 			return state.phase === "booting"
 				? { ...state, phase: "initialized" }
 				: state;
-		case "tornDown":
-			return state.phase === "initialized"
-				? { ...state, phase: "torn_down" }
-				: state;
 		case "fail":
 			return { ...state, phase: "error", error: action.message };
-		case "reset":
-			return {
-				...initialMcpAppLifecycleState,
-				generation: state.generation + 1,
-			};
 		default: {
 			const _exhaustive: never = action;
 			return state;
 		}
 	}
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * Builds a spec-shaped CallToolResult from the model-facing result when the
@@ -94,9 +76,10 @@ const synthesizeToolResult = (
 	isError: boolean,
 ): Record<string, unknown> => {
 	const text = typeof result === "string" ? result : JSON.stringify(result);
+	const structured = asRecord(result);
 	return {
 		content: [{ type: "text", text: text ?? "" }],
-		...(isRecord(result) ? { structuredContent: result } : {}),
+		...(structured ? { structuredContent: structured } : {}),
 		...(isError ? { isError: true } : {}),
 	};
 };
@@ -119,12 +102,11 @@ export const deriveBoundCall = (
 	if (!tool) {
 		return undefined;
 	}
-	const args = isRecord(tool.args) ? tool.args : undefined;
+	const args = asRecord(tool.args) ?? undefined;
 	const hasResult = tool.result !== undefined || tool.mcpResult !== undefined;
+	const mcpResult = asRecord(tool.mcpResult);
 	const result = hasResult
-		? isRecord(tool.mcpResult)
-			? tool.mcpResult
-			: synthesizeToolResult(tool.result, tool.isError)
+		? (mcpResult ?? synthesizeToolResult(tool.result, tool.isError))
 		: undefined;
 	return {
 		args,

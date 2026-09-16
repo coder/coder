@@ -1126,4 +1126,27 @@ describe("mcpAppContexts", () => {
 			context("other"),
 		);
 	});
+
+	it("clearMcpAppContext removes one app and is a no-op for unknown ids", () => {
+		const store = createChatStore();
+		store.setMcpAppContext("app-1", context("one"));
+		store.setMcpAppContext("app-2", context("two"));
+		const listener = vi.fn();
+		store.subscribe(listener);
+
+		store.clearMcpAppContext("app-1");
+		store.clearMcpAppContext("missing");
+
+		expect([...store.getSnapshot().mcpAppContexts.keys()]).toEqual(["app-2"]);
+		expect(listener).toHaveBeenCalledTimes(1);
+	});
+
+	it("resetTransientState drops every app context", () => {
+		const store = createChatStore();
+		store.setMcpAppContext("app-1", context("one"));
+
+		store.resetTransientState();
+
+		expect(store.getSnapshot().mcpAppContexts.size).toBe(0);
+	});
 });

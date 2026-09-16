@@ -7,6 +7,7 @@ import {
 	type RefObject,
 	Suspense,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 import { useQueryClient } from "react-query";
@@ -77,9 +78,11 @@ import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
+	getPersistedDismissedMcpAppTabs,
 	getPersistedRightPanelTabs,
 	getPersistedVisibleSingletonTabs,
 	savePersistedDefaultTerminalHidden,
+	savePersistedDismissedMcpAppTabs,
 	savePersistedRightPanelTabs,
 	savePersistedVisibleSingletonTabs,
 } from "./utils/rightPanelTabStorage";
@@ -228,12 +231,16 @@ interface UserTabContentProps {
 	/** Primary region wildcard host used for MCP App sandbox origins. */
 	primaryWildcardHostname: string | undefined;
 	store: ChatStoreHandle;
+	chatStatus: TypesGen.ChatStatus;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	submitAppMessage: ((text: string) => Promise<void>) | undefined;
 	sidebarVisible: boolean;
 	isActive: boolean;
 	isPending: boolean;
+	/** True while an mcp_app tab tears its view down before being removed. */
+	isClosing: boolean;
 	onTerminalReady: (tabId: string) => void;
+	onMcpAppClosed: (tabId: string) => void;
 }
 
 const UserTabContent: FC<UserTabContentProps> = ({
@@ -244,12 +251,15 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	wildcardHostname,
 	primaryWildcardHostname,
 	store,
+	chatStatus,
 	mcpServers,
 	submitAppMessage,
 	sidebarVisible,
 	isActive,
 	isPending,
+	isClosing,
 	onTerminalReady,
+	onMcpAppClosed,
 }) => {
 	switch (tab.kind) {
 		case "terminal":
@@ -313,14 +323,14 @@ const UserTabContent: FC<UserTabContentProps> = ({
 						chatId={chatId}
 						tab={tab}
 						store={store}
+						chatStatus={chatStatus}
 						mcpServer={mcpServers.find(
 							(server) => server.id === tab.mcpServerConfigId,
 						)}
 						wildcardHostname={primaryWildcardHostname}
-						submitAppMessage={
-							submitAppMessage ??
-							(() => Promise.reject(new Error("This chat is read-only.")))
-						}
+						submitAppMessage={submitAppMessage}
+						isClosing={isClosing}
+						onClosed={() => onMcpAppClosed(tab.id)}
 					/>
 				</Suspense>
 			);
@@ -453,7 +463,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// Tool call each closed app tab was showing, so history does not reopen it.
 	const [dismissedAppToolCalls, setDismissedAppToolCalls] = useState<
 		ReadonlyMap<string, string>
-	>(() => new Map());
+	>(() => getPersistedDismissedMcpAppTabs(agentId));
+	// App tabs whose view is being torn down before the tab is removed.
+	const [closingTabIds, setClosingTabIds] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+	// Newest app tool call per tab at the previous transcript sync.
+	const seenAppToolCallsRef = useRef<ReadonlyMap<string, string>>(new Map());
 	// One client session ID per page visit, shared by every terminal in this
 	// chat. It regenerates when this view remounts (switching chats or
 	// reloading), independent of any terminal's reconnection token.
@@ -483,6 +499,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
 		}
 	}, [agentId, isArchived, visibleSingletonTabs]);
+
+	useEffect(() => {
+		if (!isArchived) {
+			savePersistedDismissedMcpAppTabs(agentId, dismissedAppToolCalls);
+		}
+	}, [agentId, isArchived, dismissedAppToolCalls]);
 
 	const shouldShowSidebar = showSidebarPanel;
 
@@ -790,23 +812,45 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			refs,
 			tabs: userRightPanelTabs,
 			dismissed: dismissedAppToolCalls,
+			seen: seenAppToolCallsRef.current,
 			initial,
-			panelOpen: shouldShowSidebar,
-			activeTabId: effectiveSidebarTabId,
+			selectedTabId: sidebarTabId,
 			labelFor: (ref) => mcpServerLabel(ref.mcpServerConfigId, ref.toolName),
 		});
+		seenAppToolCallsRef.current = plan.seen;
 		if (plan.upserts.length > 0) {
 			setUserRightPanelTabsState((currentTabs) =>
 				applyMcpAppTabUpserts(currentTabs, plan.upserts),
 			);
 		}
-		if (plan.activateTabId !== undefined) {
-			setPendingTabId(null);
-			setSidebarTabId(plan.activateTabId);
-		}
 		if (plan.badgeTabIds.length > 0) {
 			setBadgedTabIds((current) => new Set([...current, ...plan.badgeTabIds]));
 		}
+		if (plan.expiredDismissals.length > 0) {
+			setDismissedAppToolCalls((current) => {
+				const next = new Map(current);
+				for (const tabId of plan.expiredDismissals) {
+					next.delete(tabId);
+				}
+				return next;
+			});
+		}
+	};
+
+	// Removes an app tab once its view finished tearing down.
+	const handleMcpAppClosed = (tabId: string) => {
+		setClosingTabIds((current) => {
+			if (!current.has(tabId)) {
+				return current;
+			}
+			const next = new Set(current);
+			next.delete(tabId);
+			return next;
+		});
+		setUserRightPanelTabsState((currentTabs) =>
+			currentTabs.filter((tab) => tab.id !== tabId),
+		);
+		store.clearMcpAppContext(tabId);
 	};
 
 	const mcpAppPanelCtx = {
@@ -893,6 +937,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						wildcardHostname={wildcardHostname}
 						primaryWildcardHostname={primaryWildcardHostname}
 						store={store}
+						chatStatus={liveChatStatus}
 						mcpServers={mcpServers}
 						submitAppMessage={
 							isOtherUserReadOnly ? undefined : submitAppMessage
@@ -900,7 +945,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						sidebarVisible={shouldShowSidebar}
 						isActive={effectiveSidebarTabId === userTab.id}
 						isPending={pendingTabId === userTab.id}
+						isClosing={closingTabIds.has(userTab.id)}
 						onTerminalReady={handleTerminalTabReady}
+						onMcpAppClosed={handleMcpAppClosed}
 					/>
 				) : null;
 			}
@@ -925,13 +972,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				(tab): tab is McpAppTab => tab.kind === "mcp_app" && tab.id === tabId,
 			);
 			if (closedAppTab) {
+				// The tab stays mounted until the panel reports the view torn down.
 				setDismissedAppToolCalls((current) =>
 					new Map(current).set(tabId, closedAppTab.toolCallId),
 				);
+				setClosingTabIds((current) => new Set(current).add(tabId));
+			} else {
+				setUserRightPanelTabsState((currentTabs) =>
+					currentTabs.filter((tab) => tab.id !== tabId),
+				);
 			}
-			setUserRightPanelTabsState((currentTabs) =>
-				currentTabs.filter((tab) => tab.id !== tabId),
-			);
 		}
 
 		if (effectiveSidebarTabId !== tabId) {

@@ -101,43 +101,61 @@ export const collectMcpAppToolCalls = (
 };
 
 type McpAppTabPlan = {
-	/** Tabs to create or rebind, keyed by tab ID. */
+	/** Tabs to create or rebind. */
 	upserts: McpAppTab[];
-	/** Tab to select, when a brand-new app appeared while the panel was open. */
-	activateTabId?: string;
-	/** Tabs that received a new tool call without being selected. */
+	/** Tabs that received a new tool call while not being the selected tab. */
 	badgeTabIds: string[];
+	/** Dismissals whose tool call is gone or superseded by a newer call. */
+	expiredDismissals: string[];
+	/** Newest tool call per tab in this transcript; pass back as `seen` next time. */
+	seen: Map<string, string>;
 };
 
 /**
  * Decides how the tab list reacts to the app tool calls in the transcript.
- * Each app keeps one tab bound to its newest tool call. A tab the user closed
- * stays closed until a different tool call arrives for that app. Calls that
- * were already in history when the page loaded (`initial`) never badge or
- * select a tab, and the panel is never opened.
+ * A tab is created for an app that has none, bound to the app's newest call.
+ * An existing tab is rebound only when a call arrives that was not in the
+ * previous transcript (`seen`), so an explicit older binding survives until
+ * the model calls the tool again. Dismissed tabs stay closed while their
+ * dismissed call is still the newest. The history loaded with the page
+ * (`initial`) only creates missing tabs and never badges, and nothing here
+ * selects a tab: a tab whose id is already the selected id becomes visible
+ * on its own.
  */
 export const planMcpAppTabs = ({
 	refs,
 	tabs,
 	dismissed,
+	seen,
 	initial,
-	panelOpen,
-	activeTabId,
+	selectedTabId,
 	labelFor,
 }: {
 	refs: readonly McpAppToolCallRef[];
 	tabs: readonly UserRightPanelTab[];
 	dismissed: ReadonlyMap<string, string>;
+	seen: ReadonlyMap<string, string>;
 	initial: boolean;
-	panelOpen: boolean;
-	activeTabId: string | null;
+	selectedTabId: string | null;
 	labelFor: (ref: McpAppToolCallRef) => string;
 }): McpAppTabPlan => {
 	const newestByTab = new Map<string, McpAppToolCallRef>();
 	for (const ref of refs) {
 		newestByTab.set(mcpAppTabId(ref.mcpServerConfigId, ref.resourceUri), ref);
 	}
-	const plan: McpAppTabPlan = { upserts: [], badgeTabIds: [] };
+	const plan: McpAppTabPlan = {
+		upserts: [],
+		badgeTabIds: [],
+		expiredDismissals: [],
+		seen: new Map(
+			Array.from(newestByTab, ([tabId, ref]) => [tabId, ref.toolCallId]),
+		),
+	};
+	for (const [tabId, dismissedCall] of dismissed) {
+		if (newestByTab.get(tabId)?.toolCallId !== dismissedCall) {
+			plan.expiredDismissals.push(tabId);
+		}
+	}
 	for (const [tabId, ref] of newestByTab) {
 		if (dismissed.get(tabId) === ref.toolCallId) {
 			continue;
@@ -145,7 +163,8 @@ export const planMcpAppTabs = ({
 		const existing = tabs.find(
 			(tab): tab is McpAppTab => tab.kind === "mcp_app" && tab.id === tabId,
 		);
-		if (existing?.toolCallId === ref.toolCallId) {
+		const isNewCall = !initial && seen.get(tabId) !== ref.toolCallId;
+		if (existing && (!isNewCall || existing.toolCallId === ref.toolCallId)) {
 			continue;
 		}
 		plan.upserts.push({
@@ -156,12 +175,7 @@ export const planMcpAppTabs = ({
 			toolCallId: ref.toolCallId,
 			label: existing?.label ?? labelFor(ref),
 		});
-		if (initial) {
-			continue;
-		}
-		if (!existing && panelOpen && plan.activateTabId === undefined) {
-			plan.activateTabId = tabId;
-		} else if (activeTabId !== tabId) {
+		if (!initial && selectedTabId !== tabId) {
 			plan.badgeTabIds.push(tabId);
 		}
 	}
@@ -170,11 +184,11 @@ export const planMcpAppTabs = ({
 
 /** Applies planned upserts to the tab list, replacing existing app tabs in place. */
 export const applyMcpAppTabUpserts = (
-	tabs: readonly UserRightPanelTab[],
+	tabs: UserRightPanelTab[],
 	upserts: readonly McpAppTab[],
 ): UserRightPanelTab[] => {
 	if (upserts.length === 0) {
-		return [...tabs];
+		return tabs;
 	}
 	const byId = new Map(upserts.map((tab) => [tab.id, tab]));
 	const next = tabs.map((tab) => byId.get(tab.id) ?? tab);

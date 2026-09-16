@@ -154,8 +154,8 @@ export function validateUserRightPanelTabs(
 			return workspace !== undefined && workspaceAgent !== undefined;
 		}
 
-		// App tabs do not depend on a workspace. A tab whose tool call is not
-		// in the loaded history is kept; the panel renders an empty state.
+		// Membership in the chat's server list is the only requirement: app
+		// tabs render without a workspace.
 		if (tab.kind === "mcp_app") {
 			return mcpAppsEnabled && mcpServerIds.includes(tab.mcpServerConfigId);
 		}

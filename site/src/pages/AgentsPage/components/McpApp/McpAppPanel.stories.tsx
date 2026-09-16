@@ -1,3 +1,4 @@
+import { AppBridge } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { spyOn } from "storybook/test";
@@ -105,9 +106,12 @@ const meta: Meta<typeof McpAppPanel> = {
 		chatId: MockChat.id,
 		tab,
 		store: storeWith(toolCallMessages),
+		chatStatus: "waiting",
 		mcpServer: taskboardServer,
 		wildcardHostname: "*.apps.example.com",
 		submitAppMessage: () => Promise.resolve(),
+		isClosing: false,
+		onClosed: () => {},
 	},
 };
 
@@ -117,6 +121,12 @@ type Story = StoryObj<typeof McpAppPanel>;
 export const MissingWildcardHost: Story = {
 	args: {
 		wildcardHostname: undefined,
+	},
+};
+
+export const MissingServer: Story = {
+	args: {
+		mcpServer: undefined,
 	},
 };
 
@@ -147,6 +157,17 @@ export const ResourceReadFailed: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "readChatMCPAppResource").mockRejectedValue(
 			new Error("MCP server is unreachable"),
+		);
+	},
+};
+
+export const BootFailed: Story = {
+	parameters: {
+		queries: [{ key: resourceKey, data: resource(MCP_APP_MIME_TYPE) }],
+	},
+	beforeEach: () => {
+		spyOn(AppBridge.prototype, "connect").mockRejectedValue(
+			new Error("The sandbox refused the connection"),
 		);
 	},
 };

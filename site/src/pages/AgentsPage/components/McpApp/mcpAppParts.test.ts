@@ -56,7 +56,7 @@ describe("takeMcpAppContextInputParts", () => {
 	it("appends one part per app with text for a new send and clears the store", () => {
 		const store = seed();
 
-		const { parts } = takeMcpAppContextInputParts(store, { isNewSend: true });
+		const { parts } = takeMcpAppContextInputParts(store);
 
 		expect(parts).toEqual([
 			{
@@ -69,20 +69,9 @@ describe("takeMcpAppContextInputParts", () => {
 		expect(store.getSnapshot().mcpAppContexts.size).toBe(0);
 	});
 
-	it("leaves the store untouched and returns no parts for edits", () => {
-		const store = seed();
-
-		const { parts } = takeMcpAppContextInputParts(store, { isNewSend: false });
-
-		expect(parts).toEqual([]);
-		expect(store.getSnapshot().mcpAppContexts.size).toBe(2);
-	});
-
 	it("restore puts the taken contexts back after a failed send", () => {
 		const store = seed();
-		const { restore } = takeMcpAppContextInputParts(store, {
-			isNewSend: true,
-		});
+		const { restore } = takeMcpAppContextInputParts(store);
 
 		restore();
 

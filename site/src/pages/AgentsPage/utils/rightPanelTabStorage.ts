@@ -96,6 +96,59 @@ export function savePersistedVisibleSingletonTabs(
 
 const defaultTerminalHiddenStorageKeyPrefix = "agents.default-terminal-hidden.";
 
+export const dismissedMcpAppStorageKeyPrefix =
+	"agents.right-panel-mcp-app-dismissed.";
+
+/**
+ * App tabs the user closed, keyed by tab ID with the tool call each one was
+ * showing when closed.
+ */
+export function getPersistedDismissedMcpAppTabs(
+	chatID: string | undefined,
+): Map<string, string> {
+	if (!chatID) {
+		return new Map();
+	}
+	const value = localStorage.getItem(
+		`${dismissedMcpAppStorageKeyPrefix}${chatID}`,
+	);
+	if (!value) {
+		return new Map();
+	}
+	try {
+		const parsed: unknown = JSON.parse(value);
+		if (
+			typeof parsed !== "object" ||
+			parsed === null ||
+			Array.isArray(parsed)
+		) {
+			return new Map();
+		}
+		return new Map(
+			Object.entries(parsed).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
+			),
+		);
+	} catch {
+		return new Map();
+	}
+}
+
+export function savePersistedDismissedMcpAppTabs(
+	chatID: string | undefined,
+	dismissed: ReadonlyMap<string, string>,
+): void {
+	if (!chatID) {
+		return;
+	}
+	const key = `${dismissedMcpAppStorageKeyPrefix}${chatID}`;
+	if (dismissed.size === 0) {
+		localStorage.removeItem(key);
+		return;
+	}
+	localStorage.setItem(key, JSON.stringify(Object.fromEntries(dismissed)));
+}
+
 export function getPersistedDefaultTerminalHidden(
 	chatID: string | undefined,
 ): boolean {
@@ -133,4 +186,5 @@ export function clearPersistedRightPanelState(
 	localStorage.removeItem(`${rightPanelTabStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${visibleSingletonTabsStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`);
+	localStorage.removeItem(`${dismissedMcpAppStorageKeyPrefix}${chatID}`);
 }

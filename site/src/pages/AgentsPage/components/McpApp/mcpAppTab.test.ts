@@ -115,70 +115,85 @@ describe("planMcpAppTabs", () => {
 			refs: [ref("call-1")],
 			tabs: [terminalTab],
 			dismissed: new Map(),
+			seen: new Map(),
 			initial: false,
-			panelOpen: true,
-			activeTabId: "terminal-1",
+			selectedTabId: "terminal-1",
 			labelFor: () => "Task board",
 			...overrides,
 		});
 
-	it("creates a tab for a new app and selects it while the panel is open", () => {
+	it("creates a badged tab for a new app without selecting it", () => {
 		expect(plan()).toEqual({
 			upserts: [appTab("call-1")],
-			activateTabId: TAB_ID,
-			badgeTabIds: [],
-		});
-	});
-
-	it("badges instead of selecting when the panel is closed", () => {
-		expect(plan({ panelOpen: false })).toEqual({
-			upserts: [appTab("call-1")],
 			badgeTabIds: [TAB_ID],
+			expiredDismissals: [],
+			seen: new Map([[TAB_ID, "call-1"]]),
 		});
 	});
 
-	it("rebinds an existing tab to the newest call and badges it", () => {
-		const result = plan({
+	it("does not badge a tab whose id is already selected", () => {
+		expect(plan({ selectedTabId: TAB_ID }).badgeTabIds).toEqual([]);
+	});
+
+	it("rebinds an existing tab only for a call not seen before", () => {
+		const rebound = plan({
 			refs: [ref("call-1"), ref("call-2")],
 			tabs: [terminalTab, appTab("call-1")],
+			seen: new Map([[TAB_ID, "call-1"]]),
 		});
-		expect(result).toEqual({
-			upserts: [appTab("call-2")],
-			badgeTabIds: [TAB_ID],
-		});
-	});
+		expect(rebound.upserts).toEqual([appTab("call-2")]);
+		expect(rebound.badgeTabIds).toEqual([TAB_ID]);
 
-	it("does not badge the tab that is already active", () => {
-		const result = plan({
-			refs: [ref("call-2")],
+		// call-2 was already in the transcript: an explicit older binding stays.
+		const kept = plan({
+			refs: [ref("call-1"), ref("call-2")],
 			tabs: [appTab("call-1")],
-			activeTabId: TAB_ID,
+			seen: new Map([[TAB_ID, "call-2"]]),
 		});
-		expect(result).toEqual({ upserts: [appTab("call-2")], badgeTabIds: [] });
+		expect(kept.upserts).toEqual([]);
 	});
 
-	it("creates tabs silently for history loaded with the page", () => {
-		expect(plan({ initial: true })).toEqual({
+	it("keeps existing bindings and stays quiet for history loaded with the page", () => {
+		const result = plan({
+			refs: [ref("call-1"), ref("call-2")],
+			tabs: [appTab("call-1")],
+			initial: true,
+		});
+		expect(result.upserts).toEqual([]);
+		expect(result.badgeTabIds).toEqual([]);
+		expect(plan({ initial: true })).toMatchObject({
 			upserts: [appTab("call-1")],
 			badgeTabIds: [],
 		});
 	});
 
 	it("does nothing when the tab already shows the newest call", () => {
-		expect(plan({ tabs: [appTab("call-1")] })).toEqual({
+		expect(plan({ tabs: [appTab("call-1")] }).upserts).toEqual([]);
+	});
+
+	it("keeps a closed tab closed until a different call arrives", () => {
+		const dismissed = new Map([[TAB_ID, "call-1"]]);
+		expect(plan({ dismissed })).toMatchObject({
 			upserts: [],
-			badgeTabIds: [],
+			expiredDismissals: [],
+		});
+		expect(
+			plan({
+				dismissed,
+				refs: [ref("call-1"), ref("call-2")],
+				seen: new Map([[TAB_ID, "call-1"]]),
+			}),
+		).toMatchObject({
+			upserts: [appTab("call-2")],
+			badgeTabIds: [TAB_ID],
+			expiredDismissals: [TAB_ID],
 		});
 	});
 
-	it("leaves a closed tab closed until a different call arrives", () => {
-		const dismissed = new Map([[TAB_ID, "call-1"]]);
-		expect(plan({ dismissed })).toEqual({ upserts: [], badgeTabIds: [] });
-		expect(plan({ dismissed, refs: [ref("call-1"), ref("call-2")] })).toEqual({
-			upserts: [appTab("call-2")],
-			activateTabId: TAB_ID,
-			badgeTabIds: [],
-		});
+	it("expires dismissals whose tool call is not in the transcript", () => {
+		expect(
+			plan({ refs: [], dismissed: new Map([[TAB_ID, "call-1"]]) }),
+		).toMatchObject({ upserts: [], expiredDismissals: [TAB_ID] });
 	});
 });
 

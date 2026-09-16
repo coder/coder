@@ -14,13 +14,9 @@ const run = (
 ): McpAppLifecycleState => actions.reduce(mcpAppLifecycleReducer, start);
 
 describe("mcpAppLifecycleReducer", () => {
-	it("walks idle -> loading_resource -> booting -> initialized -> torn_down", () => {
-		const bound = run([{ type: "bind", toolCallId: "call-1" }]);
-		expect(bound).toMatchObject({
-			phase: "loading_resource",
-			boundToolCallId: "call-1",
-			generation: 0,
-		});
+	it("walks idle -> loading_resource -> booting -> initialized", () => {
+		const bound = run([{ type: "bind" }]);
+		expect(bound).toMatchObject({ phase: "loading_resource", generation: 0 });
 
 		const booting = run([{ type: "resourceLoaded" }], bound);
 		expect(booting).toMatchObject({ phase: "booting", resourceLoaded: true });
@@ -30,8 +26,6 @@ describe("mcpAppLifecycleReducer", () => {
 			booting,
 		);
 		expect(initialized.phase).toBe("initialized");
-
-		expect(run([{ type: "tornDown" }], initialized).phase).toBe("torn_down");
 	});
 
 	it("ignores initialized outside of booting", () => {
@@ -39,25 +33,21 @@ describe("mcpAppLifecycleReducer", () => {
 	});
 
 	it("returns the same state when the resource is reported loaded again", () => {
-		const loaded = run([
-			{ type: "bind", toolCallId: "call-1" },
-			{ type: "resourceLoaded" },
-		]);
+		const loaded = run([{ type: "bind" }, { type: "resourceLoaded" }]);
 		expect(mcpAppLifecycleReducer(loaded, { type: "resourceLoaded" })).toBe(
 			loaded,
 		);
 	});
 
-	it("rebinding to another tool call bumps the generation", () => {
+	it("rebinding after the first bind bumps the generation", () => {
 		const first = run([
-			{ type: "bind", toolCallId: "call-1" },
+			{ type: "bind" },
 			{ type: "resourceLoaded" },
 			{ type: "sandboxReady" },
 			{ type: "initialized" },
 		]);
-		const rebound = run([{ type: "bind", toolCallId: "call-2" }], first);
+		const rebound = run([{ type: "bind" }], first);
 		expect(rebound).toMatchObject({
-			boundToolCallId: "call-2",
 			generation: 1,
 			// The HTML was already fetched, so the view goes straight to boot.
 			phase: "booting",
@@ -65,42 +55,19 @@ describe("mcpAppLifecycleReducer", () => {
 	});
 
 	it("rebinding before the resource loaded stays in loading_resource", () => {
-		const state = run([
-			{ type: "bind", toolCallId: "call-1" },
-			{ type: "bind", toolCallId: "call-2" },
-		]);
-		expect(state).toMatchObject({
+		expect(run([{ type: "bind" }, { type: "bind" }])).toMatchObject({
 			phase: "loading_resource",
 			generation: 1,
-			boundToolCallId: "call-2",
 		});
 	});
 
-	it("binding the same tool call again is a no-op", () => {
-		const state = run([{ type: "bind", toolCallId: "call-1" }]);
-		expect(
-			mcpAppLifecycleReducer(state, { type: "bind", toolCallId: "call-1" }),
-		).toBe(state);
-	});
-
 	it("records failures and clears them on rebind", () => {
-		const failed = run([
-			{ type: "bind", toolCallId: "call-1" },
-			{ type: "fail", message: "boom" },
-		]);
+		const failed = run([{ type: "bind" }, { type: "fail", message: "boom" }]);
 		expect(failed).toMatchObject({ phase: "error", error: "boom" });
-		const rebound = run([{ type: "bind", toolCallId: "call-2" }], failed);
+		const rebound = run([{ type: "bind" }], failed);
 		expect(rebound.error).toBeUndefined();
 		expect(rebound.phase).toBe("loading_resource");
-	});
-
-	it("reset returns to idle with a new generation", () => {
-		const state = run([
-			{ type: "bind", toolCallId: "call-1" },
-			{ type: "bind", toolCallId: "call-2" },
-			{ type: "reset" },
-		]);
-		expect(state).toEqual({ ...initialMcpAppLifecycleState, generation: 2 });
+		expect(rebound.generation).toBe(1);
 	});
 });
 

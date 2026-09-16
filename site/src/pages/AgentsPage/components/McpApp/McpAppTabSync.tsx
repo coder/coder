@@ -29,9 +29,9 @@ interface McpAppTabSyncProps {
 }
 
 /**
- * Renders nothing. Subscribes to the chat store on behalf of the page view
- * so per-delta store emissions re-render this component instead of the
- * whole right panel.
+ * Renders nothing. Subscribes to the chat store and reports the app tool
+ * calls in the transcript through `onAppToolCalls` whenever that list
+ * changes identity.
  */
 export const McpAppTabSync: FC<McpAppTabSyncProps> = ({
 	store,

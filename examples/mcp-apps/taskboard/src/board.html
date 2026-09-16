@@ -12,7 +12,7 @@
     color: var(--color-text-primary, #111);
   }
   body.dark { background: var(--color-background-primary, #111); color: var(--color-text-primary, #eee); }
-  form { display: flex; gap: 6px; margin-bottom: 10px; }
+  .add-row { display: flex; gap: 6px; margin-bottom: 10px; }
   input[type="text"] { flex: 1; padding: 4px 6px; }
   button { cursor: pointer; }
   ul { list-style: none; padding: 0; margin: 0; }
@@ -24,11 +24,11 @@
 </style>
 </head>
 <body>
-<form id="add-form">
+<div class="add-row" id="add-row">
   <input id="title" type="text" placeholder="New task" aria-label="New task title" />
-  <button type="submit">Add</button>
+  <button type="button" id="add">Add</button>
   <button type="button" id="refresh">Refresh</button>
-</form>
+</div>
 <ul id="list" aria-label="Tasks"></ul>
 <div id="status">Connecting to host...</div>
 <div id="error" role="alert"></div>
@@ -122,6 +122,8 @@
   }
 
   window.addEventListener("message", function (event) {
+    // The sandbox proxy relays host messages from the parent frame only.
+    if (event.source !== window.parent) return;
     var data = event.data;
     if (!data || data.jsonrpc !== "2.0") return;
 
@@ -143,13 +145,21 @@
     // ui/notifications/tool-input and other notifications are ignored.
   });
 
-  document.getElementById("add-form").addEventListener("submit", function (e) {
-    e.preventDefault();
+  // The view runs in a sandbox without allow-forms, so submitting a <form>
+  // is blocked; add via the button click or Enter in the input instead.
+  function addTask() {
     var input = document.getElementById("title");
     var title = input.value.trim();
     if (!title) return;
     input.value = "";
     callTool("add_task", { title: title });
+  }
+  document.getElementById("add").addEventListener("click", addTask);
+  document.getElementById("title").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addTask();
+    }
   });
   document.getElementById("refresh").addEventListener("click", function () {
     callTool("list_tasks", {});

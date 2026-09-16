@@ -194,6 +194,7 @@ export type ChatStore = {
 		status: TypesGen.ChatStatus,
 	) => void;
 	setMcpAppContext: (appId: string, context: McpAppContext) => void;
+	clearMcpAppContext: (appId: string) => void;
 	// Returns every stored app context and clears the map in one step so a
 	// send can attach them exactly once.
 	takeMcpAppContexts: () => McpAppContextEntry[];
@@ -776,13 +777,27 @@ export const createChatStore = (): ChatStore => {
 					: { ...current, mcpAppContexts: next };
 			});
 		},
+		clearMcpAppContext: (appId) => {
+			if (!state.mcpAppContexts.has(appId)) {
+				return;
+			}
+			setState((current) => {
+				if (!current.mcpAppContexts.has(appId)) {
+					return current;
+				}
+				const next = new Map(current.mcpAppContexts);
+				next.delete(appId);
+				return { ...current, mcpAppContexts: next };
+			});
+		},
 		resetTransientState: () => {
 			if (
 				state.streamState === null &&
 				state.streamError === null &&
 				state.retryState === null &&
 				state.reconnectState === null &&
-				state.subagentStatusOverrides.size === 0
+				state.subagentStatusOverrides.size === 0 &&
+				state.mcpAppContexts.size === 0
 			) {
 				return;
 			}
@@ -793,6 +808,7 @@ export const createChatStore = (): ChatStore => {
 				retryState: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
+				mcpAppContexts: new Map(),
 			}));
 		},
 	};

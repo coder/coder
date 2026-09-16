@@ -115,7 +115,7 @@
 		"unique-names-generator": "4.7.1",
 		"websocket-ts": "2.3.0",
 		"yup": "1.7.1",
-		"zod": "^4.2.0"
+		"zod": "4.6.5"
 	},
 	"devDependencies": {
 		"@babel/core": "7.29.7",

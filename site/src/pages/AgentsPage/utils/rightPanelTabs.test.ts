@@ -12,11 +12,14 @@ import {
 } from "#/testHelpers/entities";
 import {
 	clearPersistedRightPanelState,
+	dismissedMcpAppStorageKeyPrefix,
 	getPersistedDefaultTerminalHidden,
+	getPersistedDismissedMcpAppTabs,
 	getPersistedRightPanelTabs,
 	getPersistedVisibleSingletonTabs,
 	rightPanelTabStorageKeyPrefix,
 	savePersistedDefaultTerminalHidden,
+	savePersistedDismissedMcpAppTabs,
 	savePersistedRightPanelTabs,
 	savePersistedVisibleSingletonTabs,
 	visibleSingletonTabsStorageKeyPrefix,
@@ -290,6 +293,7 @@ describe("right-panel tab storage", () => {
 		savePersistedRightPanelTabs("chat-1", tabs);
 		savePersistedDefaultTerminalHidden("chat-1", true);
 		savePersistedVisibleSingletonTabs("chat-1", ["browser"]);
+		savePersistedDismissedMcpAppTabs("chat-1", new Map([["mcp_app:a:b", "c"]]));
 		savePersistedRightPanelTabs("chat-2", tabs);
 		savePersistedDefaultTerminalHidden("chat-2", true);
 		savePersistedVisibleSingletonTabs("chat-2", ["debug"]);
@@ -299,6 +303,7 @@ describe("right-panel tab storage", () => {
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
 		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
 		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
+		expect(getPersistedDismissedMcpAppTabs("chat-1").size).toBe(0);
 		expect(getPersistedRightPanelTabs("chat-2")).toEqual(tabs);
 		expect(getPersistedDefaultTerminalHidden("chat-2")).toBe(true);
 		expect(getPersistedVisibleSingletonTabs("chat-2")).toEqual(["debug"]);
@@ -457,6 +462,42 @@ describe("singleton right-panel tab storage", () => {
 
 		expect(getPersistedVisibleSingletonTabs(undefined)).toEqual([]);
 		expect(localStorage.length).toBe(0);
+	});
+});
+
+describe("dismissed mcp_app tab storage", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	it("round trips dismissed tabs per chat", () => {
+		const dismissed = new Map([["mcp_app:mcp-1:ui://x", "call-1"]]);
+
+		savePersistedDismissedMcpAppTabs("chat-1", dismissed);
+
+		expect(getPersistedDismissedMcpAppTabs("chat-1")).toEqual(dismissed);
+		expect(getPersistedDismissedMcpAppTabs("chat-2").size).toBe(0);
+	});
+
+	it("removes the stored entry when nothing is dismissed", () => {
+		savePersistedDismissedMcpAppTabs("chat-1", new Map([["a", "b"]]));
+
+		savePersistedDismissedMcpAppTabs("chat-1", new Map());
+
+		expect(localStorage.length).toBe(0);
+	});
+
+	it("ignores malformed or non-string values", () => {
+		localStorage.setItem(
+			`${dismissedMcpAppStorageKeyPrefix}chat-1`,
+			JSON.stringify({ good: "call-1", bad: 3 }),
+		);
+		expect(getPersistedDismissedMcpAppTabs("chat-1")).toEqual(
+			new Map([["good", "call-1"]]),
+		);
+
+		localStorage.setItem(`${dismissedMcpAppStorageKeyPrefix}chat-1`, "[]");
+		expect(getPersistedDismissedMcpAppTabs("chat-1").size).toBe(0);
 	});
 });
 

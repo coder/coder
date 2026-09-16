@@ -872,11 +872,10 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		// App-reported context rides along with new sends only. It is removed
-		// from the store here and put back if the request fails.
-		const appContext = takeMcpAppContextInputParts(store, {
-			isNewSend: true,
-		});
+		// Edits and slash commands returned above, so only new sends reach this
+		// point and carry the app-reported context. It is removed from the
+		// store here and put back if the request fails.
+		const appContext = takeMcpAppContextInputParts(store);
 		const request = {
 			content: [...content, ...appContext.parts],
 			model_config_id: selectedModelConfigID,

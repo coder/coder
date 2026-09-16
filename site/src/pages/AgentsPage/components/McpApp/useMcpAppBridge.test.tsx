@@ -50,6 +50,15 @@ const createFakeView = async () => {
 		received,
 		notify: (method: string, params: Record<string, unknown> = {}) =>
 			viewTransport.send({ jsonrpc: "2.0", method, params }),
+		respond: (
+			id: JSONRPCRequest["id"] | undefined,
+			result: Record<string, unknown>,
+		) => {
+			if (id === undefined) {
+				throw new Error("cannot respond without a request id");
+			}
+			return viewTransport.send({ jsonrpc: "2.0", id, result });
+		},
 		request: async (method: string, params: Record<string, unknown> = {}) => {
 			const id = nextId++;
 			await viewTransport.send({ jsonrpc: "2.0", id, method, params });
@@ -102,6 +111,8 @@ const renderBridge = (
 	);
 	const store = createChatStore();
 	const onAppMessage = vi.fn<(text: string) => Promise<void>>();
+	const onOpenLink = vi.fn<(url: string) => Promise<void>>();
+	const onClosed = vi.fn();
 	const defaults: UseMcpAppBridgeOptions = {
 		chatId: CHAT_ID,
 		mcpServerConfigId: SERVER_ID,
@@ -114,7 +125,11 @@ const renderBridge = (
 		view,
 		toolCallId: "call-1",
 		boundCall: completeCall,
+		sandboxOrigin: "https://mcpapp-abc.apps.example.com",
 		onAppMessage,
+		onOpenLink,
+		closing: false,
+		onClosed,
 		...initial,
 	};
 	const hook = renderHook(
@@ -125,6 +140,8 @@ const renderBridge = (
 		...hook,
 		store,
 		onAppMessage,
+		onOpenLink,
+		onClosed,
 		update: (next: Partial<UseMcpAppBridgeOptions>) =>
 			hook.rerender({ ...defaults, ...next }),
 	};
@@ -349,6 +366,113 @@ describe("useMcpAppBridge", () => {
 				),
 			).toBe(true);
 		});
+	});
+
+	it("rejects ui/message when the chat cannot accept app messages", async () => {
+		const fake = await createFakeView();
+		renderBridge({ transport: fake.hostTransport, onAppMessage: undefined });
+		await bootView(fake);
+
+		const error = await fake.requestExpectingError("ui/message", {
+			role: "user",
+			content: [{ type: "text", text: "Please add a task" }],
+		});
+
+		expect(error.message).toContain("does not accept messages");
+	});
+
+	it("opens http(s) links only after the consent callback resolves", async () => {
+		const fake = await createFakeView();
+		const { onOpenLink } = renderBridge({ transport: fake.hostTransport });
+		onOpenLink.mockResolvedValueOnce(undefined);
+		onOpenLink.mockRejectedValueOnce(
+			new Error("The user declined the request"),
+		);
+		await bootView(fake);
+
+		await fake.request("ui/open-link", { url: "https://coder.com/docs" });
+		const declined = await fake.requestExpectingError("ui/open-link", {
+			url: "https://coder.com/pricing",
+		});
+		const invalid = await fake.requestExpectingError("ui/open-link", {
+			url: "file:///etc/passwd",
+		});
+
+		expect(onOpenLink).toHaveBeenCalledTimes(2);
+		expect(onOpenLink).toHaveBeenNthCalledWith(1, "https://coder.com/docs");
+		expect(declined.message).toContain("declined");
+		expect(invalid.message).toContain("http(s)");
+	});
+
+	it("tears the view down and reports back when closing", async () => {
+		const fake = await createFakeView();
+		const { update, onClosed } = renderBridge({
+			transport: fake.hostTransport,
+		});
+		await bootView(fake);
+		await waitFor(() => {
+			expect(
+				fake.notificationsFor("ui/notifications/tool-result"),
+			).toHaveLength(1);
+		});
+
+		act(() => {
+			update({ closing: true });
+		});
+
+		const teardown = await waitFor(() => {
+			const request = fake.received.find(
+				(message): message is JSONRPCRequest =>
+					isRequest(message) && message.method === "ui/resource-teardown",
+			);
+			expect(request).toBeDefined();
+			return request;
+		});
+		expect(onClosed).not.toHaveBeenCalled();
+		await fake.respond(teardown?.id, {});
+		await waitFor(() => {
+			expect(onClosed).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it("reports the close immediately when no view ever initialized", async () => {
+		const fake = await createFakeView();
+		const { update, onClosed } = renderBridge({
+			transport: fake.hostTransport,
+		});
+
+		act(() => {
+			update({ closing: true });
+		});
+
+		await waitFor(() => {
+			expect(onClosed).toHaveBeenCalledTimes(1);
+		});
+		expect(
+			fake.received.some(
+				(message) =>
+					isRequest(message) && message.method === "ui/resource-teardown",
+			),
+		).toBe(false);
+	});
+
+	it("fails the boot when the view never initializes", async () => {
+		vi.useFakeTimers();
+		try {
+			const fake = await createFakeView();
+			const { result } = renderBridge({ transport: fake.hostTransport });
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(15_000);
+			});
+
+			expect(result.current.phase).toBe("error");
+			expect(result.current.error).toContain(
+				"https://mcpapp-abc.apps.example.com",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("notifies the view when the theme changes after initialization", async () => {
