@@ -55,6 +55,9 @@ var (
 	// sentinel keeps explicit Close distinguishable from parent
 	// context cancellation.
 	ErrManagerClosed = xerrors.New("manager closed")
+	// errConnectTimeout is the cause recorded when a server does not
+	// finish its handshake within connectTimeout.
+	errConnectTimeout = xerrors.Errorf("no response within %s", connectTimeout)
 )
 
 // fileSnapshot records the identity of a config file at the time
@@ -82,20 +85,22 @@ type Manager struct {
 	// servers, read at connect time. See resolveWorkingDir.
 	workingDir func() string
 
-	mu        sync.RWMutex
-	logger    slog.Logger
-	clock     quartz.Clock
-	closed    bool
-	servers   map[string]*serverEntry
-	catalog   []ServerStatus
-	snapshot  map[string]fileSnapshot
-	serverGen uint64
-	sf        tailscalesingleflight.Group[string, struct{}]
+	mu      sync.RWMutex
+	logger  slog.Logger
+	clock   quartz.Clock
+	closed  bool
+	servers map[string]*serverEntry
+	// catalog and configErrors together form the published Report.
+	catalog      []ServerStatus
+	configErrors []ConfigError
+	snapshot     map[string]fileSnapshot
+	serverGen    uint64
+	sf           tailscalesingleflight.Group[string, struct{}]
 
 	// onChange, when non-nil, is invoked (outside the cache lock)
-	// after a reload changes the per-server catalog, so the
-	// agentcontext manager can re-resolve and re-push the updated
-	// KindMCPServer resources.
+	// after a reload changes the discovery report (servers, tools,
+	// warnings, or config errors), so the agentcontext manager can
+	// re-resolve and re-push the MCP resources.
 	onChange func()
 
 	// firstSyncSettled records that a reload body reached a
@@ -199,10 +204,9 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 }
 
 // SetOnReload registers a callback fired (outside the cache lock) after
-// a reload changes the per-server catalog. The agent wires this to the
+// a reload changes the discovery report. The agent wires this to the
 // agentcontext manager's Trigger so discovery re-resolves and re-pushes
-// the updated KindMCPServer resources. It must be called before the
-// first Reload.
+// the MCP resources. It must be called before the first Reload.
 func (m *Manager) SetOnReload(fn func()) {
 	m.mu.Lock()
 	m.onChange = fn
@@ -447,7 +451,7 @@ type connectedServer struct {
 // changed servers get a fresh connection; removed servers are
 // closed.
 func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
-	allConfigs, snap := m.parseAndDedup(ctx, mcpConfigFiles)
+	allConfigs, configErrors, snap := m.parseAndDedup(ctx, mcpConfigFiles)
 
 	wanted := make(map[string]ServerConfig, len(allConfigs))
 	for _, cfg := range allConfigs {
@@ -459,9 +463,11 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 		return err
 	}
 
-	connected := m.connectAll(ctx, diff.toConnect)
+	connected, connectErrors := m.connectAll(ctx, diff.toConnect, func(cs connectedServer) {
+		m.publishConnected(ctx, wanted, configErrors, cs)
+	})
 
-	replaced, err := m.installServers(wanted, diff, connected, snap)
+	replaced, warnings, err := m.installServers(wanted, diff, connected, connectErrors, snap)
 	if err != nil {
 		return err
 	}
@@ -481,18 +487,19 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 
 	// Rebuild the per-server catalog outside the lock to avoid
 	// blocking concurrent reads during network I/O, then notify the
-	// agentcontext manager when it changed so it re-resolves and
-	// re-pushes the KindMCPServer resources.
-	if m.refreshCatalog(ctx, wanted) {
+	// agentcontext manager when the report changed so it re-resolves
+	// and re-pushes the MCP resources.
+	if m.refreshCatalog(ctx, wanted, configErrors, connectErrors, warnings) {
 		m.fireOnChange()
 	}
 	return nil
 }
 
 // parseAndDedup reads all config files and returns a deduplicated
-// list of server configs. Missing files are silently skipped;
-// parse errors are logged and skipped.
-func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, map[string]fileSnapshot) {
+// list of server configs plus one ConfigError per file that exists
+// but could not be used (unreadable, malformed JSON, or a server
+// entry the config schema rejects). Missing files are skipped.
+func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, []ConfigError, map[string]fileSnapshot) {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
 	// Stat before reading so the snapshot is conservatively old.
@@ -503,8 +510,16 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([
 	// are not.
 	snap := captureSnapshot(mcpConfigFiles)
 
-	var allConfigs []ServerConfig
+	var (
+		allConfigs   []ServerConfig
+		configErrors []ConfigError
+		seenPaths    = make(map[string]struct{}, len(mcpConfigFiles))
+	)
 	for _, configPath := range mcpConfigFiles {
+		if _, ok := seenPaths[configPath]; ok {
+			continue
+		}
+		seenPaths[configPath] = struct{}{}
 		configs, err := ParseConfig(configPath)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
@@ -514,6 +529,7 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([
 				slog.F("path", configPath),
 				slog.Error(err),
 			)
+			configErrors = append(configErrors, ConfigError{Path: configPath, Err: err.Error()})
 			continue
 		}
 		allConfigs = append(allConfigs, configs...)
@@ -529,7 +545,7 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([
 		seen[cfg.Name] = struct{}{}
 		deduped = append(deduped, cfg)
 	}
-	return deduped, snap
+	return deduped, configErrors, snap
 }
 
 // classifyServers compares wanted configs against the current
@@ -570,8 +586,10 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 }
 
 // connectAll runs connectServer in parallel for the given configs.
-// Failed connects are logged and skipped.
-func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
+// Failed connects are logged and reported by name with a sanitized
+// error so the discovery report can attribute them. onConnected runs
+// for each successful connect while siblings may still be connecting.
+func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onConnected func(connectedServer)) ([]connectedServer, map[string]string) {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
 	if hook := m.connectStartedHook; hook != nil {
@@ -581,6 +599,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []co
 	var (
 		mu        sync.Mutex
 		connected []connectedServer
+		failed    = make(map[string]string)
 	)
 	var eg errgroup.Group
 	for _, cfg := range toConnect {
@@ -592,30 +611,65 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []co
 					slog.F("transport", cfg.Transport),
 					slog.Error(err),
 				)
+				mu.Lock()
+				failed[cfg.Name] = sanitizeMCPError(cfg, err)
+				mu.Unlock()
 				return nil // Don't fail the group.
 			}
+			cs := connectedServer{name: cfg.Name, config: cfg, client: c}
 			mu.Lock()
-			connected = append(connected, connectedServer{
-				name: cfg.Name, config: cfg, client: c,
-			})
+			connected = append(connected, cs)
 			mu.Unlock()
+			onConnected(cs)
 			return nil
 		})
 	}
 	_ = eg.Wait()
-	return connected
+	return connected, failed
+}
+
+// publishConnected installs a server that connected while the reload is
+// still waiting on its siblings and republishes the report from every
+// wanted server with a live client, so one hung server cannot hold back a
+// healthy one past the chat's bounded first-turn wait. The phase stays
+// pending until the whole reload settles. A server that already has an
+// entry (a changed configuration reconnecting) keeps serving its previous
+// client until installServers swaps and closes it, so the old client is
+// never orphaned if the manager closes mid-reload.
+func (m *Manager) publishConnected(ctx context.Context, wanted map[string]ServerConfig, configErrors []ConfigError, cs connectedServer) {
+	m.mu.Lock()
+	if _, exists := m.servers[cs.name]; m.closed || exists {
+		m.mu.Unlock()
+		return
+	}
+	m.servers[cs.name] = &serverEntry{config: cs.config, client: cs.client}
+	m.serverGen++
+	live := make(map[string]ServerConfig, len(wanted))
+	for name, cfg := range wanted {
+		if _, ok := m.servers[name]; ok {
+			live[name] = cfg
+		}
+	}
+	m.mu.Unlock()
+
+	if m.refreshCatalog(ctx, live, configErrors, nil, nil) {
+		m.fireOnChange()
+	}
 }
 
 // installServers builds the new server map from diff.keep and the
 // connected list, falling back to diff.prev when a connect failed.
 // Returns old entries replaced by successful connects (caller
-// closes them). Acquires and releases m.mu.
+// closes them) and, per server that kept its previous client after a
+// failed reconnect, a warning explaining that its tools come from the
+// previous connection. Acquires and releases m.mu.
 func (m *Manager) installServers(
 	wanted map[string]ServerConfig,
 	diff *serverDiff,
 	connected []connectedServer,
+	connectErrors map[string]string,
 	snap map[string]fileSnapshot,
-) ([]*serverEntry, error) {
+) ([]*serverEntry, map[string]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -623,7 +677,7 @@ func (m *Manager) installServers(
 		for _, cs := range connected {
 			_ = cs.client.Close()
 		}
-		return nil, ErrManagerClosed
+		return nil, nil, ErrManagerClosed
 	}
 
 	newConnected := make(map[string]connectedServer, len(connected))
@@ -637,6 +691,7 @@ func (m *Manager) installServers(
 	}
 
 	var replaced []*serverEntry
+	warnings := make(map[string]string)
 	for name, wantCfg := range wanted {
 		if _, kept := diff.keep[name]; kept {
 			continue
@@ -650,15 +705,18 @@ func (m *Manager) installServers(
 				replaced = append(replaced, prev)
 			}
 		} else if prev, existed := diff.prev[wantCfg.Name]; existed {
-			// Connect failed; retain the old client.
+			// Connect failed; retain the old client. The retained
+			// entry keeps its old config, so the next reload retries
+			// the reconnect and clears the warning on success.
 			newServers[wantCfg.Name] = prev
+			warnings[wantCfg.Name] = "reconnect with the updated configuration failed, tools are from the previous connection: " + connectErrors[wantCfg.Name]
 		}
 	}
 
 	m.servers = newServers
 	m.serverGen++
 	m.snapshot = snap
-	return replaced, nil
+	return replaced, warnings, nil
 }
 
 // captureSnapshot stats each path and returns the current
@@ -680,13 +738,17 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 	return snap
 }
 
-// Catalog returns a deep copy of the current per-server MCP snapshot. It
-// never blocks on I/O: the agentcontext resolver calls it on every
-// re-resolve to build KindMCPServer resources.
-func (m *Manager) Catalog() []ServerStatus {
+// Report returns a deep copy of the current discovery report: one
+// status per declared server and one entry per unusable config file.
+// It never blocks on I/O: the agentcontext resolver calls it on every
+// re-resolve to build the MCP resources.
+func (m *Manager) Report() Report {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return cloneServerStatuses(m.catalog)
+	return Report{
+		Servers:      cloneServerStatuses(m.catalog),
+		ConfigErrors: slices.Clone(m.configErrors),
+	}
 }
 
 // fireOnChange invokes the registered reload callback, if any, without
@@ -732,11 +794,18 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 // refreshCatalog re-lists tools from the connected servers and rebuilds
 // the per-server catalog the agentcontext resolver consumes. Every
 // declared server in wanted appears in the result: a server with a live
-// client contributes its listed tools (or its list error), and a server
-// that never connected appears as an unreadable entry so it surfaces in
-// the snapshot instead of vanishing. It returns whether the catalog
-// changed so the caller can fire the reload callback.
-func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerConfig) bool {
+// client contributes its listed tools (or its list error) plus any
+// retained-client warning, and a server that never connected appears as
+// an unreadable entry carrying its connect error so it surfaces in the
+// snapshot instead of vanishing. It returns whether the report (catalog
+// or config errors) changed so the caller can fire the reload callback.
+func (m *Manager) refreshCatalog(
+	ctx context.Context,
+	wanted map[string]ServerConfig,
+	configErrors []ConfigError,
+	connectErrors map[string]string,
+	warnings map[string]string,
+) bool {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
 	// Snapshot the connected servers under the read lock.
@@ -799,8 +868,11 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 		case ok && res.err == nil:
 			st.Connected = true
 			st.Tools = res.tools
+			st.Warning = warnings[name]
 		case ok:
-			st.Err = res.err.Error()
+			st.Err = sanitizeMCPError(wanted[name], res.err)
+		case connectErrors[name] != "":
+			st.Err = connectErrors[name]
 		default:
 			st.Err = "failed to connect"
 		}
@@ -817,10 +889,17 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 	if m.serverGen != gen {
 		return false
 	}
-	if reflect.DeepEqual(m.catalog, catalog) {
+	if len(catalog) == 0 {
+		catalog = nil
+	}
+	if len(configErrors) == 0 {
+		configErrors = nil
+	}
+	if reflect.DeepEqual(m.catalog, catalog) && reflect.DeepEqual(m.configErrors, configErrors) {
 		return false
 	}
 	m.catalog = catalog
+	m.configErrors = configErrors
 	return true
 }
 
@@ -870,6 +949,7 @@ func (m *Manager) Close() error {
 	// catalog after Close clears it.
 	m.serverGen++
 	m.catalog = nil
+	m.configErrors = nil
 
 	// Cancel while holding the lock so waiters that observe
 	// m.ctx.Done also observe m.closed when checking closeErr.
@@ -892,11 +972,18 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 		Version: buildinfo.Version(),
 	}, nil)
 
-	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
-	defer cancel()
+	// The timeout runs on the manager clock so tests can expire a hung
+	// handshake deterministically instead of waiting out connectTimeout.
+	connectCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	timer := m.clock.AfterFunc(connectTimeout, func() { cancel(errConnectTimeout) }, "agentmcp", "connect")
+	defer timer.Stop()
 
 	session, err := c.Connect(connectCtx, tr, nil)
 	if err != nil {
+		if cause := context.Cause(connectCtx); errors.Is(cause, errConnectTimeout) {
+			err = cause
+		}
 		return nil, xerrors.Errorf("connect %q: %w", cfg.Name, err)
 	}
 
@@ -1055,8 +1142,31 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 type ServerStatus struct {
 	Name      string
 	Connected bool
-	Err       string
-	Tools     []ToolInfo
+	// Err carries the sanitized connect or list failure when Connected
+	// is false.
+	Err string
+	// Warning is a non-fatal note on a connected server, set when a
+	// reconnect after a config change failed and the previous client
+	// was retained, so Tools describe the previous connection.
+	Warning string
+	Tools   []ToolInfo
+}
+
+// ConfigError records one .mcp.json file that exists but could not be
+// used: unreadable, malformed JSON, or a server entry the config schema
+// rejects (for example neither command nor url). The whole file is
+// skipped, so every server it declares is missing from Servers.
+type ConfigError struct {
+	Path string
+	Err  string
+}
+
+// Report is the manager's complete discovery result. Servers holds one
+// status per declared server, including connected servers with zero
+// tools; ConfigErrors holds one entry per unusable config file.
+type Report struct {
+	Servers      []ServerStatus
+	ConfigErrors []ConfigError
 }
 
 // ToolInfo is one tool exposed by an MCP server. InputSchema is the
