@@ -1,5 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -17,6 +18,12 @@ export type StoryStreamRenderState = {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
+};
+
+export const MockCollapsedStepsPreferences: TypesGen.UserPreferenceSettings = {
+	...MockUserPreferenceSettings,
+	shell_tool_display_mode: "always_collapsed",
+	collapse_assistant_steps: true,
 };
 
 export const WORKING_FIXTURE_START = Date.parse("2026-04-01T12:00:00Z");

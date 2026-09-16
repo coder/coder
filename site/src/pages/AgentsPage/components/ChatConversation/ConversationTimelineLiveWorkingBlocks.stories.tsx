@@ -6,7 +6,6 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
 	getPendingToolCallIDs,
@@ -15,6 +14,7 @@ import {
 import {
 	buildStreamRenderState,
 	buildWorkingConversation,
+	MockCollapsedStepsPreferences,
 	type StoryStreamRenderState,
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
@@ -36,18 +36,6 @@ const meta: Meta<typeof ConversationTimeline> = {
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
 		now: start + 13000,
 	},
-	parameters: {
-		queries: [
-			{
-				key: preferenceSettingsKey,
-				data: {
-					...MockUserPreferenceSettings,
-					shell_tool_display_mode: "always_collapsed",
-					collapse_assistant_steps: true,
-				},
-			},
-		],
-	},
 	decorators: [
 		(Story) => (
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -66,6 +54,11 @@ export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
 export const StreamingToDurable: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [stage, setStage] = useState(0);
 		const stream: StreamState = {
@@ -135,6 +128,11 @@ export const StreamingToDurable: Story = {
 // Between persisted steps the stream is cleared while a tool runs, so the
 // timeline only knows the turn is active from the chat status.
 export const RunningBetweenSteps: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [status, setStatus] = useState<"running" | "waiting">("running");
 		const messages = MockWorkingMessages.slice(0, 4);
@@ -192,6 +190,11 @@ const NextStepStages: readonly StoryStreamRenderState[] = [
 ];
 
 export const NextStepStartsInsideBlock: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [stage, setStage] = useState(0);
 		const messages = MockWorkingMessages.slice(0, 5);
@@ -228,6 +231,11 @@ export const NextStepStartsInsideBlock: Story = {
 // A turn's first reasoning already folds, so thinking never shows and then
 // vanishes into the block once its first tool call arrives.
 export const ReasoningBeforeFirstToolFolds: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 1),
@@ -264,6 +272,11 @@ const MockPendingQuestionMessage: ChatMessage = {
 // A pending ask_user_question parks the chat in requires_action: the agent is
 // waiting on the user, so the preceding steps read as finished work.
 export const RequiresActionCompletesBlock: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		chatStatus: "requires_action",
 		onSendAskUserQuestionResponse: fn(),
@@ -293,6 +306,11 @@ const MockParkedToolMessage: ChatMessage = {
 // A client-executed tool parks the chat in requires_action with its call
 // still running. It waits on that client, so it stays outside the fold.
 export const RequiresActionKeepsPendingToolVisible: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		chatStatus: "requires_action",
 		parsedMessages: parseMessagesWithMergedTools(
@@ -305,6 +323,11 @@ export const RequiresActionKeepsPendingToolVisible: Story = {
 // An active turn longer than the loaded page has no prompt row; expansion
 // must still survive completion and the later prepend of that prompt.
 export const PromptlessLiveBlockKeepsExpansion: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [stage, setStage] = useState(0);
 		const messages =
