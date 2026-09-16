@@ -130,6 +130,25 @@ export const formatShellDurationMs = (
 	return `${hours}h`;
 };
 
+/**
+ * Formats a live elapsed duration in whole seconds so the label only
+ * changes once per second while a command runs: "7s", "1m 05s", "1h 02m".
+ */
+export const formatElapsedMs = (elapsedMs: number): string => {
+	const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	const pad = (value: number) => value.toString().padStart(2, "0");
+	if (hours > 0) {
+		return `${hours}h ${pad(minutes)}m`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${pad(seconds)}s`;
+	}
+	return `${seconds}s`;
+};
+
 export const normalizeStatus = (status: string): string =>
 	status.trim().toLowerCase();
 

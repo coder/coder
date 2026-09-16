@@ -6,6 +6,7 @@ import {
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
+	formatElapsedMs,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
@@ -101,6 +102,20 @@ describe("formatShellDurationMs", () => {
 	it("formats rounded minutes and hours", () => {
 		expect(formatShellDurationMs(3_596_999)).toBe("59.9m");
 		expect(formatShellDurationMs(3_597_000)).toBe("1h");
+	});
+});
+
+describe("formatElapsedMs", () => {
+	it("floors to whole seconds", () => {
+		expect(formatElapsedMs(0)).toBe("0s");
+		expect(formatElapsedMs(999)).toBe("0s");
+		expect(formatElapsedMs(7_400)).toBe("7s");
+		expect(formatElapsedMs(-5)).toBe("0s");
+	});
+
+	it("pads minutes and hours", () => {
+		expect(formatElapsedMs(65_000)).toBe("1m 05s");
+		expect(formatElapsedMs(3_720_000)).toBe("1h 02m");
 	});
 });
 

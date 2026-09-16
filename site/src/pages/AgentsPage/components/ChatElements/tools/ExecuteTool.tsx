@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { OctagonXIcon } from "lucide-react";
-import type React from "react";
+import { type FC, useEffect, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -16,6 +16,7 @@ import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
+	formatElapsedMs,
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
@@ -37,7 +38,7 @@ type ExecuteToolProps = {
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
-export const ExecuteTool: React.FC<ExecuteToolProps> = ({
+export const ExecuteTool: FC<ExecuteToolProps> = ({
 	command,
 	transcriptBlocks,
 	status,
@@ -125,6 +126,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 					isRunning={isRunning}
+					showElapsed={isRunning && !isBackgrounded}
 				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
@@ -174,18 +176,20 @@ const getShellCommandLine = ({
 	};
 };
 
-const ShellTranscriptBody: React.FC<{
+const ShellTranscriptBody: FC<{
 	command: string;
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
 	isRunning: boolean;
-}> = ({ command, transcriptBlocks, isError, isRunning }) => {
+	showElapsed: boolean;
+}> = ({ command, transcriptBlocks, isError, isRunning, showElapsed }) => {
 	return (
 		<TerminalOutput
 			ariaLabel="Command output"
 			command={command}
 			className="col-start-1 col-span-2 mt-2"
 			streaming={isRunning}
+			headerTrailing={showElapsed ? <ElapsedTime /> : undefined}
 		>
 			{transcriptBlocks.map((block) => (
 				<pre
@@ -201,5 +205,32 @@ const ShellTranscriptBody: React.FC<{
 				</pre>
 			))}
 		</TerminalOutput>
+	);
+};
+
+/**
+ * Live elapsed-time readout for a running command. The stream carries no
+ * server-side start timestamp, so timing begins on mount. Kept as a leaf
+ * holding the formatted label so only this span re-renders, and only when
+ * the displayed second changes.
+ */
+const ElapsedTime: FC = () => {
+	const [startedAt] = useState(() => Date.now());
+	const [label, setLabel] = useState(() => formatElapsedMs(0));
+
+	useEffect(() => {
+		const update = () => setLabel(formatElapsedMs(Date.now() - startedAt));
+		update();
+		const interval = setInterval(update, 250);
+		return () => clearInterval(interval);
+	}, [startedAt]);
+
+	return (
+		<span
+			title="Elapsed time"
+			className="shrink-0 font-mono text-xs tabular-nums leading-5 text-content-secondary"
+		>
+			{label}
+		</span>
 	);
 };
