@@ -10,19 +10,17 @@ import type {
 	BoardColumn as BoardColumnModel,
 	CardColor,
 } from "./boardLabels";
-import { INBOX_COLUMN } from "./boardLabels";
+import { columnColor, INBOX_COLUMN } from "./boardLabels";
 import type { DropTarget } from "./ChatBoardPage";
 import { EditableText, InlineInput } from "./InlineText";
 
 const columnDropId = (name: string) => `column:${name}`;
 
-// Lanes have no fill; cards are the objects. A hairline separates lanes.
-const columnClass =
-	"flex w-80 shrink-0 flex-col gap-2 border-r border-border pr-3 last:border-r-0";
+const columnClass = "flex w-[300px] shrink-0 flex-col min-h-0";
 // The header is its own hover group so its controls do not light up while
 // hovering cards below it.
 const columnHeaderClass =
-	"group/column flex h-7 items-center gap-1 px-1 text-sm font-medium text-content-primary";
+	"group/column flex items-center gap-2 px-1.5 pt-0.5 pb-2.5 text-[13px] font-medium text-content-primary";
 
 interface BoardColumnProps {
 	readonly column: BoardColumnModel;
@@ -78,6 +76,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 			className={columnClass}
 		>
 			<header className={columnHeaderClass}>
+				<ColumnDot name={column.name} />
 				{isInbox ? (
 					<span className="min-w-0 flex-1 truncate">{column.name}</span>
 				) : (
@@ -88,7 +87,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 						revealOn="column"
 					/>
 				)}
-				<span className="px-1 text-xs text-content-secondary tabular-nums">
+				<span className="font-mono text-[11px] text-content-secondary/70 tabular-nums">
 					{column.cards.length}
 				</span>
 				{!isInbox && (
@@ -126,9 +125,15 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	);
 };
 
+const ColumnDot: FC<{ readonly name: string }> = ({ name }) => (
+	<span
+		className={cn("size-2 shrink-0 rounded-[2px]", columnColor(name).dot)}
+	/>
+);
+
 // Occupies the gap between cards, so showing it does not shift layout.
 const InsertionLine: FC<{ readonly visible: boolean }> = ({ visible }) => (
-	<div className="flex h-2 items-center">
+	<div className="flex h-2.5 items-center">
 		<div
 			className={cn(
 				"h-0.5 w-full rounded bg-content-link",
@@ -147,6 +152,7 @@ interface NewColumnProps {
 export const NewColumn: FC<NewColumnProps> = ({ onCreate, onCancel }) => (
 	<section aria-label="New column" className={cn(columnClass, "min-h-24")}>
 		<header className={columnHeaderClass}>
+			<span className="size-2 shrink-0 rounded-[2px] bg-content-secondary/40" />
 			<InlineInput
 				value=""
 				ariaLabel="New column name"
