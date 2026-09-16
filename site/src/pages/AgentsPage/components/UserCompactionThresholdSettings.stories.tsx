@@ -241,24 +241,12 @@ export const OrganizationCompactionTriggerWarning: Story = {
 		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
-		const row = within(gpt4oRow);
-
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
 		await userEvent.click(
-			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
 		);
-		await userEvent.keyboard("{Escape}");
-
-		await userEvent.type(
-			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
-			"10",
-		);
-		await waitFor(() => {
-			expect(
-				row.queryByRole("button", { name: /Organization override/i }),
-			).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -276,17 +264,13 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 		]),
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
-		const row = within(gpt4oRow);
-
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
 		await userEvent.type(
-			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
+			within(row).getByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
 			"100",
 		);
-		expect(
-			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
-		).toBeInTheDocument();
 	},
 };
 

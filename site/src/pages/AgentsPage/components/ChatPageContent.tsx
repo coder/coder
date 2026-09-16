@@ -40,7 +40,10 @@ import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
 } from "../utils/chatAttachments";
-import { getProviderForModelOption } from "../utils/modelOptions";
+import {
+	getProviderForModelOption,
+	providerInfoByIDFromDescriptors,
+} from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
@@ -316,7 +319,7 @@ export type SendChatMessageOptions = {
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
@@ -374,7 +377,7 @@ type ChatPageInputProps = {
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	modelCatalog,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -438,14 +441,15 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
 		modelOverridesQuery.data?.overrides,
-		models,
+		modelCatalog?.models,
+		providerInfoByIDFromDescriptors(modelCatalog?.providers),
 	);
 	const compactionThreshold =
 		modelOverridesQuery.data !== undefined
 			? resolveCompactionThreshold(
 					chat.last_model_config_id,
 					thresholdsQuery.data?.thresholds,
-					models,
+					modelCatalog?.models,
 					organizationCompactionTrigger,
 				)
 			: undefined;
