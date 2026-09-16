@@ -47,6 +47,8 @@ export const NotesSection: FC<NotesSectionProps> = ({
 					onRemove={() => onRemove(note.index)}
 				/>
 			))}
+			{/* Remounts once the added note lands, which clears the draft; a
+			    failed add keeps the text for another try. */}
 			<NoteEditor
 				key={notes.length}
 				initial=""
@@ -189,8 +191,6 @@ const NoteEditor: FC<NoteEditorProps> = ({
 			setDraft("");
 		}
 	};
-	// Sized by its content, so a wrapped note keeps its shape while edited;
-	// capped so a long note does not take over the column.
 	const composer = onCancel === undefined;
 	return (
 		<div className="-mx-1 flex items-start gap-1.5">
@@ -201,6 +201,8 @@ const NoteEditor: FC<NoteEditorProps> = ({
 				placeholder={placeholder}
 				value={draft}
 				rows={1}
+				// Sized by its content, so a wrapped note keeps its shape while
+				// edited; capped so a long note does not take over the column.
 				className={cn(
 					"block max-h-60 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 text-xs leading-[17px] text-content-primary/80 outline-none [field-sizing:content] placeholder:text-content-secondary/60",
 					composer ? "py-1.5" : "py-[3px]",

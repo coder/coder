@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { API } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 import { createChat, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
@@ -13,6 +15,11 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 // The assistant reads and acts on other chats, which needs a workspace with
 // the Coder tooling. One shared workspace serves every card's assistant.
 const WORKSPACE_NAME = "agents-kanban";
+
+// The server generates a title from the first message shortly after
+// creation, overwriting ours. Within this window a mismatch is that race;
+// after it, a different title is the user's choice.
+const TITLE_RESTORE_WINDOW_MS = 5 * 60_000;
 
 const SYSTEM_PROMPT = `You are the assistant for one card on the user's Coder Agents board. A card is a topic that groups one or more agent chats and carries the user's notes.
 
@@ -77,32 +84,32 @@ export const useCardAssistant = (
 ) => {
 	const queryClient = useQueryClient();
 	const create = useMutation(createChat(queryClient));
-	const rename = useMutation(updateChatTitle(queryClient));
+	const rename = useMutation({
+		...updateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to rename chat."));
+		},
+	});
 
-	// The server generates a title from the first message shortly after
-	// creation, overwriting ours. Put it back when that happens to a young
-	// chat; older renames are the user's and stay.
+	// Puts our title back when the server's automatic one overwrites it on a
+	// young chat; see TITLE_RESTORE_WINDOW_MS.
 	const renamed = useRef(new Set<string>());
-	const renameAsync = rename.mutateAsync;
+	const renameChat = rename.mutate;
 	useEffect(() => {
 		const cardById = new Map(cards.map((card) => [card.id, card]));
 		for (const chat of chats) {
 			const card = cardById.get(chat.labels[ASSISTANT_KEY] ?? "");
 			if (!card || renamed.current.has(chat.id)) continue;
 			const young =
-				Date.now() - new Date(chat.created_at).getTime() < 5 * 60_000;
+				Date.now() - new Date(chat.created_at).getTime() <
+				TITLE_RESTORE_WINDOW_MS;
 			if (!young || chat.title === assistantTitle(card)) continue;
 			renamed.current.add(chat.id);
-			void renameAsync({ chatId: chat.id, title: assistantTitle(card) });
+			renameChat({ chatId: chat.id, title: assistantTitle(card) });
 		}
-	}, [chats, cards, renameAsync]);
+	}, [chats, cards, renameChat]);
 
-	const open = async (
-		card: BoardCard,
-		existing: Chat | undefined,
-	): Promise<string> => {
-		const title = assistantTitle(card);
-		if (existing) return existing.id;
+	const createAssistant = async (card: BoardCard): Promise<string> => {
 		const { workspaces } = await API.getWorkspaces({
 			q: `owner:me name:${WORKSPACE_NAME}`,
 		});
@@ -119,9 +126,26 @@ export const useCardAssistant = (
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
 		});
-		await rename.mutateAsync({ chatId: chat.id, title });
+		// The rename toasts its own failure; the chat still exists and opens.
+		await rename
+			.mutateAsync({ chatId: chat.id, title: assistantTitle(card) })
+			.catch(() => undefined);
 		return chat.id;
 	};
 
-	return { open, isCreating: create.isPending };
+	/** The assistant chat id, or undefined after a reported failure. */
+	const open = async (
+		card: BoardCard,
+		existing: Chat | undefined,
+	): Promise<string | undefined> => {
+		if (existing) return existing.id;
+		try {
+			return await createAssistant(card);
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Failed to open the assistant."));
+			return undefined;
+		}
+	};
+
+	return { open };
 };

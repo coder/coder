@@ -14,7 +14,7 @@ import {
 } from "./boardLabels";
 import { ChatInfoPopover } from "./ChatInfo";
 import { dragHandleListeners } from "./dragHandle";
-import { InlineEdit } from "./InlineText";
+import { InlineEdit } from "./InlineEdit";
 import { NotesSection } from "./NotesSection";
 
 export type DragData =
@@ -88,8 +88,6 @@ export const BoardCard: FC<BoardCardProps> = ({
 	const [renaming, setRenaming] = useState(false);
 	const [pickingColor, setPickingColor] = useState(false);
 
-	// The moving copy is drawn by DragGhost inside DragOverlay; the source
-	// stays put so column layout does not shift mid-drag.
 	const single = card.members.length === 1;
 	const lead = card.primary;
 	const leadDisplay = getChatDisplayConfig(lead);
@@ -105,6 +103,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 			className={cn(
 				"relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]",
 				colors && cn("border-l-[3px]", colors.accent),
+				// The moving copy is drawn by DragGhost inside DragOverlay; the
+				// source stays put, faded, so column layout does not shift mid-drag.
 				isDragging && "opacity-40",
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
 			)}

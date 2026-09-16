@@ -44,6 +44,16 @@ import { findAssistant, useCardAssistant } from "./useCardAssistant";
 const PREVIEW_OPEN_MS = 450;
 const PREVIEW_CLOSE_MS = 300;
 
+const SEARCH_DEBOUNCE_MS = 300;
+
+// Small enough that a drag starts promptly, large enough that a click on a
+// card header does not.
+const DRAG_ACTIVATION_PX = 4;
+
+// Over a card, the top and bottom quarters insert before/after it; the
+// middle half merges.
+const EDGE_ZONE = 0.25;
+
 /** Where a drop would land, resolved from the pointer position. */
 export type DropTarget =
 	| { kind: "merge"; card: BoardCardModel }
@@ -54,10 +64,9 @@ const dropDataOf = (hit: Collision): DropData | undefined =>
 	hit.data?.droppableContainer?.data.current as DropData | undefined;
 
 // Resolves the pointer to one target. A column drag lands before or after
-// the column under the pointer. Over a card, the top and bottom quarters
-// insert before/after it and the middle merges (chats always join). Over
-// column background, insert before the first card whose middle is below the
-// pointer. The target rides along as collision data.
+// the column under the pointer. Over a card, see EDGE_ZONE (chats always
+// join). Over column background, insert before the first card whose middle
+// is below the pointer. The target rides along as collision data.
 const boardCollision: CollisionDetection = (args) => {
 	const pointer = args.pointerCoordinates;
 	if (!pointer) return [];
@@ -90,9 +99,9 @@ const boardCollision: CollisionDetection = (args) => {
 		if (cardData?.type !== "card" || !rect) return [];
 		const y = (pointer.y - rect.top) / rect.height;
 		const card = cardData.card;
-		if (drag?.type === "chat" || (y > 0.25 && y < 0.75)) {
+		if (drag?.type === "chat" || (y > EDGE_ZONE && y < 1 - EDGE_ZONE)) {
 			target = { kind: "merge", card };
-		} else if (y <= 0.25) {
+		} else if (y <= EDGE_ZONE) {
 			target = { kind: "insert", column: card.column, beforeCardId: card.id };
 		} else {
 			target = {
@@ -147,7 +156,7 @@ const ChatBoardPage: FC = () => {
 	const [storage, updateStorage] = useBoardStorage();
 	const mutations = useBoardMutations();
 	const [search, setSearch] = useState("");
-	const debouncedSearch = useDebouncedValue(search.trim(), 300);
+	const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 	const [addingColumn, setAddingColumn] = useState(false);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
 	const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
@@ -269,7 +278,9 @@ const ChatBoardPage: FC = () => {
 		enabled: debouncedSearch.length > 0,
 	});
 	const sensors = useSensors(
-		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+		useSensor(PointerSensor, {
+			activationConstraint: { distance: DRAG_ACTIVATION_PX },
+		}),
 		useSensor(KeyboardSensor),
 	);
 	useBlockSelectionWhileDragging(activeDrag !== null);
@@ -425,7 +436,7 @@ const ChatBoardPage: FC = () => {
 
 	const openAssistant = async (card: BoardCardModel) => {
 		const chatId = await assistant.open(card, findAssistant(card, chats));
-		pinWindow(windowCentered(chatId));
+		if (chatId) pinWindow(windowCentered(chatId));
 	};
 
 	const floating = (win: ChatWindow) => (

@@ -20,6 +20,11 @@ interface ChatInfoPopoverProps {
 	readonly chat: Chat;
 }
 
+// Long enough that crossing the icon does not flash the popover; the close
+// delay lets the pointer travel from the icon into the content.
+const HOVER_OPEN_MS = 300;
+const HOVER_CLOSE_MS = 200;
+
 /**
  * The Summary tab's data next to a chat row. Hover previews it after a short
  * delay and it stays while the pointer is on trigger or content; a click
@@ -36,9 +41,12 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 		timer.current = setTimeout(fn, ms);
 	};
 	const hoverIn = () =>
-		later(() => setState((s) => (s === "closed" ? "hover" : s)), 300);
+		later(() => setState((s) => (s === "closed" ? "hover" : s)), HOVER_OPEN_MS);
 	const hoverOut = () =>
-		later(() => setState((s) => (s === "hover" ? "closed" : s)), 200);
+		later(
+			() => setState((s) => (s === "hover" ? "closed" : s)),
+			HOVER_CLOSE_MS,
+		);
 	const open = state !== "closed";
 
 	return (
