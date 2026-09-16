@@ -47,8 +47,8 @@ export const NotesSection: FC<NotesSectionProps> = ({
 					onRemove={() => onRemove(note.index)}
 				/>
 			))}
-			{/* Remounts once the added note lands, which clears the draft; a
-			    failed add keeps the text for another try. */}
+			{/* Remounts when the note count changes, which clears the draft
+			    once the added note appears in the list. */}
 			<NoteEditor
 				key={notes.length}
 				initial=""

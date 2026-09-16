@@ -1,15 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { windowBeside, windowCentered } from "./ChatWindows";
 
 const viewport = (width: number, height: number) => {
-	Object.defineProperty(window, "innerWidth", {
-		configurable: true,
-		value: width,
-	});
-	Object.defineProperty(window, "innerHeight", {
-		configurable: true,
-		value: height,
-	});
+	vi.spyOn(window, "innerWidth", "get").mockReturnValue(width);
+	vi.spyOn(window, "innerHeight", "get").mockReturnValue(height);
 };
 
 const rect = (left: number, top: number, width: number, height: number) =>
@@ -17,7 +11,7 @@ const rect = (left: number, top: number, width: number, height: number) =>
 
 describe("window geometry", () => {
 	afterEach(() => {
-		viewport(1024, 768);
+		vi.restoreAllMocks();
 	});
 
 	it("opens to the right of the anchor when there is room", () => {

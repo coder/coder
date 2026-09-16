@@ -175,4 +175,30 @@ describe("useCardAssistant", () => {
 		expect(id).toBeUndefined();
 		expect(toast.error).toHaveBeenCalledWith("offline");
 	});
+
+	it("still opens a created chat when only the rename fails", async () => {
+		const { toast } = await import("sonner");
+		vi.mocked(toast.error).mockClear();
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [],
+			count: 0,
+		});
+		const createChat = vi
+			.spyOn(API.experimental, "createChat")
+			.mockResolvedValue({ ...MockChat, id: "created" });
+		vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
+			new Error("rename failed"),
+		);
+		const chats = [chat("p")];
+
+		const id = await renderAssistant(chats).current.open(
+			cardFor(chats),
+			undefined,
+		);
+
+		expect(id).toBe("created");
+		expect(createChat).toHaveBeenCalledTimes(1);
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		expect(toast.error).toHaveBeenCalledWith("rename failed");
+	});
 });

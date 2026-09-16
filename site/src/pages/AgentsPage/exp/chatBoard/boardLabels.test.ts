@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -80,6 +81,10 @@ describe("comments", () => {
 });
 
 describe("placement", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("prefers a valid board/pos over creation time", () => {
 		const created = new Date("2026-01-01T00:00:00Z").getTime();
 		expect(placementKey(chat("a"))).toBe(created);
@@ -89,11 +94,11 @@ describe("placement", () => {
 	});
 
 	it("keys between neighbours and past the column edges", () => {
+		vi.spyOn(Date, "now").mockReturnValue(1_000_000);
 		expect(keyBetween(100, 50)).toBe(75);
-		expect(keyBetween(100, undefined)).toBeLessThan(100);
-		expect(keyBetween(undefined, 50)).toBeGreaterThan(50);
-		const now = Date.now();
-		expect(keyBetween(undefined, undefined)).toBeGreaterThanOrEqual(now);
+		expect(keyBetween(100, undefined)).toBe(100 - 60_000);
+		expect(keyBetween(undefined, 50)).toBe(50 + 60_000);
+		expect(keyBetween(undefined, undefined)).toBe(1_000_000);
 	});
 });
 
