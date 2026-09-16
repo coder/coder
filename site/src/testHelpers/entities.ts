@@ -5590,8 +5590,7 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 		period_end: "2026-03-12T00:00:00Z",
 		retention_start: "2026-01-11T15:30:00Z",
 		count: 2,
-		total_cost_micros: 3_500_000,
-		total_unpriced_usage_count: 0,
+		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
 		users: [
 			MockOrganizationAISpendUser,
 			{

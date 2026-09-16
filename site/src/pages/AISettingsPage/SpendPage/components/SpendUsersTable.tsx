@@ -131,9 +131,9 @@ const SpendTotal: FC<{ report: TypesGen.OrganizationAISpendReport }> = ({
 	<div className="flex flex-col gap-1">
 		<span className="text-sm text-content-secondary">Total spend</span>
 		<span className="text-2xl font-semibold tabular-nums text-content-primary">
-			{formatCostMicros(report.total_cost_micros)}
+			{formatCostMicros(report.totals.cost_micros)}
 		</span>
-		{report.total_unpriced_usage_count > 0 && (
+		{report.totals.unpriced_usage_count > 0 && (
 			<span className="flex items-center gap-1 text-sm text-content-warning">
 				<TriangleAlertIcon aria-hidden className="size-icon-xs" />
 				Some usage could not be priced and is not included in this total.

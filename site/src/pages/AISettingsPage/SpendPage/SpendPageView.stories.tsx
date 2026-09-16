@@ -118,7 +118,7 @@ export const Empty: Story = {
 			data: {
 				...MockOrganizationAISpendReport,
 				count: 0,
-				total_cost_micros: 0,
+				totals: { cost_micros: 0, unpriced_usage_count: 0 },
 				users: [],
 			},
 		}),
@@ -158,7 +158,7 @@ export const UnpricedUsage: Story = {
 		usersQuery: mockUsersQuery({
 			data: {
 				...MockOrganizationAISpendReport,
-				total_unpriced_usage_count: 3,
+				totals: { cost_micros: 3_500_000, unpriced_usage_count: 3 },
 				users: [
 					{ ...MockOrganizationAISpendUser, unpriced_usage_count: 3 },
 					...MockOrganizationAISpendReport.users.slice(1),

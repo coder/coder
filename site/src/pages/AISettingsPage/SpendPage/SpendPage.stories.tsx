@@ -64,7 +64,7 @@ const meta = {
 				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
 				period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
 				count: users.length,
-				total_cost_micros: 78_000_000,
+				totals: { cost_micros: 78_000_000, unpriced_usage_count: 0 },
 				users: users
 					.slice(
 						params.offset ?? 0,

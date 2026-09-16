@@ -80,7 +80,7 @@ function renderSpend(
 			...MockOrganizationAISpendReport,
 			...period,
 			count: users.length,
-			total_cost_micros: 30_000_000,
+			totals: { cost_micros: 30_000_000, unpriced_usage_count: 0 },
 			users: users.slice(
 				params.offset ?? 0,
 				(params.offset ?? 0) + (params.limit ?? 10),
