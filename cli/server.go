@@ -107,6 +107,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisioner/sandbox"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1671,6 +1672,9 @@ func newProvisionerDaemon(
 
 	// Omit any duplicates
 	provisionerTypes = slice.Unique(provisionerTypes)
+	if slices.Contains(provisionerTypes, codersdk.ProvisionerTypeSandbox) && len(provisionerTypes) != 1 {
+		return nil, xerrors.New("sandbox provisioner daemons must not serve other provisioner types")
+	}
 	provisionerLogger := logger.Named(fmt.Sprintf("provisionerd-%s", name))
 
 	// Populate the connector with the supported types.
@@ -1744,6 +1748,34 @@ func newProvisionerDaemon(
 			})
 
 			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+		case codersdk.ProvisionerTypeSandbox:
+			sandboxClient, sandboxServer := drpcsdk.MemTransportPipe()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-ctx.Done()
+				_ = sandboxClient.Close()
+				_ = sandboxServer.Close()
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer cancel()
+				err := sandbox.Serve(ctx, &sandbox.ServeOptions{
+					ServeOptions: &provisionersdk.ServeOptions{
+						Listener:      sandboxServer,
+						Logger:        provisionerLogger.Named("sandbox"),
+						WorkDirectory: workDir,
+					},
+				})
+				if err != nil && !xerrors.Is(err, context.Canceled) {
+					select {
+					case errCh <- err:
+					default:
+					}
+				}
+			}()
+			connector[string(database.ProvisionerTypeSandbox)] = sdkproto.NewDRPCProvisionerClient(sandboxClient)
 		default:
 			return nil, xerrors.Errorf("unknown provisioner type %q", provisionerType)
 		}
@@ -1752,6 +1784,11 @@ func newProvisionerDaemon(
 	return provisionerd.New(func(dialCtx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
+		if slices.Contains(provisionerTypes, codersdk.ProvisionerTypeSandbox) {
+			return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, map[string]string{
+				sandbox.HostTag: sandbox.HostID,
+			})
+		}
 		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, provisionerTypes)
 	}, &provisionerd.Options{
 		Logger:              provisionerLogger,

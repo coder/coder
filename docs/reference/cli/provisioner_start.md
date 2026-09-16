@@ -16,6 +16,16 @@ coder provisioner start [flags]
 
 ## Options
 
+### --provisioner
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>terraform\|sandbox</code>      |
+| Environment | <code>$CODER_PROVISIONER_TYPE</code> |
+| Default     | <code>terraform</code>               |
+
+Provisioner backend to run.
+
 ### -c, --cache-dir
 
 |             |                                     |

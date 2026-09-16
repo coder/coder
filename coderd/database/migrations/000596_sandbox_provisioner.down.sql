@@ -1,0 +1,3 @@
+-- Preserve the enum value because removing it requires rewriting templates,
+-- provisioner jobs, and daemon registrations, including historical records.
+-- A downgrade must not relabel sandbox infrastructure as Terraform resources.

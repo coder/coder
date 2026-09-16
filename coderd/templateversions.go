@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
+	"github.com/coder/coder/v2/provisioner/sandbox"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/preview"
@@ -533,6 +534,13 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	if !job.CompletedAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
 			Message: "Template version import job hasn't completed!",
+		})
+		return
+	}
+
+	if job.Provisioner == database.ProvisionerTypeSandbox && len(req.RichParameterValues) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Sandbox templates do not support parameter values.",
 		})
 		return
 	}
@@ -1525,6 +1533,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
+		if (req.Provisioner == codersdk.ProvisionerTypeSandbox || tpl.Provisioner == database.ProvisionerTypeSandbox) && database.ProvisionerType(req.Provisioner) != tpl.Provisioner {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "A template cannot change to or from the sandbox provisioner.",
+			})
+			return
+		}
 		dynamicTemplate = !tpl.UseClassicParameterFlow
 	}
 
@@ -1623,12 +1637,37 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	var parsedTags map[string]string
 	var ok bool
-	if dynamicTemplate {
+	switch {
+	case req.Provisioner == codersdk.ProvisionerTypeSandbox:
+		if len(req.UserVariableValues) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Sandbox templates do not support variable values.",
+			})
+			return
+		}
+		manifest, err := sandboxTemplateManifest(file)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid sandbox template.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		parsedTags = manifest.Tags()
+		for key, value := range parsedTags {
+			if requested, exists := req.ProvisionerTags[key]; exists && requested != value {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Sandbox host routing cannot be overridden.",
+				})
+				return
+			}
+		}
+	case dynamicTemplate:
 		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.UserID, file, req.UserVariableValues)
 		if !ok {
 			return
 		}
-	} else {
+	default:
 		parsedTags, ok = api.classicTemplateVersionTags(ctx, rw, file)
 		if !ok {
 			return
@@ -1804,6 +1843,28 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}),
 		&matchedProvisioners,
 		warnings))
+}
+
+// sandboxTemplateManifest validates the native manifest before a job is queued.
+func sandboxTemplateManifest(file database.File) (sandbox.Manifest, error) {
+	var files fs.FS
+	switch file.Mimetype {
+	case "application/x-tar":
+		return sandbox.ReadManifestArchive(file.Data)
+	case "application/zip":
+		var err error
+		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+		if err != nil {
+			return sandbox.Manifest{}, xerrors.Errorf("read template archive: %w", err)
+		}
+	default:
+		return sandbox.Manifest{}, xerrors.Errorf("unsupported sandbox template file type %q", file.Mimetype)
+	}
+	data, err := fs.ReadFile(files, sandbox.ManifestFilename)
+	if err != nil {
+		return sandbox.Manifest{}, xerrors.Errorf("read sandbox.yaml: %w", err)
+	}
+	return sandbox.ParseManifest(data)
 }
 
 func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, orgID uuid.UUID, owner uuid.UUID, file database.File, templateVariables []codersdk.VariableValue) (map[string]string, bool) {

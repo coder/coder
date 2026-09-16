@@ -51,6 +51,9 @@ OPTIONS:
           'everyone' group. The template permissions must be updated to allow
           non-admin users to use this template.
 
+      --provisioner terraform|sandbox|echo (default: terraform)
+          Provisioner backend for the template.
+
       --provisioner-tag string-array
           Specify a set of tags to target provisioner daemons.
 

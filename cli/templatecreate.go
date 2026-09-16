@@ -32,6 +32,8 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		uploadFlags templateUploadFlags
 		orgContext  = NewOrganizationContext()
 	)
+	provisionerValue := serpent.EnumOf(&provisioner,
+		string(codersdk.ProvisionerTypeTerraform), string(codersdk.ProvisionerTypeSandbox), string(codersdk.ProvisionerTypeEcho))
 	cmd := &serpent.Command{
 		Use:   "create [name]",
 		Short: "DEPRECATED: Create a template from the current directory or as specified by flag",
@@ -89,7 +91,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
 			}
 
-			err = uploadFlags.checkForLockfile(inv)
+			err = uploadFlags.checkForLockfile(inv, codersdk.ProvisionerType(provisioner))
 			if err != nil {
 				return xerrors.Errorf("check for lockfile: %w", err)
 			}
@@ -97,7 +99,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			message := uploadFlags.templateMessage(inv)
 
 			var varsFiles []string
-			if !uploadFlags.stdin(inv) {
+			if !uploadFlags.stdin(inv) && provisioner != string(codersdk.ProvisionerTypeSandbox) {
 				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
 					return err
@@ -109,7 +111,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			}
 
 			// Confirm upload of the directory.
-			resp, err := uploadFlags.upload(inv, client)
+			resp, err := uploadFlags.upload(inv, client, codersdk.ProvisionerType(provisioner))
 			if err != nil {
 				return err
 			}
@@ -237,10 +239,15 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			Value:       serpent.DurationOf(&dormancyAutoDeletion),
 		},
 		{
+			Flag:        "provisioner",
+			Description: "Provisioner backend for the template.",
+			Default:     string(codersdk.ProvisionerTypeTerraform),
+			Value:       provisionerValue,
+		},
+		{
 			Flag:        "test.provisioner",
 			Description: "Customize the provisioner backend.",
-			Default:     "terraform",
-			Value:       serpent.StringOf(&provisioner),
+			Value:       provisionerValue,
 			Hidden:      true,
 		},
 		{

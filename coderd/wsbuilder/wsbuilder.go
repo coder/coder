@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/sandbox"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -396,6 +397,13 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	template, err := b.getTemplate()
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
+	}
+
+	if template.Provisioner == database.ProvisionerTypeSandbox && b.state.orphan {
+		return nil, nil, nil, BuildError{
+			Status:  http.StatusBadRequest,
+			Message: "Sandbox workspaces cannot be orphan-deleted.",
+		}
 	}
 
 	templateVersionJob, err := b.getTemplateVersionJob()
@@ -811,6 +819,22 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		return *b.parameterNames, *b.parameterValues, nil
 	}
 
+	template, err := b.getTemplate()
+	if err != nil {
+		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
+	}
+	if template.Provisioner == database.ProvisionerTypeSandbox {
+		if len(b.richParameterValues) > 0 || b.templateVersionPresetID != uuid.Nil {
+			return nil, nil, BuildError{
+				Status:  http.StatusBadRequest,
+				Message: "Sandbox templates do not support parameters or presets.",
+			}
+		}
+		names, values = []string{}, []string{}
+		b.parameterNames, b.parameterValues = &names, &values
+		return names, values, nil
+	}
+
 	// Always reject legacy parameters.
 	err = b.verifyNoLegacyParameters()
 	if err != nil {
@@ -1041,9 +1065,17 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		return *b.workspaceTags, nil
 	}
 
-	var tags map[string]string
-	var err error
+	job, err := b.getTemplateVersionJob()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version job", err}
+	}
+	if job.Provisioner == database.ProvisionerTypeSandbox {
+		tags := provisionersdk.MutateTags(b.workspace.OwnerID, job.Tags, (sandbox.Manifest{}).Tags())
+		b.workspaceTags = &tags
+		return tags, nil
+	}
 
+	var tags map[string]string
 	if b.usingDynamicParameters() {
 		tags, err = b.getDynamicProvisionerTags()
 	} else {

@@ -413,6 +413,8 @@ export interface Metadata {
   runningAgentAuthTokens: RunningAgentAuthToken[];
   templateVersionId: string;
   templateVersionModulesFile: string;
+  /** Monotonic workspace generation for provisioners that fence runtime mutations. */
+  workspaceBuildNumber: number;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1335,6 +1337,9 @@ export const Metadata = {
     }
     if (message.templateVersionModulesFile !== "") {
       writer.uint32(202).string(message.templateVersionModulesFile);
+    }
+    if (message.workspaceBuildNumber !== 0) {
+      writer.uint32(208).int32(message.workspaceBuildNumber);
     }
     return writer;
   },

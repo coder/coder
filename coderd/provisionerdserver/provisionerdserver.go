@@ -688,7 +688,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		// stay cached for parameter rendering even when the cache is
 		// disabled; they are only withheld from the build.
 		versionModulesFile := ""
-		if !codersdk.ModuleCacheDisabled(s.DeploymentValues, template.DisableModuleCache) {
+		if template.Provisioner != database.ProvisionerTypeSandbox && !codersdk.ModuleCacheDisabled(s.DeploymentValues, template.DisableModuleCache) {
 			tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				// Older templates (before dynamic parameters) will not have cached module files.
@@ -925,6 +925,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
+					WorkspaceBuildNumber:          workspaceBuild.BuildNumber,
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
@@ -2055,7 +2056,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		moduleFiles := jobType.TemplateImport.ModuleFiles
 		// If there is a plan, or a module files archive we need to insert a
 		// template_version_terraform_values row.
-		if len(plan) > 0 || len(moduleFiles) > 0 {
+		if job.Provisioner != database.ProvisionerTypeSandbox && (len(plan) > 0 || len(moduleFiles) > 0) {
 			// ...but the plan and the module files archive are both optional! So
 			// we need to fallback to a valid JSON object if the plan was omitted.
 			if len(plan) == 0 {

@@ -1,0 +1,46 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+
+# Reconnecting the outer agent must not replace an executing bootstrap.
+case "$(sudo systemctl is-active coder-sandbox-bootstrap.service 2>/dev/null || true)" in
+active | activating)
+  printf 'Sandbox host setup is already running. Status: /var/lib/coder-sandbox-host/status\n'
+  exit 0
+  ;;
+esac
+
+assets=$(mktemp -d)
+trap 'rm -rf -- "$assets"' EXIT
+base64 --decode <<'CODER_SANDBOX_BOOTSTRAP_BASE64_EOF' | gzip --decompress >"$assets/bootstrap.sh"
+${bootstrap_gzip_base64}
+CODER_SANDBOX_BOOTSTRAP_BASE64_EOF
+printf '%s  %s\n' '${bootstrap_sha256}' "$assets/bootstrap.sh" | sha256sum --check --status
+base64 --decode <<'CODER_SANDBOX_SOURCE_BASE64_EOF' >"$assets/source.json"
+${source_config_base64}
+CODER_SANDBOX_SOURCE_BASE64_EOF
+
+sudo install -d -m 0755 /opt/coder-sandbox-bootstrap /var/lib/coder-sandbox-host
+sudo install -m 0755 "$assets/bootstrap.sh" /opt/coder-sandbox-bootstrap/bootstrap.sh
+sudo install -m 0644 "$assets/source.json" /opt/coder-sandbox-bootstrap/source.json
+printf 'queued: sandbox host setup\n' | sudo tee /var/lib/coder-sandbox-host/status >/dev/null
+sudo touch /var/log/coder-sandbox-host-bootstrap.log
+sudo chmod 0640 /var/log/coder-sandbox-host-bootstrap.log
+
+# Run setup independently so the outer terminal stays available. A single
+# systemd unit and the outer workspace build serialize host setup.
+sudo systemd-run --unit=coder-sandbox-bootstrap --collect --no-block \
+  --property=Type=exec \
+  --property=RuntimeMaxSec=95m \
+  --property=TimeoutStopSec=30s \
+  --property=StandardOutput=append:/var/log/coder-sandbox-host-bootstrap.log \
+  --property=StandardError=inherit \
+  /usr/bin/bash -c '
+    timeout --signal=TERM --kill-after=30s 90m /usr/bin/bash /opt/coder-sandbox-bootstrap/bootstrap.sh all
+    result=$?
+    if [ "$result" -ne 0 ]; then
+      printf "failed: bootstrap exited %s (124 means timeout)\n" "$result" > /var/lib/coder-sandbox-host/status
+    fi
+    exit "$result"
+  '
+printf 'Sandbox host setup launched. Status: /var/lib/coder-sandbox-host/status\nLog: /var/log/coder-sandbox-host-bootstrap.log\n'
