@@ -147,7 +147,7 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
           # Context is the repo root so Dockerfile.base can COPY the
-          # distro-specific files/ tree and configure-chrome-flags.sh.
+          # distro-specific files/ tree.
           context: "{{defaultContext}}"
           file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile.base
           pull: true

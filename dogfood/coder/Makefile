@@ -56,7 +56,6 @@ build-base-ubuntu-26.04:
 		-t "coderdev/oss-dogfood-base:26.04-local" \
 		"$(REPO_ROOT)"
 
-
 build-ubuntu-26.04: build-base-ubuntu-26.04
 	$(MISE_OCI) build \
 		--from "coderdev/oss-dogfood-base:26.04-local" \
