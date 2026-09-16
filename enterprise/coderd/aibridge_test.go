@@ -4269,6 +4269,13 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				wantStatus:      http.StatusBadRequest,
 				wantMsgContains: "retention window",
 			},
+			{
+				// The export is not paginated, so page parameters are unknown.
+				name:            "UnknownPaginationParameter",
+				params:          map[string]string{"limit": "10"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -5032,20 +5039,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				}
 			})
 		}
-
-		// The CSV export is not paginated, so the page parameters are unknown
-		// to it.
-		t.Run("ExportRejectsPagination", func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{"limit": "10"})
-			defer res.Body.Close()
-			require.Equal(t, http.StatusBadRequest, res.StatusCode)
-			var sdkErr *codersdk.Error
-			require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
-			require.Contains(t, sdkErr.Message, "have invalid values")
-		})
 	})
 
 	t.Run("Report", func(t *testing.T) {
@@ -5178,6 +5171,16 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
 						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, 500, 1)},
+					},
+				},
+				{
+					// Every filter must match: the model alone matches both
+					// users and the client alone matches only targetUser.
+					name:   "Combined",
+					filter: codersdk.OrganizationAISpendFilter{ProviderName: "anthropic-prod", Model: "claude-4", Client: "vscode"},
+					want: codersdk.OrganizationAISpendReport{
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic"}, []string{"vscode"}, 1000, 0)},
 					},
 				},
 				{

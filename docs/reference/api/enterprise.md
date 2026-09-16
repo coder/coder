@@ -2011,7 +2011,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spen
 Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.
-The optional provider_name, model, and client query parameters restrict the report to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
+The optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.
 Unknown query parameters are rejected.
 Requires organization-level administrator permissions.
 

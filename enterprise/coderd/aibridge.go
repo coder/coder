@@ -1149,16 +1149,8 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 	query := r.URL.Query()
 	hasStart := query.Has("period_start")
 	hasEnd := query.Has("period_end")
-	if hasStart != hasEnd {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
-		})
-		return aiSpendPeriod{}, false
-	}
-	if hasStart {
-		period.start = parser.Time3339Nano(query, time.Time{}, "period_start")
-		period.end = parser.Time3339Nano(query, time.Time{}, "period_end")
-	}
+	start := parser.Time3339Nano(query, time.Time{}, "period_start")
+	end := parser.Time3339Nano(query, time.Time{}, "period_end")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1176,7 +1168,8 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 		period.retentionStart = api.Clock.Now().Add(-retention)
 	}
 
-	if !hasStart {
+	switch {
+	case !hasStart && !hasEnd:
 		// No period was requested, so start at the budget period or the
 		// retention window, whichever is later.
 		window, err := api.currentAIBudgetWindow()
@@ -1189,28 +1182,33 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 		if hasRetention && period.start.Before(period.retentionStart) {
 			period.start = period.retentionStart
 		}
-		return period, true
-	}
-
-	// The caller asked for this period, so validate it.
-	if !period.start.Before(period.end) {
+	case hasStart != hasEnd:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameter \"period_start\" must be before \"period_end\".",
+			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
 		})
 		return aiSpendPeriod{}, false
-	}
-	if period.end.Sub(period.start) > maxAISpendExportPeriod {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query period must not exceed 31 days.",
-		})
-		return aiSpendPeriod{}, false
-	}
-	// Fail if the period starts before the oldest retained data
-	if hasRetention && period.start.Before(period.retentionStart) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
-		})
-		return aiSpendPeriod{}, false
+	default:
+		// The caller asked for this period, so validate it.
+		if !start.Before(end) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter \"period_start\" must be before \"period_end\".",
+			})
+			return aiSpendPeriod{}, false
+		}
+		if end.Sub(start) > maxAISpendExportPeriod {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query period must not exceed 31 days.",
+			})
+			return aiSpendPeriod{}, false
+		}
+		// Fail if the period starts before the oldest retained data
+		if hasRetention && start.Before(period.retentionStart) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
+			})
+			return aiSpendPeriod{}, false
+		}
+		period.start, period.end = start, end
 	}
 	return period, true
 }
@@ -1321,7 +1319,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 // @Description Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 // @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.
-// @Description The optional provider_name, model, and client query parameters restrict the report to token usage matching every given value. client compares against the recorded client, with Unknown matching usage without one.
+// @Description The optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.
 // @Description Unknown query parameters are rejected.
 // @Description Requires organization-level administrator permissions.
 // @ID list-organization-ai-spend-by-user
