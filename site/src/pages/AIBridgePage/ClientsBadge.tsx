@@ -25,7 +25,12 @@ export const ClientsBadge: FC<{ clients: readonly (string | null)[] }> = ({
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<Badge asChild hover className="max-w-full">
-							<button type="button">{clients.length} clients</button>
+							<button
+								type="button"
+								onClick={(event) => event.stopPropagation()}
+							>
+								{clients.length} clients
+							</button>
 						</Badge>
 					</TooltipTrigger>
 					<TooltipContent side="top" align="start">
