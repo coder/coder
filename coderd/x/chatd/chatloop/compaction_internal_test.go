@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -321,6 +322,43 @@ func TestGenerateCompactionSummaryUsesToolDefinitions(t *testing.T) {
 	require.Equal(t, originalMessages, messages)
 }
 
+func TestGenerateCompactionSummaryAppliesAnthropicPromptCaching(t *testing.T) {
+	t.Parallel()
+
+	messages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "system"),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+		textMessage(fantasy.MessageRoleAssistant, "hi"),
+	}
+	originalMessages := append([]fantasy.Message(nil), messages...)
+	var got fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		ModelName:    "claude",
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			got = call
+			return &fantasy.Response{Content: []fantasy.Content{fantasy.TextContent{Text: "summary"}}}, nil
+		},
+	}
+
+	_, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+		SummaryPrompt: "summarize",
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Prompt, 4)
+	cacheControl := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderCacheControlOptions{
+			CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
+		},
+	}
+	// Breakpoints land on the system message and the final two messages.
+	require.Equal(t, cacheControl, got.Prompt[0].ProviderOptions)
+	require.Nil(t, got.Prompt[1].ProviderOptions)
+	require.Equal(t, cacheControl, got.Prompt[2].ProviderOptions)
+	require.Equal(t, cacheControl, got.Prompt[3].ProviderOptions)
+	require.Equal(t, originalMessages, messages)
+}
+
 func TestGenerateCompactionSummaryRetriesWithoutToolsWhenContextTooLarge(t *testing.T) {
 	t.Parallel()
 
@@ -476,6 +514,14 @@ func TestIsContextTooLargeError(t *testing.T) {
 				StatusCode: http.StatusBadRequest,
 				Message:    "This model's maximum context length is 16385 tokens.",
 			}),
+			want: true,
+		},
+		{
+			name: "request entity too large",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusRequestEntityTooLarge,
+				Message:    "Request Entity Too Large",
+			},
 			want: true,
 		},
 		{

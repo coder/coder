@@ -434,6 +434,11 @@ func generateCompactionSummary(
 		Role:    fantasy.MessageRoleUser,
 		Content: summaryParts,
 	})
+	// Anthropic only reads the cache at explicit breakpoints, so without
+	// these the shared tool and history prefix is never a cache hit.
+	if shouldApplyAnthropicPromptCaching(model) {
+		addAnthropicPromptCaching(summaryPrompt)
+	}
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
 	defer func() {
@@ -495,14 +500,15 @@ var contextTooLargePhrases = []string{
 	"too long",
 }
 
-// isContextTooLargeError reports whether a provider rejected a request
-// because the prompt exceeded the model's context window.
+// isContextTooLargeError reports whether a provider rejected a request for
+// its size: the prompt exceeded the model's context window, or the body
+// exceeded a request size limit on the provider or a gateway in front of it.
 func isContextTooLargeError(err error) bool {
 	providerErr, ok := errors.AsType[*fantasy.ProviderError](err)
 	if !ok {
 		return false
 	}
-	if providerErr.IsContextTooLarge() {
+	if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
 		return true
 	}
 	if providerErr.StatusCode != http.StatusBadRequest {

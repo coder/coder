@@ -1022,12 +1022,10 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
 		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
-		// A separate provider instance shares no prompt cache with the
-		// chat model and may reject its provider-defined tools or tool
-		// schemas, so the summary request carries no tool definitions.
-		if !sameCompactionProviderIdentity(prepared.Compaction.ChatModelConfig, overrideModel.dbConfig) {
-			compactionOpts.ToolDefinitions = nil
-		}
+		// Prompt caches are model-scoped and provider-native tools are
+		// model-specific, so the chat model's tool definitions buy the
+		// override request nothing and can get it rejected.
+		compactionOpts.ToolDefinitions = nil
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,
