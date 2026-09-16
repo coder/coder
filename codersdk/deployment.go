@@ -4396,7 +4396,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Stream Silence Timeout",
-			Description: "Maximum time a Coder Agents model stream may stay silent before the attempt is canceled and retried. The timer starts when the request opens and resets on every streamed part, so it also bounds time to first token. Raise it for slow local models.",
+			Description: "Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Must be at least 10m.",
 			Flag:        "chat-stream-silence-timeout",
 			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
 			Value:       &c.AI.Chat.StreamSilenceTimeout,

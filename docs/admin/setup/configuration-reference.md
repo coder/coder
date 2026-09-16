@@ -420,7 +420,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 
 ### Stream silence timeout
 
-Maximum time a Coder Agents model stream may stay silent before the attempt is canceled and retried. The timer starts when the request opens and resets on every streamed part, so it also bounds time to first token. Raise it for slow local models.
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Must be at least 10m.
 
 - Environment variable: `CODER_CHAT_STREAM_SILENCE_TIMEOUT`
 - CLI flag: [`--chat-stream-silence-timeout`](../../reference/cli/server.md#--chat-stream-silence-timeout)
