@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { columnColor } from "../../ChatBoard/boardLabels";
+import { columnColor } from "./boardLabels";
 
 /** Small tinted tag naming a chat's board column, used on sidebar rows. */
 export const ColumnTag: FC<{ readonly name: string }> = ({ name }) => (

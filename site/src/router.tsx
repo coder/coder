@@ -364,7 +364,7 @@ const AgentsPageLayout = lazy(
 );
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const ChatBoardPage = lazy(
-	() => import("./pages/AgentsPage/components/ChatBoard/ChatBoardPage"),
+	() => import("./pages/AgentsPage/exp/chatBoard/ChatBoardRoute"),
 );
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
 const DesktopPopoutPage = lazy(

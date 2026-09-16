@@ -4,7 +4,7 @@ import { BotIcon, CopyIcon, MessageSquareIcon, PencilIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { shortRelativeTime } from "#/utils/time";
-import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
+import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import {
 	type BoardCard as BoardCardModel,

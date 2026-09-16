@@ -21,7 +21,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
-import { buildChatSearchQuery } from "../ChatsSidebar/dialogs/searchQuery";
+import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
 import { type DragData, DragGhost, type DropData } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import {

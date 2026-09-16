@@ -16,7 +16,6 @@ import {
 } from "@dnd-kit/sortable";
 import { cn } from "cn";
 import {
-	LayoutDashboardIcon,
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -37,6 +36,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
+import { ChatBoardNavItem } from "../../../exp/chatBoard/ChatBoardNavItem";
+import { useChatBoardSidebar } from "../../../exp/chatBoard/useChatBoardSidebar";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -47,7 +48,6 @@ import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
-import { BoardGroupEntry } from "../tree/BoardGroupEntry";
 import {
 	ChatTreeContext,
 	type ChatTreeContextValue,
@@ -56,7 +56,6 @@ import { ChatTreeNode } from "../tree/ChatTreeNode";
 import {
 	buildChatTree,
 	type ChatTree,
-	collectBoardGroups,
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
@@ -171,18 +170,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const sharedWithYouChats = unpinnedChats.filter(
 		(chat) => chat.shared && chat.owner_id !== currentUserId,
 	);
-	const ownedUnpinned = unpinnedChats.filter(
-		(chat) => !chat.shared || chat.owner_id === currentUserId,
+	// The board experiment may regroup this list; off, it passes through.
+	const board = useChatBoardSidebar(
+		unpinnedChats.filter(
+			(chat) => !chat.shared || chat.owner_id === currentUserId,
+		),
 	);
-	// Board group members render inside their primary's box, so they leave
-	// their own slot only when the primary is in this same list.
-	const boardGroups = collectBoardGroups(ownedUnpinned);
-	const boardMemberIDs = new Set(
-		[...boardGroups.values()].flat().map((chat) => chat.id),
-	);
-	const unpinnedOwnedChats = ownedUnpinned.filter(
-		(chat) => !boardMemberIDs.has(chat.id),
-	);
+	const unpinnedOwnedChats = board.chats;
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -334,6 +328,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		onMarkChatRead,
 		onMarkChatUnread,
 		onOpenRenameDialog,
+		renderTrailing: board.renderTrailing,
 	};
 
 	const chatSections = (
@@ -458,12 +453,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
-				<SettingsNavItem
-					icon={LayoutDashboardIcon}
-					label="Board"
-					active={location.pathname.startsWith("/agents/board")}
-					to={{ pathname: "/agents/board", search: locationSearch }}
-				/>
+				<ChatBoardNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">
@@ -639,13 +629,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 														/>
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
-																{section.chats.map((chat) => (
-																	<BoardGroupEntry
-																		key={chat.id}
-																		chat={chat}
-																		members={boardGroups.get(chat.id)}
-																	/>
-																))}
+																{section.chats.map((chat) =>
+																	board.renderEntry(chat),
+																)}
 															</div>
 														)}
 													</div>

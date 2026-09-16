@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { updateChatLabels, updateChatTitle } from "#/api/queries/chats";
+import { updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import {
 	addCommentLabels,
@@ -18,6 +18,7 @@ import {
 	stripCardLabels,
 	updateCommentLabels,
 } from "./boardLabels";
+import { updateChatLabels } from "./updateChatLabels";
 
 /**
  * Every board action is a set of whole-label-map writes on the chats it

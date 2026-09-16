@@ -4,8 +4,11 @@ import { API } from "#/api/api";
 import { createChat, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
-import { lastModelConfigIDStorageKey } from "../../AgentChatPage";
 import { ASSISTANT_KEY, type BoardCard } from "./boardLabels";
+
+// Same key AgentChatPage.tsx writes when the user picks a model. Copied
+// rather than exported so the experiment adds no surface to that page.
+const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 // The assistant reads and acts on other chats, which needs a workspace with
 // the Coder tooling. One shared workspace serves every card's assistant.
