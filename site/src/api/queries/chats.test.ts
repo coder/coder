@@ -1,4 +1,9 @@
-import { QueryClient, QueryObserver } from "react-query";
+import {
+	type InfiniteData as InfiniteQueryData,
+	InfiniteQueryObserver,
+	QueryClient,
+	QueryObserver,
+} from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey } from "#/api/queries/authCheck";
@@ -50,6 +55,7 @@ import {
 	chatEntityKey,
 	chatListFamilyKey,
 	chatListKey,
+	chatMessagesForInfiniteScroll,
 	chatMessagesKey,
 	chatModel,
 	chatModelACL,
@@ -128,6 +134,7 @@ vi.mock("#/api/api", () => ({
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
+			getChatMessages: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
 			createChatMessage: vi.fn(),
@@ -4302,6 +4309,59 @@ describe("message upsert fan-out and history replacement", () => {
 		expect(
 			queryClient.getQueryCache().find({ queryKey: chatMessagesKey("chat-1") }),
 		).toBeUndefined();
+	});
+});
+
+describe("chatMessagesForInfiniteScroll", () => {
+	const mockChatMessage = (id: number): TypesGen.ChatMessage => ({
+		...MockChatMessage,
+		id,
+		content: [{ type: "text", text: `msg ${id}` }],
+	});
+
+	it("keeps messages upserted while an older page is in flight", async () => {
+		const queryClient = createTestQueryClient();
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockImplementation(
+			(_chatId, opts) =>
+				opts?.before_id
+					? olderPage.promise
+					: Promise.resolve({
+							messages: [mockChatMessage(11), mockChatMessage(10)],
+							queued_messages: [],
+							has_more: true,
+						}),
+		);
+		const observer = new InfiniteQueryObserver<
+			TypesGen.ChatMessagesResponse,
+			Error,
+			InfiniteQueryData<TypesGen.ChatMessagesResponse>,
+			ReturnType<typeof chatMessagesKey>,
+			number | undefined
+		>(queryClient, chatMessagesForInfiniteScroll("chat-1"));
+		const unsubscribe = observer.subscribe(() => {});
+		await vi.waitFor(() => {
+			expect(observer.getCurrentResult().data?.pages).toHaveLength(1);
+		});
+
+		const fetching = observer.fetchNextPage();
+		await vi.waitFor(() => {
+			expect(observer.getCurrentResult().isFetchingNextPage).toBe(true);
+		});
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(12)]);
+		olderPage.resolve({
+			messages: [mockChatMessage(9), mockChatMessage(8)],
+			queued_messages: [],
+			has_more: false,
+		});
+		await fetching;
+		unsubscribe();
+
+		const pages = observer.getCurrentResult().data?.pages ?? [];
+		expect(pages.map((page) => page.messages.map((m) => m.id))).toEqual([
+			[12, 11, 10],
+			[9, 8],
+		]);
 	});
 });
 
