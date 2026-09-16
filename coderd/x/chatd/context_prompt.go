@@ -324,7 +324,7 @@ func contextResourcesToPrompt(
 	// Root files come before the nested files that refine them, whatever
 	// order the rows were pinned in.
 	slices.SortStableFunc(contextFileParts, func(a, b codersdk.ChatMessagePart) int {
-		if da, db := strings.Count(a.ContextFilePath, "/"), strings.Count(b.ContextFilePath, "/"); da != db {
+		if da, db := pathDepth(a.ContextFilePath), pathDepth(b.ContextFilePath); da != db {
 			return da - db
 		}
 		return strings.Compare(a.ContextFilePath, b.ContextFilePath)
@@ -345,6 +345,12 @@ func omittedInstructionFilesNote(omitted []string) string {
 		note += fmt.Sprintf(", and %d more", extra)
 	}
 	return note + "."
+}
+
+// pathDepth counts separators of either kind so Windows agent paths sort
+// like POSIX ones.
+func pathDepth(p string) int {
+	return strings.Count(p, "/") + strings.Count(p, "\\")
 }
 
 // ContextResources returns the chat's pinned context resource list (metadata

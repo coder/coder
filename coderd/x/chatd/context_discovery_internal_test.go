@@ -40,6 +40,16 @@ func TestTouchedPaths(t *testing.T) {
 		"/tmp/repo/a.go",
 	}, files, "paths are cleaned; relative paths and calls without a result are ignored")
 	require.Equal(t, []string{"/tmp/repo/pkg"}, dirs, "only an explicit workdir counts")
+
+	// A Windows agent reports drive-rooted paths with backslashes; they
+	// are normalized to forward slashes so the same logic applies.
+	files, dirs = touchedPaths([]fantasy.ToolCallContent{
+		call("win-read", "read_file", `{"path":"C:\\repo\\site\\App.tsx"}`),
+		call("win-exec", "execute", `{"command":"dir","workdir":"C:\\repo\\pkg"}`),
+		call("win-rel", "read_file", `{"path":"repo\\App.tsx"}`),
+	}, []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel")})
+	require.Equal(t, []string{"C:/repo/site/App.tsx"}, files)
+	require.Equal(t, []string{"C:/repo/pkg"}, dirs)
 }
 
 func TestCandidateInstructionDirs(t *testing.T) {
@@ -57,6 +67,12 @@ func TestCandidateInstructionDirs(t *testing.T) {
 		t.Parallel()
 		got := candidateInstructionDirs([]string{"/home/coder/project/AGENTS.md", "/home/coder/notes.txt", "/etc/hosts"}, nil, workingDir)
 		require.Equal(t, []string{"/etc"}, got)
+	})
+
+	t.Run("WindowsDriveRoot", func(t *testing.T) {
+		t.Parallel()
+		got := candidateInstructionDirs([]string{"C:/repo/site/src/App.tsx", "D:/other/x/y.txt"}, nil, "C:\\repo")
+		require.Equal(t, []string{"D:/other", "C:/repo/site", "D:/other/x", "C:/repo/site/src"}, got, "the walk stops at the drive root and below the working directory")
 	})
 
 	t.Run("OutsideWorkingDirStopsBelowRoot", func(t *testing.T) {
@@ -95,6 +111,27 @@ func TestCandidateInstructionDirs(t *testing.T) {
 		require.Len(t, got, 32)
 		require.Equal(t, "/tmp", got[0], "the shared parent sorts first")
 	})
+}
+
+func TestSelectInstructionProbes(t *testing.T) {
+	t.Parallel()
+
+	// Writing a rule file or running a command in a directory makes it
+	// stale: it is probed again even when it already holds a pinned file
+	// or was recently found empty.
+	stale := staleInstructionDirs(
+		[]string{"/repo/site/CLAUDE.md", "/repo/site/src/App.tsx"},
+		[]string{"/repo/pkg"},
+	)
+	require.Equal(t, map[string]struct{}{"/repo/site": {}, "/repo/pkg": {}}, stale)
+
+	pinned := map[string]struct{}{"/repo/site": {}, "/repo/docs": {}}
+	negative := func(dir string) bool { return dir == "/repo/pkg" || dir == "/repo/cmd" }
+	got := selectInstructionProbes(
+		[]string{"/repo/site", "/repo/site/src", "/repo/docs", "/repo/pkg", "/repo/cmd", "/repo/lib"},
+		pinned, stale, negative,
+	)
+	require.Equal(t, []string{"/repo/site", "/repo/site/src", "/repo/pkg", "/repo/lib"}, got)
 }
 
 func TestInstructionProbeCache(t *testing.T) {
