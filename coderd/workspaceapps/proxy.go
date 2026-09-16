@@ -40,6 +40,8 @@ const (
 	// conflict with query parameters that users may use.
 	//nolint:gosec
 	SubdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
+	// AnnotationQueryParam controls annotation overlay injection for subdomain apps.
+	AnnotationQueryParam = "coder_annotate"
 	// appLogoutHostname is the hostname to use for the logout redirect. When
 	// the dashboard logs out, it will redirect to this subdomain of the app
 	// hostname, and the server will remove the cookie and redirect to the main
@@ -109,6 +111,8 @@ type ServerOptions struct {
 	// calls to the dashboard are not possible due to CORs.
 	DisablePathApps bool
 	CookiesConfig   codersdk.HTTPCookieConfig
+	// Experiments controls experimental workspace app behavior.
+	Experiments codersdk.Experiments
 
 	AgentProvider  AgentProvider
 	StatsCollector *StatsCollector
@@ -621,6 +625,8 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		}
 	}
 
+	inject := s.annotationRequested(r, appToken.AccessMethod)
+
 	// Ensure path and query parameter correctness.
 	if path == "" {
 		// Web applications typically request paths relative to the
@@ -663,26 +669,32 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	proxy.ModifyResponse = func(r *http.Response) error {
 		// If passthru behavior is set, disable our CORS header stripping.
-		if cors.HasBehavior(r.Request.Context(), codersdk.CORSBehaviorPassthru) {
-			return nil
-		}
-		r.Header.Del(httpmw.AccessControlAllowOriginHeader)
-		r.Header.Del(httpmw.AccessControlAllowCredentialsHeader)
-		r.Header.Del(httpmw.AccessControlAllowMethodsHeader)
-		r.Header.Del(httpmw.AccessControlAllowHeadersHeader)
-		varies := r.Header.Values(httpmw.VaryHeader)
-		r.Header.Del(httpmw.VaryHeader)
-		forbiddenVary := []string{
-			httpmw.OriginHeader,
-			httpmw.AccessControlRequestMethodsHeader,
-			httpmw.AccessControlRequestHeadersHeader,
-		}
-		for _, value := range varies {
-			if !slice.ContainsCompare(forbiddenVary, value, strings.EqualFold) {
-				r.Header.Add(httpmw.VaryHeader, value)
+		if !cors.HasBehavior(r.Request.Context(), codersdk.CORSBehaviorPassthru) {
+			r.Header.Del(httpmw.AccessControlAllowOriginHeader)
+			r.Header.Del(httpmw.AccessControlAllowCredentialsHeader)
+			r.Header.Del(httpmw.AccessControlAllowMethodsHeader)
+			r.Header.Del(httpmw.AccessControlAllowHeadersHeader)
+			varies := r.Header.Values(httpmw.VaryHeader)
+			r.Header.Del(httpmw.VaryHeader)
+			forbiddenVary := []string{
+				httpmw.OriginHeader,
+				httpmw.AccessControlRequestMethodsHeader,
+				httpmw.AccessControlRequestHeadersHeader,
+			}
+			for _, value := range varies {
+				if !slice.ContainsCompare(forbiddenVary, value, strings.EqualFold) {
+					r.Header.Add(httpmw.VaryHeader, value)
+				}
 			}
 		}
+		if inject {
+			return injectAnnotationScript(r, annotationScriptTag(s.DashboardURL))
+		}
 		return nil
+	}
+
+	if inject {
+		r.Header.Del("Accept-Encoding")
 	}
 
 	// This strips the session token from a workspace app request.
