@@ -703,6 +703,17 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Len(t, pinned, 6)
 	require.False(t, pinned[nestedSource].Discovered, "the snapshot copy replaces the discovered row")
 	require.Equal(t, nestedAgentHash, pinned[nestedSource].ContentHash)
+
+	// Reconciling a vanished file removes discovered rows only.
+	docsSource := "/home/coder/repo/docs/AGENTS.md"
+	discover(docsSource, nestedDiscoveredHash)
+	for _, source := range []string{nestedSource, docsSource} {
+		require.NoError(t, db.DeleteChatContextDiscoveredResource(chatdCtx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chat.ID, Source: source}))
+	}
+	pinned = pinnedResources()
+	require.Len(t, pinned, 6)
+	require.Contains(t, pinned, nestedSource, "a snapshot row is not a discovered row")
+	require.NotContains(t, pinned, docsSource)
 }
 
 // TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP

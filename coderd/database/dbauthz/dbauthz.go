@@ -2274,6 +2274,17 @@ func (q *querier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) er
 	return deleteQ(q.log, q.auth, q.db.GetChatAutomationByID, q.db.DeleteChatAutomationByID)(ctx, id)
 }
 
+func (q *querier) DeleteChatContextDiscoveredResource(ctx context.Context, arg database.DeleteChatContextDiscoveredResourceParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatContextDiscoveredResource(ctx, arg)
+}
+
 func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {

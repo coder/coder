@@ -908,6 +908,20 @@ func (mr *MockStoreMockRecorder) DeleteChatAutomationByID(ctx, id any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatAutomationByID", reflect.TypeOf((*MockStore)(nil).DeleteChatAutomationByID), ctx, id)
 }
 
+// DeleteChatContextDiscoveredResource mocks base method.
+func (m *MockStore) DeleteChatContextDiscoveredResource(ctx context.Context, arg database.DeleteChatContextDiscoveredResourceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatContextDiscoveredResource", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatContextDiscoveredResource indicates an expected call of DeleteChatContextDiscoveredResource.
+func (mr *MockStoreMockRecorder) DeleteChatContextDiscoveredResource(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatContextDiscoveredResource", reflect.TypeOf((*MockStore)(nil).DeleteChatContextDiscoveredResource), ctx, arg)
+}
+
 // DeleteChatContextResourcesByChatID mocks base method.
 func (m *MockStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
