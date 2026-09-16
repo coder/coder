@@ -197,7 +197,8 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 // exhausting fantasy's smaller provider default before producing summary text.
 // The cap is doubled because the summary must fit reasoning plus summary text
 // in one response; a low configured chat cap could otherwise truncate the
-// summary that replaces pruned history.
+// summary that replaces pruned history. GenerateCompaction bounds the doubled
+// cap by the remaining context window at trigger time.
 func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone

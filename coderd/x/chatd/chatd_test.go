@@ -5164,16 +5164,22 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
 	t.Helper()
 	require.True(t, req.Stream)
-	// The summary call doubles the configured 32000 cap for headroom.
-	require.Equal(t, 64_000, req.MaxTokens)
+	// The summary cap is the doubled configured cap bounded by the
+	// remaining context window, so it varies per test fixture; exact
+	// values are pinned in the chatloop unit tests and the hook test.
+	require.Positive(t, req.MaxTokens)
 	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
 }
 
 func highUsageReadFileResponse(path string) chattest.AnthropicResponse {
+	return readFileResponseWithInputTokens(path, 80)
+}
+
+func readFileResponseWithInputTokens(path string, inputTokens int) chattest.AnthropicResponse {
 	chunks := chattest.AnthropicToolCallChunks("read_file", fmt.Sprintf(`{"path":%q}`, path))
 	for i := range chunks {
 		if chunks[i].Type == "message_start" {
-			chunks[i].Message.Usage = map[string]int{"input_tokens": 80}
+			chunks[i].Message.Usage = map[string]int{"input_tokens": inputTokens}
 		}
 		if chunks[i].Type == "message_delta" {
 			chunks[i].UsageMap = map[string]int{"output_tokens": 5}
@@ -6247,15 +6253,16 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			},
 		},
 		{
-			// 51200 is 0.8 (high) of the summary call's doubled
-			// 64000 max_tokens.
+			// 16000 is 0.8 (high) of the summary call's max_tokens,
+			// clamped to the remaining context window (limit 100000 -
+			// usage 80000).
 			name:          "legacy budget-thinking override model",
 			overrideModel: "claude-haiku-4-5",
 			effort:        "high",
 			assertSummaryRequest: func(t *testing.T, req *chattest.AnthropicRequest) {
 				require.Empty(t, string(req.OutputConfig))
 				require.Contains(t, string(req.Thinking), `"type":"enabled"`)
-				require.Contains(t, string(req.Thinking), `"budget_tokens":51200`)
+				require.Contains(t, string(req.Thinking), `"budget_tokens":16000`)
 			},
 		},
 		{
@@ -6290,7 +6297,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				require.Equal(t, chatModelName, req.Model)
 				switch streamCount.Add(1) {
 				case 1:
-					return highUsageReadFileResponse("/tmp/a.txt")
+					// A large window keeps the summary cap clamp
+					// (limit - usage = 20000) above the minimum
+					// legacy thinking budget so the effort mapping
+					// stays observable on the summary request.
+					return readFileResponseWithInputTokens("/tmp/a.txt", 80_000)
 				default:
 					require.Contains(t, body, compactionSummary)
 					require.Empty(t, string(req.OutputConfig),
@@ -6304,7 +6315,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				}
 			})
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-			model = updateChatModelCompressionThreshold(t, db, model, 100, thresholdPercent)
+			model = updateChatModelCompressionThreshold(t, db, model, 100_000, thresholdPercent)
 			overrideModel := seedOverrideModel(ctx, t, db, model, tc.overrideModel, tc.effort, 1_000_000)
 			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 

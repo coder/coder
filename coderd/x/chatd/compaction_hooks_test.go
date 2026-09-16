@@ -235,6 +235,9 @@ func startCompactionHookChat(
 		if strings.Contains(body, "You are performing a context compaction") {
 			compactionCalls.Add(1)
 			inspectCompaction(t, body)
+			// Doubled 64000 cap clamped to the remaining window:
+			// contextLimit 100 - 80 input tokens.
+			require.Equal(t, 20, req.MaxTokens)
 			return anthropicCompactionResponse(t, req, "hook compaction summary")
 		}
 		if !req.Stream {

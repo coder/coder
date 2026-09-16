@@ -491,6 +491,60 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 	}
 }
 
+// TestGenerateCompaction_ClampsSummaryCapToRemainingWindow pins the
+// summary output cap bound: sum-enforcing providers reject requests
+// whose input plus max_tokens exceeds the context window, so the cap
+// shrinks to the remaining window and degenerate cases stay unchanged.
+func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		contextLimit int64
+		inputTokens  int64
+		cap          int64
+		wantCap      int64
+	}{
+		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 80, cap: 64_000, wantCap: 20},
+		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, cap: 50_000, wantCap: 50_000},
+		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotCap *int64
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+					gotCap = call.MaxOutputTokens
+					return compactionStream(
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+					), nil
+				},
+			}
+			capTokens := tc.cap
+			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+				Model:            model,
+				Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				Clock:            quartz.NewMock(t),
+				ThresholdPercent: 70,
+				ContextLimit:     tc.contextLimit,
+				StepUsage:        fantasy.Usage{InputTokens: tc.inputTokens},
+				SummaryCall:      fantasy.Call{MaxOutputTokens: &capTokens},
+			})
+			require.NoError(t, err)
+			require.Equal(t, "summary", result.SummaryReport)
+			require.NotNil(t, gotCap)
+			require.Equal(t, tc.wantCap, *gotCap)
+		})
+	}
+}
+
 // TestGenerateCompaction_DefaultSourceAutomatic verifies an unforced
 // over-threshold run reports the automatic source by default.
 func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {

@@ -173,6 +173,17 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		return CompactionResult{}, nil
 	}
 
+	// Sum-enforcing providers reject requests whose input plus
+	// max_tokens exceeds the context window, so bound the summary cap
+	// by the remaining window. Degenerate cases (unknown limit, usage
+	// at or over the limit) leave the cap unchanged.
+	if config.SummaryCall.MaxOutputTokens != nil {
+		remaining := contextLimit - contextTokens
+		if remaining > 0 && remaining < *config.SummaryCall.MaxOutputTokens {
+			config.SummaryCall.MaxOutputTokens = &remaining
+		}
+	}
+
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		config.PublishMessagePart(
 			codersdk.ChatMessageRoleAssistant,
