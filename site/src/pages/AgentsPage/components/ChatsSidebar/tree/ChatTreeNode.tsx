@@ -153,14 +153,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-	// Board groups open by default so members stay visible next to the primary.
-	const hasBoardMembers = childIDs.some((childID) => {
-		const child = chatById.get(childID);
-		return child !== undefined && isBoardGroupMember(child);
-	});
-	const isExpanded = normalizedSearch
-		? true
-		: (expandedById[chatID] ?? hasBoardMembers);
+	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 	const boardColumn = getColumnLabel(chat);
 	const showBoardColumn =
 		boardColumn !== INBOX_COLUMN && !isBoardGroupMember(chat);
@@ -199,15 +192,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	};
 
 	return (
-		<div
-			className={cn(
-				"flex min-w-0 flex-col gap-0.5",
-				// A board group is one unit in the list: a box around the primary
-				// and its members, who sit at the same indent as the primary.
-				hasBoardMembers &&
-					"my-0.5 rounded-md border border-content-link/40 bg-surface-secondary/50 p-0.5",
-			)}
-		>
+		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
 				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
 					<div
@@ -446,7 +431,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							<ChatTreeNode
 								key={childChat.id}
 								chat={childChat}
-								depth={isBoardGroupMember(childChat) ? depth : depth + 1}
+								depth={depth + 1}
 							/>
 						);
 					})}

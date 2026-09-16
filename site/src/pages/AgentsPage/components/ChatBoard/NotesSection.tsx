@@ -76,27 +76,29 @@ const Note: FC<NoteProps> = ({ note, onEdit, onRemove }) => {
 		);
 	}
 
-	// Three columns aligned to the first text line: fixed age, flexible body,
-	// reserved action space so revealing the actions never shifts layout.
+	// Body left, then a fixed-width slot on the right that shows the age and
+	// swaps to the actions on hover, like the activity age on chat rows.
 	return (
 		<div className="group/note flex items-start gap-2">
-			<span className="w-7 shrink-0 text-right text-xs leading-5 tabular-nums text-content-secondary">
-				{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
-			</span>
 			<Markdown className={cn("min-w-0 flex-1", NOTE_MARKDOWN_CLASS)}>
 				{note.text}
 			</Markdown>
-			<span className="flex h-5 shrink-0 items-center opacity-0 group-hover/note:opacity-100 has-[:focus-visible]:opacity-100 has-[[data-state=open]]:opacity-100">
-				<Button
-					variant="subtle"
-					size="icon"
-					aria-label="Edit note"
-					className="size-5 text-content-secondary"
-					onClick={() => setEditing(true)}
-				>
-					<PencilIcon className="size-3.5" />
-				</Button>
-				<DeleteNoteButton onConfirm={onRemove} />
+			<span className="relative h-5 w-11 shrink-0">
+				<span className="absolute inset-0 flex items-center justify-end text-xs tabular-nums text-content-secondary group-hover/note:hidden group-has-[[data-state=open]]/note:hidden">
+					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
+				</span>
+				<span className="absolute inset-0 hidden items-center justify-end group-hover/note:flex group-has-[[data-state=open]]/note:flex has-[:focus-visible]:flex">
+					<Button
+						variant="subtle"
+						size="icon"
+						aria-label="Edit note"
+						className="size-5 text-content-secondary"
+						onClick={() => setEditing(true)}
+					>
+						<PencilIcon className="size-3.5" />
+					</Button>
+					<DeleteNoteButton onConfirm={onRemove} />
+				</span>
 			</span>
 		</div>
 	);

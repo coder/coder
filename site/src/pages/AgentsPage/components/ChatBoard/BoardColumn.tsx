@@ -11,6 +11,7 @@ import type {
 	CardColor,
 } from "./boardLabels";
 import { INBOX_COLUMN } from "./boardLabels";
+import type { DropTarget } from "./ChatBoardPage";
 import { EditableText, InlineInput } from "./InlineText";
 
 const columnDropId = (name: string) => `column:${name}`;
@@ -26,6 +27,7 @@ const columnHeaderClass =
 interface BoardColumnProps {
 	readonly column: BoardColumnModel;
 	readonly openChatIds: ReadonlySet<string>;
+	readonly dropTarget: DropTarget | null;
 	readonly onRename: (to: string) => void;
 	readonly onDelete: () => void;
 	readonly onSetCardTitle: (card: BoardCardModel, title: string) => void;
@@ -46,6 +48,7 @@ interface BoardColumnProps {
 export const BoardColumn: FC<BoardColumnProps> = ({
 	column,
 	openChatIds,
+	dropTarget,
 	onRename,
 	onDelete,
 	onSetCardTitle,
@@ -56,20 +59,23 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	onRemoveNote,
 }) => {
 	const dropData: DropData = { type: "column", name: column.name };
-	const { setNodeRef, isOver } = useDroppable({
+	const { setNodeRef } = useDroppable({
 		id: columnDropId(column.name),
 		data: dropData,
 	});
 	const isInbox = column.name === INBOX_COLUMN;
+	const insertBefore =
+		dropTarget?.kind === "insert" && dropTarget.column === column.name
+			? dropTarget.beforeCardId
+			: undefined;
+	const mergeTargetId =
+		dropTarget?.kind === "merge" ? dropTarget.card.id : undefined;
 
 	return (
 		<section
 			ref={setNodeRef}
 			aria-label={`${column.name} column`}
-			className={cn(
-				columnClass,
-				isOver && "rounded-lg bg-surface-secondary/50 ring-1 ring-content-link",
-			)}
+			className={columnClass}
 		>
 			<header className={columnHeaderClass}>
 				{isInbox ? (
@@ -97,24 +103,40 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 					</Button>
 				)}
 			</header>
-			<div className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto pb-2">
+			<div className="flex min-h-16 flex-1 flex-col overflow-y-auto pb-2">
 				{column.cards.map((card) => (
-					<BoardCard
-						key={card.id}
-						card={card}
-						openChatIds={openChatIds}
-						onSetTitle={(title) => onSetCardTitle(card, title)}
-						onSetColor={(color) => onSetCardColor(card, color)}
-						onRenameChat={onRenameChat}
-						onAddNote={(text) => onAddNote(card, text)}
-						onEditNote={(index, text) => onEditNote(card, index, text)}
-						onRemoveNote={(index) => onRemoveNote(card, index)}
-					/>
+					<div key={card.id} className="flex flex-col">
+						<InsertionLine visible={insertBefore === card.id} />
+						<BoardCard
+							card={card}
+							openChatIds={openChatIds}
+							isMergeTarget={mergeTargetId === card.id}
+							onSetTitle={(title) => onSetCardTitle(card, title)}
+							onSetColor={(color) => onSetCardColor(card, color)}
+							onRenameChat={onRenameChat}
+							onAddNote={(text) => onAddNote(card, text)}
+							onEditNote={(index, text) => onEditNote(card, index, text)}
+							onRemoveNote={(index) => onRemoveNote(card, index)}
+						/>
+					</div>
 				))}
+				<InsertionLine visible={insertBefore === null} />
 			</div>
 		</section>
 	);
 };
+
+// Occupies the gap between cards, so showing it does not shift layout.
+const InsertionLine: FC<{ readonly visible: boolean }> = ({ visible }) => (
+	<div className="flex h-2 items-center">
+		<div
+			className={cn(
+				"h-0.5 w-full rounded bg-content-link",
+				!visible && "invisible",
+			)}
+		/>
+	</div>
+);
 
 interface NewColumnProps {
 	readonly onCreate: (name: string) => void;

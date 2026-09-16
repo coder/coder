@@ -177,13 +177,29 @@ export const setPositionLabel = (
 	placedAt = Date.now(),
 ): Record<string, string> => ({ ...labels, [POSITION_KEY]: String(placedAt) });
 
-// A card sorts by when the user last placed it, or by chat creation when it
-// has never been placed. Neither changes with chat activity.
-const placementKey = (chat: Chat): number => {
+// A card sorts by its placement key: the board/pos the user last gave it,
+// or chat creation time when never placed. Neither changes with activity.
+// Higher sorts first.
+export const placementKey = (chat: Chat): number => {
 	const placed = Number(chat.labels[POSITION_KEY]);
 	return Number.isFinite(placed) && placed > 0
 		? placed
 		: new Date(chat.created_at).getTime();
+};
+
+// Gap used when placing above the top or below the bottom card, so there is
+// always room to insert between later.
+const PLACEMENT_GAP_MS = 60_000;
+
+/** A key that sorts between two neighbours; either may be absent at the column edges. */
+export const keyBetween = (
+	above: number | undefined,
+	below: number | undefined,
+): number => {
+	if (above !== undefined && below !== undefined) return (above + below) / 2;
+	if (above !== undefined) return above - PLACEMENT_GAP_MS;
+	if (below !== undefined) return below + PLACEMENT_GAP_MS;
+	return Date.now();
 };
 
 export const addCommentLabels = (
