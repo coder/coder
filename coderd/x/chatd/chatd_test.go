@@ -6283,6 +6283,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		name                 string
 		overrideModel        string
 		effort               string
+		keepsTools           bool
 		assertSummaryRequest func(t *testing.T, req *chattest.AnthropicRequest)
 	}{
 		{
@@ -6316,6 +6317,15 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				require.Contains(t, string(req.Thinking), `"type":"adaptive"`)
 			},
 		},
+		{
+			// Only an override resolving to the chat model itself shares
+			// its prompt cache, so only then do the tool definitions stay.
+			name:                 "override resolves to the chat model",
+			overrideModel:        chatModelName,
+			effort:               "low",
+			keepsTools:           true,
+			assertSummaryRequest: func(*testing.T, *chattest.AnthropicRequest) {},
+		},
 	}
 
 	for _, tc := range routingCases {
@@ -6331,7 +6341,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				if !req.Stream {
 					if strings.Contains(body, "You are performing a context compaction") {
 						require.Equal(t, tc.overrideModel, req.Model)
-						require.Empty(t, req.Tools, "an override model shares no prompt cache, so the summary carries no tool definitions")
+						if tc.keepsTools {
+							require.NotEmpty(t, req.Tools)
+						} else {
+							require.Empty(t, req.Tools, "a different model shares no prompt cache, so the summary carries no tool definitions")
+						}
 						tc.assertSummaryRequest(t, req)
 						return anthropicCompactionResponse(compactionSummary)
 					}
