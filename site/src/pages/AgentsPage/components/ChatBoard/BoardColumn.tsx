@@ -8,11 +8,17 @@ import { BoardCard, type DropData } from "./BoardCard";
 import type {
 	BoardCard as BoardCardModel,
 	BoardColumn as BoardColumnModel,
+	CardColor,
 } from "./boardLabels";
 import { INBOX_COLUMN } from "./boardLabels";
-import { InlineText } from "./InlineText";
+import { InlineInput, InlineText } from "./InlineText";
 
 const columnDropId = (name: string) => `column:${name}`;
+
+const columnClass =
+	"flex w-80 shrink-0 flex-col gap-2 rounded-lg bg-surface-secondary/60 p-2";
+const columnHeaderClass =
+	"flex h-7 items-center gap-2 px-1.5 text-sm font-medium text-content-primary";
 
 interface BoardColumnProps {
 	readonly column: BoardColumnModel;
@@ -20,9 +26,18 @@ interface BoardColumnProps {
 	readonly onRename: (to: string) => void;
 	readonly onDelete: () => void;
 	readonly onSetCardTitle: (card: BoardCardModel, title: string) => void;
+	readonly onSetCardColor: (
+		card: BoardCardModel,
+		color: CardColor | undefined,
+	) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
-	readonly onAddComment: (card: BoardCardModel, text: string) => void;
-	readonly onRemoveComment: (card: BoardCardModel, index: number) => void;
+	readonly onAddNote: (card: BoardCardModel, text: string) => void;
+	readonly onEditNote: (
+		card: BoardCardModel,
+		index: number,
+		text: string,
+	) => void;
+	readonly onRemoveNote: (card: BoardCardModel, index: number) => void;
 }
 
 export const BoardColumn: FC<BoardColumnProps> = ({
@@ -31,9 +46,11 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	onRename,
 	onDelete,
 	onSetCardTitle,
+	onSetCardColor,
 	onRenameChat,
-	onAddComment,
-	onRemoveComment,
+	onAddNote,
+	onEditNote,
+	onRemoveNote,
 }) => {
 	const dropData: DropData = { type: "column", name: column.name };
 	const { setNodeRef, isOver } = useDroppable({
@@ -46,12 +63,9 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 		<section
 			ref={setNodeRef}
 			aria-label={`${column.name} column`}
-			className={cn(
-				"flex w-80 shrink-0 flex-col gap-2 rounded-lg bg-surface-primary p-2",
-				isOver && "ring-1 ring-content-link",
-			)}
+			className={cn(columnClass, isOver && "ring-1 ring-content-link")}
 		>
-			<header className="flex items-center gap-2 px-1 text-sm font-medium text-content-primary">
+			<header className={columnHeaderClass}>
 				{isInbox ? (
 					<span className="flex-1">{column.name}</span>
 				) : (
@@ -84,12 +98,34 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 						card={card}
 						activeChatId={activeChatId}
 						onSetTitle={(title) => onSetCardTitle(card, title)}
+						onSetColor={(color) => onSetCardColor(card, color)}
 						onRenameChat={onRenameChat}
-						onAddComment={(text) => onAddComment(card, text)}
-						onRemoveComment={(index) => onRemoveComment(card, index)}
+						onAddNote={(text) => onAddNote(card, text)}
+						onEditNote={(index, text) => onEditNote(card, index, text)}
+						onRemoveNote={(index) => onRemoveNote(card, index)}
 					/>
 				))}
 			</div>
 		</section>
 	);
 };
+
+interface NewColumnProps {
+	readonly onCreate: (name: string) => void;
+	readonly onCancel: () => void;
+}
+
+/** A column shell with its title in edit mode, so creating looks like renaming. */
+export const NewColumn: FC<NewColumnProps> = ({ onCreate, onCancel }) => (
+	<section aria-label="New column" className={cn(columnClass, "min-h-24")}>
+		<header className={columnHeaderClass}>
+			<InlineInput
+				value=""
+				ariaLabel="New column name"
+				className="flex-1"
+				onSave={onCreate}
+				onDone={onCancel}
+			/>
+		</header>
+	</section>
+);
