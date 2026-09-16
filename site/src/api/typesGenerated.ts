@@ -7009,6 +7009,19 @@ export interface Organization extends MinimalOrganization {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendDetailsFilter narrows organization AI spend.
+ */
+export interface OrganizationAISpendDetailsFilter {
+	readonly period_start?: string;
+	readonly period_end?: string;
+	readonly user_id?: string;
+	readonly group_id?: string;
+	readonly provider_name?: string;
+	readonly model?: string;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendFilter narrows the organization per-user AI spend
  * report. Zero values apply no filter: the period falls back to the current
  * budget period on the server, and an empty dimension matches all usage.

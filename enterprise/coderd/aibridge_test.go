@@ -4405,6 +4405,49 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			wantMsgContains string
 		}{
 			{
+				name:            "InvalidUserID",
+				params:          map[string]string{"user_id": "not-a-uuid"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				name:            "InvalidGroupID",
+				params:          map[string]string{"group_id": "not-a-uuid"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				name:            "InvalidFormat",
+				params:          map[string]string{"period_start": "not-a-date", "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				name:            "UnknownDefaultPeriod",
+				params:          map[string]string{"unknown": "value"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				name:            "UnknownExplicitPeriod",
+				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano), "unknown": "value"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				// The export is not paginated, so page parameters are unknown.
+				name:            "UnknownPaginationParameter",
+				params:          map[string]string{"limit": "10"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
+				name:            "UnknownPaginationOffsetParameter",
+				params:          map[string]string{"offset": "1"},
+				wantStatus:      http.StatusBadRequest,
+				wantMsgContains: "have invalid values",
+			},
+			{
 				name:            "OnlyStart",
 				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano)},
 				wantStatus:      http.StatusBadRequest,
@@ -4423,21 +4466,10 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				wantMsgContains: `"period_start" must be before "period_end"`,
 			},
 			{
-				name:            "InvalidFormat",
-				params:          map[string]string{"period_start": "not-a-date", "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "have invalid values",
-			},
-			{
 				name:            "PeriodTooLong",
 				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 32).Format(time.RFC3339Nano)},
 				wantStatus:      http.StatusBadRequest,
 				wantMsgContains: "must not exceed 31 days",
-			},
-			{
-				name:       "MaxPeriodAllowed",
-				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 31).Format(time.RFC3339Nano)},
-				wantStatus: http.StatusOK,
 			},
 			{
 				// period_start predates the retention window, so the raw
@@ -4448,11 +4480,9 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				wantMsgContains: "retention window",
 			},
 			{
-				// The export is not paginated, so page parameters are unknown.
-				name:            "UnknownPaginationParameter",
-				params:          map[string]string{"limit": "10"},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "have invalid values",
+				name:       "MaxPeriodAllowed",
+				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 31).Format(time.RFC3339Nano)},
+				wantStatus: http.StatusOK,
 			},
 		}
 		for _, tc := range cases {
@@ -4960,6 +4990,77 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
 		}, records[1])
+	})
+
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-filter-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: group.OrganizationID})
+		at := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+
+		// Given: two spend rows with different groups, providers, and models.
+		for _, seed := range []struct {
+			groupID      uuid.UUID
+			providerName string
+			model        string
+			costMicros   int64
+		}{
+			{group.ID, "provider-one", "model-one", 100},
+			{otherGroup.ID, "provider-two", "model-two", 200},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: seed.providerName, Model: seed.model, StartedAt: at,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: at,
+				EffectiveGroupID: uuid.NullUUID{UUID: seed.groupID, Valid: true},
+				CostMicros:       sql.NullInt64{Int64: seed.costMicros, Valid: true},
+			})
+		}
+
+		cases := []struct {
+			name      string
+			filter    codersdk.OrganizationAISpendDetailsFilter
+			wantCosts []string
+		}{
+			{name: "User", filter: codersdk.OrganizationAISpendDetailsFilter{UserID: targetUser.ID}, wantCosts: []string{"100", "200"}},
+			{name: "Group", filter: codersdk.OrganizationAISpendDetailsFilter{GroupID: group.ID}, wantCosts: []string{"100"}},
+			{name: "Provider", filter: codersdk.OrganizationAISpendDetailsFilter{ProviderName: "provider-two"}, wantCosts: []string{"200"}},
+			{name: "Model", filter: codersdk.OrganizationAISpendDetailsFilter{Model: "model-one"}, wantCosts: []string{"100"}},
+			{name: "Combined", filter: codersdk.OrganizationAISpendDetailsFilter{UserID: targetUser.ID, GroupID: otherGroup.ID, ProviderName: "provider-two", Model: "model-two"}, wantCosts: []string{"200"}},
+			{name: "NoMatch", filter: codersdk.OrganizationAISpendDetailsFilter{ProviderName: "missing"}},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// When: downloading CSV with the selected filters.
+				body, err := adminClient.ExportOrganizationAISpendWithFilter(ctx, group.OrganizationID, tc.filter)
+				require.NoError(t, err)
+				defer body.Close()
+
+				// Then: the CSV has the expected header and matching costs.
+				records := readAISpendExportCSV(t, body)
+				require.Equal(t, entcoderd.AISpendExportCSVHeader, records[0])
+				costs := make([]string, 0, len(records)-1)
+				for _, record := range records[1:] {
+					costs = append(costs, record[13])
+				}
+				require.ElementsMatch(t, tc.wantCosts, costs)
+			})
+		}
 	})
 
 	t.Run("ExcludesNullEffectiveGroup", func(t *testing.T) {
