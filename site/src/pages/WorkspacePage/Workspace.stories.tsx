@@ -299,7 +299,7 @@ export const HiddenResourcesRevealed: Story = {
 	play: async ({ canvasElement }) => {
 		await openResourcesSidebar(canvasElement);
 		await userEvent.click(
-			within(canvasElement).getByRole("button", {
+			await within(canvasElement).findByRole("button", {
 				name: /show hidden resources/i,
 			}),
 		);
