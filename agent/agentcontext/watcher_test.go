@@ -150,6 +150,43 @@ func TestWatcher_ChildCapPrefersInstructionFiles(t *testing.T) {
 	}
 }
 
+// TestWatcher_GitOnlyChildWatchedWhenPublishedSlotsFull fills the published
+// slots and checks that a clone sorting before them, which has no instruction
+// file yet, still fires when its AGENTS.md is checked out: that file would
+// change which 64 children the resolver publishes.
+func TestWatcher_GitOnlyChildWatchedWhenPublishedSlotsFull(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for i := range 64 {
+		mustWriteFile(t, filepath.Join(dir, fmt.Sprintf("repo-%02d", i), "AGENTS.md"), "rules")
+	}
+	clone := filepath.Join(dir, "aa-clone")
+	require.NoError(t, os.MkdirAll(filepath.Join(clone, ".git"), 0o755))
+
+	fired := make(chan struct{}, 1)
+	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
+		Logger:   testutil.Logger(t).Named("watcher"),
+		Debounce: 10 * time.Millisecond,
+		OnChange: func() {
+			select {
+			case fired <- struct{}{}:
+			default:
+			}
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+	mustWriteFile(t, filepath.Join(clone, "AGENTS.md"), "rules")
+	select {
+	case <-fired:
+	case <-ctx.Done():
+		require.Fail(t, "expected callback after a git-only clone gained an AGENTS.md")
+	}
+}
+
 func TestWatcher_CloseIsIdempotent(t *testing.T) {
 	t.Parallel()
 	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
