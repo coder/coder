@@ -1,4 +1,5 @@
 import type { Chat } from "#/api/typesGenerated";
+import { getGroupLabel } from "../../ChatBoard/boardLabels";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 
 export type ChatTree = {
@@ -66,9 +67,40 @@ export const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 		.map((chat) => chat.id)
 		.filter((chatID) => !parentById.get(chatID));
 
-	return {
+	return attachBoardGroups({
 		rootIds,
 		chatById,
+		childrenById,
+		parentById,
+	});
+};
+
+/** True when the chat is a board group member rendered under another chat. */
+export const isBoardGroupMember = (chat: Chat): boolean =>
+	getGroupLabel(chat) !== chat.id;
+
+// Board groups move together in the list: members leave their own section
+// and render as children of the primary, wherever the primary sorts.
+const attachBoardGroups = (tree: ChatTree): ChatTree => {
+	const rootSet = new Set(tree.rootIds);
+	const moved = new Set<string>();
+	const childrenById = new Map(
+		[...tree.childrenById].map(([id, children]) => [id, [...children]]),
+	);
+	const parentById = new Map(tree.parentById);
+	for (const rootID of tree.rootIds) {
+		const chat = tree.chatById.get(rootID);
+		if (!chat) continue;
+		const primaryID = getGroupLabel(chat);
+		if (primaryID === rootID || !rootSet.has(primaryID)) continue;
+		parentById.set(rootID, primaryID);
+		childrenById.get(primaryID)?.push(rootID);
+		moved.add(rootID);
+	}
+	if (moved.size === 0) return tree;
+	return {
+		rootIds: tree.rootIds.filter((id) => !moved.has(id)),
+		chatById: tree.chatById,
 		childrenById,
 		parentById,
 	};

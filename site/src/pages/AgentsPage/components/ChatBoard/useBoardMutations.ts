@@ -1,0 +1,119 @@
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { updateChatLabels, updateChatTitle } from "#/api/queries/chats";
+import type { Chat } from "#/api/typesGenerated";
+import {
+	addCommentLabels,
+	type BoardCard,
+	commentLabels,
+	nextCommentIndex,
+	removeCommentLabels,
+	setColumnLabel,
+	setGroupLabel,
+	setTitleLabel,
+	stripCardLabels,
+} from "./boardLabels";
+
+/**
+ * Every board action is a set of whole-label-map writes on the chats it
+ * touches. Members are written independently; a partial failure leaves the
+ * remaining chats where they were and surfaces one toast.
+ */
+export const useBoardMutations = () => {
+	const queryClient = useQueryClient();
+	const labelsMutation = useMutation({
+		...updateChatLabels(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to update chat labels."));
+		},
+	});
+	const titleMutation = useMutation({
+		...updateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to rename chat."));
+		},
+	});
+
+	const write = (chat: Chat, labels: Record<string, string>) =>
+		labelsMutation.mutateAsync({ chatId: chat.id, labels });
+
+	const moveCard = (card: BoardCard, column: string) =>
+		Promise.all(
+			card.members.map((member) =>
+				write(member, setColumnLabel(member.labels, column)),
+			),
+		);
+
+	const renameColumn = (cards: readonly BoardCard[], to: string) =>
+		Promise.all(cards.map((card) => moveCard(card, to)));
+
+	const setCardTitle = (card: BoardCard, title: string) =>
+		write(card.primary, setTitleLabel(card.primary.labels, title));
+
+	const addComment = (card: BoardCard, text: string) =>
+		write(card.primary, addCommentLabels(card.primary.labels, text));
+
+	const removeComment = (card: BoardCard, index: number) =>
+		write(card.primary, removeCommentLabels(card.primary.labels, index));
+
+	// The dropped card's comments follow its members into the target thread
+	// so nothing the user wrote is lost; its title is dropped.
+	const mergeCards = (source: BoardCard, target: BoardCard) => {
+		const targetLabels = { ...target.primary.labels };
+		let index = nextCommentIndex(target.comments);
+		for (const comment of source.comments) {
+			Object.assign(
+				targetLabels,
+				commentLabels(index, comment.text, comment.timestamp),
+			);
+			index += 1;
+		}
+		const writes = source.members.map((member) =>
+			write(
+				member,
+				setColumnLabel(
+					setGroupLabel(stripCardLabels(member.labels), target.id, member.id),
+					target.column,
+				),
+			),
+		);
+		if (source.comments.length > 0) {
+			writes.push(write(target.primary, targetLabels));
+		}
+		return Promise.all(writes);
+	};
+
+	const detachChat = (chat: Chat, column: string) =>
+		write(
+			chat,
+			setColumnLabel(setGroupLabel(chat.labels, chat.id, chat.id), column),
+		);
+
+	// Only non-primary members are joinable; a primary carries card data that
+	// mergeCards handles instead.
+	const joinCard = (chat: Chat, target: BoardCard) =>
+		write(
+			chat,
+			setColumnLabel(
+				setGroupLabel(chat.labels, target.id, chat.id),
+				target.column,
+			),
+		);
+
+	const renameChat = (chat: Chat, title: string) =>
+		titleMutation.mutateAsync({ chatId: chat.id, title });
+
+	return {
+		moveCard,
+		renameColumn,
+		setCardTitle,
+		addComment,
+		removeComment,
+		mergeCards,
+		detachChat,
+		joinCard,
+		renameChat,
+		isPending: labelsMutation.isPending || titleMutation.isPending,
+	};
+};
