@@ -9,8 +9,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { useStorage } from "#/hooks/useStorage";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
+import { vscodeVariantStorage } from "../VSCodeDesktopButton/VSCodeDesktopButton";
 
 interface VSCodeDevContainerButtonProps {
 	userName: string;
@@ -23,22 +25,11 @@ interface VSCodeDevContainerButtonProps {
 	displayApps: readonly DisplayApp[];
 }
 
-type VSCodeVariant = "vscode" | "vscode-insiders";
-
-const VARIANT_KEY = "vscode-variant";
-
-const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
-	return value === "vscode" || value === "vscode-insiders";
-};
-
 export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 	props,
 ) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
-	const [variant, setVariant] = useState<VSCodeVariant>(() => {
-		const previousVariant = localStorage.getItem(VARIANT_KEY);
-		return isVSCodeVariant(previousVariant) ? previousVariant : "vscode";
-	});
+	const [variant, setVariant] = useStorage(vscodeVariantStorage);
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
 	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
@@ -48,11 +39,6 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 			setMenuWidth(menuAnchorRef.current?.clientWidth);
 		}
 	}, [isVariantMenuOpen]);
-
-	const selectVariant = (nextVariant: VSCodeVariant) => {
-		localStorage.setItem(VARIANT_KEY, nextVariant);
-		setVariant(nextVariant);
-	};
 
 	const includesVSCodeDesktop = props.displayApps.includes("vscode");
 	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
@@ -87,7 +73,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 				>
 					<DropdownMenuItem
 						onClick={() => {
-							selectVariant("vscode");
+							setVariant("vscode");
 						}}
 					>
 						<ExternalImage src="/icon/code.svg" alt="" className="size-3" />
@@ -95,7 +81,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => {
-							selectVariant("vscode-insiders");
+							setVariant("vscode-insiders");
 						}}
 					>
 						<ExternalImage

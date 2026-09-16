@@ -1,10 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "react-query";
 import { updateCheck } from "#/api/queries/updateCheck";
+import { useStorage } from "#/hooks/useStorage";
+import { defineStorageKey, stringCodec } from "#/storage";
+
+const dismissedUpdateVersionStorage = defineStorageKey<string | null>({
+	key: "dismissedVersion",
+	codec: stringCodec,
+	defaultValue: null,
+});
 
 export const useUpdateCheck = (enabled: boolean) => {
-	const [dismissedVersion, setDismissedVersion] = useState(() =>
-		getDismissedVersionOnLocal(),
+	const [dismissedVersion, setDismissedVersion] = useStorage(
+		dismissedUpdateVersionStorage,
 	);
 	const updateCheckQuery = useQuery({
 		...updateCheck(),
@@ -26,7 +34,6 @@ export const useUpdateCheck = (enabled: boolean) => {
 			return;
 		}
 		setDismissedVersion(updateCheckQuery.data.version);
-		saveDismissedVersionOnLocal(updateCheckQuery.data.version);
 	};
 
 	return {
@@ -34,12 +41,4 @@ export const useUpdateCheck = (enabled: boolean) => {
 		dismiss,
 		data: updateCheckQuery.data,
 	};
-};
-
-const saveDismissedVersionOnLocal = (version: string): void => {
-	window.localStorage.setItem("dismissedVersion", version);
-};
-
-const getDismissedVersionOnLocal = (): string | undefined => {
-	return localStorage.getItem("dismissedVersion") ?? undefined;
 };

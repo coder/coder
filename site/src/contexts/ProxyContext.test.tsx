@@ -17,8 +17,8 @@ import { server } from "#/testHelpers/server";
 import {
 	getPreferredProxy,
 	ProxyProvider,
-	saveUserSelectedProxy,
 	useProxy,
+	userSelectedProxyStorage,
 } from "./ProxyContext";
 import type * as ProxyLatency from "./useProxyLatency";
 
@@ -350,7 +350,7 @@ describe("ProxyContextSelection", () => {
 
 			// Initial selection if present
 			if (storageProxy) {
-				saveUserSelectedProxy(storageProxy);
+				userSelectedProxyStorage.set(storageProxy);
 			}
 
 			// Mock the API response

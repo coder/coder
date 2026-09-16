@@ -1,4 +1,14 @@
 import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
+import { defineEntityStorageKey, stringLiteralCodec } from "#/storage";
+
+export const workspaceListeningPortsProtocolStorage =
+	defineEntityStorageKey<WorkspaceAgentPortShareProtocol>({
+		prefix: "listening-ports-protocol-workspace-",
+		codec: stringLiteralCodec<WorkspaceAgentPortShareProtocol>({
+			oneOf: ["http", "https"],
+		}),
+		defaultValue: "http",
+	});
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
@@ -120,22 +130,4 @@ export const openMaybePortForwardedURL = (
 	}
 
 	open(rewriteLocalhostURL(uri, proxyHost, agentName, workspaceName, username));
-};
-
-export const saveWorkspaceListeningPortsProtocol = (
-	workspaceID: string,
-	protocol: WorkspaceAgentPortShareProtocol,
-) => {
-	localStorage.setItem(
-		`listening-ports-protocol-workspace-${workspaceID}`,
-		protocol,
-	);
-};
-
-export const getWorkspaceListeningPortsProtocol = (
-	workspaceID: string,
-): WorkspaceAgentPortShareProtocol => {
-	return (localStorage.getItem(
-		`listening-ports-protocol-workspace-${workspaceID}`,
-	) || "http") as WorkspaceAgentPortShareProtocol;
 };
