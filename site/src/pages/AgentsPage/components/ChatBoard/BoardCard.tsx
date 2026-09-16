@@ -17,7 +17,7 @@ import {
 	CARD_COLORS,
 	type CardColor,
 } from "./boardLabels";
-import { ChatInfoPopover } from "./ChatInfoPopover";
+import { ChatInfoButton, ChatInfoPanel } from "./ChatInfo";
 import { EditableText, InlineInput } from "./InlineText";
 import { NotesSection } from "./NotesSection";
 
@@ -100,7 +100,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 		<article
 			ref={setRefs}
 			className={cn(
-				"flex flex-col rounded-lg border border-border bg-surface-secondary text-sm",
+				"flex flex-col rounded-lg border border-border bg-surface-primary text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]",
 				card.color && cn("border-l-[3px]", CARD_ACCENT_CLASS[card.color]),
 				isDragging && "opacity-40",
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
@@ -108,7 +108,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 		>
 			{/* Header is its own hover group so its pencil does not light up from rows below. */}
 			<header
-				className="group/card flex cursor-grab touch-none select-none items-start gap-1 px-3 py-2 active:cursor-grabbing"
+				className="group/card flex cursor-grab touch-none select-none items-start gap-1 px-3 pt-[11px] pb-1.5 active:cursor-grabbing"
 				{...listeners}
 				{...attributes}
 				ref={setActivatorNodeRef}
@@ -119,12 +119,12 @@ export const BoardCard: FC<BoardCardProps> = ({
 					ariaLabel="card title"
 					wrap
 					revealOn="card"
-					className="font-medium leading-snug text-content-primary"
+					className="text-[14px] font-medium leading-[1.35] tracking-[-0.005em] text-content-primary [text-wrap:pretty]"
 				/>
 				<ColorPicker value={card.color} onChange={onSetColor} />
 			</header>
 
-			<ul className="m-0 flex list-none flex-col gap-1 border-t border-border px-3 py-2">
+			<ul className="m-0 flex list-none flex-col px-1 pb-1">
 				{card.members.map((chat) => (
 					<ChatRow
 						key={chat.id}
@@ -230,7 +230,7 @@ export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
 	return (
 		<div
 			className={cn(
-				"w-80 cursor-grabbing rounded-lg border border-content-link bg-surface-secondary px-3 py-2 text-sm shadow-lg",
+				"w-[300px] cursor-grabbing rounded-lg border border-content-link bg-surface-primary px-3 py-2 text-sm shadow-lg",
 				drag.type === "card" &&
 					drag.card.color &&
 					cn("border-l-[3px]", CARD_ACCENT_CLASS[drag.card.color]),
@@ -267,86 +267,95 @@ const ChatRow: FC<ChatRowProps> = ({
 			disabled: !draggable,
 		});
 	const [renaming, setRenaming] = useState(false);
+	// Hover on (i) previews the panel; a click pins it until clicked again.
+	const [info, setInfo] = useState<"closed" | "hover" | "pinned">("closed");
 	const display = getChatDisplayConfig(chat);
 	const StatusIcon = display.icon;
 	const pr = display.diffStatus;
+	const hasLineStats =
+		pr !== undefined && (pr.additions > 0 || pr.deletions > 0);
 
 	return (
 		<li
 			ref={setNodeRef}
 			className={cn(
-				"group/row -mx-1.5 flex items-start gap-2 rounded-md px-1.5 py-1 hover:bg-surface-tertiary/70",
-				active && "bg-surface-tertiary",
+				"group/row grid grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 rounded-md px-2 py-1.5 hover:bg-content-link/5",
+				active && "bg-surface-tertiary/70",
 				isDragging && "opacity-40",
 			)}
+			onPointerLeave={() => {
+				if (info === "hover") setInfo("closed");
+			}}
 		>
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
 				ref={draggable ? setActivatorNodeRef : undefined}
 				{...(draggable ? { ...listeners, ...attributes } : {})}
 				className={cn(
-					"mt-0.5 flex size-4 shrink-0 select-none items-center justify-center",
+					"flex h-[18px] select-none items-center justify-center",
 					draggable && "cursor-grab touch-none active:cursor-grabbing",
 				)}
 				title={draggable ? "Drag to move this chat" : undefined}
 			>
 				<StatusIcon
-					className={cn("size-3.5", display.className)}
+					className={cn("size-[13px]", display.className)}
 					aria-label={display.label}
 				/>
 			</span>
-			<div className="flex min-w-0 flex-1 flex-col">
-				<div className="flex items-start gap-1">
-					{renaming ? (
-						<InlineInput
-							value={chat.title}
-							onSave={onRename}
-							onDone={() => setRenaming(false)}
-							ariaLabel={`title of ${chat.title}`}
-							className="flex-1 text-content-primary"
-						/>
-					) : (
-						<>
-							<Link
-								to={`/agents/board/${chat.id}`}
-								className="line-clamp-2 min-w-0 flex-1 text-content-primary leading-snug no-underline"
-							>
-								{chat.title}
-							</Link>
-							<EditTrigger
-								label={`Rename ${chat.title}`}
-								onClick={() => setRenaming(true)}
-							/>
-							{chat.has_unread && (
-								<span
-									role="img"
-									className="mt-1.5 size-2 shrink-0 rounded-full bg-content-link"
-									aria-label="Unread"
-								/>
-							)}
-							<span className="shrink-0 text-xs tabular-nums leading-5 text-content-secondary">
-								{shortRelativeTime(chat.updated_at)}
-							</span>
-							<ChatInfoPopover chat={chat} />
-						</>
-					)}
-				</div>
+			<div className="min-w-0">
+				{renaming ? (
+					<InlineInput
+						value={chat.title}
+						onSave={onRename}
+						onDone={() => setRenaming(false)}
+						ariaLabel={`title of ${chat.title}`}
+						className="w-full text-[13px] text-content-primary"
+					/>
+				) : (
+					<div className="flex items-start gap-1">
+						<Link
+							to={`/agents/board/${chat.id}`}
+							className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-[18px] text-content-primary no-underline"
+						>
+							{chat.title}
+						</Link>
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label={`Rename ${chat.title}`}
+							className="size-[18px] shrink-0 text-content-secondary opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+							onClick={() => setRenaming(true)}
+						>
+							<PencilIcon className="size-3" />
+						</Button>
+					</div>
+				)}
 				{(chat.last_turn_summary || pr?.url) && (
-					<div className="flex min-w-0 items-center gap-2 text-xs text-content-secondary">
+					<div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-content-secondary">
 						{pr?.url && display.prIcon && (
 							<a
 								href={pr.url}
 								target="_blank"
 								rel="noreferrer"
 								aria-label={display.prIcon.label}
-								className={cn(
-									"flex shrink-0 items-center gap-0.5 no-underline hover:underline",
-									display.prIcon.className,
-								)}
+								className="inline-flex h-4 shrink-0 items-center gap-1 rounded bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary"
 							>
-								<display.prIcon.icon className="size-3.5" />
-								{pr.pr_number ? `#${pr.pr_number}` : null}
+								<span
+									className={cn(
+										"size-1.5 rounded-full bg-current",
+										display.prIcon.className,
+									)}
+								/>
+								{pr.pr_number ? `#${pr.pr_number}` : "PR"}
 							</a>
+						)}
+						{hasLineStats && (
+							<span className="shrink-0 font-mono text-[11px]">
+								<span className="text-git-added-bright">+{pr.additions}</span>{" "}
+								<span className="text-git-deleted-bright">
+									&minus;{pr.deletions}
+								</span>
+							</span>
 						)}
 						{chat.last_turn_summary && (
 							<span className="truncate">{chat.last_turn_summary}</span>
@@ -354,21 +363,27 @@ const ChatRow: FC<ChatRowProps> = ({
 					</div>
 				)}
 			</div>
+			<div className="flex h-[18px] items-center gap-1.5">
+				{chat.has_unread && (
+					<span
+						role="img"
+						className="size-[7px] rounded-full bg-content-link"
+						aria-label="Unread"
+					/>
+				)}
+				<span className="font-mono text-[11px] tabular-nums text-content-secondary/70">
+					{shortRelativeTime(chat.updated_at)}
+				</span>
+				<ChatInfoButton
+					chat={chat}
+					open={info !== "closed"}
+					onHover={() => {
+						if (info === "closed") setInfo("hover");
+					}}
+					onToggle={() => setInfo(info === "pinned" ? "closed" : "pinned")}
+				/>
+			</div>
+			{info !== "closed" && <ChatInfoPanel chat={chat} />}
 		</li>
 	);
 };
-
-const EditTrigger: FC<{
-	readonly label: string;
-	readonly onClick: () => void;
-}> = ({ label, onClick }) => (
-	<Button
-		variant="subtle"
-		size="icon"
-		aria-label={label}
-		className="size-5 shrink-0 text-content-secondary opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
-		onClick={onClick}
-	>
-		<PencilIcon className="size-3.5" />
-	</Button>
-);

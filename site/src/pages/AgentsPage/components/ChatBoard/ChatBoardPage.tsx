@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core";
 import { cn } from "cn";
 import {
-	ArrowLeftIcon,
+	ChevronLeftIcon,
 	ChevronUpIcon,
 	PlusIcon,
 	SearchIcon,
@@ -31,7 +31,6 @@ import { useInfiniteQuery, useQuery } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { chatSearch, infiniteChats } from "#/api/queries/chats";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
 import { buildChatSearchQuery } from "../ChatsSidebar/dialogs/searchQuery";
@@ -353,31 +352,40 @@ const ChatBoardPage: FC = () => {
 					flex: showChats ? `0 0 ${storage.splitRatio * 100}%` : "1 1 0",
 				}}
 			>
-				<div className="flex items-center gap-2 border-b border-border px-3 py-2">
+				<div className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-4 pl-3">
 					<Button
 						variant="subtle"
 						size="icon"
 						aria-label="Exit board"
+						className="size-7 text-content-secondary"
 						// Leaving lands on the chat being read, or the agents home.
 						onClick={() => {
 							const reading = panes[focusedPane]?.active;
 							void navigate(reading ? `/agents/${reading}` : "/agents");
 						}}
 					>
-						<ArrowLeftIcon />
+						<ChevronLeftIcon className="size-4" />
 					</Button>
-					<h1 className="m-0 text-base font-medium text-content-primary">
+					<h1 className="m-0 text-sm font-medium tracking-[-0.01em] text-content-primary">
 						Board
 					</h1>
-					<div className="relative ml-auto w-64">
-						<SearchIcon className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-content-secondary" />
-						<Input
+					<span className="pl-1 font-mono text-[11px] text-content-secondary/70">
+						{chats.length} chats · {allCards.length} cards
+					</span>
+					<div className="relative ml-auto flex h-[30px] w-[260px] items-center gap-2 rounded-[7px] border border-border bg-surface-primary px-2.5 focus-within:border-content-link">
+						<SearchIcon className="size-3.5 shrink-0 text-content-secondary" />
+						<input
 							aria-label="Filter cards"
 							placeholder="Filter cards"
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
-							className="h-8 pl-7 text-sm"
+							className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] text-content-primary outline-none placeholder:text-content-secondary/60"
 						/>
+						{matchingIds && (
+							<span className="font-mono text-[11px] text-content-secondary">
+								{cards.length}
+							</span>
+						)}
 					</div>
 				</div>
 				{chatsQuery.isError && (
@@ -399,7 +407,7 @@ const ChatBoardPage: FC = () => {
 					{/* No text selection while something is being dragged across cards. */}
 					<div
 						className={cn(
-							"flex min-h-0 flex-1 gap-3 overflow-x-auto p-3",
+							"flex min-h-0 flex-1 gap-4 overflow-x-auto bg-surface-secondary px-5 pt-4 pb-3",
 							activeDrag && "select-none",
 						)}
 					>
@@ -437,16 +445,15 @@ const ChatBoardPage: FC = () => {
 								onCancel={() => setAddingColumn(false)}
 							/>
 						) : (
-							<Button
-								variant="subtle"
-								size="icon"
+							<button
+								type="button"
 								aria-label="Add column"
 								// Sits on the column header line, matching header height.
-								className="mt-2 size-7 shrink-0 text-content-secondary"
+								className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link"
 								onClick={() => setAddingColumn(true)}
 							>
-								<PlusIcon />
-							</Button>
+								<PlusIcon className="size-3.5" />
+							</button>
 						)}
 					</div>
 					{/* Portaled above every column so the moving card is never clipped. */}
@@ -457,11 +464,13 @@ const ChatBoardPage: FC = () => {
 			</div>
 			{showChats && (
 				<>
-					{/* Slim handle: drag to resize the split. */}
+					{/* Grip handle: drag to resize the split. */}
 					<div
-						className="h-1.5 shrink-0 cursor-row-resize touch-none border-t border-border bg-surface-secondary/60 hover:bg-content-link/40"
+						className="grid h-[5px] shrink-0 cursor-row-resize touch-none place-items-center border-t border-border bg-surface-primary hover:bg-content-link/15"
 						onPointerDown={startResize}
-					/>
+					>
+						<div className="h-0.5 w-9 rounded-full bg-content-secondary/30" />
+					</div>
 					<ChatPanes
 						panes={panes}
 						focusedPane={focusedPane}

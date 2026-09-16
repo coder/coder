@@ -16,6 +16,62 @@ const MAX_LABEL_VALUE_BYTES = 256;
 
 export const INBOX_COLUMN = "Inbox";
 
+/** Theme classes for one column color: header square, sidebar tag, card accent. */
+type ColumnColor = Readonly<{
+	dot: string;
+	tagBg: string;
+	tagFg: string;
+}>;
+
+const COLUMN_PALETTE: readonly ColumnColor[] = [
+	{
+		dot: "bg-highlight-purple",
+		tagBg: "bg-surface-purple",
+		tagFg: "text-highlight-purple",
+	},
+	{
+		dot: "bg-highlight-sky",
+		tagBg: "bg-surface-sky",
+		tagFg: "text-highlight-sky",
+	},
+	{
+		dot: "bg-highlight-green",
+		tagBg: "bg-surface-green",
+		tagFg: "text-highlight-green",
+	},
+	{
+		dot: "bg-highlight-orange",
+		tagBg: "bg-surface-orange",
+		tagFg: "text-highlight-orange",
+	},
+	{
+		dot: "bg-highlight-magenta",
+		tagBg: "bg-surface-magenta",
+		tagFg: "text-highlight-magenta",
+	},
+	{
+		dot: "bg-highlight-red",
+		tagBg: "bg-surface-red",
+		tagFg: "text-highlight-red",
+	},
+];
+
+const INBOX_COLOR: ColumnColor = {
+	dot: "bg-content-secondary/40",
+	tagBg: "bg-surface-tertiary",
+	tagFg: "text-content-secondary",
+};
+
+// Hashing the name keeps the board and the sidebar in agreement without
+// storing a color anywhere. Inbox is always neutral.
+export const columnColor = (name: string): ColumnColor => {
+	if (name === INBOX_COLUMN) return INBOX_COLOR;
+	let hash = 0;
+	for (const char of name)
+		hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
+	return COLUMN_PALETTE[hash % COLUMN_PALETTE.length] ?? INBOX_COLOR;
+};
+
 // Card tints map onto the theme's tinted surfaces (bg-surface-<name>), which
 // already carry dark and light variants. Decorative only, never status.
 export const CARD_COLORS = [

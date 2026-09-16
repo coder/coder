@@ -141,10 +141,10 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 									variant="subtle"
 									size="icon"
 									aria-label="Hide chats"
-									className="ml-auto size-7 shrink-0 self-center text-content-secondary"
+									className="ml-auto size-[26px] shrink-0 self-center text-content-secondary"
 									onClick={onCollapse}
 								>
-									<ChevronDownIcon className="size-4" />
+									<ChevronDownIcon className="size-3.5" />
 								</Button>
 							) : undefined
 						}
@@ -201,8 +201,8 @@ const PaneView: FC<PaneViewProps> = ({
 				ref={setNodeRef}
 				role="tablist"
 				className={cn(
-					"flex h-8 shrink-0 select-none items-stretch overflow-x-auto border-b border-border bg-surface-secondary/60",
-					isOver && "bg-surface-tertiary",
+					"flex h-[34px] shrink-0 select-none items-stretch overflow-x-auto border-b border-border bg-surface-primary pr-1.5",
+					isOver && "bg-surface-tertiary/60",
 				)}
 			>
 				{pane.tabs.map((chatId) => (
@@ -264,13 +264,8 @@ const Tab: FC<TabProps> = ({
 			aria-selected={active}
 			tabIndex={active ? 0 : -1}
 			className={cn(
-				"group/tab flex max-w-56 min-w-0 shrink-0 cursor-default select-none touch-none items-center gap-1 border-r border-border px-2 text-xs",
-				active
-					? "bg-surface-primary text-content-primary"
-					: "text-content-secondary hover:bg-surface-tertiary/60",
-				active &&
-					paneFocused &&
-					"shadow-[inset_0_-2px_0_0_hsl(var(--content-link))]",
+				"group/tab relative flex max-w-[260px] min-w-0 shrink-0 cursor-default select-none touch-none items-center gap-2 border-r border-border px-3 text-[12.5px] text-content-primary hover:bg-surface-secondary",
+				!active && "text-content-secondary",
 				isDragging && "opacity-40",
 			)}
 			onClick={onActivate}
@@ -282,27 +277,36 @@ const Tab: FC<TabProps> = ({
 				if (e.button === 1) onClose();
 			}}
 		>
-			{unread && (
-				<span
-					role="img"
-					className="size-1.5 shrink-0 rounded-full bg-content-link"
-					aria-label="Unread"
-				/>
-			)}
+			<span
+				role="img"
+				aria-label={unread ? "Unread" : "Read"}
+				className={cn(
+					"size-1.5 shrink-0 rounded-full",
+					unread ? "bg-content-link" : "bg-content-secondary/30",
+				)}
+			/>
 			<span className="min-w-0 truncate">{title}</span>
 			<Button
 				variant="subtle"
 				size="icon"
 				aria-label={`Close ${title}`}
-				className="size-5 shrink-0 opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100"
+				className="size-4 shrink-0 text-content-secondary/70 hover:text-content-primary"
 				onPointerDown={(e) => e.stopPropagation()}
 				onClick={(e) => {
 					e.stopPropagation();
 					onClose();
 				}}
 			>
-				<XIcon className="size-3" />
+				<XIcon className="size-[11px]" />
 			</Button>
+			{active && (
+				<span
+					className={cn(
+						"absolute inset-x-0 -bottom-px h-0.5",
+						paneFocused ? "bg-content-link" : "bg-content-secondary/40",
+					)}
+				/>
+			)}
 		</div>
 	);
 };
