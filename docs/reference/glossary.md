@@ -125,6 +125,13 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
+### Coder Validated Architecture
+
+Coder's reference designs for sizing and deploying a control plane, abbreviated CVA.
+Each design covers a user count, from 1,000 to 10,000, and prescribes a Kubernetes-based deployment with tested component sizes, so a deployment is easier to operate and troubleshoot.
+A CVA is guidance rather than a certification: it recommends an architecture, but it doesn't approve yours.
+Refer to [Coder Validated Architecture](../install/plan/sizing/index.md).
+
 ### `coder server`
 
 The CLI command that starts [`coderd`](#coderd).
@@ -194,6 +201,10 @@ Do not call it "the Coder server", and do not describe it generically as "a serv
 Deployment-defined roles composed of specific RBAC actions.
 This is a Premium feature.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
+
+### CVA
+
+Refer to [Coder Validated Architecture](#coder-validated-architecture).
 
 ## D
 
