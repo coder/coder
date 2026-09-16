@@ -296,6 +296,11 @@ func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, interfac
 	c.mu.Unlock()
 	keys, err := c.cryptoKeys(ctx)
 	c.mu.Lock()
+	defer func() {
+		// Release on success or failure.
+		c.fetching = false
+		c.cond.Broadcast()
+	}()
 	if err != nil {
 		return "", nil, xerrors.Errorf("get keys: %w", err)
 	}
@@ -303,8 +308,6 @@ func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, interfac
 	c.lastFetch = c.clock.Now()
 	c.refresher.Reset(refreshInterval)
 	c.keys = keys
-	c.fetching = false
-	c.cond.Broadcast()
 
 	key, ok = c.key(sequence)
 	if !ok {
@@ -366,19 +369,22 @@ func (c *cache) refresh() {
 
 	c.mu.Unlock()
 	keys, err := c.cryptoKeys(c.ctx)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	defer func() {
+		// Runs on success and failure so a transient error neither stops
+		// refreshes nor blocks callers until the next restart.
+		c.refresher.Reset(refreshInterval)
+		c.fetching = false
+		c.cond.Broadcast()
+	}()
 	if err != nil {
 		c.logger.Error(c.ctx, "fetch crypto keys", slog.Error(err))
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	c.lastFetch = c.clock.Now()
-	c.refresher.Reset(refreshInterval)
 	c.keys = keys
-	c.fetching = false
-	c.cond.Broadcast()
 }
 
 // cryptoKeys queries the control plane for the crypto keys.
