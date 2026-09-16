@@ -1,8 +1,10 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -384,12 +386,49 @@ func TestOAuth2SpecificErrorScenarios(t *testing.T) {
 		// Error properly returned with bad request status
 	})
 
+	// A malformed body is rejected before validation, so it is the one path on
+	// this handler that does not go through req.Validate. It still owes the
+	// caller an RFC 7591 error rather than a codersdk.Response, which is the
+	// reason the decode is local to the handler rather than httpapi.Read. The
+	// body is sent raw because a typed request cannot express invalid JSON.
 	t.Run("InvalidJSONStructure", func(t *testing.T) {
 		t.Parallel()
 
-		// For invalid JSON structure, we'd need to make raw HTTP requests
-		// This is tested implicitly through the other tests since we're using
-		// typed requests that ensure proper JSON structure
+		for _, tc := range []struct {
+			name string
+			body string
+			// The decoder's own text, which the response must carry so a client
+			// integrator can tell an unterminated body from a mistyped field.
+			detail string
+		}{
+			{
+				name:   "UnterminatedObject",
+				body:   `{"client_name": "test"`,
+				detail: "unexpected EOF",
+			},
+			{
+				name:   "WrongFieldType",
+				body:   `{"redirect_uris": "https://example.com/callback"}`,
+				detail: "redirect_uris",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				res, err := client.Request(ctx, http.MethodPost, "/oauth2/register",
+					strings.NewReader(tc.body))
+				require.NoError(t, err)
+				defer res.Body.Close()
+
+				require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+				var errResp OAuth2ErrorResponse
+				require.NoError(t, json.NewDecoder(res.Body).Decode(&errResp))
+				require.Equal(t, "invalid_request", errResp.Error)
+				require.Contains(t, errResp.ErrorDescription, tc.detail)
+			})
+		}
 	})
 
 	t.Run("UnsupportedFields", func(t *testing.T) {
