@@ -1350,7 +1350,7 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
-	page := codersdk.Pagination{
+	page := codersdk.OrganizationAISpendPage{
 		Limit:  int(parser.PositiveInt32(query, defaultOrganizationAISpendLimit, "limit")),
 		Offset: int(parser.PositiveInt32(query, 0, "offset")),
 	}
