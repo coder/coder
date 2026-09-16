@@ -8,6 +8,8 @@ export type ParsedToolCall = {
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	hookRewritten?: boolean;
+	/** ISO timestamp the model emitted the call, from the part's created_at. */
+	startedAt?: string;
 };
 
 export type ParsedToolResult = {
@@ -31,6 +33,8 @@ export type MergedTool = {
 	hookRewritten?: boolean;
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
+	/** ISO timestamp the model emitted the call, from the part's created_at. */
+	startedAt?: string;
 };
 
 export type RenderBlock =
@@ -90,6 +94,7 @@ type StreamToolCall = {
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	modelIntent?: string;
+	startedAt?: string;
 };
 
 type StreamToolResult = {

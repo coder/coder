@@ -92,6 +92,8 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	modelIntent?: string;
 	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
 	parsedCommands?: readonly string[][];
+	/** ISO timestamp the tool call was emitted; drives the live elapsed readout. */
+	startedAt?: string;
 	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
@@ -120,6 +122,7 @@ type ToolRendererProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
+	startedAt?: string;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 };
@@ -225,6 +228,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
+	startedAt,
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
@@ -240,6 +244,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			killedBySignal={killedBySignal}
 			modelIntent={modelIntent}
 			parsedCommands={parsedCommands}
+			startedAt={startedAt}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
 	);
@@ -1211,6 +1216,7 @@ export const Tool = memo(
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
+		startedAt,
 		hookRewritten = false,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
@@ -1259,6 +1265,7 @@ export const Tool = memo(
 						previousResponseText={previousResponseText}
 						modelIntent={modelIntent}
 						parsedCommands={parsedCommands}
+						startedAt={startedAt}
 						shellToolDisplayMode={shellToolDisplayMode}
 						codeDiffDisplayMode={codeDiffDisplayMode}
 					/>

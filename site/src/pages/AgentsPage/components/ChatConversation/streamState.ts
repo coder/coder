@@ -84,6 +84,7 @@ export const applyMessagePartToStreamState = (
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
 						modelIntent,
 						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
+						startedAt: part.created_at ?? existing?.startedAt,
 					},
 				},
 			};
@@ -258,6 +259,7 @@ export const buildStreamTools = (
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent: call.modelIntent,
 			parsedCommands: call.parsedCommands,
+			startedAt: call.startedAt,
 		});
 	}
 

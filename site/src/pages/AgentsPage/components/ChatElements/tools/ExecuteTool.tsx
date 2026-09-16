@@ -35,6 +35,8 @@ type ExecuteToolProps = {
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
+	/** ISO timestamp the call was emitted. Falls back to mount time when absent. */
+	startedAt?: string;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -49,6 +51,7 @@ export const ExecuteTool: FC<ExecuteToolProps> = ({
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
+	startedAt,
 	shellToolDisplayMode,
 }) => {
 	const hasTranscriptBlocks = transcriptBlocks.length > 0;
@@ -127,6 +130,7 @@ export const ExecuteTool: FC<ExecuteToolProps> = ({
 					isError={isError}
 					isRunning={isRunning}
 					showElapsed={isRunning && !isBackgrounded}
+					startedAt={startedAt}
 				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
@@ -182,14 +186,24 @@ const ShellTranscriptBody: FC<{
 	isError: boolean;
 	isRunning: boolean;
 	showElapsed: boolean;
-}> = ({ command, transcriptBlocks, isError, isRunning, showElapsed }) => {
+	startedAt?: string;
+}> = ({
+	command,
+	transcriptBlocks,
+	isError,
+	isRunning,
+	showElapsed,
+	startedAt,
+}) => {
 	return (
 		<TerminalOutput
 			ariaLabel="Command output"
 			command={command}
 			className="col-start-1 col-span-2 mt-2"
 			streaming={isRunning}
-			headerTrailing={showElapsed ? <ElapsedTime /> : undefined}
+			headerTrailing={
+				showElapsed ? <ElapsedTime startedAt={startedAt} /> : undefined
+			}
 		>
 			{transcriptBlocks.map((block) => (
 				<pre
@@ -209,21 +223,26 @@ const ShellTranscriptBody: FC<{
 };
 
 /**
- * Live elapsed-time readout for a running command. The stream carries no
- * server-side start timestamp, so timing begins on mount. Kept as a leaf
- * holding the formatted label so only this span re-renders, and only when
- * the displayed second changes.
+ * Live elapsed-time readout for a running command, anchored to the
+ * server-side created_at of the tool call so it survives reloads and
+ * reconnects. Falls back to mount time when the timestamp is missing or
+ * unparseable. Kept as a leaf holding the formatted label so only this
+ * span re-renders, and only when the displayed second changes.
  */
-const ElapsedTime: FC = () => {
-	const [startedAt] = useState(() => Date.now());
-	const [label, setLabel] = useState(() => formatElapsedMs(0));
+const ElapsedTime: FC<{ startedAt?: string }> = ({ startedAt }) => {
+	const [mountedAt] = useState(() => Date.now());
+	const parsedStart = startedAt ? new Date(startedAt).getTime() : Number.NaN;
+	const startMs = Number.isFinite(parsedStart) ? parsedStart : mountedAt;
+	const [label, setLabel] = useState(() =>
+		formatElapsedMs(Date.now() - startMs),
+	);
 
 	useEffect(() => {
-		const update = () => setLabel(formatElapsedMs(Date.now() - startedAt));
+		const update = () => setLabel(formatElapsedMs(Date.now() - startMs));
 		update();
 		const interval = setInterval(update, 250);
 		return () => clearInterval(interval);
-	}, [startedAt]);
+	}, [startMs]);
 
 	return (
 		<span
