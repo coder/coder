@@ -17,13 +17,15 @@ const columnDropId = (name: string) => `column:${name}`;
 
 // Lanes have no fill; cards are the objects. A hairline separates lanes.
 const columnClass =
-	"group/column flex w-80 shrink-0 flex-col gap-2 border-r border-border pr-3 last:border-r-0";
+	"flex w-80 shrink-0 flex-col gap-2 border-r border-border pr-3 last:border-r-0";
+// The header is its own hover group so its controls do not light up while
+// hovering cards below it.
 const columnHeaderClass =
-	"flex h-7 items-center gap-1 px-1 text-sm font-medium text-content-primary";
+	"group/column flex h-7 items-center gap-1 px-1 text-sm font-medium text-content-primary";
 
 interface BoardColumnProps {
 	readonly column: BoardColumnModel;
-	readonly activeChatId: string | undefined;
+	readonly openChatIds: ReadonlySet<string>;
 	readonly onRename: (to: string) => void;
 	readonly onDelete: () => void;
 	readonly onSetCardTitle: (card: BoardCardModel, title: string) => void;
@@ -43,7 +45,7 @@ interface BoardColumnProps {
 
 export const BoardColumn: FC<BoardColumnProps> = ({
 	column,
-	activeChatId,
+	openChatIds,
 	onRename,
 	onDelete,
 	onSetCardTitle,
@@ -100,7 +102,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 					<BoardCard
 						key={card.id}
 						card={card}
-						activeChatId={activeChatId}
+						openChatIds={openChatIds}
 						onSetTitle={(title) => onSetCardTitle(card, title)}
 						onSetColor={(color) => onSetCardColor(card, color)}
 						onRenameChat={onRenameChat}

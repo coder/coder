@@ -33,22 +33,29 @@ const cardDragId = (card: BoardCardModel) => `card:${card.id}`;
 const chatDragId = (chat: Chat) => `chat:${chat.id}`;
 const cardDropId = (card: BoardCardModel) => `drop-card:${card.id}`;
 
-// Whole-card tints from the theme so they hold up in both color modes.
-const CARD_TINT_CLASS: Record<CardColor, string> = {
-	green: "bg-surface-green",
-	orange: "bg-surface-orange",
-	sky: "bg-surface-sky",
-	red: "bg-surface-red",
-	purple: "bg-surface-purple",
-	magenta: "bg-surface-magenta",
+// Accent border from the theme's highlight tokens, which flip between dark
+// and light saturations with the color mode. Decorative only, never status.
+const CARD_ACCENT_CLASS: Record<CardColor, string> = {
+	green: "border-l-highlight-green",
+	orange: "border-l-highlight-orange",
+	sky: "border-l-highlight-sky",
+	red: "border-l-highlight-red",
+	purple: "border-l-highlight-purple",
+	magenta: "border-l-highlight-magenta",
 };
 
-const cardSurfaceClass = (color: CardColor | undefined) =>
-	color ? CARD_TINT_CLASS[color] : "bg-surface-secondary";
+const SWATCH_CLASS: Record<CardColor, string> = {
+	green: "bg-highlight-green",
+	orange: "bg-highlight-orange",
+	sky: "bg-highlight-sky",
+	red: "bg-highlight-red",
+	purple: "bg-highlight-purple",
+	magenta: "bg-highlight-magenta",
+};
 
 interface BoardCardProps {
 	readonly card: BoardCardModel;
-	readonly activeChatId: string | undefined;
+	readonly openChatIds: ReadonlySet<string>;
 	readonly onSetTitle: (title: string) => void;
 	readonly onSetColor: (color: CardColor | undefined) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
@@ -59,7 +66,7 @@ interface BoardCardProps {
 
 export const BoardCard: FC<BoardCardProps> = ({
 	card,
-	activeChatId,
+	openChatIds,
 	onSetTitle,
 	onSetColor,
 	onRenameChat,
@@ -93,14 +100,15 @@ export const BoardCard: FC<BoardCardProps> = ({
 		<article
 			ref={setRefs}
 			className={cn(
-				"group/card flex flex-col rounded-lg border border-border text-sm",
-				cardSurfaceClass(card.color),
+				"flex flex-col rounded-lg border border-border bg-surface-secondary text-sm",
+				card.color && cn("border-l-[3px]", CARD_ACCENT_CLASS[card.color]),
 				isDragging && "opacity-40",
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
 			)}
 		>
+			{/* Header is its own hover group so its pencil does not light up from rows below. */}
 			<header
-				className="flex cursor-grab items-start gap-1 px-3 py-2 active:cursor-grabbing"
+				className="group/card flex cursor-grab items-start gap-1 px-3 py-2 active:cursor-grabbing"
 				{...listeners}
 				{...attributes}
 				ref={setActivatorNodeRef}
@@ -123,7 +131,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 						chat={chat}
 						card={card}
 						draggable={card.members.length > 1 && chat.id !== card.id}
-						active={chat.id === activeChatId}
+						active={openChatIds.has(chat.id)}
 						onRename={(title) => onRenameChat(chat, title)}
 					/>
 				))}
@@ -180,7 +188,7 @@ const ColorPicker: FC<ColorPickerProps> = ({ value, onChange }) => {
 						key={name}
 						label={name}
 						selected={value === name}
-						className={CARD_TINT_CLASS[name]}
+						className={SWATCH_CLASS[name]}
 						onClick={() => pick(name)}
 					/>
 				))}
@@ -222,8 +230,10 @@ export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
 	return (
 		<div
 			className={cn(
-				"w-80 cursor-grabbing rounded-lg border border-content-link px-3 py-2 text-sm shadow-lg",
-				cardSurfaceClass(drag.type === "card" ? drag.card.color : undefined),
+				"w-80 cursor-grabbing rounded-lg border border-content-link bg-surface-secondary px-3 py-2 text-sm shadow-lg",
+				drag.type === "card" &&
+					drag.card.color &&
+					cn("border-l-[3px]", CARD_ACCENT_CLASS[drag.card.color]),
 			)}
 		>
 			<div className="font-medium leading-snug text-content-primary">
@@ -265,7 +275,7 @@ const ChatRow: FC<ChatRowProps> = ({
 		<li
 			ref={setNodeRef}
 			className={cn(
-				"group/row -mx-1.5 flex items-start gap-2 rounded-md px-1.5 py-1",
+				"group/row -mx-1.5 flex items-start gap-2 rounded-md px-1.5 py-1 hover:bg-surface-tertiary/70",
 				active && "bg-surface-tertiary",
 				isDragging && "opacity-40",
 			)}
@@ -299,7 +309,7 @@ const ChatRow: FC<ChatRowProps> = ({
 						<>
 							<Link
 								to={`/agents/board/${chat.id}`}
-								className="line-clamp-2 min-w-0 flex-1 text-content-primary leading-snug no-underline hover:underline"
+								className="line-clamp-2 min-w-0 flex-1 text-content-primary leading-snug no-underline"
 							>
 								{chat.title}
 							</Link>
@@ -307,6 +317,13 @@ const ChatRow: FC<ChatRowProps> = ({
 								label={`Rename ${chat.title}`}
 								onClick={() => setRenaming(true)}
 							/>
+							{chat.has_unread && (
+								<span
+									role="img"
+									className="mt-1.5 size-2 shrink-0 rounded-full bg-content-link"
+									aria-label="Unread"
+								/>
+							)}
 							<span className="shrink-0 text-xs tabular-nums leading-5 text-content-secondary">
 								{shortRelativeTime(chat.updated_at)}
 							</span>
