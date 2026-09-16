@@ -1,6 +1,7 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import { screen, waitForElementToBeRemoved } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -12,12 +13,18 @@ import {
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { ConversationTimeline } from "./ConversationTimeline";
-import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
+	getPendingToolCallIDs,
+	parseMessagesWithMergedTools,
+} from "./messageParsing";
+import {
+	buildStreamRenderState,
 	buildWorkingConversation,
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
 } from "./storyFixtures";
+import { buildStreamTools, createEmptyStreamState } from "./streamState";
+import type { StreamState } from "./types";
 
 const time = workingFixtureTime;
 const MockWorkingMessages = buildWorkingConversation();
@@ -135,19 +142,31 @@ const longTurnPages = [
 	[MockLongTurnPrompt, ...MockLongTurn],
 ];
 
-function renderTimeline(
-	messages = MockWorkingMessages,
-	hasMoreMessages = false,
-) {
+type TimelineStage = {
+	messages?: ChatMessage[];
+	pendingToolCallIDs?: ReadonlySet<string>;
+} & Partial<
+	Pick<
+		ComponentProps<typeof ConversationTimeline>,
+		| "hasMoreMessages"
+		| "chatStatus"
+		| "liveStatus"
+		| "streamState"
+		| "streamTools"
+	>
+>;
+
+function renderTimeline(initial: TimelineStage = {}) {
 	const queryClient = createTestQueryClient();
 	queryClient.setQueryDefaults(preferenceSettingsKey, {
 		staleTime: Number.POSITIVE_INFINITY,
 	});
 	queryClient.setQueryData(preferenceSettingsKey, MockPreferences);
-	const renderMessages = (
-		messages: ChatMessage[],
-		hasMoreMessages: boolean,
-	) => (
+	const renderStage = ({
+		messages = MockWorkingMessages,
+		pendingToolCallIDs,
+		...props
+	}: TimelineStage) => (
 		<QueryClientProvider client={queryClient}>
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 				<MessageScroller.Root>
@@ -156,11 +175,13 @@ function renderTimeline(
 							<ConversationTimeline
 								organizationId="organization-id"
 								subagentTitles={new Map()}
-								parsedMessages={parseMessagesWithMergedTools(messages)}
+								parsedMessages={parseMessagesWithMergedTools(messages, {
+									pendingToolCallIDs,
+								})}
 								now={WORKING_FIXTURE_START + 13000}
-								hasMoreMessages={hasMoreMessages}
 								isChatCompleted
 								onSendAskUserQuestionResponse={vi.fn()}
+								{...props}
 							/>
 						</MessageScroller.Content>
 					</MessageScroller.Viewport>
@@ -168,13 +189,10 @@ function renderTimeline(
 			</MessageScroller.Provider>
 		</QueryClientProvider>
 	);
-	const { rerender } = renderComponent(
-		renderMessages(messages, hasMoreMessages),
-	);
+	const { rerender } = renderComponent(renderStage(initial));
 	return {
 		queryClient,
-		rerenderMessages: (messages: ChatMessage[], hasMoreMessages: boolean) =>
-			rerender(renderMessages(messages, hasMoreMessages)),
+		rerenderStage: (stage: TimelineStage) => rerender(renderStage(stage)),
 	};
 }
 
@@ -194,21 +212,24 @@ describe("ConversationTimeline working blocks", () => {
 
 	it("preserves disclosure identity and expansion as older pages join a block", async () => {
 		const user = userEvent.setup();
-		const { rerenderMessages } = renderTimeline(
-			MockWorkingMessages.slice(3),
-			true,
-		);
+		const { rerenderStage } = renderTimeline({
+			messages: MockWorkingMessages.slice(3),
+			hasMoreMessages: true,
+		});
 		const summary = screen.getByRole("button", {
 			name: "Worked for at least 8s (1 step or more)",
 		});
 		await user.click(summary);
-		rerenderMessages(MockWorkingMessages.slice(1), true);
+		rerenderStage({
+			messages: MockWorkingMessages.slice(1),
+			hasMoreMessages: true,
+		});
 		const grown = screen.getByRole("button", {
 			name: "Worked for at least 12s (2 steps or more)",
 		});
 		expect(grown).toBe(summary);
 		expect(grown.getAttribute("aria-expanded")).toBe("true");
-		rerenderMessages(MockWorkingMessages, false);
+		rerenderStage({ messages: MockWorkingMessages });
 		const complete = screen.getByRole("button", {
 			name: "Worked for 12s (2 steps)",
 		});
@@ -218,13 +239,16 @@ describe("ConversationTimeline working blocks", () => {
 
 	it("preserves an existing step node when older rows are prepended", async () => {
 		const user = userEvent.setup();
-		const { rerenderMessages } = renderTimeline(longTurnPages[0], true);
+		const { rerenderStage } = renderTimeline({
+			messages: longTurnPages[0],
+			hasMoreMessages: true,
+		});
 		await user.click(
 			screen.getByRole("button", { name: /Worked for at least/ }),
 		);
-		rerenderMessages(longTurnPages[1], true);
+		rerenderStage({ messages: longTurnPages[1], hasMoreMessages: true });
 		const step = screen.getByText(/echo step-15$/);
-		rerenderMessages(longTurnPages[2], false);
+		rerenderStage({ messages: longTurnPages[2] });
 		expect(screen.getByText(/echo step-15$/)).toBe(step);
 	});
 
@@ -264,8 +288,169 @@ describe("ConversationTimeline working blocks", () => {
 			name: "Worked for 3s (1 step)",
 		},
 	])("starts $scenario collapsed", ({ messages, name }) => {
-		renderTimeline(messages);
+		renderTimeline({ messages });
 		const summary = screen.getByRole("button", { name });
 		expect(summary.getAttribute("aria-expanded")).toBe("false");
+	});
+});
+
+const streamingStep = (
+	id: string,
+	command: string,
+	at: string,
+): StreamState => ({
+	startedAt: at,
+	blocks: [{ type: "tool", id }],
+	toolCalls: {
+		[id]: { id, name: "execute", args: { command }, createdAt: at },
+	},
+	toolResults: {},
+	sources: [],
+});
+
+const streamingStage = (
+	messages: ChatMessage[],
+	stream: StreamState,
+): TimelineStage => ({
+	messages,
+	chatStatus: "running",
+	streamState: stream,
+	streamTools: buildStreamTools(stream.toolCalls, stream.toolResults),
+	liveStatus: { phase: "streaming", hasAccumulatedOutput: true },
+});
+
+const idleLive = { phase: "idle", hasAccumulatedOutput: false } as const;
+
+describe("ConversationTimeline live working blocks", () => {
+	it("preserves expansion from streaming steps through durable completion", async () => {
+		const user = userEvent.setup();
+		const { rerenderStage } = renderTimeline(
+			streamingStage(
+				MockWorkingMessages.slice(0, 1),
+				streamingStep("first", "echo first", time(1)),
+			),
+		);
+		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		await user.click(summary);
+
+		rerenderStage(
+			streamingStage(
+				MockWorkingMessages.slice(0, 3),
+				streamingStep("second", "echo second", time(5)),
+			),
+		);
+		expect(screen.getByRole("button", { name: "Working for 12s" })).toBe(
+			summary,
+		);
+		expect(summary.getAttribute("aria-expanded")).toBe("true");
+
+		rerenderStage({
+			messages: MockWorkingMessages,
+			chatStatus: "waiting",
+			streamState: null,
+			streamTools: [],
+			liveStatus: idleLive,
+		});
+		expect(
+			screen
+				.getByRole("button", { name: "Worked for 12s (2 steps)" })
+				.getAttribute("aria-expanded"),
+		).toBe("true");
+	});
+
+	it("preserves expansion when a running turn without a stream completes", async () => {
+		const user = userEvent.setup();
+		const messages = MockWorkingMessages.slice(0, 4);
+		const { rerenderStage } = renderTimeline({
+			messages,
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+			chatStatus: "running",
+			liveStatus: idleLive,
+		});
+		await user.click(screen.getByRole("button", { name: "Working for 12s" }));
+
+		rerenderStage({ messages, chatStatus: "waiting", liveStatus: idleLive });
+		expect(
+			screen
+				.getByRole("button", { name: "Worked for 4s (2 steps)" })
+				.getAttribute("aria-expanded"),
+		).toBe("true");
+	});
+
+	it("keeps the live disclosure mounted while the next step starts", () => {
+		const messages = MockWorkingMessages.slice(0, 5);
+		const { rerenderStage } = renderTimeline({
+			messages,
+			chatStatus: "running",
+			streamState: null,
+			streamTools: [],
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		expect(screen.queryByTestId("live-activity-slot")).toBeNull();
+
+		rerenderStage({
+			messages,
+			chatStatus: "running",
+			streamState: createEmptyStreamState(),
+			streamTools: [],
+			liveStatus: { phase: "streaming", hasAccumulatedOutput: false },
+		});
+		expect(screen.getByRole("button", { name: /^Working/ })).toBe(summary);
+		expect(screen.queryByTestId("live-activity-slot")).toBeNull();
+
+		rerenderStage({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([
+				{
+					type: "reasoning",
+					text: "Planning the inspection",
+					created_at: time(1),
+				},
+			]),
+		});
+		expect(screen.getByRole("button", { name: /^Working/ })).toBe(summary);
+		expect(screen.queryByTestId("live-activity-slot")).toBeNull();
+		expect(screen.queryByText(/planning the inspection/i)).toBeNull();
+	});
+
+	it("preserves promptless block expansion through completion and prompt prepend", async () => {
+		const user = userEvent.setup();
+		const { rerenderStage } = renderTimeline({
+			messages: MockWorkingMessages.slice(1, 4),
+			pendingToolCallIDs: new Set(["second"]),
+			hasMoreMessages: true,
+			chatStatus: "running",
+			liveStatus: idleLive,
+		});
+		await user.click(
+			screen.getByRole("button", { name: "Working for at least 12s" }),
+		);
+
+		rerenderStage({
+			messages: MockWorkingMessages.slice(1),
+			hasMoreMessages: true,
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(
+			screen
+				.getByRole("button", {
+					name: "Worked for at least 12s (2 steps or more)",
+				})
+				.getAttribute("aria-expanded"),
+		).toBe("true");
+
+		rerenderStage({
+			messages: MockWorkingMessages,
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(
+			screen
+				.getByRole("button", { name: "Worked for 12s (2 steps)" })
+				.getAttribute("aria-expanded"),
+		).toBe("true");
 	});
 });
