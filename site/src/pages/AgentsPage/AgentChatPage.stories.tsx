@@ -1579,7 +1579,9 @@ export const Loading: Story = {
 };
 
 // A saved "collapse" preference decides the first paint: the skeleton stays up
-// until it loads, so rows never render unfolded and then fold.
+// until it loads, so rows never render unfolded and then fold. The preference
+// request never settles here so the capture shows the gated state with the
+// messages already loaded.
 export const ColdLoadWaitsForCollapsePreference: Story = {
 	parameters: {
 		queries: withoutQuery(
@@ -1601,34 +1603,8 @@ export const ColdLoadWaitsForCollapsePreference: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getUserPreferenceSettings").mockImplementation(
-			() =>
-				new Promise((resolve) => {
-					setTimeout(
-						() =>
-							resolve({
-								...MockUserPreferenceSettings,
-								shell_tool_display_mode: "always_collapsed",
-								collapse_assistant_steps: true,
-							}),
-						300,
-					);
-				}),
+			() => new Promise(() => {}),
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByTestId("conversation-timeline")).toBeNull();
-		expect(canvas.queryByText("Inspect the workspace")).toBeNull();
-		await waitFor(
-			() => {
-				expect(
-					canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
-				).toBeVisible();
-			},
-			{ timeout: 3000 },
-		);
-		expect(canvas.queryByTestId("chat-message-message:2")).toBeNull();
-		expect(canvas.getByText("Inspect the workspace")).toBeVisible();
 	},
 };
 
