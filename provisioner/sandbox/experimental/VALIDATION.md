@@ -19,12 +19,12 @@ completion, agent connection, and command execution. Image preparation,
 repository preparation, connection teardown, and deletion are excluded. Each
 sandbox was deleted before the next sample. The client ran on the host.
 
-| Duration | p50 | p95 | p99 |
-| --- | ---: | ---: | ---: |
+| Duration                      |     p50 |     p95 |     p99 |
+|-------------------------------|--------:|--------:|--------:|
 | Request to successful command | 1.008 s | 1.630 s | 5.959 s |
-| Queue | 0.012 s | 0.024 s | 0.029 s |
-| Provisioner job | 0.309 s | 0.339 s | 0.349 s |
-| Runtime creation | 0.205 s | 0.238 s | 0.248 s |
+| Queue                         | 0.012 s | 0.024 s | 0.029 s |
+| Provisioner job               | 0.309 s | 0.339 s | 0.349 s |
+| Runtime creation              | 0.205 s | 0.238 s | 0.248 s |
 
 All 100 requests completed with zero readiness, timing, or API-cleanup failures.
 Four took more than five seconds; the maximum was 6.080 seconds. Those agents

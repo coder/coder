@@ -11,14 +11,14 @@ This is an experimental host recipe under `provisioner/sandbox/experimental`, ou
 - Azure quota for the selected VM and two 128 GiB Premium disks. The default `Standard_B4ms` has 4 burstable vCPU and 16 GiB RAM. Its CPU credits constrain performance measurements; four provisioner workers do not imply capacity for four simultaneous benchmark workloads. Choose a suitable non-burstable SKU for sustained performance testing.
 - Outbound access to the Coder deployment, GitHub, Go downloads and module proxies, Ubuntu/Debian package repositories, and Docker Hub. Provider downloads also require access from the external provisioner.
 
-| Variable | Required/default | Purpose |
-| --- | --- | --- |
-| `azure_subscription_id` | Required | Nonsecret subscription UUID; authentication stays on the external provisioner. |
-| `coder_source_commit` | Required | Full lowercase 40-character public source commit SHA. No patch is embedded. |
+| Variable                  | Required/default                     | Purpose                                                                                                                |
+|---------------------------|--------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `azure_subscription_id`   | Required                             | Nonsecret subscription UUID; authentication stays on the external provisioner.                                         |
+| `coder_source_commit`     | Required                             | Full lowercase 40-character public source commit SHA. No patch is embedded.                                            |
 | `coder_source_repository` | `https://github.com/coder/coder.git` | Public GitHub clone URL, including a public fork when needed. Credentials, URL parameters, and fragments are rejected. |
-| `azure_location` | `eastus` | Region with sufficient quota. |
-| `azure_vm_size` | `Standard_B4ms` | Host SKU; allow at least 4 vCPU and 16 GiB RAM. |
-| `provisioner_tags` | `{}` | Nonsecret workspace routing tags for Azure-capable external provisioners. |
+| `azure_location`          | `eastus`                             | Region with sufficient quota.                                                                                          |
+| `azure_vm_size`           | `Standard_B4ms`                      | Host SKU; allow at least 4 vCPU and 16 GiB RAM.                                                                        |
+| `provisioner_tags`        | `{}`                                 | Nonsecret workspace routing tags for Azure-capable external provisioners.                                              |
 
 The network is scoped to this workspace: a `10.0.0.0/24` VNet, an outbound public IP, and an NSG denying all inbound traffic, including SSH and the inner HTTP port. The host uses a stable private address, `10.0.0.4`; the sandbox bridge uses `10.203.0.0/24`. Choose a different recipe configuration before first use if those networks conflict with connected infrastructure. Connect through the outer Coder agent. No managed identity is assigned to the VM by this recipe.
 
@@ -84,11 +84,11 @@ The inner server is headless and uses private HTTP on port 3020. Database and ad
 
 ## Lifecycle
 
-| Operation | Behavior |
-| --- | --- |
-| Start | Create the VM and OS disk, attach retained state, and run setup plus smoke validation. |
-| Stop | Delete the VM and OS disk; retain the state disk, public IP, and network resources. Those retained resources can continue to incur charges. |
-| Delete | Delete every managed resource, including the persistent state disk and its credentials/database. |
+| Operation | Behavior                                                                                                                                    |
+|-----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| Start     | Create the VM and OS disk, attach retained state, and run setup plus smoke validation.                                                      |
+| Stop      | Delete the VM and OS disk; retain the state disk, public IP, and network resources. Those retained resources can continue to incur charges. |
+| Delete    | Delete every managed resource, including the persistent state disk and its credentials/database.                                            |
 
 The state disk preserves PostgreSQL, native runtime journals, containerd data, source/build caches, tools, configuration, and delivered bootstrap assets. Home files and Docker's OS-disk image cache do not survive a stop. Azure requires an admin SSH key; Terraform generates one, does not output its private half, and retains it in sensitive Terraform state. Inbound SSH is denied.
 
