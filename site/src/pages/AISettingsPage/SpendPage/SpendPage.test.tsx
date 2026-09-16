@@ -182,7 +182,7 @@ it("applies a date preset and resets pagination", async () => {
 
 it("holds the date picker until the filtered report brings its retention bound", async () => {
 	const user = userEvent.setup();
-	const { spendSpy } = renderSpend(initialSearch, {
+	const { router, spendSpy } = renderSpend(initialSearch, {
 		retention_start: fixedNow.subtract(10, "day").toISOString(),
 	});
 	await screen.findByRole("table", { name: "Spend by user" });
@@ -195,7 +195,13 @@ it("holds the date picker until the filtered report brings its retention bound",
 	spendSpy.mockImplementationOnce(
 		() =>
 			new Promise((resolve) => {
-				deliverReport = () => resolve(loadedReport);
+				deliverReport = () =>
+					resolve({
+						...loadedReport,
+						count: 0,
+						totals: { cost_micros: 0, unpriced_usage_count: 0 },
+						users: [],
+					});
 			}),
 	);
 	await user.click(screen.getByRole("button", { name: "Select provider" }));
@@ -206,10 +212,21 @@ it("holds the date picker until the filtered report brings its retention bound",
 			expect.objectContaining({ provider_name: "openai" }),
 		),
 	);
-	expect(picker).toBeDisabled();
+
+	// Without the report's retention bound an open picker would offer this
+	// preset, which starts before retention.
+	const requestsBeforePicking = spendSpy.mock.calls.length;
+	await user.click(picker);
+	for (const preset of screen.queryAllByRole("button", {
+		name: "Last 30 days",
+	})) {
+		await user.click(preset);
+	}
+	expect(spendSpy).toHaveBeenCalledTimes(requestsBeforePicking);
+	expect(searchParam(router, "startDate")).toBe(period.period_start);
 
 	deliverReport();
-	await waitFor(() => expect(picker).toBeEnabled());
+	await screen.findByText("No AI Gateway spend matches these filters.");
 	await user.click(picker);
 	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
 	await waitFor(() =>
