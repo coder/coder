@@ -499,6 +499,9 @@ func (m *chatMutator) SubmitToolResults(
 	return nil
 }
 
+// translateToolResultValidationError maps chatstate validation errors to the
+// ToolResultValidationError shape HTTP handlers match on, so API error details
+// stay stable. Unrelated errors are returned unchanged.
 func translateToolResultValidationError(err error) error {
 	var v *chatstate.ToolResultValidationError
 	if !errors.As(err, &v) {
