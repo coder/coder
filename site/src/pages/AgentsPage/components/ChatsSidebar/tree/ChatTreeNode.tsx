@@ -35,6 +35,7 @@ import { getColumnLabel, INBOX_COLUMN } from "../../ChatBoard/boardLabels";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
+import { ColumnTag } from "./ColumnTag";
 import { getParentChatID, isBoardGroupMember } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
 import { getChatDisplayConfig } from "./statusConfig";
@@ -42,11 +43,17 @@ import { getChatDisplayConfig } from "./statusConfig";
 type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
+	/** Off inside a board group box, whose header already names the column. */
+	readonly showBoardColumn?: boolean;
 };
 
 const CHILD_INDENT_PX = 26;
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
+export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
+	chat,
+	depth = 0,
+	showBoardColumn: allowBoardColumn = true,
+}) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {
@@ -151,7 +158,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 	const boardColumn = getColumnLabel(chat);
 	const showBoardColumn =
-		boardColumn !== INBOX_COLUMN && !isBoardGroupMember(chat);
+		allowBoardColumn &&
+		boardColumn !== INBOX_COLUMN &&
+		!isBoardGroupMember(chat);
 
 	const canManage = canManageChat(chat, currentUserId);
 	const hasMenuActions = chatHasMenuActions(chat, {
@@ -268,11 +277,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{showBoardColumn && (
-											<span className="shrink-0 rounded bg-surface-tertiary px-1 text-[11px] leading-4 text-content-secondary">
-												{boardColumn}
-											</span>
-										)}
+										{showBoardColumn && <ColumnTag name={boardColumn} />}
 										{PRIcon && prIcon && (
 											<PRIcon
 												role="img"
