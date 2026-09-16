@@ -68,9 +68,9 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 	}
 }
 
-// scopeAllowlist wraps a request's scope list for storage. The spelling is
-// stored as given, matching the DCR path; readers canonicalize. An empty list
-// stores as an empty, valid string, meaning no allowlist.
+// scopeAllowlist wraps a scope list for storage. Every write path stores the
+// spelling as given; readers canonicalize. An empty list stores as an empty,
+// valid string, meaning no allowlist.
 func scopeAllowlist(raw string) sql.NullString {
 	return sql.NullString{
 		String: raw,
@@ -78,14 +78,13 @@ func scopeAllowlist(raw string) sql.NullString {
 	}
 }
 
-// writeValidScopeAllowlist reports whether a request's scope list may be
-// stored, writing a validation error when it may not. The check is explicit
-// rather than a validate tag so the response names the limit instead of
-// echoing the oversized value back.
-func writeValidScopeAllowlist(ctx context.Context, rw http.ResponseWriter, raw string) bool {
+// writeInvalidScopeError writes a 400 when a scope list is too large and
+// reports whether it did. The check is explicit rather than a validate tag so
+// the response names the limit instead of echoing the value back.
+func writeInvalidScopeError(ctx context.Context, rw http.ResponseWriter, raw string) bool {
 	err := codersdk.ValidateOAuth2ScopeList(raw)
 	if err == nil {
-		return true
+		return false
 	}
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Invalid scope.",
@@ -94,7 +93,7 @@ func writeValidScopeAllowlist(ctx context.Context, rw http.ResponseWriter, raw s
 			Detail: err.Error(),
 		}},
 	})
-	return false
+	return true
 }
 
 // CreateApp returns an http.HandlerFunc that handles POST /oauth2-provider/apps
@@ -114,7 +113,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
-		if !writeValidScopeAllowlist(ctx, rw, req.Scope) {
+		if writeInvalidScopeError(ctx, rw, req.Scope) {
 			return
 		}
 		app, err := db.InsertOAuth2ProviderApp(ctx, database.InsertOAuth2ProviderAppParams{
@@ -178,7 +177,7 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		}
 		scope := app.Scope // Keep existing value
 		if req.Scope != nil {
-			if !writeValidScopeAllowlist(ctx, rw, *req.Scope) {
+			if writeInvalidScopeError(ctx, rw, *req.Scope) {
 				return
 			}
 			scope = scopeAllowlist(*req.Scope)

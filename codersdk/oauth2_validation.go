@@ -28,10 +28,10 @@ const (
 // never split.
 func ValidateOAuth2ScopeList(raw string) error {
 	if len(raw) > OAuth2ScopeListMaxBytes {
-		return xerrors.Errorf("scope must be at most %d bytes", OAuth2ScopeListMaxBytes)
+		return xerrors.Errorf("must be at most %d bytes", OAuth2ScopeListMaxBytes)
 	}
 	if names := len(strings.Fields(raw)); names > OAuth2ScopeListMaxNames {
-		return xerrors.Errorf("scope must list at most %d names", OAuth2ScopeListMaxNames)
+		return xerrors.Errorf("must list at most %d names", OAuth2ScopeListMaxNames)
 	}
 	return nil
 }
