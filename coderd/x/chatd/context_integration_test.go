@@ -476,6 +476,29 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Len(t, pinned, 3)
 	require.Equal(t, rootV2Hash, pinned[rootSource].ContentHash, "refresh adopts the changed file")
 	require.Equal(t, hashV4, pinnedHash())
+
+	// A skill with the same name under a new source is the agent's
+	// deduplication winner replacing the pinned one: it is not added, and
+	// the missing old source marks the chat out of date.
+	replacementSkill := &agentproto.ContextResource{
+		Source:      "/home/coder/project/skills/deploy",
+		ContentHash: []byte{0x32},
+		SizeBytes:   16,
+		Status:      agentproto.ContextResource_OK,
+		Body: &agentproto.ContextResource_Skill{
+			Skill: &agentproto.SkillMetaBody{Meta: []byte("# deploy v2"), Name: "deploy", Description: "Deploy the app"},
+		},
+	}
+	hashV5 := []byte{0x05}
+	push(5, hashV5, instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), replacementSkill)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, got.Context.Dirty, "a replaced skill dirties the chat")
+	pinned = pinnedResources()
+	require.Len(t, pinned, 3)
+	require.NotContains(t, pinned, replacementSkill.Source, "the replacement is left for refresh")
+	require.Equal(t, skillHash, pinned[skillSource].ContentHash)
+	require.Equal(t, hashV4, pinnedHash())
 }
 
 // TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP
