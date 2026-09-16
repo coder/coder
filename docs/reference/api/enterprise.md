@@ -1556,7 +1556,7 @@ Status Code **200**
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `» scope`                 | string                                                               | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted.                                                                                                 |
+| `» scope`                 | string                                                               | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 #### Enumerated Values
 

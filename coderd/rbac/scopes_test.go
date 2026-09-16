@@ -1,6 +1,8 @@
 package rbac_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -323,6 +325,75 @@ func TestCanonicalScopeName(t *testing.T) {
 	require.Equal(t, rbac.ScopeApplicationConnect, rbac.CanonicalScopeName(rbac.ScopeApplicationConnect))
 	require.Equal(t, rbac.ScopeName("workspace:read"), rbac.CanonicalScopeName("workspace:read"))
 	require.Equal(t, rbac.ScopeName("not_a_real_scope"), rbac.CanonicalScopeName("not_a_real_scope"))
+}
+
+// TestCanonicalScopeList pins the display form of a stored allowlist.
+func TestCanonicalScopeList(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "empty", raw: "", want: ""},
+		// Whitespace-only is a configured allowlist that grants nothing, so it
+		// must not read back as the empty, unrestricted value.
+		{name: "whitespace_only", raw: "  \t\n ", want: "  \t\n "},
+		{name: "single", raw: "workspace:read", want: "workspace:read"},
+		{
+			name: "aliases_rewritten",
+			raw:  "all application_connect",
+			want: "coder:all coder:application_connect",
+		},
+		{
+			name: "alias_and_canonical_collapse",
+			raw:  "all coder:all application_connect coder:application_connect",
+			want: "coder:all coder:application_connect",
+		},
+		{
+			name: "duplicates_keep_first_seen_order",
+			raw:  "template:read workspace:read template:read workspace:read",
+			want: "template:read workspace:read",
+		},
+		{
+			name: "unknown_names_kept",
+			raw:  "workspace:read not_a_real_scope workspace:read not_a_real_scope",
+			want: "workspace:read not_a_real_scope",
+		},
+		{
+			name: "extra_whitespace_normalized",
+			raw:  "  workspace:read\t\ntemplate:read  ",
+			want: "workspace:read template:read",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, test.want, rbac.CanonicalScopeList(test.raw))
+		})
+	}
+
+	// A large list of distinct names must come back intact and in order
+	// without the dedupe going quadratic.
+	t.Run("large_distinct_list", func(t *testing.T) {
+		t.Parallel()
+
+		const count = 100_000
+		names := make([]string, 0, count)
+		for i := 0; i < count; i++ {
+			names = append(names, fmt.Sprintf("unknown:%d", i))
+		}
+		raw := strings.Join(names, " ")
+
+		got := rbac.CanonicalScopeList(raw)
+		require.Equal(t, raw, got)
+
+		// A repeated list collapses onto the first copy.
+		got = rbac.CanonicalScopeList(raw + " " + raw)
+		require.Equal(t, raw, got)
+	})
 }
 
 // TestScopesCoverEveryExternalScope asserts the property the OAuth2 allowlist
