@@ -30,10 +30,11 @@ import {
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
+import { getColumnLabel, INBOX_COLUMN } from "../../ChatBoard/boardLabels";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
-import { getParentChatID } from "./chatTree";
+import { getParentChatID, isBoardGroupMember } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
 import { getChatDisplayConfig } from "./statusConfig";
 
@@ -145,7 +146,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
+	// Board groups open by default so members stay visible next to the primary.
+	const hasBoardMembers = childIDs.some((childID) => {
+		const child = chatById.get(childID);
+		return child !== undefined && isBoardGroupMember(child);
+	});
+	const isExpanded = normalizedSearch
+		? true
+		: (expandedById[chatID] ?? hasBoardMembers);
+	const boardColumn = getColumnLabel(chat);
+	const showBoardColumn =
+		boardColumn !== INBOX_COLUMN && !isBoardGroupMember(chat);
 
 	const hasMenuActions = chatHasMenuActions(chat);
 
@@ -176,7 +187,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	};
 
 	return (
-		<div className="flex min-w-0 flex-col gap-0.5">
+		<div
+			className={cn(
+				"flex min-w-0 flex-col gap-0.5",
+				isBoardGroupMember(chat) && "border-l-2 border-content-link/40 ml-1",
+			)}
+		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
 					<div
@@ -257,6 +273,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
+										{showBoardColumn && (
+											<span className="shrink-0 rounded bg-surface-tertiary px-1 text-[11px] leading-4 text-content-secondary">
+												{boardColumn}
+											</span>
+										)}
 										{PRIcon && prIcon && (
 											<PRIcon
 												role="img"
