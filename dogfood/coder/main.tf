@@ -223,7 +223,8 @@ provider "docker" {
 provider "coder" {}
 
 data "coder_external_auth" "github" {
-  id = "github"
+  id       = "github"
+  optional = true
 }
 
 data "coder_workspace" "me" {}
@@ -1009,7 +1010,7 @@ resource "coder_app" "claude" {
 
 module "codex" {
   source            = "dev.registry.coder.com/coder-labs/codex/coder"
-  version           = "5.3.2"
+  version           = "5.4.0"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   enable_ai_gateway = true

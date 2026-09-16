@@ -313,7 +313,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
-		asyncRecorder := recorder.NewAsyncRecorder(logger, rec, recordingTimeout)
+		asyncRecorder := recorder.NewAsyncRecorder(rec, recordingTimeout)
 		asyncRecorder.WithMetrics(m)
 		asyncRecorder.WithProvider(p.Name())
 		asyncRecorder.WithModel(interceptor.Model())

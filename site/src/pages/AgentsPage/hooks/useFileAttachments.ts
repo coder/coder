@@ -11,6 +11,7 @@ import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
+	isRasterImageMediaType,
 	renameChatFileForUpload,
 } from "../utils/chatAttachments";
 import {
@@ -97,7 +98,7 @@ function restorePersistedAttachments(currentOrgId: string): {
 			});
 			attachments.push(file);
 			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
-			if (p.fileType.startsWith("image/")) {
+			if (isRasterImageMediaType(p.fileType)) {
 				previewUrls.set(file, getChatFileURL(p.fileId));
 			}
 		}
@@ -250,7 +251,7 @@ export function useFileAttachments(
 
 		const uploadOrgId = organizationId;
 		const uploadEpoch = adoptionEpochRef.current;
-		const isImage = file.type.startsWith("image/");
+		const isImage = isRasterImageMediaType(file.type);
 
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
@@ -377,7 +378,10 @@ export function useFileAttachments(
 			// animated GIF on Anthropic that we don't re-encode).
 			// Surface the error at attach time rather than letting
 			// the server backstop reject only at send time.
-			if (replacement.type.startsWith("image/") && replacement.size > budget) {
+			if (
+				isRasterImageMediaType(replacement.type) &&
+				replacement.size > budget
+			) {
 				setUploadStates((prev) =>
 					new Map(prev).set(replacement, {
 						status: "error" as const,

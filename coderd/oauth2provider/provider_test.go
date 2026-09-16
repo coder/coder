@@ -2,7 +2,11 @@ package oauth2provider_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,16 +40,16 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				},
 			},
 			{
-				name: "NameSpaces",
+				name: "NameTooLong",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo bar",
+					Name:        strings.Repeat("a", 65),
 					CallbackURL: "http://localhost:3000",
 				},
 			},
 			{
-				name: "NameTooLong",
+				name: "NameLeadingSpace",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "too loooooooooooooooooooooooooong",
+					Name:        " foo",
 					CallbackURL: "http://localhost:3000",
 				},
 			},
@@ -53,13 +57,6 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				name: "URLMissing",
 				req: codersdk.PostOAuth2ProviderAppRequest{
 					Name: "foo",
-				},
-			},
-			{
-				name: "URLLocalhostNoScheme",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "localhost:3000",
 				},
 			},
 			{
@@ -121,6 +118,148 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				//nolint:gocritic // OAuth2 app management requires owner permission.
 				_, err := client.PostOAuth2ProviderApp(testCtx, test.req)
 				require.Error(t, err)
+			})
+		}
+	})
+
+	t.Run("AcceptsDCRValues", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Values registered through Dynamic Client Registration (RFC 7591),
+		// such as a name with spaces and a custom native-app callback scheme,
+		// must be creatable and editable via the admin OAuth2 app settings.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "VS Code Coder Extension",
+			CallbackURL: "vscode://coder.coder-remote/oauth/callback",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "VS Code Coder Extension", app.Name)
+		require.Equal(t, "vscode://coder.coder-remote/oauth/callback", app.CallbackURL)
+
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "Cursor (MCP)",
+			CallbackURL: "cursor://anysphere.cursor-mcp/oauth/callback",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Cursor (MCP)", updated.Name)
+		require.Equal(t, "cursor://anysphere.cursor-mcp/oauth/callback", updated.CallbackURL)
+	})
+
+	t.Run("CallbackURLSchemes", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		tests := []struct {
+			name        string
+			callbackURL string
+			valid       bool
+		}{
+			{name: "OpaqueLocalhost", callbackURL: "localhost:3000"},
+			{name: "SchemeOnly", callbackURL: "vscode:"},
+			{name: "ShortSchemeOnly", callbackURL: "a:"},
+			{name: "EmptyNativeTarget", callbackURL: "vscode://"},
+			{name: "NativeScheme", callbackURL: "vscode://coder.coder-remote/oauth/callback", valid: true},
+			{name: "PathOnlyNativeScheme", callbackURL: "com.example.app:/oauth2redirect", valid: true},
+			{name: "UppercaseOOBURN", callbackURL: "URN:ietf:wg:oauth:2.0:oob", valid: true},
+			{name: "MalformedHTTP", callbackURL: "http:foo"},
+			{name: "HostlessHTTP", callbackURL: "http:/callback"},
+			{name: "HostlessHTTPS", callbackURL: "https:///callback"},
+			{name: "DangerousSchemeMixedCase", callbackURL: "JaVaScRiPt:alert(1)"},
+			{name: "DangerousDataSchemeMixedCase", callbackURL: "DaTa:text/plain,invalid"},
+			{name: "DangerousFileSchemeMixedCase", callbackURL: "FiLe:///tmp/invalid"},
+			{name: "DangerousFTPSchemeMixedCase", callbackURL: "FtP://example.com/invalid"},
+			{name: "UnsupportedURN", callbackURL: "urn:example:invalid"},
+			{name: "UnsupportedURNMixedCase", callbackURL: "URN:example:invalid"},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+					Name:        testutil.GetRandomName(t),
+					CallbackURL: "https://example.com/callback",
+				})
+				require.NoError(t, err)
+
+				_, postErr := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+					Name:        testutil.GetRandomName(t),
+					CallbackURL: test.callbackURL,
+				})
+				if test.valid {
+					require.NoError(t, postErr)
+				} else {
+					requireCallbackURLValidationError(t, postErr)
+				}
+
+				_, putErr := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+					Name:        testutil.GetRandomName(t),
+					CallbackURL: test.callbackURL,
+				})
+				if test.valid {
+					require.NoError(t, putErr)
+				} else {
+					requireCallbackURLValidationError(t, putErr)
+				}
+			})
+		}
+	})
+
+	t.Run("PublicDCRCallbackURLPolicy", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+
+		tests := []struct {
+			name        string
+			callbackURL string
+			valid       bool
+		}{
+			{name: "Mailto", callbackURL: "mailto:user@example.com"},
+			{name: "MailtoHierarchical", callbackURL: "mailto://user@example.com"},
+			{name: "TelHierarchical", callbackURL: "tel:/15551234567"},
+			{name: "SMSHierarchical", callbackURL: "sms:/15551234567"},
+			{name: "Tel", callbackURL: "tel:+15551234567"},
+			{name: "SMS", callbackURL: "sms:+15551234567"},
+			{name: "ExternalHTTP", callbackURL: "http://example.com/callback"},
+			{name: "Fragment", callbackURL: "https://example.com/callback#fragment"},
+			{name: "LoopbackHTTP", callbackURL: "http://127.0.0.1:8080/callback", valid: true},
+			{name: "Native", callbackURL: "com.example.app:/oauth2redirect", valid: true},
+			{name: "HTTPS", callbackURL: "https://example.com/updated-callback", valid: true},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+					ClientName:              testutil.GetRandomName(t),
+					RedirectURIs:            []string{"https://example.com/callback"},
+					TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
+				})
+				require.NoError(t, err)
+				appID, err := uuid.Parse(registered.ClientID)
+				require.NoError(t, err)
+
+				updated, err := client.PutOAuth2ProviderApp(ctx, appID, codersdk.PutOAuth2ProviderAppRequest{
+					Name:        testutil.GetRandomName(t),
+					CallbackURL: test.callbackURL,
+				})
+				if !test.valid {
+					requireCallbackURLValidationError(t, err)
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, test.callbackURL, updated.CallbackURL)
+				require.Equal(t, codersdk.OAuth2ClientTypePublic, updated.ClientType)
 			})
 		}
 	})
@@ -422,7 +561,17 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 	})
 }
 
-// Helper functions
+func requireCallbackURLValidationError(t *testing.T, err error) {
+	t.Helper()
+
+	require.Error(t, err)
+	var apiErr *codersdk.Error
+	require.True(t, errors.As(err, &apiErr))
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.True(t, slices.ContainsFunc(apiErr.Validations, func(validation codersdk.ValidationError) bool {
+		return validation.Field == "callback_url"
+	}), "expected callback_url validation error, got: %+v", apiErr.Validations)
+}
 
 type provisionedApps struct {
 	Default   codersdk.OAuth2ProviderApp

@@ -1518,6 +1518,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 [
   {
     "callback_url": "string",
+    "client_type": "confidential",
     "endpoints": {
       "authorization": "string",
       "device_authorization": "string",
@@ -1545,6 +1546,7 @@ Status Code **200**
 |---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
 | `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» client_type`           | [codersdk.OAuth2ClientType](schemas.md#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
 | `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
@@ -1553,6 +1555,12 @@ Status Code **200**
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+
+#### Enumerated Values
+
+| Property      | Value(s)                 |
+|---------------|--------------------------|
+| `client_type` | `confidential`, `public` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1593,6 +1601,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -1639,6 +1648,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -1697,6 +1707,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -5255,7 +5266,8 @@ curl -X POST http://coder-server:8080/oauth2/register \
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/revoke \
-  -H 'Accept: */*'
+  -H 'Accept: application/json' \
+  -H 'Authorization: Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ='
 ```
 
 `POST /oauth2/revoke`
@@ -5264,6 +5276,7 @@ curl -X POST http://coder-server:8080/oauth2/revoke \
 
 ```yaml
 client_id: string
+client_secret: string
 token: string
 token_type_hint: string
 
@@ -5271,23 +5284,35 @@ token_type_hint: string
 
 ### Parameters
 
-| Name                | In   | Type   | Required | Description                                           |
-|---------------------|------|--------|----------|-------------------------------------------------------|
-| `body`              | body | object | true     |                                                       |
-| `» client_id`       | body | string | true     | Client ID for authentication                          |
-| `» token`           | body | string | true     | The token to revoke                                   |
-| `» token_type_hint` | body | string | false    | Hint about token type (access_token or refresh_token) |
+| Name                | In     | Type   | Required | Description                                                                                                                                                        |
+|---------------------|--------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Authorization`     | header | string | false    | HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. |
+| `body`              | body   | object | false    |                                                                                                                                                                    |
+| `» client_id`       | body   | string | false    | Client ID, required unless sent as the HTTP Basic username                                                                                                         |
+| `» client_secret`   | body   | string | false    | Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.         |
+| `» token`           | body   | string | true     | The token to revoke                                                                                                                                                |
+| `» token_type_hint` | body   | string | false    | Hint about token type (access_token or refresh_token)                                                                                                              |
 
 ### Example responses
 
-> 413 Response
+> 400 Response
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "string",
+  "error_uri": "string"
+}
+```
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                | Schema                                                 |
-|--------|-------------------------------------------------------------------------|----------------------------|--------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked |                                                        |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| Status | Meaning                                                                 | Description                                                                                                                    | Schema                                                 |
+|--------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client                            |                                                        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 401    | [Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)         | invalid_client: the client is unknown, or a confidential client did not present a valid secret                                 | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                                                     | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## OAuth2 token exchange
 
