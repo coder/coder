@@ -31,7 +31,20 @@ func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
 		GetTemplateVersionByID(gomock.Any(), gomock.Any()).
 		Return(database.TemplateVersion{}, sql.ErrNoRows).
 		AnyTimes()
+	// A legacy snapshot ends the MCP discovery wait immediately.
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), gomock.Any()).
+		Return(database.WorkspaceAgent{}, nil).AnyTimes()
+	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+		Return(database.WorkspaceAgentContextSnapshot{}, nil).AnyTimes()
+	db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).
+		Return(nil, nil).AnyTimes()
 	return db
+}
+
+// noMCPWait skips the MCP discovery wait so readiness tests stay focused on
+// the agent connection and lifecycle phases.
+func noMCPWait(context.Context, uuid.UUID) MCPDiscoveryOutcome {
+	return MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown}
 }
 
 func TestCreateWorkspaceDescriptionSupportsWorkspaceFallback(t *testing.T) {
@@ -74,8 +87,9 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
-		require.Empty(t, result)
+		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn, noMCPWait)
+		require.Equal(t, map[string]any{"mcp_discovery": noMCPWait(context.Background(), agentID)}, result,
+			"a ready agent reports only its discovery outcome")
 	})
 
 	t.Run("AgentConnectTimeout", func(t *testing.T) {
@@ -93,7 +107,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn, noMCPWait)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})
@@ -130,7 +144,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, agent, connFn)
+		result := waitForAgentReady(ctx, db, agent, connFn, noMCPWait)
 		require.GreaterOrEqual(t, attempts, 1)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.Equal(t, ExternalAgentUnavailableMessage(agent), result["agent_error"])
@@ -167,7 +181,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, agent, connFn)
+		result := waitForAgentReady(context.Background(), db, agent, connFn, noMCPWait)
 		require.Equal(t, 2, attempts, "second attempt must run for Connecting external agents")
 		require.NotContains(t, result, "agent_status", "successful late connect must not surface not_ready")
 		require.NotContains(t, result, "agent_error")
@@ -190,7 +204,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn, noMCPWait)
 		require.Equal(t, "startup_scripts_failed", result["startup_scripts"])
 		require.Equal(t, "start_error", result["lifecycle_state"])
 	})
@@ -208,8 +222,13 @@ func TestWaitForAgentReady(t *testing.T) {
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			}, nil)
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
-		require.Empty(t, result)
+		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil, func(_ context.Context, id uuid.UUID) MCPDiscoveryOutcome {
+			require.Equal(t, agentID, id)
+			return MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete, ServersOK: 2, WaitTimedOut: true}
+		})
+		require.Equal(t, map[string]any{"mcp_discovery": MCPDiscoveryOutcome{
+			Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete, ServersOK: 2, WaitTimedOut: true,
+		}}, result, "a ready agent reports its discovery outcome")
 	})
 
 	t.Run("NilDB", func(t *testing.T) {
@@ -222,7 +241,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn)
+		result := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn, noMCPWait)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})

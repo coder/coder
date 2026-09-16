@@ -844,10 +844,10 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 	})
 }
 
-func TestPinnedWorkspaceMCPTools(t *testing.T) {
+func TestWorkspaceMCPForTurn(t *testing.T) {
 	t.Parallel()
 
-	// getConn is never dialed by these tests: pinnedWorkspaceMCPTools builds
+	// getConn is never dialed by these tests: workspaceMCPForTurn builds
 	// tool definitions from the snapshot and only wires the connection for
 	// later execution.
 	getConn := func(context.Context) (workspacesdk.AgentConn, error) {
@@ -864,8 +864,9 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			Return([]database.ChatContextResource{}, nil)
 		server := newPinServer(t, db)
 
-		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, note, err := server.workspaceMCPForTurn(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.NoError(t, err)
+		require.Empty(t, note, "an unbound chat has nothing to explain")
 		require.Empty(t, tools)
 	})
 
@@ -879,7 +880,7 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			Return(nil, xerrors.New("boom"))
 		server := newPinServer(t, db)
 
-		_, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		_, _, err := server.workspaceMCPForTurn(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.Error(t, err)
 	})
 
@@ -902,8 +903,9 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			}, nil)
 		server := newPinServer(t, db)
 
-		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, note, err := server.workspaceMCPForTurn(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.NoError(t, err)
+		require.Empty(t, note, "an unbound chat has nothing to explain")
 		require.Len(t, tools, 2)
 		require.Equal(t, "github__create_issue", tools[0].Info().Name)
 		require.Equal(t, "github__search", tools[1].Info().Name)
@@ -924,8 +926,38 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			}, nil)
 		server := newPinServer(t, db)
 
-		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, note, err := server.workspaceMCPForTurn(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.NoError(t, err)
+		require.Empty(t, note, "an unbound chat has nothing to explain")
 		require.Empty(t, tools)
+	})
+	t.Run("IncompleteDiscoveryReturnsNote", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		agentID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				mcpServerResource(t, "github", &agentproto.MCPServerBody{
+					ServerName: "github",
+					Tools:      []*agentproto.MCPTool{{Name: "search"}},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		expectWorkspaceMCPViewTx(db)
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+			Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-b"}, nil)
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete}, nil)
+		server := newPinServer(t, db)
+
+		tools, note, err := server.workspaceMCPForTurn(context.Background(), database.Chat{
+			ID:      chatID,
+			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		}, getConn)
+		require.NoError(t, err)
+		require.Empty(t, tools, "a previous process's definitions are withheld")
+		require.Contains(t, note, "previous agent process")
 	})
 }
