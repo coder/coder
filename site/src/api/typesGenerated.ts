@@ -7010,6 +7010,16 @@ export interface OrganizationAISpendFilter {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendPage selects one page of the per-user report, which
+ * pages by offset only. A zero Limit uses the server default.
+ */
+export interface OrganizationAISpendPage {
+	readonly limit?: number;
+	readonly offset?: number;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendReport is one page of per-user AI spend for an
  * organization over the applied period. Count and Totals cover every
  * matching user, not only the returned page.

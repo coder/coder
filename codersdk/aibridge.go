@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -526,16 +527,35 @@ func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uui
 	return res.Body, nil
 }
 
+// OrganizationAISpendPage selects one page of the per-user report, which
+// pages by offset only. A zero Limit uses the server default.
+type OrganizationAISpendPage struct {
+	Limit  int `json:"limit,omitempty"`
+	Offset int `json:"offset,omitempty"`
+}
+
+func (p OrganizationAISpendPage) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if p.Limit > 0 {
+			q.Set("limit", strconv.Itoa(p.Limit))
+		}
+		if p.Offset > 0 {
+			q.Set("offset", strconv.Itoa(p.Offset))
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // OrganizationAISpendUsers returns one page of per-user AI spend for the
 // organization matching the filter. It accounts for the same token usage as
-// ExportOrganizationAISpend over the same period. A zero pagination limit uses
-// the server default.
-func (c *Client) OrganizationAISpendUsers(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendFilter, pagination Pagination) (OrganizationAISpendReport, error) {
+// ExportOrganizationAISpend over the same period.
+func (c *Client) OrganizationAISpendUsers(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendFilter, page OrganizationAISpendPage) (OrganizationAISpendReport, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/users", organization.String()),
 		nil,
 		filter.asRequestOption(),
-		pagination.asRequestOption(),
+		page.asRequestOption(),
 	)
 	if err != nil {
 		return OrganizationAISpendReport{}, xerrors.Errorf("make request: %w", err)
