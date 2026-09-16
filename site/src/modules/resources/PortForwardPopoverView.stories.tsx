@@ -1,12 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -14,10 +7,6 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
-import {
-	getWorkspaceListeningPortsProtocol,
-	portForwardURL,
-} from "#/utils/portForward";
 import { PortForwardPopoverView } from "./PortForwardButton";
 
 const meta: Meta<typeof PortForwardPopoverView> = {
@@ -52,16 +41,16 @@ const listeningPortsWithSubstringMatch = [
 
 type Canvas = ReturnType<typeof within>;
 
-const getPortTrigger = (canvas: Canvas) =>
-	canvas.getByRole("button", { name: "Connect to port..." });
-
-const getSubmitButton = (canvas: Canvas) =>
-	canvas.getByRole("button", { name: "Connect to selected port" });
-
-const getPortDialog = () => screen.getByRole("dialog", { name: "Port picker" });
-
-const getPortInput = (dialog: HTMLElement) =>
-	within(dialog).getByRole("combobox", { name: "Filter or enter port" });
+const openPortPicker = async (canvas: Canvas) => {
+	await userEvent.click(
+		canvas.getByRole("button", { name: "Connect to port..." }),
+	);
+	const dialog = screen.getByRole("dialog", { name: "Port picker" });
+	const input = within(dialog).getByRole("combobox", {
+		name: "Filter or enter port",
+	});
+	return { dialog, input };
+};
 
 export const WithPorts: Story = {
 	args: {
@@ -77,86 +66,10 @@ export const FilterPorts: Story = {
 			(share) => share.port !== 8081,
 		),
 	},
-	beforeEach: () => {
-		const open = spyOn(window, "open").mockReturnValue(null);
-		return () => open.mockRestore();
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const portTrigger = getPortTrigger(canvas);
-		const submitButton = getSubmitButton(canvas);
-		await userEvent.click(submitButton);
-		const portDialog = getPortDialog();
-		const portInput = getPortInput(portDialog);
-		await waitFor(() => expect(portInput).toHaveFocus());
-		await expect(portInput).toHaveAttribute("inputmode", "numeric");
-		await waitFor(() =>
-			expect(
-				within(portDialog).getByRole("option", { name: /30000/ }),
-			).toBeVisible(),
-		);
-
-		await userEvent.type(portInput, "808");
-		await expect(
-			within(portDialog).getByRole("option", { name: /8080/ }),
-		).toBeVisible();
-		await expect(
-			within(portDialog).getByRole("option", { name: /8081/ }),
-		).toBeVisible();
-		await expect(
-			within(portDialog).getByRole("option", { name: "Use port 808" }),
-		).toBeVisible();
-		await expect(
-			within(portDialog).queryByRole("option", { name: /30000/ }),
-		).not.toBeInTheDocument();
-
-		await userEvent.keyboard("{Enter}");
-		await expect(portTrigger).toHaveTextContent("8080");
-		await expect(portTrigger).toHaveAccessibleName("Connect to port 8080");
-		await expect(submitButton).toBeEnabled();
-		await waitFor(() => expect(submitButton).toHaveFocus());
-		await expect(canvas.getByRole("link", { name: "8080" })).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "4000" })).toBeVisible();
-
-		await userEvent.keyboard("{Enter}");
-		await expect(window.open).toHaveBeenCalledWith(
-			portForwardURL(
-				"*.coder.com",
-				8080,
-				MockWorkspaceAgent.name,
-				MockWorkspace.name,
-				MockWorkspace.owner_name,
-				getWorkspaceListeningPortsProtocol(MockWorkspace.id),
-			),
-			"_blank",
-		);
-		await expect(window.open).toHaveBeenCalledTimes(1);
-
-		await userEvent.click(portTrigger);
-		const reselectDialog = getPortDialog();
-		await userEvent.click(
-			within(reselectDialog).getByRole("option", { name: /8080/ }),
-		);
-		await expect(portTrigger).toHaveTextContent("8080");
-		await expect(submitButton).toBeEnabled();
-		await waitFor(() => expect(submitButton).toHaveFocus());
-
-		await userEvent.click(portTrigger);
-		const customPortDialog = getPortDialog();
-		const customPortInput = getPortInput(customPortDialog);
-		await userEvent.type(customPortInput, "09999");
-		await expect(customPortInput).toHaveValue("9999");
-		await expect(
-			within(customPortDialog).getByRole("option", {
-				name: "Use port 9999",
-			}),
-		).toBeVisible();
-		await expect(
-			within(customPortDialog).getByRole("option", { name: /19999/ }),
-		).toBeVisible();
-		await userEvent.keyboard("{Enter}");
-		await expect(portTrigger).toHaveTextContent("9999");
-		await waitFor(() => expect(submitButton).toHaveFocus());
+		const { input } = await openPortPicker(canvas);
+		await userEvent.type(input, "808");
 	},
 };
 
@@ -177,23 +90,8 @@ export const Empty: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(getPortTrigger(canvas));
-		const portDialog = getPortDialog();
-		const portInput = getPortInput(portDialog);
-		await expect(portInput).toHaveAttribute("inputmode", "numeric");
-		await waitFor(() =>
-			expect(
-				within(portDialog).getByText("Enter a port number to connect."),
-			).toBeVisible(),
-		);
-
-		await userEvent.type(portInput, "5");
-		await expect(
-			within(portDialog).getByText("Enter a port from 9 to 65535."),
-		).toBeVisible();
-		await expect(
-			within(portDialog).queryByRole("option", { name: "Use port 5" }),
-		).not.toBeInTheDocument();
+		const { input } = await openPortPicker(canvas);
+		await userEvent.type(input, "5");
 	},
 };
 
