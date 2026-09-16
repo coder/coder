@@ -51,7 +51,10 @@ export const findAssistant = (
 
 // Leads with the card name so the server's automatic title lands close to
 // the one set below, should it win the race.
-const snapshot = (card: BoardCard, workspaceMissing: boolean): string => {
+export const snapshot = (
+	card: BoardCard,
+	workspaceMissing: boolean,
+): string => {
 	const notes = [...card.comments]
 		.sort((a, b) => a.timestamp - b.timestamp)
 		.map(
