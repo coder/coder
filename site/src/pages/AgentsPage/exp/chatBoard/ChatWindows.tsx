@@ -17,7 +17,16 @@ const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
 const DEFAULT_SIZE = { width: 520, height: 640 };
 const MIN_SIZE = { width: 320, height: 240 };
+/** Space kept between a window and the viewport edge. */
 const MARGIN = 12;
+/** Space between a window and the card element it opens beside. */
+const ANCHOR_GAP_PX = 8;
+
+// The default size, shrunk on small viewports so the margin survives.
+const fittedSize = () => ({
+	width: Math.min(DEFAULT_SIZE.width, window.innerWidth - 2 * MARGIN),
+	height: Math.min(DEFAULT_SIZE.height, window.innerHeight - 2 * MARGIN),
+});
 
 /** A window beside `anchor`, to its right when there is room, kept on screen. */
 export const windowBeside = (
@@ -25,25 +34,18 @@ export const windowBeside = (
 	anchor: DOMRect,
 	pinned: boolean,
 ): ChatWindow => {
-	const { width, height } = DEFAULT_SIZE;
-	const vw = window.innerWidth;
-	const vh = window.innerHeight;
-	const fitsRight = anchor.right + 8 + width <= vw - MARGIN;
-	const x = fitsRight ? anchor.right + 8 : anchor.left - 8 - width;
-	return clampWindow({
-		chatId,
-		x,
-		y: anchor.top,
-		width: Math.min(width, vw - 2 * MARGIN),
-		height: Math.min(height, vh - 2 * MARGIN),
-		pinned,
-	});
+	const { width, height } = fittedSize();
+	const fitsRight =
+		anchor.right + ANCHOR_GAP_PX + width <= window.innerWidth - MARGIN;
+	const x = fitsRight
+		? anchor.right + ANCHOR_GAP_PX
+		: anchor.left - ANCHOR_GAP_PX - width;
+	return clampWindow({ chatId, x, y: anchor.top, width, height, pinned });
 };
 
 /** A pinned window in the middle of the viewport, for chats opened without a card in view. */
 export const windowCentered = (chatId: string): ChatWindow => {
-	const width = Math.min(DEFAULT_SIZE.width, window.innerWidth - 2 * MARGIN);
-	const height = Math.min(DEFAULT_SIZE.height, window.innerHeight - 2 * MARGIN);
+	const { width, height } = fittedSize();
 	return {
 		chatId,
 		x: (window.innerWidth - width) / 2,

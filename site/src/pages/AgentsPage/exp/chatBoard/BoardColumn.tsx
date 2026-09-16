@@ -18,7 +18,7 @@ import type {
 import { columnColor, INBOX_COLUMN } from "./boardLabels";
 import type { DropTarget } from "./ChatBoardPage";
 import { dragHandleListeners } from "./dragHandle";
-import { InlineEdit } from "./InlineText";
+import { InlineEdit } from "./InlineEdit";
 
 const columnDropId = (name: string) => `column:${name}`;
 const columnDragId = (name: string) => `column-drag:${name}`;
