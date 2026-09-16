@@ -711,6 +711,7 @@ func (f *blockingFetcher) Fetch(ctx context.Context, _ codersdk.CryptoKeyFeature
 		return res.keys, res.err
 	}
 }
+
 func keyID(key codersdk.CryptoKey) string {
 	return strconv.FormatInt(int64(key.Sequence), 10)
 }
