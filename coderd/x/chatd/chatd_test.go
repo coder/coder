@@ -6256,11 +6256,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		thresholdPercent  = int32(70)
 	)
 
-	seedOverrideModel := func(ctx context.Context, t *testing.T, db database.Store, chatModel database.ChatModelConfig, modelName, effort string, contextLimit int64) database.ChatModelConfig {
+	seedOverrideModel := func(ctx context.Context, t *testing.T, db database.Store, chatModel database.ChatModelConfig, aiProviderID uuid.UUID, modelName, effort string, contextLimit int64) database.ChatModelConfig {
 		t.Helper()
 		overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 			Model:          modelName,
-			AIProviderID:   chatModel.AIProviderID,
+			AIProviderID:   uuid.NullUUID{UUID: aiProviderID, Valid: true},
 			ContextLimit:   contextLimit,
 			OrganizationID: chatModel.OrganizationID,
 		})
@@ -6282,6 +6282,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		name                 string
 		overrideModel        string
 		effort               string
+		separateProvider     bool
 		assertSummaryRequest func(t *testing.T, req *chattest.AnthropicRequest)
 	}{
 		{
@@ -6315,6 +6316,17 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				require.Contains(t, string(req.Thinking), `"type":"adaptive"`)
 			},
 		},
+		{
+			// A separate provider instance shares no prompt cache with the
+			// chat model, so the summary request carries no tool definitions.
+			name:             "override on a separate provider instance",
+			overrideModel:    overrideModelName,
+			effort:           "high",
+			separateProvider: true,
+			assertSummaryRequest: func(t *testing.T, req *chattest.AnthropicRequest) {
+				require.Empty(t, req.Tools)
+			},
+		},
 	}
 
 	for _, tc := range routingCases {
@@ -6330,6 +6342,9 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				if !req.Stream {
 					if strings.Contains(body, "You are performing a context compaction") {
 						require.Equal(t, tc.overrideModel, req.Model)
+						if !tc.separateProvider {
+							require.NotEmpty(t, req.Tools)
+						}
 						tc.assertSummaryRequest(t, req)
 						return anthropicCompactionResponse(compactionSummary)
 					}
@@ -6353,7 +6368,15 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			})
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 			model = updateChatModelCompressionThreshold(t, db, model, 100, thresholdPercent)
-			overrideModel := seedOverrideModel(ctx, t, db, model, tc.overrideModel, tc.effort, 1_000_000)
+			overrideProviderID := model.AIProviderID.UUID
+			if tc.separateProvider {
+				overrideProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic}, func(params *database.InsertAIProviderParams) {
+					params.BaseUrl = anthropicURL
+				})
+				dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: overrideProvider.ID})
+				overrideProviderID = overrideProvider.ID
+			}
+			overrideModel := seedOverrideModel(ctx, t, db, model, overrideProviderID, tc.overrideModel, tc.effort, 1_000_000)
 			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 			ctrl := gomock.NewController(t)
@@ -6460,7 +6483,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		// limit makes the effective threshold 70 tokens, so compaction
 		// must trigger.
 		model = updateChatModelCompressionThreshold(t, db, model, 1_000, thresholdPercent)
-		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 100)
+		seedOverrideModel(ctx, t, db, model, model.AIProviderID.UUID, overrideModelName, "high", 100)
 		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 		ctrl := gomock.NewController(t)
