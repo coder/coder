@@ -728,6 +728,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 		dv.Sessions.DefaultDuration = serpent.Duration(access)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
 		dv.AI.Chat.HookTimeout = serpent.Duration(1500 * time.Millisecond)
+		dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(10 * time.Minute)
 		return dv
 	}
 
@@ -932,9 +933,42 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
 			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
 			dv.AI.Chat.HookAllowInsecure = serpent.Bool(tt.allowInsecure)
+			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(10 * time.Minute)
 			if tt.url != "" {
 				require.NoError(t, dv.AI.Chat.HookURL.Set(tt.url))
 			}
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		wantErr string
+	}{
+		{name: "BelowMinimum", timeout: 10*time.Minute - time.Second, wantErr: "chat stream silence timeout"},
+		{name: "Minimum", timeout: 10 * time.Minute},
+		{name: "Raised", timeout: 30 * time.Minute},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := &codersdk.DeploymentValues{}
+			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
+			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(tt.timeout)
 
 			err := dv.Validate()
 			if tt.wantErr == "" {

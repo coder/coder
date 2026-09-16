@@ -19764,6 +19764,10 @@ const docTemplate = `{
                 },
                 "hook_url": {
                     "$ref": "#/definitions/serpent.URL"
+                },
+                "stream_silence_timeout": {
+                    "description": "StreamSilenceTimeout bounds how long a Coder Agents model stream may\nstay silent before the attempt is canceled and retried.",
+                    "type": "integer"
                 }
             }
         },

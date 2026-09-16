@@ -1790,6 +1790,17 @@ How often to reconcile workspace prebuilds state.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --chat-stream-silence-timeout
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>duration</code>                           |
+| Environment | <code>$CODER_CHAT_STREAM_SILENCE_TIMEOUT</code> |
+| YAML        | <code>chat.streamSilenceTimeout</code>          |
+| Default     | <code>10m0s</code>                              |
+
+Maximum time a Coder Agents model stream may stay silent before the attempt is canceled and retried. The timer starts when the request opens and resets on every streamed part, so it also bounds time to first token. Raise it for slow local models.
+
 ### --ai-gateway-enabled
 
 |             |                                        |

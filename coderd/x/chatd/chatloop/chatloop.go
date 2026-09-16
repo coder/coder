@@ -34,10 +34,11 @@ import (
 )
 
 const (
-	// defaultStreamSilenceTimeout bounds how long an individual
+	// DefaultStreamSilenceTimeout bounds how long an individual
 	// model attempt may go without receiving a stream part before
-	// the attempt is canceled and retried.
-	defaultStreamSilenceTimeout = 10 * time.Minute
+	// the attempt is canceled and retried. Callers may override it
+	// with GenerateAssistantOptions.StreamSilenceTimeout.
+	DefaultStreamSilenceTimeout = 10 * time.Minute
 	streamSilenceGuardTimerTag  = "streamSilenceGuard"
 )
 
@@ -278,7 +279,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
 	if opts.StreamSilenceTimeout <= 0 {
-		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
+		opts.StreamSilenceTimeout = DefaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()

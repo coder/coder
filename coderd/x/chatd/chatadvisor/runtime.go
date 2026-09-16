@@ -2,6 +2,7 @@ package chatadvisor
 
 import (
 	"sync/atomic"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
@@ -15,6 +16,9 @@ type RuntimeConfig struct {
 	CallTemplate    fantasy.Call
 	MaxUsesPerRun   int
 	MaxOutputTokens int64
+	// StreamSilenceTimeout bounds how long a nested advisor stream may stay
+	// silent. Zero uses chatloop.DefaultStreamSilenceTimeout.
+	StreamSilenceTimeout time.Duration
 }
 
 // Runtime executes nested, tool-less advisor runs against the configured

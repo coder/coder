@@ -4394,6 +4394,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "aiGatewayRoutingEnabled",
 			Hidden:      true,
 		},
+		{
+			Name:        "Chat: Stream Silence Timeout",
+			Description: "Maximum time a Coder Agents model stream may stay silent before the attempt is canceled and retried. The timer starts when the request opens and resets on every streamed part, so it also bounds time to first token. Raise it for slow local models.",
+			Flag:        "chat-stream-silence-timeout",
+			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
+			Value:       &c.AI.Chat.StreamSilenceTimeout,
+			Default:     (10 * time.Minute).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "streamSilenceTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4879,6 +4890,9 @@ type ChatConfig struct {
 	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
 	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	// StreamSilenceTimeout bounds how long a Coder Agents model stream may
+	// stay silent before the attempt is canceled and retried.
+	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -4992,6 +5006,10 @@ func (c *DeploymentValues) Validate() error {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
 		}
+	}
+
+	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout < 10*time.Minute {
+		return xerrors.Errorf("chat stream silence timeout (%s) must be at least 10m; set --chat-stream-silence-timeout to a valid duration", timeout)
 	}
 
 	// Gated on the builder being enabled and run here rather than as a per-option

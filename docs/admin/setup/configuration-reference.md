@@ -418,6 +418,15 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 - YAML key: `chat.debugLoggingEnabled`
 - Default value: `false`
 
+### Stream silence timeout
+
+Maximum time a Coder Agents model stream may stay silent before the attempt is canceled and retried. The timer starts when the request opens and resets on every streamed part, so it also bounds time to first token. Raise it for slow local models.
+
+- Environment variable: `CODER_CHAT_STREAM_SILENCE_TIMEOUT`
+- CLI flag: [`--chat-stream-silence-timeout`](../../reference/cli/server.md#--chat-stream-silence-timeout)
+- YAML key: `chat.streamSilenceTimeout`
+- Default value: `10m0s`
+
 ## Client
 
 These options change the behavior of how clients interact with the Coder. Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

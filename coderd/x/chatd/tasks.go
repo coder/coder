@@ -25,10 +25,12 @@ import (
 
 const (
 	postCommitWatchPublishTimeout = 10 * time.Second
-	// defaultTaskTimeout must exceed chatloop's stream-silence guard so
-	// silent provider streams fail through chat-specific retry handling
-	// before the runner retries the whole task.
-	defaultTaskTimeout = 15 * time.Minute
+	// taskTimeoutMargin is the headroom the per-attempt task budget keeps
+	// above chatloop's stream-silence guard so silent provider streams fail
+	// through chat-specific retry handling before the runner retries the
+	// whole task.
+	taskTimeoutMargin  = 5 * time.Minute
+	defaultTaskTimeout = chatloop.DefaultStreamSilenceTimeout + taskTimeoutMargin
 )
 
 var (
@@ -60,6 +62,7 @@ type retryWrapperOptions struct {
 	logger       slog.Logger
 	initialDelay time.Duration
 	maxDelay     time.Duration
+	taskTimeout  time.Duration
 }
 
 type retryWrapperTaskInfo struct {
@@ -91,9 +94,12 @@ func runTaskWithRetry(
 	if opts.maxDelay < opts.initialDelay {
 		opts.maxDelay = opts.initialDelay
 	}
+	if opts.taskTimeout <= 0 {
+		opts.taskTimeout = defaultTaskTimeout
+	}
 	delay := opts.initialDelay
 	for {
-		attemptCtx, cancelAttempt := taskAttemptContext(ctx, opts.clock, kind)
+		attemptCtx, cancelAttempt := taskAttemptContext(ctx, opts.clock, opts.taskTimeout, kind)
 		err := executeTaskSafely(attemptCtx, fn)
 		timedOut := errors.Is(context.Cause(attemptCtx), errTaskTimeout)
 		cancelAttempt()
@@ -154,9 +160,9 @@ func runTaskWithRetry(
 	}
 }
 
-func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
+func taskAttemptContext(ctx context.Context, clock quartz.Clock, timeout time.Duration, kind taskKind) (context.Context, func()) {
 	attemptCtx, cancelCause := context.WithCancelCause(ctx)
-	timer := clock.AfterFunc(defaultTaskTimeout, func() {
+	timer := clock.AfterFunc(timeout, func() {
 		cancelCause(errTaskTimeout)
 	}, "chatworker", "task-timeout-"+string(kind))
 	return attemptCtx, func() {
@@ -237,6 +243,7 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 		logger:       o.Logger,
 		initialDelay: o.TaskRetryInitialBackoff,
 		maxDelay:     o.TaskRetryMaxBackoff,
+		taskTimeout:  o.TaskTimeout,
 	}
 }
 

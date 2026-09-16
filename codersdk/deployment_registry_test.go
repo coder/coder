@@ -90,6 +90,7 @@ func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 		dv := &codersdk.DeploymentValues{}
 		dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+		dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(10 * time.Minute)
 		return dv
 	}
 

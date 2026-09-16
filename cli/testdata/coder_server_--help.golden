@@ -222,6 +222,12 @@ Configure the background chat processing daemon.
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
 
+      --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
+          Maximum time a Coder Agents model stream may stay silent before the
+          attempt is canceled and retried. The timer starts when the request
+          opens and resets on every streamed part, so it also bounds time to
+          first token. Raise it for slow local models.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

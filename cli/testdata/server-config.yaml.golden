@@ -855,6 +855,12 @@ chat:
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
+  # Maximum time a Coder Agents model stream may stay silent before the attempt is
+  # canceled and retried. The timer starts when the request opens and resets on
+  # every streamed part, so it also bounds time to first token. Raise it for slow
+  # local models.
+  # (default: 10m0s, type: duration)
+  streamSilenceTimeout: 10m0s
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.

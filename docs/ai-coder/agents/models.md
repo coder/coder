@@ -90,6 +90,25 @@ Examples:
 
 Confirm the exact endpoint/base URL in your provider or proxy documentation.
 
+### Slow local models
+
+Coder cancels and retries a model attempt when the response stream sends no
+data for the stream silence timeout. The default is `10m`. The timer starts
+when Coder opens the request and resets on every streamed part, so it also
+bounds the time to first token. A local model that spends a long time on
+prompt processing before it emits the first token can trigger it.
+
+Raise the timeout for slow local models with
+[`CODER_CHAT_STREAM_SILENCE_TIMEOUT`](../../reference/cli/server.md#--chat-stream-silence-timeout):
+
+```shell
+CODER_CHAT_STREAM_SILENCE_TIMEOUT=30m
+```
+
+The value cannot be lower than the default `10m`. A higher value also delays
+how quickly Coder detects a hung stream, so keep it close to the slowest
+response time you expect.
+
 ## Provider credentials and security
 
 Provider API keys entered in the dashboard are stored encrypted in the Coder
