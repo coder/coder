@@ -5,14 +5,14 @@ Choose the one that matches the platform your team already operates, then follow
 
 ## Choose a platform
 
-| Platform                                      | Best suited to                                                             |
-|-----------------------------------------------|----------------------------------------------------------------------------|
-| [Kubernetes](./kubernetes.md)                 | Production deployments, including high availability with multiple replicas |
-| [Rancher](./rancher.md)                       | Kubernetes clusters your team already manages through Rancher              |
-| [OpenShift](./openshift.md)                   | Red Hat OpenShift clusters, which need specific security context settings  |
-| [Docker](./docker.md)                         | A single machine, such as a proof of concept or a small team deployment    |
-| [Cloud providers](./cloud/index.md)           | A virtual machine on AWS, Google Cloud, or Azure, or a marketplace listing |
-| [Unofficial install methods](./unofficial.md) | Community-contributed methods that Coder doesn't support directly          |
+| Platform                                    | Best suited to                                                               |
+|---------------------------------------------|------------------------------------------------------------------------------|
+| [Kubernetes](./kubernetes.md)               | Production deployments, including high availability with multiple replicas   |
+| [Rancher](./rancher.md)                     | Kubernetes clusters your team already manages through Rancher                |
+| [OpenShift](./openshift.md)                 | Red Hat OpenShift clusters, which need specific security context settings    |
+| [Docker](./docker.md)                       | A single machine, such as a proof of concept or a small team deployment      |
+| [Cloud providers](./cloud/index.md)         | A virtual machine on AWS, Google Cloud, or Azure, or a marketplace listing   |
+| [Community install methods](./community.md) | Platforms Coder doesn't package, where a community-contributed method exists |
 
 If your platform choice is still open, size the deployment first in [Plan your deployment](../plan/index.md).
 The [Coder Validated Architecture](../plan/sizing/index.md) reference designs assume Kubernetes, which is the recommended platform for deployments that others depend on.
