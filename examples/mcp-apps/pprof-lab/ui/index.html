@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pprof lab</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fafafa;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --card: #fff;
+    --border: #ddd;
+    --accent: #2563eb;
+    --ok: #16a34a;
+    --danger: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111315;
+      --fg: #e6e6e6;
+      --muted: #9a9a9a;
+      --card: #1b1e21;
+      --border: #333;
+      --accent: #60a5fa;
+      --ok: #4ade80;
+      --danger: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px;
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .spacer { flex: 1; }
+  header a { color: var(--accent); }
+  .strip {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    margin-bottom: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+  .strip span b { font-weight: 600; }
+  .strip span small { color: var(--muted); margin-right: 4px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card .title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .title code { font-size: 14px; font-weight: 600; }
+  .badge {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .badge.running {
+    color: var(--ok);
+    border-color: var(--ok);
+  }
+  .desc { color: var(--muted); margin: 0; }
+  .knobs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .knobs label {
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .knobs input {
+    width: 110px;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
+  }
+  .actions { display: flex; gap: 8px; }
+  button {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--fg);
+    font: inherit;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary { border-color: var(--accent); color: var(--accent); }
+  button.danger { border-color: var(--danger); color: var(--danger); }
+  .state {
+    margin: 0;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--muted);
+    white-space: pre-wrap;
+  }
+  .error {
+    color: var(--danger);
+    min-height: 1.4em;
+    margin-bottom: 4px;
+  }
+  .error:empty { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>pprof lab</h1>
+  <a href="/debug/pprof/">/debug/pprof/</a>
+  <span class="spacer"></span>
+  <button id="reset" class="danger" title="Stop everything, run GC, return memory to the OS">Reset</button>
+</header>
+<div class="strip" id="strip">
+  <span><small>goroutines</small><b id="s-goroutines">-</b></span>
+  <span><small>heap in-use</small><b id="s-heap">-</b></span>
+  <span><small>heap objects</small><b id="s-objects">-</b></span>
+  <span><small>GCs</small><b id="s-gc">-</b></span>
+  <span><small>uptime</small><b id="s-uptime">-</b></span>
+  <span><small>go</small><b id="s-go">-</b></span>
+</div>
+<div id="status-error" class="error"></div>
+<div id="action-error" class="error"></div>
+<div class="grid" id="cards"></div>
+
+<script>
+(() => {
+  const cards = new Map();
+  const statusErrorEl = document.getElementById("status-error");
+  const actionErrorEl = document.getElementById("action-error");
+
+  function fmtBytes(n) {
+    if (n >= 1 << 30) return (n / (1 << 30)).toFixed(2) + " GiB";
+    if (n >= 1 << 20) return (n / (1 << 20)).toFixed(1) + " MiB";
+    if (n >= 1 << 10) return (n / (1 << 10)).toFixed(0) + " KiB";
+    return n + " B";
+  }
+
+  function fmtUptime(s) {
+    s = Math.floor(s);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return (h ? h + "h " : "") + (h || m ? m + "m " : "") + sec + "s";
+  }
+
+  function showStatusError(msg) {
+    statusErrorEl.textContent = msg || "";
+  }
+
+  function showActionError(msg) {
+    actionErrorEl.textContent = msg || "";
+  }
+
+  async function post(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* non-JSON error body */ }
+    if (!res.ok) {
+      throw new Error((data && data.error) || (res.status + " " + res.statusText));
+    }
+    return data;
+  }
+
+  function buildCard(sc) {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const title = document.createElement("div");
+    title.className = "title";
+    const name = document.createElement("code");
+    name.textContent = sc.name;
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    title.append(name, badge);
+
+    const desc = document.createElement("p");
+    desc.className = "desc";
+    desc.textContent = sc.description;
+
+    const knobs = document.createElement("div");
+    knobs.className = "knobs";
+    const inputs = new Map();
+    for (const k of sc.knobs) {
+      const label = document.createElement("label");
+      label.textContent = k.name + (k.unit ? " (" + k.unit + ", " : " (") + k.min + ".." + k.max + ")";
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = k.min;
+      input.max = k.max;
+      input.step = 1;
+      input.value = k.default;
+      label.append(input);
+      knobs.append(label);
+      inputs.set(k.name, input);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const start = document.createElement("button");
+    start.className = "primary";
+    start.textContent = "Start";
+    const stop = document.createElement("button");
+    stop.textContent = "Stop";
+    actions.append(start, stop);
+
+    const state = document.createElement("pre");
+    state.className = "state";
+
+    card.append(title, desc, knobs, actions, state);
+
+    start.addEventListener("click", async () => {
+      const body = {};
+      for (const [k, input] of inputs) {
+        if (input.value !== "") body[k] = Number(input.value);
+      }
+      start.disabled = true;
+      try {
+        showActionError("");
+        const res = await post("/api/scenarios/" + sc.name + "/start", body);
+        update(res);
+      } catch (err) {
+        showActionError(sc.name + ": " + err.message);
+      } finally {
+        start.disabled = false;
+      }
+    });
+    stop.addEventListener("click", async () => {
+      stop.disabled = true;
+      try {
+        showActionError("");
+        const res = await post("/api/scenarios/" + sc.name + "/stop");
+        update(res);
+      } catch (err) {
+        showActionError(sc.name + ": " + err.message);
+      } finally {
+        stop.disabled = false;
+      }
+    });
+
+    cards.set(sc.name, { card, badge, state, stop });
+    return card;
+  }
+
+  function update(sc) {
+    const c = cards.get(sc.name);
+    if (!c) return;
+    c.badge.textContent = sc.running ? "running" : "idle";
+    c.badge.classList.toggle("running", sc.running);
+    c.state.textContent = Object.entries(sc.state || {})
+      .map(([k, v]) => k + ": " + v)
+      .join("\n");
+  }
+
+  function render(status) {
+    const grid = document.getElementById("cards");
+    for (const sc of status.scenarios) {
+      if (!cards.has(sc.name)) grid.append(buildCard(sc));
+      update(sc);
+    }
+    document.getElementById("s-goroutines").textContent = status.num_goroutine;
+    document.getElementById("s-heap").textContent = fmtBytes(status.mem.heap_inuse);
+    document.getElementById("s-objects").textContent = status.mem.heap_objects.toLocaleString();
+    document.getElementById("s-gc").textContent = status.mem.num_gc;
+    document.getElementById("s-uptime").textContent = fmtUptime(status.uptime_seconds);
+    document.getElementById("s-go").textContent = status.go_version;
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch("/api/status");
+      if (!res.ok) throw new Error(res.status + " " + res.statusText);
+      render(await res.json());
+      showStatusError("");
+    } catch (err) {
+      showStatusError("status: " + err.message);
+    }
+  }
+
+  document.getElementById("reset").addEventListener("click", async () => {
+    const btn = document.getElementById("reset");
+    btn.disabled = true;
+    try {
+      showActionError("");
+      const res = await post("/api/reset");
+      for (const sc of res.scenarios) update(sc);
+      await refresh();
+    } catch (err) {
+      showActionError("reset: " + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  refresh();
+  setInterval(refresh, 2000);
+})();
+</script>
+</body>
+</html>

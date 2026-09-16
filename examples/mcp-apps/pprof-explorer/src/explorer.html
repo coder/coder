@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>pprof explorer</title>
+<style>
+	:root {
+		--bg: #ffffff;
+		--fg: #1a1a1a;
+		--muted: #6b6b6b;
+		--border: #d9d9d9;
+		--surface: #f4f4f5;
+		--surface-hover: #e9e9eb;
+		--accent: #2563eb;
+		--accent-fg: #ffffff;
+		--bar: rgba(37, 99, 235, 0.16);
+		--bar-up: rgba(220, 38, 38, 0.18);
+		--bar-down: rgba(22, 163, 74, 0.18);
+		--error-bg: #fef2f2;
+		--error-fg: #b91c1c;
+		--warn-bg: #fffbeb;
+		--warn-fg: #92400e;
+		--badge-bg: #e0e7ff;
+		--badge-fg: #3730a3;
+	}
+	:root[data-theme="dark"] {
+		--bg: #18181b;
+		--fg: #e4e4e7;
+		--muted: #a1a1aa;
+		--border: #3f3f46;
+		--surface: #27272a;
+		--surface-hover: #323236;
+		--accent: #60a5fa;
+		--accent-fg: #0b1220;
+		--bar: rgba(96, 165, 250, 0.22);
+		--bar-up: rgba(248, 113, 113, 0.24);
+		--bar-down: rgba(74, 222, 128, 0.22);
+		--error-bg: #3b1111;
+		--error-fg: #fca5a5;
+		--warn-bg: #3a2a08;
+		--warn-fg: #fcd34d;
+		--badge-bg: #312e81;
+		--badge-fg: #c7d2fe;
+	}
+	/* Until the host reports its theme, follow the browser preference. */
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme]) {
+			--bg: #18181b;
+			--fg: #e4e4e7;
+			--muted: #a1a1aa;
+			--border: #3f3f46;
+			--surface: #27272a;
+			--surface-hover: #323236;
+			--accent: #60a5fa;
+			--accent-fg: #0b1220;
+			--bar: rgba(96, 165, 250, 0.22);
+			--bar-up: rgba(248, 113, 113, 0.24);
+			--bar-down: rgba(74, 222, 128, 0.22);
+			--error-bg: #3b1111;
+			--error-fg: #fca5a5;
+			--warn-bg: #3a2a08;
+			--warn-fg: #fcd34d;
+			--badge-bg: #312e81;
+			--badge-fg: #c7d2fe;
+		}
+	}
+	* { box-sizing: border-box; }
+	html, body { margin: 0; background: var(--bg); color: var(--fg); }
+	body {
+		font: 12px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+		padding: 8px;
+	}
+	button, select, input {
+		font: inherit;
+		color: inherit;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		padding: 2px 6px;
+	}
+	button { cursor: pointer; }
+	button:hover:not(:disabled) { background: var(--surface-hover); }
+	button:disabled { cursor: default; opacity: 0.5; }
+	:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+	button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+	button.explain { font-size: 11px; padding: 1px 5px; white-space: nowrap; }
+	input[type="text"] { background: var(--bg); min-width: 0; }
+	.muted { color: var(--muted); }
+	.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+	.name { overflow-wrap: normal; word-break: normal; }
+	[hidden] { display: none !important; }
+
+	header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+	header .target { flex: 1 1 100%; display: flex; gap: 4px; min-width: 0; }
+	header .target #target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.captures { display: flex; flex-wrap: wrap; gap: 4px; }
+
+	.strip {
+		padding: 3px 6px; margin-bottom: 6px; border-radius: 4px;
+		background: var(--surface); color: var(--muted); font-size: 11px;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+
+	.snapshots { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
+	.chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto; }
+	.chip {
+		display: inline-flex; align-items: center; gap: 2px;
+		border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+		padding: 0 2px 0 0; font-size: 11px;
+	}
+	.chip.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+	.chip.base .chip-base { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+	.chip > button { border: 0; background: transparent; padding: 1px 5px; min-height: 22px; border-radius: 10px; }
+	.chip .chip-select { padding-left: 7px; }
+	.chip .chip-base { font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; }
+	.chip .chip-drop svg { width: 12px; height: 12px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+	.chip .chip-drop.confirm { color: var(--error-fg); background: var(--error-bg); font-weight: 600; }
+	.base-line { white-space: nowrap; font-size: 11px; }
+
+	.banner {
+		display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+		padding: 3px 6px; border-radius: 4px; background: var(--warn-bg); color: var(--warn-fg); font-size: 11px;
+	}
+	.banner span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.banner button { padding: 0 5px; font-size: 11px; }
+
+	.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 6px; }
+	.controls label { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); }
+	.controls #filter { flex: 1 1 90px; }
+	.modes { display: inline-flex; }
+	.modes button { border-radius: 0; margin-left: -1px; }
+	.modes button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+	.modes button:last-child { border-radius: 0 4px 4px 0; }
+	.modes button.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+	.explain-row { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; }
+
+	.notice { padding: 4px 6px; border-radius: 4px; margin-bottom: 6px; background: var(--surface); }
+	.notice.error { background: var(--error-bg); color: var(--error-fg); }
+
+	.thead, .row {
+		display: grid;
+		grid-template-columns: 5.2em 3.6em 5.2em 3.6em minmax(0, 1fr) auto;
+		gap: 0 6px; align-items: center;
+		padding: 2px 4px; border-bottom: 1px solid var(--border);
+	}
+	.thead { color: var(--muted); font-size: 11px; }
+	.row { cursor: pointer; }
+	.row:hover { outline: 1px solid var(--border); }
+	.row.selected { outline: 1px solid var(--accent); }
+	.metrics { display: contents; }
+	.c-flat, .c-flatp, .c-cum, .c-cump { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+	.c-name { min-width: 0; }
+	.c-file { display: block; color: var(--muted); font-size: 12px; }
+	.truncated { color: var(--muted); font-size: 11px; padding: 4px; }
+
+	.group { border-bottom: 1px solid var(--border); padding: 3px 4px; }
+	.group-head { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+	.group-head .name { flex: 1; min-width: 0; }
+	.badge {
+		display: inline-block; min-width: 2em; text-align: center; padding: 0 5px;
+		border-radius: 9px; background: var(--badge-bg); color: var(--badge-fg); font-size: 11px; font-weight: 600;
+	}
+	.frames { margin: 3px 0 0 1.5em; padding: 0; list-style: none; font-size: 11px; }
+	.frames li { padding: 1px 0; }
+	.labels { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 1.5em; }
+	.label { font-size: 12px; padding: 0 4px; border-radius: 3px; background: var(--surface); color: var(--muted); }
+
+	.drill { margin-top: 8px; border: 1px solid var(--border); border-radius: 4px; padding: 6px; }
+	.drill-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+	.drill-head .name { flex: 1; min-width: 0; font-weight: 600; }
+	.drill-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+	.drill-cols h4 { margin: 0 0 3px; font-size: 11px; color: var(--muted); font-weight: 600; }
+	.edge { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; align-items: center; padding: 1px 0; }
+	.edge .edge-name { cursor: pointer; }
+	.edge .weight { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+	@media (max-width: 559px) {
+		.thead { display: none; }
+		.row {
+			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-areas: "name act" "metrics metrics";
+		}
+		.c-name { grid-area: name; }
+		.c-act { grid-area: act; }
+		.metrics { display: flex; gap: 8px; grid-area: metrics; color: var(--muted); font-size: 11px; }
+		.c-flat::before { content: "flat "; }
+		.c-cum::before { content: "cum "; }
+		.drill-cols { grid-template-columns: 1fr; }
+	}
+	@media (max-width: 419px) {
+		.c-cum, .c-cump { display: none; }
+	}
+</style>
+</head>
+<body>
+<header>
+	<div class="target muted"><span>target</span><span id="target" class="mono">connecting...</span></div>
+	<div class="captures" id="captures">
+		<button type="button" data-kind="heap">heap</button>
+		<button type="button" data-kind="allocs">allocs</button>
+		<button type="button" data-kind="goroutine">goroutine</button>
+		<button type="button" data-kind="profile" data-seconds="5">cpu 5s</button>
+		<button type="button" data-kind="block">block</button>
+		<button type="button" data-kind="mutex">mutex</button>
+	</div>
+</header>
+<div id="target-status" class="strip" hidden></div>
+<section class="snapshots">
+	<div id="chips" class="chips" aria-label="Snapshots"></div>
+	<div id="base-line" class="base-line muted" hidden>base: <span id="base-id" class="mono"></span> <button type="button" id="clear-base">clear</button></div>
+</section>
+<div id="banner" class="banner" hidden>
+	<span id="banner-text"></span>
+	<button type="button" id="banner-show">Show</button>
+	<button type="button" id="banner-dismiss" aria-label="Dismiss">x</button>
+</div>
+<section class="controls" id="controls" hidden>
+	<label>type <select id="sample-type" aria-label="Sample type"></select></label>
+	<label>sort <select id="sort" aria-label="Sort">
+		<option value="flat">flat</option>
+		<option value="cum">cum</option>
+	</select></label>
+	<input id="filter" type="text" placeholder="filter: regex on function or file" aria-label="Filter by function or file" />
+	<div class="modes" id="modes" role="group" aria-label="Mode">
+		<button type="button" data-mode="top">Top</button>
+		<button type="button" data-mode="diff">Diff</button>
+		<button type="button" data-mode="groups">Goroutines</button>
+	</div>
+	<div class="explain-row">
+		<button type="button" id="explain-profile" class="explain">Explain this profile</button>
+		<span id="explain-status" class="muted"></span>
+	</div>
+</section>
+<div id="notice" class="notice" role="alert" hidden></div>
+<section id="report" aria-live="polite"></section>
+<section id="drill" class="drill" hidden></section>
+<!-- EXPLORER_SCRIPT -->
+</body>
+</html>

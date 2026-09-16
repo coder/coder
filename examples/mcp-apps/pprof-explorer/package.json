@@ -1,0 +1,30 @@
+{
+  "name": "@coder/mcp-apps-pprof-explorer-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that captures Go pprof profiles from one target and exposes an MCP App explorer view.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "check": "tsc --noEmit",
+    "test": "tsx --test 'src/*.test.ts' 'src/*.test.mjs'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "pprof-format": "^2.3.1",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/node": "^22.19.0",
+    "jsdom": "^30.0.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
