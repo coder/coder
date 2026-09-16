@@ -126,11 +126,11 @@ export const ComboboxContent = ({
 			)}
 			{...props}
 		>
-				<Command
-					className="min-h-0 flex-1 bg-surface-secondary"
+			<Command
+				className="min-h-0 flex-1 bg-surface-secondary"
 				label={commandLabel}
 				shouldFilter={shouldFilter}
-				>
+			>
 				{children}
 			</Command>
 		</PopoverContent>

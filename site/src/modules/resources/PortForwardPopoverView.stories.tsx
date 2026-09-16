@@ -50,6 +50,19 @@ const listeningPortsWithSubstringMatch = [
 	{ process_name: "substring-match", network: "", port: 19999 },
 ];
 
+type Canvas = ReturnType<typeof within>;
+
+const getPortTrigger = (canvas: Canvas) =>
+	canvas.getByRole("button", { name: "Connect to port..." });
+
+const getSubmitButton = (canvas: Canvas) =>
+	canvas.getByRole("button", { name: "Connect to selected port" });
+
+const getPortDialog = () => screen.getByRole("dialog", { name: "Port picker" });
+
+const getPortInput = (dialog: HTMLElement) =>
+	within(dialog).getByRole("combobox", { name: "Filter or enter port" });
+
 export const WithPorts: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
@@ -70,17 +83,11 @@ export const FilterPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const portTrigger = canvas.getByRole("button", {
-			name: "Connect to port...",
-		});
-		const submitButton = canvas.getByRole("button", {
-			name: "Connect to selected port",
-		});
+		const portTrigger = getPortTrigger(canvas);
+		const submitButton = getSubmitButton(canvas);
 		await userEvent.click(submitButton);
-		const portDialog = screen.getByRole("dialog", { name: "Port picker" });
-		const portInput = within(portDialog).getByRole("combobox", {
-			name: "Filter or enter port",
-		});
+		const portDialog = getPortDialog();
+		const portInput = getPortInput(portDialog);
 		await waitFor(() => expect(portInput).toHaveFocus());
 		await expect(portInput).toHaveAttribute("inputmode", "numeric");
 		await waitFor(() =>
@@ -126,7 +133,7 @@ export const FilterPorts: Story = {
 		await expect(window.open).toHaveBeenCalledTimes(1);
 
 		await userEvent.click(portTrigger);
-		const reselectDialog = screen.getByRole("dialog", { name: "Port picker" });
+		const reselectDialog = getPortDialog();
 		await userEvent.click(
 			within(reselectDialog).getByRole("option", { name: /8080/ }),
 		);
@@ -135,12 +142,8 @@ export const FilterPorts: Story = {
 		await waitFor(() => expect(submitButton).toHaveFocus());
 
 		await userEvent.click(portTrigger);
-		const customPortDialog = screen.getByRole("dialog", {
-			name: "Port picker",
-		});
-		const customPortInput = within(customPortDialog).getByRole("combobox", {
-			name: "Filter or enter port",
-		});
+		const customPortDialog = getPortDialog();
+		const customPortInput = getPortInput(customPortDialog);
 		await userEvent.type(customPortInput, "09999");
 		await expect(customPortInput).toHaveValue("9999");
 		await expect(
@@ -167,15 +170,11 @@ export const WithManyPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const portTrigger = canvas.getByRole("button", {
-			name: "Connect to port...",
-		});
+		const portTrigger = getPortTrigger(canvas);
 
 		await userEvent.click(portTrigger);
-		const portDialog = screen.getByRole("dialog", { name: "Port picker" });
-		const portInput = within(portDialog).getByRole("combobox", {
-			name: "Filter or enter port",
-		});
+		const portDialog = getPortDialog();
+		const portInput = getPortInput(portDialog);
 		await expect(portInput).toHaveAttribute("inputmode", "numeric");
 		await waitFor(() =>
 			expect(
@@ -195,13 +194,9 @@ export const Empty: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Connect to port..." }),
-		);
-		const portDialog = screen.getByRole("dialog", { name: "Port picker" });
-		const portInput = within(portDialog).getByRole("combobox", {
-			name: "Filter or enter port",
-		});
+		await userEvent.click(getPortTrigger(canvas));
+		const portDialog = getPortDialog();
+		const portInput = getPortInput(portDialog);
 		await expect(portInput).toHaveAttribute("inputmode", "numeric");
 		await waitFor(() =>
 			expect(
