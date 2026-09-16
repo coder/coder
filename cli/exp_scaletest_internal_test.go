@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -97,26 +98,19 @@ func TestWorkspaceShardIndex(t *testing.T) {
 		t.Run(fmt.Sprintf("count=%d", count), func(t *testing.T) {
 			t.Parallel()
 
-			perShard := make([]int, count)
 			for _, id := range ids {
 				idx := workspaceShardIndex(id, count)
 
-				// In range.
+				// In range [0, count).
 				require.GreaterOrEqual(t, idx, int64(0))
 				require.Less(t, idx, count)
 
-				// Deterministic: same inputs, same output.
+				// Deterministic: same inputs, same output. This is also what makes
+				// assignment stable as the running set churns, since the result
+				// depends only on the ID and the count, not on the other
+				// workspaces present.
 				require.Equal(t, idx, workspaceShardIndex(id, count))
-
-				perShard[idx]++
 			}
-
-			// Disjoint and complete: every ID counted exactly once across shards.
-			total := 0
-			for _, n := range perShard {
-				total += n
-			}
-			require.Equal(t, len(ids), total)
 		})
 	}
 }
@@ -139,7 +133,7 @@ func TestShardWorkspaces(t *testing.T) {
 
 	workspaces := make([]codersdk.Workspace, 0, 600)
 	runningIDs := make(map[uuid.UUID]struct{})
-	for i := 0; i < 600; i++ {
+	for i := range 600 {
 		status := statuses[i%len(statuses)]
 		ws := codersdk.Workspace{ID: uuid.New()}
 		ws.LatestBuild.Status = status
@@ -154,7 +148,7 @@ func TestShardWorkspaces(t *testing.T) {
 			t.Parallel()
 
 			seen := make(map[uuid.UUID]struct{})
-			for idx := int64(0); idx < shardCount; idx++ {
+			for idx := range shardCount {
 				shard, running := shardWorkspaces(workspaces, idx, shardCount)
 
 				// Total running is reported consistently on every call.
@@ -183,30 +177,54 @@ func TestShardWorkspaces(t *testing.T) {
 	}
 }
 
-// TestWorkspaceShardIndexStable asserts that removing workspaces from the set
-// does not change the shard any surviving workspace maps to (the property that
-// makes replicas tolerant of a churning running set).
-func TestWorkspaceShardIndexStable(t *testing.T) {
+// TestApplyShard covers the shard wiring in getTargetedWorkspaces (empty-set
+// handling and the per-shard diagnostic) without a coderd client: applyShard
+// operates on an already-fetched workspace list.
+func TestApplyShard(t *testing.T) {
 	t.Parallel()
 
-	const count = 12
-	ids := make([]uuid.UUID, 500)
-	for i := range ids {
-		ids[i] = uuid.New()
-	}
-
-	// Baseline assignment for every ID.
-	want := make(map[uuid.UUID]int64, len(ids))
-	for _, id := range ids {
-		want[id] = workspaceShardIndex(id, count)
-	}
-
-	// Drop half the workspaces; the survivors must map to the same shard.
-	for i, id := range ids {
-		if i%2 == 0 {
-			continue // pretend this workspace disappeared
+	nonRunning := func(n int) []codersdk.Workspace {
+		ws := make([]codersdk.Workspace, n)
+		for i := range ws {
+			ws[i] = codersdk.Workspace{ID: uuid.New()}
+			ws[i].LatestBuild.Status = codersdk.WorkspaceStatusStopped
 		}
-		require.Equal(t, want[id], workspaceShardIndex(id, count),
-			"assignment must not depend on which other workspaces are present")
+		return ws
 	}
+
+	t.Run("SelectsShardAndLogs", func(t *testing.T) {
+		t.Parallel()
+
+		workspaces := make([]codersdk.Workspace, 0, 350)
+		for range 300 {
+			ws := codersdk.Workspace{ID: uuid.New()}
+			ws.LatestBuild.Status = codersdk.WorkspaceStatusRunning
+			workspaces = append(workspaces, ws)
+		}
+		workspaces = append(workspaces, nonRunning(50)...)
+
+		f := &workspaceTargetFlags{shardIndex: 1, shardCount: 4}
+		var buf bytes.Buffer
+		got, err := f.applyShard(workspaces, &buf)
+		require.NoError(t, err)
+
+		for _, ws := range got {
+			require.Equal(t, codersdk.WorkspaceStatusRunning, ws.LatestBuild.Status)
+			require.Equal(t, int64(1), workspaceShardIndex(ws.ID, 4))
+		}
+		require.Equal(t,
+			fmt.Sprintf("shard 1 of 4: targeting %d of 300 running workspaces\n", len(got)),
+			buf.String())
+	})
+
+	t.Run("NoRunningErrors", func(t *testing.T) {
+		t.Parallel()
+
+		f := &workspaceTargetFlags{shardIndex: 0, shardCount: 3}
+		var buf bytes.Buffer
+		got, err := f.applyShard(nonRunning(10), &buf)
+		require.ErrorContains(t, err, "no running scaletest workspaces exist")
+		require.Nil(t, got)
+		require.Empty(t, buf.String())
+	})
 }

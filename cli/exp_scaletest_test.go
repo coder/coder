@@ -254,7 +254,7 @@ func TestScaleTestWorkspaceTraffic_ShardValidation(t *testing.T) {
 			errText: "--shard-index requires --shard-count",
 		},
 		{
-			// CRF-4: shard 0 with no count must error, not silently target all.
+			// shard 0 with no count must error, not silently target all.
 			name:    "ShardIndexZeroRequiresShardCount",
 			args:    []string{"--shard-index=0"},
 			errText: "--shard-index requires --shard-count",
@@ -265,7 +265,7 @@ func TestScaleTestWorkspaceTraffic_ShardValidation(t *testing.T) {
 			errText: "--shard-count requires --shard-index",
 		},
 		{
-			// CRF-2: a negative count must error, not silently disable sharding.
+			// a negative count must error, not silently disable sharding.
 			name:    "NegativeShardCount",
 			args:    []string{"--shard-count=-1", "--shard-index=0"},
 			errText: "--shard-count must be a positive integer, got -1",
