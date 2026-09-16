@@ -177,10 +177,10 @@ func TestShardWorkspaces(t *testing.T) {
 	}
 }
 
-// TestApplyShard covers the shard wiring in getTargetedWorkspaces (empty-set
-// handling and the per-shard diagnostic) without a coderd client: applyShard
-// operates on an already-fetched workspace list.
-func TestApplyShard(t *testing.T) {
+// TestSelectShard covers the shard wiring (empty-set handling and the per-shard
+// diagnostic) without a coderd client: selectShard operates on an
+// already-fetched workspace list.
+func TestSelectShard(t *testing.T) {
 	t.Parallel()
 
 	nonRunning := func(n int) []codersdk.Workspace {
@@ -203,9 +203,9 @@ func TestApplyShard(t *testing.T) {
 		}
 		workspaces = append(workspaces, nonRunning(50)...)
 
-		f := &workspaceTargetFlags{shardIndex: 1, shardCount: 4}
+		s := &shardingFlags{index: 1, count: 4}
 		var buf bytes.Buffer
-		got, err := f.applyShard(workspaces, &buf)
+		got, err := s.selectShard(workspaces, &buf)
 		require.NoError(t, err)
 
 		for _, ws := range got {
@@ -220,9 +220,9 @@ func TestApplyShard(t *testing.T) {
 	t.Run("NoRunningErrors", func(t *testing.T) {
 		t.Parallel()
 
-		f := &workspaceTargetFlags{shardIndex: 0, shardCount: 3}
+		s := &shardingFlags{index: 0, count: 3}
 		var buf bytes.Buffer
-		got, err := f.applyShard(nonRunning(10), &buf)
+		got, err := s.selectShard(nonRunning(10), &buf)
 		require.ErrorContains(t, err, "no running scaletest workspaces exist")
 		require.Nil(t, got)
 		require.Empty(t, buf.String())
@@ -255,9 +255,9 @@ func TestApplyShard(t *testing.T) {
 		}
 		require.GreaterOrEqual(t, emptyIndex, int64(0), "expected an empty shard")
 
-		f := &workspaceTargetFlags{shardIndex: emptyIndex, shardCount: shardCount}
+		s := &shardingFlags{index: emptyIndex, count: shardCount}
 		var buf bytes.Buffer
-		got, err := f.applyShard(workspaces, &buf)
+		got, err := s.selectShard(workspaces, &buf)
 		require.NoError(t, err)
 		require.Empty(t, got)
 		require.Equal(t,

@@ -396,20 +396,8 @@ func (s *scaletestPrometheusFlags) attach(opts *serpent.OptionSet) {
 type workspaceTargetFlags struct {
 	template         string
 	targetWorkspaces string
-	shardIndex       int64
-	shardCount       int64
 	useHostLogin     bool
 	allowEmpty       bool
-}
-
-// newWorkspaceTargetFlags constructs workspaceTargetFlags with the shard-index
-// "unset" sentinel established. shardIndex must default to -1 (not the int64
-// zero value, which is a valid shard) so getTargetedWorkspaces can distinguish
-// an unset --shard-index from --shard-index=0. Every command must build the
-// struct through this constructor rather than a bare literal so the sentinel
-// cannot silently diverge and trip shard mode by accident.
-func newWorkspaceTargetFlags() *workspaceTargetFlags {
-	return &workspaceTargetFlags{shardIndex: -1}
 }
 
 // attach adds the workspace target flags to the given options set.
@@ -438,37 +426,109 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 	)
 }
 
-// attachSharding adds the workspace-sharding flags. It is intentionally
-// separate from attach so the flags are only published on commands that
-// actually shard workspaces (workspace-traffic), rather than every command
-// that targets workspaces (e.g. exp scaletest chat).
-//
-// The serpent int64 zero value cannot distinguish "shard 0" from "unset", so
-// shard-index defaults to the -1 unset sentinel; shard-count uses 0.
-func (f *workspaceTargetFlags) attachSharding(opts *serpent.OptionSet) {
+// shardingFlags partitions the running workspaces across multiple load
+// generator replicas for a single command. It is deliberately scoped to the
+// command that shards (workspace-traffic) rather than living on the shared
+// workspaceTargetFlags, so commands that do not shard (e.g. exp scaletest chat)
+// neither publish the flags nor carry the unset sentinel. A nil *shardingFlags
+// means "no sharding": every method is safe to call on it.
+type shardingFlags struct {
+	index int64
+	count int64
+}
+
+// newShardingFlags constructs shardingFlags with the "unset" sentinels. The
+// serpent int64 zero value cannot distinguish "shard 0" from "unset", so index
+// defaults to -1; count uses 0. attach installs these same defaults, so the
+// sentinel lives in exactly one place.
+func newShardingFlags() *shardingFlags {
+	return &shardingFlags{index: -1}
+}
+
+// attach adds the workspace-sharding flags. Only commands that actually shard
+// workspaces call it, so the flags are not published on every command that
+// targets workspaces (e.g. exp scaletest chat).
+func (s *shardingFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(*opts,
 		serpent.Option{
 			Flag:        "shard-index",
 			Env:         "CODER_SCALETEST_SHARD_INDEX",
 			Default:     "-1",
 			Description: "Zero-based index of this shard when partitioning workspaces across multiple load generator replicas. Requires --shard-count and is mutually exclusive with --target-workspaces.",
-			Value:       serpent.Int64Of(&f.shardIndex),
+			Value:       serpent.Int64Of(&s.index),
 		},
 		serpent.Option{
 			Flag:        "shard-count",
 			Env:         "CODER_SCALETEST_SHARD_COUNT",
 			Default:     "0",
 			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each running workspace is assigned to exactly one shard by a stable hash of its ID, so shards are disjoint and roughly even. Each replica fetches the full running workspace list and keeps only its shard, so per-replica startup cost scales with the total workspace count, not the shard size. Requires --shard-index and is mutually exclusive with --target-workspaces.",
-			Value:       serpent.Int64Of(&f.shardCount),
+			Value:       serpent.Int64Of(&s.count),
 		},
 	)
 }
 
+// requested reports whether sharding was requested, i.e. either flag was set.
+// Gating on set-ness rather than value ensures a negative count or a lone
+// --shard-index cannot silently fall through to targeting every workspace. It
+// is nil-safe so callers can treat a nil *shardingFlags as "no sharding".
+func (s *shardingFlags) requested() bool {
+	return s != nil && (s.count != 0 || s.index != -1)
+}
+
+// validate checks the sharding flags and their mutual exclusion with
+// --target-workspaces. It is a no-op when sharding was not requested (including
+// a nil receiver).
+func (s *shardingFlags) validate(targetWorkspaces string) error {
+	if !s.requested() {
+		return nil
+	}
+	if targetWorkspaces != "" {
+		return xerrors.New("--target-workspaces cannot be used with --shard-index/--shard-count")
+	}
+	if s.count == 0 {
+		return xerrors.New("--shard-index requires --shard-count")
+	}
+	if s.count < 1 {
+		return xerrors.Errorf("--shard-count must be a positive integer, got %d", s.count)
+	}
+	if s.index == -1 {
+		return xerrors.New("--shard-count requires --shard-index")
+	}
+	if s.index < 0 {
+		return xerrors.Errorf("--shard-index must be >= 0, got %d", s.index)
+	}
+	if s.index >= s.count {
+		return xerrors.Errorf("--shard-index %d is out of range for --shard-count %d (must be in [0, %d))", s.index, s.count, s.count)
+	}
+	return nil
+}
+
+// selectShard returns this replica's shard of the running workspaces from an
+// already-fetched list, writing a per-shard diagnostic to warnWriter. It is
+// separated from the client fetch so the empty-set handling and diagnostic are
+// testable without a coderd client. Callers invoke it only after validate, so
+// count >= 1 and index is in [0, count). Sharding is only used by
+// workspace-traffic, which always requires at least one running workspace, so a
+// zero running count is always an error.
+func (s *shardingFlags) selectShard(workspaces []codersdk.Workspace, warnWriter io.Writer) ([]codersdk.Workspace, error) {
+	shard, runningCount := shardWorkspaces(workspaces, s.index, s.count)
+	if runningCount == 0 {
+		return nil, xerrors.New("no running scaletest workspaces exist")
+	}
+	// Emit a per-shard diagnostic so an empty or unexpectedly small shard is
+	// visible instead of a silent no-op: a pod that targets zero workspaces
+	// (e.g. the running count dropped below shard-count) still exits 0.
+	_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces\n",
+		s.index, s.count, len(shard), runningCount)
+	return shard, nil
+}
+
 // getTargetedWorkspaces retrieves the workspaces based on the template filter and target range. warnWriter receives
 // human-readable diagnostics (ownership-skew warning and the per-shard summary) and must not be stdout when
-// --output json is in play, or the diagnostic corrupts the JSON stream; callers pass inv.Stderr. In shard mode
-// (--shard-index/--shard-count) it returns this replica's hash-assigned slice of the running workspaces.
-func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, warnWriter io.Writer) ([]codersdk.Workspace, error) {
+// --output json is in play, or the diagnostic corrupts the JSON stream; callers pass inv.Stderr. When sharding is
+// requested it returns this replica's hash-assigned slice of the running workspaces (see shardingFlags); pass a nil
+// *shardingFlags for commands that do not shard.
+func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, sharding *shardingFlags, warnWriter io.Writer) ([]codersdk.Workspace, error) {
 	// Validate template if provided
 	if f.template != "" {
 		_, err := parseTemplate(ctx, client, organizationIDs, f.template)
@@ -478,33 +538,8 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	}
 
 	// Sharding and --target-workspaces are mutually exclusive subset selectors.
-	// shard-count == 0 and shard-index == -1 are the "unset" sentinels (the
-	// serpent int64 zero value cannot distinguish shard 0 from unset). Gate on
-	// set-ness rather than value so a negative count or a lone --shard-index
-	// cannot silently fall through to targeting every workspace.
-	countSet := f.shardCount != 0
-	indexSet := f.shardIndex != -1
-	shardingRequested := countSet || indexSet
-
-	if f.targetWorkspaces != "" && shardingRequested {
-		return nil, xerrors.New("--target-workspaces cannot be used with --shard-index/--shard-count")
-	}
-	if shardingRequested {
-		if !countSet {
-			return nil, xerrors.New("--shard-index requires --shard-count")
-		}
-		if f.shardCount < 1 {
-			return nil, xerrors.Errorf("--shard-count must be a positive integer, got %d", f.shardCount)
-		}
-		if !indexSet {
-			return nil, xerrors.New("--shard-count requires --shard-index")
-		}
-		if f.shardIndex < 0 {
-			return nil, xerrors.Errorf("--shard-index must be >= 0, got %d", f.shardIndex)
-		}
-		if f.shardIndex >= f.shardCount {
-			return nil, xerrors.Errorf("--shard-index %d is out of range for --shard-count %d (must be in [0, %d))", f.shardIndex, f.shardCount, f.shardCount)
-		}
+	if err := sharding.validate(f.targetWorkspaces); err != nil {
+		return nil, err
 	}
 
 	// Parse target range
@@ -529,9 +564,9 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	}
 
 	// Sharding mode: each replica targets a disjoint, hash-assigned subset of the
-	// running workspaces (see shardWorkspaces / applyShard).
-	if shardingRequested {
-		return f.applyShard(workspaces, warnWriter)
+	// running workspaces (see shardingFlags.selectShard).
+	if sharding.requested() {
+		return sharding.selectShard(workspaces, warnWriter)
 	}
 
 	// Adjust targetEnd if not specified
@@ -552,24 +587,6 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Return the sliced workspaces
 	return workspaces[targetStart:targetEnd], nil
-}
-
-// applyShard selects this replica's shard from an already-fetched workspace
-// list. It is separated from the client fetch in getTargetedWorkspaces so the
-// empty-set handling and per-shard diagnostic are testable without a coderd
-// client. Sharding is only used by workspace-traffic, which always requires at
-// least one running workspace, so a zero running count is always an error.
-func (f *workspaceTargetFlags) applyShard(workspaces []codersdk.Workspace, warnWriter io.Writer) ([]codersdk.Workspace, error) {
-	shard, runningCount := shardWorkspaces(workspaces, f.shardIndex, f.shardCount)
-	if runningCount == 0 {
-		return nil, xerrors.New("no running scaletest workspaces exist")
-	}
-	// Emit a per-shard diagnostic so an empty or unexpectedly small shard is
-	// visible instead of a silent no-op: a pod that targets zero workspaces
-	// (e.g. the running count dropped below shard-count) still exits 0.
-	_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces\n",
-		f.shardIndex, f.shardCount, len(shard), runningCount)
-	return shard, nil
 }
 
 // shardWorkspaces returns the running workspaces assigned to shardIndex (of
@@ -1589,7 +1606,8 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		app               string
 		workspaceProxyURL string
 
-		targetFlags     = newWorkspaceTargetFlags()
+		targetFlags     = &workspaceTargetFlags{}
+		sharding        = newShardingFlags()
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
@@ -1626,7 +1644,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 
 			// Diagnostics go to stderr so the --output json result on stdout stays
 			// machine-parseable for the sharded Indexed-Job automation.
-			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stderr)
+			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, sharding, inv.Stderr)
 			if err != nil {
 				return err
 			}
@@ -1818,7 +1836,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 	}
 
 	targetFlags.attach(&cmd.Options)
-	targetFlags.attachSharding(&cmd.Options)
+	sharding.attach(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)

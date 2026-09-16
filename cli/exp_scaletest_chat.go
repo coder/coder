@@ -27,14 +27,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		turnStartDelay          time.Duration
 		llmMockURL              string
 		providerPropagationWait time.Duration
-		targetFlags             = newWorkspaceTargetFlags()
+		targetFlags             = &workspaceTargetFlags{allowEmpty: true}
 		tracingFlags            = &scaletestTracingFlags{}
 		prometheusFlags         = &scaletestPrometheusFlags{}
 		timeoutStrategy         = &timeoutFlags{}
 		cleanupStrategy         = newScaletestCleanupStrategy()
 		output                  = &scaletestOutputFlags{}
 	)
-	targetFlags.allowEmpty = true
 
 	cmd := &serpent.Command{
 		Use:   "chat",
@@ -68,7 +67,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				Header:    BypassHeader,
 			}
 
-			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stderr)
+			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, nil, inv.Stderr)
 			if err != nil {
 				return err
 			}
