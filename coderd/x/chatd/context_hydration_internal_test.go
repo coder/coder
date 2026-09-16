@@ -207,7 +207,9 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(pinnedChat, nil)
 		db.EXPECT().GetChatByID(gomock.Any(), siblingChat.ID).Return(pinnedSibling, nil)
 
-		server.ensureChatContextPinnedOnFirstTurn(ctx, chat)
+		// The caller reads pinned context right after, so it must see the
+		// pinned row rather than the pre-hydration one.
+		require.Equal(t, pinnedChat, server.ensureChatContextPinnedOnFirstTurn(ctx, chat))
 
 		// Watching clients cached both details without pinned resources, so
 		// every hydrated chat must broadcast a context event.

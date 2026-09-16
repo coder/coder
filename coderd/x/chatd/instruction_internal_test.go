@@ -177,7 +177,7 @@ func TestDefaultSystemPromptContainsWorkspaceContextGuidance(t *testing.T) {
 	t.Parallel()
 
 	require.Contains(t, DefaultSystemPrompt, "Treat injected <workspace-context> files, including AGENTS.md, as read")
-	require.Contains(t, DefaultSystemPrompt, "If a repository you work in has an AGENTS.md or CLAUDE.md that <workspace-context> does not list, read it before making repository-specific changes.")
+	require.Contains(t, DefaultSystemPrompt, "If a repository you work in has an AGENTS.md, CLAUDE.md, or .cursorrules that <workspace-context> does not list, read it before making repository-specific changes.")
 }
 
 func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {

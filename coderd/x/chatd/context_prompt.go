@@ -174,6 +174,7 @@ func decodeSkillIdentity(body json.RawMessage) (name, description string, decode
 const (
 	workspaceContextUnpublishedNote        = "Workspace context has not been published yet; the workspace may still be starting."
 	workspaceContextNoInstructionFilesNote = "No instruction files (AGENTS.md, CLAUDE.md, .cursorrules) were found in the working directory or the other scanned locations."
+	workspaceContextOmittedFilesNote       = "Instruction files were found but could not be included: "
 )
 
 // pinnedWorkspaceContext builds the system-prompt instruction block and
@@ -251,14 +252,22 @@ func (server *Server) resolveTurnWorkspaceContext(
 // other statuses, body kinds, and malformed bodies are skipped. malformed
 // counts OK resources whose body failed to decode, so the caller can surface
 // an otherwise silent drop. emptyNote replaces the file list when no
-// instruction file has content, so a skill-only pin still yields the header.
+// instruction file has content, so a skill-only pin still yields the header;
+// when the pin holds instruction files that cannot be rendered, they are
+// named instead so the model does not read the empty list as "no files".
 func contextResourcesToPrompt(
 	resources []database.ChatContextResource,
 	operatingSystem, directory, emptyNote string,
 ) (instruction string, skills []chattool.SkillMeta, malformed int) {
-	var contextFileParts []codersdk.ChatMessagePart
+	var (
+		contextFileParts []codersdk.ChatMessagePart
+		omitted          []string
+	)
 	for _, r := range resources {
 		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			if r.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile {
+				omitted = append(omitted, r.Source+" ("+string(r.Status)+")")
+			}
 			continue
 		}
 		switch r.BodyKind {
@@ -266,9 +275,11 @@ func contextResourcesToPrompt(
 			content, decoded := decodeInstructionContent(r.Body)
 			if !decoded {
 				malformed++
+				omitted = append(omitted, r.Source+" (malformed)")
 				continue
 			}
 			if content == "" {
+				omitted = append(omitted, r.Source+" (empty)")
 				continue
 			}
 			contextFileParts = append(contextFileParts, codersdk.ChatMessagePart{
@@ -297,6 +308,9 @@ func contextResourcesToPrompt(
 		}
 	}
 
+	if len(contextFileParts) == 0 && len(omitted) > 0 {
+		emptyNote = workspaceContextOmittedFilesNote + strings.Join(omitted, ", ") + "."
+	}
 	return formatSystemInstructions(operatingSystem, directory, emptyNote, contextFileParts), skills, malformed
 }
 
