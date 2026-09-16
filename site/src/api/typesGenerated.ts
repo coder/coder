@@ -2076,6 +2076,13 @@ export interface ChatContext {
 	 * payloads leave it nil to stay lightweight.
 	 */
 	readonly resources?: readonly ChatContextResource[];
+	/**
+	 * MCPDiscovery reports how far the bound agent's workspace MCP
+	 * discovery has progressed and whether the pinned MCP rows are
+	 * current. Populated only on the single-chat GET response for chats
+	 * bound to a workspace agent; nil otherwise.
+	 */
+	readonly mcp_discovery?: ChatContextMCPDiscovery;
 }
 
 // From codersdk/chats.go
@@ -2099,6 +2106,32 @@ export interface ChatContextFilePart {
 	 */
 	readonly context_file_agent_id?: string;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatContextMCPDiscovery is the workspace MCP discovery state a chat's
+ * tools and context indicator are derived from. It describes discovery
+ * only: whether a tool invocation succeeds is reported by the invocation.
+ */
+export interface ChatContextMCPDiscovery {
+	readonly phase: ChatContextMCPDiscoveryPhase;
+	/**
+	 * Stale is true when the pinned MCP rows were published by a previous
+	 * agent process (the snapshot's agent run id differs from the agent's
+	 * current run id). Their tools are withheld from the model until the
+	 * current process publishes.
+	 */
+	readonly stale: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatContextMCPDiscoveryPhase = "complete" | "pending" | "unknown";
+
+export const ChatContextMCPDiscoveryPhases: ChatContextMCPDiscoveryPhase[] = [
+	"complete",
+	"pending",
+	"unknown",
+];
 
 // From codersdk/chats.go
 /**

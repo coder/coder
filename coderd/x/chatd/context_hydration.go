@@ -32,7 +32,15 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 // HydrateAndMarkChatsDirty pins context for unpinned chats, marks drifted chats
 // dirty, and live-syncs MCP resources. Its post-commit callback publishes one
 // context event per affected chat without changing dirty chats' pinned hash.
-func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, _ bool, now time.Time) (func(), error) {
+//
+// When the push changed the MCP discovery phase or agent run id
+// (mcpDiscoveryChanged), every active chat bound to the agent is notified
+// too, even if no resource row changed: the discovery state is derived from
+// the agent snapshot at read time, so an open chat can only learn about the
+// transition through an event. This never marks pinned instructions dirty.
+//
+//nolint:revive // mcpDiscoveryChanged is a fact about the push, not caller control coupling.
+func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, mcpDiscoveryChanged bool, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
 
@@ -80,9 +88,6 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	for _, id := range synced {
 		appendTouched(id)
 	}
-	if len(touched) == 0 {
-		return func() {}, nil
-	}
 
 	// Read the touched chats inside the transaction and capture their rows so
 	// the post-commit callback needs no database access: the published payload
@@ -96,6 +101,22 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 			return nil, xerrors.Errorf("get touched chat %s: %w", id, err)
 		}
 		touchedChats = append(touchedChats, chat)
+	}
+	if mcpDiscoveryChanged {
+		active, err := tx.GetActiveChatsByAgentID(ctx, agentID)
+		if err != nil {
+			return nil, xerrors.Errorf("get active chats by agent: %w", err)
+		}
+		for _, chat := range active {
+			if _, ok := seen[chat.ID]; ok {
+				continue
+			}
+			seen[chat.ID] = struct{}{}
+			touchedChats = append(touchedChats, chat)
+		}
+	}
+	if len(touchedChats) == 0 {
+		return func() {}, nil
 	}
 
 	return func() {

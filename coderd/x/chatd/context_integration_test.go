@@ -2,6 +2,7 @@ package chatd_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -157,11 +158,21 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = aAPI.DRPCConn().Close() }()
 
+	// The agent names its process first, as the real agent does before its
+	// first push, so the pushed run id matches the agent row.
+	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: &agentproto.Startup{
+		Version:    "v2.0.0",
+		AgentRunId: "run-1",
+	}})
+	require.NoError(t, err)
+
 	hashA := []byte{0x01, 0x02, 0x03}
 	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       1,
 		Initial:       true,
 		AggregateHash: hashA,
+		AgentRunId:    "run-1",
+		McpDiscovery:  &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_PENDING},
 		Resources: []*agentproto.ContextResource{
 			instructionResource(agentsSource, "hello-v1", agentsV1Hash),
 		},
@@ -175,6 +186,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context, "chat should be hydrated after the initial push")
 	require.False(t, got.Context.Dirty, "initial hydration is clean")
 	require.Nil(t, got.Context.DirtySince)
+	require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+		Phase: codersdk.ChatContextMCPDiscoveryPhasePending,
+	}, got.Context.MCPDiscovery, "GET reports the current run's discovery phase")
 
 	// The single-chat GET surfaces the pinned resources.
 	require.Len(t, got.Context.Resources, 1, "GET reports the pinned resources")
@@ -198,6 +212,8 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		Version:       2,
 		AggregateHash: hashB,
 		SnapshotError: snapshotError,
+		AgentRunId:    "run-1",
+		McpDiscovery:  &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_COMPLETE},
 		Resources: []*agentproto.ContextResource{
 			instructionResource(agentsSource, "hello-v2", agentsV2Hash),
 			skillResource(skillSource, skillHash),
@@ -212,6 +228,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.True(t, got.Context.Dirty, "drift should mark the chat dirty")
 	require.NotNil(t, got.Context.DirtySince)
 	require.Empty(t, got.Context.Error, "dirty marking leaves the pinned hash and error unchanged")
+	require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+		Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete,
+	}, got.Context.MCPDiscovery, "discovery state follows the agent snapshot, not the pinned copy")
 	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
 	// While dirty the GET still reports the pinned (hashA) resources.
@@ -723,4 +742,172 @@ func seedAgentInstructionContext(
 		Now:              now,
 	})
 	require.NoError(t, err)
+}
+
+// TestChatContextSurvivesWorkspaceRebuild reproduces a workspace restart
+// under an idle bound chat: the agent publishes a complete catalog that pins
+// the chat, the workspace is stopped and started again (which soft-deletes
+// the previous agent and purges its snapshot), and the new agent process
+// publishes its own catalog without any chat turn. At every step the GET
+// must keep reporting the previously pinned rows, flagged stale once the
+// bound agent is gone, instead of dropping the whole context detail.
+func TestChatContextSurvivesWorkspaceRebuild(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	currentAgentID := func() uuid.UUID {
+		t.Helper()
+		ws, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Len(t, ws.LatestBuild.Resources, 1)
+		require.Len(t, ws.LatestBuild.Resources[0].Agents, 1)
+		return ws.LatestBuild.Resources[0].Agents[0].ID
+	}
+	firstAgentID := currentAgentID()
+
+	// The chat state after one completed workspace turn: bound to the
+	// build and its agent by chatd.persistBuildAgentBinding.
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		BuildID:           uuid.NullUUID{UUID: workspace.LatestBuild.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: firstAgentID, Valid: true},
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
+	agentsSource := "/home/coder/workspace/AGENTS.md"
+	mcpSource := "fixture"
+	// publish connects as the workspace's current agent (the token resolves
+	// to the latest build), names its process, and pushes a complete
+	// catalog with one tool.
+	publish := func(runID string, toolName string, hash byte) {
+		t.Helper()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
+		aAPI, _, err := agentClient.ConnectRPC210(ctx)
+		require.NoError(t, err)
+		defer func() { _ = aAPI.DRPCConn().Close() }()
+		_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: &agentproto.Startup{
+			Version:    "v2.0.0",
+			AgentRunId: runID,
+		}})
+		require.NoError(t, err)
+		resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+			Version:       1,
+			Initial:       true,
+			AggregateHash: []byte{hash},
+			AgentRunId:    runID,
+			McpDiscovery:  &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_COMPLETE},
+			Resources: []*agentproto.ContextResource{
+				{
+					Source:      agentsSource,
+					ContentHash: []byte{hash, 0x01},
+					SizeBytes:   5,
+					Status:      agentproto.ContextResource_OK,
+					Body: &agentproto.ContextResource_InstructionFile{
+						InstructionFile: &agentproto.InstructionFileBody{Content: []byte("hello")},
+					},
+				},
+				{
+					Source:      mcpSource,
+					ContentHash: []byte{hash, 0x02},
+					SizeBytes:   32,
+					Status:      agentproto.ContextResource_OK,
+					Body: &agentproto.ContextResource_McpServer{
+						McpServer: &agentproto.MCPServerBody{
+							ServerName: mcpSource,
+							Tools:      []*agentproto.MCPTool{{Name: mcpSource + "__" + toolName}},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+	}
+	requirePinnedRows := func(got codersdk.Chat, toolName string, msg string) {
+		t.Helper()
+		require.NotNil(t, got.Context, msg)
+		require.False(t, got.Context.Dirty, msg)
+		require.Len(t, got.Context.Resources, 2, msg)
+		bySource := make(map[string]codersdk.ChatContextResource, 2)
+		for _, r := range got.Context.Resources {
+			bySource[r.Source] = r
+		}
+		require.Contains(t, bySource, agentsSource, msg)
+		require.Len(t, bySource[mcpSource].Tools, 1, msg)
+		require.Equal(t, toolName, bySource[mcpSource].Tools[0].Name, msg)
+	}
+
+	publish("run-1", "old-echo", 0x10)
+	got, err := expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	requirePinnedRows(got, "old-echo", "the first push pins the chat")
+	require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+		Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete,
+	}, got.Context.MCPDiscovery, "the bound agent is current")
+
+	// Restart the workspace: the stop build completing soft-deletes the
+	// first agent, and the start build provisions a replacement.
+	coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+	coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
+	secondAgentID := currentAgentID()
+	require.NotEqual(t, firstAgentID, secondAgentID, "a rebuild creates a new agent row")
+	//nolint:gocritic // The test inspects agent rows as the system subject.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	_, err = db.GetWorkspaceAgentByID(sysCtx, firstAgentID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "the replaced agent is soft-deleted")
+
+	// No turn has run, so the chat is still bound to the replaced agent. The
+	// GET must keep the pinned rows and flag them stale rather than fail
+	// the whole detail.
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	requirePinnedRows(got, "old-echo", "the rebuild must not hide the pinned context")
+	require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+		Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown,
+		Stale: true,
+	}, got.Context.MCPDiscovery, "rows pinned from a replaced agent are stale")
+	//nolint:gocritic // Test reads the chat row as the chatd subject.
+	current, err := db.GetChatByID(dbauthz.AsChatd(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstAgentID, current.AgentID.UUID, "the rebuild alone does not rebind the chat")
+
+	// The replacement agent publishes its own catalog. Publication is
+	// scoped to chats bound to the publishing agent, so this chat keeps its
+	// stale rows until its next turn rebinds it.
+	publish("run-2", "new-echo", 0x20)
+	snapshot, err := db.GetLatestWorkspaceAgentContextSnapshot(sysCtx, secondAgentID)
+	require.NoError(t, err)
+	require.Equal(t, "run-2", snapshot.AgentRunID)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	requirePinnedRows(got, "old-echo", "the new agent's push must not clear the pin")
+	require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+		Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown,
+		Stale: true,
+	}, got.Context.MCPDiscovery)
 }

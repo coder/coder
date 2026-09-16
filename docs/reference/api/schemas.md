@@ -2150,6 +2150,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "dirty": true,
         "dirty_since": "2019-08-24T14:15:22Z",
         "error": "string",
+        "mcp_discovery": {
+          "phase": "unknown",
+          "stale": true
+        },
         "resources": [
           {
             "error": "string",
@@ -2246,6 +2250,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "dirty": true,
     "dirty_since": "2019-08-24T14:15:22Z",
     "error": "string",
+    "mcp_discovery": {
+      "phase": "unknown",
+      "stale": true
+    },
     "resources": [
       {
         "error": "string",
@@ -2518,6 +2526,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "dirty": true,
   "dirty_since": "2019-08-24T14:15:22Z",
   "error": "string",
+  "mcp_discovery": {
+    "phase": "unknown",
+    "stale": true
+  },
   "resources": [
     {
       "error": "string",
@@ -2540,12 +2552,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                |
-|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                   |
-| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
-| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
-| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+| Name            | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                |
+|-----------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dirty`         | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                   |
+| `dirty_since`   | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
+| `error`         | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
+| `mcp_discovery` | [codersdk.ChatContextMCPDiscovery](#codersdkchatcontextmcpdiscovery)  | false    |              | Mcp discovery reports how far the bound agent's workspace MCP discovery has progressed and whether the pinned MCP rows are current. Populated only on the single-chat GET response for chats bound to a workspace agent; nil otherwise.    |
+| `resources`     | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+
+## codersdk.ChatContextMCPDiscovery
+
+```json
+{
+  "phase": "unknown",
+  "stale": true
+}
+```
+
+### Properties
+
+| Name    | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                           |
+|---------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `phase` | [codersdk.ChatContextMCPDiscoveryPhase](#codersdkchatcontextmcpdiscoveryphase) | false    |              |                                                                                                                                                                                                                                       |
+| `stale` | boolean                                                                        | false    |              | Stale is true when the pinned MCP rows were published by a previous agent process (the snapshot's agent run ID differs from the agent's current run id). Their tools are withheld from the model until the current process publishes. |
+
+## codersdk.ChatContextMCPDiscoveryPhase
+
+```json
+"unknown"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                         |
+|----------------------------------|
+| `complete`, `pending`, `unknown` |
 
 ## codersdk.ChatContextResource
 
@@ -5174,6 +5217,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "dirty": true,
       "dirty_since": "2019-08-24T14:15:22Z",
       "error": "string",
+      "mcp_discovery": {
+        "phase": "unknown",
+        "stale": true
+      },
       "resources": [
         {
           "error": "string",

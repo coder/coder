@@ -437,19 +437,20 @@ func (p *Server) resolveWorkspaceMCPTools(
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
-// definitions. Calls still proxy through the agent connection, and agent pushes
-// live-sync definitions, so no invalidation callback is needed.
+// definitions through the shared workspace MCP view, so definitions left
+// behind by a previous agent process are withheld. Calls still proxy
+// through the agent connection, and agent pushes live-sync definitions, so
+// no invalidation callback is needed.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 ) ([]fantasy.AgentTool, error) {
-	resources, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	view, err := p.loadWorkspaceMCPView(ctx, chat)
 	if err != nil {
-		return nil, xerrors.Errorf("list chat context resources: %w", err)
+		return nil, err
 	}
-	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
+	return chattool.NewWorkspaceMCPTools(view.Tools(), getConn), nil
 }
 
 type turnWorkspaceContext struct {
