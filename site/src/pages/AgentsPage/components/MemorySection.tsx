@@ -4,12 +4,14 @@ import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatProjectMemories,
+	chatProjectMemoryConsolidations,
 	createChatProjectMemory,
 	deleteChatProjectMemory,
 	updateChatProjectMemory,
 } from "#/api/queries/chatProjectMemories";
 import {
 	chatUserMemories,
+	chatUserMemoryConsolidations,
 	createChatUserMemory,
 	deleteChatUserMemory,
 	updateChatUserMemory,
@@ -65,6 +67,18 @@ export const MemorySection: FC<MemorySectionProps> = ({
 		...chatUserMemories(scope.kind === "personal" ? scope.organizationId : ""),
 		enabled: scope.kind === "personal",
 	});
+	const projectConsolidationsQuery = useQuery({
+		...chatProjectMemoryConsolidations(
+			scope.kind === "project" ? scope.projectId : "",
+		),
+		enabled: scope.kind === "project",
+	});
+	const personalConsolidationsQuery = useQuery({
+		...chatUserMemoryConsolidations(
+			scope.kind === "personal" ? scope.organizationId : "",
+		),
+		enabled: scope.kind === "personal",
+	});
 	const createProjectMutation = useMutation(
 		createChatProjectMemory(queryClient),
 	);
@@ -95,6 +109,18 @@ export const MemorySection: FC<MemorySectionProps> = ({
 		scope.kind === "project"
 			? projectMemoriesQuery.isLoading
 			: personalMemoriesQuery.isLoading;
+	// Consolidation history is informational; the list stays usable when it
+	// is missing or fails to load.
+	const lastConsolidation = (
+		scope.kind === "project"
+			? projectConsolidationsQuery.data
+			: personalConsolidationsQuery.data
+	)?.find((run) => run.status === "succeeded");
+	const consolidationSummary = lastConsolidation
+		? `Last consolidated ${shortRelativeTime(
+				lastConsolidation.finished_at ?? lastConsolidation.started_at,
+			)}: ${lastConsolidation.memories_before} to ${lastConsolidation.memories_after} memories, ${lastConsolidation.mutations.length} ${lastConsolidation.mutations.length === 1 ? "change" : "changes"}.`
+		: undefined;
 	const copy =
 		scope.kind === "project" ? projectMemoryCopy : personalMemoryCopy;
 	const resolvedTitle = title ?? copy.title;
@@ -244,6 +270,11 @@ export const MemorySection: FC<MemorySectionProps> = ({
 						);
 					})}
 				</ul>
+			)}
+			{consolidationSummary && (
+				<p className="mb-0 mt-3 text-xs text-content-secondary">
+					{consolidationSummary}
+				</p>
 			)}
 			<MemoryDialog
 				key={editingMemory?.id ?? (editingMemory === null ? "new" : "closed")}

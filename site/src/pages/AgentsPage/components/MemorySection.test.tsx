@@ -4,6 +4,7 @@ import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	MockChatProject,
@@ -324,5 +325,54 @@ describe("MemorySection", () => {
 		expect(
 			screen.queryByRole("button", { name: "Add memory" }),
 		).not.toBeInTheDocument();
+	});
+
+	it("summarizes the newest successful consolidation", async () => {
+		const failed: TypesGen.ChatMemoryConsolidation = {
+			id: "consolidation-failed",
+			organization_id: MockDefaultOrganization.id,
+			project_id: MockChatProject.id,
+			status: "failed",
+			started_at: "2026-09-03T12:00:00Z",
+			model: "test-model",
+			memories_before: 30,
+			memories_after: 30,
+			mutations: [],
+			error: "model unavailable",
+		};
+		const succeeded: TypesGen.ChatMemoryConsolidation = {
+			...failed,
+			id: "consolidation-succeeded",
+			status: "succeeded",
+			started_at: "2026-09-02T12:00:00Z",
+			finished_at: "2026-09-02T12:01:00Z",
+			memories_after: 27,
+			mutations: [
+				{ op: "merge", into: "release", from: ["release-notes"] },
+				{ op: "delete", name: "stale" },
+			],
+			error: "",
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects/:projectId/memories", () =>
+				HttpResponse.json([MockChatProjectMemory]),
+			),
+			http.get(
+				"/api/experimental/chats/projects/:projectId/memories/consolidations",
+				() => HttpResponse.json([failed, succeeded]),
+			),
+		);
+
+		render(
+			<Wrapper>
+				<MemorySection
+					scope={{ kind: "project", projectId: MockChatProject.id }}
+				/>
+			</Wrapper>,
+		);
+
+		await screen.findByText(
+			/^Last consolidated .*: 30 to 27 memories, 2 changes\.$/,
+		);
 	});
 });

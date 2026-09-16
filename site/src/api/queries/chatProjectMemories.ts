@@ -10,6 +10,14 @@ export const chatProjectMemories = (projectId: string) =>
 		enabled: Boolean(projectId),
 	});
 
+export const chatProjectMemoryConsolidations = (projectId: string) =>
+	queryOptions({
+		queryKey: [...chatProjectMemoriesKey(projectId), "consolidations"],
+		queryFn: () =>
+			API.experimental.getChatProjectMemoryConsolidations(projectId),
+		enabled: Boolean(projectId),
+	});
+
 const invalidateChatProjectMemories = (
 	queryClient: QueryClient,
 	projectId: string,

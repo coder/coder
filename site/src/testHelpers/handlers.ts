@@ -82,6 +82,15 @@ export const handlers = [
 		},
 	),
 
+	// chat memory
+	http.get(
+		"/api/experimental/chats/projects/:projectId/memories/consolidations",
+		() => HttpResponse.json([]),
+	),
+	http.get("/api/experimental/chats/memories/consolidations", () =>
+		HttpResponse.json([]),
+	),
+
 	// chat models
 	http.get(
 		"/api/v2/organizations/:organizationId/chats/models/:modelId/acl/available",

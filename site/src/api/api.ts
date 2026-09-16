@@ -3344,6 +3344,15 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatProjectMemoryConsolidations = async (
+		projectId: string,
+	): Promise<TypesGen.ChatMemoryConsolidation[]> => {
+		const response = await this.axios.get<TypesGen.ChatMemoryConsolidation[]>(
+			`/api/experimental/chats/projects/${projectId}/memories/consolidations`,
+		);
+		return response.data;
+	};
+
 	getChatUserMemories = async (
 		organizationId: string,
 	): Promise<TypesGen.ChatUserMemory[]> => {
@@ -3377,6 +3386,16 @@ class ExperimentalApiMethods {
 
 	deleteChatUserMemory = async (memoryId: string): Promise<void> => {
 		await this.axios.delete(`/api/experimental/chats/memories/${memoryId}`);
+	};
+
+	getChatUserMemoryConsolidations = async (
+		organizationId: string,
+	): Promise<TypesGen.ChatMemoryConsolidation[]> => {
+		const response = await this.axios.get<TypesGen.ChatMemoryConsolidation[]>(
+			"/api/experimental/chats/memories/consolidations",
+			{ params: { organization: organizationId } },
+		);
+		return response.data;
 	};
 
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {

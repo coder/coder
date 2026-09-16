@@ -18,6 +18,14 @@ export const chatUserMemories = (organizationId: string) =>
 		enabled: Boolean(organizationId),
 	});
 
+export const chatUserMemoryConsolidations = (organizationId: string) =>
+	queryOptions({
+		queryKey: [...chatUserMemoriesKey(organizationId), "consolidations"],
+		queryFn: () =>
+			API.experimental.getChatUserMemoryConsolidations(organizationId),
+		enabled: Boolean(organizationId),
+	});
+
 export const chatPersonalMemorySettings = () =>
 	queryOptions({
 		queryKey: chatPersonalMemorySettingsKey,
