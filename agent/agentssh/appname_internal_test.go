@@ -21,14 +21,30 @@ func TestExtractAppName(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		env  []string
-		want string
+		// keepEnv, when set, must survive filtering.
+		keepEnv string
+		want    string
 	}{
-		{"NoEnvDefaultsToSSH", []string{"FOO=bar"}, "ssh"},
-		{"EmptyValueDefaultsToSSH", envWith(""), "ssh"},
-		{"VSCode", envWith("vscode"), "vscode"},
-		{"JetBrainsLegacyCasing", envWith("JetBrains"), "jetbrains"},
-		{"UnknownTypeNormalized", envWith("Cursor-Nightly"), "cursor_nightly"},
-		{"LastInstanceWins", append(envWith("vscode"), AppNameEnvironmentVariable+"=cursor"), "cursor"},
+		{"NoEnvDefaultsToSSH", []string{"FOO=bar"}, "FOO=bar", "ssh"},
+		{"EmptyValueDefaultsToSSH", envWith(""), "", "ssh"},
+		{"VSCode", envWith("vscode"), "", "vscode"},
+		{"JetBrainsLegacyCasing", envWith("JetBrains"), "", "jetbrains"},
+		{"UnknownTypeNormalized", envWith("Cursor-Nightly"), "", "cursor_nightly"},
+		{"LastInstanceWins", append(envWith("vscode"), AppNameEnvironmentVariable+"=cursor"), "", "cursor"},
+		// A variable that merely starts with the same characters is a
+		// different variable, not an app name.
+		{
+			"LongerVariableIgnored",
+			[]string{AppNameEnvironmentVariable + "_FOO=bar"},
+			AppNameEnvironmentVariable + "_FOO=bar",
+			"ssh",
+		},
+		{
+			"LongerVariableDoesNotShadowAppName",
+			append(envWith("cursor"), AppNameEnvironmentVariable+"_FOO=bar"),
+			AppNameEnvironmentVariable + "_FOO=bar",
+			"cursor",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -36,6 +52,9 @@ func TestExtractAppName(t *testing.T) {
 			require.Equal(t, tc.want, appName)
 			for _, kv := range filteredEnv {
 				require.NotContains(t, kv, AppNameEnvironmentVariable+"=")
+			}
+			if tc.keepEnv != "" {
+				require.Contains(t, filteredEnv, tc.keepEnv)
 			}
 		})
 	}
