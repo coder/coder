@@ -1,3 +1,4 @@
+import { useAtom } from "jotai";
 import { type FC, useId, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { DisplayApp } from "#/api/typesGenerated";
@@ -9,7 +10,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { useStorage } from "#/hooks/useStorage";
 import { getVSCodeHref } from "#/modules/apps/apps";
 import { defineStorageKey, stringLiteralCodec } from "#/storage";
 import { AgentButton } from "../AgentButton";
@@ -36,7 +36,7 @@ interface VSCodeDesktopButtonProps {
 
 export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
-	const [variant, setVariant] = useStorage(vscodeVariantStorage);
+	const [variant, setVariant] = useAtom(vscodeVariantStorage);
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
 
