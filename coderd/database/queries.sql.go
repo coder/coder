@@ -2827,7 +2827,8 @@ SELECT
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
 	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) OVER()::BIGINT AS count
 FROM aibridge_token_usages tu
 JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 JOIN users ON users.id = ai.initiator_id
@@ -2836,6 +2837,10 @@ JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = $1
 	AND tu.created_at >= $2::timestamptz
 	AND tu.created_at < $3::timestamptz
+	AND ($4::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR ai.initiator_id = $4)
+	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR tu.effective_group_id = $5)
+	AND ($6::text = '' OR ai.provider_name = $6)
+	AND ($7::text = '' OR ai.model = $7)
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -2847,12 +2852,20 @@ GROUP BY
 	ai.provider,
 	ai.provider_name
 ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+OFFSET $8
+LIMIT NULLIF($9::int, 0)
 `
 
 type ExportOrganizationAISpendParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	PeriodStart    time.Time `db:"period_start" json:"period_start"`
 	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type ExportOrganizationAISpendRow struct {
@@ -2870,6 +2883,7 @@ type ExportOrganizationAISpendRow struct {
 	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
 	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
+	Count            int64         `db:"count" json:"count"`
 }
 
 // Returns per-user, per-group, per-model, per-provider aggregated AI spend for
@@ -2877,7 +2891,17 @@ type ExportOrganizationAISpendRow struct {
 // attributed through the token usage's effective group, and rows are bucketed
 // by the token usage created_at, matching how ai_user_daily_spend is derived.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
-	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.UserID,
+		arg.GroupID,
+		arg.ProviderName,
+		arg.Model,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2900,6 +2924,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.CacheReadTokens,
 			&i.CacheWriteTokens,
 			&i.CostMicros,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

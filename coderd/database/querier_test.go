@@ -19473,3 +19473,141 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		}}, rows)
 	})
 }
+
+func TestExportOrganizationAISpend(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	groupA := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+	userA := dbgen.User(t, db, database.User{})
+	userB := dbgen.User(t, db, database.User{})
+	periodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := periodStart.AddDate(0, 1, 0)
+
+	seedUsage := func(userID, groupID uuid.UUID, providerName, model string, startedAt, createdAt time.Time, costMicros int64) {
+		t.Helper()
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  userID,
+			Provider:     "anthropic",
+			ProviderName: providerName,
+			Model:        model,
+			StartedAt:    startedAt,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:   interception.ID,
+			CreatedAt:        createdAt,
+			EffectiveGroupID: uuid.NullUUID{UUID: groupID, Valid: groupID != uuid.Nil},
+			CostMicros:       sql.NullInt64{Int64: costMicros, Valid: true},
+		})
+	}
+
+	// Given: three exportable rows across users, groups, and models.
+	inPeriod := periodStart.Add(time.Hour)
+	seedUsage(userA.ID, groupA.ID, "provider-one", "model-one", periodStart.Add(-time.Hour), inPeriod, 100)
+	seedUsage(userA.ID, groupB.ID, "provider-two", "model-two", inPeriod, inPeriod, 200)
+	seedUsage(userB.ID, groupA.ID, "provider-one", "model-two", inPeriod, inPeriod, 300)
+
+	// Given: rows excluded because they have no effective group, belong to
+	// another organization, or have usage outside the requested time window.
+	seedUsage(userA.ID, uuid.Nil, "provider-one", "model-one", inPeriod, inPeriod, 400)
+	seedUsage(userA.ID, otherGroup.ID, "provider-one", "model-one", inPeriod, inPeriod, 500)
+	seedUsage(userB.ID, groupB.ID, "provider-two", "model-one", inPeriod, periodEnd, 600)
+
+	base := database.ExportOrganizationAISpendParams{
+		OrganizationID: org.ID,
+		PeriodStart:    periodStart,
+		PeriodEnd:      periodEnd,
+	}
+
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+		type spendRow struct {
+			userID       uuid.UUID
+			groupID      uuid.UUID
+			providerName string
+			model        string
+			costMicros   int64
+		}
+		userAGroupA := spendRow{userA.ID, groupA.ID, "provider-one", "model-one", 100}
+		userAGroupB := spendRow{userA.ID, groupB.ID, "provider-two", "model-two", 200}
+		userBGroupA := spendRow{userB.ID, groupA.ID, "provider-one", "model-two", 300}
+
+		tests := []struct {
+			name     string
+			filters  database.ExportOrganizationAISpendParams
+			wantRows []spendRow
+		}{
+			{name: "Unfiltered", wantRows: []spendRow{userAGroupA, userAGroupB, userBGroupA}},
+			{name: "User", filters: database.ExportOrganizationAISpendParams{UserID: userA.ID}, wantRows: []spendRow{userAGroupA, userAGroupB}},
+			{name: "EffectiveGroup", filters: database.ExportOrganizationAISpendParams{GroupID: groupA.ID}, wantRows: []spendRow{userAGroupA, userBGroupA}},
+			{name: "ProviderName", filters: database.ExportOrganizationAISpendParams{ProviderName: "provider-one"}, wantRows: []spendRow{userAGroupA, userBGroupA}},
+			{name: "Model", filters: database.ExportOrganizationAISpendParams{Model: "model-two"}, wantRows: []spendRow{userAGroupB, userBGroupA}},
+			{
+				name: "Combined",
+				filters: database.ExportOrganizationAISpendParams{
+					UserID: userA.ID, GroupID: groupB.ID,
+					ProviderName: "provider-two", Model: "model-two",
+				},
+				wantRows: []spendRow{userAGroupB},
+			},
+			{name: "NoMatch", filters: database.ExportOrganizationAISpendParams{ProviderName: "missing"}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				params := base
+				params.UserID = tt.filters.UserID
+				params.GroupID = tt.filters.GroupID
+				params.ProviderName = tt.filters.ProviderName
+				params.Model = tt.filters.Model
+
+				// When: exporting with the selected filters.
+				got, err := db.ExportOrganizationAISpend(ctx, params)
+				require.NoError(t, err)
+
+				// Then: the filter fields, costs, and full count match.
+				rows := make([]spendRow, 0, len(got))
+				for _, row := range got {
+					rows = append(rows, spendRow{row.UserID, row.GroupID.UUID, row.ProviderName, row.Model, row.CostMicros})
+					require.Equal(t, int64(len(tt.wantRows)), row.Count)
+				}
+				require.ElementsMatch(t, tt.wantRows, rows)
+			})
+		}
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: the three matching rows in export order.
+		unpaginated, err := db.ExportOrganizationAISpend(ctx, base)
+		require.NoError(t, err)
+		require.Len(t, unpaginated, 3)
+
+		// When: requesting the second row as a one-row page.
+		params := base
+		params.LimitOpt = 1
+		params.OffsetOpt = 1
+		paged, err := db.ExportOrganizationAISpend(ctx, params)
+		require.NoError(t, err)
+
+		// Then: it matches the second export row and keeps the full count.
+		require.Len(t, paged, 1)
+		require.Equal(t, unpaginated[1], paged[0])
+		require.Equal(t, int64(3), paged[0].Count)
+
+		// When: requesting a page beyond the matching rows.
+		params.OffsetOpt = 3
+		outOfRange, err := db.ExportOrganizationAISpend(ctx, params)
+		require.NoError(t, err)
+
+		// Then: the page is empty.
+		require.Empty(t, outOfRange)
+	})
+}
