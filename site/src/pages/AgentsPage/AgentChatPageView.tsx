@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import {
+	type ComponentProps,
 	type FC,
 	type ReactNode,
 	type RefObject,
@@ -57,6 +58,7 @@ import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTa
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
+import { ComposerProvider } from "./context/ComposerContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import { parsePullRequestUrl } from "./utils/pullRequest";
@@ -192,6 +194,17 @@ interface AgentChatPageViewProps {
 	desktopChatId?: string;
 }
 
+// Providers shared by the chat column and the right panel. Combined so
+// adding one does not re-indent the whole page tree.
+const ChatToolProviders: FC<{
+	desktopPanel: ComponentProps<typeof DesktopPanelContext>["value"];
+	children: ReactNode;
+}> = ({ desktopPanel, children }) => (
+	<DesktopPanelContext value={desktopPanel}>
+		<ComposerProvider>{children}</ComposerProvider>
+	</DesktopPanelContext>
+);
+
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
 	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
 		{message}
@@ -204,6 +217,7 @@ interface UserTabContentProps {
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	canAnnotate: boolean;
 	sidebarVisible: boolean;
 	isActive: boolean;
 	isPending: boolean;
@@ -216,6 +230,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	workspace,
 	workspaceAgent,
 	wildcardHostname,
+	canAnnotate,
 	sidebarVisible,
 	isActive,
 	isPending,
@@ -267,6 +282,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 					agent={agent}
 					host={wildcardHostname}
 					tab={tab}
+					canAnnotate={canAnnotate}
 				/>
 			);
 		}
@@ -333,7 +349,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -751,6 +767,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
+						canAnnotate={experiments.includes("chat-ui-annotations")}
 						sidebarVisible={shouldShowSidebar}
 						isActive={effectiveSidebarTabId === userTab.id}
 						isPending={pendingTabId === userTab.id}
@@ -841,7 +858,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			<ChatWorkspaceContext
 				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
 			>
-				<DesktopPanelContext value={desktopPanelCtx}>
+				<ChatToolProviders desktopPanel={desktopPanelCtx}>
 					<div
 						className={cn(
 							"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
@@ -1035,7 +1052,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							/>
 						</RightPanel>
 					</div>
-				</DesktopPanelContext>
+				</ChatToolProviders>
 			</ChatWorkspaceContext>
 		</TerminalClientSessionContext>
 	);
