@@ -13,14 +13,13 @@ on:
       - unlabeled
       - reopened
       - edited
-      # For jobs that don't run on draft PRs.
       - ready_for_review
 
 permissions:
   contents: read
 
 # Only run one instance per PR to ensure in-order execution.
-concurrency: pr-${{ github.ref }}
+concurrency: pr-${{ github.event.pull_request.number || github.event.issue.number }}
 
 jobs:
   community-label:
@@ -225,8 +224,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    # Skip tagging for draft PRs.
-    if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'pull_request_target' }}
     steps:
       - name: release-labels
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

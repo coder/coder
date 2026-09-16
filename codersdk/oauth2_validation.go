@@ -18,7 +18,7 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 
 	// The client type is derived once, by DetermineClientType, so which RFC 8252
 	// rules apply here cannot drift from what gets stored in client_type.
-	if err := validateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
+	if err := ValidateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
 		return xerrors.Errorf("invalid redirect_uris: %w", err)
 	}
 
@@ -140,11 +140,11 @@ func validateScheme(u *url.URL) error {
 	return nil
 }
 
-// validateRedirectURIs validates redirect URIs according to RFC 7591, 8252.
+// ValidateRedirectURIs validates redirect URIs according to RFC 7591, 8252.
 // clientType selects which rules apply and is derived by DetermineClientType,
 // the single owner of that mapping, so this cannot disagree with the type the
 // app is stored as.
-func validateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
+func ValidateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}

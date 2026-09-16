@@ -119,6 +119,10 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
 		baseType = parsed
 	}
+	// No provider accepts SVG as a native part; it is inlined as text.
+	if baseType == string(codersdk.ChatAttachmentMediaTypeImageSVG) {
+		return false
+	}
 	isImage := strings.HasPrefix(baseType, "image/")
 	isText := strings.HasPrefix(baseType, "text/")
 	// Audio types are included for matrix completeness but are not

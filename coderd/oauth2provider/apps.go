@@ -143,6 +143,18 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		if app.IsPublic() {
+			if err := codersdk.ValidateRedirectURIs([]string{req.CallbackURL}, codersdk.OAuth2ClientTypePublic); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Validation failed.",
+					Validations: []codersdk.ValidationError{{
+						Field:  "callback_url",
+						Detail: err.Error(),
+					}},
+				})
+				return
+			}
+		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,
 			UpdatedAt:               dbtime.Now(),

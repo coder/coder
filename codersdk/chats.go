@@ -53,6 +53,7 @@ const (
 	ChatAttachmentMediaTypeImageGIF        ChatAttachmentMediaType = "image/gif"
 	ChatAttachmentMediaTypeImageJPEG       ChatAttachmentMediaType = "image/jpeg"
 	ChatAttachmentMediaTypeImagePNG        ChatAttachmentMediaType = "image/png"
+	ChatAttachmentMediaTypeImageSVG        ChatAttachmentMediaType = "image/svg+xml"
 	ChatAttachmentMediaTypeImageWEBP       ChatAttachmentMediaType = "image/webp"
 	ChatAttachmentMediaTypeTextCSV         ChatAttachmentMediaType = "text/csv"
 	ChatAttachmentMediaTypeTextMarkdown    ChatAttachmentMediaType = "text/markdown"
@@ -69,6 +70,7 @@ var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
 	ChatAttachmentMediaTypeImageGIF,
 	ChatAttachmentMediaTypeImageJPEG,
 	ChatAttachmentMediaTypeImagePNG,
+	ChatAttachmentMediaTypeImageSVG,
 	ChatAttachmentMediaTypeImageWEBP,
 	ChatAttachmentMediaTypeTextCSV,
 	ChatAttachmentMediaTypeTextMarkdown,
