@@ -84,7 +84,7 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 
 type PostOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
+	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
 	Icon        string `json:"icon" validate:"omitempty"`
 	// Scope is the space-separated list of scopes this app's tokens may be
 	// granted. Leave empty, or omit, for unrestricted.
@@ -108,7 +108,7 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 
 type PutOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
+	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
 	Icon        string `json:"icon" validate:"omitempty"`
 	// Scope replaces the app's current allowlist. Omit to leave the existing
 	// allowlist untouched. Set to an empty string to clear it, making the app
