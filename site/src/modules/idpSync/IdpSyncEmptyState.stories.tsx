@@ -8,6 +8,7 @@ const meta: Meta<typeof IdpSyncEmptyState> = {
 		title: "Set up organization mapping",
 		description:
 			"Automatically assign users to organizations based on their identity provider groups.",
+		ctaLabel: "Set up IdP organization sync",
 		docsHref: "https://coder.com/docs/admin/users/idp-sync#organization-sync",
 	},
 };
@@ -22,6 +23,7 @@ export const GroupMapping: Story = {
 		title: "Set up group mapping",
 		description:
 			"Automatically assign users to groups based on their identity provider claims.",
+		ctaLabel: "Set up IdP group sync",
 		docsHref: "https://coder.com/docs/admin/users/idp-sync#group-sync",
 	},
 };
@@ -31,6 +33,7 @@ export const RoleMapping: Story = {
 		title: "Set up role mapping",
 		description:
 			"Automatically assign roles to users based on their identity provider claims.",
+		ctaLabel: "Set up IdP role sync",
 		docsHref: "https://coder.com/docs/admin/users/idp-sync#role-sync",
 	},
 };

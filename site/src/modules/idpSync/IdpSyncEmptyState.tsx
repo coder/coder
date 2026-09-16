@@ -24,6 +24,7 @@ const IdpSyncIcon: FC<React.SVGProps<SVGSVGElement>> = (props) => {
 interface IdpSyncEmptyStateProps {
 	title: string;
 	description: string;
+	ctaLabel: string;
 	docsHref: string;
 }
 
@@ -34,6 +35,7 @@ interface IdpSyncEmptyStateProps {
 export const IdpSyncEmptyState: FC<IdpSyncEmptyStateProps> = ({
 	title,
 	description,
+	ctaLabel,
 	docsHref,
 }) => {
 	return (
@@ -51,7 +53,7 @@ export const IdpSyncEmptyState: FC<IdpSyncEmptyStateProps> = ({
 			</div>
 			<Button asChild variant="outline" size="sm">
 				<a href={docsHref} target="_blank" rel="noreferrer">
-					How to set up IdP sync
+					{ctaLabel}
 				</a>
 			</Button>
 		</div>

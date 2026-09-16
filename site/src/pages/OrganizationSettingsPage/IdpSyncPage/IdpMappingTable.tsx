@@ -31,6 +31,7 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 						? "Automatically assign users to groups based on their identity provider claims."
 						: "Automatically assign roles to users based on their identity provider claims."
 				}
+				ctaLabel={`Set up IdP ${label} sync`}
 				docsHref={docs(`/admin/users/idp-sync#${label}-sync`)}
 			/>
 		);
