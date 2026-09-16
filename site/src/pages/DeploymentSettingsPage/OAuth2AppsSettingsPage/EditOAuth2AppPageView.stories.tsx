@@ -161,6 +161,31 @@ export const DeleteDialogOpen: Story = {
 	},
 };
 
+export const DynamicallyRegisteredValues: Story = {
+	parameters: {
+		queries: [
+			{
+				key: oauth2ProviderAppKey(appId),
+				data: {
+					...mockApp,
+					name: "VS Code Coder Extension",
+					callback_url: "vscode://coder.coder-remote/oauth/callback",
+				},
+			},
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const nameField = await canvas.findByLabelText(/^name/i);
+		await userEvent.clear(nameField);
+		await userEvent.type(nameField, "Cursor (MCP)");
+	},
+};
+
 export const PublicClient: Story = {
 	parameters: {
 		queries: [
