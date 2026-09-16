@@ -16,6 +16,7 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
+import { isChatTurnActive } from "../utils/chatStatus";
 import {
 	getProviderForModelOption,
 	resolveCompactionThreshold,
@@ -515,8 +516,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
+	const isStreaming = hasStreamState || isChatTurnActive(chatStatus);
 
 	const inputElement = (
 		<AgentChatInput
