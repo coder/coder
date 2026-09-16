@@ -401,6 +401,9 @@ func (m *SubagentManager) resolveExploreToolSnapshot(
 			parent.PlanMode,
 			parent.ParentChatID,
 		)
+		// Empty means the parent is not Explore, so all plan-filtered
+		// configs remain eligible. Populated means the parent is
+		// Explore, so only its persisted snapshot can pass.
 		allowedParentIDs := map[uuid.UUID]struct{}{}
 		if isExploreSubagentMode(parent.Mode) {
 			for _, id := range parent.MCPServerIDs {
