@@ -137,9 +137,7 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 	t.Run("silent stream generation retry recovers", func(t *testing.T) {
 		t.Parallel()
 
-		// Longer than the 15m task watchdog. If the stream did not defer
-		// the watchdog, it would fire first and the runner would retry the
-		// task instead of the chat retry path.
+		// Longer than the 15m task watchdog.
 		const streamSilenceTimeout = 20 * time.Minute
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -235,8 +233,7 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 		waitUntilProviderCall(ctx, t, &calls, 1)
-		// Well past the 15m task watchdog. A retry by either the guard or
-		// the watchdog would make a second provider call.
+		// Past the 15m task watchdog.
 		advanceMockClockBy(ctx, t, clock, 16*time.Minute)
 		close(unblock)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)

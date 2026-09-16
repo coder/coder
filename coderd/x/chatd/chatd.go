@@ -2972,6 +2972,7 @@ type Config struct {
 	MaxChatsPerAcquire             int32
 	InFlightChatStaleAfter         time.Duration
 	ChatHeartbeatInterval          time.Duration
+	StreamSilenceTimeout           time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
@@ -3000,12 +3001,6 @@ type Config struct {
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
-
-	// StreamSilenceTimeout bounds how long a model stream may stay silent
-	// before the attempt is canceled and retried. Zero uses
-	// chatloop.DefaultStreamSilenceTimeout and
-	// chatloop.StreamSilenceTimeoutDisabled turns the bound off.
-	StreamSilenceTimeout time.Duration
 }
 
 // New creates a new chat processor with the required pubsub dependency.

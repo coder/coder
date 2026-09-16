@@ -2523,16 +2523,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                     | Type                       | Required | Restrictions | Description                                                                                                                    |
-|--------------------------|----------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `acquire_batch_size`     | integer                    | false    |              |                                                                                                                                |
-| `debug_logging_enabled`  | boolean                    | false    |              |                                                                                                                                |
-| `hook_allow_insecure`    | boolean                    | false    |              |                                                                                                                                |
-| `hook_enabled`           | boolean                    | false    |              |                                                                                                                                |
-| `hook_secret`            | string                     | false    |              |                                                                                                                                |
-| `hook_timeout`           | integer                    | false    |              |                                                                                                                                |
-| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                |
-| `stream_silence_timeout` | integer                    | false    |              | Stream silence timeout bounds how long a Coder Agents model stream may stay silent before the attempt is canceled and retried. |
+| Name                     | Type                       | Required | Restrictions | Description |
+|--------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`     | integer                    | false    |              |             |
+| `debug_logging_enabled`  | boolean                    | false    |              |             |
+| `hook_allow_insecure`    | boolean                    | false    |              |             |
+| `hook_enabled`           | boolean                    | false    |              |             |
+| `hook_secret`            | string                     | false    |              |             |
+| `hook_timeout`           | integer                    | false    |              |             |
+| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
 

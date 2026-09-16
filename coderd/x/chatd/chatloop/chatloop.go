@@ -36,12 +36,9 @@ import (
 const (
 	// DefaultStreamSilenceTimeout bounds how long an individual
 	// model attempt may go without receiving a stream part before
-	// the attempt is canceled and retried. Callers may override it
-	// with GenerateAssistantOptions.StreamSilenceTimeout.
+	// the attempt is canceled and retried.
 	DefaultStreamSilenceTimeout = 10 * time.Minute
-	// StreamSilenceTimeoutDisabled turns the silence guard off. A
-	// silent stream then only ends when the provider or the caller
-	// ends it. Any negative timeout has the same effect.
+	// StreamSilenceTimeoutDisabled turns the silence guard off.
 	StreamSilenceTimeoutDisabled time.Duration = -1
 	streamSilenceGuardTimerTag                 = "streamSilenceGuard"
 )
@@ -761,11 +758,7 @@ func classifyStreamSilenceTimeout(
 type streamWatchdogKey struct{}
 
 // WithStreamWatchdog returns a context whose guarded streams call kick
-// with the silence timeout each time the guard arms or resets. A caller's
-// idle watchdog can use it to stay quiet until the guard has had its
-// chance to fire, so a silent stream fails through the guard and a
-// healthy long stream is not canceled as a hang. A negative silence
-// means the guard is disabled and nothing bounds the stream.
+// with the silence timeout whenever the guard arms or resets.
 func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) context.Context {
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }

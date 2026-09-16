@@ -13,12 +13,9 @@ import (
 type RuntimeConfig struct {
 	Model fantasy.LanguageModel
 	// CallTemplate's provider options are cloned for each nested call.
-	CallTemplate    fantasy.Call
-	MaxUsesPerRun   int
-	MaxOutputTokens int64
-	// StreamSilenceTimeout bounds how long a nested advisor stream may stay
-	// silent. Zero uses chatloop.DefaultStreamSilenceTimeout and
-	// chatloop.StreamSilenceTimeoutDisabled turns the bound off.
+	CallTemplate         fantasy.Call
+	MaxUsesPerRun        int
+	MaxOutputTokens      int64
 	StreamSilenceTimeout time.Duration
 }
 

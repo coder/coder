@@ -4883,15 +4883,13 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
-	// StreamSilenceTimeout bounds how long a Coder Agents model stream may
-	// stay silent before the attempt is canceled and retried.
+	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret           serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout          serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.

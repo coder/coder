@@ -26,10 +26,7 @@ import (
 const (
 	postCommitWatchPublishTimeout = 10 * time.Second
 	defaultTaskTimeout            = 15 * time.Minute
-	// taskTimeoutMargin is how long a task attempt may spend between a
-	// stream silence timeout and opening the next stream before the task
-	// watchdog treats it as hung.
-	taskTimeoutMargin = 5 * time.Minute
+	taskTimeoutMargin             = 5 * time.Minute
 )
 
 var (
@@ -161,11 +158,8 @@ func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) 
 	timer := clock.AfterFunc(defaultTaskTimeout, func() {
 		cancelCause(errTaskTimeout)
 	}, "chatworker", tag)
-	// Each stream part defers the watchdog past the silence guard, so a
-	// silent stream fails through chat retry handling rather than as a
-	// generic task hang, and a healthy long stream is never cut off.
-	// With the guard disabled nothing bounds the stream, so the watchdog
-	// stops for the rest of the attempt.
+	// A silent stream must fail through the silence guard rather than the
+	// watchdog, and a healthy long stream must not be cut off.
 	attemptCtx = chatloop.WithStreamWatchdog(attemptCtx, func(silence time.Duration) {
 		if silence < 0 {
 			timer.Stop()
