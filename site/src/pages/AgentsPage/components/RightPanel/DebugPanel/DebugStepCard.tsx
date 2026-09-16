@@ -321,7 +321,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 								<div className="space-y-2">
 									{/* Primary response content: visually prominent. */}
 									{response.content ? (
-										<p className="max-h-112 overflow-auto whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
+										<p className="max-h-112 overflow-auto wrap-anywhere whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
 											{response.content}
 										</p>
 									) : null}

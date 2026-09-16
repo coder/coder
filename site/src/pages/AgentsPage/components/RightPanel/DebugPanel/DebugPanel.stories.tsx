@@ -422,6 +422,34 @@ const longPayloadRunDetail: TypesGen.ChatDebugRun = {
 	],
 };
 
+// Unbreakable tokens (URLs, base64, minified JSON) must wrap inside the
+// panel instead of widening the transcript past the clipped panel edge.
+const UNBREAKABLE_TOKEN = `https://example.com/${"segment/".repeat(60)}`;
+
+const unbreakableRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
+	id: "run-unbreakable",
+	summary: { first_message: "Fetch the long URL" },
+	steps: [
+		{
+			...MockStep,
+			id: "step-unbreakable-1",
+			run_id: "run-unbreakable",
+			normalized_request: buildNormalizedPayloadFixture({
+				model: "gpt-4",
+				messages: JSON.stringify([
+					{ role: "system", content: "x".repeat(400) },
+					{ role: "user", content: UNBREAKABLE_TOKEN },
+				]),
+			}),
+			normalized_response: buildNormalizedPayloadFixture({
+				content: UNBREAKABLE_TOKEN,
+				finish_reason: "stop",
+			}),
+		},
+	],
+};
+
 const getAllRunDetails = () => [
 	successfulRunDetail,
 	richRunDetail,
@@ -1253,6 +1281,50 @@ export const LongRawPayloads: Story = {
 
 		await user.click(await canvas.findByText("Request body"));
 		await canvas.findByText(/request_24/i);
+	},
+};
+
+export const UnbreakableContentWrapsInsidePanel: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatDebugRunsKey(CHAT_ID),
+				data: [
+					buildRunSummary({
+						id: unbreakableRunDetail.id,
+						summary: unbreakableRunDetail.summary,
+					}),
+				],
+			},
+			{
+				key: chatDebugRunKey(CHAT_ID, unbreakableRunDetail.id),
+				data: unbreakableRunDetail,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(
+			await canvas.findByRole("button", { name: /Fetch the long URL/i }),
+		);
+		await expandStep(canvas, user);
+
+		const viewport = canvasElement.querySelector(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!(viewport instanceof HTMLElement)) {
+			throw new Error("Missing debug panel scroll viewport.");
+		}
+		const [urlElement] = await canvas.findAllByText(UNBREAKABLE_TOKEN);
+		const panelRight = viewport.getBoundingClientRect().right;
+		await waitFor(() => {
+			expect(urlElement.getBoundingClientRect().right).toBeLessThanOrEqual(
+				panelRight,
+			);
+			expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
+		});
 	},
 };
 
