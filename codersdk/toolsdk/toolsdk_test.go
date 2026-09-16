@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,7 +21,6 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	agentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -31,12 +29,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -109,6 +105,30 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			openWorldHint:   false,
 		},
 		{
+			name:            "DownloadChatFileIsReadOnly",
+			toolName:        toolsdk.ToolNameDownloadChatFile,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "AwaitChatIsReadOnly",
+			toolName:        toolsdk.ToolNameAwaitChat,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "ListChatsIsReadOnly",
+			toolName:        toolsdk.ToolNameListChats,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
 			name:            "DestructiveTool",
 			toolName:        toolsdk.ToolNameWorkspaceWriteFile,
 			readOnlyHint:    false,
@@ -160,6 +180,211 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			assert.Equal(t, tc.idempotentHint, found.MCPAnnotations.IdempotentHint)
 			assert.Equal(t, tc.openWorldHint, found.MCPAnnotations.OpenWorldHint)
 		})
+	}
+}
+
+func TestGenericToolArgumentValidation(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Mode  string `json:"mode"`
+		Value int64  `json:"value"`
+	}
+	tests := []struct {
+		name      string
+		arguments string
+		contains  []string
+	}{
+		{
+			name:      "MissingRequiredProperty",
+			arguments: `{"mode":"allowed"}`,
+			contains:  []string{"required", "value"},
+		},
+		{
+			name:      "IncorrectPropertyType",
+			arguments: `{"mode":"allowed","value":false}`,
+			contains:  []string{"type", "value"},
+		},
+		{
+			name:      "BelowMinimum",
+			arguments: `{"mode":"allowed","value":0}`,
+			contains:  []string{"minimum", "value"},
+		},
+		{
+			name:      "InvalidEnumValue",
+			arguments: `{"mode":"denied","value":1}`,
+			contains:  []string{"enum", "mode"},
+		},
+		{
+			name:      "UnknownProperty",
+			arguments: `{"mode":"allowed","value":1,"unknown":true}`,
+			contains:  []string{"unexpected additional properties", "unknown"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			called := false
+			tool := toolsdk.Tool[arguments, struct{}]{
+				Tool: aisdk.Tool{
+					Name: "test_validation",
+					Schema: aisdk.Schema{
+						Properties: map[string]any{
+							"mode": map[string]any{
+								"type": "string",
+								"enum": []string{"allowed"},
+							},
+							"value": map[string]any{
+								"type":    "integer",
+								"minimum": 1,
+							},
+						},
+						Required: []string{"mode", "value"},
+					},
+				},
+				Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+					called = true
+					return struct{}{}, nil
+				},
+			}.Generic()
+
+			result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(test.arguments))
+			require.Nil(t, result)
+			var validationErr *toolsdk.ArgumentValidationError
+			require.ErrorAs(t, err, &validationErr)
+			for _, expected := range test.contains {
+				require.ErrorContains(t, validationErr, expected)
+			}
+			require.False(t, called)
+		})
+	}
+}
+
+func TestGenericToolArgumentValidation_TypedDecode(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Port int `json:"port"`
+	}
+	called := false
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_typed_decode",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"port": map[string]any{"type": "number"},
+				},
+				Required: []string{"port"},
+			},
+		},
+		Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+			called = true
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"port":8080.5}`))
+	require.Nil(t, result)
+	var validationErr *toolsdk.ArgumentValidationError
+	require.True(t, errors.As(err, &validationErr))
+	require.ErrorContains(t, validationErr, "cannot unmarshal number")
+	require.False(t, called)
+}
+
+func TestGenericToolArgumentValidation_PreservesLargeInteger(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Value int64 `json:"value"`
+	}
+	const value = int64(9007199254740993)
+	var received int64
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_large_integer",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"value": map[string]any{"type": "integer"},
+				},
+				Required: []string{"value"},
+			},
+		},
+		Handler: func(_ context.Context, _ toolsdk.Deps, args arguments) (struct{}, error) {
+			received = args.Value
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"value":9007199254740993}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(result))
+	require.Equal(t, value, received)
+}
+
+func TestGenericToolArgumentValidation_OmittedArguments(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	tool := toolsdk.Tool[toolsdk.NoArgs, struct{}]{
+		Tool: aisdk.Tool{
+			Name:   "test_omitted_arguments",
+			Schema: aisdk.Schema{Properties: map[string]any{}},
+		},
+		Handler: func(context.Context, toolsdk.Deps, toolsdk.NoArgs) (struct{}, error) {
+			called = true
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, nil)
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(result))
+	require.True(t, called)
+}
+
+func TestGenericToolArgumentValidation_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Labels map[string]string `json:"labels"`
+	}
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_concurrent_validation",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"labels": map[string]any{
+						"type": "object",
+						"patternProperties": map[string]any{
+							"^label_": map[string]any{"type": "string"},
+						},
+					},
+				},
+				Required: []string{"labels"},
+			},
+		},
+		Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	const callers = 32
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Go(func() {
+			<-start
+			_, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"labels":{"label_one":"value"}}`))
+			errs <- err
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
 	}
 }
 
@@ -309,6 +534,8 @@ func TestTools(t *testing.T) {
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].OrganizationID.String(), template.OrganizationID)
+			require.Equal(t, expected[i].AgentsAllowed, template.AgentsAllowed)
 		}
 	})
 
@@ -330,6 +557,7 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, result, 1, "expected 1 workspace")
 		workspace := result[0]
+		require.Equal(t, r.Workspace.OrganizationID.String(), workspace.OrganizationID)
 		require.Equal(t, r.Workspace.ID.String(), workspace.ID, "expected the workspace to match the one we created")
 	})
 
@@ -674,6 +902,7 @@ func TestTools(t *testing.T) {
 
 			// MinimalTemplate fields populated.
 			require.Equal(t, gtBuild.Template.ID.String(), result.ID)
+			require.Equal(t, gtBuild.Template.OrganizationID.String(), result.OrganizationID)
 			require.Equal(t, gtBuild.Template.Name, result.Name)
 			require.Equal(t, gtBuild.Template.ActiveVersionID, result.ActiveVersionID)
 
@@ -717,6 +946,7 @@ func TestTools(t *testing.T) {
 			b, err := json.Marshal(result)
 			require.NoError(t, err)
 			require.NotContains(t, string(b), `"presets"`)
+			require.Contains(t, string(b), `"organization_id":"`+gtNoPresetBuild.Template.OrganizationID.String()+`"`)
 		})
 
 		t.Run("InvalidID", func(t *testing.T) {
@@ -833,26 +1063,38 @@ func TestTools(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, tv)
 		})
+		t.Run("ExplicitOrganization", func(t *testing.T) {
+			organization := dbgen.Organization(t, store, database.Organization{})
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				OrganizationID: organization.ID.String(),
+				FileID:         file.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, organization.ID, tv.OrganizationID)
+		})
 	})
 
 	t.Run("CreateTemplate", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
+		organization := dbgen.Organization(t, store, database.Organization{})
 		// Create a new template version for use here.
 		tv := dbfake.TemplateVersion(t, store).
 			// nolint:gocritic // This is in a test package and does not end up in the build
-			Seed(database.TemplateVersion{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID}).
+			Seed(database.TemplateVersion{OrganizationID: organization.ID, CreatedBy: owner.UserID}).
 			SkipCreateTemplate().Do()
 
 		// We're going to re-use the pre-existing template version
-		_, err = testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
-			Name:        testutil.GetRandomNameHyphenated(t),
-			DisplayName: "Test Template",
-			Description: "This is a test template",
-			VersionID:   tv.TemplateVersion.ID.String(),
+		created, err := testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
+			OrganizationID: organization.ID.String(),
+			Name:           testutil.GetRandomNameHyphenated(t),
+			DisplayName:    "Test Template",
+			Description:    "This is a test template",
+			VersionID:      tv.TemplateVersion.ID.String(),
 		})
 
 		require.NoError(t, err)
+		require.Equal(t, organization.ID, created.OrganizationID)
 	})
 
 	t.Run("CreateWorkspace", func(t *testing.T) {
@@ -1020,9 +1262,9 @@ func TestTools(t *testing.T) {
 
 		t.Run("RejectsInvalidTemplateID", func(t *testing.T) {
 			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
-				User:       "me",
-				Name:       testutil.GetRandomNameHyphenated(t),
-				TemplateID: "not-a-uuid",
+				Name:           testutil.GetRandomNameHyphenated(t),
+				TemplateID:     "not-a-uuid",
+				RichParameters: map[string]string{},
 			})
 			require.ErrorContains(t, err, "template_id must be a valid UUID")
 		})
@@ -1032,6 +1274,7 @@ func TestTools(t *testing.T) {
 				User:              "me",
 				Name:              testutil.GetRandomNameHyphenated(t),
 				TemplateVersionID: "not-a-uuid",
+				RichParameters:    map[string]string{},
 			})
 			require.ErrorContains(t, err, "template_version_id must be a valid UUID")
 		})
@@ -1042,6 +1285,7 @@ func TestTools(t *testing.T) {
 				Name:                    testutil.GetRandomNameHyphenated(t),
 				TemplateVersionID:       uuid.NewString(),
 				TemplateVersionPresetID: "not-a-uuid",
+				RichParameters:          map[string]string{},
 			})
 			require.ErrorContains(t, err, "template_version_preset_id must be a valid UUID")
 		})
@@ -1218,8 +1462,8 @@ func TestTools(t *testing.T) {
 						Workspace: workspace.Name,
 						Path:      "/tmp/file",
 						Edits: []workspacesdk.FileEdit{{
-							Search:  "hello",
-							Replace: "goodbye",
+							OldText: "hello",
+							NewText: "goodbye",
 						}},
 					})
 					return err
@@ -1233,8 +1477,8 @@ func TestTools(t *testing.T) {
 						Files: []workspacesdk.FileEdits{{
 							Path: "/tmp/file",
 							Edits: []workspacesdk.FileEdit{{
-								Search:  "hello",
-								Replace: "goodbye",
+								OldText: "hello",
+								NewText: "goodbye",
 							}},
 						}},
 					})
@@ -1421,6 +1665,7 @@ func TestTools(t *testing.T) {
 		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
 			Workspace: workspace.Name,
 			Path:      filePath,
+			Edits:     []workspacesdk.FileEdit{},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must specify at least one edit")
@@ -1430,8 +1675,8 @@ func TestTools(t *testing.T) {
 			Path:      filePath,
 			Edits: []workspacesdk.FileEdit{
 				{
-					Search:  "foo",
-					Replace: "bar",
+					OldText: "foo",
+					NewText: "bar",
 				},
 			},
 		})
@@ -1464,6 +1709,7 @@ func TestTools(t *testing.T) {
 
 		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
 			Workspace: workspace.Name,
+			Files:     []workspacesdk.FileEdits{},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must specify at least one file")
@@ -1475,8 +1721,8 @@ func TestTools(t *testing.T) {
 					Path: filePath1,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo1",
-							Replace: "bar1",
+							OldText: "foo1",
+							NewText: "bar1",
 						},
 					},
 				},
@@ -1484,8 +1730,8 @@ func TestTools(t *testing.T) {
 					Path: filePath2,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo2",
-							Replace: "bar2",
+							OldText: "foo2",
+							NewText: "bar2",
 						},
 					},
 				},
@@ -1557,384 +1803,6 @@ func TestTools(t *testing.T) {
 				} else {
 					require.NoError(t, err)
 					require.Equal(t, fmt.Sprintf(tt.expect, client.URL.Scheme, client.URL.Port()), res.URL)
-				}
-			})
-		}
-	})
-
-	t.Run("CreateTask", func(t *testing.T) {
-		t.Parallel()
-
-		presetID := uuid.New()
-		// nolint:gocritic // This is in a test package and does not end up in the build
-		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      member.ID,
-			HasAITask: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-		}).Preset(database.TemplateVersionPreset{
-			ID: presetID,
-			DesiredInstances: sql.NullInt32{
-				Int32: 1,
-				Valid: true,
-			},
-		}).Do()
-
-		tests := []struct {
-			name  string
-			args  toolsdk.CreateTaskArgs
-			error string
-		}{
-			{
-				name: "OK",
-				args: toolsdk.CreateTaskArgs{
-					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
-					Input:             "do a barrel roll",
-					User:              "me",
-				},
-			},
-			{
-				name: "NoUser",
-				args: toolsdk.CreateTaskArgs{
-					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
-					Input:             "do another barrel roll",
-				},
-			},
-			{
-				name: "NoInput",
-				args: toolsdk.CreateTaskArgs{
-					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
-				},
-				error: "input is required",
-			},
-			{
-				name: "NotTaskTemplate",
-				args: toolsdk.CreateTaskArgs{
-					TemplateVersionID: r.TemplateVersion.ID.String(),
-					Input:             "do yet another barrel roll",
-				},
-				error: "Template does not have a valid \"coder_ai_task\" resource.",
-			},
-			{
-				name: "WithPreset",
-				args: toolsdk.CreateTaskArgs{
-					TemplateVersionID:       aiTV.TemplateVersion.ID.String(),
-					TemplateVersionPresetID: presetID.String(),
-					Input:                   "not enough barrel rolls",
-				},
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-
-				_, err = testTool(t, toolsdk.CreateTask, tb, tt.args)
-				if tt.error != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, tt.error)
-				} else {
-					require.NoError(t, err)
-				}
-			})
-		}
-	})
-
-	t.Run("DeleteTask", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:gocritic // This is in a test package and does not end up in the build
-		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      member.ID,
-			HasAITask: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-		}).Do()
-
-		build1 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			Name:           "delete-task-workspace-1",
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-			TemplateID:     aiTV.Template.ID,
-		}).WithTask(database.TaskTable{
-			Name:   "delete-task-1",
-			Prompt: "delete task 1",
-		}, nil).Do()
-		task1 := build1.Task
-
-		build2 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			Name:           "delete-task-workspace-2",
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-			TemplateID:     aiTV.Template.ID,
-		}).WithTask(database.TaskTable{
-			Name:   "delete-task-2",
-			Prompt: "delete task 2",
-		}, nil).Do()
-		task2 := build2.Task
-
-		tests := []struct {
-			name  string
-			args  toolsdk.DeleteTaskArgs
-			error string
-		}{
-			{
-				name: "ByUUID",
-				args: toolsdk.DeleteTaskArgs{
-					TaskID: task1.ID.String(),
-				},
-			},
-			{
-				name: "ByIdentifier",
-				args: toolsdk.DeleteTaskArgs{
-					TaskID: task2.Name,
-				},
-			},
-			{
-				name:  "NoID",
-				args:  toolsdk.DeleteTaskArgs{},
-				error: "task_id is required",
-			},
-			{
-				name: "NoTaskByID",
-				args: toolsdk.DeleteTaskArgs{
-					TaskID: uuid.New().String(),
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "NoTaskByWorkspaceIdentifier",
-				args: toolsdk.DeleteTaskArgs{
-					TaskID: "non-existent",
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "ExistsButNotATask",
-				args: toolsdk.DeleteTaskArgs{
-					TaskID: r.Workspace.ID.String(),
-				},
-				error: "Resource not found",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-
-				_, err = testTool(t, toolsdk.DeleteTask, tb, tt.args)
-				if tt.error != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, tt.error)
-				} else {
-					require.NoError(t, err)
-				}
-			})
-		}
-	})
-
-	t.Run("ListTasks", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
-		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		taskClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-		// Create a template with AI task support using the proper flow.
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ApplyComplete,
-			ProvisionGraph: []*proto.Response{
-				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-					HasAiTasks: true,
-				}}},
-			},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-
-		// This task should not show up since listing is user-scoped.
-		_, err := client.CreateTask(ctx, member.Username, codersdk.CreateTaskRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Input:             "task for member",
-			Name:              "list-task-workspace-member",
-		})
-		require.NoError(t, err)
-
-		// Create tasks for taskUser. These should show up in the list.
-		for i := range 5 {
-			taskName := fmt.Sprintf("list-task-workspace-%d", i)
-			task, err := taskClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
-				TemplateVersionID: template.ActiveVersionID,
-				Input:             fmt.Sprintf("task %d", i),
-				Name:              taskName,
-			})
-			require.NoError(t, err)
-			require.True(t, task.WorkspaceID.Valid, "task should have workspace ID")
-
-			// For the first task, stop the workspace to make it paused.
-			if i == 0 {
-				ws, err := taskClient.Workspace(ctx, task.WorkspaceID.UUID)
-				require.NoError(t, err)
-				coderdtest.AwaitWorkspaceBuildJobCompleted(t, taskClient, ws.LatestBuild.ID)
-
-				// Stop the workspace to set task status to paused.
-				build, err := taskClient.CreateWorkspaceBuild(ctx, task.WorkspaceID.UUID, codersdk.CreateWorkspaceBuildRequest{
-					Transition: codersdk.WorkspaceTransitionStop,
-				})
-				require.NoError(t, err)
-				coderdtest.AwaitWorkspaceBuildJobCompleted(t, taskClient, build.ID)
-			}
-		}
-
-		tests := []struct {
-			name     string
-			args     toolsdk.ListTasksArgs
-			expected []string
-			error    string
-		}{
-			{
-				name: "ListAllOwned",
-				args: toolsdk.ListTasksArgs{},
-				expected: []string{
-					"list-task-workspace-0",
-					"list-task-workspace-1",
-					"list-task-workspace-2",
-					"list-task-workspace-3",
-					"list-task-workspace-4",
-				},
-			},
-			{
-				name: "ListFiltered",
-				args: toolsdk.ListTasksArgs{
-					Status: codersdk.TaskStatusPaused,
-				},
-				expected: []string{
-					"list-task-workspace-0",
-				},
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				tb, err := toolsdk.NewDeps(taskClient)
-				require.NoError(t, err)
-
-				res, err := testTool(t, toolsdk.ListTasks, tb, tt.args)
-				if tt.error != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, tt.error)
-				} else {
-					require.NoError(t, err)
-					require.Len(t, res.Tasks, len(tt.expected))
-					for _, task := range res.Tasks {
-						require.Contains(t, tt.expected, task.Name)
-					}
-				}
-			})
-		}
-	})
-
-	t.Run("GetTask", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:gocritic // This is in a test package and does not end up in the build
-		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      member.ID,
-			HasAITask: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-		}).Do()
-
-		build := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			Name:           "get-task-workspace-1",
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-			TemplateID:     aiTV.Template.ID,
-		}).WithTask(database.TaskTable{
-			Name:   "get-task-1",
-			Prompt: "get task",
-		}, nil).Do()
-		task := build.Task
-
-		tests := []struct {
-			name     string
-			args     toolsdk.GetTaskStatusArgs
-			expected codersdk.TaskStatus
-			error    string
-		}{
-			{
-				name: "ByUUID",
-				args: toolsdk.GetTaskStatusArgs{
-					TaskID: task.ID.String(),
-				},
-				expected: codersdk.TaskStatusInitializing,
-			},
-			{
-				name: "ByIdentifier",
-				args: toolsdk.GetTaskStatusArgs{
-					TaskID: task.Name,
-				},
-				expected: codersdk.TaskStatusInitializing,
-			},
-			{
-				name:  "NoID",
-				args:  toolsdk.GetTaskStatusArgs{},
-				error: "task_id is required",
-			},
-			{
-				name: "NoTaskByID",
-				args: toolsdk.GetTaskStatusArgs{
-					TaskID: uuid.New().String(),
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "NoTaskByWorkspaceIdentifier",
-				args: toolsdk.GetTaskStatusArgs{
-					TaskID: "non-existent",
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "ExistsButNotATask",
-				args: toolsdk.GetTaskStatusArgs{
-					TaskID: r.Workspace.ID.String(),
-				},
-				error: "Resource not found",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-
-				res, err := testTool(t, toolsdk.GetTaskStatus, tb, tt.args)
-				if tt.error != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, tt.error)
-				} else {
-					require.NoError(t, err)
-					require.Equal(t, tt.expected, res.Status)
 				}
 			})
 		}
@@ -2079,285 +1947,6 @@ func TestTools(t *testing.T) {
 			})
 		}
 	})
-
-	t.Run("SendTaskInput", func(t *testing.T) {
-		t.Parallel()
-
-		// Start a fake AgentAPI that accepts GET /status and POST /message.
-		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && r.URL.Path == "/status" {
-				httpapi.Write(r.Context(), rw, http.StatusOK, agentapi.GetStatusResponse{
-					Status: agentapi.StatusStable,
-				})
-				return
-			}
-			if r.Method == http.MethodPost && r.URL.Path == "/message" {
-				rw.Header().Set("Content-Type", "application/json")
-
-				var req agentapi.PostMessageParams
-				ok := httpapi.Read(r.Context(), rw, r, &req)
-				assert.True(t, ok, "failed to read request")
-
-				assert.Equal(t, req.Content, "frob the baz")
-				assert.Equal(t, req.Type, agentapi.MessageTypeUser)
-
-				httpapi.Write(r.Context(), rw, http.StatusOK, agentapi.PostMessageResponse{
-					Ok: true,
-				})
-				return
-			}
-			rw.WriteHeader(http.StatusInternalServerError)
-		}))
-		t.Cleanup(srv.Close)
-
-		// nolint:gocritic // This is in a test package and does not end up in the build
-		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      member.ID,
-			HasAITask: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-		}).Do()
-
-		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			Name:           "send-task-input-ws",
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-			TemplateID:     aiTV.Template.ID,
-		}).WithTask(database.TaskTable{
-			Name:   "send-task-input",
-			Prompt: "send task input",
-		}, &proto.App{Url: srv.URL}).Do()
-		task := ws.Task
-
-		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
-			WaitFor(coderdtest.AgentsReady)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Ensure the app is healthy (required to send task input).
-		err := store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
-			ID:     task.WorkspaceAppID.UUID,
-			Health: database.WorkspaceAppHealthHealthy,
-		})
-		require.NoError(t, err)
-
-		tests := []struct {
-			name  string
-			args  toolsdk.SendTaskInputArgs
-			error string
-		}{
-			{
-				name: "ByUUID",
-				args: toolsdk.SendTaskInputArgs{
-					TaskID: task.ID.String(),
-					Input:  "frob the baz",
-				},
-			},
-			{
-				name: "ByIdentifier",
-				args: toolsdk.SendTaskInputArgs{
-					TaskID: task.Name,
-					Input:  "frob the baz",
-				},
-			},
-			{
-				name:  "NoID",
-				args:  toolsdk.SendTaskInputArgs{},
-				error: "task_id is required",
-			},
-			{
-				name: "NoInput",
-				args: toolsdk.SendTaskInputArgs{
-					TaskID: "send-task-input",
-				},
-				error: "input is required",
-			},
-			{
-				name: "NoTaskByID",
-				args: toolsdk.SendTaskInputArgs{
-					TaskID: uuid.New().String(),
-					Input:  "this is ignored",
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "NoTaskByWorkspaceIdentifier",
-				args: toolsdk.SendTaskInputArgs{
-					TaskID: "non-existent",
-					Input:  "this is ignored",
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "ExistsButNotATask",
-				args: toolsdk.SendTaskInputArgs{
-					TaskID: r.Workspace.ID.String(),
-					Input:  "this is ignored",
-				},
-				error: "Resource not found",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-
-				_, err = testTool(t, toolsdk.SendTaskInput, tb, tt.args)
-				if tt.error != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, tt.error)
-				} else {
-					require.NoError(t, err)
-				}
-			})
-		}
-	})
-
-	t.Run("GetTaskLogs", func(t *testing.T) {
-		t.Parallel()
-
-		messages := []agentapi.Message{
-			{
-				Id:      0,
-				Content: "welcome",
-				Role:    agentapi.RoleAgent,
-			},
-			{
-				Id:      1,
-				Content: "frob the dazzle",
-				Role:    agentapi.RoleUser,
-			},
-			{
-				Id:      2,
-				Content: "frob dazzled",
-				Role:    agentapi.RoleAgent,
-			},
-		}
-
-		// Start a fake AgentAPI that returns some messages.
-		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && r.URL.Path == "/messages" {
-				httpapi.Write(r.Context(), rw, http.StatusOK, agentapi.GetMessagesResponse{
-					Messages: messages,
-				})
-				return
-			}
-			rw.WriteHeader(http.StatusInternalServerError)
-		}))
-		t.Cleanup(srv.Close)
-
-		// nolint:gocritic // This is in a test package and does not end up in the build
-		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      member.ID,
-			HasAITask: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-		}).Do()
-
-		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			Name:           "get-task-logs-ws",
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-			TemplateID:     aiTV.Template.ID,
-		}).WithTask(database.TaskTable{
-			Name:   "get-task-logs",
-			Prompt: "get task logs",
-		}, &proto.App{Url: srv.URL}).Do()
-		task := ws.Task
-
-		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
-			WaitFor(coderdtest.AgentsReady)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Ensure the app is healthy (required to read task logs).
-		err := store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
-			ID:     task.WorkspaceAppID.UUID,
-			Health: database.WorkspaceAppHealthHealthy,
-		})
-		require.NoError(t, err)
-
-		tests := []struct {
-			name     string
-			args     toolsdk.GetTaskLogsArgs
-			expected []agentapi.Message
-			error    string
-		}{
-			{
-				name: "ByUUID",
-				args: toolsdk.GetTaskLogsArgs{
-					TaskID: task.ID.String(),
-				},
-				expected: messages,
-			},
-			{
-				name: "ByIdentifier",
-				args: toolsdk.GetTaskLogsArgs{
-					TaskID: task.Name,
-				},
-				expected: messages,
-			},
-			{
-				name:  "NoID",
-				args:  toolsdk.GetTaskLogsArgs{},
-				error: "task_id is required",
-			},
-			{
-				name: "NoTaskByID",
-				args: toolsdk.GetTaskLogsArgs{
-					TaskID: uuid.New().String(),
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "NoTaskByWorkspaceIdentifier",
-				args: toolsdk.GetTaskLogsArgs{
-					TaskID: "non-existent",
-				},
-				error: "Resource not found",
-			},
-			{
-				name: "ExistsButNotATask",
-				args: toolsdk.GetTaskLogsArgs{
-					TaskID: r.Workspace.ID.String(),
-				},
-				error: "Resource not found",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-
-				res, err := testTool(t, toolsdk.GetTaskLogs, tb, tt.args)
-				if tt.error != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, tt.error)
-				} else {
-					require.NoError(t, err)
-					require.Len(t, res.Logs, len(tt.expected))
-					for i, msg := range tt.expected {
-						require.Equal(t, msg.Id, int64(res.Logs[i].ID))
-						require.Equal(t, msg.Content, res.Logs[i].Content)
-						if msg.Role == agentapi.RoleUser {
-							require.Equal(t, codersdk.TaskLogTypeInput, res.Logs[i].Type)
-						} else {
-							require.Equal(t, codersdk.TaskLogTypeOutput, res.Logs[i].Type)
-						}
-						require.Equal(t, msg.Time, res.Logs[i].Time)
-					}
-				}
-			})
-		}
-	})
 }
 
 // TestedTools keeps track of which tools have been tested.
@@ -2373,8 +1962,31 @@ func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsd
 	require.NoError(t, err, "failed to marshal args")
 	result, err := tool.Generic().Handler(t.Context(), tb, toolArgs)
 	var ret Ret
-	require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
+	if err == nil {
+		require.NotEmpty(t, result, "tool returned an empty successful result")
+	}
+	if len(result) > 0 {
+		require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
+	}
 	return ret, err
+}
+
+// TestEditFileTools_DecodeDeprecatedKeys pins that deprecated-key
+// MCP args survive decoding into the typed edit args.
+func TestEditFileTools_DecodeDeprecatedKeys(t *testing.T) {
+	t.Parallel()
+
+	var single toolsdk.WorkspaceEditFileArgs
+	require.NoError(t, json.Unmarshal([]byte(
+		`{"workspace":"w","path":"/p","edits":[{"search":"foo","replace":"bar"}]}`), &single))
+	require.Equal(t, "foo", single.Edits[0].OldText)
+	require.Equal(t, "bar", single.Edits[0].NewText)
+
+	var multi toolsdk.WorkspaceEditFilesArgs
+	require.NoError(t, json.Unmarshal([]byte(
+		`{"workspace":"w","files":[{"path":"/p","edits":[{"search":"foo","replace":"bar"}]}]}`), &multi))
+	require.Equal(t, "foo", multi.Files[0].Edits[0].OldText)
+	require.Equal(t, "bar", multi.Files[0].Edits[0].NewText)
 }
 
 func TestWithRecovery(t *testing.T) {

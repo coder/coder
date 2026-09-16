@@ -20,10 +20,49 @@ const CreateTemplatePage: FC = () => {
 	const [templateVersion, setTemplateVersion] = useState<TemplateVersion>();
 	const createTemplateMutation = useMutation(createTemplate());
 	const variablesSectionRef = useRef<HTMLDivElement>(null);
+	// Remember what had focus when the drawer opened so it can be restored on
+	// close. The drawer is opened from buttons outside its tree, so Radix has no
+	// trigger to fall back to.
+	const buildLogsOpenerRef = useRef<HTMLElement | null>(null);
+	// Keeps focus on the variables input (rather than the opener) when the drawer
+	// closes via the "Fill variables" action.
+	const preserveVariablesFocusRef = useRef(false);
+
+	const openBuildLogs = () => {
+		buildLogsOpenerRef.current =
+			document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
+		setIsBuildLogsOpen(true);
+	};
+
+	const fillVariables = () => {
+		variablesSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+		preserveVariablesFocusRef.current = true;
+		setIsBuildLogsOpen(false);
+	};
+
+	const restoreFocusOnDrawerClose = (event: Event) => {
+		// Radix focuses a DrawerTrigger on close by default, but this drawer has
+		// none. Return focus to the variables input for the "Fill variables" flow,
+		// otherwise to whatever opened the drawer, so keyboard users are not
+		// dropped onto the document body.
+		if (preserveVariablesFocusRef.current) {
+			preserveVariablesFocusRef.current = false;
+			event.preventDefault();
+			variablesSectionRef.current?.querySelector("input")?.focus();
+			return;
+		}
+		const opener = buildLogsOpenerRef.current;
+		if (opener?.isConnected) {
+			event.preventDefault();
+			opener.focus();
+		}
+	};
 
 	const pageViewProps: CreateTemplatePageViewProps = {
 		onCreateTemplate: async (options) => {
-			setIsBuildLogsOpen(true);
+			openBuildLogs();
 			const template = await createTemplateMutation.mutateAsync({
 				...options,
 				onCreateVersion: setTemplateVersion,
@@ -36,7 +75,7 @@ const CreateTemplatePage: FC = () => {
 				{ state: { justCreated: true } },
 			);
 		},
-		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
+		onOpenBuildLogsDrawer: openBuildLogs,
 		error: createTemplateMutation.error,
 		isCreating: createTemplateMutation.isPending,
 		variablesSectionRef,
@@ -60,8 +99,9 @@ const CreateTemplatePage: FC = () => {
 				error={createTemplateMutation.error}
 				open={isBuildLogsOpen}
 				onClose={() => setIsBuildLogsOpen(false)}
+				onFillVariables={fillVariables}
+				onCloseAutoFocus={restoreFocusOnDrawerClose}
 				templateVersion={templateVersion}
-				variablesSectionRef={variablesSectionRef}
 			/>
 		</>
 	);

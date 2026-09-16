@@ -50,9 +50,12 @@ type bridgeConfig struct {
 	metrics          *metrics.Metrics
 	tracer           trace.Tracer
 	mcpProxy         mcp.ServerProxier
-	userID           string
-	metadata         recorder.Metadata
-	logger           slog.Logger
+	// noMCPProxy leaves the proxier nil instead of falling back to
+	// NoopMCPManager, which is non-nil and reports zero tools.
+	noMCPProxy bool
+	userID     string
+	metadata   recorder.Metadata
+	logger     slog.Logger
 }
 
 // bridgeTestServer wraps an httptest.Server running a RequestBridge.
@@ -150,7 +153,7 @@ func newBridgeTestServer(
 		cfg.tracer = defaultTracer
 	}
 	cfg.logger = newLogger(t)
-	if cfg.mcpProxy == nil {
+	if cfg.mcpProxy == nil && !cfg.noMCPProxy {
 		cfg.mcpProxy = newNoopMCPManager()
 	}
 
@@ -169,7 +172,7 @@ func newBridgeTestServer(
 	}
 
 	mockRec := &testutil.MockRecorder{}
-	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, func() (aibridge.Recorder, error) {
+	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, func(context.Context) (aibridge.Recorder, error) {
 		return mockRec, nil
 	})
 

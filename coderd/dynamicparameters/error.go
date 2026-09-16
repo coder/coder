@@ -117,10 +117,10 @@ func DiagnosticErrorString(d *hcl.Diagnostic) string {
 
 func DiagnosticsErrorString(d hcl.Diagnostics) string {
 	count := len(d)
-	switch {
-	case count == 0:
+	switch count {
+	case 0:
 		return "no diagnostics"
-	case count == 1:
+	case 1:
 		return DiagnosticErrorString(d[0])
 	default:
 		for _, d := range d {

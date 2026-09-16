@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -7,31 +7,31 @@ import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "#/api/queries/idpsync";
-import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { ExportPolicyButton } from "#/modules/idpSync/ExportPolicyButton";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
-import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
 const IdpOrgSyncPage: FC = () => {
+	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useDashboard();
 	const settingsQuery = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
-
-	const [field, setField] = useState("");
-	useEffect(() => {
-		if (!settingsQuery.data) {
-			return;
-		}
-
-		setField(settingsQuery.data.field);
-	}, [settingsQuery.data]);
+	const [fieldOverride, setFieldOverride] = useState<string>();
+	const field = fieldOverride ?? settingsQuery.data?.field ?? "";
 
 	const fieldValuesQuery = useQuery({
 		...deploymentIdpSyncFieldValues(field),
@@ -42,17 +42,6 @@ const IdpOrgSyncPage: FC = () => {
 		patchOrganizationSyncSettings(queryClient),
 	);
 
-	useEffect(() => {
-		if (patchOrganizationSyncSettingsMutation.error) {
-			toast.error(
-				getErrorMessage(
-					patchOrganizationSyncSettingsMutation.error,
-					"Error updating organization IdP sync settings.",
-				),
-			);
-		}
-	}, [patchOrganizationSyncSettingsMutation.error]);
-
 	if (settingsQuery.isLoading) {
 		return <Loader />;
 	}
@@ -61,47 +50,58 @@ const IdpOrgSyncPage: FC = () => {
 		<>
 			<title>{pageTitle("Organization IdP Sync")}</title>
 
-			<div className="flex flex-col gap-12">
-				<header className="flex flex-row items-baseline justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="text-3xl m-0">Organization IdP Sync</h1>
-						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
-							Automatically assign users to an organization based on their IdP
-							claims.
-							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
-								View docs
-							</Link>
-						</p>
-					</div>
-					<ExportPolicyButton syncSettings={settingsQuery.data} />
-				</header>
+			<div>
+				<SettingsHeader
+					actions={
+						<ExportPolicyButton
+							syncSettings={settingsQuery.data}
+							filename="organizations_policy.json"
+						/>
+					}
+				>
+					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Automatically assign users to an organization based on their IdP
+						claims.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/idp-sync#organization-sync")}
+						/>
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 				{!isIdpSyncEnabled ? (
-					<PaywallPremium
+					<PremiumPaywall
+						source="idp_org_sync"
 						message="IdP Organization Sync"
-						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/users/idp-sync")}
+						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder."
+						features={[
+							"Sync groups & roles automatically",
+							"No manual user assignment",
+							"Works with your OIDC provider",
+						]}
+						canViewPremium={permissions.viewAllLicenses}
 					/>
 				) : (
 					<IdpOrgSyncPageView
 						organizationSyncSettings={settingsQuery.data}
 						claimFieldValues={fieldValuesQuery.data}
 						organizations={organizations}
-						onSyncFieldChange={setField}
+						onSyncFieldChange={setFieldOverride}
 						onSubmit={async (data) => {
-							try {
-								await patchOrganizationSyncSettingsMutation.mutateAsync(data);
-								toast.success("Organization sync settings updated.");
-							} catch (error) {
-								toast.error(
-									getErrorMessage(
-										error,
-										"Failed to update organization IdP sync settings.",
-									),
-									{
+							const mutation =
+								patchOrganizationSyncSettingsMutation.mutateAsync(data);
+							await toast
+								.promise(mutation, {
+									loading: "Updating organization IdP sync settings...",
+									success: "Organization IdP sync settings updated.",
+									error: (error) => ({
+										message: getErrorMessage(
+											error,
+											"Failed to update organization IdP sync settings.",
+										),
 										description: getErrorDetail(error),
-									},
-								);
-							}
+									}),
+								})
+								.unwrap();
 						}}
 						error={settingsQuery.error || fieldValuesQuery.error}
 					/>

@@ -22,4 +22,7 @@ call with no tools, and returns concise guidance for the parent agent rather
 than the end user. Provide a brief question, no more than 2000 runes. Summarize
 context instead of pasting long logs or transcripts.
 </advisor-guidance>`
+	// LimitReachedAdvice is returned when the per-run advisor budget is
+	// exhausted, telling the parent agent to stop calling the advisor.
+	LimitReachedAdvice = "The advisor budget for this turn is exhausted. Do not call the advisor again this turn; proceed with your own judgment."
 )

@@ -513,6 +513,9 @@ coder:
       enable: false
       # coder.httproute.httpsRedirect.annotations -- The redirect HTTPRoute annotations.
       annotations: {}
+      # coder.httproute.httpsRedirect.statusCode -- The redirect response status code.
+      # Supported values are 301, 302, 303, 307, and 308.
+      statusCode: 308
       # coder.httproute.httpsRedirect.parentRefs -- the parentRefs to bind the route to
       # - kind: ListenerSet
       #   name: coder

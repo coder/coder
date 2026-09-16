@@ -129,7 +129,7 @@ func (p *portableDesktop) Start(ctx context.Context) (DisplayConfig, error) {
 
 	// If we have an existing session, check if it's still alive.
 	if p.session != nil {
-		if !(p.session.cmd.ProcessState != nil && p.session.cmd.ProcessState.Exited()) {
+		if p.session.cmd.ProcessState == nil || !p.session.cmd.ProcessState.Exited() {
 			return DisplayConfig{
 				Width:   p.session.width,
 				Height:  p.session.height,

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	cloneElement,
 	type FC,
@@ -7,7 +8,6 @@ import {
 } from "react";
 import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	className,
@@ -17,7 +17,7 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 		<header
 			{...props}
 			className={cn(
-				"min-h-12 border-0 border-b border-border border-solid flex items-center text-[13px] leading-tight",
+				"min-h-12 border-0 border-b border-border border-solid flex items-center text-sm font-normal leading-tight",
 				className,
 			)}
 		/>
@@ -44,8 +44,16 @@ export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
 	return <Button variant="outline" size="sm" {...props} />;
 };
 
-export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	return <div {...props} className="flex gap-2 items-center justify-center" />;
+export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
+	className,
+	...props
+}) => {
+	return (
+		<div
+			{...props}
+			className={cn("flex gap-2 items-center justify-center", className)}
+		/>
+	);
 };
 
 export const TopbarDivider: FC<

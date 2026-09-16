@@ -245,10 +245,6 @@ func (*echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, cancel
 			sess.ProvisionLog(log.Level, log.Output)
 		}
 		if complete := response.GetGraph(); complete != nil {
-			if len(complete.AiTasks) > 0 {
-				// These two fields are linked; if there are AI tasks, indicate that.
-				complete.HasAiTasks = true
-			}
 			return complete
 		}
 	}
@@ -343,35 +339,35 @@ func (r *Responses) Valid() error {
 
 	for _, parse := range r.Parse {
 		ty := parse.Type
-		if !(isParse(ty) || isLog(ty)) {
+		if !isParse(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid parse response type: %T", ty)
 		}
 	}
 
 	for _, init := range r.ProvisionInit {
 		ty := init.Type
-		if !(isInit(ty) || isLog(ty) || isChunkPiece(ty) || isDataUpload(ty)) {
+		if !isInit(ty) && !isLog(ty) && !isChunkPiece(ty) && !isDataUpload(ty) {
 			return xerrors.Errorf("invalid init response type: %T", ty)
 		}
 	}
 
 	for _, plan := range r.ProvisionPlan {
 		ty := plan.Type
-		if !(isPlan(ty) || isLog(ty)) {
+		if !isPlan(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid plan response type: %T", ty)
 		}
 	}
 
 	for _, apply := range r.ProvisionApply {
 		ty := apply.Type
-		if !(isApply(ty) || isLog(ty)) {
+		if !isApply(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid apply response type: %T", ty)
 		}
 	}
 
 	for _, graph := range r.ProvisionGraph {
 		ty := graph.Type
-		if !(isGraph(ty) || isLog(ty)) {
+		if !isGraph(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid graph response type: %T", ty)
 		}
 	}
@@ -426,10 +422,8 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 				responses.ProvisionPlan = []*proto.Response{{
 					Type: &proto.Response_Plan{
 						Plan: &proto.PlanComplete{
-							Plan: []byte("{}"),
-							//nolint:gosec // the number of resources will not exceed int32
-							AiTaskCount: int32(len(g.GetAiTasks())),
-							DailyCost:   dailycost,
+							Plan:      []byte("{}"),
+							DailyCost: dailycost,
 						},
 					},
 				}}

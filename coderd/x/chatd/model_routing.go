@@ -4,13 +4,12 @@ import (
 	"context"
 	"net/http"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type modelClientRequest struct {
@@ -18,27 +17,14 @@ type modelClientRequest struct {
 	ModelName    string
 	UserAgent    string
 	ExtraHeaders map[string]string
+	// CallConfig is the parsed model config row's options; zero for paths
+	// without a config row.
+	CallConfig codersdk.ChatModelCallConfig
 }
 
 type modelBuildOptions struct {
 	ActiveAPIKeyID string
 	RecordHTTP     bool
-}
-
-func modelBuildOptionsFromMessages(messages []database.ChatMessage) modelBuildOptions {
-	apiKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
-	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-}
-
-// withActiveTurnAPIKeyID augments ctx with the active turn's delegated API
-// key ID when one is known. AI Gateway routing and subagent tool callbacks
-// read this value from the context to attribute requests to the correct
-// turn. When no key is known, ctx is returned unchanged.
-func withActiveTurnAPIKeyID(ctx context.Context, opts modelBuildOptions) context.Context {
-	if opts.ActiveAPIKeyID == "" {
-		return ctx
-	}
-	return aibridge.WithDelegatedAPIKeyID(ctx, opts.ActiveAPIKeyID)
 }
 
 func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
@@ -59,7 +45,8 @@ func newLanguageModel(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-) (fantasy.LanguageModel, error) {
+	openAIConfig *codersdk.ChatModelOpenAIConfig,
+) (chatprovider.Model, error) {
 	model, err := chatprovider.ModelFromConfig(
 		providerHint,
 		modelName,
@@ -67,16 +54,17 @@ func newLanguageModel(
 		userAgent,
 		extraHeaders,
 		httpClient,
+		openAIConfig,
 	)
 	if err != nil {
-		return nil, err
+		return chatprovider.Model{}, err
 	}
-	if model == nil {
+	if !model.Valid() {
 		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
 		if resolveErr != nil {
-			return nil, resolveErr
+			return chatprovider.Model{}, resolveErr
 		}
-		return nil, xerrors.Errorf(
+		return chatprovider.Model{}, xerrors.Errorf(
 			"create model for %s/%s returned nil",
 			provider,
 			resolvedModel,

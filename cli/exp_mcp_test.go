@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
 )
@@ -63,6 +65,12 @@ func TestExpMcpServer(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
+		// The SDK server enforces the MCP lifecycle, so complete the
+		// initialize handshake before listing tools.
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`)
+		_ = stdout.ReadLine(ctx)
+		stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+
 		// When: we send a tools/list request
 		toolsPayload := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
 		stdin.WriteLine(toolsPayload)
@@ -101,6 +109,21 @@ func TestExpMcpServer(t *testing.T) {
 		assert.True(t, *annotations.IdempotentHint)
 		assert.False(t, *annotations.OpenWorldHint)
 
+		// Prompts reference chat tools, which are excluded by this
+		// allowlist, so none may be advertised.
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":5,"method":"prompts/list"}`)
+		promptsOutput := stdout.ReadLine(ctx)
+		var promptsResponse struct {
+			Result struct {
+				Prompts []struct {
+					Name string `json:"name"`
+				} `json:"prompts"`
+			} `json:"result"`
+		}
+		err = json.Unmarshal([]byte(promptsOutput), &promptsResponse)
+		require.NoError(t, err)
+		require.Empty(t, promptsResponse.Result.Prompts, "no prompts should be advertised when their tools are excluded")
+
 		// Call the tool and ensure it works.
 		toolPayload := `{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_get_authenticated_user", "arguments": {}}}`
 		stdin.WriteLine(toolPayload)
@@ -113,6 +136,134 @@ func TestExpMcpServer(t *testing.T) {
 		require.Contains(t, output, owner.UserID.String(), "should have received the expected user ID")
 		cancel()
 		<-cmdDone
+	})
+
+	t.Run("PromptsPartialAllowlist", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := testutil.Logger(t)
+		cancelCtx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		// The model-list tool is an optional suggestion in the delegate
+		// workflow, so its absence must not suppress the prompt.
+		inv, root := clitest.New(t, "exp", "mcp", "server",
+			"--allowed-tools=coder_create_chat,coder_get_chat,coder_get_chat_messages,coder_send_chat_message")
+		inv = inv.WithContext(cancelCtx)
+
+		var stdout *expecter.Expecter
+		stdout, inv.Stdout = expecter.NewPiped(t)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		clitest.SetupConfig(t, client, root)
+
+		cmdDone := make(chan struct{})
+		go func() {
+			defer close(cmdDone)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// The SDK server enforces the MCP lifecycle, so complete the
+		// initialize handshake before listing prompts.
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`)
+		_ = stdout.ReadLine(ctx)
+		stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":2,"method":"prompts/list"}`)
+		output := stdout.ReadLine(ctx)
+		cancel()
+		<-cmdDone
+
+		var listResponse struct {
+			Result struct {
+				Prompts []struct {
+					Name string `json:"name"`
+				} `json:"prompts"`
+			} `json:"result"`
+		}
+		err := json.Unmarshal([]byte(output), &listResponse)
+		require.NoError(t, err)
+		foundPrompts := make([]string, 0, len(listResponse.Result.Prompts))
+		for _, prompt := range listResponse.Result.Prompts {
+			foundPrompts = append(foundPrompts, prompt.Name)
+		}
+		require.Contains(t, foundPrompts, toolsdk.PromptNameAgentsDelegate)
+		require.Contains(t, foundPrompts, toolsdk.PromptNameAgentsCheck)
+	})
+
+	t.Run("Prompts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := testutil.Logger(t)
+		cancelCtx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		inv, root := clitest.New(t, "exp", "mcp", "server")
+		inv = inv.WithContext(cancelCtx)
+
+		var stdout *expecter.Expecter
+		stdout, inv.Stdout = expecter.NewPiped(t)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		clitest.SetupConfig(t, client, root)
+
+		cmdDone := make(chan struct{})
+		go func() {
+			defer close(cmdDone)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// The SDK server enforces the MCP lifecycle, so complete the
+		// initialize handshake before listing prompts.
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`)
+		_ = stdout.ReadLine(ctx)
+		stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":2,"method":"prompts/list"}`)
+		output := stdout.ReadLine(ctx)
+		var listResponse struct {
+			Result struct {
+				Prompts []struct {
+					Name string `json:"name"`
+				} `json:"prompts"`
+			} `json:"result"`
+		}
+		err := json.Unmarshal([]byte(output), &listResponse)
+		require.NoError(t, err)
+		foundPrompts := make([]string, 0, len(listResponse.Result.Prompts))
+		for _, prompt := range listResponse.Result.Prompts {
+			foundPrompts = append(foundPrompts, prompt.Name)
+		}
+		for _, prompt := range toolsdk.AllPrompts {
+			require.Contains(t, foundPrompts, prompt.Name)
+		}
+
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":3,"method":"prompts/get","params":{"name":"coder_agents_delegate","arguments":{"task":"Fix the flaky test."}}}`)
+		output = stdout.ReadLine(ctx)
+		cancel()
+		<-cmdDone
+
+		var getResponse struct {
+			Result struct {
+				Messages []struct {
+					Role    string `json:"role"`
+					Content struct {
+						Text string `json:"text"`
+					} `json:"content"`
+				} `json:"messages"`
+			} `json:"result"`
+		}
+		err = json.Unmarshal([]byte(output), &getResponse)
+		require.NoError(t, err)
+		require.Len(t, getResponse.Result.Messages, 1)
+		require.Equal(t, "user", getResponse.Result.Messages[0].Role)
+		require.Contains(t, getResponse.Result.Messages[0].Content.Text, "Fix the flaky test.")
 	})
 
 	t.Run("OK", func(t *testing.T) {
@@ -140,7 +291,7 @@ func TestExpMcpServer(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 		stdin.WriteLine(payload)
 		output := stdout.ReadLine(ctx)
 		cancel()
@@ -588,7 +739,7 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 	}()
 
 	// Verify server starts by checking for a successful initialization
-	payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+	payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 	stdin.WriteLine(payload)
 	output := stdout.ReadLine(ctx)
 
@@ -1005,7 +1156,7 @@ func TestExpMcpReporter(t *testing.T) {
 			}()
 
 			// Initialize.
-			payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+			payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 			stdin.WriteLine(payload)
 			_ = stdout.ReadLine(ctx) // ignore init response
 
@@ -1112,7 +1263,7 @@ func TestExpMcpReporter(t *testing.T) {
 		clitest.Start(t, inv)
 
 		// Initialize.
-		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 		stdin.WriteLine(payload)
 		_ = stdout.ReadLine(ctx) // ignore init response
 
@@ -1173,4 +1324,70 @@ func (f *fakeCoderdAgentAPI) UpdateAppStatus(ctx context.Context, req *agentprot
 		return nil, ctx.Err()
 	}
 	return &agentproto.UpdateAppStatusResponse{}, nil
+}
+
+func TestExpMcpServerToolError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	const sentinelMessage = "sentinel tool API failure"
+	var failRequests atomic.Bool
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/v2/users/me", r.URL.Path)
+		if failRequests.Load() {
+			httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
+				Message: sentinelMessage,
+			})
+			return
+		}
+		user := codersdk.User{}
+		user.Username = "test-user"
+		httpapi.Write(r.Context(), w, http.StatusOK, user)
+	}))
+	t.Cleanup(api.Close)
+	client := codersdk.New(testutil.MustURL(t, api.URL), codersdk.WithSessionToken("test-session"))
+	inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools="+toolsdk.ToolNameGetAuthenticatedUser)
+	inv = inv.WithContext(ctx)
+	stdout, stdoutWriter := expecter.NewPiped(t)
+	inv.Stdout = stdoutWriter
+	stderr := testutil.NewWaitBuffer()
+	inv.Stderr = stderr
+	stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t), inv)
+	clitest.SetupConfig(t, client, root)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, inv.Run())
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+
+	stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`)
+	_ = stdout.ReadLine(ctx)
+	// Let startup authentication succeed before injecting the tool's API failure.
+	failRequests.Store(true)
+	stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	request, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+		"params": map[string]any{"name": toolsdk.ToolNameGetAuthenticatedUser, "arguments": map[string]any{}},
+	})
+	require.NoError(t, err)
+	stdin.WriteLine(string(request))
+	var response struct {
+		Error  json.RawMessage `json:"error"`
+		Result struct {
+			IsError bool `json:"isError"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout.ReadLine(ctx)), &response))
+	require.Empty(t, response.Error)
+	require.True(t, response.Result.IsError)
+	require.Len(t, response.Result.Content, 1)
+	require.Equal(t, "text", response.Result.Content[0].Type)
+	require.Contains(t, response.Result.Content[0].Text, sentinelMessage)
 }

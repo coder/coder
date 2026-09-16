@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	buildPersonalSkillMarkdown,
-	filterPersonalSkills,
+	filterSkillsByQuery,
 	getPersonalSkillContentSizeBytes,
 	isPersonalSkillTriggerToken,
 	isValidPersonalSkillDescription,
@@ -28,7 +28,7 @@ const skill = (
 	updated_at: now,
 });
 
-describe("filterPersonalSkills", () => {
+describe("filterSkillsByQuery", () => {
 	const skills = [
 		skill("deploy", "Ship reviewed production changes", 0),
 		skill("reviewer", "Review changed files", 1),
@@ -37,7 +37,7 @@ describe("filterPersonalSkills", () => {
 	];
 
 	it("sorts unfiltered skills by name", () => {
-		expect(filterPersonalSkills(skills, "").map(({ name }) => name)).toEqual([
+		expect(filterSkillsByQuery(skills, "").map(({ name }) => name)).toEqual([
 			"api-review",
 			"deploy",
 			"docs",
@@ -46,9 +46,11 @@ describe("filterPersonalSkills", () => {
 	});
 
 	it("ranks prefix, name substring, then description matches", () => {
-		expect(filterPersonalSkills(skills, "rev").map(({ name }) => name)).toEqual(
-			["reviewer", "api-review", "deploy"],
-		);
+		expect(filterSkillsByQuery(skills, "rev").map(({ name }) => name)).toEqual([
+			"reviewer",
+			"api-review",
+			"deploy",
+		]);
 	});
 
 	it("matches names and descriptions case-insensitively", () => {
@@ -58,11 +60,47 @@ describe("filterPersonalSkills", () => {
 		];
 
 		expect(
-			filterPersonalSkills(mixedCaseSkills, "DEP").map(({ name }) => name),
+			filterSkillsByQuery(mixedCaseSkills, "DEP").map(({ name }) => name),
 		).toEqual(["deploy-bot"]);
 		expect(
-			filterPersonalSkills(mixedCaseSkills, "changes").map(({ name }) => name),
+			filterSkillsByQuery(mixedCaseSkills, "changes").map(({ name }) => name),
 		).toEqual(["deploy-bot"]);
+	});
+
+	it("matches trigger text", () => {
+		const skillsWithTriggerText = [
+			{
+				name: "reviewer",
+				description: "Review changed files",
+				triggerText: "/reviewer",
+			},
+			{
+				name: "test-runner",
+				description: "Run tests",
+				triggerText: "/workspace/test-runner",
+			},
+		];
+
+		expect(
+			filterSkillsByQuery(skillsWithTriggerText, "workspace/t").map(
+				({ triggerText }) => triggerText,
+			),
+		).toEqual(["/workspace/test-runner"]);
+	});
+
+	it("matches the alternate qualified trigger of a bare item", () => {
+		const skills = [
+			{
+				name: "reviewer",
+				description: "Review changed files",
+				triggerText: "/reviewer",
+				altTriggerText: "/personal/reviewer",
+			},
+		];
+
+		expect(
+			filterSkillsByQuery(skills, "personal/rev").map(({ name }) => name),
+		).toEqual(["reviewer"]);
 	});
 });
 

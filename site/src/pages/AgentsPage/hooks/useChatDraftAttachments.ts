@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
+import { generateUUID } from "#/utils/random";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
+	isRasterImageMediaType,
 	renameChatFileForUpload,
 } from "../utils/chatAttachments";
 import {
@@ -82,8 +84,6 @@ type UploadRegistryEntry = {
 // write storage or notify UI again.
 const activeDraftUploads = new Map<string, UploadRegistryEntry>();
 
-let fallbackClientIdCounter = 0;
-
 const isTerminalRegistryStatus = (entry: UploadRegistryEntry) =>
 	entry.status === "uploaded" || entry.status === "error";
 
@@ -93,20 +93,7 @@ const pruneTerminalRegistryEntry = (entry: UploadRegistryEntry) => {
 	}
 };
 
-const createClientId = () => {
-	const cryptoObject =
-		typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
-	if (cryptoObject?.randomUUID) {
-		return cryptoObject.randomUUID();
-	}
-	if (cryptoObject?.getRandomValues) {
-		const values = new Uint32Array(2);
-		cryptoObject.getRandomValues(values);
-		return `draft-${Date.now()}-${Array.from(values, (value) => value.toString(36)).join("-")}`;
-	}
-	fallbackClientIdCounter += 1;
-	return `draft-${Date.now()}-${fallbackClientIdCounter}`;
-};
+const createClientId = () => generateUUID();
 
 const createBlobPreview = (file: File): string | undefined => {
 	if (file.type === "text/plain" || typeof URL.createObjectURL !== "function") {
@@ -137,7 +124,7 @@ const computePreview = (
 	current?: DraftAttachmentPreview,
 ): DraftAttachmentPreview => {
 	if (status === "uploaded") {
-		if (fileId && file.type.startsWith("image/")) {
+		if (fileId && isRasterImageMediaType(file.type)) {
 			return { previewUrl: getChatFileURL(fileId), previewUrlKind: "chatFile" };
 		}
 		return {};
@@ -282,7 +269,7 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			entry.fileId = result.id;
 			entry.error = undefined;
 			persistUploadedRecord(entry, generation);
-			if (entry.file.type.startsWith("image/")) {
+			if (isRasterImageMediaType(entry.file.type)) {
 				void fetch(getChatFileURL(result.id)).catch(() => undefined);
 			}
 			notifySubscribers(entry);
@@ -653,7 +640,7 @@ export function useChatDraftAttachments(
 		// animated GIF on Anthropic that we don't re-encode).
 		// Surface the error at attach time rather than letting
 		// the server backstop reject only at send time.
-		if (replacement.type.startsWith("image/") && replacement.size > budget) {
+		if (isRasterImageMediaType(replacement.type) && replacement.size > budget) {
 			setViews((prev) =>
 				prev.map((view) => {
 					if (view.clientId !== clientId) {
@@ -884,5 +871,4 @@ export const resetChatDraftAttachmentRegistryForTest = () => {
 		notifySubscribers(entry);
 	}
 	activeDraftUploads.clear();
-	fallbackClientIdCounter = 0;
 };

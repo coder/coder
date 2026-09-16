@@ -37,7 +37,7 @@ You can use the
 [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
 package manager to install Coder:
 
-```powershell
+```ps1
 winget install Coder.Coder
 ```
 
@@ -47,7 +47,7 @@ winget install Coder.Coder
 
 To start or restart the Coder deployment, use the following command:
 
-```shell
+```sh
 coder server
 ```
 

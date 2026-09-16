@@ -1,11 +1,13 @@
-# How to use Apache as a reverse-proxy with LetsEncrypt
+---
+title: How to use Apache as a reverse-proxy with LetsEncrypt
+---
 
 ## Requirements
 
 1. Start a Coder deployment and be sure to set the following
    [configuration values](../admin/setup/index.md):
 
-   ```env
+   ```dotenv
    CODER_HTTP_ADDRESS=127.0.0.1:3000
    CODER_ACCESS_URL=https://coder.example.com
    CODER_WILDCARD_ACCESS_URL=*coder.example.com
@@ -24,13 +26,13 @@
 
 3. Install Apache (assuming you're on Debian/Ubuntu):
 
-   ```shell
+   ```sh
    sudo apt install apache2
    ```
 
 4. Enable the following Apache modules:
 
-   ```shell
+   ```sh
    sudo a2enmod proxy
    sudo a2enmod proxy_http
    sudo a2enmod ssl
@@ -39,7 +41,7 @@
 
 5. Stop Apache service and disable default site:
 
-   ```shell
+   ```sh
    sudo a2dissite 000-default.conf
    sudo systemctl stop apache2
    ```
@@ -70,7 +72,7 @@ providers, refer to the
    dns_cloudflare_api_token = YOUR_API_TOKEN
    ```
 
-   ```shell
+   ```sh
    mkdir -p ~/.secrets/certbot
    touch ~/.secrets/certbot/cloudflare.ini
    nano ~/.secrets/certbot/cloudflare.ini
@@ -78,7 +80,7 @@ providers, refer to the
 
 3. Set the correct permissions:
 
-   ```shell
+   ```sh
    sudo chmod 600 ~/.secrets/certbot/cloudflare.ini
    ```
 
@@ -86,7 +88,7 @@ providers, refer to the
 
 1. Create the wildcard certificate:
 
-   ```shell
+   ```sh
    sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com -d *.coder.example.com
    ```
 
@@ -97,7 +99,7 @@ you're using `coder.example.com` as your subdomain.
 
 1. Create Apache configuration for Coder:
 
-   ```shell
+   ```sh
    sudo nano /etc/apache2/sites-available/coder.conf
    ```
 
@@ -137,13 +139,13 @@ you're using `coder.example.com` as your subdomain.
 
 3. Enable the site:
 
-   ```shell
+   ```sh
    sudo a2ensite coder.conf
    ```
 
 4. Restart Apache:
 
-   ```shell
+   ```sh
    sudo systemctl restart apache2
    ```
 
@@ -151,19 +153,19 @@ you're using `coder.example.com` as your subdomain.
 
 1. Create a new file in `/etc/cron.weekly`:
 
-   ```shell
+   ```sh
    sudo touch /etc/cron.weekly/certbot
    ```
 
 2. Make it executable:
 
-   ```shell
+   ```sh
    sudo chmod +x /etc/cron.weekly/certbot
    ```
 
 3. And add this code:
 
-   ```shell
+   ```sh
    #!/bin/sh
    sudo certbot renew -q
    ```

@@ -60,15 +60,17 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					continue
 				}
 				if _, err := cryptTx.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-					ProviderID:             externalAuthLink.ProviderID,
-					UserID:                 uid,
-					UpdatedAt:              externalAuthLink.UpdatedAt,
-					OAuthAccessToken:       externalAuthLink.OAuthAccessToken,
-					OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-					OAuthRefreshToken:      externalAuthLink.OAuthRefreshToken,
-					OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-					OAuthExpiry:            externalAuthLink.OAuthExpiry,
-					OAuthExtra:             externalAuthLink.OAuthExtra,
+					ProviderID:                externalAuthLink.ProviderID,
+					UserID:                    uid,
+					UpdatedAt:                 externalAuthLink.UpdatedAt,
+					OAuthAccessToken:          externalAuthLink.OAuthAccessToken,
+					OAuthAccessTokenKeyID:     sql.NullString{}, // dbcrypt will update as required
+					OAuthRefreshToken:         externalAuthLink.OAuthRefreshToken,
+					OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
+					OAuthExpiry:               externalAuthLink.OAuthExpiry,
+					OAuthExtra:                externalAuthLink.OAuthExtra,
+					OauthRefreshFailureReason: "",
+					RefreshLeaseExpiresAt:     sql.NullTime{},
 				}); err != nil {
 					return xerrors.Errorf("update external auth link user_id=%s provider_id=%s: %w", externalAuthLink.UserID, externalAuthLink.ProviderID, err)
 				}
@@ -95,6 +97,8 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					EnvName:           "",
 					UpdateFilePath:    false,
 					FilePath:          "",
+					UpdateEnabled:     false,
+					Enabled:           false,
 				}); err != nil {
 					return xerrors.Errorf("rotate user secret user_id=%s name=%s: %w", uid, secret.Name, err)
 				}
@@ -272,15 +276,17 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					continue
 				}
 				if _, err := tx.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-					ProviderID:             externalAuthLink.ProviderID,
-					UserID:                 uid,
-					UpdatedAt:              externalAuthLink.UpdatedAt,
-					OAuthAccessToken:       externalAuthLink.OAuthAccessToken,
-					OAuthAccessTokenKeyID:  sql.NullString{}, // we explicitly want to clear the key id
-					OAuthRefreshToken:      externalAuthLink.OAuthRefreshToken,
-					OAuthRefreshTokenKeyID: sql.NullString{}, // we explicitly want to clear the key id
-					OAuthExpiry:            externalAuthLink.OAuthExpiry,
-					OAuthExtra:             externalAuthLink.OAuthExtra,
+					ProviderID:                externalAuthLink.ProviderID,
+					UserID:                    uid,
+					UpdatedAt:                 externalAuthLink.UpdatedAt,
+					OAuthAccessToken:          externalAuthLink.OAuthAccessToken,
+					OAuthAccessTokenKeyID:     sql.NullString{}, // we explicitly want to clear the key id
+					OAuthRefreshToken:         externalAuthLink.OAuthRefreshToken,
+					OAuthRefreshTokenKeyID:    sql.NullString{}, // we explicitly want to clear the key id
+					OAuthExpiry:               externalAuthLink.OAuthExpiry,
+					OAuthExtra:                externalAuthLink.OAuthExtra,
+					OauthRefreshFailureReason: "",
+					RefreshLeaseExpiresAt:     sql.NullTime{},
 				}); err != nil {
 					return xerrors.Errorf("update external auth link user_id=%s provider_id=%s: %w", externalAuthLink.UserID, externalAuthLink.ProviderID, err)
 				}
@@ -307,6 +313,8 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					EnvName:           "",
 					UpdateFilePath:    false,
 					FilePath:          "",
+					UpdateEnabled:     false,
+					Enabled:           false,
 				}); err != nil {
 					return xerrors.Errorf("decrypt user secret user_id=%s name=%s: %w", uid, secret.Name, err)
 				}

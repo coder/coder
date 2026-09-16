@@ -1,36 +1,30 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderBases } from "#/api/queries/templateBuilder";
-import type { TemplateBuilderBase } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { sortByPriority } from "./sortByPriority";
 import { TemplateCard } from "./TemplateCard";
-import type { SelectedBaseMeta } from "./wizardState";
+import { type SelectedBaseMeta, toSelectedBaseMeta } from "./wizardState";
 
 interface BaseInfraSelectStepProps {
 	selectedBaseId: string | null;
 	onSelectBase: (base: SelectedBaseMeta) => void;
 }
 
-function toSelectedBaseMeta(base: TemplateBuilderBase): SelectedBaseMeta {
-	return {
-		id: base.id,
-		name: base.name,
-		iconUrl: base.icon,
-		os: base.os,
-		hasParameters:
-			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
-		hasPrerequisites: Boolean(base.prerequisites?.length),
-	};
-}
-
 function detailsUrl(baseId: string): string {
 	return `https://registry.coder.com/templates/${baseId}`;
 }
+
+// Preferred display order for base templates. Bases listed here appear first, in
+// this order; unlisted bases follow in the order the API returns them (sorted by
+// display name). Quickstart and Docker are the featured Docker-based starters,
+// mirroring the client-side module prioritization in ModuleSelectStep.
+const BASE_PRIORITY: readonly string[] = ["quickstart", "docker"];
 
 export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 	selectedBaseId,
@@ -46,7 +40,7 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 		return <ErrorAlert error={error} />;
 	}
 
-	const bases = data?.bases ?? [];
+	const bases = sortByPriority(data?.bases ?? [], BASE_PRIORITY);
 
 	return (
 		<div role="radiogroup" aria-label="Base infrastructure templates">
@@ -55,19 +49,23 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 				Select your infrastructure foundation.
 			</TemplateBuilderSubtitle>
 
-			{/* 420px accounts for navbar, page header, card padding, tab bar, and nav controls */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
-				{bases.map((base) => (
-					<TemplateCard
-						key={base.id}
-						name={base.name}
-						description={base.description}
-						iconUrl={base.icon}
-						detailsUrl={detailsUrl(base.id)}
-						selected={base.id === selectedBaseId}
-						onSelect={() => onSelectBase(toSelectedBaseMeta(base))}
-					/>
-				))}
+			{/* Show three rows of cards (sized to the common 214px card height plus
+			    the row gaps) and let any extra rows scroll, so the Continue button
+			    stays high and is easy to discover. */}
+			<div className="max-h-[682px] overflow-y-auto p-1 -m-1">
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					{bases.map((base) => (
+						<TemplateCard
+							key={base.id}
+							name={base.name}
+							description={base.description}
+							iconUrl={base.icon}
+							detailsUrl={detailsUrl(base.id)}
+							selected={base.id === selectedBaseId}
+							onSelect={() => onSelectBase(toSelectedBaseMeta(base))}
+						/>
+					))}
+				</div>
 			</div>
 		</div>
 	);

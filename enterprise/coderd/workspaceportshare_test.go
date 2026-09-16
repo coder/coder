@@ -8,7 +8,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -47,7 +46,7 @@ func TestWorkspacePortSharePublic(t *testing.T) {
 
 	// Update the template max port share level to public
 	client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
-		MaxPortShareLevel: ptr.Ref(codersdk.WorkspaceAgentPortShareLevelPublic),
+		MaxPortShareLevel: new(codersdk.WorkspaceAgentPortShareLevelPublic),
 	})
 
 	// OK
@@ -93,7 +92,7 @@ func TestWorkspacePortShareOrganization(t *testing.T) {
 
 	// Update the template max port share level to organization
 	client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
-		MaxPortShareLevel: ptr.Ref(codersdk.WorkspaceAgentPortShareLevelOrganization),
+		MaxPortShareLevel: new(codersdk.WorkspaceAgentPortShareLevelOrganization),
 	})
 
 	// Try to share a port publicly with template max port share level organization

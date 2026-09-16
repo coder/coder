@@ -42,7 +42,6 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/site"
@@ -1140,7 +1139,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		http.SetCookie(rw, cookie)
 	}
 
-	redirect = uriFromURL(redirect)
+	redirect = httpapi.SafeRedirectPath(redirect)
 	if api.GithubOAuth2Config.DeviceFlowEnabled {
 		// In the device flow, the redirect is handled client-side.
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2DeviceFlowCallbackResponse{
@@ -1574,7 +1573,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	redirect := state.Redirect
 	// Strip the host if it exists on the URL to prevent
 	// any nefarious redirects.
-	redirect = uriFromURL(redirect)
+	redirect = httpapi.SafeRedirectPath(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 }
 
@@ -1861,7 +1860,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					// If org sync is enabled and configured, the user's groups
 					// will change based on the org sync settings.
 					OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
-					UserStatus:      ptr.Ref(codersdk.UserStatusActive),
+					UserStatus:      new(codersdk.UserStatusActive),
 				},
 				LoginType:          params.LoginType,
 				accountCreatorName: "oauth",

@@ -20,7 +20,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -703,22 +702,22 @@ func TestConvertResources(t *testing.T) {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-2",
-				ValidationMin: ptr.Ref(int32(-3)),
-				ValidationMax: ptr.Ref(int32(0)),
+				ValidationMin: new(int32(-3)),
+				ValidationMax: new(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(3)),
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMin: new(int32(3)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(0)),
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMin: new(int32(0)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
@@ -787,34 +786,34 @@ func TestConvertResources(t *testing.T) {
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-3",
 				ValidationMin: nil,
-				ValidationMax: ptr.Ref(int32(0)),
+				ValidationMax: new(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(3)),
+				ValidationMin: new(int32(3)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(3)),
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMin: new(int32(3)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(0)),
+				ValidationMin: new(int32(0)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}},
@@ -1681,115 +1680,6 @@ func TestInstanceIDAssociation(t *testing.T) {
 			require.Equal(t, state.Resources[0].Agents[0].GetInstanceId(), instanceID)
 		})
 	}
-}
-
-func TestAITasks(t *testing.T) {
-	t.Parallel()
-	ctx, logger := ctxAndLogger(t)
-
-	t.Run("Multiple tasks can be defined", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-multiple")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.NotNil(t, state)
-		require.NoError(t, err)
-		require.True(t, state.HasAITasks)
-		// Multiple coder_ai_tasks resources can be defined, but only 1 is allowed.
-		// This is validated once all parameters are resolved etc as part of the workspace build, but for now we can allow it.
-		require.Len(t, state.AITasks, 2)
-	})
-
-	t.Run("Can use sidebar app ID", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-sidebar")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-sidebar.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-sidebar.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.NotNil(t, state)
-		require.NoError(t, err)
-		require.True(t, state.HasAITasks)
-		require.Len(t, state.AITasks, 1)
-
-		sidebarApp := state.AITasks[0].GetSidebarApp()
-		require.NotNil(t, sidebarApp)
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", sidebarApp.GetId())
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", state.AITasks[0].AppId)
-	})
-
-	t.Run("Can use app ID", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-app")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-app.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-app.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.NotNil(t, state)
-		require.NoError(t, err)
-		require.True(t, state.HasAITasks)
-		require.Len(t, state.AITasks, 1)
-
-		sidebarApp := state.AITasks[0].GetSidebarApp()
-		require.NotNil(t, sidebarApp)
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", sidebarApp.GetId())
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", state.AITasks[0].AppId)
-	})
-
-	t.Run("Disabled with count zero", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		// This fixture has coder_ai_task.a in the graph (resource is defined
-		// in the .tf file) but NOT in PlannedValues (count = 0). The old
-		// graph-based check returned true here; the new len(aiTasks) > 0
-		// check should return false.
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-disabled")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-disabled.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-disabled.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.NotNil(t, state)
-		require.NoError(t, err)
-		require.False(t, state.HasAITasks)
-		require.Empty(t, state.AITasks)
-	})
 }
 
 func TestExternalAgents(t *testing.T) {

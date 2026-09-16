@@ -80,6 +80,7 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			if err := mcpServer.RegisterTools(authenticatedClient, toolOpt); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
+			mcpServer.RegisterPrompts()
 		case MCPToolsetChatGPT:
 			if err := mcpServer.RegisterChatGPTTools(authenticatedClient, toolOpt); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))

@@ -1,19 +1,42 @@
+import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useRef } from "react";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { type ComponentProps, type FC, useState } from "react";
+import { Outlet } from "react-router";
+import {
+	expect,
+	fireEvent,
+	fn,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import {
+	chatEntityKey,
+	userCompactionThresholdsKey,
+} from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspaceResource,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -26,24 +49,23 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import {
-	createChatStore,
-	useChatSelector,
-} from "./components/ChatConversation/chatStore";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import { createChatStore } from "./components/ChatConversation/chatStore";
+import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
+import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
 // ---------------------------------------------------------------------------
 const AGENT_ID = "agent-detail-view-1";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -55,11 +77,8 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	...MockChat,
 	id: AGENT_ID,
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: "Owner",
 	title: "Help me refactor",
-	last_model_config_id: defaultModelConfigID,
+	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -76,9 +95,6 @@ const buildEditing = (
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
-	editingQueuedMessageID: null,
-	handleStartQueueEdit: fn(),
-	handleCancelQueueEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,
@@ -101,6 +117,31 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
+const collapsedSidebarRouter = reactRouterParameters({
+	location: {
+		path: `/agents/${AGENT_ID}`,
+		pathParams: { agentId: AGENT_ID },
+	},
+	routing: [
+		{
+			path: "/",
+			element: (
+				<Outlet
+					context={{
+						isSidebarCollapsed: true,
+						onToggleSidebarCollapsed: () => {},
+						onExpandSidebar: () => {},
+					}}
+				/>
+			),
+			children: [
+				{ path: "agents/:agentId", useStoryElement: true },
+				{ path: "agents", useStoryElement: true },
+			],
+		},
+	],
+});
+
 // ---------------------------------------------------------------------------
 // Wrapper component.
 //
@@ -112,50 +153,34 @@ const agentsRouting = [
 // ---------------------------------------------------------------------------
 type StoryProps = Omit<
 	Partial<ComponentProps<typeof AgentChatPageView>>,
-	"editing"
+	"editing" | "chat"
 > & {
 	editing?: Partial<ComponentProps<typeof AgentChatPageView>["editing"]>;
+	chat?: Partial<TypesGen.Chat>;
 };
 
-const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
-	const defaultStoreRef = useRef(createChatStore());
-	const defaultScrollContainerRef = useRef<HTMLDivElement | null>(null);
-	const defaultScrollToBottomRef = useRef<(() => void) | null>(null);
-	const store = overrides.store ?? defaultStoreRef.current;
-	const messageCount = useChatSelector(
-		store,
-		(state) => state.messagesByID.size,
-	);
+const StoryAgentChatPageView: FC<StoryProps> = ({
+	editing,
+	chat,
+	...overrides
+}) => {
+	const [defaultStore] = useState(() => createChatStore());
+	const store = overrides.store ?? defaultStore;
 
 	const props = {
-		agentId: AGENT_ID,
-		sendShortcut: "enter" as const,
-		organizationId: "test-org-id",
-		chatTitle: "Help me refactor",
+		chat: buildChat(chat),
 		persistedError: undefined as ChatDetailError | undefined,
-		parentChat: undefined as TypesGen.Chat | undefined,
-		isArchived: false,
-		isSharedChat: false,
-		chatOwner: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["chatOwner"],
-		effectiveSelectedModel: defaultModelConfigID,
+		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
+		models: [],
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
-		isSidebarCollapsed: false,
-		onToggleSidebarCollapsed: fn(),
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
-		prNumber: undefined as number | undefined,
-		diffStatusData: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["diffStatusData"],
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
@@ -163,28 +188,23 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
-		handleArchiveAgentAction: fn(),
-		handleUnarchiveAgentAction: fn(),
-		handleArchiveAndDeleteWorkspaceAction: fn(),
-		scrollContainerRef:
-			overrides.scrollContainerRef ?? defaultScrollContainerRef,
-		scrollToBottomRef: overrides.scrollToBottomRef ?? defaultScrollToBottomRef,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
-		onFetchMoreMessages: fn(),
+		isHydratingMessages: false,
+		hasFetchMoreError: false,
+		onFetchMoreMessages: fn(async () => {}),
 		mcpServers: [] as ComponentProps<typeof AgentChatPageView>["mcpServers"],
 		selectedMCPServerIds: [] as ComponentProps<
 			typeof AgentChatPageView
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
-		canShareChat: false,
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
+		initialMessages: [],
 		...overrides,
 		store,
-		messageCount: overrides.messageCount ?? messageCount,
 		editing: buildEditing(editing),
 	};
 	return <AgentChatPageView {...props} />;
@@ -196,10 +216,60 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
-	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
+	// Summary is the default tab and reads the chat, so mock it for the sidebar.
+	// Cost needs no mock: these stories leave the aibridge feature off, so the
+	// summary panel never requests it.
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
+	},
+	decorators: [
+		(Story) => (
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<Story />
+			</MessageScroller.Provider>
+		),
+		withAuthProvider,
+		withDashboardProvider,
+		withProxyProvider(),
+	],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockChat.organization_id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: false },
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${AGENT_ID}`,
@@ -220,103 +290,146 @@ type Story = StoryObj<typeof AgentChatPageView>;
 /** Basic conversation view with a chat title, workspace, and no archive. */
 export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This chat is owned by/),
-		).not.toBeInTheDocument();
-	},
 };
 
-/** Archived agent displays the read-only banner below the top bar. */
+export const CachedModelsWithRefetchError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			modelCatalogError={new Error("Failed to refresh available models.")}
+		/>
+	),
+};
+
+/** Archived agent hides the composer and shows the read-only banner. */
 export const Archived: Story = {
-	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
+	render: () => (
+		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
+	),
 };
 
 export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by Other User. It is read-only.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
 };
 
 export const OtherUserChatUsernameFallback: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by @OtherUser. It is read-only.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
 };
 
 export const OtherUserChatOwnerFallback: Story = {
-	render: () => <StoryAgentChatPageView chatOwner={{}} isInputDisabled />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by another user. It is read-only.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{
+				owner_id: "other-user",
+				owner_username: undefined,
+				owner_name: undefined,
+			}}
+			isInputDisabled
+		/>
+	),
 };
 
 /** Archived chats stay read-only without the owner banner. */
 export const ArchivedOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
-			chatOwner={{ username: "OtherUser" }}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This chat is owned by/),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.getByText("This agent has been archived and is read-only."),
-		).toBeVisible();
+};
+
+export const QueuedForCapacityCommunityAdmin: Story = {
+	parameters: {
+		permissions: { viewAllLicenses: true },
 	},
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
+};
+
+export const QueuedForCapacityCommunityMember: Story = {
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
+};
+
+export const QueuedForCapacityPremiumAdmin: Story = {
+	parameters: {
+		features: ["multiple_organizations"],
+		permissions: { viewAllLicenses: true },
+	},
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
+};
+
+export const QueuedForCapacityPremiumMember: Story = {
+	parameters: {
+		features: ["multiple_organizations"],
+	},
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
+};
+
+export const QueuedForCapacityPremiumHardLimit: Story = {
+	parameters: {
+		features: [
+			"multiple_organizations",
+			{
+				name: "agent_runtime_hours",
+				limit: 3000,
+				hard_limit: 4000,
+				actual: 4000,
+			},
+		],
+		permissions: { viewAllLicenses: true },
+	},
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: chatEntityKey("parent-chat-1"),
+				data: buildChat({ id: "parent-chat-1", title: "Root agent" }),
+			},
+		],
+	},
 	render: () => (
-		<StoryAgentChatPageView
-			parentChat={buildChat({ id: "parent-chat-1", title: "Root agent" })}
-		/>
+		<StoryAgentChatPageView chat={{ parent_chat_id: "parent-chat-1" }} />
 	),
 };
 
@@ -333,21 +446,9 @@ export const WithError: Story = {
 			}}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /service overloaded/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is temporarily overloaded\./i),
-		).toBeVisible();
-		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
-		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-	},
 };
 
-/** Input area appears disabled when `isInputDisabled` is true. */
+/** Send is blocked while input stays editable for drafts. */
 export const InputDisabled: Story = {
 	render: () => <StoryAgentChatPageView isInputDisabled />,
 };
@@ -362,19 +463,19 @@ export const WithSidebarPanel: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -414,27 +515,6 @@ export const NarrowWithSidebarPanel: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("narrow-agents-layout");
-		const chatPanel = await canvas.findByTestId("agents-chat-panel");
-		const rightPanel = await canvas.findByTestId("agents-right-panel");
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-
-		await waitFor(() => {
-			const layoutRect = layout.getBoundingClientRect();
-			const chatPanelRect = chatPanel.getBoundingClientRect();
-			const rightPanelRect = rightPanel.getBoundingClientRect();
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-
-			expect(chatPanelRect.width).toBeGreaterThanOrEqual(359);
-			expect(sendButtonRect.left).toBeGreaterThanOrEqual(composerRect.left);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-			expect(rightPanelRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
-		});
-	},
 };
 
 /**
@@ -446,19 +526,19 @@ export const RefreshInvalidatesPRDiff: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -478,6 +558,9 @@ index abc1234..def5678 100644
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+
+		// Summary is the default tab; switch to Git to view the PR diff.
+		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
 
 		// Wait for the initial diff fetch triggered by React Query.
 		await waitFor(() => {
@@ -503,7 +586,8 @@ index abc1234..def5678 100644
 
 /** Left sidebar is collapsed. */
 export const SidebarCollapsed: Story = {
-	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <StoryAgentChatPageView />,
 };
 
 /** No model options available — shows a disabled status message. */
@@ -521,6 +605,7 @@ export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
+			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={0}
 			modelCount={0}
 			hasModelOptions={false}
@@ -528,34 +613,13 @@ export const MissingProviderAndModelSetup: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a provider then add a model."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
-			"href",
-			"/ai/settings/providers",
-		);
-		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			"/ai/settings/models",
-		);
-	},
 };
 
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
+			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={1}
 			modelCount={0}
 			hasModelOptions={false}
@@ -563,24 +627,6 @@ export const MissingModelSetup: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a model."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			"/ai/settings/models",
-		);
-	},
 };
 
 export const MissingProviderSetup: Story = {
@@ -591,24 +637,6 @@ export const MissingProviderSetup: Story = {
 			modelCount={1}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a provider."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
-			"href",
-			"/ai/settings/providers",
-		);
-	},
 };
 
 export const MemberNoModelsAvailable: Story = {
@@ -622,17 +650,6 @@ export const MemberNoModelsAvailable: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getByText(
-					"AI models aren't available yet. Your admin is still getting things set up.",
-				),
-			).toBeVisible();
-		});
-	},
 };
 
 export const WithWorkspace: Story = {
@@ -713,19 +730,10 @@ export const WorkspaceNoAgent: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
-			workspaceOptions={[MockWorkspace]}
-			selectedWorkspaceId={MockWorkspace.id}
+			chat={{ workspace_id: MockWorkspace.id }}
 			onWorkspaceChange={fn()}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", {
-				name: `Remove workspace ${MockWorkspace.name}`,
-			}),
-		).toBeVisible();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -736,21 +744,17 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -760,21 +764,17 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled={false}
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -783,21 +783,17 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel
 		/>
 	),
@@ -805,23 +801,20 @@ export const LoadingWithRightPanel: Story = {
 
 /** Loading state with the left sidebar collapsed. */
 export const LoadingSidebarCollapsed: Story = {
+	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -885,25 +878,16 @@ const otherUserActionMessages: TypesGen.ChatMessage[] = [
 export const OtherUserChatHidesInlineActions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 			onImplementPlan={fn()}
 			store={buildStoreWithMessages(otherUserActionMessages)}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("This chat is owned by Other User. It is read-only."),
-		).toBeVisible();
-		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Edit message" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Implement plan" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -943,45 +927,18 @@ export const EditingMessage: Story = {
 
 /** Shows the "Chat not found" message. */
 export const NotFound: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 /** "Chat not found" with the left sidebar collapsed. */
 export const NotFoundSidebarCollapsed: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 // ---------------------------------------------------------------------------
-// Infinite scroll stories
+// Transcript scrolling stories
 // ---------------------------------------------------------------------------
-
-/** Generate a long conversation so the scroll container overflows. */
-const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		const text =
-			role === "user"
-				? `Question ${Math.ceil(i / 2)}: Can you explain concept ${Math.ceil(i / 2)} in detail?`
-				: `Sure! Here is a detailed explanation of concept ${Math.floor(i / 2)}. `.repeat(
-						4,
-					);
-		messages.push(buildMessage(i, role, text));
-	}
-	return messages;
-};
 
 const scrollStoryDecorators: Decorator[] = [
 	(Story) => (
@@ -997,57 +954,17 @@ const scrollStoryDecorators: Decorator[] = [
 	),
 ];
 
-const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
+const getViewport = (canvas: ReturnType<typeof within>) =>
+	canvas.getByRole("region", { name: "Messages" });
+
+const waitForScrollOverflow = async (viewport: HTMLElement) => {
 	await waitFor(() => {
-		expect(scrollContainer.scrollHeight).toBeGreaterThan(
-			scrollContainer.clientHeight,
-		);
+		expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
 	});
 };
 
-const scrollToHistoryTop = (scrollContainer: HTMLElement) => {
-	// In the library's documented column-reverse layout, older history is
-	// reached by driving the scroll offset toward the negative extreme.
-	scrollContainer.scrollTop = -scrollContainer.scrollHeight;
-	scrollContainer.dispatchEvent(new Event("scroll"));
-};
-
-const scrollToLatestMessages = (scrollContainer: HTMLElement) => {
-	scrollContainer.scrollTop = 0;
-	scrollContainer.dispatchEvent(new Event("scroll"));
-};
-
-const waitForFetchCount = async (
-	fetchSpy: ReturnType<typeof fn>,
-	count: number,
-) => {
-	await waitFor(() => {
-		expect(fetchSpy).toHaveBeenCalledTimes(count);
-	});
-};
-
-const waitForVisibleText = async (
-	canvas: ReturnType<typeof within>,
-	text: string,
-) => {
-	await waitFor(() => {
-		// The chat timeline renders hidden measurement copies for some message
-		// layouts, so pick any visible match instead of assuming the first node is
-		// the one a user sees.
-		const matches = canvas.queryAllByText(text);
-		const hasVisibleMatch = matches.some((element: Element) => {
-			const style = window.getComputedStyle(element);
-			return (
-				style.display !== "none" &&
-				style.visibility !== "hidden" &&
-				element.getClientRects().length > 0
-			);
-		});
-		expect(hasVisibleMatch).toBe(true);
-	});
-};
-
-const waitForIntersectionObserverTick = async () => {
+/** The scroller commits its state on an animation frame. */
+const settleScroller = async () => {
 	await new Promise<void>((resolve) => {
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
@@ -1057,6 +974,10 @@ const waitForIntersectionObserverTick = async () => {
 	});
 };
 
+const scrollTo = (viewport: HTMLElement, scrollTop: number) => {
+	viewport.scrollTop = scrollTop;
+	fireEvent.scroll(viewport);
+};
 /** Helper that extracts the current messages array from a store. */
 const getStoreMessages = (
 	store: ReturnType<typeof createChatStore>,
@@ -1077,8 +998,7 @@ const prependOlderMessages = (
 	count: number,
 ) => {
 	const existing = getStoreMessages(store);
-	const oldestMessage = existing[0];
-	const oldestID = oldestMessage?.id ?? 1;
+	const oldestID = existing[0]?.id ?? 1;
 	const olderMessages = Array.from({ length: count }, (_, index) => {
 		const id = oldestID - count + index;
 		const role: TypesGen.ChatMessageRole = id % 2 === 0 ? "assistant" : "user";
@@ -1091,417 +1011,376 @@ const prependOlderMessages = (
 	store.replaceMessages([...olderMessages, ...existing]);
 };
 
-const resetScrollStoryStore = (
-	store: ReturnType<typeof createChatStore>,
-	// Default to a transcript long enough to overflow the 600px decorator so the
-	// inverse-scroll stories exercise the fetch threshold immediately.
-	count = 80,
-) => {
-	store.replaceMessages(buildLongConversation(count));
-	store.setChatStatus("waiting");
-};
+const singleRenderStore = buildStoreWithMessages([
+	buildMessage(1, "user", "Only rendered once"),
+	buildMessage(2, "assistant", "Understood."),
+]);
 
-const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
-const inverseScrollFetchSpy = fn(() => {
-	prependOlderMessages(inverseScrollStore, 10);
-});
-
-/**
- * Scrolling upward in the library's inverse mode loads older messages into the
- * top of the transcript.
- */
-export const InverseScrollLoadsOlderMessages: Story = {
+/** Every prompt renders exactly one row: no sticky copy trails the original. */
+export const UserPromptsRenderOnce: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView
-			store={inverseScrollStore}
-			hasMoreMessages
-			onFetchMoreMessages={inverseScrollFetchSpy}
-		/>
-	),
+	render: () => <StoryAgentChatPageView store={singleRenderStore} />,
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(inverseScrollStore);
-		inverseScrollFetchSpy.mockClear();
 		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-		expect(inverseScrollFetchSpy).not.toHaveBeenCalled();
-
-		scrollToHistoryTop(scrollContainer);
-
-		await waitForFetchCount(inverseScrollFetchSpy, 1);
-		await waitForVisibleText(canvas, "Older question 9.");
+		expect(canvas.getAllByText("Only rendered once")).toHaveLength(1);
+		expect(canvas.getAllByTestId("chat-message-message:1")).toHaveLength(1);
 	},
 };
 
-const multiPageScrollStore = buildStoreWithMessages(buildLongConversation(80));
-const multiPageFetchSpy = fn(() => {
-	prependOlderMessages(multiPageScrollStore, 10);
+const startEdgeStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40).slice(1),
+);
+
+const streamCompletionStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
+
+let releaseStartEdgeFetch: (() => void) | undefined;
+let startEdgeFetchGate: Promise<void>;
+const startEdgeFetchSpy = fn(async () => {
+	await startEdgeFetchGate;
+	prependOlderMessages(startEdgeStore, 10);
 });
 
-/**
- * The library resets its one-shot load guard when dataLength changes, so a
- * second upward reveal can load another page.
- */
-export const InverseScrollCanLoadMultiplePages: Story = {
+/** Reaching the start of the loaded history requests the previous page once. */
+export const ReachingTheStartLoadsEarlierMessages: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView
-			store={multiPageScrollStore}
-			hasMoreMessages
-			onFetchMoreMessages={multiPageFetchSpy}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(multiPageScrollStore);
-		multiPageFetchSpy.mockClear();
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		scrollToHistoryTop(scrollContainer);
-		await waitForFetchCount(multiPageFetchSpy, 1);
-		await waitForVisibleText(canvas, "Older question 9.");
-
-		scrollToLatestMessages(scrollContainer);
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
+	beforeEach: () => {
+		startEdgeFetchGate = new Promise<void>((resolve) => {
+			releaseStartEdgeFetch = resolve;
 		});
-		await waitForIntersectionObserverTick();
-		scrollToHistoryTop(scrollContainer);
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			store={startEdgeStore}
+			hasMoreMessages
+			onFetchMoreMessages={startEdgeFetchSpy}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		startEdgeStore.replaceMessages(
+			buildLongConversation(AGENT_ID, 40).slice(1),
+		);
+		startEdgeStore.setChatStatus("waiting");
+		startEdgeFetchSpy.mockClear();
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
 
-		await waitForFetchCount(multiPageFetchSpy, 2);
-		await waitForVisibleText(canvas, "Older answer 10.");
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+		expect(startEdgeFetchSpy).not.toHaveBeenCalled();
+
+		const marker = canvas.getByTestId("chat-message-message:2");
+		fireEvent.wheel(viewport, { deltaY: -100 });
+		scrollTo(viewport, 0);
+		await waitFor(() => {
+			expect(startEdgeFetchSpy).toHaveBeenCalledTimes(1);
+		});
+		const markerOffset =
+			marker.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+		releaseStartEdgeFetch?.();
+
+		await waitFor(() => {
+			expect(canvas.getByTestId("chat-message-message:1")).toBeInTheDocument();
+		});
+		await settleScroller();
+		expect(
+			Math.abs(
+				marker.getBoundingClientRect().top -
+					viewport.getBoundingClientRect().top -
+					markerOffset,
+			),
+		).toBeLessThan(4);
 	},
 };
 
-const scrollToBottomButtonStoryStore = buildStoreWithMessages(
-	buildLongConversation(80),
+/**
+ * Stream completion must not yank the transcript to the oldest message. The
+ * live assistant row is replaced by its durable row (a remount, not an
+ * in-place reconciliation), and the only anchored row is the active turn's
+ * prompt, so the scroller has no unhandled historical anchor to jump to.
+ */
+export const StreamCompletionKeepsViewportPosition: Story = {
+	parameters: { pixel: { exclude: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
+	play: async ({ canvasElement }) => {
+		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		streamCompletionStore.setChatStatus("waiting");
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
+
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+
+		// Sit at the live edge; the oldest message is scrolled above the viewport.
+		scrollTo(viewport, viewport.scrollHeight);
+		await settleScroller();
+		const oldest = canvas.getByTestId("chat-message-message:1");
+		const oldestAboveViewport = () =>
+			oldest.getBoundingClientRect().bottom <=
+			viewport.getBoundingClientRect().top;
+		expect(oldestAboveViewport()).toBe(true);
+
+		// A new turn begins: the prompt is appended and the assistant starts
+		// streaming into the live row.
+		streamCompletionStore.batch(() => {
+			streamCompletionStore.upsertDurableMessages([
+				buildMessage(41, "user", "Final question."),
+			]);
+			streamCompletionStore.setChatStatus("running");
+			streamCompletionStore.applyMessageParts([
+				{ type: "text", text: "Streaming the final answer." },
+			]);
+		});
+		// The live assistant row mounts under its ephemeral key.
+		await waitFor(() => {
+			expect(
+				canvas.getByTestId("chat-message-live-assistant"),
+			).toBeInTheDocument();
+		});
+		await settleScroller();
+
+		// The durable assistant row replaces the live row, then the turn ends.
+		streamCompletionStore.batch(() => {
+			streamCompletionStore.upsertDurableMessages([
+				buildMessage(42, "assistant", "Streaming the final answer."),
+			]);
+			streamCompletionStore.clearStreamState();
+			streamCompletionStore.setChatStatus("waiting");
+		});
+		await waitFor(() => {
+			expect(canvas.getByTestId("chat-message-message:42")).toBeInTheDocument();
+		});
+		await settleScroller();
+
+		// The viewport never jumped back to the oldest message.
+		expect(oldestAboveViewport()).toBe(true);
+	},
+};
+
+const thinkingShiftStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
 );
 
 /**
- * The replacement container should keep the floating affordance that returns a
- * user from older history to the newest messages.
+ * The Thinking indicator must hand off to streaming text without collapsing
+ * the live row for a frame. The anchored prompt must not move.
  */
-export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
+export const ThinkingHandoffKeepsPromptPosition: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView store={scrollToBottomButtonStoryStore} />
-	),
+	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(scrollToBottomButtonStoryStore);
+		thinkingShiftStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		thinkingShiftStore.setChatStatus("waiting");
 		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
+		const viewport = getViewport(canvas);
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+		scrollTo(viewport, viewport.scrollHeight);
+		await settleScroller();
 
-		await waitForScrollOverflow(scrollContainer);
-		expect(
-			canvas.queryByRole("button", { name: /scroll to bottom/i }),
-		).toBeNull();
+		// Begin a turn: the prompt is appended and the chat goes running, so
+		// the live row shows the Thinking indicator with no stream output yet.
+		thinkingShiftStore.batch(() => {
+			thinkingShiftStore.upsertDurableMessages([
+				buildMessage(41, "user", "Follow-up question."),
+			]);
+			thinkingShiftStore.setChatStatus("running");
+		});
+		await canvas.findByTestId("chat-message-live-assistant");
+		await canvas.findByTestId("live-activity-slot");
+		await settleScroller();
 
-		scrollToHistoryTop(scrollContainer);
+		const prompt = canvas.getByTestId("chat-message-message:41");
+		const liveRow = canvas.getByTestId("chat-message-live-assistant");
+		const promptTop = () =>
+			prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+		// Capture the baseline while the Thinking indicator is shown: the bug
+		// shrank the live row below this for one frame when the first chunk
+		// arrived. Guard against a degenerate unpainted baseline so the height
+		// assertion below cannot silently become a tautology.
+		const anchoredTop = promptTop();
+		const thinkingHeight = liveRow.getBoundingClientRect().height;
+		expect(thinkingHeight).toBeGreaterThan(0);
+
+		// The first stream chunk replaces the Thinking indicator with text. The
+		// live row must never shrink below its Thinking-indicator height, so the
+		// anchored prompt and everything above it must stay put. Position uses a
+		// tolerance because rect tops are fractional; a 24px drop is 6x it.
+		thinkingShiftStore.applyMessageParts([
+			{ type: "text", text: "Here is the start of the answer." },
+		]);
+		for (let i = 0; i < 6; i++) {
+			expect(liveRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+				thinkingHeight,
+			);
+			expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
+			await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		}
+	},
+};
+
+const underflowFetchSpy = fn();
+
+const UnderflowPaginationStory: FC = () => {
+	const [store] = useState(() =>
+		buildStoreWithMessages([
+			buildMessage(9, "assistant", "The newest loaded message. ".repeat(6)),
+		]),
+	);
+	const [loadedPages, setLoadedPages] = useState(0);
+	const [isFetching, setIsFetching] = useState(false);
+
+	const completePage = () => {
+		const nextPage = loadedPages + 1;
+		store.replaceMessages([
+			buildMessage(
+				9 - nextPage,
+				nextPage % 2 === 1 ? "user" : "assistant",
+				`Loaded underflow page ${nextPage}. `.repeat(20),
+			),
+			...getStoreMessages(store),
+		]);
+		setLoadedPages(nextPage);
+		setIsFetching(false);
+	};
+
+	return (
+		<div className="flex h-[600px] flex-col">
+			<StoryAgentChatPageView
+				store={store}
+				hasMoreMessages={loadedPages < 2}
+				isFetchingMoreMessages={isFetching}
+				onFetchMoreMessages={async () => {
+					underflowFetchSpy();
+					setIsFetching(true);
+				}}
+			/>
+			<button type="button" disabled={!isFetching} onClick={completePage}>
+				Complete history page
+			</button>
+		</div>
+	);
+};
+
+/**
+ * A transcript that does not fill the viewport keeps asking for history, one
+ * page at a time, until it overflows or the history ends.
+ */
+export const ShortTranscriptLoadsUntilHistoryIsExhausted: Story = {
+	parameters: { pixel: { exclude: true } },
+	beforeEach: () => {
+		underflowFetchSpy.mockClear();
+	},
+	render: () => <UnderflowPaginationStory />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const completePage = canvas.getByRole("button", {
+			name: "Complete history page",
+		});
 
 		await waitFor(() => {
+			expect(underflowFetchSpy).toHaveBeenCalledTimes(1);
 			expect(
-				canvas.getByRole("button", { name: /scroll to bottom/i }),
+				canvas.getByRole("status", { name: "Loading earlier messages" }),
+			).toBeVisible();
+		});
+		scrollTo(getViewport(canvas), 0);
+		expect(underflowFetchSpy).toHaveBeenCalledTimes(1);
+
+		await userEvent.click(completePage);
+		await waitFor(() => {
+			expect(canvas.getByText(/Loaded underflow page 1\./)).toBeVisible();
+			expect(underflowFetchSpy).toHaveBeenCalledTimes(2);
+		});
+
+		await userEvent.click(completePage);
+		await waitFor(() => {
+			expect(canvas.getByText(/Loaded underflow page 2\./)).toBeVisible();
+			expect(
+				canvas.queryByRole("status", { name: "Loading earlier messages" }),
+			).not.toBeInTheDocument();
+		});
+		expect(underflowFetchSpy).toHaveBeenCalledTimes(2);
+	},
+};
+
+const retryFetchSpy = fn();
+
+const RetryPaginationStory: FC = () => {
+	const [store] = useState(() =>
+		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
+	);
+	const [hasError, setHasError] = useState(true);
+	const [isFetching, setIsFetching] = useState(false);
+
+	const completePage = () => {
+		prependOlderMessages(store, 4);
+		setIsFetching(false);
+	};
+
+	return (
+		<div className="flex h-[600px] flex-col">
+			<StoryAgentChatPageView
+				store={store}
+				hasMoreMessages
+				isFetchingMoreMessages={isFetching}
+				hasFetchMoreError={hasError}
+				onFetchMoreMessages={async () => {
+					retryFetchSpy();
+					setHasError(false);
+					setIsFetching(true);
+				}}
+			/>
+			<button type="button" disabled={!isFetching} onClick={completePage}>
+				Complete retry page
+			</button>
+		</div>
+	);
+};
+
+/**
+ * A failed history request stops the automatic loading and offers a retry that
+ * keyboard users can reach.
+ */
+export const FailedHistoryPageOffersKeyboardRetry: Story = {
+	parameters: { pixel: { exclude: true } },
+	beforeEach: () => {
+		retryFetchSpy.mockClear();
+	},
+	render: () => <RetryPaginationStory />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
+		const retry = canvas.getByRole("button", {
+			name: "Retry loading earlier messages",
+		});
+
+		scrollTo(viewport, 0);
+		await settleScroller();
+		expect(retry).toBeVisible();
+		expect(retryFetchSpy).not.toHaveBeenCalled();
+
+		retry.focus();
+		expect(retry).toHaveFocus();
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(retryFetchSpy).toHaveBeenCalledTimes(1);
+			expect(
+				canvas.getByRole("status", { name: "Loading earlier messages" }),
 			).toBeVisible();
 		});
 
 		await userEvent.click(
-			canvas.getByRole("button", { name: /scroll to bottom/i }),
+			canvas.getByRole("button", { name: "Complete retry page" }),
 		);
-
 		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
-			expect(
-				canvas.queryByRole("button", { name: /scroll to bottom/i }),
-			).toBeNull();
-		});
-	},
-};
-
-const scrollToBottomStoryStore = buildStoreWithMessages(
-	buildLongConversation(80),
-);
-// Story objects live at module scope, so use a ref-shaped object instead of a
-// hook to capture the imperative callback across the render and play phases.
-const scrollToBottomStoryRef: { current: (() => void) | null } = {
-	current: null,
-};
-
-/**
- * Page-level send and edit flows still rely on an imperative scroll-to-bottom
- * hook, so the replacement container must keep that contract working.
- */
-export const ScrollToBottomRefStillWorks: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView
-			store={scrollToBottomStoryStore}
-			scrollToBottomRef={scrollToBottomStoryRef}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(scrollToBottomStoryStore);
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-		scrollToHistoryTop(scrollContainer);
-
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBeLessThan(0);
-			expect(typeof scrollToBottomStoryRef.current).toBe("function");
-		});
-
-		const scrollToBottom = scrollToBottomStoryRef.current;
-		if (!scrollToBottom) {
-			throw new Error("Expected scrollToBottomRef to be available.");
-		}
-		scrollToBottom();
-
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
-		});
-	},
-};
-
-const messageOrderStore = buildStoreWithMessages([
-	buildMessage(1, "user", "Oldest message"),
-	buildMessage(2, "assistant", "Older response"),
-	buildMessage(3, "user", "Newer question"),
-	buildMessage(4, "assistant", "Newest reply"),
-]);
-
-/**
- * The reversed container layout must not invert the transcript's visible order.
- */
-export const MessageOrderIsStillCorrect: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={messageOrderStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const oldest = canvas.getByText("Oldest message");
-		const newer = canvas.getByText("Newest reply");
-
-		await waitFor(() => {
-			expect(oldest.getBoundingClientRect().top).toBeLessThan(
-				newer.getBoundingClientRect().top,
-			);
-		});
-	},
-};
-
-const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
-
-/**
- * Regression guard for the StickyUserMessage push-up logic.
- *
- * `react-infinite-scroll-component` renders two wrapper divs between the
- * scroll container and the message tree. The library applies `overflow:
- * auto` to its inner wrapper, which used to make `position: sticky` on a
- * user message resolve against that wrapper instead of the actual scroller.
- * The fix forces both wrappers to `display: contents` so the sticky
- * container's nearest scrolling ancestor is once again the
- * `.overflow-y-auto` element.
- *
- * This story scrolls past the most recent user message and asserts the
- * message is pinned within a few pixels of the scroll container's top.
- */
-export const StickyUserMessagePinsOnScroll: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={stickyPinningStore} />,
-	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(stickyPinningStore, 40);
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Each sticky user message is the element immediately following its
-		// `data-user-sentinel` marker. The push-up logic depends on the
-		// sticky container resolving against the real scroll container,
-		// which is the regression this story guards against.
-		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
-		expect(sentinels.length).toBeGreaterThan(0);
-		for (const sentinel of sentinels) {
-			expect(sentinel.closest("[data-testid='scroll-container']")).toBe(
-				scrollContainer,
-			);
-			const container = sentinel.nextElementSibling;
-			expect(container).not.toBeNull();
-			expect(window.getComputedStyle(container as Element).position).toBe(
-				"sticky",
-			);
-		}
-
-		// At the default `scrollTop = 0`, the inverse layout shows the
-		// newest messages at the bottom of the viewport. Older user
-		// messages whose sentinels have already scrolled above the
-		// scroller's top edge should be pinned by `position: sticky`. Pick
-		// a sentinel that is comfortably above the top edge so a tiny
-		// scroll offset cannot flip it on or off the boundary.
-		const scrollerRect = scrollContainer.getBoundingClientRect();
-		// Walk the sentinels in reverse DOM order so we land on the
-		// most recent user message whose sentinel has scrolled above
-		// the scroll container's top edge. That is the message the
-		// push-up logic actively pins at the top; earlier pinned
-		// messages will have been pushed out of view by it.
-		const pinnedSentinel = Array.from(sentinels)
-			.reverse()
-			.find(
-				(sentinel) =>
-					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
-			) as HTMLElement | undefined;
-		expect(pinnedSentinel).toBeDefined();
-		if (!pinnedSentinel) {
-			return;
-		}
-		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
-
-		// `position: sticky` should pin the user message container near
-		// the scroll container's top edge while the assistant response
-		// below it is on screen. Before the fix, the sticky container
-		// resolved against the InfiniteScroll wrapper rather than the
-		// real scroll container, so it scrolled out with its sentinel
-		// and ended up far above the viewport.
-		const pinnedRect = pinnedContainer.getBoundingClientRect();
-		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
-		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);
-		expect(pinnedRect.top - scrollerRect.top).toBeLessThan(40);
-	},
-};
-
-// Tall user messages interleaved with verbose assistant replies. The height
-// gives the sticky clip room to shrink as the transcript grows, and the
-// volume overflows the 600px scroll decorator.
-const buildTallStickyConversation = (count: number): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		const text =
-			role === "user"
-				? Array.from(
-						{ length: 6 },
-						(_, line) =>
-							`Question ${Math.ceil(i / 2)} paragraph ${line + 1}: keep this user message tall enough to clip.`,
-					).join("\n\n")
-				: `Detailed answer ${Math.floor(i / 2)}. `.repeat(12);
-		messages.push(buildMessage(i, role, text));
-	}
-	return messages;
-};
-
-const stickyClipUpdateStore = buildStoreWithMessages(
-	buildTallStickyConversation(30),
-);
-
-/**
- * Regression guard: the sticky truncation must stay in sync as the
- * transcript grows while the user is pinned to the bottom.
- *
- * The clip height is recomputed by a scroll handler, a window-resize
- * handler, and a ResizeObserver on the transcript. The observer used to
- * watch `scroller.firstElementChild`, which is the aria-hidden flex spacer
- * that pins content to the bottom. That spacer collapses to 0px once the
- * transcript overflows and then stops emitting resize callbacks, so several
- * messages arriving while pinned left the clip stale until the next manual
- * scroll and the bubble overflowed. The fix observes the real content
- * wrapper tagged with `data-chat-scroll-content`.
- *
- * This story grows the transcript while pinned and asserts the clip tracks
- * the new geometry without any scroll event.
- */
-export const StickyUserMessageClipUpdatesWhilePinned: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
-	play: async ({ canvasElement }) => {
-		stickyClipUpdateStore.replaceMessages(buildTallStickyConversation(30));
-		stickyClipUpdateStore.setChatStatus("waiting");
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// The observed transcript node must be the real content wrapper, not
-		// the aria-hidden flex spacer that collapses to 0px on overflow.
-		const contentMarker = scrollContainer.querySelector(
-			"[data-chat-scroll-content]",
-		);
-		expect(contentMarker).not.toBeNull();
-		const spacer = scrollContainer.firstElementChild;
-		expect(spacer).not.toBe(contentMarker);
-		expect(spacer?.getAttribute("aria-hidden")).toBe("true");
-
-		// Every sticky sentinel lives inside the observed content node, so a
-		// resize of that node reflects transcript growth.
-		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
-		expect(sentinels.length).toBeGreaterThan(0);
-		for (const sentinel of sentinels) {
-			expect(contentMarker?.contains(sentinel)).toBe(true);
-		}
-
-		// At scrollTop 0 the newest message is pinned to the bottom. The most
-		// recent user message whose sentinel sits just above the top edge is
-		// the bubble pinned at the top and actively clipped.
-		const scrollerRect = scrollContainer.getBoundingClientRect();
-		const pinnedSentinel = Array.from(sentinels)
-			.reverse()
-			.find(
-				(sentinel) =>
-					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
-			) as HTMLElement | undefined;
-		expect(pinnedSentinel).toBeDefined();
-		if (!pinnedSentinel) {
-			return;
-		}
-		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
-
-		const MIN_CLIP_HEIGHT = 72;
-		const readClip = () =>
-			Number.parseFloat(pinnedContainer.style.getPropertyValue("--clip-h")) ||
-			0;
-		const measureScrolledPast = () =>
-			scrollContainer.getBoundingClientRect().top -
-			pinnedSentinel.getBoundingClientRect().top;
-		const expectedClip = () =>
-			Math.max(
-				pinnedContainer.offsetHeight - measureScrolledPast(),
-				MIN_CLIP_HEIGHT,
-			);
-
-		const scrolledPastBefore = measureScrolledPast();
-		expect(scrolledPastBefore).toBeGreaterThan(4);
-		// Stay in the clipping regime (not a near-full-height bubble).
-		expect(pinnedContainer.offsetHeight).toBeLessThanOrEqual(
-			scrollContainer.clientHeight * 0.75,
-		);
-		expect(scrollContainer.scrollTop).toBe(0);
-
-		// Grow the transcript at the newest end. While pinned, scrollTop stays
-		// at 0 so no scroll event fires; only the content ResizeObserver can
-		// drive the recompute.
-		stickyClipUpdateStore.replaceMessages([
-			...getStoreMessages(stickyClipUpdateStore),
-			buildMessage(31, "assistant", "Freshly streamed reply. ".repeat(80)),
-			buildMessage(32, "assistant", "More freshly streamed reply. ".repeat(80)),
-		]);
-
-		// The pinned bubble is now further above the top edge. Its clip must
-		// follow the new geometry. Before the fix it stayed stale (matching
-		// the pre-growth scrolledPast) until a manual scroll.
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
-			expect(measureScrolledPast()).toBeGreaterThan(scrolledPastBefore + 10);
-			expect(Math.abs(readClip() - expectedClip())).toBeLessThanOrEqual(2);
+			expect(canvas.getByText("Older question 3.")).toBeInTheDocument();
 		});
 	},
 };
@@ -1513,7 +1392,7 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 export const TerminalFocusOnTabSwitch: Story = {
 	parameters: {
 		pixel: { exclude: true },
-		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
+		webSocket: [],
 	},
 	decorators: [withWebSocket],
 	render: () => (
@@ -1526,7 +1405,7 @@ export const TerminalFocusOnTabSwitch: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The sidebar should open on the Git tab by default.
+		// Sidebar defaults to Summary; this story drives the Terminal tab instead.
 		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
 
 		// 1. Click the Terminal tab.
@@ -1539,12 +1418,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 			return el;
 		});
 
-		// The xterm focus target is a textarea inside the terminal container.
+		const terminal = within(terminalContainer);
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);
@@ -1554,12 +1433,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 		await userEvent.click(gitTab);
 		await userEvent.click(terminalTab);
 
-		// Focus should return to the terminal textarea.
+		// Focus should return to the terminal input.
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);
@@ -1570,12 +1449,12 @@ const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}
 
 /**
  * When localStorage contains a persisted tab ID for this chat, the sidebar
- * should restore it on mount. Seed localStorage with "terminal" and verify
- * that the Terminal tab is selected instead of the default Git tab.
+ * should restore it on mount. Seed localStorage with "git" and verify that
+ * the Git tab is selected instead of the default Summary tab.
  */
 export const RestoresPersistedSidebarTab: Story = {
 	beforeEach: () => {
-		localStorage.setItem(sidebarTabStorageKey, "terminal");
+		localStorage.setItem(sidebarTabStorageKey, "git");
 		return () => {
 			localStorage.removeItem(sidebarTabStorageKey);
 		};
@@ -1588,17 +1467,6 @@ export const RestoresPersistedSidebarTab: Story = {
 			sshCommand="ssh coder.workspace"
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
-		});
-
-		const gitTab = canvas.getByRole("tab", { name: "Git" });
-		expect(gitTab).toHaveAttribute("aria-selected", "false");
-	},
 };
 
 /**
@@ -1624,31 +1492,27 @@ export const PersistsSidebarTabClick: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
+
+		await waitFor(() => {
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-		await userEvent.click(terminalTab);
-
-		await waitFor(() => {
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
-		});
-
-		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("git");
 	},
 };
 
 /**
- * When localStorage holds a tab ID whose tab is not currently available
- * (e.g. `"terminal"` while the workspace is stopped), the sidebar
- * should fall back to the first available tab (Git) and the stored
- * value must be preserved so it can be honoured once the tab reappears.
- *
- * This locks down the contract described in the PR: `getEffectiveTabId`
- * only reads `sidebarTabId` and never writes back. A future write-back
- * in the fallback path would silently break restore-after-recovery, so
- * this story exists to catch that regression.
+ * When localStorage holds an unavailable tab ID (e.g. `"terminal"` while the
+ * workspace is stopped), the sidebar falls back to the first available tab
+ * (Summary) while preserving the stored value for when the tab reappears.
+ * Guards the `getEffectiveTabId` contract: it only reads `sidebarTabId`, never
+ * writes back, so restore-after-recovery cannot silently break.
  */
 export const PreservesUnavailableSidebarTab: Story = {
 	beforeEach: () => {
@@ -1662,13 +1526,384 @@ export const PreservesUnavailableSidebarTab: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+	},
+};
+
+const mockAgentBrowserApp: TypesGen.WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "agent-browser-app",
+	slug: AGENT_BROWSER_APP_SLUG,
+	display_name: "agent-browser",
+	health: "healthy",
+};
+
+const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
+};
+
+const singletonTabsStorageKey = `${visibleSingletonTabsStorageKeyPrefix}${AGENT_ID}`;
+
+/**
+ * Singleton panels start hidden, so a story that needs a visible Browser,
+ * Desktop, or Debug tab seeds the per-chat storage entry before mount.
+ */
+const seedVisibleSingletonTabs = (
+	tabIds: readonly SingletonRightPanelTabId[],
+) => {
+	localStorage.setItem(singletonTabsStorageKey, JSON.stringify(tabIds));
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const clearVisibleSingletonTabs = () => {
+	localStorage.removeItem(singletonTabsStorageKey);
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const openAddPanelMenu = async (canvas: ReturnType<typeof within>) => {
+	await userEvent.click(canvas.getByLabelText("Add panel"));
+};
+
+export const BrowserTabForHealthyAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={mockAgentWithBrowserApp}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+
+		await userEvent.click(browserTab);
+	},
+};
+
+export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
+			}}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await userEvent.click(browserTab);
+	},
+};
+
+export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
+	// Seed the saved choice so the assertion proves the health gate hides
+	// the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
+			}}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+};
+
+export const NoBrowserTabForAppOnNonBoundAgent: Story = {
+	// Seed the saved choice so the assertion proves the agent-binding gate
+	// hides the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={{
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspaceResource,
+							agents: [
+								MockWorkspaceAgent,
+								{
+									...mockAgentWithBrowserApp,
+									id: "other-agent",
+									name: "other-agent",
+								},
+							],
+						},
+					],
+				},
+			}}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+};
+
+export const PreservesUnavailableBrowserTab: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "browser");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("browser");
+	},
+};
+
+const renderWithSingletonSupport = () => (
+	<StoryAgentChatPageView
+		showSidebarPanel
+		debugLoggingEnabled
+		workspace={MockWorkspace}
+		workspaceAgent={mockAgentWithBrowserApp}
+		desktopChatId={AGENT_ID}
+		sshCommand="ssh coder.workspace"
+	/>
+);
+
+export const SingletonPanelsHiddenByDefault: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			await body.findByRole("menuitemcheckbox", { name: label });
+		}
+	},
+};
+
+export const TogglesSingletonPanelFromDropdown: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(
+			canvas.getByRole("button", { name: "Close Browser tab" }),
+		).toBeVisible();
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		).toHaveAttribute("aria-checked", "true");
+
+		// Select another tab first: closing the active singleton selects a
+		// neighbor, and "Closes Active Singleton Panel" covers that path.
+		await userEvent.keyboard("{Escape}");
+		// The open menu marks the rest of the page aria-hidden, so wait for it
+		// to close before reaching a tab.
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitemcheckbox", { name: "Browser" }),
+			).toBeNull();
+		});
+		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+		});
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe("[]");
+	},
+};
+
+export const ClosesActiveSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual([
+			"Summary",
+			"Git",
+			"Debug",
+			"Browser",
+			"Terminal",
+		]);
+
+		await userEvent.click(debugTab);
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Close Debug tab" }),
+		);
+
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+		});
+		expect(canvas.getByRole("tab", { name: "Browser" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		).toHaveAttribute("aria-checked", "false");
+	},
+};
+
+export const ReopenedSingletonPanelStaysSingle: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Debug" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await canvas.findByRole("tab", { name: "Debug" });
+	},
+};
+
+/**
+ * An archived chat is read-only, so showing a singleton panel must not write
+ * the per-chat entry. The archive flow clears that entry on purpose, and
+ * persisting here would recreate it for a chat the user cannot change.
+ */
+export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			chat={{ archived: true }}
+			isInputDisabled
+			debugLoggingEnabled
+			workspace={MockWorkspace}
+			workspaceAgent={mockAgentWithBrowserApp}
+			desktopChatId={AGENT_ID}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBeNull();
+	},
+};
+
+export const RestoresPersistedSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
+	render: renderWithSingletonSupport,
+};
+
+export const HidesUnsupportedSingletonPanels: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "desktop", "debug"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+
+		await openAddPanelMenu(canvas);
+		await body.findByText("New Terminal");
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
+		}
+
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe(
+			'["browser","desktop","debug"]',
+		);
 	},
 };
 
@@ -1691,7 +1926,7 @@ export const DoesNotPersistForArchivedChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			isArchived
+			chat={{ archived: true }}
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
@@ -1702,15 +1937,15 @@ export const DoesNotPersistForArchivedChat: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-		await userEvent.click(terminalTab);
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
 
 		await waitFor(() => {
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();
@@ -1720,13 +1955,44 @@ export const DoesNotPersistForArchivedChat: Story = {
 export const ArchivedWithSharing: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				organization_id: MockDefaultOrganization.id,
+			}}
 			isInputDisabled
-			canShareChat
-			organizationId={MockDefaultOrganization.id}
 		/>
 	),
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockDefaultOrganization.id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: true },
+			},
+		],
+	},
 	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
 		spyOn(API.experimental, "getChatACL").mockResolvedValue({
 			users: [],
 			groups: [],
@@ -1740,29 +2006,50 @@ export const ArchivedWithSharing: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("This agent has been archived and is read-only."),
-		).toBeVisible();
-
 		await userEvent.click(canvas.getByLabelText("Share chat"));
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Chat sharing")).toBeVisible();
-		});
-		await waitFor(() => {
-			expect(body.getByText("No shared members or groups yet")).toBeVisible();
-		});
+		await body.findByText("Chat sharing");
+		await body.findByText("No shared members or groups yet");
 	},
 };
 
 export const ShareChatPopoverFromTopBar: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canShareChat
-			organizationId={MockDefaultOrganization.id}
+			chat={{ organization_id: MockDefaultOrganization.id }}
 		/>
 	),
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockDefaultOrganization.id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: true },
+			},
+		],
+	},
 	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
 		spyOn(API.experimental, "getChatACL").mockResolvedValue({
 			users: [],
 			groups: [],
@@ -1778,11 +2065,7 @@ export const ShareChatPopoverFromTopBar: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Share chat"));
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Chat sharing")).toBeVisible();
-		});
-		await waitFor(() => {
-			expect(body.getByText("No shared members or groups yet")).toBeVisible();
-		});
+		await body.findByText("Chat sharing");
+		await body.findByText("No shared members or groups yet");
 	},
 };

@@ -16,8 +16,13 @@ import TerminalPage from "./TerminalPage";
 
 const reconnectToken = "terminal-page-test-reconnect-token";
 
-vi.mock("uuid", () => ({
-	v4: () => "terminal-page-test-reconnect-token",
+const { mockSessionId } = vi.hoisted(() => ({
+	mockSessionId: "0123456789abcdef0123456789abcdef",
+}));
+
+vi.mock("#/utils/random", () => ({
+	generateUUID: () => "terminal-page-test-reconnect-token",
+	generateConnectionSessionId: () => mockSessionId,
 }));
 vi.stubGlobal("jest", vi);
 await import("jest-canvas-mock");
@@ -39,7 +44,7 @@ Object.defineProperty(window, "matchMedia", {
 
 const createWorkspaceTerminalWebSocket = () => {
 	const websocketProtocol = location.protocol === "https:" ? "wss" : "ws";
-	const websocketUrl = `${websocketProtocol}://${location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&height=24&width=80`;
+	const websocketUrl = `${websocketProtocol}://${location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&client_session_id=${mockSessionId}&height=24&width=80`;
 
 	return new WS(websocketUrl);
 };
@@ -220,7 +225,7 @@ describe("TerminalPage", () => {
 		const websocketProtocol =
 			window.location.protocol === "https:" ? "wss" : "ws";
 		const ws = new WS(
-			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&command=echo+hello&height=24&width=80`,
+			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&client_session_id=${mockSessionId}&command=echo+hello&height=24&width=80`,
 		);
 		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
@@ -356,7 +361,7 @@ describe("TerminalPage", () => {
 		const websocketProtocol =
 			window.location.protocol === "https:" ? "wss" : "ws";
 		const ws = new WS(
-			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&command=echo+trusted&height=24&width=80`,
+			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&client_session_id=${mockSessionId}&command=echo+trusted&height=24&width=80`,
 		);
 		await renderTerminal(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`,

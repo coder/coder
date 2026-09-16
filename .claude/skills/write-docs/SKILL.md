@@ -43,7 +43,9 @@ style.
    - **Read the real source.** Open the actual template, config, code path,
      or CLI definition. Copy exact identifiers, defaults, file paths, option
      names, RBAC role names, thresholds, and API paths from the source, not
-     from memory.
+     from memory. These copies are verification inputs; whether each value
+     appears on the page is governed by
+     [Evidence versus claim](#evidence-versus-claim).
    - **Run the real thing.** Execute the commands in the same environment and
      image the reader will use. Capture real output and real error strings.
      Do not paraphrase an error you did not see. If you can only
@@ -66,7 +68,10 @@ style.
    the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
    One outcome per page. New pages MUST be added to `docs/manifest.json` under
    the right section, and the documentation lands in the same change as the
-   feature.
+   feature. If the change introduces, renames, or deprecates a Coder product
+   or feature name, update the [glossary](../../../docs/reference/glossary.md)
+   in the same change (add, edit, or mark the entry) per the
+   [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
 4. **Draft with deliberate pedagogy** (see patterns below).
 5. **Self-review and validate.** Apply the prose style guide with it open.
    Run `make lint/emdash`, markdownlint, and Vale. Run the commands and code
@@ -108,6 +113,13 @@ style.
   Previous/Next where the engine supports it); never ship a page that
   dead-ends.
 
+## Evidence versus claim
+
+The canonical rule is
+[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines; they govern. Read it there rather than from a
+summary here.
+
 ## What not to write
 
 Do not put non-docs content in `docs/`. The canonical catalog of what to
@@ -122,9 +134,9 @@ drift from the source.
 The canonical
 [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules)
 cover the manifest entry, auto-generated content, Premium marking, renames
-and redirects, and the emdash ban. Read them for the exact wording; the
-pre-handoff checklist below turns them into pass/fail items. Two application
-notes the canonical rules do not spell out:
+and redirects, the emdash ban, and the glossary. Read them for the exact
+wording; the pre-handoff checklist below turns them into pass/fail items. Two
+application notes the canonical rules do not spell out:
 
 - On a rename, pick the new link target by the specific page each sentence
   promises, not just the section hub, and confirm moved anchors still resolve.
@@ -152,6 +164,9 @@ the whole series as a single review.
 - Telling the reader their tool is wrong when it merely needs configuration.
 - Brittle references that rot: hard-coded line numbers, or a screenshot
   standing in for text the reader could copy.
+- Publishing verification evidence as content: identifiers on a page whose
+  reader never types or receives them (see
+  [Evidence versus claim](#evidence-versus-claim)).
 - Duplicating large content silently instead of flagging the maintenance
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
@@ -166,6 +181,9 @@ the whole series as a single review.
 - [ ] The content belongs in `docs/`; anything that does not was routed.
 - [ ] One outcome per page, correct Diátaxis mode, added to
       `docs/manifest.json`.
+- [ ] New, renamed, or deprecated product or feature names have a matching
+      `docs/reference/glossary.md` entry (a rename keeps the former name; a
+      deprecation names the replacement).
 - [ ] Prose style guide applied with it open; `make lint/emdash`,
       markdownlint, and Vale pass.
 - [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
@@ -176,6 +194,10 @@ the whole series as a single review.
       series).
 - [ ] PR title and description follow the PR description style guide (including
       draft vs. ready-for-review).
+- [ ] Identifiers on the page pass the
+      [Evidence versus claim](#evidence-versus-claim) test for this page's
+      task, and anything stripped under that rule is disclosed as the rule
+      requires.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 

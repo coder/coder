@@ -60,6 +60,12 @@ func TestCategorizeInterceptionError(t *testing.T) {
 			wantMsg:  (&keypool.Error{Kind: keypool.ErrorKindPermanent}).Error(),
 		},
 		{
+			name:     "keypool unauthorized is unauthorized",
+			err:      &keypool.Error{Kind: keypool.ErrorKindUnauthorized},
+			wantType: recorder.ErrorTypeUnauthorized,
+			wantMsg:  (&keypool.Error{Kind: keypool.ErrorKindUnauthorized}).Error(),
+		},
+		{
 			name:     "keypool rate limited is rate limited",
 			err:      &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 			wantType: recorder.ErrorTypeRateLimited,
@@ -81,7 +87,7 @@ func TestCategorizeInterceptionError(t *testing.T) {
 			name:     "wrapped keypool error is unwrapped",
 			err:      xerrors.Errorf("key pool exhausted: %w", &keypool.Error{Kind: keypool.ErrorKindPermanent}),
 			wantType: recorder.ErrorTypeUnauthorized,
-			wantMsg:  "key pool exhausted: all configured keys failed authentication",
+			wantMsg:  "key pool exhausted: all configured keys are permanently unavailable",
 		},
 		{
 			name:     "delegated to provider",

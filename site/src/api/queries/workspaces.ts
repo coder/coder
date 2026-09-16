@@ -22,8 +22,10 @@ import type {
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 	WorkspaceRole,
+	WorkspaceStatus,
 	WorkspacesRequest,
 	WorkspacesResponse,
+	WorkspaceTransition,
 } from "#/api/typesGenerated";
 import type { ConnectionStatus } from "#/modules/terminal/types";
 import {
@@ -252,6 +254,46 @@ export const invalidateWorkspaceListQueries = (queryClient: QueryClient) => {
 	});
 };
 
+/**
+ * Optimistically patches a workspace's build status in every cached workspaces
+ * list query and returns a rollback function that restores the previous caches.
+ * Useful for long-running actions (e.g. restart) where the list has no live
+ * updates and would otherwise show a stale status until the next poll.
+ */
+export const setOptimisticWorkspaceListBuildStatus = (
+	queryClient: QueryClient,
+	workspaceId: string,
+	status: WorkspaceStatus,
+	transition: WorkspaceTransition,
+): (() => void) => {
+	const filter = {
+		queryKey: workspacesQueryKeyPrefix,
+		predicate: isWorkspacesListQuery,
+	} as const;
+	const previous = queryClient.getQueriesData<WorkspacesResponse>(filter);
+	queryClient.setQueriesData<WorkspacesResponse>(filter, (data) => {
+		if (!data) {
+			return data;
+		}
+		return {
+			...data,
+			workspaces: data.workspaces.map((ws) =>
+				ws.id === workspaceId
+					? {
+							...ws,
+							latest_build: { ...ws.latest_build, status, transition },
+						}
+					: ws,
+			),
+		};
+	});
+	return () => {
+		for (const [key, data] of previous) {
+			queryClient.setQueryData(key, data);
+		}
+	};
+};
+
 interface WorkspaceMutationInvalidationOptions {
 	organizationName: string;
 	username: string;
@@ -288,7 +330,6 @@ export const updateDeadline = (
 export const changeVersion = (
 	workspace: Workspace,
 	queryClient: QueryClient,
-	isDynamicParametersEnabled: boolean,
 ) => {
 	return {
 		mutationFn: ({
@@ -298,12 +339,7 @@ export const changeVersion = (
 			versionId: string;
 			buildParameters?: WorkspaceBuildParameter[];
 		}) => {
-			return API.changeWorkspaceVersion(
-				workspace,
-				versionId,
-				buildParameters,
-				isDynamicParametersEnabled,
-			);
+			return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -318,16 +354,10 @@ export const updateWorkspace = (
 	return {
 		mutationFn: ({
 			buildParameters,
-			isDynamicParametersEnabled,
 		}: {
 			buildParameters?: WorkspaceBuildParameter[];
-			isDynamicParametersEnabled: boolean;
 		}) => {
-			return API.updateWorkspace(
-				workspace,
-				buildParameters,
-				isDynamicParametersEnabled,
-			);
+			return API.updateWorkspace(workspace, buildParameters);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);

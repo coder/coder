@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import type { TemplateVersionExternalAuth } from "#/api/typesGenerated";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 
@@ -116,5 +117,36 @@ export const BitbucketAuthenticated: Story = {
 			display_name: "Bitbucket",
 			authenticated: true,
 		},
+	},
+};
+
+// When an admin creates a workspace for another user, the requester cannot
+// authenticate on the owner's behalf, so the login action is hidden and the
+// unconnected state is read-only.
+export const ForAnotherUserNotConnected: Story = {
+	args: {
+		auth: MockExternalAuth,
+		canAuthenticate: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Not connected")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /login with github/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ForAnotherUserAuthenticated: Story = {
+	args: {
+		auth: {
+			...MockExternalAuth,
+			authenticated: true,
+		},
+		canAuthenticate: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Authenticated")).toBeInTheDocument();
 	},
 };

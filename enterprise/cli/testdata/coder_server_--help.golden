@@ -18,13 +18,6 @@ SUBCOMMANDS:
                                 PostgreSQL deployment.
 
 OPTIONS:
-      --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
-          Allow users to rename their workspaces. WARNING: Renaming a workspace
-          can cause Terraform resources that depend on the workspace name to be
-          destroyed and recreated, potentially causing data loss. Only enable
-          this if your templates do not use workspace names in resource
-          identifiers, or if you understand the risks.
-
       --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
           $CACHE_DIRECTORY is set, it will be used for compatibility with
@@ -55,6 +48,18 @@ OPTIONS:
           apps can make requests to the Coder API and pose a security risk when
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
+
+      --disable-user-secret-file-path bool, $CODER_DISABLE_USER_SECRET_FILE_PATH
+          Disable Coder-managed file path delivery for user secrets. Stored
+          paths remain until users clear them and resume if this setting is
+          turned off.
+
+      --disable-workspace-agent-context-sync bool, $CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC
+          Stop persisting workspace agent context snapshots (instructions,
+          skills, and MCP state used for pinned chat context). When set, coderd
+          rejects agent context pushes as unimplemented and agents stop sending
+          them; chats cannot pin workspace context. Use this to shed the
+          database write load of context sync on large deployments.
 
       --disable-workspace-sharing bool, $CODER_DISABLE_WORKSPACE_SHARING
           Disable workspace sharing. Workspace ACL checking is disabled and only
@@ -127,58 +132,6 @@ AI GATEWAY OPTIONS:
           Allow users to provide their own LLM API keys or subscriptions. When
           disabled, only centralized key authentication is permitted.
 
-      --ai-gateway-anthropic-base-url string, $CODER_AI_GATEWAY_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The base URL of the Anthropic
-          API.
-
-      --ai-gateway-anthropic-key string, $CODER_AI_GATEWAY_ANTHROPIC_KEY
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The key to authenticate
-          against the Anthropic API.
-
-      --ai-gateway-bedrock-access-key string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The access key to authenticate
-          against the AWS Bedrock API.
-
-      --ai-gateway-bedrock-access-key-secret string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The access key secret to use
-          with the access key to authenticate against the AWS Bedrock API.
-
-      --ai-gateway-bedrock-base-url string, $CODER_AI_GATEWAY_BEDROCK_BASE_URL
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The base URL to use for the
-          AWS Bedrock API. Use this setting to specify an exact URL to use.
-          Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
-
-      --ai-gateway-bedrock-model string, $CODER_AI_GATEWAY_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The model to use when making
-          requests to the AWS Bedrock API.
-
-      --ai-gateway-bedrock-region string, $CODER_AI_GATEWAY_BEDROCK_REGION
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The AWS Bedrock API region to
-          use. Constructs a base URL to use for the AWS Bedrock API in the form
-          of 'https://bedrock-runtime.<region>.amazonaws.com'.
-
-      --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The small fast model to use
-          when making requests to the AWS Bedrock API. Claude Code uses
-          Haiku-class models to perform background tasks. See
-          https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
-
       --ai-gateway-circuit-breaker-enabled bool, $CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED (default: false)
           Enable the circuit breaker to protect against cascading failures from
           upstream AI provider overload (503, 529).
@@ -193,18 +146,6 @@ AI GATEWAY OPTIONS:
       --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)
           Maximum number of concurrent AI Gateway requests per replica. Set to 0
           to disable (unlimited).
-
-      --ai-gateway-openai-base-url string, $CODER_AI_GATEWAY_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The base URL of the OpenAI
-          API.
-
-      --ai-gateway-openai-key string, $CODER_AI_GATEWAY_OPENAI_KEY
-          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
-          this option seeds provider configuration at startup only exactly once.
-          It will not be used in service runtime. The key to authenticate
-          against the OpenAI API.
 
       --ai-gateway-rate-limit int, $CODER_AI_GATEWAY_RATE_LIMIT (default: 0)
           Maximum number of AI Gateway requests per second per replica. Set to 0
@@ -259,6 +200,11 @@ AI GATEWAY PROXY OPTIONS:
           Path to the TLS private key file for the AI Gateway Proxy listener.
           Must be set together with AI Gateway Proxy TLS Certificate File.
 
+      --ai-gateway-proxy-target string, $CODER_AI_GATEWAY_PROXY_TARGET
+          Base URL of the AI Gateway to forward intercepted requests to.
+          Defaults to the embedded AI Gateway address at the Coder access URL
+          plus /api/v2/ai-gateway.
+
       --ai-gateway-proxy-upstream string, $CODER_AI_GATEWAY_PROXY_UPSTREAM
           URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
           requests through. Format: http://[user:pass@]host:port or
@@ -285,9 +231,6 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           The upgrade message to display to users when a client/server mismatch
           is detected. By default it instructs users to update using 'curl -L
           https://coder.com/install.sh | sh'.
-
-      --hide-ai-tasks bool, $CODER_HIDE_AI_TASKS (default: false)
-          Hide AI tasks from the dashboard.
 
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
@@ -445,6 +388,13 @@ INTROSPECTION / PPROF OPTIONS:
 
       --pprof-enable bool, $CODER_PPROF_ENABLE
           Serve pprof metrics on the address defined by pprof address.
+
+MCP OPTIONS: 
+      --mcp-allowed-private-cidrs string-array, $CODER_MCP_ALLOWED_PRIVATE_CIDRS
+          MCP server destinations in private or reserved IP ranges are blocked
+          by default for SSRF protection. This applies to OAuth2 discovery,
+          OAuth2 token and revocation exchanges, and runtime MCP connections
+          from coderd. This option exempts specific CIDRs.
 
 NETWORKING OPTIONS: 
       --access-url url, $CODER_ACCESS_URL
@@ -726,7 +676,7 @@ OAUTH2 / GITHUB OPTIONS:
 
       --oauth2-github-allowed-teams string-array, $CODER_OAUTH2_GITHUB_ALLOWED_TEAMS
           Teams inside organizations the user must be a member of to Login with
-          GitHub. Structured as: <organization-name>/<team-slug>.
+          GitHub. Structured as: `<organization-name>/<team-slug>`.
 
       --oauth2-github-client-id string, $CODER_OAUTH2_GITHUB_CLIENT_ID
           Client ID for Login with GitHub.
@@ -743,6 +693,13 @@ OAUTH2 / GITHUB OPTIONS:
       --oauth2-github-enterprise-base-url string, $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.
+
+OAUTH2 / PROVIDER OPTIONS: 
+      --oauth2-provider-enable bool, $CODER_OAUTH2_PROVIDER_ENABLE (default: false)
+          Enable the OAuth 2.1 authorization server, which lets external
+          applications (such as MCP clients) obtain tokens for Coder on behalf
+          of users. Disabled by default. When disabled, the OAuth2 endpoints and
+          discovery documents return 404.
 
 OIDC OPTIONS: 
       --oidc-group-auto-create bool, $CODER_OIDC_GROUP_AUTO_CREATE (default: false)
@@ -803,6 +760,12 @@ OIDC OPTIONS:
       --oidc-name-field string, $CODER_OIDC_NAME_FIELD (default: name)
           OIDC claim field to use as the name.
 
+      --oidc-redirect-url url, $CODER_OIDC_REDIRECT_URL
+          Optional override of the default redirect url which uses the
+          deployment's access url. Useful in situations where a deployment has
+          more than 1 domain. Using this setting can also break OIDC, so use
+          with caution.
+
       --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
           If provided any group name not matching the regex is ignored. This
           allows for filtering out groups that are not needed. This filter is
@@ -847,6 +810,11 @@ OIDC OPTIONS:
 PROVISIONING OPTIONS: 
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
+
+      --provisioner-disable-module-cache bool, $CODER_PROVISIONER_DISABLE_MODULE_CACHE (default: false)
+          Disable the reuse of Terraform modules cached at template import for
+          all templates. Modules are re-downloaded on every workspace build.
+          Individual templates cannot opt back in.
 
       --provisioner-force-cancel-interval duration, $CODER_PROVISIONER_FORCE_CANCEL_INTERVAL (default: 10m0s)
           Time to force cancel provisioning tasks that are stuck.
@@ -913,8 +881,10 @@ TEMPLATE BUILDER OPTIONS:
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
       --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
-          The base URL of the module registry used by the template builder for
-          module source paths.
+          The module registry host the template builder uses for module source
+          paths (for example, "registry.coder.com" or "mirror.internal:8443").
+          An http(s):// scheme and trailing slash are stripped; a path, query,
+          fragment, or credentials is rejected.
 
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid

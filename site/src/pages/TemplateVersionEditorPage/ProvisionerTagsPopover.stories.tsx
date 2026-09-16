@@ -1,14 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { chromatic } from "#/testHelpers/chromatic";
 import { MockTemplateVersion } from "#/testHelpers/entities";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 const meta: Meta<typeof ProvisionerTagsPopover> = {
 	title: "pages/TemplateVersionEditorPage/ProvisionerTagsPopover",
 	parameters: {
-		chromatic,
 		layout: "centered",
 	},
 	component: ProvisionerTagsPopover,
@@ -36,7 +34,7 @@ export const OnTagsChange: Story = {
 	args: {
 		tags: {},
 	},
-	render: (args) => {
+	render: function OnTagsChangeRender(args) {
 		const [tags, setTags] = useState(args.tags);
 		return <ProvisionerTagsPopover tags={tags} onTagsChange={fn(setTags)} />;
 	},

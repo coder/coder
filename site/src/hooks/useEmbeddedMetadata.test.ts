@@ -8,7 +8,6 @@ import {
 	MockExperiments,
 	MockOrganization,
 	MockPermissions,
-	MockTasksTabVisible,
 	MockUserAppearanceSettings,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -45,8 +44,8 @@ const mockDataForTags = {
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
-	"tasks-tab-visible": MockTasksTabVisible,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
+	"user-secret-file-path-enabled": true,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
 } as const satisfies Record<MetadataKey, MetadataValue>;
@@ -80,11 +79,11 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		available: false,
 		value: undefined,
 	},
-	"tasks-tab-visible": {
+	"ai-gateway-enabled": {
 		available: false,
 		value: undefined,
 	},
-	"ai-gateway-enabled": {
+	"user-secret-file-path-enabled": {
 		available: false,
 		value: undefined,
 	},
@@ -127,13 +126,13 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 		available: true,
 		value: MockUserAppearanceSettings,
 	},
-	"tasks-tab-visible": {
-		available: true,
-		value: MockTasksTabVisible,
-	},
 	"ai-gateway-enabled": {
 		available: true,
 		value: MockAIGatewayEnabled,
+	},
+	"user-secret-file-path-enabled": {
+		available: true,
+		value: true,
 	},
 	permissions: {
 		available: true,

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -86,14 +87,16 @@ func TestPostUserSecret(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "dup-secret",
-			Value: "value1",
+			Name:    "dup-secret",
+			Value:   "value1",
+			EnvName: "DUP_SECRET_ENV_1",
 		})
 		require.NoError(t, err)
 
 		_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "dup-secret",
-			Value: "value2",
+			Name:    "dup-secret",
+			Value:   "value2",
+			EnvName: "DUP_SECRET_ENV_2",
 		})
 		requireSecretValidationEqualsError(t, err, http.StatusConflict, "name", "name already in use")
 	})
@@ -205,6 +208,80 @@ func TestPostUserSecret(t *testing.T) {
 		})
 		requireSecretValidationContainsError(t, err, http.StatusBadRequest, "value", "must not exceed")
 	})
+
+	t.Run("MissingInjectionTarget", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "missing-target-secret",
+			Value: "value",
+		})
+		requireSecretValidationContainsError(t, err, http.StatusBadRequest, "env_name", "at least one of env_name or file_path")
+	})
+
+	t.Run("DisabledByDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		disabled := false
+		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "create-disabled",
+			Value:   "value",
+			EnvName: "CREATE_DISABLED",
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+		assert.False(t, secret.Enabled)
+	})
+
+	t.Run("DisabledWithoutTarget", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// A disabled secret may omit both injection targets. Bulk
+		// imports rely on this for keys that cannot be env-injected.
+		disabled := false
+		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "create-disabled-no-target",
+			Value:   "value",
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+		assert.False(t, secret.Enabled)
+		assert.Empty(t, secret.EnvName)
+		assert.Empty(t, secret.FilePath)
+	})
+
+	t.Run("EnabledByDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "create-default-enabled",
+			Value:   "value",
+			EnvName: "CREATE_DEFAULT_ENABLED",
+		})
+		require.NoError(t, err)
+		assert.True(t, secret.Enabled)
+	})
+}
+
+func TestPostUserSecretForbiddenForAnotherUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleAuditor())
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	_, err := memberClient.CreateUserSecret(ctx, owner.UserID.String(), codersdk.CreateUserSecretRequest{
+		Name:    "forbidden",
+		Value:   "value",
+		EnvName: "FORBIDDEN",
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }
 
 func TestGetUserSecrets(t *testing.T) {
@@ -223,14 +300,16 @@ func TestGetUserSecrets(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "list-secret-a",
-			Value: "value-a",
+			Name:    "list-secret-a",
+			Value:   "value-a",
+			EnvName: "LIST_SECRET_A",
 		})
 		require.NoError(t, err)
 
 		_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "list-secret-b",
-			Value: "value-b",
+			Name:    "list-secret-b",
+			Value:   "value-b",
+			EnvName: "LIST_SECRET_B",
 		})
 		require.NoError(t, err)
 
@@ -310,8 +389,9 @@ func TestPatchUserSecret(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "patch-nofields-secret",
-			Value: "my-value",
+			Name:    "patch-nofields-secret",
+			Value:   "my-value",
+			EnvName: "PATCH_NOFIELDS_ENV",
 		})
 		require.NoError(t, err)
 
@@ -348,8 +428,9 @@ func TestPatchUserSecret(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "conflict-env-2",
-			Value: "value2",
+			Name:     "conflict-env-2",
+			Value:    "value2",
+			FilePath: "/tmp/conflict-env-2",
 		})
 		require.NoError(t, err)
 
@@ -372,8 +453,9 @@ func TestPatchUserSecret(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "conflict-fp-2",
-			Value: "value2",
+			Name:    "conflict-fp-2",
+			Value:   "value2",
+			EnvName: "CONFLICT_FP_2",
 		})
 		require.NoError(t, err)
 
@@ -389,8 +471,9 @@ func TestPatchUserSecret(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "patch-invalid-env",
-			Value: "good-value",
+			Name:     "patch-invalid-env",
+			Value:    "good-value",
+			FilePath: "/tmp/patch-invalid-env",
 		})
 		require.NoError(t, err)
 
@@ -406,8 +489,9 @@ func TestPatchUserSecret(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "patch-invalid-file-path",
-			Value: "good-value",
+			Name:    "patch-invalid-file-path",
+			Value:   "good-value",
+			EnvName: "PATCH_INVALID_FILE_PATH",
 		})
 		require.NoError(t, err)
 
@@ -423,8 +507,9 @@ func TestPatchUserSecret(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "patch-invalid-val",
-			Value: "good-value",
+			Name:    "patch-invalid-val",
+			Value:   "good-value",
+			EnvName: "PATCH_INVALID_VAL",
 		})
 		require.NoError(t, err)
 
@@ -433,6 +518,121 @@ func TestPatchUserSecret(t *testing.T) {
 			Value: &badVal,
 		})
 		requireSecretValidationContainsError(t, err, http.StatusBadRequest, "value", "null bytes")
+	})
+
+	t.Run("ToggleEnabled", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "toggle-enabled",
+			Value:   "value",
+			EnvName: "TOGGLE_ENABLED",
+		})
+		require.NoError(t, err)
+		require.True(t, secret.Enabled)
+
+		disable := false
+		updated, err := client.UpdateUserSecret(ctx, codersdk.Me, "toggle-enabled", codersdk.UpdateUserSecretRequest{
+			Enabled: &disable,
+		})
+		require.NoError(t, err)
+		assert.False(t, updated.Enabled)
+		// Other fields should be unchanged.
+		assert.Equal(t, "TOGGLE_ENABLED", updated.EnvName)
+
+		enable := true
+		updated, err = client.UpdateUserSecret(ctx, codersdk.Me, "toggle-enabled", codersdk.UpdateUserSecretRequest{
+			Enabled: &enable,
+		})
+		require.NoError(t, err)
+		assert.True(t, updated.Enabled)
+	})
+
+	t.Run("ClearingBothTargetsRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "clear-both",
+			Value:   "value",
+			EnvName: "CLEAR_BOTH_ENV",
+		})
+		require.NoError(t, err)
+
+		// PATCH that clears env_name while file_path is also empty
+		// should be rejected: the row stays enabled but would have no
+		// injection target.
+		empty := ""
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "clear-both", codersdk.UpdateUserSecretRequest{
+			EnvName: &empty,
+		})
+		requireSecretValidationContainsError(t, err, http.StatusBadRequest, "env_name", "at least one of env_name or file_path")
+	})
+
+	t.Run("ClearingTargetsWhileDisablingAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "clear-and-disable",
+			Value:   "value",
+			EnvName: "CLEAR_AND_DISABLE",
+		})
+		require.NoError(t, err)
+
+		// Clearing the last target is allowed when the same PATCH also
+		// disables the secret: only enabled secrets need a target.
+		empty := ""
+		disabled := false
+		updated, err := client.UpdateUserSecret(ctx, codersdk.Me, "clear-and-disable", codersdk.UpdateUserSecretRequest{
+			EnvName: &empty,
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+		assert.False(t, updated.Enabled)
+		assert.Empty(t, updated.EnvName)
+
+		// Re-enabling without restoring a target is rejected.
+		enable := true
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "clear-and-disable", codersdk.UpdateUserSecretRequest{
+			Enabled: &enable,
+		})
+		requireSecretValidationContainsError(t, err, http.StatusBadRequest, "env_name", "at least one of env_name or file_path")
+
+		// Re-enabling and restoring a target in one PATCH succeeds.
+		envName := "CLEAR_AND_DISABLE"
+		updated, err = client.UpdateUserSecret(ctx, codersdk.Me, "clear-and-disable", codersdk.UpdateUserSecretRequest{
+			EnvName: &envName,
+			Enabled: &enable,
+		})
+		require.NoError(t, err)
+		assert.True(t, updated.Enabled)
+		assert.Equal(t, "CLEAR_AND_DISABLE", updated.EnvName)
+	})
+
+	t.Run("AtomicEnvFileSwap", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "atomic-swap",
+			Value:   "value",
+			EnvName: "ATOMIC_SWAP_ENV",
+		})
+		require.NoError(t, err)
+
+		// Clearing env_name and setting file_path in the same PATCH must
+		// succeed: the post-update row still has an injection target.
+		empty := ""
+		newPath := "/tmp/atomic-swap"
+		updated, err := client.UpdateUserSecret(ctx, codersdk.Me, "atomic-swap", codersdk.UpdateUserSecretRequest{
+			EnvName:  &empty,
+			FilePath: &newPath,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "", updated.EnvName)
+		assert.Equal(t, "/tmp/atomic-swap", updated.FilePath)
 	})
 }
 
@@ -493,8 +693,9 @@ func TestUserSecretLimits(t *testing.T) {
 		var firstSecret codersdk.UserSecret
 		for i := 0; i < codersdk.MaxUserSecretsPerUserCount; i++ {
 			s, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-				Name:  fmt.Sprintf("count-limit-%03d", i),
-				Value: "x",
+				Name:     fmt.Sprintf("count-limit-%03d", i),
+				Value:    "x",
+				FilePath: fmt.Sprintf("/tmp/count-limit-%03d", i),
 			})
 			require.NoError(t, err)
 			if i == 0 {
@@ -504,8 +705,9 @@ func TestUserSecretLimits(t *testing.T) {
 
 		// POST: the 51st secret is rejected.
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "one-too-many",
-			Value: "x",
+			Name:     "one-too-many",
+			Value:    "x",
+			FilePath: "/tmp/one-too-many",
 		})
 		requireSecretAPIError(t, err, http.StatusBadRequest, "at most")
 
@@ -520,8 +722,9 @@ func TestUserSecretLimits(t *testing.T) {
 
 		// Other-user isolation: the second user's budget is independent.
 		_, err = otherClient.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "other-user-secret",
-			Value: "x",
+			Name:     "other-user-secret",
+			Value:    "x",
+			FilePath: "/tmp/other-user-secret",
 		})
 		require.NoError(t, err)
 	})
@@ -669,10 +872,10 @@ func requireSecretAPIError(t *testing.T, err error, status int, detailContains s
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	assert.Equal(t, status, sdkErr.StatusCode())
-	combined := sdkErr.Message + " " + sdkErr.Response.Detail
+	combined := sdkErr.Message + " " + sdkErr.Detail
 	assert.Containsf(t, combined, detailContains,
 		"expected response to contain %q; got Message=%q Detail=%q",
-		detailContains, sdkErr.Message, sdkErr.Response.Detail)
+		detailContains, sdkErr.Message, sdkErr.Detail)
 }
 
 func TestDeleteUserSecret(t *testing.T) {
@@ -685,8 +888,9 @@ func TestDeleteUserSecret(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "delete-me-secret",
-			Value: "my-value",
+			Name:    "delete-me-secret",
+			Value:   "my-value",
+			EnvName: "DELETE_ME_SECRET",
 		})
 		require.NoError(t, err)
 

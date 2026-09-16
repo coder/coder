@@ -46,6 +46,12 @@ export const getErrorTitle = (
 			return "Chat interrupted";
 		case "provider_disabled":
 			return "Provider disabled";
+		case "content_filter":
+			return "Response blocked";
+		case "hook_dispatch_failed":
+			return "Lifecycle hook failed";
+		case "hook_denied":
+			return "Blocked by policy";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}

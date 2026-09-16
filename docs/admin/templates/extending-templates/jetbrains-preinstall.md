@@ -1,4 +1,6 @@
-# Pre-install JetBrains IDEs in your template
+---
+title: Pre-install JetBrains IDEs in your template
+---
 
 For a faster first time connection with JetBrains IDEs, pre-install the IDEs backend in your template.
 
@@ -9,7 +11,7 @@ For a faster first time connection with JetBrains IDEs, pre-install the IDEs bac
 
 Install the JetBrains Client Downloader binary:
 
-```shell
+```sh
 wget -O jetbrains-clients-downloader-linux-x86_64.tar.gz \
   'https://data.services.jetbrains.com/products/download?code=JCD&platform=linux_x86-64' && \
 tar -xzvf jetbrains-clients-downloader-linux-x86_64.tar.gz
@@ -18,14 +20,14 @@ rm jetbrains-clients-downloader-linux-x86_64.tar.gz
 
 ## Install Gateway backend
 
-```shell
+```sh
 mkdir ~/JetBrains
 ./jetbrains-clients-downloader-linux-x86_64-*/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64 --download-backends ~/JetBrains
 ```
 
 For example, to install the build `243.26053.27` of IntelliJ IDEA:
 
-```shell
+```sh
 ./jetbrains-clients-downloader-linux-x86_64-*/bin/jetbrains-clients-downloader --products-filter IU --build-filter 243.26053.27 --platforms-filter linux-x64 --download-backends ~/JetBrains
 tar -xzvf ~/JetBrains/backends/IU/*.tar.gz -C ~/JetBrains/backends/IU
 rm -rf ~/JetBrains/backends/IU/*.tar.gz
@@ -35,7 +37,7 @@ rm -rf ~/JetBrains/backends/IU/*.tar.gz
 
 Add the following command to your template's `startup_script`:
 
-```shell
+```sh
 ~/JetBrains/*/bin/remote-dev-server.sh registerBackendLocationForGateway
 ```
 
@@ -74,7 +76,7 @@ resource "coder_agent" "main" {
 If you are using Docker based workspaces, you can add the command to your Dockerfile:
 
 ```dockerfile
-FROM codercom/enterprise-base:ubuntu
+FROM codercom/example-base:ubuntu
 
 # JetBrains IDE installation (configurable)
 ARG IDE_CODE=IU

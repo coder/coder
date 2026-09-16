@@ -44,6 +44,16 @@ type BaseManifest struct {
 	OS             string             `json:"os"`
 	DefaultContext BaseDefaultContext `json:"default_context"`
 	Variables      []ModuleVariable   `json:"variables"`
+	Agents         []BaseAgent        `json:"agents,omitempty"`
+}
+
+// BaseAgent is a coder_agent declared in base.json. Name must match the
+// resource label in the base's main.tf.tmpl.
+type BaseAgent struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name,omitempty"`
+	// Default is the agent modules attach to when they do not name one.
+	Default bool `json:"default,omitempty"`
 }
 
 // BaseDefaultContext holds default render values stored in base.json.
@@ -161,8 +171,35 @@ func parseManifest(parent fs.FS, dirName string) (BaseManifest, error) {
 	if _, ok := validBaseOS[manifest.OS]; !ok && manifest.OS != "" {
 		return BaseManifest{}, xerrors.Errorf("base %q has unknown os %q", manifest.ID, manifest.OS)
 	}
+	if err := validateBaseAgents(manifest); err != nil {
+		return BaseManifest{}, err
+	}
 
 	return manifest, nil
+}
+
+// validateBaseAgents requires a multi-agent base to mark exactly one default,
+// so module wiring never depends on base.json array order.
+func validateBaseAgents(manifest BaseManifest) error {
+	seen := make(map[string]bool, len(manifest.Agents))
+	defaults := 0
+	for i, a := range manifest.Agents {
+		if a.Name == "" {
+			return xerrors.Errorf("base %q agent %d has empty name", manifest.ID, i)
+		}
+		if seen[a.Name] {
+			return xerrors.Errorf("base %q has duplicate agent name %q", manifest.ID, a.Name)
+		}
+		seen[a.Name] = true
+		if a.Default {
+			defaults++
+		}
+	}
+	if len(manifest.Agents) > 1 && defaults != 1 {
+		return xerrors.Errorf("base %q declares %d agents but marks %d as default; exactly one required",
+			manifest.ID, len(manifest.Agents), defaults)
+	}
+	return nil
 }
 
 // parseTemplatesFromFS walks the filesystem and pre-parses all .tf.tmpl files
@@ -232,6 +269,7 @@ func DefaultBaseRenderContext(exampleID string) BaseRenderContext {
 
 	return BaseRenderContext{
 		ContainerImage: dc.ContainerImage,
+		RegistryBase:   DefaultRegistryBase,
 		Variables:      vars,
 	}
 }
@@ -258,6 +296,87 @@ func BaseVariables(exampleID string) []ModuleVariable {
 		return nil
 	}
 	return bases[exampleID].Manifest.Variables
+}
+
+// BaseAgents returns the agents declared in a base's manifest, or nil.
+func BaseAgents(exampleID string) []BaseAgent {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return nil
+	}
+	return bases[exampleID].Manifest.Agents
+}
+
+// BaseDefaultAgentName returns the default agent's name: the one marked
+// default, else the first declared. Empty if the base declares none.
+func BaseDefaultAgentName(exampleID string) string {
+	return defaultAgentName(BaseAgents(exampleID))
+}
+
+func defaultAgentName(agents []BaseAgent) string {
+	for _, a := range agents {
+		if a.Default {
+			return a.Name
+		}
+	}
+	if len(agents) > 0 {
+		return agents[0].Name
+	}
+	return ""
+}
+
+// baseIncludedModules derives, for each base, the catalog module IDs the base
+// declares in its own rendered Terraform (e.g. "git-clone"). It renders each
+// base's main.tf.tmpl once and extracts the module block labels, caching the
+// result. Compose treats these names as occupied so a wizard-selected module
+// cannot collide with one the base already renders.
+//
+// Caveat: derivation uses DefaultBaseRenderContext, so a `module` block gated
+// behind a base variable would not be detected. No base declares variables
+// today, so this is not currently reachable; revisit if that changes.
+var baseIncludedModules = sync.OnceValues(func() (map[string][]string, error) {
+	bases, err := loadBases()
+	if err != nil {
+		return nil, err
+	}
+	catalog, err := loadCatalogMap()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]string, len(bases))
+	for id := range bases {
+		// Only bases that render a main.tf.tmpl can declare modules.
+		if _, ok := bases[id].Templates["main.tf.tmpl"]; !ok {
+			continue
+		}
+		mainTF, err := RenderBaseTemplate(id, "main.tf.tmpl", DefaultBaseRenderContext(id))
+		if err != nil {
+			return nil, xerrors.Errorf("render base %q: %w", id, err)
+		}
+		// Keep only catalog-named module blocks: those are the module IDs a
+		// wizard-selected module could collide with. Non-catalog blocks a base
+		// renders (e.g. the azure_region helper) are never offered by the
+		// wizard, so they cannot collide and are not reserved.
+		var included []string
+		for _, name := range ExtractModuleNames(mainTF) {
+			if _, ok := catalog[name]; ok {
+				included = append(included, name)
+			}
+		}
+		out[id] = included
+	}
+	return out, nil
+})
+
+// BaseIncludedModules returns the catalog module IDs the given base declares in
+// its own rendered Terraform. Returns nil if the base is unknown or declares
+// none.
+func BaseIncludedModules(exampleID string) []string {
+	all, err := baseIncludedModules()
+	if err != nil {
+		return nil
+	}
+	return all[exampleID]
 }
 
 // BaseTemplateFS returns a filesystem rooted at the given base template

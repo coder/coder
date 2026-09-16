@@ -21,10 +21,13 @@ import (
 
 const (
 	// ComputerUseAnthropicModelName is the default Anthropic model used for
-	// computer use subagents.
-	ComputerUseAnthropicModelName = "claude-opus-4-6"
-	// ComputerUseOpenAIModelName is the default OpenAI model used for computer use.
-	ComputerUseOpenAIModelName = "gpt-5.5"
+	// computer use subagents. It must support the computer_20251124 tool
+	// version pinned in ComputerUseProviderTool.
+	ComputerUseAnthropicModelName = "claude-opus-5"
+	// ComputerUseOpenAIModelName is the default OpenAI model used for computer
+	// use. It must be served over the Responses API, which carries the GA
+	// computer_use tool.
+	ComputerUseOpenAIModelName = "gpt-5.6-sol"
 )
 
 // SupportedComputerUseProviders returns the providers supported by computer use.

@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -190,7 +189,7 @@ func TestSnapshotChanged(t *testing.T) {
 
 			paths := tc.setup(t, dir)
 
-			m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+			m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 			t.Cleanup(func() { _ = m.Close() })
 
 			err := m.Reload(ctx, paths)
@@ -231,7 +230,7 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	path2 := writeMCPConfig(t, dir2, map[string]mcpServerEntry{"srv2": entry2})
 	paths := []string{path1, path2}
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
 	// Initial reload with both config files.
@@ -274,7 +273,7 @@ func TestReload(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -293,7 +292,7 @@ func TestReload(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		require.NoError(t, m.Close())
 
 		err := m.Reload(ctx, []string{"/nonexistent"})
@@ -309,7 +308,7 @@ func TestReload(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		// Launch multiple concurrent reloads.
@@ -338,7 +337,7 @@ func TestReload(t *testing.T) {
 		dir := t.TempDir()
 		paths := []string{filepath.Join(dir, ".mcp.json")}
 
-		m := NewManager(mgrCtx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(mgrCtx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		// Use an already-canceled caller context.
@@ -368,7 +367,7 @@ func TestReload(t *testing.T) {
 		_, entry1 := fakeMCPServerConfig(t, "srv1")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv1": entry1})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		// First reload.
@@ -402,7 +401,7 @@ func TestReload(t *testing.T) {
 		data := `{"mcpServers":{"bad":{"command":"/nonexistent/binary","args":[]}}}`
 		require.NoError(t, os.WriteFile(path, []byte(data), 0o600))
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		// Reload should succeed (per-server failures are logged and
@@ -422,7 +421,7 @@ func TestReload(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -457,7 +456,7 @@ func TestDifferentialReload(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -498,7 +497,7 @@ func TestDifferentialReload(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -508,8 +507,9 @@ func TestDifferentialReload(t *testing.T) {
 		origClient := m.servers["srv"].client
 		m.mu.RUnlock()
 
-		// Change the server's args to trigger a diff.
-		entry.Args = append(entry.Args, "-test.v")
+		// Change the environment because verbose test flags make the
+		// fake server write non-protocol output, which the SDK rejects.
+		entry.Env["EXTRA_DIFF_TRIGGER"] = "1"
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
 		err = m.Reload(ctx, []string{configPath})
@@ -534,7 +534,7 @@ func TestDifferentialReload(t *testing.T) {
 			"srvA": entryA, "srvB": entryB,
 		})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -561,7 +561,7 @@ func TestDifferentialReload(t *testing.T) {
 		// ListTools on a closed client returns an error.
 		listCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
 		defer cancel()
-		_, listErr := oldClientB.ListTools(listCtx, mcp.ListToolsRequest{})
+		_, listErr := oldClientB.ListTools(listCtx, nil)
 		assert.Error(t, listErr, "ListTools on closed client should fail")
 	})
 
@@ -574,7 +574,7 @@ func TestDifferentialReload(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -615,7 +615,7 @@ func TestDifferentialReload(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -664,7 +664,7 @@ func TestReload_FirstBootPath(t *testing.T) {
 	_, entry := fakeMCPServerConfig(t, "srv")
 	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
 	// Simulate first-boot: Reload with the initial config.
@@ -693,7 +693,7 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 	_, entry := fakeMCPServerConfig(t, "srv")
 	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
 	err := m.Reload(ctx, []string{configPath})
@@ -738,7 +738,7 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 	_, entry := fakeMCPServerConfig(t, "srv")
 	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
 	err := m.Reload(ctx, []string{configPath})

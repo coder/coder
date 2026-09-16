@@ -1,4 +1,6 @@
-# MCP Server
+---
+title: MCP Server
+---
 
 Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)
 (MCP) server that provides AI assistants with tools and context about your Coder
@@ -87,20 +89,33 @@ The remote MCP server is an HTTP endpoint exposed by your Coder deployment at
 `/api/experimental/mcp/http`. This enables MCP clients to connect to Coder
 without running the CLI locally.
 
+The endpoint implements the
+[Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
+in stateless mode: it supports MCP specification versions from `2024-11-05`
+through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers
+`GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone
+server-event stream or explicit session termination, both permitted by the
+specification). The server exposes tools only; MCP resources, prompts,
+structured tool output, elicitation, and the MCP Tasks extension are not
+implemented.
+
 ### Prerequisites
 
-The remote MCP HTTP endpoint requires both the `oauth2` and `mcp-server-http`
-experiments enabled on your Coder deployment:
+The remote MCP HTTP endpoint requires the OAuth2 provider and the `mcp-server-http` experiment on your Coder deployment:
 
 ```sh
-coder server --experiments=oauth2,mcp-server-http
+coder server --oauth2-provider-enable --experiments=mcp-server-http
 ```
 
-Or set the environment variable:
+Or set the environment variables:
 
 ```sh
-CODER_EXPERIMENTS=oauth2,mcp-server-http
+CODER_OAUTH2_PROVIDER_ENABLE=true
+CODER_EXPERIMENTS=mcp-server-http
 ```
+
+For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider.md#enable-oauth2-provider).
+That page does not cover the experiment; set it with the top-level [`experiments`](../reference/cli/server.md#--experiments) YAML key.
 
 ### MCP Registry
 
@@ -168,11 +183,10 @@ MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc972
 server advertises its OAuth2 capabilities via the `WWW-Authenticate` header and
 `/.well-known/oauth-protected-resource` endpoint.
 
-This enables a seamless "click-to-connect" experience where users authenticate
-through their browser without manually managing tokens.
+This enables a seamless connect-and-authenticate experience where users sign in through their browser without manually managing tokens.
 
 > [!NOTE]
-> OAuth2 requires the `oauth2` experiment to be enabled on your Coder deployment.
+> OAuth2 requires `CODER_OAUTH2_PROVIDER_ENABLE=true` on your Coder deployment.
 
 ### Session Token (For Programmatic Access)
 
@@ -188,13 +202,25 @@ The MCP server exposes tools across several areas:
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
 - **Workspace interaction**: run commands, forward ports, list apps, and read logs
-- **Task management**: create, list, inspect, and control tasks
-- **User and system**: authenticated user details, tar uploads, and task reporting
+- **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
+- **User and system**: authenticated user details, organization memberships, tar uploads, and task reporting
 
 The full, authoritative set of tools, including their names, descriptions, and
 arguments, is defined in Coder's
 [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
 current list, since the available tools can change between releases.
+
+## Available Prompts
+
+The MCP server also exposes
+[prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts)
+for common Coder Agents chat workflows. Clients that support prompts surface
+them for you to invoke, for example as slash commands:
+
+- `coder_agents_delegate`: delegate a coding task to a Coder Agents chat and
+  monitor it to completion
+- `coder_agents_check`: check the status and recent activity of an existing
+  Coder Agents chat
 
 ## Troubleshooting
 
@@ -212,6 +238,6 @@ current list, since the available tools can change between releases.
 
 ### OAuth2 authentication not working
 
-- Ensure your Coder deployment has the `oauth2` experiment enabled
+- Ensure your Coder deployment has `CODER_OAUTH2_PROVIDER_ENABLE=true` set
 - Verify your MCP client supports RFC 9728 Protected Resource Metadata
 - Check that your browser can reach the Coder authorization endpoint

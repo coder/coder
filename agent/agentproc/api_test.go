@@ -835,6 +835,26 @@ func TestProcessOutput(t *testing.T) {
 		waitForExit(t, handler, id)
 	})
 
+	t.Run("IncludesCommand", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: "printf hello",
+		})
+		waitForExit(t, handler, id)
+
+		w := getOutput(t, handler, id)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp workspacesdk.ProcessOutputResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.False(t, resp.Running)
+		require.Equal(t, "printf hello", resp.Command)
+	})
+
 	t.Run("NonexistentProcess", func(t *testing.T) {
 		t.Parallel()
 

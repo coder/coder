@@ -255,7 +255,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, policy.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, policy.ActionRead, objects, rbac.DefaultFilterThreshold)
 			require.NoError(b, err)
 			_ = allowed
 		})

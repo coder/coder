@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -184,7 +185,6 @@ const (
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
-	FeatureTaskBatchActions           FeatureName = "task_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
@@ -199,6 +199,12 @@ const (
 	FeatureBoundary               FeatureName = "boundary"
 	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
+	// FeatureAgentRuntimeHours is a usage period feature. It is never a
+	// license claim itself. It is populated from the
+	// agent_runtime_hours_allocation, agent_runtime_hours_limit_soft and
+	// agent_runtime_hours_limit_hard claims. Refer to
+	// enterprise/coderd/license/license.go for the license format.
+	FeatureAgentRuntimeHours FeatureName = "agent_runtime_hours"
 )
 
 var (
@@ -219,7 +225,6 @@ var (
 		FeatureUserRoleManagement,
 		FeatureExternalTokenEncryption,
 		FeatureWorkspaceBatchActions,
-		FeatureTaskBatchActions,
 		FeatureAccessControl,
 		FeatureControlSharedPorts,
 		FeatureCustomRoles,
@@ -231,6 +236,7 @@ var (
 		FeatureBoundary,
 		FeatureServiceAccounts,
 		FeatureAIGovernanceUserLimit,
+		FeatureAgentRuntimeHours,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -271,7 +277,6 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
-		FeatureTaskBatchActions:           true,
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
@@ -300,6 +305,7 @@ func (n FeatureName) UsesLimit() bool {
 		FeatureUserLimit:             true,
 		FeatureManagedAgentLimit:     true,
 		FeatureAIGovernanceUserLimit: true,
+		FeatureAgentRuntimeHours:     true,
 	}[n]
 }
 
@@ -307,6 +313,7 @@ func (n FeatureName) UsesLimit() bool {
 func (n FeatureName) UsesUsagePeriod() bool {
 	return map[FeatureName]bool{
 		FeatureManagedAgentLimit: true,
+		FeatureAgentRuntimeHours: true,
 	}[n]
 }
 
@@ -371,20 +378,42 @@ func (set FeatureSet) Features() []FeatureName {
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
-	Limit       *int64      `json:"limit,omitempty"`
-	Actual      *int64      `json:"actual,omitempty"`
+	// Limit is the maximum value the license grants for the feature, in the
+	// feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	// with Limit omitted means the license grants unlimited runtime hours.
+	Limit *int64 `json:"limit,omitempty"`
+	// SoftLimit is the advisory warning threshold that accompanies Limit for
+	// features whose license carries it. For these features, Limit carries
+	// the purchased allocation; an unlimited allocation has no thresholds,
+	// so SoftLimit is omitted alongside the omitted Limit. Only
+	// FeatureAgentRuntimeHours sets this field.
+	SoftLimit *int64 `json:"soft_limit,omitempty"`
+	// HardLimit is the enforcement threshold that accompanies Limit for
+	// features whose license carries it. See SoftLimit for the set of
+	// features that use these thresholds.
+	HardLimit *int64 `json:"hard_limit,omitempty"`
+	// Actual is the usage measured against Limit, when known: a
+	// point-in-time count for most features, or usage accumulated over
+	// UsagePeriod for features that set one. Its unit matches Limit's;
+	// FeatureAgentRuntimeHours reports whole hours floored from the
+	// recorded milliseconds, with the precise value available in
+	// ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
+	// hour because the current hour is not emitted, plus the entitlement
+	// refresh interval.
+	Actual *int64 `json:"actual,omitempty"`
+	// ActualMs is the precise usage backing Actual, in milliseconds, for
+	// features measured in time. It has the same freshness as Actual.
+	// Only FeatureAgentRuntimeHours sets this field.
+	ActualMs *int64 `json:"actual_ms,omitempty"`
 
 	// Below is only for features that use usage periods.
 
 	// UsagePeriod denotes that the usage is a counter that accumulates over
 	// this period (and most likely resets with the issuance of the next
-	// license).
-	//
-	// These dates are determined from the license that this entitlement comes
-	// from, see enterprise/coderd/license/license.go.
-	//
-	// Only certain features set these fields:
-	// - FeatureManagedAgentLimit
+	// license). These dates are determined from the license that this
+	// entitlement comes from, see enterprise/coderd/license/license.go.
+	// Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	// field.
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 
@@ -404,9 +433,11 @@ type UsagePeriod struct {
 // 2. The usage period has a greater end date (note: only certain features use usage periods)
 // 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
 // 4. The entitlement is greater
-// 5. The limit is greater
+// 5. The limit is greater (except a nil limit on a usage period feature means unlimited, outranking any set limit)
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
+//
+// SoftLimit and HardLimit are not comparison inputs.
 func (f Feature) Compare(b Feature) int {
 	// For features with usage period constraints only, check the issued at and
 	// end dates.
@@ -446,11 +477,19 @@ func (f Feature) Compare(b Feature) int {
 		return entitlementDifference
 	}
 
-	// If the entitlement is the same, then we can compare the limits.
+	// If the entitlement is the same, then we can compare the limits. A nil
+	// limit on a usage period feature means unlimited, so it outranks any set
+	// limit; on other features a nil limit loses to a set one.
 	if f.Limit == nil && b.Limit != nil {
+		if bothHaveUsagePeriod {
+			return 1
+		}
 		return -1
 	}
 	if f.Limit != nil && b.Limit == nil {
+		if bothHaveUsagePeriod {
+			return -1
+		}
 		return 1
 	}
 	if f.Limit != nil && b.Limit != nil {
@@ -556,7 +595,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 		return Entitlements{}, ReadBodyAsError(res)
 	}
 	var ent Entitlements
-	return ent, json.NewDecoder(res.Body).Decode(&ent)
+	return ent, ReadBodyAsJSON(res, &ent)
 }
 
 type PostgresAuth string
@@ -610,6 +649,22 @@ const (
 // AIBudgetPeriods lists the supported AIBudgetPeriod values.
 var AIBudgetPeriods = []string{
 	string(AIBudgetPeriodMonth),
+}
+
+// Adjective renders the period as the adjective used in user-facing text (e.g. "monthly").
+func (p AIBudgetPeriod) Adjective() string {
+	switch p {
+	case "day":
+		return "daily"
+	case "week":
+		return "weekly"
+	case AIBudgetPeriodMonth:
+		return "monthly"
+	case "year":
+		return "yearly"
+	default:
+		return string(p)
+	}
 }
 
 // NewAIBudgetPeriodFromString converts s to an AIBudgetPeriod, falling back to
@@ -679,23 +734,26 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
+	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
+	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
-	AllowWorkspaceRenames                   serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
-	Healthcheck                             HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
-	Retention                               RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
-	CLIUpgradeMessage                       serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
-	TermsOfServiceURL                       serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
-	Notifications                           NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
-	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
-	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
-	AI                                      AIConfig                             `json:"ai,omitempty"`
-	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
-	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
+	// Deprecated: Use the per-template allow_workspace_renames setting instead.
+	AllowWorkspaceRenames   serpent.Bool          `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	Healthcheck             HealthcheckConfig     `json:"healthcheck,omitempty" typescript:",notnull"`
+	Retention               RetentionConfig       `json:"retention,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage       serpent.String        `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
+	TermsOfServiceURL       serpent.String        `json:"terms_of_service_url,omitempty" typescript:",notnull"`
+	Notifications           NotificationsConfig   `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy     serpent.StringArray   `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix serpent.String        `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds               PrebuildsConfig       `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	MCPAllowedPrivateCIDRs  serpent.StringArray   `json:"mcp_allowed_private_cidrs,omitempty" typescript:",notnull"`
+	AI                      AIConfig              `json:"ai,omitempty"`
+	StatsCollection         StatsCollectionConfig `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder         TemplateBuilderConfig `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -918,7 +976,17 @@ type PprofConfig struct {
 }
 
 type OAuth2Config struct {
-	Github OAuth2GithubConfig `json:"github" typescript:",notnull"`
+	Github   OAuth2GithubConfig   `json:"github" typescript:",notnull"`
+	Provider OAuth2ProviderConfig `json:"provider" typescript:",notnull"`
+}
+
+// OAuth2ProviderConfig configures Coder's own OAuth 2.1 authorization server.
+// This is separate from the GitHub login integration. It is also distinct
+// from OAuth2ProviderSettings: this struct decides whether the server is on
+// at all, while OAuth2ProviderSettings holds runtime behavior such as
+// dynamic client registration that admins change while it runs.
+type OAuth2ProviderConfig struct {
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
 
 type OAuth2GithubConfig struct {
@@ -977,7 +1045,7 @@ type OIDCConfig struct {
 
 	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	// situations where the OIDC callback domain is different from the ACCESS_URL
-	// domain.
+	// domain. The path component is ignored.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
@@ -1131,10 +1199,14 @@ type ExternalAuthConfig struct {
 	ClientSecret string `json:"-" yaml:"client_secret"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
-	ID                  string   `json:"id" yaml:"id"`
-	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
-	TokenURL            string   `json:"token_url" yaml:"token_url"`
-	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	ID          string `json:"id" yaml:"id"`
+	AuthURL     string `json:"auth_url" yaml:"auth_url"`
+	TokenURL    string `json:"token_url" yaml:"token_url"`
+	ValidateURL string `json:"validate_url" yaml:"validate_url"`
+	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	// situations where the OAuth callback domain is different from the ACCESS_URL
+	// domain. The path component is ignored.
+	RedirectURL         string   `json:"redirect_url" yaml:"redirect_url"`
 	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
@@ -1177,6 +1249,10 @@ type ProvisionerConfig struct {
 	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
+	// DisableModuleCache disables the reuse of Terraform modules cached at
+	// template import for every template in the deployment. Templates cannot
+	// opt back in.
+	DisableModuleCache serpent.Bool `json:"disable_module_cache" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1487,6 +1563,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 communicating directly.`,
 			YAML: "cluster",
 		}
+		deploymentGroupMCP = serpent.Group{
+			Name: "MCP",
+			YAML: "mcp",
+		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
 			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
@@ -1529,13 +1609,18 @@ communicating directly.`,
 		}
 		deploymentGroupOAuth2 = serpent.Group{
 			Name:        "OAuth2",
-			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
+			Description: `Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 authorization server.`,
 			YAML:        "oauth2",
 		}
 		deploymentGroupOAuth2GitHub = serpent.Group{
 			Parent: &deploymentGroupOAuth2,
 			Name:   "GitHub",
 			YAML:   "github",
+		}
+		deploymentGroupOAuth2Provider = serpent.Group{
+			Parent: &deploymentGroupOAuth2,
+			Name:   "Provider",
+			YAML:   "provider",
 		}
 		deploymentGroupOIDC = serpent.Group{
 			Name: "OIDC",
@@ -1852,7 +1937,6 @@ communicating directly.`,
 	}
 
 	// AI Gateway options
-	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. "
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
 		Description: "Whether to start an in-memory AI Gateway instance.",
@@ -1863,109 +1947,9 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "enabled",
 	}
-	aiGatewayOpenAIBaseURL := serpent.Option{
-		Name:        "AI Gateway OpenAI Base URL",
-		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the OpenAI API.",
-		Flag:        "ai-gateway-openai-base-url",
-		Env:         "CODER_AI_GATEWAY_OPENAI_BASE_URL",
-		Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
-		Default:     "https://api.openai.com/v1/",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "openai_base_url",
-	}
-	aiGatewayOpenAIKey := serpent.Option{
-		Name:        "AI Gateway OpenAI Key",
-		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the OpenAI API.",
-		Flag:        "ai-gateway-openai-key",
-		Env:         "CODER_AI_GATEWAY_OPENAI_KEY",
-		Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayAnthropicBaseURL := serpent.Option{
-		Name:        "AI Gateway Anthropic Base URL",
-		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the Anthropic API.",
-		Flag:        "ai-gateway-anthropic-base-url",
-		Env:         "CODER_AI_GATEWAY_ANTHROPIC_BASE_URL",
-		Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
-		Default:     "https://api.anthropic.com/",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "anthropic_base_url",
-	}
-	aiGatewayAnthropicKey := serpent.Option{
-		Name:        "AI Gateway Anthropic Key",
-		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the Anthropic API.",
-		Flag:        "ai-gateway-anthropic-key",
-		Env:         "CODER_AI_GATEWAY_ANTHROPIC_KEY",
-		Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayBedrockBaseURL := serpent.Option{
-		Name:        "AI Gateway Bedrock Base URL",
-		Description: aiGatewayProviderSeedingDeprecated + "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.",
-		Flag:        "ai-gateway-bedrock-base-url",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_BASE_URL",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_base_url",
-	}
-	aiGatewayBedrockRegion := serpent.Option{
-		Name:        "AI Gateway Bedrock Region",
-		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.",
-		Flag:        "ai-gateway-bedrock-region",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_region",
-	}
-	aiGatewayBedrockAccessKey := serpent.Option{
-		Name:        "AI Gateway Bedrock Access Key",
-		Description: aiGatewayProviderSeedingDeprecated + "The access key to authenticate against the AWS Bedrock API.",
-		Flag:        "ai-gateway-bedrock-access-key",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayBedrockAccessKeySecret := serpent.Option{
-		Name:        "AI Gateway Bedrock Access Key Secret",
-		Description: aiGatewayProviderSeedingDeprecated + "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
-		Flag:        "ai-gateway-bedrock-access-key-secret",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayBedrockModel := serpent.Option{
-		Name:        "AI Gateway Bedrock Model",
-		Description: aiGatewayProviderSeedingDeprecated + "The model to use when making requests to the AWS Bedrock API.",
-		Flag:        "ai-gateway-bedrock-model",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_MODEL",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
-		Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_model",
-	}
-	aiGatewayBedrockSmallFastModel := serpent.Option{
-		Name:        "AI Gateway Bedrock Small Fast Model",
-		Description: aiGatewayProviderSeedingDeprecated + "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
-		Flag:        "ai-gateway-bedrock-small-fastmodel",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
-		Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_small_fast_model",
-	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
-		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the \"mcp-server-http\" experiment to be enabled).",
 		Flag:        "ai-gateway-inject-coder-mcp-tools",
 		Env:         "CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS",
 		Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
@@ -2131,6 +2115,16 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "listen_addr",
 	}
+	aiGatewayProxyTarget := serpent.Option{
+		Name:        "AI Gateway Proxy Target",
+		Description: "Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.",
+		Flag:        "ai-gateway-proxy-target",
+		Env:         "CODER_AI_GATEWAY_PROXY_TARGET",
+		Value:       &c.AI.BridgeProxyConfig.Target,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "target",
+	}
 	aiGatewayProxyTLSCertFile := serpent.Option{
 		Name:        "AI Gateway Proxy TLS Certificate File",
 		Description: "Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Key File.",
@@ -2202,6 +2196,16 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "upstream_proxy_ca",
 	}
+	mcpAllowedPrivateCIDRs := serpent.Option{
+		Name:        "MCP Allowed Private CIDRs",
+		Description: "MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.",
+		Flag:        "mcp-allowed-private-cidrs",
+		Env:         "CODER_MCP_ALLOWED_PRIVATE_CIDRS",
+		Value:       &c.MCPAllowedPrivateCIDRs,
+		Default:     "",
+		Group:       &deploymentGroupMCP,
+		YAML:        "allowed_private_cidrs",
+	}
 	aiGatewayProxyAllowedPrivateCIDRs := serpent.Option{
 		Name:        "AI Gateway Proxy Allowed Private CIDRs",
 		Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
@@ -2223,6 +2227,7 @@ communicating directly.`,
 		YAML:        "api_dump_dir",
 	}
 	opts := serpent.OptionSet{
+		mcpAllowedPrivateCIDRs,
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,
@@ -2676,7 +2681,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
-			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.",
 			Flag:        "oauth2-github-allowed-teams",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
@@ -2709,6 +2714,16 @@ communicating directly.`,
 			Value:       &c.OAuth2.Github.EnterpriseBaseURL,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "enterpriseBaseURL",
+		},
+		{
+			Name:        "OAuth2 Provider Enable",
+			Description: "Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.",
+			Flag:        "oauth2-provider-enable",
+			Env:         "CODER_OAUTH2_PROVIDER_ENABLE",
+			Value:       &c.OAuth2.Provider.Enable,
+			Group:       &deploymentGroupOAuth2Provider,
+			YAML:        "enable",
+			Default:     "false",
 		},
 		// OIDC settings.
 		{
@@ -3038,9 +3053,6 @@ communicating directly.`,
 			Value:      &c.OIDC.RedirectURL,
 			Group:      &deploymentGroupOIDC,
 			UseInstead: nil,
-			// In most deployments, this setting can only complicate and break OIDC.
-			// So hide it, and only surface it to the small number of users that need it.
-			Hidden: true,
 		},
 		{
 			Name: "OIDC Auto Repair Links",
@@ -3231,6 +3243,16 @@ communicating directly.`,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Disable Terraform Module Cache",
+			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
+			Flag:        "provisioner-disable-module-cache",
+			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
+			Default:     "false",
+			Value:       &c.Provisioner.DisableModuleCache,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "disableModuleCache",
 		},
 		{
 			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
@@ -3714,6 +3736,24 @@ communicating directly.`,
 			YAML:  "disableChatSharing",
 		},
 		{
+			Name:        "Disable Workspace Agent Context Sync",
+			Description: "Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.",
+			Flag:        "disable-workspace-agent-context-sync",
+			Env:         "CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC",
+
+			Value: &c.DisableWorkspaceAgentContextSync,
+			YAML:  "disableWorkspaceAgentContextSync",
+		},
+		{
+			Name:        "Disable User Secret File Path",
+			Description: "Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.",
+			Flag:        "disable-user-secret-file-path",
+			Env:         "CODER_DISABLE_USER_SECRET_FILE_PATH",
+
+			Value: &c.DisableUserSecretFilePath,
+			YAML:  "disableUserSecretFilePath",
+		},
+		{
 			Name:        "Session Duration",
 			Description: "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
 			Flag:        "session-duration",
@@ -3884,13 +3924,14 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name: "Allow Workspace Renames",
-			Description: "Allow users to rename their workspaces. " +
+			Description: "Deprecated: use the per-template \"Allow workspace renames\" setting instead. " +
+				"While set, it force-enables renames for every template in the deployment. " +
 				"WARNING: Renaming a workspace can cause Terraform resources that depend on the " +
-				"workspace name to be destroyed and recreated, potentially causing data loss. " +
-				"Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.",
+				"workspace name to be destroyed and recreated, potentially causing data loss.",
 			Flag:    "allow-workspace-renames",
 			Env:     "CODER_ALLOW_WORKSPACE_RENAMES",
 			Default: "false",
+			Hidden:  true,
 			Value:   &c.AllowWorkspaceRenames,
 			YAML:    "allowWorkspaceRenames",
 		},
@@ -4251,16 +4292,6 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "failure_hard_limit",
 			Hidden:      true,
 		},
-		{
-			Name:        "Hide AI Tasks",
-			Description: "Hide AI tasks from the dashboard.",
-			Flag:        "hide-ai-tasks",
-			Env:         "CODER_HIDE_AI_TASKS",
-			Default:     "false",
-			Value:       &c.HideAITasks,
-			Group:       &deploymentGroupClient,
-			YAML:        "hideAITasks",
-		},
 		// Chat Options
 		{
 			Name:        "Chat: Acquire Batch Size",
@@ -4282,6 +4313,62 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "false",
 			Group:       &deploymentGroupChat,
 			YAML:        "debugLoggingEnabled",
+		},
+		{
+			Name:        "Chat: Hook URL",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
+			Flag:        "chat-hook-url",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_URL",
+			Value:       &c.AI.Chat.HookURL,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookURL",
+		},
+		{
+			Name:        "Chat: Hook Secret",
+			Description: "Shared secret used to sign chat agent lifecycle hook JWTs.",
+			Flag:        "chat-hook-secret",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_SECRET",
+			Value:       &c.AI.Chat.HookSecret,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Chat: Hook Timeout",
+			Description: "Maximum time to wait for a chat agent lifecycle hook response.",
+			Flag:        "chat-hook-timeout",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_TIMEOUT",
+			Value:       &c.AI.Chat.HookTimeout,
+			Default:     (1500 * time.Millisecond).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "hookTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Chat: Hook Enabled",
+			Description: "Whether to dispatch chat agent lifecycle hooks when a hook URL is configured. Requires the agent-lifecycle-hooks experiment.",
+			Flag:        "chat-hook-enabled",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_ENABLED",
+			Value:       &c.AI.Chat.HookEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookEnabled",
+		},
+		{
+			Name:        "Chat: Hook Allow Insecure",
+			Description: "Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes sensitive chat data and lets an on-path attacker forge hook responses that control agent execution, so only enable this on a network you fully trust.",
+			Flag:        "chat-hook-allow-insecure",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_ALLOW_INSECURE",
+			Value:       &c.AI.Chat.HookAllowInsecure,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookAllowInsecure",
 		},
 		{
 			Name:        "Chat: AI Gateway Routing Enabled",
@@ -4308,138 +4395,6 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayEnabled},
 		},
 		aiGatewayEnabled,
-		{
-			Name:        "AI Bridge OpenAI Base URL",
-			Description: "Deprecated: use --ai-gateway-openai-base-url or CODER_AI_GATEWAY_OPENAI_BASE_URL instead. The base URL of the OpenAI API.",
-			Flag:        "aibridge-openai-base-url",
-			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
-			Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
-			Default:     "https://api.openai.com/v1/",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "openai_base_url",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayOpenAIBaseURL},
-		},
-		aiGatewayOpenAIBaseURL,
-		{
-			Name:        "AI Bridge OpenAI Key",
-			Description: "Deprecated: use --ai-gateway-openai-key or CODER_AI_GATEWAY_OPENAI_KEY instead. The key to authenticate against the OpenAI API.",
-			Flag:        "aibridge-openai-key",
-			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
-			Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayOpenAIKey},
-		},
-		aiGatewayOpenAIKey,
-		{
-			Name:        "AI Bridge Anthropic Base URL",
-			Description: "Deprecated: use --ai-gateway-anthropic-base-url or CODER_AI_GATEWAY_ANTHROPIC_BASE_URL instead. The base URL of the Anthropic API.",
-			Flag:        "aibridge-anthropic-base-url",
-			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
-			Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
-			Default:     "https://api.anthropic.com/",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "anthropic_base_url",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayAnthropicBaseURL},
-		},
-		aiGatewayAnthropicBaseURL,
-		{
-			Name:        "AI Bridge Anthropic Key",
-			Description: "Deprecated: use --ai-gateway-anthropic-key or CODER_AI_GATEWAY_ANTHROPIC_KEY instead. The key to authenticate against the Anthropic API.",
-			Flag:        "aibridge-anthropic-key",
-			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
-			Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayAnthropicKey},
-		},
-		aiGatewayAnthropicKey,
-		{
-			Name: "AI Bridge Bedrock Base URL",
-			Description: "Deprecated: use --ai-gateway-bedrock-base-url or CODER_AI_GATEWAY_BEDROCK_BASE_URL instead. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
-				"over CODER_AIBRIDGE_BEDROCK_REGION.",
-			Flag:       "aibridge-bedrock-base-url",
-			Env:        "CODER_AIBRIDGE_BEDROCK_BASE_URL",
-			Value:      &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
-			Default:    "",
-			Group:      &deploymentGroupAIBridge,
-			YAML:       "bedrock_base_url",
-			Hidden:     true,
-			UseInstead: serpent.OptionSet{aiGatewayBedrockBaseURL},
-		},
-		aiGatewayBedrockBaseURL,
-		{
-			Name: "AI Bridge Bedrock Region",
-			Description: "Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION instead. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
-				"'https://bedrock-runtime.<region>.amazonaws.com'.",
-			Flag:       "aibridge-bedrock-region",
-			Env:        "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:      &c.AI.BridgeConfig.LegacyBedrock.Region,
-			Default:    "",
-			Group:      &deploymentGroupAIBridge,
-			YAML:       "bedrock_region",
-			Hidden:     true,
-			UseInstead: serpent.OptionSet{aiGatewayBedrockRegion},
-		},
-		aiGatewayBedrockRegion,
-		{
-			Name:        "AI Bridge Bedrock Access Key",
-			Description: "Deprecated: use --ai-gateway-bedrock-access-key or CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY instead. The access key to authenticate against the AWS Bedrock API.",
-			Flag:        "aibridge-bedrock-access-key",
-			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockAccessKey},
-		},
-		aiGatewayBedrockAccessKey,
-		{
-			Name:        "AI Bridge Bedrock Access Key Secret",
-			Description: "Deprecated: use --ai-gateway-bedrock-access-key-secret or CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET instead. The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
-			Flag:        "aibridge-bedrock-access-key-secret",
-			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockAccessKeySecret},
-		},
-		aiGatewayBedrockAccessKeySecret,
-		{
-			Name:        "AI Bridge Bedrock Model",
-			Description: "Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL instead. The model to use when making requests to the AWS Bedrock API.",
-			Flag:        "aibridge-bedrock-model",
-			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
-			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_model",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockModel},
-		},
-		aiGatewayBedrockModel,
-		{
-			Name:        "AI Bridge Bedrock Small Fast Model",
-			Description: "Deprecated: use --ai-gateway-bedrock-small-fastmodel or CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL instead. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
-			Flag:        "aibridge-bedrock-small-fastmodel",
-			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
-			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_small_fast_model",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockSmallFastModel},
-		},
-		aiGatewayBedrockSmallFastModel,
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
 			Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.",
@@ -4650,6 +4605,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayProxyListenAddr},
 		},
 		aiGatewayProxyListenAddr,
+		aiGatewayProxyTarget,
 		{
 			Name:        "AI Bridge Proxy TLS Certificate File",
 			Description: "Deprecated: use --ai-gateway-proxy-tls-cert-file or CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
@@ -4848,7 +4804,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Template Builder Registry URL",
-			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Description: "The module registry host the template builder uses for module source paths (for example, \"registry.coder.com\" or \"mirror.internal:8443\"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.",
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
@@ -4863,15 +4819,6 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
-	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
-	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
-	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
-	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
-	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -4896,61 +4843,10 @@ type AIBridgeConfig struct {
 	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
 }
 
-type AIBridgeOpenAIConfig struct {
-	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
-	Key     serpent.String `json:"key" typescript:",notnull"`
-}
-
-type AIBridgeAnthropicConfig struct {
-	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
-	Key     serpent.String `json:"key" typescript:",notnull"`
-}
-
-type AIBridgeBedrockConfig struct {
-	BaseURL         serpent.String `json:"base_url" typescript:",notnull"`
-	Region          serpent.String `json:"region" typescript:",notnull"`
-	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
-	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
-	Model           serpent.String `json:"model" typescript:",notnull"`
-	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
-}
-
-// AIProviderConfig represents a single AI provider instance,
-// parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
-// CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
-// This follows the same indexed pattern as ExternalAuthConfig.
-type AIProviderConfig struct {
-	// Type is the provider type. Valid values are: "openai",
-	// "anthropic", "azure", "bedrock", "google", "openai-compat",
-	// "openrouter", "vercel", "copilot".
-	Type string `json:"type"`
-	// Name is the unique instance identifier used for routing.
-	// Defaults to Type if not provided.
-	Name string `json:"name"`
-	// Keys holds one or more API keys for authenticating with the
-	// upstream provider. When multiple keys are configured, they
-	// form a key pool for automatic failover.
-	Keys []string `json:"-"`
-	// BaseURL is the base URL of the upstream provider API.
-	BaseURL string `json:"base_url"`
-
-	// Bedrock fields (only applicable when Type == "anthropic").
-	BedrockBaseURL string `json:"-"`
-	BedrockRegion  string `json:"bedrock_region,omitempty"`
-	// BedrockAccessKeys and BedrockAccessKeySecrets hold one or
-	// more AWS credential pairs for authenticating with Bedrock.
-	// When multiple pairs are configured, they form a key pool
-	// for automatic failover. The two slices must have the same
-	// length.
-	BedrockAccessKeys       []string `json:"-"`
-	BedrockAccessKeySecrets []string `json:"-"`
-	BedrockModel            string   `json:"bedrock_model,omitempty"`
-	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
-}
-
 type AIBridgeProxyConfig struct {
 	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	Target              serpent.String      `json:"target" typescript:",notnull"`
 	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
 	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
 	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
@@ -4963,8 +4859,13 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -4979,6 +4880,33 @@ type AIConfig struct {
 type TemplateBuilderConfig struct {
 	Disabled    serpent.Bool   `json:"disabled,omitempty"`
 	RegistryURL serpent.String `json:"registry_url,omitempty"`
+}
+
+// NormalizeTemplateBuilderRegistryURL canonicalizes a configured template
+// builder registry value into the bare host used verbatim in a Terraform module
+// source. An empty value returns empty (the caller defaults it). An accidental
+// http(s):// scheme and trailing slashes are stripped so a value pasted as a URL
+// still resolves to a host; any other scheme, a path, query, fragment, or
+// embedded credentials is rejected so a misconfiguration fails at server start
+// rather than rendering broken or unsafe module sources. It does not otherwise
+// canonicalize the host.
+func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "", nil
+	}
+	v = strings.TrimPrefix(v, "https://")
+	v = strings.TrimPrefix(v, "http://")
+	v = strings.TrimRight(v, "/")
+	// net/url isolates a bare host:port only in authority form. Requiring the
+	// parsed host to equal the whole remainder rejects a leftover path, query,
+	// fragment, non-http scheme, or embedded credentials, and never echoes the
+	// input.
+	u, err := url.Parse("//" + v)
+	if err != nil || u.Host != v || u.Hostname() == "" || u.User != nil {
+		return "", xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`)
+	}
+	return v, nil
 }
 
 type SupportConfig struct {
@@ -5014,6 +4942,53 @@ func (c *DeploymentValues) Validate() error {
 			refresh, access,
 		)
 	}
+
+	// Disabled hooks must not validate inert settings.
+	if c.AI.Chat.HookEnabled.Value() {
+		if c.AI.Chat.HookURL.String() != "" {
+			hookURL := c.AI.Chat.HookURL.Value()
+			allowInsecure := c.AI.Chat.HookAllowInsecure.Value()
+			switch {
+			case hookURL.Scheme == "https":
+			case hookURL.Scheme == "http" && allowInsecure:
+			default:
+				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL, or set --chat-hook-allow-insecure to allow plain HTTP")
+			}
+			// Hostname() instead of Host: a URL like http://:8080/hooks has a
+			// non-empty Host (":8080") but no hostname, and the dispatcher
+			// rejects it on every dispatch.
+			if hookURL.Hostname() == "" {
+				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete URL")
+			}
+			// The configured string is signed verbatim as the JWT audience,
+			// and neither component is ever transmitted, so a consumer
+			// configured with the URL it actually serves would never match.
+			if hookURL.Fragment != "" || hookURL.RawFragment != "" || hookURL.User != nil {
+				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a URL without a fragment or userinfo")
+			}
+			if c.AI.Chat.HookSecret.Value() == "" {
+				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
+			}
+			// The hook SDK rejects HS256 secrets shorter than 32 bytes.
+			if len(c.AI.Chat.HookSecret.Value()) < 32 {
+				return xerrors.New("chat hook secret must be at least 32 bytes of cryptographically random data; set --chat-hook-secret to a longer value")
+			}
+
+			hookTimeout := c.AI.Chat.HookTimeout.Value()
+			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
+				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
+			}
+		}
+	}
+
+	// Gated on the builder being enabled and run here rather than as a per-option
+	// serpent validator, which only fires in Set and so misses the YAML path.
+	if !c.TemplateBuilder.Disabled.Value() {
+		if _, err := NormalizeTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -5081,7 +5056,7 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 		Values:  conf,
 		Options: conf.Options(),
 	}
-	return resp, json.NewDecoder(res.Body).Decode(resp)
+	return resp, ReadBodyAsJSON(res, resp)
 }
 
 func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
@@ -5096,7 +5071,7 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 	}
 
 	var df DeploymentStats
-	return df, json.NewDecoder(res.Body).Decode(&df)
+	return df, ReadBodyAsJSON(res, &df)
 }
 
 type AppearanceConfig struct {
@@ -5107,6 +5082,7 @@ type AppearanceConfig struct {
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
+	CodernautsEnabled   bool           `json:"codernauts_enabled"`
 }
 
 type UpdateAppearanceConfig struct {
@@ -5115,6 +5091,7 @@ type UpdateAppearanceConfig struct {
 	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
+	CodernautsEnabled   bool           `json:"codernauts_enabled"`
 }
 
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
@@ -5138,7 +5115,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 		return AppearanceConfig{}, ReadBodyAsError(res)
 	}
 	var cfg AppearanceConfig
-	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
+	return cfg, ReadBodyAsJSON(res, &cfg)
 }
 
 func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
@@ -5166,6 +5143,9 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 	// Telemetry is a boolean that indicates whether telemetry is enabled.
 	Telemetry bool `json:"telemetry"`
+	// OAuth2Provider reports whether the OAuth 2.1 authorization server is
+	// enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	OAuth2Provider bool `json:"oauth2_provider"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
 
@@ -5215,25 +5195,26 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 
 	var buildInfo BuildInfoResponse
-	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
+	return buildInfo, ReadBodyAsJSON(res, &buildInfo)
 }
 
 type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample               Experiment = "example"                 // This isn't used for anything.
-	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
-	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
-	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
-	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
-	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
-	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
-	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
-	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
-	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
+	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
+	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
+	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
+	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
+	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
+	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
+	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
+	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
+	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
+	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
+	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5246,22 +5227,22 @@ func (e Experiment) DisplayName() string {
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
-	case ExperimentOAuth2:
-		return "OAuth2 Provider Functionality"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	case ExperimentNATSPubsub:
 		return "NATS Pubsub"
-	case ExperimentMinimumImplicitMember:
-		return "Gateway Accounts (minimum implicit member)"
-	case ExperimentAIGatewayCostControl:
-		return "AI Gateway Cost Control"
+	case ExperimentWorkspaceCapableLicensing:
+		return "Workspace-Capable Licensing"
+	case ExperimentAIGatewaySeatExclusion:
+		return "AI Gateway Seat Exclusion"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
+	case ExperimentAgentLifecycleHooks:
+		return "Agent Lifecycle Hooks"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5276,23 +5257,22 @@ var ExperimentsKnown = Experiments{
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
-	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
+	ExperimentMCPToolSearch,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
-	ExperimentMinimumImplicitMember,
-	ExperimentAIGatewayCostControl,
+	ExperimentWorkspaceCapableLicensing,
+	ExperimentAIGatewaySeatExclusion,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
+	ExperimentAgentLifecycleHooks,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{
-	ExperimentMinimumImplicitMember,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -5318,7 +5298,7 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var exp []Experiment
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 // AvailableExperiments is an expandable type that returns all safe experiments
@@ -5337,7 +5317,7 @@ func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, err
 		return AvailableExperiments{}, ReadBodyAsError(res)
 	}
 	var exp AvailableExperiments
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 type DAUsResponse struct {
@@ -5402,7 +5382,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsRespons
 	}
 
 	var resp DAUsResponse
-	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+	return &resp, ReadBodyAsJSON(res, &resp)
 }
 
 type AppHostResponse struct {
@@ -5428,7 +5408,7 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 	}
 
 	var host AppHostResponse
-	return host, json.NewDecoder(res.Body).Decode(&host)
+	return host, ReadBodyAsJSON(res, &host)
 }
 
 type WorkspaceConnectionLatencyMS struct {
@@ -5510,7 +5490,7 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 	}
 
 	var sshConfig SSHConfigResponse
-	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+	return sshConfig, ReadBodyAsJSON(res, &sshConfig)
 }
 
 type CryptoKeyFeature string
@@ -5520,6 +5500,7 @@ const (
 	//nolint:gosec // This denotes a type of key, not a literal.
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureChatFilesToken     CryptoKeyFeature = "chat_files_token"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
 	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
 	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like

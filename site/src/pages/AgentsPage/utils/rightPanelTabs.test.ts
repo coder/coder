@@ -4,6 +4,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "#/api/typesGenerated";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -13,9 +14,12 @@ import {
 	clearPersistedRightPanelState,
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
+	getPersistedVisibleSingletonTabs,
 	rightPanelTabStorageKeyPrefix,
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
+	savePersistedVisibleSingletonTabs,
+	visibleSingletonTabsStorageKeyPrefix,
 } from "./rightPanelTabStorage";
 import {
 	type UserRightPanelTab,
@@ -140,6 +144,28 @@ describe("right-panel tab validation", () => {
 
 		expect(validated).toEqual([]);
 	});
+
+	it("drops agent-browser app tabs in favor of the built-in Browser tab", () => {
+		const browserApp = buildApp("browser-app", {
+			slug: AGENT_BROWSER_APP_SLUG,
+		});
+		const workspace = buildWorkspace([buildAgent("agent-1", [browserApp])]);
+		const appTab: UserRightPanelTab = {
+			id: "browser-app-tab",
+			kind: "workspace_app",
+			label: "agent-browser",
+			agentId: "agent-1",
+			appId: "browser-app",
+		};
+
+		const validated = validateUserRightPanelTabs([appTab], {
+			workspace,
+			workspaceAgent: workspace.latest_build.resources[0].agents?.[0],
+			wildcardHostname: "*.apps.example.com",
+		});
+
+		expect(validated).toEqual([]);
+	});
 });
 
 function buildWorkspace(resourceAgents: readonly WorkspaceAgent[]): Workspace {
@@ -206,15 +232,19 @@ describe("right-panel tab storage", () => {
 
 		savePersistedRightPanelTabs("chat-1", tabs);
 		savePersistedDefaultTerminalHidden("chat-1", true);
+		savePersistedVisibleSingletonTabs("chat-1", ["browser"]);
 		savePersistedRightPanelTabs("chat-2", tabs);
 		savePersistedDefaultTerminalHidden("chat-2", true);
+		savePersistedVisibleSingletonTabs("chat-2", ["debug"]);
 
 		clearPersistedRightPanelState("chat-1");
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
 		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
+		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
 		expect(getPersistedRightPanelTabs("chat-2")).toEqual(tabs);
 		expect(getPersistedDefaultTerminalHidden("chat-2")).toBe(true);
+		expect(getPersistedVisibleSingletonTabs("chat-2")).toEqual(["debug"]);
 	});
 
 	it("persists workspace_app tabs", () => {
@@ -285,6 +315,63 @@ describe("right-panel tab storage", () => {
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+});
+
+describe("singleton right-panel tab storage", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	it("hides every singleton panel when nothing is stored", () => {
+		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
+	});
+
+	it("persists visible singleton panels per chat", () => {
+		savePersistedVisibleSingletonTabs("chat-1", ["browser", "debug"]);
+
+		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([
+			"browser",
+			"debug",
+		]);
+		expect(getPersistedVisibleSingletonTabs("chat-2")).toEqual([]);
+	});
+
+	it("reads stored panels in a stable order without duplicates", () => {
+		localStorage.setItem(
+			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,
+			JSON.stringify(["debug", "browser", "debug"]),
+		);
+
+		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([
+			"browser",
+			"debug",
+		]);
+	});
+
+	it("ignores unknown panel IDs", () => {
+		localStorage.setItem(
+			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,
+			JSON.stringify(["terminal", "summary", "desktop"]),
+		);
+
+		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual(["desktop"]);
+	});
+
+	it("ignores malformed stored values", () => {
+		localStorage.setItem(
+			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,
+			"not-json",
+		);
+
+		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
+	});
+
+	it("ignores undefined chat IDs", () => {
+		savePersistedVisibleSingletonTabs(undefined, ["browser"]);
+
+		expect(getPersistedVisibleSingletonTabs(undefined)).toEqual([]);
+		expect(localStorage.length).toBe(0);
 	});
 });
 

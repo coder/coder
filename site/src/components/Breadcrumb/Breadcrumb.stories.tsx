@@ -32,7 +32,7 @@ export const Default: Story = {
 					</BreadcrumbItem>
 					<BreadcrumbSeparator />
 					<BreadcrumbItem>
-						<BreadcrumbLink href="/organizations">Organizations</BreadcrumbLink>
+						<BreadcrumbLink to="/organizations">Organizations</BreadcrumbLink>
 					</BreadcrumbItem>
 					<BreadcrumbSeparator />
 					<BreadcrumbItem>

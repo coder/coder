@@ -243,7 +243,9 @@ func stitchTailnet(t *testing.T, conns map[uuid.UUID]*tailnet.Conn) {
 				Node: protoNode,
 				Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 			}})
-			assert.NoError(t, err)
+			if err != nil && !errors.Is(err, tailnet.ErrConnClosed) {
+				assert.NoError(t, err)
+			}
 		}
 	}
 

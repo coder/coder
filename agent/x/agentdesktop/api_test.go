@@ -162,7 +162,7 @@ func (f *fakeDesktop) StartRecording(_ context.Context, recordingID string) erro
 	if err != nil {
 		return err
 	}
-	_, _ = tmpFile.Write([]byte(fmt.Sprintf("fake-mp4-data-%s-%d", recordingID, f.startCount)))
+	_, _ = fmt.Fprintf(tmpFile, "fake-mp4-data-%s-%d", recordingID, f.startCount)
 	_ = tmpFile.Close()
 	f.recordings[recordingID] = tmpFile.Name()
 	return nil
@@ -257,9 +257,9 @@ func (f *oversizedFakeDesktop) StopRecording(ctx context.Context, recordingID st
 	artifact.Reader.Close()
 
 	// Look up the path from the fakeDesktop recordings.
-	f.fakeDesktop.recMu.Lock()
-	path := f.fakeDesktop.recordings[recordingID]
-	f.fakeDesktop.recMu.Unlock()
+	f.recMu.Lock()
+	path := f.recordings[recordingID]
+	f.recMu.Unlock()
 
 	// Expand the file to exceed the maximum recording size.
 	if err := os.Truncate(path, workspacesdk.MaxRecordingSize+1); err != nil {

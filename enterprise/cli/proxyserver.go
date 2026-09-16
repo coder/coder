@@ -83,7 +83,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			YAML:        "primaryAccessURL",
 			Required:    true,
 			Value: serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
-				if !(value.Scheme == "http" || value.Scheme == "https") {
+				if value.Scheme != "http" && value.Scheme != "https" {
 					return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
 				}
 				return nil

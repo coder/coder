@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	BanIcon,
 	CircleAlertIcon,
@@ -9,7 +10,6 @@ import {
 import type { FC } from "react";
 import type { WorkspaceAppStatusState } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 type AppStatusStateIconProps = {
 	state: WorkspaceAppStatusState;

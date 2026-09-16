@@ -246,14 +246,14 @@ module "git-clone" {
 module "personalize" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.32"
+  version  = "1.0.33"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.5.0"
+  version                 = "1.5.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -263,7 +263,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.6.0"
+  version                 = "1.6.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -272,12 +272,19 @@ module "vscode-web" {
   group                   = "Web Editors"
 }
 
-module "filebrowser" {
-  count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.5"
-  agent_id   = coder_agent.dev.id
-  agent_name = "dev"
+module "copyparty" {
+  count          = data.coder_workspace.me.start_count
+  source         = "dev.registry.coder.com/djarbz/copyparty/coder"
+  version        = "1.0.2"
+  agent_id       = coder_agent.dev.id
+  subdomain      = true
+  pinned_version = "v1.20.23"
+  arguments = [
+    # copyparty listens on all interfaces by default; the agent proxies localhost.
+    "-i", "127.0.0.1",
+    # Serve the home directory at the web root with all permissions.
+    "-v", "/home/coder:/:A",
+  ]
 }
 
 module "coder-login" {
@@ -298,7 +305,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.3.1"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -323,9 +330,9 @@ resource "coder_agent" "dev" {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
     },
     data.coder_parameter.use_ai_gateway.value ? {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
+      ANTHROPIC_BASE_URL : "https://dogfood.cdr.dev/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
+      OPENAI_BASE_URL : "https://dogfood.cdr.dev/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     } : {}
   )
@@ -545,7 +552,7 @@ resource "coder_metadata" "container_info" {
 module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
-  version           = "5.2.0"
+  version           = "5.4.1"
   enable_ai_gateway = data.coder_parameter.use_ai_gateway.value
   anthropic_api_key = data.coder_parameter.use_ai_gateway.value ? "" : var.anthropic_api_key
   agent_id          = coder_agent.dev.id

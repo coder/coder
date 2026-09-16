@@ -84,6 +84,21 @@ func (mr *MockAgentConnMockRecorder) AwaitReachable(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AwaitReachable", reflect.TypeOf((*MockAgentConn)(nil).AwaitReachable), ctx)
 }
 
+// BundleFiles mocks base method.
+func (m *MockAgentConn) BundleFiles(ctx context.Context, req workspacesdk.BundleFilesRequest) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BundleFiles", ctx, req)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BundleFiles indicates an expected call of BundleFiles.
+func (mr *MockAgentConnMockRecorder) BundleFiles(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BundleFiles", reflect.TypeOf((*MockAgentConn)(nil).BundleFiles), ctx, req)
+}
+
 // CallMCPTool mocks base method.
 func (m *MockAgentConn) CallMCPTool(ctx context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
 	m.ctrl.T.Helper()

@@ -53,8 +53,12 @@ shown below when adding new failures.
 - How to reproduce: Run a Playwright test from `site` with
   `pnpm playwright:test`, let it fail, and discard the generated output before
   reporting the failure.
-- How to diagnose: Check `site/e2e/playwright.config.ts`, `site/e2e/README.md`,
-  and the terminal output for the report or `test-results` location.
+- How to diagnose: Playwright writes per-test failure artifacts (screenshots,
+  videos, and traces) to `site/test-results/`, the HTML report to
+  `site/playwright-report/`, and the coderd debug log to
+  `site/e2e/test-results/debug.log`. In CI, the `test-e2e` job uploads
+  artifacts named `playwright-artifacts-`, `coderd-debug-logs-`, and
+  `debug-pprof-dumps-`, each followed by the matrix job name and commit SHA.
 - Existing docs or tools: [Frontend Development Guidelines](../../site/AGENTS.md),
   `site/e2e/README.md`, and `pnpm playwright:test`.
 - Missing harness piece: No central checklist tells agents which browser
@@ -102,7 +106,7 @@ shown below when adding new failures.
 - How to diagnose: Search the test diff for `time.Sleep`. Inspect whether the
   code under test can use `quartz` or another explicit synchronization point.
 - Existing docs or tools: `AGENTS.md`, [Testing Patterns and Best Practices](TESTING.md),
-  and the quartz README referenced from `AGENTS.md`.
+  and the quartz README linked from `TESTING.md`.
 - Missing harness piece: Agents need a failure entry that labels sleep-based
   waiting as a flake risk before review.
 - Proposed prevention: Replace `time.Sleep` with a fake clock, trapped ticker,

@@ -1,10 +1,14 @@
+import { cn } from "cn";
 import {
+	BugIcon,
 	ChevronDownIcon,
+	GlobeIcon,
 	LayoutGridIcon,
+	MonitorIcon,
 	PlusIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -13,21 +17,37 @@ import type {
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
+	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
+import {
+	AGENT_BROWSER_APP_SLUG,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
 import { AppLink } from "#/modules/resources/AppLink/AppLink";
 import {
 	canShowPortForwarding,
 	usePortsData,
 } from "#/modules/resources/usePortsData";
-import { cn } from "#/utils/cn";
-import type { PortSelection } from "../../utils/rightPanelTabs";
+import type {
+	PortSelection,
+	SingletonRightPanelTabId,
+} from "../../utils/rightPanelTabs";
 import { PortsMenuItem } from "../WorkspacePillPorts";
+
+const singletonTabMenuEntries: readonly {
+	id: SingletonRightPanelTabId;
+	label: string;
+	icon: ReactNode;
+}[] = [
+	{ id: "browser", label: "Browser", icon: <GlobeIcon /> },
+	{ id: "desktop", label: "Desktop", icon: <MonitorIcon /> },
+	{ id: "debug", label: "Debug", icon: <BugIcon /> },
+];
 
 // usePortsData requires a workspace and agent, which are optional props on the
 // parent control, so the hook lives in this conditionally rendered component.
@@ -63,6 +83,9 @@ export const RightPanelAddTabControl: FC<{
 	agent?: WorkspaceAgent;
 	host?: string;
 	isRunning?: boolean;
+	supportedSingletonTabs: readonly SingletonRightPanelTabId[];
+	visibleSingletonTabs: readonly SingletonRightPanelTabId[];
+	onToggleSingletonTab: (tabId: SingletonRightPanelTabId) => void;
 	onNewTerminal: () => void;
 	onOpenWorkspaceApp?: (app: WorkspaceApp) => void;
 	onOpenCommandApp?: (app: WorkspaceApp) => void;
@@ -72,15 +95,25 @@ export const RightPanelAddTabControl: FC<{
 	agent,
 	host = "",
 	isRunning = false,
+	supportedSingletonTabs,
+	visibleSingletonTabs,
+	onToggleSingletonTab,
 	onNewTerminal,
 	onOpenWorkspaceApp,
 	onOpenCommandApp,
 	onOpenPort,
 }) => {
 	const [open, setOpen] = useState(false);
-	const userApps = agent?.apps.filter((app) => !app.hidden) ?? [];
+	// agent-browser already has the built-in Browser tab.
+	const userApps =
+		agent?.apps.filter(
+			(app) => !app.hidden && app.slug !== AGENT_BROWSER_APP_SLUG,
+		) ?? [];
 	const canCreateTerminal =
 		workspace !== undefined && agent !== undefined && isRunning;
+	const singletonEntries = singletonTabMenuEntries.filter((entry) =>
+		supportedSingletonTabs.includes(entry.id),
+	);
 
 	return (
 		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-content-secondary">
@@ -114,8 +147,24 @@ export const RightPanelAddTabControl: FC<{
 				<DropdownMenuContent
 					align="end"
 					side="bottom"
-					className="w-52 p-1 [&_[role=menuitem]]:py-1 [&_[role=menuitem]]:text-xs [&_img]:!size-3.5 [&_svg]:!size-3.5"
+					className="w-52 p-1 [&_[role^=menuitem]]:py-1 [&_[role^=menuitem]]:text-xs [&_img]:size-3.5! [&_svg]:size-3.5!"
 				>
+					{singletonEntries.length > 0 && (
+						<>
+							{singletonEntries.map((entry) => (
+								<DropdownMenuCheckboxItem
+									key={entry.id}
+									checked={visibleSingletonTabs.includes(entry.id)}
+									onSelect={() => onToggleSingletonTab(entry.id)}
+								>
+									{entry.icon}
+									{entry.label}
+								</DropdownMenuCheckboxItem>
+							))}
+							<DropdownMenuSeparator className="my-1" />
+						</>
+					)}
+
 					<DropdownMenuItem
 						onSelect={onNewTerminal}
 						disabled={!canCreateTerminal}

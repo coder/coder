@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -61,7 +60,7 @@ func (c *ExperimentalClient) CreateUserSkill(ctx context.Context, user string, r
 		return UserSkill{}, ReadBodyAsError(res)
 	}
 	var skill UserSkill
-	return skill, json.NewDecoder(res.Body).Decode(&skill)
+	return skill, ReadBodyAsJSON(res, &skill)
 }
 
 // UserSkills lists user skill metadata for the specified user.
@@ -75,7 +74,7 @@ func (c *ExperimentalClient) UserSkills(ctx context.Context, user string) ([]Use
 		return nil, ReadBodyAsError(res)
 	}
 	var skills []UserSkillMetadata
-	return skills, json.NewDecoder(res.Body).Decode(&skills)
+	return skills, ReadBodyAsJSON(res, &skills)
 }
 
 // UserSkillByName returns a user skill by name.
@@ -89,7 +88,7 @@ func (c *ExperimentalClient) UserSkillByName(ctx context.Context, user string, n
 		return UserSkill{}, ReadBodyAsError(res)
 	}
 	var skill UserSkill
-	return skill, json.NewDecoder(res.Body).Decode(&skill)
+	return skill, ReadBodyAsJSON(res, &skill)
 }
 
 // UpdateUserSkill replaces a user skill's raw Markdown content.
@@ -103,7 +102,7 @@ func (c *ExperimentalClient) UpdateUserSkill(ctx context.Context, user string, n
 		return UserSkill{}, ReadBodyAsError(res)
 	}
 	var skill UserSkill
-	return skill, json.NewDecoder(res.Body).Decode(&skill)
+	return skill, ReadBodyAsJSON(res, &skill)
 }
 
 // DeleteUserSkill deletes a user skill by name.

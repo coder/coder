@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -40,5 +39,5 @@ func (c *Client) Replicas(ctx context.Context) ([]Replica, error) {
 	}
 
 	var replicas []Replica
-	return replicas, json.NewDecoder(res.Body).Decode(&replicas)
+	return replicas, ReadBodyAsJSON(res, &replicas)
 }

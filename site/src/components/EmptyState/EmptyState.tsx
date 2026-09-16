@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { FC, HTMLAttributes, ReactNode } from "react";
-import { cn } from "#/utils/cn";
 
 export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
 	/** Text Message to display, placed inside Typography component */
@@ -34,9 +34,11 @@ export const EmptyState: FC<EmptyStateProps> = ({
 			)}
 			{...attrs}
 		>
-			<h5 className="text-2xl font-medium m-0">{message}</h5>
+			<h5 className="m-0 font-medium text-content-primary text-lg">
+				{message}
+			</h5>
 			{description && (
-				<p className="mt-4 line-height-[140%] max-w-md text-content-secondary">
+				<p className="mt-4 max-w-md text-content-secondary text-sm">
 					{description}
 				</p>
 			)}

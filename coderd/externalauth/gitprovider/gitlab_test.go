@@ -262,6 +262,18 @@ func TestGitLabResolveBranchPullRequest(t *testing.T) {
 	})
 }
 
+func TestGitLabConstructorErrorReturnsNilInterface(t *testing.T) {
+	t.Parallel()
+
+	// A construction error must return a true nil Provider, not a
+	// non-nil interface boxing a nil *gitlabProvider. The gp == nil
+	// check is what callers write, and require.Nil alone would pass
+	// for a non-nil interface holding a nil pointer.
+	gp, err := gitprovider.New("gitlab", "://invalid/", nil)
+	require.Error(t, err)
+	require.True(t, gp == nil, "provider must be nil when construction fails, got %T", gp)
+}
+
 func TestGitLabRateLimit(t *testing.T) {
 	t.Parallel()
 

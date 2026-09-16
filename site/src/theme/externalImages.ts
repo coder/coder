@@ -161,6 +161,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/copyparty.svg", "blackWithColor"],
 	["/icon/database.svg", "monochrome"],
 	["/icon/devcontainers.svg", "monochrome"],
+	["/icon/devin.svg", "monochrome"],
 	["/icon/docker-white.svg", "monochrome"],
 	["/icon/folder.svg", "monochrome"],
 	["/icon/gemini-monochrome.svg", "monochrome"],
@@ -187,5 +188,6 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/vercel.svg", "whiteWithColor"],
 	["/icon/widgets.svg", "monochrome"],
 	["/icon/windsurf.svg", "monochrome"],
+	["/icon/xum.svg", "monochrome"],
 	["/icon/zed.svg", "monochrome"],
 ]);

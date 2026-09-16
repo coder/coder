@@ -1,4 +1,6 @@
-# Template Dependencies
+---
+title: Template Dependencies
+---
 
 When creating Coder templates, it is unlikely that you will just be using
 built-in providers. Part of Terraform's flexibility stems from its rich plugin
@@ -26,7 +28,7 @@ If you add a Terraform provider to `required_providers` without specifying a
 version requirement, Terraform will always fetch the latest version on each
 invocation:
 
-```terraform
+```tf
 terraform {
   required_providers {
     coder = {
@@ -47,7 +49,7 @@ To prevent this, add a
 [version constraint](https://developer.hashicorp.com/terraform/language/expressions/version-constraints)
 to each provider in the `required_providers` block:
 
-```terraform
+```tf
 terraform {
   required_providers {
     coder = {
@@ -69,7 +71,7 @@ provider will be limited to all versions matching `1.0.x`.
 The above also applies to Terraform modules. In the below example, the module
 `razzledazzle` is locked to version `1.2.3`.
 
-```terraform
+```tf
 module "razzledazzle" {
   source  = "registry.example.com/modules/razzle/dazzle"
   version = "1.2.3"

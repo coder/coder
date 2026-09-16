@@ -14,15 +14,15 @@ import {
 	type ConcreteThemeName,
 	isConcreteThemeName,
 } from "#/theme";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./components/ChatConversation/chatError";
 import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
 } from "./components/EmbedContext";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -195,11 +195,6 @@ const AgentEmbedPage: FC = () => {
 		};
 	}, [searchParams]);
 
-	// Shared ref for the chat scroll container. Passed through the
-	// outlet context so AgentChatPage attaches it to the DOM element
-	// instead of creating its own.
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
 	// Listen for parent frame commands (e.g. theme changes).
 	useEffect(() => {
 		const parentWindow = window.parent;
@@ -221,7 +216,7 @@ const AgentEmbedPage: FC = () => {
 		window.parent.postMessage({ type: "coder:chat-ready" }, "*");
 	};
 
-	const outletContext: AgentsOutletContext = {
+	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -232,11 +227,11 @@ const AgentEmbedPage: FC = () => {
 		requestArchiveAndDeleteWorkspace,
 		isArchiving: false,
 		archivingChatId: undefined,
+		activeChatChildren: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
 		onChatReady,
-		scrollContainerRef,
 	};
 
 	// When signed out and not already bootstrapping, listen for the

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func TestShouldBump(t *testing.T) {
@@ -27,67 +26,67 @@ func TestShouldBump(t *testing.T) {
 		},
 		{
 			name:       "WorkingToIdleBumps",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateWorking),
+			prevState:  new(database.WorkspaceAppStatusStateWorking),
 			newState:   database.WorkspaceAppStatusStateIdle,
 			shouldBump: true,
 		},
 		{
 			name:       "WorkingToCompleteBumps",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateWorking),
+			prevState:  new(database.WorkspaceAppStatusStateWorking),
 			newState:   database.WorkspaceAppStatusStateComplete,
 			shouldBump: true,
 		},
 		{
 			name:       "CompleteToIdleNoBump",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateComplete),
+			prevState:  new(database.WorkspaceAppStatusStateComplete),
 			newState:   database.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "CompleteToCompleteNoBump",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateComplete),
+			prevState:  new(database.WorkspaceAppStatusStateComplete),
 			newState:   database.WorkspaceAppStatusStateComplete,
 			shouldBump: false,
 		},
 		{
 			name:       "FailureToIdleNoBump",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateFailure),
+			prevState:  new(database.WorkspaceAppStatusStateFailure),
 			newState:   database.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "FailureToFailureNoBump",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateFailure),
+			prevState:  new(database.WorkspaceAppStatusStateFailure),
 			newState:   database.WorkspaceAppStatusStateFailure,
 			shouldBump: false,
 		},
 		{
 			name:       "CompleteToWorkingBumps",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateComplete),
+			prevState:  new(database.WorkspaceAppStatusStateComplete),
 			newState:   database.WorkspaceAppStatusStateWorking,
 			shouldBump: true,
 		},
 		{
 			name:       "FailureToCompleteNoBump",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateFailure),
+			prevState:  new(database.WorkspaceAppStatusStateFailure),
 			newState:   database.WorkspaceAppStatusStateComplete,
 			shouldBump: false,
 		},
 		{
 			name:       "WorkingToFailureBumps",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateWorking),
+			prevState:  new(database.WorkspaceAppStatusStateWorking),
 			newState:   database.WorkspaceAppStatusStateFailure,
 			shouldBump: true,
 		},
 		{
 			name:       "IdleToIdleNoBump",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateIdle),
+			prevState:  new(database.WorkspaceAppStatusStateIdle),
 			newState:   database.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "IdleToWorkingBumps",
-			prevState:  ptr.Ref(database.WorkspaceAppStatusStateIdle),
+			prevState:  new(database.WorkspaceAppStatusStateIdle),
 			newState:   database.WorkspaceAppStatusStateWorking,
 			shouldBump: true,
 		},

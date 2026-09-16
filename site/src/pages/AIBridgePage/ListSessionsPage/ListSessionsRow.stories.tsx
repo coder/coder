@@ -107,3 +107,27 @@ export const LargeTokenCounts: Story = {
 		},
 	},
 };
+
+export const NetworkCallsBlocked: Story = {
+	args: {
+		session: {
+			...MockSession,
+			network_calls: { total: 23, blocked: 2 },
+		},
+	},
+};
+
+export const NoNetworkActivity: Story = {
+	args: {
+		session: {
+			...MockSession,
+			network_calls: { total: 0, blocked: 0 },
+		},
+	},
+};
+
+export const NetworkDisabled: Story = {
+	args: {
+		session: { ...MockSession, network_calls: undefined },
+	},
+};

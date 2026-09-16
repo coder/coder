@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import { BadgeCheckIcon } from "lucide-react";
 import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 
 type TemplateCardProps = {
 	name: string;
@@ -34,7 +34,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				"flex flex-col pt-4 px-4 pb-6 rounded",
 				"bg-surface-secondary border border-solid",
 				"cursor-pointer",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
 				selected ? "border-border-pending" : "border-border",
 			)}
 			onClick={() => onSelect?.()}
@@ -60,25 +60,22 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				</div>
 			</div>
 
-			<div>
-				<h3
-					id={nameId}
-					className="flex items-center gap-1.5 text-md font-semibold text-content-primary"
-				>
+			<div className="flex flex-col gap-2">
+				<h3 id={nameId} className="my-0 text-sm font-bold text-content-primary">
 					{name}
 					{official && (
-						<BadgeCheckIcon className="size-4 text-highlight-sky shrink-0" />
+						<BadgeCheckIcon className="relative bottom-[2px] inline size-4 ml-1 align-middle text-highlight-sky" />
 					)}
 				</h3>
-				<div>
-					<p className="text-sm font-normal text-content-secondary">
+				<div className="flex flex-col gap-2">
+					<p className="my-0 text-xs font-normal text-content-secondary">
 						{description}
 					</p>
 
 					<Link
 						href={detailsUrl}
 						target="_blank"
-						className="text-sm font-normal"
+						className="text-xs font-normal"
 					>
 						View details
 					</Link>

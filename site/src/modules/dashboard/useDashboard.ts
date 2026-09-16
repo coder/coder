@@ -5,9 +5,7 @@ export const useDashboard = (): DashboardValue => {
 	const context = useContext(DashboardContext);
 
 	if (!context) {
-		throw new Error(
-			"useDashboard only can be used inside of DashboardProvider",
-		);
+		throw new Error("useDashboard must be used within DashboardProvider");
 	}
 
 	return context;
@@ -16,3 +14,7 @@ export const useDashboard = (): DashboardValue => {
 export const getDefaultOrganizationName = (
 	organizations: DashboardValue["organizations"],
 ): string => organizations.find((org) => org.is_default)?.name ?? "";
+
+export const getDefaultOrganizationId = (
+	organizations: DashboardValue["organizations"],
+): string => organizations.find((org) => org.is_default)?.id ?? "";

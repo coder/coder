@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
 
 type PaginationHeaderProps = {
 	paginationUnitLabel: string;
@@ -26,7 +26,7 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 		<div
 			className={cn(
 				"flex flex-row flex-nowrap items-center m-0",
-				"text-[13px] text-content-secondary",
+				"text-xs font-normal text-content-secondary",
 				"h-9", // The size of a small button
 				"[&_strong]:text-content-primary",
 				className,

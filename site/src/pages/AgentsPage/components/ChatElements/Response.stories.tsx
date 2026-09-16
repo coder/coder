@@ -1,5 +1,6 @@
+import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -42,6 +43,18 @@ const meta: Meta<typeof Response> = {
 	args: {
 		children: sampleMarkdown,
 	},
+	// Without the app's worker pool a cold in-page highlighter loses its
+	// first render under StrictMode, so code blocks that mount after the
+	// initial story render (such as the Mermaid error fallback) stay
+	// blank. Warming the themes first makes that render synchronous.
+	loaders: [
+		async () => {
+			await preloadHighlighter({
+				themes: ["github-dark-high-contrast", "github-light"],
+				langs: [],
+			});
+		},
+	],
 };
 
 export default meta;
@@ -53,11 +66,6 @@ export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
 	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /func ValidateToken/, {
-			highlighted: true,
-		});
-	},
 };
 
 const singleLineCodeBlockMarkdown = `
@@ -66,60 +74,9 @@ const singleLineCodeBlockMarkdown = `
 \`\`\`
 `;
 
-const findCodeBlockHost = async (canvasElement: HTMLElement, text: RegExp) => {
-	let host: HTMLElement | undefined;
-	await waitFor(() => {
-		const hosts = Array.from(
-			canvasElement.querySelectorAll("diffs-container"),
-		).filter(
-			(element): element is HTMLElement => element instanceof HTMLElement,
-		);
-		host = hosts.find((element) => {
-			text.lastIndex = 0;
-			return text.test(element.shadowRoot?.textContent ?? "");
-		});
-		expect(host).toBeDefined();
-	});
-
-	if (!host) {
-		throw new Error("Expected fenced code to render inside FileViewer.");
-	}
-	return host;
-};
-
-const expectCodeBlock = async (
-	canvasElement: HTMLElement,
-	text: RegExp,
-	options: { highlighted?: boolean } = {},
-) => {
-	const host = await findCodeBlockHost(canvasElement, text);
-	expect(host).toBeInTheDocument();
-	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
-	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
-
-	expect(canvasElement.textContent ?? "").not.toContain("```");
-
-	const shadowRoot = host.shadowRoot;
-	if (!shadowRoot) {
-		throw new Error("Expected FileViewer to render code in its shadow root.");
-	}
-
-	if (options.highlighted) {
-		await waitFor(() => {
-			const token = shadowRoot.querySelector("span[style*='color']");
-			expect(token).toBeInTheDocument();
-		});
-	}
-
-	return host;
-};
-
 export const SingleLineFencedBlock: Story = {
 	args: {
 		children: singleLineCodeBlockMarkdown,
-	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /07c3697 feat/);
 	},
 };
 
@@ -135,17 +92,21 @@ export const LongLineFencedBlock: Story = {
 		children: longLineCodeBlockMarkdown,
 	},
 	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /apiUrl/);
-		const viewport = [
-			...canvasElement.querySelectorAll<HTMLElement>(
-				"[data-radix-scroll-area-viewport]",
-			),
-		].find((v) => v.scrollWidth > v.clientWidth);
-		if (!viewport) {
-			throw new Error("Expected a horizontally scrollable viewport.");
-		}
+		// The fenced block renders asynchronously inside the FileViewer
+		// shadow root, so retry until a horizontally scrollable viewport
+		// exists, then scroll it so the capture shows the scrolled state.
+		const viewport = await waitFor(() => {
+			const found = [
+				...canvasElement.querySelectorAll<HTMLElement>(
+					"[data-radix-scroll-area-viewport]",
+				),
+			].find((v) => v.scrollWidth > v.clientWidth);
+			if (!found) {
+				throw new Error("Expected a horizontally scrollable viewport.");
+			}
+			return found;
+		});
 		viewport.scrollLeft = 200;
-		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
 	},
 };
 
@@ -175,19 +136,59 @@ export const JsxInProse: Story = {
 	args: {
 		children: jsxProseMarkdown,
 	},
+};
+
+// A 1x1 transparent PNG. Streamdown's sanitize plugin strips data:
+// image sources before our img component sees them, so these render
+// as nothing: inert, and never a network request.
+const dataImagePNG =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+const externalImageURL = "https://external-image-host.invalid/image.png";
+
+// Verifies the IP-leak fix for Cure53 CDM-02-006: externally hosted
+// markdown images must not be fetched when a chat is rendered. The
+// viewer gets a consent placeholder and the <img> element only
+// appears after clicking it.
+export const ExternalImageConsentGate: Story = {
+	args: {
+		children: `Before\n\n![diagram](${externalImageURL})\n\nAfter`,
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// These strings live inside the <RemoteDiffPanel .../> JSX block.
-		// Without the rehype-raw fix they are silently eaten by the
-		// HTML sanitizer and never reach the DOM.
-		// The tag name itself is the token most likely to be consumed
-		// by HTML parsing, so assert it explicitly.
-		const tagName = await canvas.findByText(/<RemoteDiffPanel/);
-		expect(tagName).toBeInTheDocument();
-		const marker = await canvas.findByText(/scrollToFile=\{scrollTarget\}/);
-		expect(marker).toBeInTheDocument();
-		const marker2 = await canvas.findByText(/commentBox=\{commentBox\}/);
-		expect(marker2).toBeInTheDocument();
+
+		// The placeholder must render instead of the image.
+		const loadButton = await canvas.findByRole("button", {
+			name: /load external image from external-image-host\.invalid/i,
+		});
+		expect(loadButton).toBeInTheDocument();
+
+		// No <img> in the document may point at the external host.
+		expect(canvasElement.querySelector("img")).toBeNull();
+
+		// Clicking the placeholder opts in and renders the image.
+		await userEvent.click(loadButton);
+		await waitFor(() => {
+			const img = canvasElement.querySelector("img");
+			expect(img).not.toBeNull();
+			expect(img?.getAttribute("src")).toBe(externalImageURL);
+		});
+	},
+};
+
+// data: image sources are stripped by the sanitize plugin, so they
+// render as nothing: no <img>, no consent gate, no request.
+export const DataImageStrippedBySanitizer: Story = {
+	args: {
+		children: `Before\n\n![inline](${dataImagePNG})\n\nAfter`,
+	},
+};
+
+// Deployment-relative images (for example emoji or uploaded icons)
+// are same-origin, so they render immediately without a consent gate.
+export const RelativeImageRendersImmediately: Story = {
+	args: {
+		children: "![emoji](/emojis/1f4bb.png)",
 	},
 };
 
@@ -198,15 +199,14 @@ export const StreamingInlineMarkdown: Story = {
 		children: "This is **bold text that has not been close",
 		streaming: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// remend should close the unclosed ** so the text renders
-		// as <strong>, not as a raw "**" literal.
-		const el = await canvas.findByText(/bold text/);
-		expect(el).toBeInTheDocument();
-		// The raw double-asterisk should not appear as visible text.
-		const bodyText = canvasElement.textContent ?? "";
-		expect(bodyText).not.toContain("**");
+};
+
+// The streaming external-image consent gate: the placeholder renders
+// instead of an <img>, so no external request fires mid-stream.
+export const StreamingExternalImageConsentGate: Story = {
+	args: {
+		children: `![diagram](${externalImageURL})`,
+		streaming: true,
 	},
 };
 
@@ -217,13 +217,124 @@ export const StreamingCodeFence: Story = {
 		children: "```ts\nconst x = 1",
 		streaming: true,
 	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /const x = 1/, {
-			highlighted: true,
-		});
+};
 
-		// The raw triple-backtick should not appear as visible text.
-		const bodyText = canvasElement.textContent ?? "";
-		expect(bodyText).not.toContain("```");
+const mermaidFlowchart = [
+	"```mermaid",
+	"flowchart TB",
+	'  subgraph Leadership["Product leadership"]',
+	"    BP[VP Product<br/>strategy, themes, PRD sign-off]",
+	"    BG[Staff PM<br/>owns PDLC, roadmap health]",
+	"    BP --> BG",
+	"  end",
+	'  subgraph Pods["Thematic pods"]',
+	"    direction LR",
+	'    A["Coder Agents"]',
+	'    B["AI Governance"]',
+	'    C["Enterprise Experience"]',
+	"  end",
+	'  subgraph Linear["Linear teams"]',
+	"    L1[CODAGT]; L2[AIGOV]; L3[ENT]",
+	"  end",
+	"  Leadership --> Pods",
+	"  A --> L1; B --> L2; C --> L3",
+	"```",
+	"",
+].join("\n");
+
+const mermaidSequence = [
+	"The agent talks to the workspace like this:",
+	"",
+	"```mermaid",
+	"sequenceDiagram",
+	"  participant U as User",
+	"  participant C as coderd",
+	"  participant W as Workspace agent",
+	"  U->>C: POST /api/v2/chats",
+	"  C->>W: Start task",
+	"  W-->>C: Stream tool output",
+	"  C-->>U: Render response",
+	"```",
+	"",
+	"Each hop is authenticated separately.",
+].join("\n");
+
+const waitForDiagram = (canvasElement: HTMLElement) =>
+	within(canvasElement).findByRole(
+		"button",
+		{ name: "View diagram full size" },
+		{ timeout: 10_000 },
+	);
+
+// Mermaid renders asynchronously after its chunk loads, so these
+// stories wait for the rendered diagram before the capture.
+export const MermaidFlowchart: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiagram(canvasElement);
+	},
+};
+
+export const MermaidFlowchartLight: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	globals: {
+		theme: "light",
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiagram(canvasElement);
+	},
+};
+
+export const MermaidSequenceInProse: Story = {
+	args: {
+		children: mermaidSequence,
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiagram(canvasElement);
+	},
+};
+
+// Clicking a rendered diagram opens it at natural size in a lightbox,
+// the same affordance chat images have.
+export const MermaidLightbox: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(await waitForDiagram(canvasElement));
+		await within(document.body).findByRole("dialog", {
+			name: "Diagram preview",
+		});
+	},
+};
+
+// A parse error shows the Mermaid message and keeps the source
+// visible as a regular code block underneath.
+export const MermaidSyntaxError: Story = {
+	args: {
+		children: [
+			"```mermaid",
+			'flowchart TBsubgraph Leadership["Product leadership"]',
+			"  BP --> BG",
+			"end",
+			"```",
+		].join("\n"),
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("alert", {}, { timeout: 10_000 });
+	},
+};
+
+// While the fence is still open the diagram is not rendered, so the
+// viewer sees a stable placeholder instead of a stream of parse
+// errors from half-written source.
+export const StreamingMermaidFence: Story = {
+	args: {
+		children: "```mermaid\nflowchart LR\n  A[Start] --> B[Sec",
+		streaming: true,
 	},
 };

@@ -33,11 +33,10 @@ func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version strin
 	}
 	switch major {
 	case 2:
-		auth := agpl.SingleTailnetCoordinateeAuth{}
 		streamID := agpl.StreamID{
 			Name: id.String(),
 			ID:   id,
-			Auth: auth,
+			Auth: agpl.SingleTailnetCoordinateeAuth{},
 		}
 		return s.ServeConnV2(ctx, conn, streamID)
 	default:

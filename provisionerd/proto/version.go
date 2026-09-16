@@ -92,9 +92,18 @@ import "github.com/coder/coder/v2/apiversion"
 //     `coder_secret` Terraform integration is being removed; user secrets are
 //     still delivered to running workspaces via the agent manifest path, which
 //     is independent of this proto.
+//
+// API v1.19:
+//   - Removed `ai_tasks` (field 6) and `has_ai_tasks` (field 12) from
+//     provisionerd.proto `CompletedJob.WorkspaceBuild` and
+//     `CompletedJob.TemplateImport`.
+//   - Removed `ai_tasks` (field 8), `has_ai_tasks` (field 7), `ai_task_count`
+//     (field 6), `task_id` (field 22), `task_prompt` (field 23), and the
+//     `AITask` / `AITaskSidebarApp` messages from provisioner.proto. Coder
+//     Tasks is being removed.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 18
+	CurrentMinor = 19
 )
 
 // CurrentVersion is the current provisionerd API version.

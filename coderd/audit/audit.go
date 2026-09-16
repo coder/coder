@@ -42,9 +42,19 @@ func NewMock() *MockAuditor {
 	return &MockAuditor{}
 }
 
+// NewMockWithDiffFn returns a MockAuditor whose entries carry diffs computed
+// by the supplied function instead of the default empty diff. Tests use it to
+// pin the Old/New pair a handler captured, which the empty diff cannot
+// express. The function is test-supplied comparison logic; the mock never
+// calls the production differ.
+func NewMockWithDiffFn(fn func(old, newVal any) Map) *MockAuditor {
+	return &MockAuditor{diffFn: fn}
+}
+
 type MockAuditor struct {
 	mutex     sync.Mutex
 	auditLogs []database.AuditLog
+	diffFn    func(old, newVal any) Map
 }
 
 // ResetLogs removes all audit logs from the mock auditor.
@@ -70,8 +80,13 @@ func (a *MockAuditor) Export(_ context.Context, alog database.AuditLog) error {
 	return nil
 }
 
-func (*MockAuditor) diff(any, any) Map {
-	return Map{}
+func (a *MockAuditor) diff(old, newVal any) Map {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+	if a.diffFn == nil {
+		return Map{}
+	}
+	return a.diffFn(old, newVal)
 }
 
 // Contains returns true if, for each non-zero-valued field in expected,

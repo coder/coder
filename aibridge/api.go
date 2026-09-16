@@ -17,6 +17,7 @@ import (
 // Const + Type + function aliases for backwards compatibility.
 const (
 	ProviderAnthropic = config.ProviderAnthropic
+	ProviderBedrock   = config.ProviderBedrock
 	ProviderOpenAI    = config.ProviderOpenAI
 	ProviderCopilot   = config.ProviderCopilot
 )
@@ -50,6 +51,10 @@ func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg 
 	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
 }
 
+func NewBedrockProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWSBedrock) (provider.Provider, error) {
+	return provider.NewBedrock(ctx, cfg, bedrockCfg)
+}
+
 func NewOpenAIProvider(cfg config.OpenAI) provider.Provider {
 	return provider.NewOpenAI(cfg)
 }
@@ -70,6 +75,11 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	return metrics.NewMetrics(reg)
 }
 
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func() (Recorder, error)) Recorder {
-	return recorder.NewWrappedRecorder(logger, tracer, clientFn)
+// NewRecorder creates a [Recorder] which logs each record and acquires a client
+// per call. clientFn receives the context of the call it serves.
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) Recorder {
+	return recorder.ChainMiddleware(
+		recorder.WithLogging(logger),
+		recorder.WithTracing(tracer),
+	)(recorder.NewWrappedRecorder(clientFn))
 }

@@ -1,4 +1,6 @@
-# Installing Coder
+---
+title: Install Coder in your infrastructure
+---
 
 A single CLI (`coder`) is used for both the Coder server and the client.
 
@@ -45,7 +47,7 @@ Alternatively, you can use the
 [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
 package manager to install Coder:
 
-```powershell
+```ps1
 winget install Coder.Coder
 ```
 

@@ -404,7 +404,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		},
 		{
 			// Given: 2 keys; key-0 returns 401, key-1 returns 200.
-			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
+			// Then: 2 requests, 200 response, key-0 temporary, key-1 valid.
 			name: "failover_after_401",
 			keys: []string{"k0", "k1"},
 			upstreamResponses: []testutil.UpstreamResponse{
@@ -414,33 +414,16 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 			expectedSeenKeys:   []string{"k0", "k1"},
 			expectedStatusCode: http.StatusOK,
 			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
+				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
 			},
 			expectedTransitions: map[string]int{"unauthorized": 1},
 		},
 		{
-			// Given: 2 keys; key-0 returns 403, key-1 returns 200.
-			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
-			name: "failover_after_403",
-			keys: []string{"k0", "k1"},
-			upstreamResponses: []testutil.UpstreamResponse{
-				testutil.NewErrorResponse(http.StatusForbidden, ""),
-				{Blocking: []byte("{}")},
-			},
-			expectedSeenKeys:   []string{"k0", "k1"},
-			expectedStatusCode: http.StatusOK,
-			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
-				keypool.KeyStateValid,
-			},
-			expectedTransitions: map[string]int{"forbidden": 1},
-		},
-		{
 			// Given: 3 keys; all return 429 with cooldowns 5s, 3s, 10s.
 			// Then: 3 requests, 429 response with smallest Retry-After,
 			// all keys temporary.
-			name: "all_keys_rate_limited",
+			name: "all_keys_temporary_blocked",
 			keys: []string{"k0", "k1", "k2"},
 			upstreamResponses: []testutil.UpstreamResponse{
 				testutil.NewErrorResponse(http.StatusTooManyRequests, "5"),
@@ -460,7 +443,8 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		},
 		{
 			// Given: 2 keys; both return 401.
-			// Then: 2 requests, 502 response, both keys permanent.
+			// Then: 2 requests, 502 auth-failure response with no Retry-After,
+			// both keys temporary and recovering after the cooldown.
 			name: "all_keys_unauthorized",
 			keys: []string{"k0", "k1"},
 			upstreamResponses: []testutil.UpstreamResponse{
@@ -469,12 +453,28 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 			},
 			expectedSeenKeys:   []string{"k0", "k1"},
 			expectedStatusCode: http.StatusBadGateway,
+			expectedRetryAfter: "",
 			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
-				keypool.KeyStatePermanent,
+				keypool.KeyStateTemporary,
+				keypool.KeyStateTemporary,
 			},
 			expectedTransitions: map[string]int{"unauthorized": 2},
 			expectedExhaustions: map[string]int{"auth_failed": 1},
+		},
+		{
+			// Given: 2 keys; key-0 returns 403.
+			// Then: 1 request, 403 surfaced as-is, both keys valid.
+			name: "forbidden_no_failover",
+			keys: []string{"k0", "k1"},
+			upstreamResponses: []testutil.UpstreamResponse{
+				testutil.NewErrorResponse(http.StatusForbidden, ""),
+			},
+			expectedSeenKeys:   []string{"k0"},
+			expectedStatusCode: http.StatusForbidden,
+			expectedKeyStates: []keypool.KeyState{
+				keypool.KeyStateValid,
+				keypool.KeyStateValid,
+			},
 		},
 		{
 			// Given: 2 keys; key-0 returns 500.
@@ -532,10 +532,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				}
 
 				p := prov.newProvider(upstream.URL, pool)
-				// IgnoreErrors: MarkKey logs at ERROR level when a
-				// key is marked permanent (401/403); slogtest would
-				// otherwise fail those scenarios.
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := slogtest.Make(t, nil)
 				handler := newPassthroughRouter(p, logger, nil, testTracer)
 
 				req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
@@ -560,7 +557,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 					gathered, err := reg.Gather()
 					require.NoError(t, err)
 					// One transition per marked key, by reason.
-					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+					for _, reason := range []string{"rate_limited", "unauthorized"} {
 						if want := tc.expectedTransitions[reason]; want > 0 {
 							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", "test", reason))
 						} else {

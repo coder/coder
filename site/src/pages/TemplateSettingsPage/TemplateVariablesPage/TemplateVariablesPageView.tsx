@@ -7,9 +7,10 @@ import type {
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
 interface TemplateVariablesPageViewProps {
@@ -45,12 +46,16 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 	const hasError = Object.values(errors).some((error) => Boolean(error));
 
 	return (
-		<>
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Template variables</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Variables</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the variables used by this template.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+
 			{hasError && (
-				<div className="flex flex-col gap-4 mb-16">
+				<div className="flex flex-col gap-4">
 					{Boolean(errors.buildError) && (
 						<ErrorAlert error={errors.buildError} />
 					)}
@@ -75,6 +80,6 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 					This template does not use managed variables.
 				</Alert>
 			)}
-		</>
+		</div>
 	);
 };

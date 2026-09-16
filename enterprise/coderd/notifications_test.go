@@ -76,7 +76,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		require.Equal(t, http.StatusNotFound, sdkError.StatusCode())
-		require.Equal(t, "Resource not found or you do not have access to this resource", sdkError.Response.Message)
+		require.Equal(t, "Resource not found or you do not have access to this resource", sdkError.Message)
 	})
 
 	t.Run("Invalid notification method", func(t *testing.T) {
@@ -98,8 +98,8 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
-		require.Equal(t, "Invalid request to update notification template method", sdkError.Response.Message)
-		require.Len(t, sdkError.Response.Validations, 1)
+		require.Equal(t, "Invalid request to update notification template method", sdkError.Message)
+		require.Len(t, sdkError.Validations, 1)
 		require.Equal(t, "method", sdkError.Response.Validations[0].Field)
 		require.Equal(t, fmt.Sprintf("%q is not a valid method; smtp, webhook, inbox are the available options", method), sdkError.Response.Validations[0].Detail)
 	})

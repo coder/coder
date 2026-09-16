@@ -8,10 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -29,6 +33,7 @@ const (
 	ToolNameGetWorkspace                = "coder_get_workspace"
 	ToolNameCreateWorkspace             = "coder_create_workspace"
 	ToolNameListWorkspaces              = "coder_list_workspaces"
+	ToolNameListOrganizations           = "coder_list_organizations"
 	ToolNameListTemplates               = "coder_list_templates"
 	ToolNameListTemplateVersionParams   = "coder_template_version_parameters"
 	ToolNameGetTemplate                 = "coder_get_template"
@@ -52,12 +57,16 @@ const (
 	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
 	ToolNameWorkspacePortForward        = "coder_workspace_port_forward"
 	ToolNameWorkspaceListApps           = "coder_workspace_list_apps"
-	ToolNameCreateTask                  = "coder_create_task"
-	ToolNameDeleteTask                  = "coder_delete_task"
-	ToolNameListTasks                   = "coder_list_tasks"
-	ToolNameGetTaskStatus               = "coder_get_task_status"
-	ToolNameSendTaskInput               = "coder_send_task_input"
-	ToolNameGetTaskLogs                 = "coder_get_task_logs"
+	ToolNameCreateChat                  = "coder_create_chat"
+	ToolNameGetChat                     = "coder_get_chat"
+	ToolNameDownloadChatFile            = "coder_download_chat_file"
+	ToolNameAwaitChat                   = "coder_await_chat"
+	ToolNameListChats                   = "coder_list_chats"
+	ToolNameGetChatMessages             = "coder_get_chat_messages"
+	ToolNameSendChatMessage             = "coder_send_chat_message"
+	ToolNameInterruptChat               = "coder_interrupt_chat"
+	ToolNameArchiveChat                 = "coder_archive_chat"
+	ToolNameListChatModelConfigs        = "coder_list_chat_model_configs"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -206,14 +215,59 @@ var (
 // or return values. The original TypedHandlerFunc is wrapped to handle type
 // conversion.
 func (t Tool[Arg, Ret]) Generic() GenericTool {
+	getArgumentSchema := sync.OnceValues(func() (*jsonschema.Resolved, error) {
+		if t.Schema.Properties == nil {
+			return nil, xerrors.Errorf("compile argument schema for tool %q: schema properties cannot be nil", t.Name)
+		}
+		inputSchema := map[string]any{
+			"type":                 "object",
+			"properties":           t.Schema.Properties,
+			"additionalProperties": false,
+		}
+		if len(t.Schema.Required) > 0 {
+			inputSchema["required"] = t.Schema.Required
+		}
+		schemaJSON, err := json.Marshal(inputSchema)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal argument schema for tool %q: %w", t.Name, err)
+		}
+		var schema jsonschema.Schema
+		if err := json.Unmarshal(schemaJSON, &schema); err != nil {
+			return nil, xerrors.Errorf("decode argument schema for tool %q: %w", t.Name, err)
+		}
+		compiled, err := schema.Resolve(nil)
+		if err != nil {
+			return nil, xerrors.Errorf("compile argument schema for tool %q: %w", t.Name, err)
+		}
+		return compiled, nil
+	})
+
 	return GenericTool{
 		Tool:               t.Tool,
 		MCPAnnotations:     t.MCPAnnotations,
 		UserClientOptional: t.UserClientOptional,
 		Handler: wrap(func(ctx context.Context, deps Deps, args json.RawMessage) (json.RawMessage, error) {
+			compiledSchema, err := getArgumentSchema()
+			if err != nil {
+				return nil, err
+			}
+			if len(args) == 0 {
+				args = json.RawMessage("{}")
+			}
+			var untypedArgs any
+			if err := json.Unmarshal(args, &untypedArgs); err != nil {
+				return nil, newArgumentValidationError(map[string]string{
+					"$": xerrors.Errorf("decode JSON arguments: %w", err).Error(),
+				}, err)
+			}
+			if err := compiledSchema.Validate(untypedArgs); err != nil {
+				return nil, newArgumentValidationError(map[string]string{"$": err.Error()}, nil)
+			}
 			var typedArgs Arg
 			if err := json.Unmarshal(args, &typedArgs); err != nil {
-				return nil, xerrors.Errorf("failed to unmarshal args: %w", err)
+				return nil, newArgumentValidationError(map[string]string{
+					"$": xerrors.Errorf("decode as tool argument type: %w", err).Error(),
+				}, err)
 			}
 			ret, err := t.Handler(ctx, deps, typedArgs)
 			var buf bytes.Buffer
@@ -239,6 +293,44 @@ type GenericTool struct {
 	// user authentication token. If true, the tool will be available even when
 	// running in an unauthenticated mode with just an agent token.
 	UserClientOptional bool
+}
+
+// ArgumentValidationError reports that tool arguments do not satisfy the
+// declared schema or cannot be decoded into the tool's argument type.
+type ArgumentValidationError struct {
+	details map[string]string
+	cause   error
+}
+
+func newArgumentValidationError(details map[string]string, cause error) *ArgumentValidationError {
+	if len(details) == 0 {
+		details = map[string]string{"$": "arguments do not satisfy the tool schema"}
+	}
+	return &ArgumentValidationError{details: details, cause: cause}
+}
+
+func (e *ArgumentValidationError) Error() string {
+	details := make([]string, 0, len(e.details))
+	for _, path := range slices.Sorted(maps.Keys(e.details)) {
+		var qualifiedPath string
+		switch {
+		case path == "":
+			qualifiedPath = "$"
+		case strings.HasPrefix(path, "$"):
+			qualifiedPath = path
+		case strings.HasPrefix(path, "/"):
+			qualifiedPath = "$" + path
+		default:
+			qualifiedPath = "$/" + path
+		}
+		details = append(details, qualifiedPath+": "+e.details[path])
+	}
+	return "invalid arguments: " + strings.Join(details, "; ")
+}
+
+// Unwrap returns the underlying JSON decoding error, when present.
+func (e *ArgumentValidationError) Unwrap() error {
+	return e.cause
 }
 
 // GenericHandlerFunc is a function that handles a tool call.
@@ -310,6 +402,7 @@ var All = []GenericTool{
 	CreateWorkspace.Generic(),
 	CreateWorkspaceBuild.Generic(),
 	DeleteTemplate.Generic(),
+	ListOrganizations.Generic(),
 	ListTemplates.Generic(),
 	ListTemplateVersionParameters.Generic(),
 	GetTemplate.Generic(),
@@ -332,12 +425,16 @@ var All = []GenericTool{
 	WorkspaceEditFiles.Generic(),
 	WorkspacePortForward.Generic(),
 	WorkspaceListApps.Generic(),
-	CreateTask.Generic(),
-	DeleteTask.Generic(),
-	ListTasks.Generic(),
-	GetTaskStatus.Generic(),
-	SendTaskInput.Generic(),
-	GetTaskLogs.Generic(),
+	CreateChat.Generic(),
+	GetChat.Generic(),
+	DownloadChatFile.Generic(),
+	AwaitChat.Generic(),
+	ListChats.Generic(),
+	GetChatMessages.Generic(),
+	SendChatMessage.Generic(),
+	InterruptChat.Generic(),
+	ArchiveChat.Generic(),
+	ListChatModelConfigs.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -445,7 +542,7 @@ type CreateWorkspaceArgs struct {
 	TemplateID              string            `json:"template_id,omitempty"`
 	TemplateVersionID       string            `json:"template_version_id,omitempty"`
 	TemplateVersionPresetID string            `json:"template_version_preset_id,omitempty"`
-	User                    string            `json:"user"`
+	User                    string            `json:"user,omitempty"`
 }
 
 // richParametersFromMap converts the map shape used on tool args into the
@@ -506,11 +603,12 @@ be ready before trying to use or connect to the workspace.
 					"description": "Name of the workspace to create.",
 				},
 				"rich_parameters": map[string]any{
-					"type":        "object",
-					"description": "Key/value pairs of rich parameters to pass to the template version to create the workspace.",
+					"type":                 "object",
+					"description":          "Key/value pairs of rich parameters to pass to the template version to create the workspace.",
+					"additionalProperties": map[string]any{"type": "string"},
 				},
 			},
-			Required: []string{"user", "name", "rich_parameters"},
+			Required: []string{"name", "rich_parameters"},
 		},
 	},
 	MCPAnnotations: mcpMutationAnnotations,
@@ -604,6 +702,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 		minimalWorkspaces := make([]MinimalWorkspace, len(workspaces.Workspaces))
 		for i, workspace := range workspaces.Workspaces {
 			minimalWorkspaces[i] = MinimalWorkspace{
+				OrganizationID:          workspace.OrganizationID.String(),
 				ID:                      workspace.ID.String(),
 				Name:                    workspace.Name,
 				TemplateID:              workspace.TemplateID.String(),
@@ -618,10 +717,23 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 	},
 }
 
+func minimalTemplate(template codersdk.Template) MinimalTemplate {
+	return MinimalTemplate{
+		OrganizationID:  template.OrganizationID.String(),
+		DisplayName:     template.DisplayName,
+		ID:              template.ID.String(),
+		Name:            template.Name,
+		Description:     template.Description,
+		ActiveVersionID: template.ActiveVersionID,
+		ActiveUserCount: template.ActiveUserCount,
+		AgentsAllowed:   template.AgentsAllowed,
+	}
+}
+
 var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameListTemplates,
-		Description: "Lists templates for the authenticated user.",
+		Description: "Lists templates for the authenticated user. agents_allowed indicates whether Coder Agents (chats) may create workspaces from the template.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
@@ -635,14 +747,7 @@ var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 		}
 		minimalTemplates := make([]MinimalTemplate, len(templates))
 		for i, template := range templates {
-			minimalTemplates[i] = MinimalTemplate{
-				DisplayName:     template.DisplayName,
-				ID:              template.ID.String(),
-				Name:            template.Name,
-				Description:     template.Description,
-				ActiveVersionID: template.ActiveVersionID,
-				ActiveUserCount: template.ActiveUserCount,
-			}
+			minimalTemplates[i] = minimalTemplate(template)
 		}
 		return minimalTemplates, nil
 	},
@@ -772,15 +877,8 @@ When selecting a preset: if a preset is marked default and the user has not spec
 			return TemplateDetail{}, xerrors.Errorf("get template presets: %w", err)
 		}
 		detail := TemplateDetail{
-			MinimalTemplate: MinimalTemplate{
-				DisplayName:     template.DisplayName,
-				ID:              template.ID.String(),
-				Name:            template.Name,
-				Description:     template.Description,
-				ActiveVersionID: template.ActiveVersionID,
-				ActiveUserCount: template.ActiveUserCount,
-			},
-			Parameters: parameters,
+			MinimalTemplate: minimalTemplate(template),
+			Parameters:      parameters,
 		}
 		for _, p := range presets {
 			detail.Presets = append(detail.Presets, toPresetView(p))
@@ -845,8 +943,9 @@ connect to the workspace.
 					"description": "(Optional) ID of a template version preset to apply. Only valid for start transitions. Obtain available presets from coder_get_template. Presets are scoped to the template version they were created on; pass template_version_id with the same version the preset came from when the workspace's current build is on a different version, otherwise the build may apply mismatched parameter defaults. When set, the preset's parameter values take precedence over conflicting entries in rich_parameters.",
 				},
 				"rich_parameters": map[string]any{
-					"type":        "object",
-					"description": "(Optional) Key/value pairs of rich parameters to apply to the build. Only valid for start transitions.",
+					"type":                 "object",
+					"description":          "(Optional) Key/value pairs of rich parameters to apply to the build. Only valid for start transitions.",
+					"additionalProperties": map[string]any{"type": "string"},
 				},
 			},
 			Required: []string{"workspace_id", "transition"},
@@ -896,8 +995,9 @@ connect to the workspace.
 }
 
 type CreateTemplateVersionArgs struct {
-	FileID     string `json:"file_id"`
-	TemplateID string `json:"template_id"`
+	OrganizationID string `json:"organization_id"`
+	FileID         string `json:"file_id"`
+	TemplateID     string `json:"template_id"`
 }
 
 var CreateTemplateVersion = Tool[CreateTemplateVersionArgs, codersdk.TemplateVersion]{
@@ -1355,6 +1455,10 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
+				"organization_id": map[string]any{
+					"type":        "string",
+					"description": "Organization UUID.",
+				},
 				"template_id": map[string]any{
 					"type": "string",
 				},
@@ -1367,7 +1471,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 	},
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateVersionArgs) (codersdk.TemplateVersion, error) {
-		me, err := deps.coderClient.User(ctx, "me")
+		organizationID, err := resolveOrganization(ctx, deps, args.OrganizationID)
 		if err != nil {
 			return codersdk.TemplateVersion{}, err
 		}
@@ -1383,7 +1487,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			}
 			templateID = tid
 		}
-		templateVersion, err := deps.coderClient.CreateTemplateVersion(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
+		templateVersion, err := deps.coderClient.CreateTemplateVersion(ctx, organizationID, codersdk.CreateTemplateVersionRequest{
 			Message:       "Created by AI",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			FileID:        fileID,
@@ -1564,8 +1668,9 @@ var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"files": map[string]any{
-					"type":        "object",
-					"description": "A map of file names to file contents.",
+					"type":                 "object",
+					"description":          "A map of file names to file contents.",
+					"additionalProperties": map[string]any{"type": "string"},
 				},
 			},
 			Required: []string{"files"},
@@ -1613,11 +1718,12 @@ var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
 }
 
 type CreateTemplateArgs struct {
-	Description string `json:"description"`
-	DisplayName string `json:"display_name"`
-	Icon        string `json:"icon"`
-	Name        string `json:"name"`
-	VersionID   string `json:"version_id"`
+	OrganizationID string `json:"organization_id"`
+	Description    string `json:"description"`
+	DisplayName    string `json:"display_name"`
+	Icon           string `json:"icon"`
+	Name           string `json:"name"`
+	VersionID      string `json:"version_id"`
 }
 
 var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
@@ -1626,6 +1732,10 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 		Description: "Create a new template in Coder. First, you must create a template version.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
+				"organization_id": map[string]any{
+					"type":        "string",
+					"description": "Organization UUID.",
+				},
 				"name": map[string]any{
 					"type": "string",
 				},
@@ -1649,7 +1759,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 	},
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateArgs) (codersdk.Template, error) {
-		me, err := deps.coderClient.User(ctx, "me")
+		organizationID, err := resolveOrganization(ctx, deps, args.OrganizationID)
 		if err != nil {
 			return codersdk.Template{}, err
 		}
@@ -1657,7 +1767,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 		if err != nil {
 			return codersdk.Template{}, xerrors.Errorf("version_id must be a valid UUID: %w", err)
 		}
-		template, err := deps.coderClient.CreateTemplate(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
+		template, err := deps.coderClient.CreateTemplate(ctx, organizationID, codersdk.CreateTemplateRequest{
 			Name:        args.Name,
 			DisplayName: args.DisplayName,
 			Description: args.Description,
@@ -1704,6 +1814,7 @@ var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 }
 
 type MinimalWorkspace struct {
+	OrganizationID          string    `json:"organization_id"`
 	ID                      string    `json:"id"`
 	Name                    string    `json:"name"`
 	TemplateID              string    `json:"template_id"`
@@ -1715,12 +1826,14 @@ type MinimalWorkspace struct {
 }
 
 type MinimalTemplate struct {
+	OrganizationID  string    `json:"organization_id"`
 	DisplayName     string    `json:"display_name"`
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+	AgentsAllowed   bool      `json:"agents_allowed"`
 }
 
 type WorkspaceLSArgs struct {
@@ -1954,16 +2067,20 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"search": map[string]any{
+							"old_text": map[string]any{
 								"type":        "string",
-								"description": "The old string to replace.",
+								"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
 							},
-							"replace": map[string]any{
+							"new_text": map[string]any{
 								"type":        "string",
-								"description": "The new string that replaces the old string.",
+								"description": "The new text that replaces the old text.",
+							},
+							"replace_all": map[string]any{
+								"type":        "boolean",
+								"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
 							},
 						},
-						"required": []string{"search", "replace"},
+						"required": []string{"old_text", "new_text"},
 					},
 				},
 			},
@@ -2030,20 +2147,20 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse
 								"items": map[string]any{
 									"type": "object",
 									"properties": map[string]any{
-										"search": map[string]any{
+										"old_text": map[string]any{
 											"type":        "string",
-											"description": "The old string to replace. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
+											"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
 										},
-										"replace": map[string]any{
+										"new_text": map[string]any{
 											"type":        "string",
-											"description": "The new string that replaces the old string.",
+											"description": "The new text that replaces the old text.",
 										},
 										"replace_all": map[string]any{
 											"type":        "boolean",
-											"description": "When true, replaces all occurrences of the search string. Defaults to false, which requires the search string to match exactly once.",
+											"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
 										},
 									},
-									"required": []string{"search", "replace"},
+									"required": []string{"old_text", "new_text"},
 								},
 							},
 						},
@@ -2098,7 +2215,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 					"description": workspaceAgentDescription,
 				},
 				"port": map[string]any{
-					"type":        "number",
+					"type":        "integer",
 					"description": "The port to forward.",
 				},
 			},
@@ -2184,298 +2301,6 @@ var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 	},
 }
 
-type CreateTaskArgs struct {
-	Input                   string `json:"input"`
-	TemplateVersionID       string `json:"template_version_id"`
-	TemplateVersionPresetID string `json:"template_version_preset_id"`
-	User                    string `json:"user"`
-}
-
-var CreateTask = Tool[CreateTaskArgs, codersdk.Task]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameCreateTask,
-		Description: `Create a task.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"input": map[string]any{
-					"type":        "string",
-					"description": "Input/prompt for the task.",
-				},
-				"template_version_id": map[string]any{
-					"type":        "string",
-					"description": "ID of the template version to create the task from.",
-				},
-				"template_version_preset_id": map[string]any{
-					"type":        "string",
-					"description": "Optional ID of the template version preset to create the task from.",
-				},
-				"user": map[string]any{
-					"type":        "string",
-					"description": userDescription("create a task"),
-				},
-			},
-			Required: []string{"input", "template_version_id"},
-		},
-	},
-	MCPAnnotations:     mcpMutationAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args CreateTaskArgs) (codersdk.Task, error) {
-		if args.Input == "" {
-			return codersdk.Task{}, xerrors.New("input is required")
-		}
-
-		tvID, err := uuid.Parse(args.TemplateVersionID)
-		if err != nil {
-			return codersdk.Task{}, xerrors.New("template_version_id must be a valid UUID")
-		}
-
-		var tvPresetID uuid.UUID
-		if args.TemplateVersionPresetID != "" {
-			tvPresetID, err = uuid.Parse(args.TemplateVersionPresetID)
-			if err != nil {
-				return codersdk.Task{}, xerrors.New("template_version_preset_id must be a valid UUID")
-			}
-		}
-
-		if args.User == "" {
-			args.User = codersdk.Me
-		}
-
-		task, err := deps.coderClient.CreateTask(ctx, args.User, codersdk.CreateTaskRequest{
-			Input:                   args.Input,
-			TemplateVersionID:       tvID,
-			TemplateVersionPresetID: tvPresetID,
-		})
-		if err != nil {
-			return codersdk.Task{}, xerrors.Errorf("create task: %w", err)
-		}
-
-		return task, nil
-	},
-}
-
-type DeleteTaskArgs struct {
-	TaskID string `json:"task_id"`
-}
-
-var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameDeleteTask,
-		Description: `Delete a task.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"task_id": map[string]any{
-					"type":        "string",
-					"description": taskIDDescription("delete"),
-				},
-			},
-			Required: []string{"task_id"},
-		},
-	},
-	MCPAnnotations:     mcpDestructiveAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args DeleteTaskArgs) (codersdk.Response, error) {
-		if args.TaskID == "" {
-			return codersdk.Response{}, xerrors.New("task_id is required")
-		}
-
-		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
-		if err != nil {
-			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
-		}
-
-		err = deps.coderClient.DeleteTask(ctx, task.OwnerName, task.ID)
-		if err != nil {
-			return codersdk.Response{}, xerrors.Errorf("delete task: %w", err)
-		}
-
-		return codersdk.Response{
-			Message: "Task deleted successfully",
-		}, nil
-	},
-}
-
-type ListTasksArgs struct {
-	Status codersdk.TaskStatus `json:"status"`
-	User   string              `json:"user"`
-}
-
-type ListTasksResponse struct {
-	Tasks []codersdk.Task `json:"tasks"`
-}
-
-var ListTasks = Tool[ListTasksArgs, ListTasksResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameListTasks,
-		Description: `List tasks.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"status": map[string]any{
-					"type":        "string",
-					"description": "Optional filter by task status.",
-				},
-				"user": map[string]any{
-					"type":        "string",
-					"description": userDescription("list tasks"),
-				},
-			},
-			Required: []string{},
-		},
-	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args ListTasksArgs) (ListTasksResponse, error) {
-		if args.User == "" {
-			args.User = codersdk.Me
-		}
-
-		tasks, err := deps.coderClient.Tasks(ctx, &codersdk.TasksFilter{
-			Owner:  args.User,
-			Status: args.Status,
-		})
-		if err != nil {
-			return ListTasksResponse{}, xerrors.Errorf("list tasks: %w", err)
-		}
-
-		return ListTasksResponse{
-			Tasks: tasks,
-		}, nil
-	},
-}
-
-type GetTaskStatusArgs struct {
-	TaskID string `json:"task_id"`
-}
-
-type GetTaskStatusResponse struct {
-	Status codersdk.TaskStatus      `json:"status"`
-	State  *codersdk.TaskStateEntry `json:"state"`
-}
-
-var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameGetTaskStatus,
-		Description: `Get the status of a task.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"task_id": map[string]any{
-					"type":        "string",
-					"description": taskIDDescription("get"),
-				},
-			},
-			Required: []string{"task_id"},
-		},
-	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args GetTaskStatusArgs) (GetTaskStatusResponse, error) {
-		if args.TaskID == "" {
-			return GetTaskStatusResponse{}, xerrors.New("task_id is required")
-		}
-
-		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
-		if err != nil {
-			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
-		}
-
-		return GetTaskStatusResponse{
-			Status: task.Status,
-			State:  task.CurrentState,
-		}, nil
-	},
-}
-
-type SendTaskInputArgs struct {
-	TaskID string `json:"task_id"`
-	Input  string `json:"input"`
-}
-
-var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameSendTaskInput,
-		Description: `Send input to a running task.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"task_id": map[string]any{
-					"type":        "string",
-					"description": taskIDDescription("prompt"),
-				},
-				"input": map[string]any{
-					"type":        "string",
-					"description": "The input to send to the task.",
-				},
-			},
-			Required: []string{"task_id", "input"},
-		},
-	},
-	MCPAnnotations:     mcpMutationAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args SendTaskInputArgs) (codersdk.Response, error) {
-		if args.TaskID == "" {
-			return codersdk.Response{}, xerrors.New("task_id is required")
-		}
-
-		if args.Input == "" {
-			return codersdk.Response{}, xerrors.New("input is required")
-		}
-
-		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
-		if err != nil {
-			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
-		}
-
-		err = deps.coderClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
-			Input: args.Input,
-		})
-		if err != nil {
-			return codersdk.Response{}, xerrors.Errorf("send task input %q: %w", args.TaskID, err)
-		}
-
-		return codersdk.Response{
-			Message: "Input sent to task successfully.",
-		}, nil
-	},
-}
-
-type GetTaskLogsArgs struct {
-	TaskID string `json:"task_id"`
-}
-
-var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameGetTaskLogs,
-		Description: `Get the logs of a task.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"task_id": map[string]any{
-					"type":        "string",
-					"description": taskIDDescription("query"),
-				},
-			},
-			Required: []string{"task_id"},
-		},
-	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args GetTaskLogsArgs) (codersdk.TaskLogsResponse, error) {
-		if args.TaskID == "" {
-			return codersdk.TaskLogsResponse{}, xerrors.New("task_id is required")
-		}
-
-		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
-		if err != nil {
-			return codersdk.TaskLogsResponse{}, err
-		}
-
-		logs, err := deps.coderClient.TaskLogs(ctx, task.OwnerName, task.ID)
-		if err != nil {
-			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
-		}
-
-		return logs, nil
-	},
-}
-
 // NormalizeWorkspaceInput converts workspace name input to standard format.
 // Handles the following input formats:
 //   - workspace                    → workspace
@@ -2505,10 +2330,6 @@ func NormalizeWorkspaceInput(input string) string {
 const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."
 
 const workspaceAgentDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
-
-func taskIDDescription(action string) string {
-	return fmt.Sprintf("ID or workspace identifier in the format [owner/]workspace[.agent] for the task to %s. If an owner is not specified, the authenticated user is used.", action)
-}
 
 func userDescription(action string) string {
 	return fmt.Sprintf("Username or ID of the user for which to %s. Omit or use the `me` keyword to %s for the authenticated user.", action, action)

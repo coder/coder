@@ -137,6 +137,7 @@ const AgentAPIVersionREST = "1.0"
 // @Tags Agents
 // @Param request body agentsdk.PatchLogs true "logs"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response "Agent log storage limit exceeded"
 // @Router /api/v2/workspaceagents/me/logs [patch]
 func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1266,7 +1267,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		}
 	}(ctx)
 
-	ticker := time.NewTicker(api.Options.DERPMapUpdateFrequency)
+	ticker := time.NewTicker(api.DERPMapUpdateFrequency)
 	defer ticker.Stop()
 
 	var lastDERPMap *tailcfg.DERPMap
@@ -1280,7 +1281,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			lastDERPMap = derpMap
 		}
 
-		ticker.Reset(api.Options.DERPMapUpdateFrequency)
+		ticker.Reset(api.DERPMapUpdateFrequency)
 		select {
 		case <-ctx.Done():
 			return
@@ -1367,22 +1368,157 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
 	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
+	auth := tailnet.ClientCoordinateeAuth{
+		AgentID: waws.WorkspaceAgent.ID,
+		Auditor: api.tunnelAuditor(r),
+	}
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
 		ID:   peerID,
-		Auth: tailnet.ClientCoordinateeAuth{
-			AgentID: waws.WorkspaceAgent.ID,
-		},
+		Auth: auth,
 	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
+	}
+}
+
+type connectionLogTunnelAuditor struct {
+	api       *API
+	userID    uuid.UUID
+	ip        string
+	userAgent string
+}
+
+var _ tailnet.TunnelAuditor = connectionLogTunnelAuditor{}
+
+func (a connectionLogTunnelAuditor) Audit(agentID uuid.UUID, authorizationErr error) {
+	statusCode := int32(http.StatusSwitchingProtocols)
+	if authorizationErr != nil {
+		statusCode = http.StatusForbidden
+	}
+	// Authorization runs under the in-memory coordinator mutex, so the
+	// database write cannot happen inline.
+	go a.api.logTunnelConnection(agentID, statusCode, a.userID, a.ip, a.userAgent)
+}
+
+func (api *API) tunnelAuditor(r *http.Request) tailnet.TunnelAuditor {
+	subject, ok := dbauthz.ActorFromContext(r.Context())
+	if !ok {
+		api.Logger.Error(r.Context(), "tunnel auditor missing authorization subject")
+		return nil
+	}
+	if subject.Type != rbac.SubjectTypeUser {
+		api.Logger.Debug(r.Context(), "skip tunnel audit for non-user subject",
+			slog.F("subject_type", subject.Type),
+		)
+		return nil
+	}
+	userID, err := uuid.Parse(subject.ID)
+	if err != nil {
+		api.Logger.Error(r.Context(), "parse tunnel auditor user ID", slog.Error(err))
+		return nil
+	}
+	return connectionLogTunnelAuditor{
+		api:       api,
+		userID:    userID,
+		ip:        r.RemoteAddr,
+		userAgent: r.UserAgent(),
+	}
+}
+
+func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID uuid.UUID, ip, userAgent string) {
+	ctx, cancel := context.WithTimeout(api.ctx, 3*time.Second)
+	defer cancel()
+
+	// nolint:gocritic // System context is needed to attribute denied tunnel decisions.
+	waws, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), agentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			api.Logger.Warn(ctx, "skip tunnel connection log for unknown agent",
+				slog.F("agent_id", agentID),
+				slog.F("user_id", userID),
+			)
+			return
+		}
+		api.Logger.Error(ctx, "resolve tunnel connection log agent",
+			slog.F("agent_id", agentID),
+			slog.F("user_id", userID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	staleInterval := api.WorkspaceAppAuditSessionTimeout
+	if staleInterval == 0 {
+		staleInterval = time.Hour
+	}
+	now := dbtime.Now()
+	// nolint:gocritic // System context is needed to write connection-log dedupe sessions.
+	newSession, err := api.Database.UpsertWorkspaceAppAuditSession(dbauthz.AsSystemRestricted(ctx), database.UpsertWorkspaceAppAuditSessionParams{
+		StaleIntervalMS: staleInterval.Milliseconds(),
+		ID:              uuid.New(),
+		AgentID:         agentID,
+		AppID:           uuid.Nil,
+		UserID:          userID,
+		Ip:              ip,
+		UserAgent:       userAgent,
+		SlugOrPort:      "",
+		StatusCode:      statusCode,
+		StartedAt:       now,
+		UpdatedAt:       now,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "upsert tunnel audit session",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("agent_id", waws.WorkspaceAgent.ID),
+			slog.F("user_id", userID),
+			slog.F("user_agent", userAgent),
+			slog.Error(err),
+		)
+		return
+	}
+	if !newSession {
+		return
+	}
+
+	logger := api.ConnectionLogger.Load()
+	if logger == nil {
+		return
+	}
+	err = (*logger).Upsert(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now,
+		OrganizationID:   waws.WorkspaceTable.OrganizationID,
+		WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
+		WorkspaceID:      waws.WorkspaceTable.ID,
+		WorkspaceName:    waws.WorkspaceTable.Name,
+		AgentName:        waws.WorkspaceAgent.Name,
+		Type:             database.ConnectionTypeTunnel,
+		IP:               database.ParseIP(ip),
+		Code:             sql.NullInt32{Int32: statusCode, Valid: true},
+		UserAgent:        sql.NullString{String: userAgent, Valid: userAgent != ""},
+		UserID:           uuid.NullUUID{UUID: userID, Valid: userID != uuid.Nil},
+		SlugOrPort:       sql.NullString{},
+		ConnectionID:     uuid.NullUUID{},
+		DisconnectReason: sql.NullString{},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "upsert tunnel connection log",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("agent_id", waws.WorkspaceAgent.ID),
+			slog.F("user_id", userID),
+			slog.F("user_agent", userAgent),
+			slog.Error(err),
+		)
 	}
 }
 
@@ -1391,7 +1527,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 	peerID = uuid.New()
 	resumeToken := r.URL.Query().Get("resume_token")
 	if resumeToken != "" {
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
+		peerID, err = api.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
 		// If the token is missing the key ID, it's probably an old token in which
 		// case we just want to generate a new peer ID.
 		switch {
@@ -1990,39 +2126,10 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// new token to be issued!
 	listen := query.Has("listen")
 
-	var externalAuthConfig *externalauth.Config
-	for _, extAuth := range api.ExternalAuthConfigs {
-		if extAuth.ID == id {
-			externalAuthConfig = extAuth
-			break
-		}
-		if match == "" || extAuth.Regex == nil {
-			continue
-		}
-		matches := extAuth.Regex.MatchString(match)
-		if !matches {
-			continue
-		}
-		externalAuthConfig = extAuth
-	}
-	if externalAuthConfig == nil {
-		detail := "External auth provider not found."
-		if len(api.ExternalAuthConfigs) > 0 {
-			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
-			for _, extAuth := range api.ExternalAuthConfigs {
-				if extAuth.Regex == nil {
-					continue
-				}
-				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
-			}
-			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the url. Provider url regex: %s", strings.Join(regexURLs, ","))
-		}
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", match),
-			Detail:  detail,
-		})
-		return
-	}
+	// Resolve the calling agent's own workspace/build before selecting a
+	// provider below, so the match-only (GIT_ASKPASS) path can be scoped to
+	// this workspace's own template-declared providers instead of scanning
+	// every provider configured on the deployment.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	// We must get the workspace to get the owner ID!
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -2046,6 +2153,83 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get workspace.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var externalAuthConfig *externalauth.Config
+	if id != "" {
+		// Explicit ID path: exact match only. Deterministic, and deliberately
+		// unaffected by the template-scoped narrowing below.
+		for _, extAuth := range api.ExternalAuthConfigs {
+			if extAuth.ID == id {
+				externalAuthConfig = extAuth
+				break
+			}
+		}
+	} else {
+		// match-only path (GIT_ASKPASS supplies a hostname, never an ID):
+		// narrow to the workspace's own template-declared providers first.
+		// Only fall back to the full deployment-wide scan when every declared
+		// provider is configured and none of them match this hostname (e.g. a
+		// host the template never declared). Report an error rather than guess
+		// when several declared providers match, or when the declaration set is
+		// stale.
+		//
+		// Both errors use 404 so `coder gitaskpass` warns and defers to git's
+		// own credential behavior instead of failing the git operation.
+		declared, err := api.workspaceAgentsExternalAuthDeclaredCandidates(ctx, build, match)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resolve the workspace's template-declared external auth providers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		switch {
+		case len(declared.matchedIDs) > 1:
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Multiple external auth providers declared by this workspace's template match %q: %s.", match, strings.Join(declared.matchedIDs, ", ")),
+				Detail:  "Coder cannot tell which of them to use. Request a token with an explicit provider ID instead, using `coder external-auth access-token <id>`.",
+			})
+			return
+		case declared.config != nil:
+			externalAuthConfig = declared.config
+		case len(declared.missingIDs) > 0:
+			// A declared provider that the deployment no longer configures
+			// leaves no way to tell whether it was the one meant to serve this
+			// hostname, so another provider's token could silently stand in for
+			// it. Refuse instead, which keeps the template scoping above intact
+			// even while a template and the deployment config disagree.
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("This workspace's template declares external auth provider(s) that this deployment no longer configures: %s.", strings.Join(declared.missingIDs, ", ")),
+				Detail:  "Coder will not substitute a different provider's token. Restore that provider's configuration, or update the template to declare a configured provider.",
+			})
+			return
+		default:
+			for _, extAuth := range api.ExternalAuthConfigs {
+				if extAuth.Regex == nil || !extAuth.Regex.MatchString(match) {
+					continue
+				}
+				externalAuthConfig = extAuth
+			}
+		}
+	}
+	if externalAuthConfig == nil {
+		detail := "External auth provider not found."
+		if len(api.ExternalAuthConfigs) > 0 {
+			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
+			for _, extAuth := range api.ExternalAuthConfigs {
+				if extAuth.Regex == nil {
+					continue
+				}
+				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
+			}
+			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the url. Provider url regex: %s", strings.Join(regexURLs, ","))
+		}
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", match),
+			Detail:  detail,
 		})
 		return
 	}
@@ -2144,6 +2328,78 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// declaredExternalAuthCandidates describes how a workspace template's declared
+// external auth providers relate to one hostname-only (GIT_ASKPASS) request.
+type declaredExternalAuthCandidates struct {
+	// config is the provider to use, set only when exactly one declared and
+	// configured provider matches the hostname.
+	config *externalauth.Config
+	// matchedIDs holds the ID of every declared and configured provider whose
+	// regex matches the hostname, in declaration order.
+	matchedIDs []string
+	// missingIDs holds the ID of every declared provider that the deployment
+	// does not configure.
+	missingIDs []string
+}
+
+// workspaceAgentsExternalAuthDeclaredCandidates resolves which configured
+// external auth provider should service a hostname-only (GIT_ASKPASS) request,
+// scoped to the given build's template version's declared providers. The zero
+// value means the template declares no providers at all.
+//
+// config is set only when exactly one declared provider matched, so callers
+// should distinguish four outcomes:
+//   - several matchedIDs: report the collision rather than guess between them.
+//   - config set: use it.
+//   - no match but some missingIDs: the declaration set is stale, so report
+//     that instead of substituting a provider the template never declared.
+//   - no match and nothing missing: the template's providers simply do not
+//     serve this hostname, so fall back to a deployment-wide scan.
+func (api *API) workspaceAgentsExternalAuthDeclaredCandidates(ctx context.Context, build database.WorkspaceBuild, match string) (declaredExternalAuthCandidates, error) {
+	// Template reads authorize through the template's ACL, which the owner may
+	// no longer have. The version ID is server-derived from the agent's token.
+	//nolint:gocritic // Agent needs system access to read its own template version's declared providers.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	templateVersion, err := api.Database.GetTemplateVersionByID(sysCtx, build.TemplateVersionID)
+	if err != nil {
+		return declaredExternalAuthCandidates{}, xerrors.Errorf("get template version: %w", err)
+	}
+
+	var declared []database.ExternalAuthProvider
+	if err := json.Unmarshal(templateVersion.ExternalAuthProviders, &declared); err != nil {
+		return declaredExternalAuthCandidates{}, xerrors.Errorf("unmarshal template version external auth providers: %w", err)
+	}
+
+	var (
+		candidates []*externalauth.Config
+		out        declaredExternalAuthCandidates
+	)
+	for _, provider := range declared {
+		idx := slices.IndexFunc(api.ExternalAuthConfigs, func(extAuth *externalauth.Config) bool {
+			return extAuth.ID == provider.ID
+		})
+		if idx < 0 {
+			out.missingIDs = append(out.missingIDs, provider.ID)
+			continue
+		}
+		extAuth := api.ExternalAuthConfigs[idx]
+		if extAuth.Regex == nil || !extAuth.Regex.MatchString(match) {
+			continue
+		}
+		candidates = append(candidates, extAuth)
+	}
+
+	for _, candidate := range candidates {
+		out.matchedIDs = append(out.matchedIDs, candidate.ID)
+	}
+	// Only a single match is actionable. Leave config nil when several match so
+	// the caller reports the collision instead of picking one arbitrarily.
+	if len(candidates) == 1 {
+		out.config = candidates[0]
+	}
+	return out, nil
 }
 
 func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, gitRef chatGitRef) {
@@ -2328,15 +2584,17 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
+	auth := tailnet.ClientUserCoordinateeAuth{
+		Auth: &rbacAuthorizer{
+			sshPrep: sshPrep,
+			db:      api.Database,
+		},
+		Auditor: api.tunnelAuditor(r),
+	}
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
 		ID:   peerID,
-		Auth: tailnet.ClientUserCoordinateeAuth{
-			Auth: &rbacAuthorizer{
-				sshPrep: sshPrep,
-				db:      api.Database,
-			},
-		},
+		Auth: auth,
 	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())

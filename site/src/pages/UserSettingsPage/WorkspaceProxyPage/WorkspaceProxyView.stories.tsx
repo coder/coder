@@ -1,16 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	MockHealthyWildWorkspaceProxy,
+	MockPermissions,
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
 	MockWorkspaceProxies,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
 const meta: Meta<typeof WorkspaceProxyView> = {
 	title: "pages/UserSettingsPage/WorkspaceProxyView",
 	component: WorkspaceProxyView,
+	args: {
+		showPaywall: false,
+		permissions: MockPermissions,
+	},
 };
 
 export default meta;
@@ -24,6 +31,12 @@ export const PrimarySelected: Story = {
 		proxyLatencies: MockProxyLatencies,
 		preferredProxy: MockPrimaryWorkspaceProxy,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/networking/workspace-proxies"));
+	},
 };
 
 export const Example: Story = {
@@ -33,6 +46,36 @@ export const Example: Story = {
 		proxies: MockWorkspaceProxies,
 		proxyLatencies: MockProxyLatencies,
 		preferredProxy: MockHealthyWildWorkspaceProxy,
+	},
+};
+
+export const Paywall: Story = {
+	args: {
+		...Example.args,
+		showPaywall: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const PaywallWithoutLicenseAccess: Story = {
+	args: {
+		...Paywall.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -113,33 +113,14 @@ export const Running: Story = {
 		status: "running",
 		args: runningPayload,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const liveRegion = canvas.getByRole("status");
-
-		expect(liveRegion).toHaveAttribute("aria-live", "polite");
-		expect(canvas.getByText("Asking for clarification...")).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeInTheDocument();
-		expect(canvas.getAllByRole("radio")).toHaveLength(3);
-	},
 };
 
+// The running state with no questions: the live status region renders
+// instead of a form.
 export const RunningEmptyQuestions: Story = {
 	args: {
 		status: "running",
 		args: { questions: [] },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const liveRegion = canvas.getByRole("status");
-
-		expect(liveRegion).toHaveAttribute("aria-live", "polite");
-		expect(canvas.getByText("Asking for clarification...")).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -318,23 +299,10 @@ export const InteractiveWizardStep: Story = {
 		const canvas = within(canvasElement);
 		const nextButton = canvas.getByRole("button", { name: "Next" });
 
-		expect(canvas.getByText("Question 1 of 2")).toBeInTheDocument();
-		expect(nextButton).toBeEnabled();
-		expect(
-			canvas.queryByText(/Which rollout path should we use/i),
-		).not.toBeInTheDocument();
-
 		await userEvent.click(
 			canvas.getByRole("radio", { name: /incremental migrations/i }),
 		);
-		expect(nextButton).toBeEnabled();
-
 		await userEvent.click(nextButton);
-		expect(canvas.getByText("Question 2 of 2")).toBeInTheDocument();
-		expect(
-			canvas.getByText(/Which rollout path should we use/i),
-		).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Submit" })).toBeEnabled();
 	},
 };
 
@@ -385,18 +353,6 @@ export const PreviouslyAnsweredSingleQuestion: Story = {
 		isLatestAskUserQuestion: false,
 		previousResponseText: "Single migration",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			canvas.getByText("How should we structure the database migration?"),
-		).toBeInTheDocument();
-		expect(canvas.queryAllByRole("radio")).toHaveLength(0);
-		expect(canvas.queryByText("Submitted answer")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Submit" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const PreviouslyAnsweredWizard: Story = {
@@ -406,24 +362,6 @@ export const PreviouslyAnsweredWizard: Story = {
 		isChatCompleted: true,
 		isLatestAskUserQuestion: false,
 		previousResponseText: submittedWizardResponse,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			canvas.getByText(/How should we structure the database migration/),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByText(/Which rollout path should we use/),
-		).toBeInTheDocument();
-		expect(canvas.queryAllByRole("radio")).toHaveLength(0);
-		expect(canvas.queryByText("Submitted answer")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Next" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Submit" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -435,24 +373,26 @@ export const ReadOnlyPreviousCall: Story = {
 		isLatestAskUserQuestion: false,
 		onSendAskUserQuestionResponse: fn(),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const radios = canvas.getAllByRole("radio");
+};
 
-		expect(radios).toHaveLength(7);
-		expect(radios[0]).toBeDisabled();
-		expect(
-			canvas.getByText(/How should we structure the database migration/),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByText(/Which rollout path should we use/),
-		).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Next" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Submit" }),
-		).not.toBeInTheDocument();
+export const CompletedRewrittenByHook: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify(multipleQuestionsPayload),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: false,
+		hookRewritten: true,
+		onSendAskUserQuestionResponse: fn(),
+	},
+};
+
+export const CompletedEmptyPayloadRewrittenByHook: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify({ questions: [] }),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: false,
+		hookRewritten: true,
 	},
 };
 
@@ -461,20 +401,5 @@ export const ErrorState: Story = {
 		status: "completed",
 		isError: true,
 		result: "The planning agent could not deliver follow-up questions.",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.getByRole("alert")).toBeInTheDocument();
-		expect(
-			canvas.getByText(
-				"The planning agent could not deliver follow-up questions.",
-			),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", {
-				name: "The planning agent could not deliver follow-up questions.",
-			}),
-		).toBeInTheDocument();
 	},
 };

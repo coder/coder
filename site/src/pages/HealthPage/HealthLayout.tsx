@@ -1,4 +1,4 @@
-import CircularProgress from "@mui/material/CircularProgress";
+import { cn } from "cn";
 import kebabCase from "lodash/fp/kebabCase";
 import { BellOffIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, Suspense } from "react";
@@ -9,13 +9,13 @@ import type { HealthSeverity } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { pageTitle } from "#/utils/page";
 import { HealthIcon } from "./Content";
@@ -92,7 +92,7 @@ export const HealthLayout: FC = () => {
 												}}
 											>
 												{isRefreshing ? (
-													<CircularProgress size={16} />
+													<Spinner size="sm" loading />
 												) : (
 													<RotateCcwIcon className="size-5" />
 												)}

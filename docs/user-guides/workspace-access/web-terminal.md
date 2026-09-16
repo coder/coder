@@ -1,4 +1,6 @@
-# Web Terminal
+---
+title: Web Terminal
+---
 
 The Web Terminal is a browser-based terminal interface that provides instant
 access to your workspace's shell environment directly from the Coder dashboard.
@@ -15,7 +17,7 @@ and feature-rich terminal experience in your browser.
 
 ### Key Features
 
-- **Instant Access**: Click the terminal icon in your workspace to open a shell
+- **Instant Access**: Select the terminal icon in your workspace to open a shell
   session
 - **Persistent Sessions**: Sessions are maintained using reconnection tokens,
   allowing you to resume your terminal even after page refreshes or network
@@ -32,7 +34,7 @@ and feature-rich terminal experience in your browser.
 ### From the Dashboard
 
 1. Navigate to your workspace in the Coder dashboard
-2. Click the **Terminal** button or icon
+2. Select the **Terminal** button or icon
 3. The terminal will open in a new browser tab or window
 
 The terminal automatically connects to your workspace agent using an optimized
@@ -42,13 +44,13 @@ WebSocket connection.
 
 You can also bookmark or share direct terminal URLs:
 
-```text
+```txt
 https://coder.example.com/@username/workspace-name/terminal
 ```
 
 To access a specific agent in a multi-agent workspace:
 
-```text
+```txt
 https://coder.example.com/@username/workspace-name.agent-name/terminal
 ```
 
@@ -82,7 +84,7 @@ The terminal uses reconnection tokens to maintain session state:
 
 You can customize the terminal font through your user settings:
 
-1. Click your avatar in the top-right corner
+1. Select your avatar in the top-right corner
 2. Select **Settings** → **Appearance**
 3. Choose from available fonts:
    - **Geist Mono** (default)
@@ -104,7 +106,7 @@ webTerminalRenderer: "canvas"  # Options: canvas, webgl, dom
 
 Or via environment variable:
 
-```bash
+```sh
 CODER_WEB_TERMINAL_RENDERER=canvas
 ```
 
@@ -139,8 +141,8 @@ The Web Terminal supports standard terminal keybindings:
 
 ## URL Handling
 
-The terminal automatically detects URLs and makes them clickable. When you click
-a URL:
+The terminal automatically detects URLs and makes them clickable.
+When you select a URL:
 
 - **External URLs** (e.g., `https://example.com`) open in a new tab
 - **Localhost URLs** (e.g., `http://localhost:3000`) are automatically
@@ -155,12 +157,12 @@ This makes it seamless to open development servers running in your workspace.
 
 You can open a terminal with a specific command by adding a query parameter:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?command=htop
 ```
 
 When a `?command=` parameter is present, a confirmation dialog is shown before
-the command executes. The user must click **Run command** to proceed or
+the command executes. The user must select **Run command** to proceed or
 **Cancel** to close the terminal window. This prevents external links from
 silently executing arbitrary commands in a workspace.
 
@@ -174,13 +176,13 @@ parameter internally, which resolves the command from the agent's app list.
 For workspaces with multiple Docker containers, specify which container to
 connect to:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?container=sidecar
 ```
 
 You can also specify the container user:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?container=app&container_user=node
 ```
 
@@ -190,7 +192,7 @@ https://coder.example.com/@user/workspace/terminal?container=app&container_user=
 
 Enable debug information to monitor connection latency:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?debug
 ```
 
@@ -215,7 +217,7 @@ End-users can customize:
 
 The terminal respects your shell's configuration files:
 
-```bash
+```sh
 # ~/.bashrc or ~/.zshrc
 export PS1="\u@\h:\w\$ "  # Custom prompt
 alias ll="ls -lah"         # Custom aliases

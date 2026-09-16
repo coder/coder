@@ -34,3 +34,12 @@ export const Apps: Story = {
 		revoke: () => undefined,
 	},
 };
+
+export const Empty: Story = {
+	args: {
+		isLoading: false,
+		error: undefined,
+		apps: [],
+		revoke: () => undefined,
+	},
+};

@@ -1,5 +1,7 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Sidebar,
@@ -22,11 +24,17 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 	isSelected,
 	resources,
 }) => {
+	const [showHiddenResources, setShowHiddenResources] = useState(false);
+	const hasHiddenResources = resources.some((r) => r.hide);
+	const displayedResources = resources.filter(
+		(r) => !r.hide || showHiddenResources || isSelected(r),
+	);
+
 	return (
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>
 			{failed && (
-				<p className="m-0 py-4 text-[13px] text-content-secondary leading-normal">
+				<p className="m-0 py-4 text-sm font-normal text-content-secondary leading-normal">
 					Your workspace build failed, so the necessary resources couldn&apos;t
 					be created.
 				</p>
@@ -38,7 +46,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 						<ResourceSidebarItemSkeleton />
 					</SidebarItem>
 				))}
-			{resources.map((r) => (
+			{displayedResources.map((r) => (
 				<SidebarItem
 					onClick={() => onChange(r)}
 					isActive={isSelected(r)}
@@ -58,6 +66,19 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					</div>
 				</SidebarItem>
 			))}
+			{hasHiddenResources && (
+				<div className="flex items-center justify-center mt-4 px-4">
+					<Button
+						variant="outline"
+						size="sm"
+						className="rounded-full w-full"
+						onClick={() => setShowHiddenResources((v) => !v)}
+					>
+						{showHiddenResources ? "Hide" : "Show hidden"} resources
+						<ChevronDownIcon open={showHiddenResources} className="ml-2" />
+					</Button>
+				</div>
+			)}
 		</Sidebar>
 	);
 };

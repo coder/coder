@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
@@ -77,9 +78,22 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			logger := inv.Logger
-			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, providerPropagationWait)
+			modelForOrg, err := chat.EnsureScaletestChatModel(ctx, client, logger, llmMockURL, providerPropagationWait)
 			if err != nil {
 				return err
+			}
+			uncachedModelForOrg := modelForOrg
+			modelIDsByOrganization := make(map[uuid.UUID]uuid.UUID)
+			modelForOrg = func(organizationID uuid.UUID) (uuid.UUID, error) {
+				if modelID, ok := modelIDsByOrganization[organizationID]; ok {
+					return modelID, nil
+				}
+				modelID, err := uncachedModelForOrg(organizationID)
+				if err != nil {
+					return uuid.Nil, err
+				}
+				modelIDsByOrganization[organizationID] = modelID
+				return modelID, nil
 			}
 
 			// Start metrics and tracing before creating runners.
@@ -124,11 +138,16 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 						turnStartReadyWaitGroup.Add(1)
 					}
 
+					modelID, err := modelForOrg(targetWorkspace.OrganizationID)
+					if err != nil {
+						return xerrors.Errorf("ensure scaletest model config for organization %s: %w", targetWorkspace.OrganizationID, err)
+					}
+
 					cfg := chat.Config{
 						OrganizationID:          targetWorkspace.OrganizationID,
 						WorkspaceID:             targetWorkspace.ID,
 						Prompt:                  prompt,
-						ModelConfigID:           modelConfigID,
+						ModelConfigID:           modelID,
 						Turns:                   int(turns),
 						TurnStartDelay:          turnStartDelay,
 						TurnStartReadyWaitGroup: turnStartReadyWaitGroup,

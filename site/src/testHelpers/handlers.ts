@@ -82,6 +82,32 @@ export const handlers = [
 		},
 	),
 
+	// chat models
+	http.get(
+		"/api/v2/organizations/:organizationId/chats/models/:modelId/acl/available",
+		() => HttpResponse.json(M.MockChatModelACLAvailable),
+	),
+	http.get(
+		"/api/v2/organizations/:organizationId/chats/models/:modelId/acl",
+		() => HttpResponse.json(M.MockChatModelACL),
+	),
+	http.patch(
+		"/api/v2/organizations/:organizationId/chats/models/:modelId/acl",
+		() => new HttpResponse(null, { status: 204 }),
+	),
+	http.get(
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl/available",
+		() => HttpResponse.json(M.MockMCPServerConfigACLAvailable),
+	),
+	http.get(
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl",
+		() => HttpResponse.json(M.MockMCPServerConfigACL),
+	),
+	http.patch(
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl",
+		() => new HttpResponse(null, { status: 204 }),
+	),
+
 	// templates
 	http.get("/api/v2/templates", () => {
 		return HttpResponse.json([M.MockTemplate]);
@@ -116,6 +142,16 @@ export const handlers = [
 		"/api/v2/templateversions/:templateVersionId/rich-parameters",
 		() => {
 			return HttpResponse.json([]);
+		},
+	),
+	http.post(
+		"/api/v2/templateversions/:templateVersionId/dynamic-parameters/evaluate",
+		() => {
+			return HttpResponse.json({
+				id: 0,
+				diagnostics: [],
+				parameters: [],
+			});
 		},
 	),
 	http.get("/api/v2/templateversions/:templateVersionId/external-auth", () => {
@@ -217,6 +253,9 @@ export const handlers = [
 		return HttpResponse.json(userSecretFromCreateRequest(body), {
 			status: 201,
 		});
+	}),
+	http.post("/api/v2/users/:userId/secrets/batch", () => {
+		return HttpResponse.json(M.MockImportedUserSecrets, { status: 201 });
 	}),
 	http.patch(
 		"/api/v2/users/:userId/secrets/:name",
@@ -332,15 +371,7 @@ export const handlers = [
 
 	// Groups
 	http.get("/api/v2/organizations/:organizationId/groups", () => {
-		return HttpResponse.json([
-			{
-				...MockGroup,
-				ai_cost_control: {
-					current_spend_micros: 25_492_000_000,
-					spend_limit_micros: null,
-				},
-			},
-		]);
+		return HttpResponse.json([M.MockGroup]);
 	}),
 
 	http.post("/api/v2/organizations/:organizationId/groups", () => {
@@ -442,6 +473,7 @@ function userSecretFromCreateRequest(
 		description: request.description ?? "",
 		env_name: request.env_name ?? "",
 		file_path: request.file_path ?? "",
+		enabled: request.enabled ?? true,
 		created_at: now,
 		updated_at: now,
 	};

@@ -1,9 +1,10 @@
-# nsjail Jail Type
+---
+title: nsjail jail type
+---
 
 > [!NOTE]
-> Agent Firewall requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access Agent Firewall.
+> Agent Firewall is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 nsjail is Agent Firewall's default jail type that uses Linux namespaces to
 provide process isolation. It creates unprivileged network namespaces to control

@@ -29,10 +29,12 @@ type templateMetaUpdate struct {
 	allowUserAutostart                   bool
 	allowUserAutostop                    bool
 	allowUserCancelWorkspaceJobs         bool
+	agentsAllowed                        bool
 	requireActiveVersion                 bool
 	deprecationMessage                   string
 	useClassicTemplateFlow               bool
 	disableModuleCache                   bool
+	allowWorkspaceRenames                bool
 	corsBehavior                         database.CorsBehavior
 	autostopRequirementDaysOfWeekParsed  uint8
 	autostartRequirementDaysOfWeekParsed uint8
@@ -60,12 +62,22 @@ type templateMetaUpdate struct {
 // failureTTLMillis >= 1 minute, max port share level) and validation
 // that depends on external interfaces (such as port-sharing licensure)
 // are the caller's responsibility.
+//
+// The deployment values make disableModuleCache read-only when the deployment
+// disables the Terraform module cache for every template: the request value is
+// discarded rather than persisted.
 func resolveTemplateMetaUpdate(
 	template database.Template,
 	scheduleOpts schedule.TemplateScheduleOptions,
 	req codersdk.UpdateTemplateMeta,
+	deploymentValues *codersdk.DeploymentValues,
 ) (templateMetaUpdate, []codersdk.ValidationError) {
 	var validErrs []codersdk.ValidationError
+
+	disableModuleCache := ptr.NilToDefault(req.DisableModuleCache, template.DisableModuleCache)
+	if codersdk.ModuleCacheDisabledByDeployment(deploymentValues) {
+		disableModuleCache = template.DisableModuleCache
+	}
 
 	out := templateMetaUpdate{
 		name:                           ptr.NilToDefault(req.Name, template.Name),
@@ -81,10 +93,12 @@ func resolveTemplateMetaUpdate(
 		allowUserAutostart:             ptr.NilToDefault(req.AllowUserAutostart, template.AllowUserAutostart),
 		allowUserAutostop:              ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop),
 		allowUserCancelWorkspaceJobs:   ptr.NilToDefault(req.AllowUserCancelWorkspaceJobs, template.AllowUserCancelWorkspaceJobs),
+		agentsAllowed:                  ptr.NilToDefault(req.AgentsAllowed, template.AgentsAllowed),
 		requireActiveVersion:           ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion),
 		deprecationMessage:             ptr.NilToDefault(req.DeprecationMessage, template.Deprecated),
 		useClassicTemplateFlow:         ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),
-		disableModuleCache:             ptr.NilToDefault(req.DisableModuleCache, template.DisableModuleCache),
+		disableModuleCache:             disableModuleCache,
+		allowWorkspaceRenames:          ptr.NilToDefault(req.AllowWorkspaceRenames, template.AllowWorkspaceRenames),
 		groupACL:                       template.GroupACL,
 
 		// Default to the original values

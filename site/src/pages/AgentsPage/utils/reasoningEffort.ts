@@ -1,6 +1,32 @@
-/** Display label for an effort value, e.g. "xhigh" renders as "Xhigh". */
-export const formatReasoningEffort = (value: string): string =>
-	value.charAt(0).toUpperCase() + value.slice(1);
+const reasoningEffortStorageKeyPrefix = "agents.reasoning-effort.";
+
+const reasoningEffortStorageKey = (modelID: string) =>
+	`${reasoningEffortStorageKeyPrefix}${modelID}`;
+
+/** Reads the persisted effort for a model, or undefined when none is stored or storage is unavailable. */
+export const getReasoningEffortForModel = (
+	modelID: string,
+): string | undefined => {
+	try {
+		return (
+			localStorage.getItem(reasoningEffortStorageKey(modelID)) ?? undefined
+		);
+	} catch {
+		return undefined;
+	}
+};
+
+/** Persists the effort for a model. Swallows storage errors (private mode, quota) so the caller's in-memory selection is unaffected. */
+export const saveReasoningEffortForModel = (
+	modelID: string,
+	reasoningEffort: string,
+): void => {
+	try {
+		localStorage.setItem(reasoningEffortStorageKey(modelID), reasoningEffort);
+	} catch {
+		// Keep the in-memory selection when storage is unavailable.
+	}
+};
 
 /** Chooses requested effort, then default effort, then the last selectable effort. */
 export const pickReasoningEffort = (

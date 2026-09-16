@@ -79,7 +79,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			backends.NewSlog(options.Logger),
 		)
 
-		options.TrialGenerator = trialer.New(options.Database, "https://v2-licensor.coder.com/trial", coderd.Keys)
+		options.TrialGenerator = trialer.New(options.Database, trialer.LicenseRequestURL, coderd.Keys).Generate
 
 		o := &coderd.Options{
 			Options:                   options,
@@ -130,9 +130,13 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// Start the enterprise usage publisher routine. This won't do anything
 		// unless the deployment is licensed and one of the licenses has usage
 		// publishing enabled.
-		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys,
+		publisherOptions := []usage.TallymanPublisherOption{
 			usage.PublisherWithHTTPClient(api.HTTPClient),
-		)
+		}
+		if options.DeploymentValues.Prometheus.Enable {
+			publisherOptions = append(publisherOptions, usage.PublisherWithPrometheusRegisterer(options.PrometheusRegistry))
+		}
+		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys, publisherOptions...)
 		err = publisher.Start()
 		if err != nil {
 			_ = closers.Close()
@@ -154,30 +158,17 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		usageCron.Start(ctx)
 		closers.Add(usageCron)
 
+		// Usage generation is deliberately not license-gated; the
+		// publish_usage_data license flag only gates publishing to Tallyman.
+		usageGenerator := usage.NewGenerator(quartz.NewReal(), options.Logger.Named("usage-event-generator"), options.Database, *options.UsageInserter.Load())
+		usageGenerator.Start(ctx)
+		closers.Add(usageGenerator)
+
 		// In-memory AI Bridge Proxy daemon. The bridge daemon itself is
 		// started unconditionally by AGPL cli/server.go (chatd uses its
 		// in-memory roundtripper regardless of license); only the proxy
 		// daemon remains enterprise-gated by config.
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			// Seed env-derived providers before the proxy daemon's reloader
-			// reads them back so the proxy observes them on first startup.
-			// options.Database is dbcrypt-wrapped at this point (set by
-			// coderd.New above), so env-seeded keys are also written
-			// encrypted. Detached ctx for the same reason as in agplcli
-			// below: an early return would orphan newAPI's goroutines.
-			// Seeding is idempotent; the agplcli path seeds again
-			// post-newAPI.
-			//nolint:gocritic // Production timeout, not a test wait.
-			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-			defer aibridgeInitCancel()
-			if err := agplcoderd.SeedAIProvidersFromEnv(
-				aibridgeInitCtx,
-				options.Database,
-				options.DeploymentValues.AI.BridgeConfig,
-				options.Logger.Named("aibridge.envseed"),
-			); err != nil {
-				return nil, nil, xerrors.Errorf("seed ai providers from env: %w", err)
-			}
 			aiBridgeProxyCloser, err := newAIBridgeProxyDaemon(api)
 			if err != nil {
 				_ = closers.Close()

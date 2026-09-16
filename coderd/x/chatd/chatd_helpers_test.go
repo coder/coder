@@ -12,6 +12,7 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -57,7 +58,6 @@ func filterAnthropicStreamingRequests(requests []chattest.AnthropicRequest) []ch
 func seedAnthropicChatDependencies(t *testing.T, db database.Store, baseURL string) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
 	user := dbgen.User(t, db, database.User{})
-	_ = testAPIKeyID(t, db, user.ID)
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic}, func(params *database.InsertAIProviderParams) {
@@ -65,9 +65,10 @@ func seedAnthropicChatDependencies(t *testing.T, db database.Store, baseURL stri
 	})
 	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: provider.ID})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "claude-sonnet-4-20250514",
-		IsDefault:    true,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "claude-sonnet-4-20250514",
+		IsDefault:      true,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	})
 	return user, org, model
 }
@@ -84,6 +85,34 @@ func anthropicRequestBody(t *testing.T, req chattest.AnthropicRequest) string {
 	return string(data)
 }
 
+func singleChatMessageInsertParams(
+	chatID uuid.UUID,
+	role database.ChatMessageRole,
+	content pqtype.NullRawMessage,
+	modelConfigID uuid.UUID,
+	createdBy uuid.UUID,
+) database.InsertChatMessagesParams {
+	return database.InsertChatMessagesParams{
+		ChatID:              chatID,
+		CreatedBy:           []uuid.UUID{createdBy},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
+		ReasoningEffort:     []string{""},
+		Role:                []database.ChatMessageRole{role},
+		Content:             []string{string(content.RawMessage)},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		RuntimeMs:           []int64{0},
+	}
+}
+
 func insertSystemTextMessage(
 	ctx context.Context,
 	t *testing.T,
@@ -95,13 +124,11 @@ func insertSystemTextMessage(
 	t.Helper()
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
-	params := chatd.BuildSingleChatMessageInsertParams(
+	params := singleChatMessageInsertParams(
 		chatID,
 		database.ChatMessageRoleSystem,
 		content,
-		database.ChatMessageVisibilityBoth,
 		modelID,
-		chatprompt.CurrentContentVersion,
 		uuid.Nil,
 	)
 	_, err = db.InsertChatMessages(ctx, params)
@@ -130,13 +157,11 @@ func insertOrphanProviderToolCall(ctx context.Context, t *testing.T, db database
 	}
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	params := chatd.BuildSingleChatMessageInsertParams(
+	params := singleChatMessageInsertParams(
 		chatID,
 		database.ChatMessageRoleAssistant,
 		content,
-		database.ChatMessageVisibilityBoth,
 		modelID,
-		chatprompt.CurrentContentVersion,
 		uuid.Nil,
 	)
 	_, err = db.InsertChatMessages(ctx, params)
@@ -157,7 +182,6 @@ func createChatThroughServer(
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     orgID,
 		OwnerID:            userID,
-		APIKeyID:           testAPIKeyID(t, db, userID),
 		Title:              "test chat",
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
 		ModelConfigID:      modelID,

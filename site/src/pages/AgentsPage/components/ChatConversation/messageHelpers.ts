@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
 	ParsedMessageContent,
@@ -68,7 +69,8 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
 		visibleTools.length > 0 ||
-		parsed.sources.length > 0;
+		parsed.sources.length > 0 ||
+		parsed.hookNotices.length > 0;
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
@@ -194,13 +196,12 @@ const isReadFileOnlyMessage = (entry: ParsedMessageEntry): boolean => {
 const mergeReadFileMessageGroup = (
 	group: readonly ParsedMessageEntry[],
 ): ParsedMessageEntry => {
-	if (group.length === 1) {
-		return group[0];
-	}
-
 	const [first] = group;
 	return {
 		message: first.message,
+		// Singletons carry mergedFrom too: a prepend can extend the run, and
+		// the row key must not change when it does.
+		mergedFrom: group.map((entry) => entry.message.id),
 		parsed: {
 			markdown: "",
 			reasoning: "",
@@ -209,8 +210,23 @@ const mergeReadFileMessageGroup = (
 			tools: group.flatMap((entry) => entry.parsed.tools),
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
 			sources: [],
+			hookNotices: [],
 		},
 	};
+};
+
+// A merged group's row key cannot come from its first member: prepending
+// history into the group changes it. Key off the newest member instead, which
+// pagination never changes for an existing group. The tradeoff: a live turn
+// that keeps appending reads to the tail group changes the key and remounts
+// the row, collapsing its expansion state. No client-side key is stable in
+// both directions; prepend stability wins because scroll preservation
+// depends on it.
+export const getDisplayMessageKey = (entry: ParsedMessageEntry): string => {
+	if (entry.mergedFrom === undefined) {
+		return `message:${entry.message.id}`;
+	}
+	return `read-file-group:through:${entry.mergedFrom[entry.mergedFrom.length - 1]}`;
 };
 
 // Real transcripts place hidden tool-result-only messages between
@@ -248,4 +264,54 @@ export const buildDisplayMessages = (
 
 	flushReadFileEntries();
 	return grouped;
+};
+
+const NO_FILE_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * Chat files a message part references, in the order the server linked
+ * them. A wait_agent result stores its recording before its thumbnail.
+ */
+const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
+	switch (part.type) {
+		case "file":
+			return part.file_id ? [part.file_id] : [];
+		case "tool-result": {
+			const result = asRecord(part.result);
+			return [result?.recording_file_id, result?.thumbnail_file_id].filter(
+				(fileId): fileId is string =>
+					typeof fileId === "string" && fileId.length > 0,
+			);
+		}
+		default:
+			return [];
+	}
+};
+
+/**
+ * Eviction removes a chat's oldest attachments first, and the chat record
+ * lists the attachments that remain. An attachment referenced before the
+ * newest remaining one but absent from the record has been evicted. Later
+ * references are newer than the record, so a message that lands before the
+ * next chat refetch is never mistaken for an evicted one.
+ */
+export const deriveEvictedFileIds = (
+	entries: readonly ParsedMessageEntry[],
+	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
+): ReadonlySet<string> => {
+	if (!chatFiles) {
+		return NO_FILE_IDS;
+	}
+	const linkedFileIds = new Set(chatFiles.map((file) => file.id));
+	const referencedFileIds = entries.flatMap(({ message }) =>
+		(message.content ?? []).flatMap(partFileIds),
+	);
+	const newestLinkedIndex = referencedFileIds.findLastIndex((fileId) =>
+		linkedFileIds.has(fileId),
+	);
+	return new Set(
+		referencedFileIds
+			.slice(0, Math.max(newestLinkedIndex, 0))
+			.filter((fileId) => !linkedFileIds.has(fileId)),
+	);
 };

@@ -1,71 +1,240 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { MockNoPermissions, MockPermissions } from "#/testHelpers/entities";
+import { useLocation } from "react-router";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import {
+	type RouterRoute,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
+import { organizationsPermissions } from "#/api/queries/organizations";
+import {
+	MockDefaultOrganization,
+	MockNoPermissions,
+	MockOrganizationPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
+import { AISettingsSidebar } from "./AISettingsSidebar";
 import AISettingsSidebarView from "./AISettingsSidebarView";
+
+const LocationProbe = () => {
+	const location = useLocation();
+	return (
+		<p role="status" aria-label="Current location" className="sr-only">
+			{location.pathname}
+			{location.search}
+		</p>
+	);
+};
+
+const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
+	{ path: "/ai/settings/governance", useStoryElement: true },
+	{ path: "/ai/settings/gateway-keys", useStoryElement: true },
+	{ path: "/ai/settings/providers", useStoryElement: true },
+	{ path: "/ai/settings/coder-agents", useStoryElement: true },
+	{ path: "/ai/settings/models", useStoryElement: true },
+	{
+		path: "/ai/settings/organizations/:organization/models",
+		useStoryElement: true,
+	},
+	{ path: "/ai/settings/mcp-servers", useStoryElement: true },
+	{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
+	{ path: "/ai/settings/templates", useStoryElement: true },
+	{ path: "/ai/settings/instructions", useStoryElement: true },
+	{ path: "/ai/settings/lifecycle", useStoryElement: true },
+];
+
+const atLocation = (path: string, searchParams?: Record<string, string>) =>
+	reactRouterParameters({
+		location: { path, searchParams },
+		routing: aiSettingsRoutes,
+	});
+
+const followLink = async (
+	canvas: ReturnType<typeof within>,
+	name: string,
+	expectedLocation: string,
+) => {
+	await userEvent.click(canvas.getByRole("link", { name }));
+	await waitFor(() =>
+		expect(
+			canvas.getByRole("status", { name: "Current location" }).textContent,
+		).toBe(expectedLocation),
+	);
+};
 
 const meta: Meta<typeof AISettingsSidebarView> = {
 	title: "modules/management/AISettingsSidebarView",
 	component: AISettingsSidebarView,
+	decorators: [
+		(Story) => (
+			<>
+				<Story />
+				<LocationProbe />
+			</>
+		),
+	],
 	args: {
 		permissions: MockPermissions,
 	},
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/coder-agents" },
-			routing: [
-				{ path: "/ai/settings/governance", useStoryElement: true },
-				{ path: "/ai/settings/gateway-keys", useStoryElement: true },
-				{ path: "/ai/settings/providers", useStoryElement: true },
-				{ path: "/ai/settings/coder-agents", useStoryElement: true },
-				{ path: "/ai/settings/models", useStoryElement: true },
-				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
-				{ path: "/ai/settings/templates", useStoryElement: true },
-				{ path: "/ai/settings/spend", useStoryElement: true },
-				{ path: "/ai/settings/instructions", useStoryElement: true },
-				{ path: "/ai/settings/lifecycle", useStoryElement: true },
-			],
-		}),
+		reactRouter: atLocation("/ai/settings/coder-agents"),
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof AISettingsSidebarView>;
 
-export const CoderAgentsActive: Story = {};
-
-export const ModelsActive: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/models" },
-			routing: [{ path: "/ai/settings/models", useStoryElement: true }],
-		}),
+export const CoderAgentsActive: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Spend" }),
+		).not.toBeInTheDocument();
 	},
 };
 
-export const SpendActive: Story = {
+export const ModelsActive: Story = {
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/spend" },
-			routing: [{ path: "/ai/settings/spend", useStoryElement: true }],
-		}),
+		reactRouter: atLocation("/ai/settings/models"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+	},
+};
+
+export const OrganizationParamPreserved: Story = {
+	parameters: {
+		reactRouter: atLocation("/ai/settings/models", { org: "my organization" }),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await followLink(
+			canvas,
+			"Coder Agents",
+			"/ai/settings/coder-agents?org=my+organization",
+		);
+		await followLink(
+			canvas,
+			"MCP servers",
+			"/ai/settings/mcp-servers?org=my+organization",
+		);
+		await followLink(
+			canvas,
+			"Models",
+			"/ai/settings/models?org=my+organization",
+		);
+		await followLink(canvas, "Providers", "/ai/settings/providers");
+	},
+};
+
+export const ModelsActiveOnOrganizationRoute: Story = {
+	parameters: {
+		reactRouter: atLocation(
+			"/ai/settings/organizations/my-organization/models",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
 	},
 };
 
 export const LifecycleActive: Story = {
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/lifecycle" },
-			routing: [{ path: "/ai/settings/lifecycle", useStoryElement: true }],
-		}),
+		reactRouter: atLocation("/ai/settings/lifecycle"),
 	},
 };
 
 export const ProvidersActive: Story = {
 	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/providers" },
-			routing: [{ path: "/ai/settings/providers", useStoryElement: true }],
-		}),
+		reactRouter: atLocation("/ai/settings/providers"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "Models" }),
+		).not.toHaveAttribute("aria-current", "page");
+	},
+};
+
+export const ModelsWithoutDeploymentConfig: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "Models" }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: "Coder Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ModelsWithDeletePermissionOnly: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+	},
+};
+
+export const ModelsWithReadPermissionOnly: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+	},
+};
+
+export const OrganizationOnlyRoleCanAccessModels: Story = {
+	render: () => <AISettingsSidebar />,
+	decorators: [withAuthProvider, withDashboardProvider],
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockNoPermissions,
+		organizations: [MockDefaultOrganization],
+		queries: [
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: "Coder Agents" }),
+		).toBeVisible();
 	},
 };
 
@@ -74,7 +243,150 @@ export const NoDeploymentConfig: Story = {
 		permissions: {
 			...MockPermissions,
 			editDeploymentConfig: false,
+			updateAnyTemplate: false,
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Coder Agents")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Templates")).not.toBeInTheDocument();
+	},
+};
+
+export const TemplatesForOrganizationAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyTemplate: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const templatesLink = canvas.getByRole("link", { name: "Templates" });
+		await expect(templatesLink).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Coder Agents" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(templatesLink);
+
+		await waitFor(() =>
+			expect(canvas.getByRole("link", { name: "Templates" })).toHaveAttribute(
+				"aria-current",
+				"page",
+			),
+		);
+	},
+};
+
+export const NoUpdateTemplates: Story = {
+	args: {
+		permissions: {
+			...MockPermissions,
+			updateAnyTemplate: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Coder Agents")).toBeVisible();
+		expect(canvas.queryByText("Templates")).not.toBeInTheDocument();
+		expect(canvas.getByText("Models")).toBeVisible();
+	},
+};
+
+export const MCPServersForUpdateOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toBeVisible();
+	},
+};
+
+export const MCPServersForDeleteOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
+export const MCPServersForOrganizationShareOnlyAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canShareOrganizationMCPServers: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
+export const MCPServersForCreateOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers/add");
+	},
+};
+
+export const MCPServersForCreateOnlyAdminPreservesOrganization: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/mcp-servers", {
+			org: MockDefaultOrganization.name,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await followLink(
+			canvas,
+			"MCP servers",
+			`/ai/settings/mcp-servers/add?org=${MockDefaultOrganization.name}`,
+		);
+	},
+};
+
+export const MCPServersHiddenWithoutPermission: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("link", { name: "MCP servers" }),
+		).not.toBeInTheDocument();
 	},
 };
 

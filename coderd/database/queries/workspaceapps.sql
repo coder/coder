@@ -118,9 +118,13 @@ ORDER BY created_at DESC, id DESC
 LIMIT 1;
 
 -- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
+-- id DESC is a stability tiebreaker, not an insertion-order signal: back-to-back
+-- inserts can share a created_at on platforms with coarse time.Now() resolution,
+-- and id is a random UUID, so this only guarantees a deterministic pick, not the
+-- later row. Callers must not depend on sub-microsecond recency here.
 SELECT DISTINCT ON (workspace_id)
   *
 FROM workspace_app_statuses
 WHERE workspace_id = ANY(@ids :: uuid[])
-ORDER BY workspace_id, created_at DESC;
+ORDER BY workspace_id, created_at DESC, id DESC;
 

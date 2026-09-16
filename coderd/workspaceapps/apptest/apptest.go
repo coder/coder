@@ -1094,7 +1094,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.NoError(t, err)
 
 		// Verify the prefix is in the token.
-		require.Equal(t, prefixedOwnerApp.Prefix, tok.Request.Prefix)
+		require.Equal(t, prefixedOwnerApp.Prefix, tok.Prefix)
 
 		// Ensure the signed app token cookie is valid by making a request with
 		// it with no session token.
@@ -2158,7 +2158,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		// server canonicalizes all HTTP request headers it receives, so we
 		// can't use it to test that we forward non-canonical headers.
 		// #nosec
-		ln, err := net.Listen("tcp", ":0")
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		go func() {
 			for {

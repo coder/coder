@@ -1,4 +1,6 @@
-# Icons
+---
+title: Icons
+---
 
 Coder uses icons in several places, including ones that can be configured
 throughout the app, or specified in your Terraform. They're specified by a URL,
@@ -39,7 +41,7 @@ come bundled with your Coder deployment.
     `CODER_EXTERNAL_AUTH_X_ICON` environment variable, where `X` is the number
     of the provider.
 
-    ```env
+    ```dotenv
     CODER_EXTERNAL_AUTH_0_ICON=/icon/github.svg
     CODER_EXTERNAL_AUTH_1_ICON=/icon/google.svg
     ```

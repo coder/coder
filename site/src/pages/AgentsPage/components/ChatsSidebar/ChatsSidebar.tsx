@@ -2,11 +2,11 @@ import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
-import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
+import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
-import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsPanel } from "./chats/ChatsPanel";
-import { ChatSearchDialog, RenameChatDialog } from "./dialogs";
+import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
+import { RenameChatDialog } from "./dialogs/RenameChatDialog";
 import { SettingsPanel } from "./settings/SettingsPanel";
 import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
@@ -15,8 +15,8 @@ export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 interface ChatsSidebarProps {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
-	modelOptions: readonly ModelSelectorOption[];
-	modelConfigs: readonly ChatModelConfig[];
+	modelConfigs: readonly ChatModel[];
+	isLoadingModelConfigs?: boolean;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
@@ -50,6 +50,12 @@ interface ChatsSidebarProps {
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
+	/**
+	 * Whether the user can open the Coder Agents settings page. Broader
+	 * than isAdmin: organization model admins qualify without deployment
+	 * config access.
+	 */
+	canManageAgentSettings?: boolean;
 	currentUserId: string;
 }
 
@@ -57,8 +63,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const {
 		chats,
 		chatErrorReasons,
-		modelOptions,
 		modelConfigs,
+		isLoadingModelConfigs = false,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
@@ -86,6 +92,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
+		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -123,8 +130,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
-				modelOptions={modelOptions}
 				modelConfigs={modelConfigs}
+				isLoadingModelConfigs={isLoadingModelConfigs}
 				onArchiveAgent={onArchiveAgent}
 				onUnarchiveAgent={onUnarchiveAgent}
 				onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
@@ -157,7 +164,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				settingsSection={settingsSection}
 				showApiKeysItem={showApiKeysItem}
 				isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
-				isAdmin={isAdmin}
+				canManageAgentSettings={canManageAgentSettings}
 				location={location}
 				onCollapse={onCollapse}
 			/>

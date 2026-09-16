@@ -56,6 +56,21 @@ func TestBuildInfo(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, buildinfo.ExternalURL(), buildInfo.ExternalURL, "external URL")
 	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
+	require.True(t, buildInfo.OAuth2Provider, "coderdtest enables the OAuth2 provider by default")
+}
+
+func TestBuildInfoOAuth2ProviderDisabled(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.OAuth2.Provider.Enable = false
+		}),
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	buildInfo, err := client.BuildInfo(ctx)
+	require.NoError(t, err)
+	require.False(t, buildInfo.OAuth2Provider)
 }
 
 func TestDERP(t *testing.T) {
@@ -441,12 +456,12 @@ func TestDERPMetrics(t *testing.T) {
 
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
-	require.NotNil(t, api.Options.DERPServer, "DERP server should be configured")
-	require.NotNil(t, api.Options.PrometheusRegistry, "Prometheus registry should be configured")
+	require.NotNil(t, api.DERPServer, "DERP server should be configured")
+	require.NotNil(t, api.PrometheusRegistry, "Prometheus registry should be configured")
 
 	// The registry is created internally by coderd. Gather from it
 	// to verify DERP metrics were registered during startup.
-	metrics, err := api.Options.PrometheusRegistry.Gather()
+	metrics, err := api.PrometheusRegistry.Gather()
 	require.NoError(t, err)
 
 	names := make(map[string]struct{})
@@ -518,7 +533,7 @@ func TestWebSocketProbeMetrics(t *testing.T) {
 
 	// Assert the probe metric was recorded.
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		metrics, err := api.Options.PrometheusRegistry.Gather()
+		metrics, err := api.PrometheusRegistry.Gather()
 		assert.NoError(t, err)
 		return testutil.PromCounterHasValue(t, metrics, 1,
 			"coderd_api_websocket_probes_total", "/api/v2/notifications/inbox/watch", "ok")
@@ -611,4 +626,52 @@ func TestRateLimitByUser(t *testing.T) {
 		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode,
 			"member should not be able to bypass rate limit")
 	})
+}
+
+// TestRateLimitPathNormalization is a regression test for CDM-02-003
+// (Cure53): a client could bypass a rate limit by inserting redundant
+// slashes into the request path. Coder's router still routes the
+// respelled path to the same handler as the canonical path, but the rate
+// limiter previously keyed its bucket on the raw, un-normalized path, so
+// the respelled request landed in a fresh bucket instead of the one
+// already exhausted by the canonical path.
+func TestRateLimitPathNormalization(t *testing.T) {
+	t.Parallel()
+
+	const rateLimit = 2
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		LoginRateLimit: rateLimit,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	post := func(path string) int {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			client.URL.String()+path, strings.NewReader(`{"password":"hunter2"}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	// Exhaust the limit against the canonical path.
+	for i := range rateLimit {
+		require.Equal(t, http.StatusOK, post("/api/v2/users/validate-password"),
+			"request %d against the canonical path should succeed", i+1)
+	}
+
+	// The canonical path is now rate limited.
+	require.Equal(t, http.StatusTooManyRequests, post("/api/v2/users/validate-password"),
+		"canonical path should be rate limited after exhausting the limit")
+
+	// Respelling the same endpoint with redundant slashes must not grant a
+	// fresh bucket: it's the same handler, so it must still be limited.
+	require.Equal(t, http.StatusTooManyRequests, post("/api/v2/users//validate-password"),
+		"double-slash variant must share the canonical path's rate-limit bucket")
+	require.Equal(t, http.StatusTooManyRequests, post("/api/v2/users///validate-password"),
+		"triple-slash variant must share the canonical path's rate-limit bucket")
 }

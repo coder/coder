@@ -13,6 +13,9 @@ export const formatTemplateActiveDevelopers = (num?: number): string => {
 	return num.toString();
 };
 
+export const formatTemplateActiveDevelopersLabel = (num?: number): string =>
+	`${formatTemplateActiveDevelopers(num)} developer${num === 1 ? "" : "s"}`;
+
 export const formatTemplateBuildTime = (
 	buildTimeMs?: number | null,
 ): string => {

@@ -17,7 +17,7 @@ NODE_ENV=development pnpm vite build --mode=development
 # Install the browsers to `~/.cache/ms-playwright`.
 pnpm playwright:install
 # Run E2E tests. You can see the configuration of the server
-# in `playwright.config.ts`. This uses `go run -tags embed ...`.
+# in `playwright.config.ts`. This builds and runs `site/e2e/bin/coder`.
 pnpm playwright:test
 # Run a specific test (`-g` stands for grep. It accepts regex).
 pnpm playwright:test -g '<your test here>'

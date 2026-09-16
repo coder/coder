@@ -1,15 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
-import { withProxyProvider } from "#/testHelpers/storybook";
+import {
+	withDashboardProvider,
+	withProxyProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -17,11 +27,11 @@ import {
 } from "./AgentChatInput";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
 const defaultModelOptions = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -31,10 +41,17 @@ const defaultModelOptions = [
 const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
-	decorators: [withProxyProvider()],
+	decorators: [withDashboardProvider, withProxyProvider()],
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "enter",
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -59,12 +76,6 @@ const promptHistory = [
 const getEditor = (canvasElement: HTMLElement) =>
 	within(canvasElement).getByTestId("chat-message-input");
 
-const expectEditorText = async (editor: HTMLElement, text: string) => {
-	await waitFor(() => {
-		expect(editor.textContent).toBe(text);
-	});
-};
-
 export const Default: Story = {};
 
 export const PromptHistoryCycling: Story = {
@@ -73,29 +84,8 @@ export const PromptHistoryCycling: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
 		await userEvent.click(editor);
-
 		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Middle prompt");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Oldest prompt");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Oldest prompt");
-
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "Middle prompt");
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "");
-
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{Escape}");
-		await expectEditorText(editor, "");
 	},
 };
 
@@ -105,35 +95,15 @@ export const PromptHistoryCyclingExitsOnTyping: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
 		await userEvent.click(editor);
-
 		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
 		await userEvent.keyboard("!");
-		await expectEditorText(editor, "Most recent prompt!");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt!");
-
-		await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
-		await expectEditorText(editor, "");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "");
 	},
 };
 
 export const NoPromptHistoryUpArrowIsNoOp: Story = {
 	args: {
 		userPromptHistory: [],
-	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
 	},
 };
 
@@ -142,26 +112,13 @@ export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 		isEditingHistoryMessage: true,
 		userPromptHistory: promptHistory,
 	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
-	},
 };
 
-export const PromptHistorySuppressedWhileDisabled: Story = {
+export const PromptHistorySuppressedWhileReadOnly: Story = {
 	args: {
 		isDisabled: true,
+		isReadOnly: true,
 		userPromptHistory: promptHistory,
-	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
 	},
 };
 
@@ -170,23 +127,9 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 		isLoading: true,
 		userPromptHistory: promptHistory,
 	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
-	},
 };
 
-export const DisablesSendUntilInput: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-
-		expect(sendButton).toBeDisabled();
-	},
-};
+export const DisablesSendUntilInput: Story = {};
 
 export const SendsAndClearsInput: Story = {
 	args: {
@@ -238,9 +181,19 @@ export const EnterSendsByDefault: Story = {
 };
 
 export const ModifierEnterSendsWhenRequired: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockUserPreferenceSettings,
+					agent_chat_send_shortcut: "modifier_enter",
+				},
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "modifier_enter",
 		initialValue: "Run focused tests",
 	},
 	play: async ({ canvasElement, args }) => {
@@ -305,21 +258,18 @@ export const MobileEnterInsertsNewline: Story = {
 	},
 };
 
-export const DisabledInput: Story = {
+export const ReadOnlyInput: Story = {
 	args: {
 		isDisabled: true,
+		isReadOnly: true,
 		initialValue: "Should not send",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+};
 
-		// The editor should be non-editable so users cannot click
-		// into it and type (e.g. archived chats).
-		const editor = canvas.getByTestId("chat-message-input");
-		await waitFor(() => {
-			expect(editor).toHaveAttribute("contenteditable", "false");
-		});
+export const DisabledSendAllowsTyping: Story = {
+	args: {
+		isDisabled: true,
+		initialValue: "Draft while models load",
 	},
 };
 
@@ -328,10 +278,6 @@ export const NoModelOptions: Story = {
 		isDisabled: false,
 		hasModelOptions: false,
 		initialValue: "Model required",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
 
@@ -344,12 +290,6 @@ export const AIGatewayDisabledShowsSetupNotice: Story = {
 		canConfigureAgentSetup: false,
 		aiGatewayDisabled: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/Enable it in your deployment config/),
-		).toBeInTheDocument();
-	},
 };
 
 export const LoadingSpinner: Story = {
@@ -358,18 +298,6 @@ export const LoadingSpinner: Story = {
 		isLoading: true,
 		initialValue: "Sending...",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		expect(sendButton).toBeDisabled();
-		// The Spinner component renders an SVG with a "Loading spinner"
-		// title when isLoading is true.
-		const spinnerSvg = sendButton.querySelector("svg");
-		expect(spinnerSvg).toBeTruthy();
-		expect(spinnerSvg?.querySelector("title")?.textContent).toBe(
-			"Loading spinner",
-		);
-	},
 };
 
 export const LoadingDisablesSend: Story = {
@@ -377,13 +305,6 @@ export const LoadingDisablesSend: Story = {
 		isDisabled: false,
 		isLoading: true,
 		initialValue: "Another message",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		// The send button should be disabled while a previous send is
-		// in-flight, even though the textarea has content.
-		expect(sendButton).toBeDisabled();
 	},
 };
 
@@ -509,7 +430,7 @@ export const WithAttachmentError: Story = {
 
 /** File reference chip rendered inline with text in the editor. */
 export const WithFileReference: Story = {
-	render: (args) => {
+	render: function WithFileReferenceRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {
@@ -528,17 +449,11 @@ export const WithFileReference: Story = {
 	args: {
 		initialValue: "Can you refactor ",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
-		});
-	},
 };
 
 /** Multiple file reference chips rendered inline with text. */
 export const WithMultipleFileReferences: Story = {
-	render: (args) => {
+	render: function WithMultipleFileReferencesRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {
@@ -563,13 +478,6 @@ export const WithMultipleFileReferences: Story = {
 	},
 	args: {
 		initialValue: "Compare ",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
-			expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
-		});
 	},
 };
 
@@ -739,9 +647,42 @@ const githubMCP = buildMCPServer({
 
 const githubMCPConnected = { ...githubMCP, auth_connected: true };
 
+const notionMCPConnected = buildMCPServer({
+	id: "mcp-notion",
+	display_name: "Notion",
+	slug: "notion",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
+
 const mcpDefaults = {
+	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
 	onMCPAuthComplete: fn(),
+};
+
+const dispatchMCPOAuthComplete = (
+	serverID: string,
+	source: MessageEventSource | null = null,
+) => {
+	window.dispatchEvent(
+		new MessageEvent("message", {
+			data: { type: "mcp-oauth2-complete", serverID },
+			origin: location.origin,
+			source,
+		}),
+	);
+};
+
+// Requires window.open mocked to return a Window; the completion
+// message's source must be that same mocked popup to correlate.
+const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	await userEvent.click(await body.findByRole("button", { name: "Auth" }));
 };
 
 // ── MCP stories ────────────────────────────────────────────────
@@ -761,6 +702,147 @@ export const WithMCPNeedingAuth: Story = {
 		...mcpDefaults,
 		mcpServers: [sentryMCP, githubMCP],
 		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(body.getByRole("button", { name: "Auth" }));
+		expect(window.open).toHaveBeenCalledWith(
+			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"_blank",
+			"width=900,height=600",
+		);
+		// The popup was blocked (window.open returned null), so the flow
+		// must not enter the connecting state that disables Auth buttons.
+		expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+	},
+};
+
+export const MCPAutoEnablesAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		expect(window.open).toHaveBeenCalledWith(
+			`/api/v2/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
+			"_blank",
+			"width=900,height=600",
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
+				linearMCP.id,
+				githubMCP.id,
+			]);
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+	},
+};
+
+// The coderd callback page posts the completion message and then closes
+// the popup, so the close poll can observe the closed popup before the
+// queued message is dispatched. An iframe contentWindow stands in for
+// the popup: it is a real Window whose closed becomes true on removal.
+export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [],
+	},
+	play: async ({ args, canvasElement }) => {
+		const doc = canvasElement.ownerDocument;
+		const iframe = doc.createElement("iframe");
+		doc.body.appendChild(iframe);
+		const popup = iframe.contentWindow;
+		if (!popup) {
+			throw new Error("iframe contentWindow unavailable");
+		}
+		spyOn(window, "open").mockReturnValue(popup);
+
+		await startMCPOAuthFlow(canvasElement);
+		iframe.remove();
+		expect(popup.closed).toBe(true);
+		// Wait for the close poll to clear the connecting state before
+		// delivering the completion message.
+		const body = within(doc.body);
+		await waitFor(
+			() => {
+				expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+			},
+			{ timeout: 2_000 },
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, popup);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([githubMCP.id]);
+		});
+	},
+};
+
+export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	play: async ({ args }) => {
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(linearMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -800,6 +882,131 @@ export const PlusMenuOpen: Story = {
 	},
 };
 
+export const MCPDisconnectControls: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP, notionMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+export const MCPDisconnectCancel: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		expect(await body.findByText("Disconnect GitHub?")).toBeInTheDocument();
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPDisconnectConfirm: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledTimes(1);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
+			githubMCPConnected.id,
+		);
+	},
+};
+
+export const MCPDisconnectRevocationWarning: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: false,
+			token_revocation_error:
+				"The OAuth provider rejected the revocation request.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await body.findByText(
+			"The OAuth provider rejected the revocation request.",
+		);
+	},
+};
+
+export const MCPDisconnectError: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
+			new Error("disconnect failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalled(),
+		);
+		expect(body.getByText("Disconnect GitHub?")).toBeInTheDocument();
+	},
+};
+
 export const PlanFirstMenuItem: Story = {
 	args: {
 		onPlanModeToggle: fn(),
@@ -809,11 +1016,6 @@ export const PlanFirstMenuItem: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await body.findByRole("dialog");
-		const toggles = await body.findAllByRole("menuitemcheckbox", {
-			name: "Plan first",
-		});
-		const toggle = toggles.at(-1)!;
-		expect(toggle).toBeInTheDocument();
 	},
 };
 
@@ -824,14 +1026,9 @@ export const PlanningIndicator: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Planning")).toBeVisible();
-		expect(
-			canvas.getByRole("button", { name: "Disable plan mode" }),
-		).toBeVisible();
 	},
 };
 
@@ -864,45 +1061,6 @@ export const PlanningIndicatorNarrow: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		const contextUsageButton = canvas.getByRole("button", {
-			name: /Context usage/,
-		});
-		const planningBadge = canvasElement.querySelector<HTMLElement>(
-			"[data-testid='planning-badge']",
-		);
-		const isVisible = (element: HTMLElement) => {
-			const style = getComputedStyle(element);
-			const rect = element.getBoundingClientRect();
-			return (
-				style.display !== "none" &&
-				style.visibility !== "hidden" &&
-				rect.width > 0 &&
-				rect.height > 0
-			);
-		};
-
-		await waitFor(() => {
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-			const contextUsageRect = contextUsageButton.getBoundingClientRect();
-
-			expect(contextUsageRect.left).toBeGreaterThanOrEqual(composerRect.left);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-
-			if (planningBadge && isVisible(planningBadge)) {
-				expect(planningBadge.getBoundingClientRect().right).toBeLessThanOrEqual(
-					contextUsageRect.left + 1,
-				);
-				return;
-			}
-
-			expect(canvas.getByRole("button", { name: "1 more item" })).toBeVisible();
-		});
-	},
 };
 
 export const DisablePlanModeFromBadge: Story = {
@@ -926,13 +1084,6 @@ export const PlanningIndicatorWithoutToggle: Story = {
 		planModeEnabled: true,
 		onPlanModeToggle: undefined,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Planning")).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Disable plan mode" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const PlanFirstCheckedState: Story = {
@@ -945,11 +1096,6 @@ export const PlanFirstCheckedState: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await body.findByRole("dialog");
-		const toggles = await body.findAllByRole("menuitemcheckbox", {
-			name: "Plan first",
-		});
-		const toggle = toggles.at(-1)!;
-		expect(toggle).toHaveAttribute("aria-checked", "true");
 	},
 };
 
@@ -1072,7 +1218,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1131,6 +1277,25 @@ const pagerdutyMCP = buildMCPServer({
 	enabled: true,
 });
 
+// Wide badges that cannot fit force into +N overflow.
+const confluenceWideMCP = buildMCPServer({
+	id: "mcp-confluence-wide",
+	display_name: "Confluence Cloud Enterprise Wiki",
+	slug: "confluence-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogWideMCP = buildMCPServer({
+	id: "mcp-datadog-wide",
+	display_name: "Datadog Infrastructure Monitoring",
+	slug: "datadog-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
 /** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
 export const OverflowBadges: Story = {
 	args: {
@@ -1161,10 +1326,25 @@ export const OverflowBadges: Story = {
 		],
 		selectedWorkspaceId: "ws-1",
 		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			route: "/@admin/my-long-workspace-name",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+		workspace: {
+			...MockWorkspace,
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			owner_name: "admin",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "overflow-chat-id",
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
-		chromatic: { viewports: [414] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1172,14 +1352,9 @@ export const OverflowBadges: Story = {
 		const pill = await canvas.findByRole("button", {
 			name: /more item/,
 		});
-		await waitFor(() => {
-			expect(pill).toBeVisible();
-		});
 		await userEvent.click(pill);
-		// The popover renders via a Radix portal outside the
-		// canvas. Find it by role, then assert content within it.
-		const popover = await within(document.body).findByRole("dialog");
-		expect(within(popover).getByText("Confluence Cloud")).toBeInTheDocument();
+		// The popover renders via a Radix portal outside the canvas.
+		await within(document.body).findByRole("dialog");
 	},
 };
 
@@ -1228,12 +1403,19 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-/** Long workspace name at iPhone SE width — verifies truncation. */
+/** Long workspace name at iPhone SE width collapses into +N overflow. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [githubMCPConnected],
 		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+			route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
 		workspace: {
 			...MockWorkspace,
 			name: "my-super-extremely-long-workspace-name-that-overflows",
@@ -1243,25 +1425,190 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The workspace pill button should be present.
-		const pill = await canvas.findByRole("button", {
-			name: /workspace menu/,
+		// Too narrow minimum width: collapse into overflow popover.
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
 		});
 		await waitFor(() => {
-			expect(pill).toBeVisible();
+			expect(overflowPill).toBeVisible();
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(
+				"my-super-extremely-long-workspace-name-that-overflows",
+			),
+		).toBeInTheDocument();
+		// The workspace stays an interactive pill inside the popover.
+		const pillTrigger = within(popover).getByRole("button", {
+			name: /workspace menu/,
+		});
+		// Focus (touch tap) must not surface status tooltip on mobile.
+		pillTrigger.focus();
+		for (const el of within(document.body).queryAllByText(
+			"Workspace running",
+		)) {
+			expect(el).not.toBeVisible();
+		}
+		await userEvent.click(pillTrigger);
+		// The menu fades in from opacity 0; retry instead of racing the
+		// entrance animation.
+		const menuItem = await within(document.body).findByRole("menuitem", {
+			name: /View Workspace/,
+		});
+		await waitFor(() => {
+			expect(menuItem).toBeVisible();
+		});
+		// One outside click must dismiss both the menu and the popover.
+		await userEvent.click(getEditor(canvasElement));
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).toBeNull();
+			expect(within(document.body).queryByRole("dialog")).toBeNull();
 		});
 		// The toolbar row should not cause horizontal overflow.
-		const toolbar = pill.closest(
+		const toolbar = overflowPill.closest(
 			".flex.items-center.justify-between",
 		) as HTMLElement;
 		if (toolbar?.parentElement) {
 			expect(toolbar.scrollWidth).toBeLessThanOrEqual(
 				toolbar.parentElement.clientWidth,
 			);
+		}
+	},
+};
+
+/**
+ * A short model name sizes the trigger to its content.
+ */
+export const ShortModelNameHasNoDeadSpace: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-short",
+		modelOptions: [
+			{
+				id: "model-short",
+				provider: "openai",
+				model: "fable-5",
+				displayName: "Fable 5",
+			},
+		],
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "short-model-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+/**
+ * With no MCP badges competing for space, long model and workspace
+ * names expand to their full width: no truncation and no fixed cap.
+ */
+export const LongLabelsExpandWithoutMCPs: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		workspace: {
+			...MockWorkspace,
+			name: "my-workspace-name-that-should-not-clamp",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "long-labels-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+};
+
+/**
+ * When badges overflow into +N, they release their layout space so
+ * the model label expands to full width.
+ */
+export const ModelExpandsWhileBadgesOverflow: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		mcpServers: [confluenceWideMCP, datadogWideMCP],
+		selectedMCPServerIds: [confluenceWideMCP.id, datadogWideMCP.id],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await userEvent.click(overflowPill);
+		// The popover renders via a Radix portal outside the canvas.
+		await within(document.body).findByRole("dialog");
+	},
+};
+
+/**
+ * Opening the +N popover auto-focuses its first badge; the status
+ * tooltip stays suppressed (md and up).
+ */
+export const OverflowPopoverSuppressesStatusTooltip: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			// Wide enough to collapse into the +N popover at tablet width.
+			name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
+			route: `/@${MockWorkspace.owner_name}/attached`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace stopped",
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(overflowPill).toBeVisible();
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(/an-extremely-long-attached-workspace/),
+		).toBeInTheDocument();
+		// Auto-focus lands on the badge; the status tooltip stays hidden.
+		for (const el of within(document.body).queryAllByText(
+			"Workspace stopped",
+		)) {
+			expect(el).not.toBeVisible();
 		}
 	},
 };

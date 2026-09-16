@@ -4,7 +4,10 @@ import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { templateByNameKey } from "#/api/queries/templates";
+import {
+	invalidateTemplateListQueries,
+	templateByNameKey,
+} from "#/api/queries/templates";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
@@ -40,12 +43,13 @@ const TemplateSettingsPage: FC = () => {
 			if (!data) {
 				data = template;
 			} else {
-				// Only invalid the query if data is returned, indicating at least one field was updated.
-				//
-				// we use data.name because an admin may have updated templateName to something new
-				await queryClient.invalidateQueries({
-					queryKey: templateByNameKey(template.organization_name, data.name),
-				});
+				// Use data.name because an admin may have renamed the template.
+				await Promise.all([
+					invalidateTemplateListQueries(queryClient),
+					queryClient.invalidateQueries({
+						queryKey: templateByNameKey(template.organization_name, data.name),
+					}),
+				]);
 			}
 			toast.success(`Template "${data.name}" updated successfully.`);
 			navigate(getLink(linkToTemplate(data.organization_name, data.name)));

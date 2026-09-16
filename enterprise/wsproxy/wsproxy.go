@@ -361,7 +361,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		opts.CookieConfig.Middleware,
-		tracing.Middleware(s.TracerProvider),
+		tracing.Middleware(s.TracerProvider, tracing.DefaultRoutePatterns, "coderd"),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		loggermw.Logger(s.Logger, func(r *http.Request) string {
@@ -600,7 +600,7 @@ func pingReplica(ctx context.Context, client http.Client, replica codersdk.Repli
 	const attempts = 2
 	var err error
 	for i := 0; i < attempts; i++ {
-		err = replicasync.PingPeerReplica(ctx, client, replica.RelayAddress)
+		err = replicasync.DERPPingPeerReplica(ctx, client, replica.RelayAddress)
 		if err == nil {
 			return nil
 		}

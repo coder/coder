@@ -161,7 +161,11 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 				title={
 					<div className="flex flex-row items-center gap-2">
 						<span>Theme</span>
-						<Spinner loading={isUpdating} size="sm" />
+						<Spinner
+							loading={isUpdating}
+							size="sm"
+							label="Saving theme preference"
+						/>
 					</div>
 				}
 				layout="fluid"
@@ -217,7 +221,11 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 				title={
 					<div className="flex flex-row items-center gap-2">
 						<span id={fontGroupLabelId}>Terminal Font</span>
-						<Spinner loading={isUpdating} size="sm" />
+						<Spinner
+							loading={isUpdating}
+							size="sm"
+							label="Saving terminal font"
+						/>
 					</div>
 				}
 				layout="fluid"

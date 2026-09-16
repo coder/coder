@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,7 +35,7 @@ func (c *Client) Upload(ctx context.Context, contentType string, rd io.Reader) (
 		return UploadResponse{}, ReadBodyAsError(res)
 	}
 	var resp UploadResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // Download fetches a file by uploaded hash.

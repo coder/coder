@@ -132,16 +132,30 @@ func TestNormalizers_SkipTypedNilInterfaceValues(t *testing.T) {
 func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testing.T) {
 	t.Parallel()
 
-	var content []normalizedContentPart
+	var (
+		content        []normalizedContentPart
+		currentText    *strings.Builder
+		currentTextIdx int
+	)
+	argBuilders := make(map[string]*strings.Builder)
 	streamDebugBytes := 0
 	for _, part := range []fantasy.StreamPart{
-		{Type: fantasy.StreamPartTypeTextDelta, Delta: "before "},
+		// "before " and "after" each arrive as two consecutive
+		// same-type deltas (rather than one) so this also exercises
+		// accumulating into an already-existing text part across
+		// multiple appendNormalizedStreamContent calls, not just
+		// starting a fresh one.
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "bef"},
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "ore "},
 		{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{"query":"debug"}`},
 		{Type: fantasy.StreamPartTypeToolResult, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{"matches":1}`},
-		{Type: fantasy.StreamPartTypeTextDelta, Delta: "after"},
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "aft"},
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "er"},
 	} {
-		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
+			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
+	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
 
 	require.Equal(t, []normalizedContentPart{
 		{Type: "text", Text: "before "},
@@ -154,7 +168,12 @@ func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testin
 func TestAppendNormalizedStreamContent_ToolInputAttributionPerCall(t *testing.T) {
 	t.Parallel()
 
-	var content []normalizedContentPart
+	var (
+		content        []normalizedContentPart
+		currentText    *strings.Builder
+		currentTextIdx int
+	)
+	argBuilders := make(map[string]*strings.Builder)
 	streamDebugBytes := 0
 	for _, part := range []fantasy.StreamPart{
 		{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-a", ToolCallName: "search", Delta: `{"q`},
@@ -164,8 +183,10 @@ func TestAppendNormalizedStreamContent_ToolInputAttributionPerCall(t *testing.T)
 		{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-a", ToolCallName: "search", Delta: `":"x"}`},
 		{Type: fantasy.StreamPartTypeToolInputEnd, ID: "call-b", ToolCallName: "calc", Delta: `":"add"}`},
 	} {
-		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
+			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
+	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
 
 	require.Equal(t, []normalizedContentPart{
 		{Type: "tool_input", ToolCallID: "call-a", ToolName: "search", Arguments: `{"query":"x"}`},
@@ -176,7 +197,12 @@ func TestAppendNormalizedStreamContent_ToolInputAttributionPerCall(t *testing.T)
 func TestAppendNormalizedStreamContent_ToolInputAcrossInterleavedText(t *testing.T) {
 	t.Parallel()
 
-	var content []normalizedContentPart
+	var (
+		content        []normalizedContentPart
+		currentText    *strings.Builder
+		currentTextIdx int
+	)
+	argBuilders := make(map[string]*strings.Builder)
 	streamDebugBytes := 0
 	for _, part := range []fantasy.StreamPart{
 		{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-a", ToolCallName: "search", Delta: `{"q`},
@@ -184,8 +210,10 @@ func TestAppendNormalizedStreamContent_ToolInputAcrossInterleavedText(t *testing
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "thinking..."},
 		{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-a", ToolCallName: "search", Delta: `uery":"x"}`},
 	} {
-		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
+			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
+	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
 
 	require.Equal(t, []normalizedContentPart{
 		{Type: "tool_input", ToolCallID: "call-a", ToolName: "search", Arguments: `{"query":"x"}`},
@@ -198,14 +226,21 @@ func TestAppendNormalizedStreamContent_GlobalTextCap(t *testing.T) {
 
 	streamDebugBytes := 0
 	long := strings.Repeat("a", maxStreamDebugTextBytes)
-	var content []normalizedContentPart
+	var (
+		content        []normalizedContentPart
+		currentText    *strings.Builder
+		currentTextIdx int
+	)
+	argBuilders := make(map[string]*strings.Builder)
 	for _, part := range []fantasy.StreamPart{
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: long},
 		{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{}`},
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "tail"},
 	} {
-		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
+			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
+	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
 
 	require.Len(t, content, 2)
 	require.Equal(t, strings.Repeat("a", maxStreamDebugTextBytes), content[0].Text)

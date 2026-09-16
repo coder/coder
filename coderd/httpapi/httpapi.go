@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -49,11 +50,54 @@ func init() {
 		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	oauth2AppNameValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		return codersdk.OAuth2AppNameValid(str) == nil
+	}
+	err := Validate.RegisterValidation("oauth2_app_name", oauth2AppNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	// oauth2_callback_url validates the common callback target shape for OAuth2
+	// app administration. Public clients receive the additional DCR redirect URI
+	// policy in the handler after their stored client type is available.
+	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		u, err := url.Parse(str)
+		if err != nil {
+			return false
+		}
+		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
+			return false
+		}
+		if u.Scheme == "urn" {
+			return true
+		}
+		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
+			return false
+		}
+		if u.Opaque != "" || (u.Host == "" && u.Path == "") {
+			return false
+		}
+		return true
+	}
+	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
+	if err != nil {
+		panic(err)
 	}
 
 	displayNameValidator := func(fl validator.FieldLevel) bool {
@@ -81,7 +125,7 @@ func init() {
 		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -229,16 +273,50 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 	_ = enc.Encode(response)
 }
 
-// Read decodes JSON from the HTTP request into the value provided. It uses
-// go-validator to validate the incoming request body. ctx is used for tracing
-// and can be nil. Although tracing this function isn't likely too helpful, it
-// was done to be consistent with Write.
+// DefaultMaxRequestBodyBytes bounds the request body that a JSON endpoint will
+// decode. It exists so that a single request, including an unauthenticated one,
+// cannot exhaust server memory with an oversized body. Endpoints that need a
+// different limit must call ReadLimit rather than change this constant.
+const DefaultMaxRequestBodyBytes = 4 << 20 // 4 MiB
+
+// Read decodes JSON from the HTTP request into the value provided, reading at
+// most DefaultMaxRequestBodyBytes from the body. It uses go-validator to
+// validate the incoming request body. ctx is used for tracing and can be nil.
+// Although tracing this function isn't likely too helpful, it was done to be
+// consistent with Write.
 func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
+	return ReadLimit(ctx, rw, r, DefaultMaxRequestBodyBytes, value)
+}
+
+// ReadLimit is Read with an explicit request body size limit, for endpoints
+// that need one above or below DefaultMaxRequestBodyBytes. Most callers set a
+// tighter one.
+//
+// Callers must use this rather than wrapping r.Body in an http.MaxBytesReader
+// themselves. Read installs its own limit, and nested readers compose as
+// tightest-wins, so the default would override a larger caller-supplied limit.
+func ReadLimit(ctx context.Context, rw http.ResponseWriter, r *http.Request, limit int64, value interface{}) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	r.Body = http.MaxBytesReader(rw, r.Body, limit)
+
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
+		// Report the limit the error carries, not the one this call installed.
+		// Nested readers compose as tightest-wins and the error carries the
+		// winner, so a caller that wrapped r.Body tighter would otherwise be
+		// told a limit far looser than the one that rejected it.
+		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			// Must be r.Context(), not ctx: ctx is the caller's and need not
+			// be the request's, but the tracker rides the request's.
+			RecordRequestBodyLimit(r.Context(), mbe.Limit)
+			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", mbe.Limit),
+			})
+			return false
+		}
 		Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
@@ -358,7 +436,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 
 	sendEvent := func(newEvent codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
-		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
+		_, err := fmt.Fprintf(buf, "event: %s\n", newEvent.Type)
 		if err != nil {
 			return err
 		}

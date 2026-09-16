@@ -1,4 +1,6 @@
-# FAQs
+---
+title: FAQs
+---
 
 Frequently asked questions on Coder OSS and licensed deployments. These FAQs
 come from our community and customers, feel free to
@@ -42,7 +44,7 @@ Visit <https://coder.com/trial> or contact
 1. Open a terminal.
 1. Log in to your Coder deployment:
 
-   ```shell
+   ```sh
    coder login <access url>
    ```
 
@@ -50,7 +52,7 @@ Visit <https://coder.com/trial> or contact
 
    - For a `.jwt` license file:
 
-     ```shell
+     ```sh
      coder licenses add -f <path to your license key>
      ```
 
@@ -241,7 +243,7 @@ can start Caddy as a `systemd` service.
 The Caddyfile configuration will appear like this where `127.0.0.1:3000` is your
 `CODER_ACCESS_URL`:
 
-```text
+```txt
 coder.example.com {
 
   reverse_proxy 127.0.0.1:3000
@@ -269,7 +271,7 @@ the existing Caddy binary in `usr/bin` and restart the Caddy service.
 
 The updated Caddyfile configuration will look like this:
 
-```text
+```txt
 *.coder.example.com, coder.example.com {
 
   reverse_proxy 127.0.0.1:3000
@@ -371,9 +373,9 @@ JetBrains IDE versions. If downloading from
 acceptable, see the example templates below which specifies the product code,
 IDE version and build number in the
 [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)
-resource. This will present an icon in the workspace dashboard which when
-clicked, will look for a locally installed Gateway, and open it. Alternatively,
-the IDE can be baked into the container image and manually open Gateway (or
+resource.
+This will present an icon in the workspace dashboard which, when selected, will look for a locally installed Gateway, and open it.
+Alternatively, the IDE can be baked into the container image and manually open Gateway (or
 IntelliJ which has Gateway built-in), using a session token to Coder and then
 open the IDE.
 

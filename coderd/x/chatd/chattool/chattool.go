@@ -14,6 +14,18 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const templateNotAvailableMessage = "template not available for chat workspaces; use list_templates to find allowed templates"
+
+// WorkspaceUnavailableHint follows errors that keep a tool from loading the
+// chat's workspace so the model recovers instead of concluding it is blocked.
+const WorkspaceUnavailableHint = "The workspace is probably gone; use the create_workspace tool to make a new one"
+
+func workspaceLoadErrorResponse(err error) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(
+		xerrors.Errorf("load workspace: %w. %s", err, WorkspaceUnavailableHint).Error(),
+	)
+}
+
 func marshalToolResponse(result any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -164,18 +176,4 @@ func setNoBuild(result map[string]any, buildID uuid.UUID) {
 	if buildID == uuid.Nil {
 		result["no_build"] = true
 	}
-}
-
-// isTemplateAllowed checks whether a template ID is permitted by the
-// configured allowlist. A nil function or an empty allowlist means
-// all templates are allowed.
-func isTemplateAllowed(getAllowlist func() map[uuid.UUID]bool, id uuid.UUID) bool {
-	if getAllowlist == nil {
-		return true
-	}
-	allowlist := getAllowlist()
-	if len(allowlist) == 0 {
-		return true
-	}
-	return allowlist[id]
 }

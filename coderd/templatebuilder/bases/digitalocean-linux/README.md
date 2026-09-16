@@ -19,18 +19,14 @@ To deploy workspaces as DigitalOcean Droplets, you'll need:
 
 - DigitalOcean [personal access token (PAT)](https://docs.digitalocean.com/reference/api/create-personal-access-token)
 
-- DigitalOcean project ID (you can get your project information via the `doctl` CLI by running `doctl projects list`)
+- DigitalOcean project ID, which the template builder prompts for. You can get
+  your project information via the `doctl` CLI by running `doctl projects list`.
 
-  - Remove the following sections from the `main.tf` file if you don't want to
-    associate your workspaces with a project:
+- **Optional:** DigitalOcean SSH key ID, which the template builder prompts for
+  (obtain via the `doctl` CLI by running `doctl compute ssh-key list`).
 
-    - `variable "project_uuid"`
-    - `resource "digitalocean_project_resources" "project"`
-
-- **Optional:** DigitalOcean SSH key ID (obtain via the `doctl` CLI by running
-  `doctl compute ssh-key list`)
-
-  - Note that this is only required for Fedora images to work.
+  - Note that this is only required for Fedora images to work. Leave it as `0`
+    if you don't need it.
 
 ### Authentication
 

@@ -46,10 +46,10 @@ func AnalyzeOIDCLinks(ctx context.Context, db database.Store, expectedIssuer str
 	for _, row := range rows {
 		count := int(row.Count)
 		analysis.Total += count
-		switch {
-		case row.IssuerPrefix == "":
+		switch row.IssuerPrefix {
+		case "":
 			analysis.Unlinked += count
-		case row.IssuerPrefix == expectedIssuer:
+		case expectedIssuer:
 			analysis.CorrectIssuer += count
 		default:
 			analysis.MismatchedCounts[row.IssuerPrefix] += count

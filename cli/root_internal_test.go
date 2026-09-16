@@ -6,10 +6,12 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"runtime"
 	"testing"
@@ -17,8 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/pretty"
@@ -494,4 +499,266 @@ func TestNewHTTPTransportAppliesTLSConfigToClone(t *testing.T) {
 	httpTransport, ok := transport.(*http.Transport)
 	require.True(t, ok)
 	require.Same(t, tlsConfig, httpTransport.TLSClientConfig)
+}
+
+func TestResolveClientSessionID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("GeneratesWhenUnset", func(t *testing.T) {
+		t.Parallel()
+
+		inv := &serpent.Invocation{Stderr: io.Discard}
+		id, err := resolveClientSessionID(inv)
+		require.NoError(t, err)
+		require.True(t, tracing.ValidSessionID(id), "generated session ID must be valid")
+	})
+
+	t.Run("UsesValidEnv", func(t *testing.T) {
+		t.Parallel()
+
+		const want = "0123456789abcdef0123456789abcdef"
+		inv := &serpent.Invocation{Stderr: io.Discard}
+		inv.Environ.Set(clientSessionIDEnv, want)
+		id, err := resolveClientSessionID(inv)
+		require.NoError(t, err)
+		require.Equal(t, want, id)
+	})
+
+	t.Run("UsesMalformedEnvVerbatim", func(t *testing.T) {
+		t.Parallel()
+
+		const want = "not-a-valid-session-id"
+		inv := &serpent.Invocation{Stderr: io.Discard}
+		inv.Environ.Set(clientSessionIDEnv, want)
+		id, err := resolveClientSessionID(inv)
+		require.NoError(t, err)
+		require.Equal(t, want, id, "a set CODER_TRACE_SESSION_ID is used verbatim")
+	})
+
+	t.Run("GeneratesWhenEnvEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		inv := &serpent.Invocation{Stderr: io.Discard}
+		inv.Environ.Set(clientSessionIDEnv, "")
+		id, err := resolveClientSessionID(inv)
+		require.NoError(t, err)
+		require.True(t, tracing.ValidSessionID(id), "empty env must fall back to a generated ID")
+	})
+}
+
+func TestClientSessionIDMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// runMiddleware runs clientSessionIDMiddleware around a handler that
+	// captures the resulting invocation, returning it for assertions. The
+	// invocation opts in with the annotationClientSessionID annotation unless
+	// shouldAttachSessionID is false.
+	runMiddleware := func(t *testing.T, inv *serpent.Invocation, shouldAttachSessionID bool) *serpent.Invocation {
+		t.Helper()
+		annotations := serpent.Annotations{}
+		if shouldAttachSessionID {
+			annotations = annotations.Mark(annotationClientSessionID, "")
+		}
+		inv.Command = &serpent.Command{Annotations: annotations}
+		var got *serpent.Invocation
+		handler := clientSessionIDMiddleware()(func(i *serpent.Invocation) error {
+			got = i
+			return nil
+		})
+		require.NoError(t, handler(inv))
+		require.NotNil(t, got)
+		return got
+	}
+
+	t.Run("GeneratesAndStoresOnContext", func(t *testing.T) {
+		t.Parallel()
+
+		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
+		got := runMiddleware(t, inv, true)
+		id := clientSessionIDFromContext(got.Context())
+		require.True(t, tracing.ValidSessionID(id), "middleware must store a valid generated ID")
+	})
+
+	t.Run("UsesEnv", func(t *testing.T) {
+		t.Parallel()
+
+		const want = "0123456789abcdef0123456789abcdef"
+		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
+		inv.Environ.Set(clientSessionIDEnv, want)
+		got := runMiddleware(t, inv, true)
+		require.Equal(t, want, clientSessionIDFromContext(got.Context()))
+	})
+
+	t.Run("AttachesSlogField", func(t *testing.T) {
+		t.Parallel()
+
+		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
+		got := runMiddleware(t, inv, true)
+		id := clientSessionIDFromContext(got.Context())
+		require.NotEmpty(t, id)
+
+		// A fresh logger that logs with the invocation context must include the
+		// client_session_id field, proving the field rides on the context rather
+		// than a specific logger instance.
+		var buf bytes.Buffer
+		logger := slog.Make(sloghuman.Sink(&buf))
+		logger.Info(got.Context(), "session id log line")
+		require.Contains(t, buf.String(), "client_session_id="+id)
+	})
+
+	t.Run("SkipsWithoutOptIn", func(t *testing.T) {
+		t.Parallel()
+
+		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
+		inv.Environ.Set(clientSessionIDEnv, "0123456789abcdef0123456789abcdef")
+		got := runMiddleware(t, inv, false)
+		require.Empty(t, clientSessionIDFromContext(got.Context()),
+			"commands without the opt-in annotation must not resolve a session ID")
+	})
+
+	t.Run("SkipsCompletionMode", func(t *testing.T) {
+		t.Parallel()
+
+		inv := (&serpent.Invocation{Stderr: io.Discard}).
+			WithContext(t.Context())
+		inv.Environ.Set(serpent.CompletionModeEnv, "1")
+		got := runMiddleware(t, inv, true)
+		require.Empty(t, clientSessionIDFromContext(got.Context()),
+			"completion mode must not resolve a session ID")
+	})
+}
+
+func TestWrapTransportWithSessionIDHeader(t *testing.T) {
+	t.Parallel()
+
+	const sessionID = "0123456789abcdef0123456789abcdef"
+
+	var gotHeader http.Header
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Clone()
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := &http.Client{
+		Transport: wrapTransportWithSessionIDHeader(http.DefaultTransport, sessionID),
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// The baggage header the server receives must carry the session ID under
+	// the client_session_id key so the tracing middleware can extract it.
+	require.Equal(t, tracing.SessionIDBaggageKey+"="+sessionID, gotHeader.Get("baggage"))
+}
+
+func Test_createHTTPClientRedirects(t *testing.T) {
+	t.Parallel()
+
+	// newRedirectingServers returns a stale server that 301s every request
+	// to a target serving the "list" shape on GET, so that following the
+	// redirect would silently turn a create into a list.
+	newRedirectingServers := func(t *testing.T) (stale, target *httptest.Server) {
+		target = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte("[]"))
+		}))
+		t.Cleanup(target.Close)
+
+		stale = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL+r.URL.Path, http.StatusMovedPermanently)
+		}))
+		t.Cleanup(stale.Close)
+		return stale, target
+	}
+
+	newClient := func(t *testing.T, r *RootCmd, rawURL string) *codersdk.Client {
+		serverURL, err := url.Parse(rawURL)
+		require.NoError(t, err)
+		inv := &serpent.Invocation{Command: &serpent.Command{Use: "test"}}
+		httpClient, err := r.createHTTPClient(context.Background(), serverURL, inv)
+		require.NoError(t, err)
+		t.Cleanup(httpClient.CloseIdleConnections)
+		return codersdk.New(serverURL, codersdk.WithHTTPClient(httpClient))
+	}
+
+	t.Run("RejectedByDefault", func(t *testing.T) {
+		t.Parallel()
+		stale, target := newRedirectingServers(t)
+
+		r := &RootCmd{noVersionCheck: true, noFeatureWarning: true}
+		client := newClient(t, r, stale.URL)
+		_, err := client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
+		require.Error(t, err)
+
+		var redirectErr *redirectError
+		require.ErrorAs(t, err, &redirectErr)
+		require.Equal(t, stale.URL+"/api/v2/users/me/keys/tokens", redirectErr.from.String())
+		require.Equal(t, target.URL+"/api/v2/users/me/keys/tokens", redirectErr.to.String())
+
+		msg, special := cliHumanFormatError("", err, nil)
+		require.True(t, special)
+		require.Contains(t, msg, "server redirected request from "+stale.URL)
+		require.Contains(t, msg, fmt.Sprintf("Run %q to log in against the new URL", "coder login "+target.URL))
+		require.Contains(t, msg, "--allow-redirects")
+	})
+
+	t.Run("AllowRedirects", func(t *testing.T) {
+		t.Parallel()
+		stale, _ := newRedirectingServers(t)
+
+		r := &RootCmd{noVersionCheck: true, noFeatureWarning: true, allowRedirects: true}
+		client := newClient(t, r, stale.URL)
+		tokens, err := client.Tokens(context.Background(), codersdk.Me, codersdk.TokensFilter{})
+		require.NoError(t, err)
+		require.Empty(t, tokens)
+
+		// Legacy behavior: the POST is followed as a GET and fails on the
+		// mismatched body rather than on the redirect itself.
+		_, err = client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
+		require.Error(t, err)
+		var redirectErr *redirectError
+		require.False(t, errors.As(err, &redirectErr))
+	})
+}
+
+func Test_redirectErrorHelper(t *testing.T) {
+	t.Parallel()
+
+	mustParse := func(s string) *url.URL {
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		return u
+	}
+
+	t.Run("DifferentHost", func(t *testing.T) {
+		t.Parallel()
+		err := &redirectError{
+			from: mustParse("https://old.example.com/api/v2/users/me"),
+			to:   mustParse("https://new.example.com/api/v2/users/me"),
+		}
+		require.Contains(t, err.Helper(), `"coder login https://new.example.com"`)
+	})
+
+	t.Run("SchemeUpgrade", func(t *testing.T) {
+		t.Parallel()
+		err := &redirectError{
+			from: mustParse("http://coder.example.com/api/v2/users/me"),
+			to:   mustParse("https://coder.example.com/api/v2/users/me"),
+		}
+		require.Contains(t, err.Helper(), `"coder login https://coder.example.com"`)
+	})
+
+	t.Run("SameDeployment", func(t *testing.T) {
+		t.Parallel()
+		err := &redirectError{
+			from: mustParse("https://coder.example.com/api/v2/users/me"),
+			to:   mustParse("https://coder.example.com/api/v2/users/me/"),
+		}
+		require.Contains(t, err.Helper(), "redirected within the same deployment")
+		require.NotContains(t, err.Helper(), "coder login")
+	})
 }

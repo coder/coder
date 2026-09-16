@@ -3,7 +3,9 @@ package httpmw
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +23,16 @@ import (
 // RateLimit returns a handler that limits requests per-minute based
 // on IP, endpoint, and user ID (if available).
 func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window, keyByNormalizedEndpoint)
+}
+
+// RateLimitByAPICompatibilityEndpoint shares rate-limit buckets for matching
+// endpoints under the /api/v2 and /api/experimental compatibility prefixes.
+func RateLimitByAPICompatibilityEndpoint(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window, keyByAPICompatibilityEndpoint)
+}
+
+func rateLimitWithEndpointKey(count int, window time.Duration, endpointKey func(*http.Request) (string, error)) func(http.Handler) http.Handler {
 	// -1 is no rate limit
 	if count <= 0 {
 		return func(handler http.Handler) http.Handler {
@@ -85,13 +97,44 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 				"%q provided but user is not %v",
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)
-		}, httprate.KeyByEndpoint),
+		}, endpointKey),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
 				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
 			})
 		}),
 	)
+}
+
+// keyByNormalizedEndpoint mirrors httprate.KeyByEndpoint, but cleans the
+// request path first. chi's router tolerates redundant slashes (see
+// singleSlashMW in coderd.go) and routes them to the same handler as the
+// canonical path, but only normalizes its internal route-matching path,
+// not r.URL.Path. Without normalizing here too, a client can respell a
+// path, for example inserting an extra slash, to get a fresh rate-limit
+// bucket for an endpoint it's already been throttled on.
+func keyByNormalizedEndpoint(r *http.Request) (string, error) {
+	p := r.URL.Path
+	if p == "" {
+		p = "/"
+	}
+	return path.Clean(p), nil
+}
+
+func keyByAPICompatibilityEndpoint(r *http.Request) (string, error) {
+	p, err := keyByNormalizedEndpoint(r)
+	if err != nil {
+		return "", err
+	}
+	for _, prefix := range []string{"/api/v2", "/api/experimental"} {
+		if p == prefix {
+			return "/", nil
+		}
+		if strings.HasPrefix(p, prefix+"/") {
+			return strings.TrimPrefix(p, prefix), nil
+		}
+	}
+	return p, nil
 }
 
 // RateLimitByAuthToken returns a handler that limits requests based on the

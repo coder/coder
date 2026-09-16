@@ -1,8 +1,9 @@
+import type { StorybookConfig } from "@storybook/react-vite";
+
 export default {
 	stories: ["../src/**/*.stories.tsx"],
 
 	addons: [
-		"@chromatic-com/storybook",
 		"@storybook/addon-a11y",
 		"@storybook/addon-docs",
 		"@storybook/addon-links",
@@ -20,7 +21,7 @@ export default {
 	},
 
 	core: {
-		allowedHosts: [".coder", ".dev.coder.com"],
+		allowedHosts: [".coder", ".dogfood.cdr.dev"],
 	},
 
 	async viteFinal(config) {
@@ -29,8 +30,8 @@ export default {
 		// port sharing.
 		config.server = {
 			...config.server,
-			allowedHosts: [".coder", ".dev.coder.com"],
+			allowedHosts: [".coder", ".dogfood.cdr.dev"],
 		};
 		return config;
 	},
-} satisfies import("@storybook/react-vite").StorybookConfig;
+} satisfies StorybookConfig;

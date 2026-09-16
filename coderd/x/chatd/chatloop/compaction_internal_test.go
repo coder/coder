@@ -17,7 +17,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
@@ -32,7 +34,6 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 			ModelConfigID:       uuid.New(),
 			TriggerMessageID:    41,
 			HistoryTipMessageID: 42,
-			Kind:                chatdebug.KindChatTurn,
 			Provider:            "fake-provider",
 			Model:               "fake-model",
 		})
@@ -45,7 +46,6 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
 		chatID := uuid.New()
-		reportedErr := make(chan error, 1)
 
 		db.EXPECT().InsertChatDebugRun(
 			gomock.Any(),
@@ -56,17 +56,9 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		compactionCtx, finish := startCompactionDebugRun(ctx, CompactionOptions{
 			DebugSvc: svc,
 			ChatID:   chatID,
-			OnError: func(err error) {
-				reportedErr <- err
-			},
 		})
 		require.Same(t, ctx, compactionCtx)
 		finish(nil)
-		select {
-		case err := <-reportedErr:
-			t.Fatalf("unexpected OnError callback: %v", err)
-		default:
-		}
 	})
 
 	t.Run("FinalizeRunAggregatesSummary", func(t *testing.T) {
@@ -129,7 +121,6 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
 		chatID := uuid.New()
-		reportedErr := make(chan error, 1)
 		runID := uuid.New()
 
 		db.EXPECT().InsertChatDebugRun(
@@ -149,17 +140,9 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		compactionCtx, finish := startCompactionDebugRun(ctx, CompactionOptions{
 			DebugSvc: svc,
 			ChatID:   chatID,
-			OnError: func(err error) {
-				reportedErr <- err
-			},
 		})
 		require.NotSame(t, ctx, compactionCtx)
 		finish(nil)
-		select {
-		case err := <-reportedErr:
-			t.Fatalf("unexpected OnError callback: %v", err)
-		default:
-		}
 	})
 }
 
@@ -209,7 +192,6 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 		ModelConfigID:       uuid.New(),
 		TriggerMessageID:    1,
 		HistoryTipMessageID: 2,
-		Kind:                chatdebug.KindChatTurn,
 		Provider:            "fake",
 		Model:               "fake-model",
 	})
@@ -262,4 +244,167 @@ func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
 	_, ok := ctxSeen.Deadline()
 	require.False(t, ok)
 	require.Equal(t, "value", ctxSeen.Value(contextKey("key")))
+}
+
+// TestGenerateCompaction_ForceBypassesThresholdGates verifies the
+// manual-compaction contract: Force runs the summary even when usage
+// is below threshold, when usage is zero, and when threshold=100
+// disables automatic compaction; without Force those gates return an
+// empty result without calling the model.
+func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
+	t.Parallel()
+
+	newModel := func(calls *int) *chattest.FakeModel {
+		return &chattest.FakeModel{
+			ProviderName: "fake",
+			ModelName:    "fake-model",
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				*calls++
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: "forced summary"},
+					},
+				}, nil
+			},
+		}
+	}
+	messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
+
+	cases := []struct {
+		name string
+		opts GenerateCompactionOptions
+	}{
+		{
+			name: "below threshold",
+			opts: GenerateCompactionOptions{
+				ThresholdPercent: 70,
+				ContextLimit:     1000,
+				StepUsage:        fantasy.Usage{InputTokens: 10},
+			},
+		},
+		{
+			name: "zero usage",
+			opts: GenerateCompactionOptions{
+				ThresholdPercent: 70,
+				ContextLimit:     1000,
+			},
+		},
+		{
+			name: "threshold disabled",
+			opts: GenerateCompactionOptions{
+				ThresholdPercent: 100,
+				ContextLimit:     1000,
+				StepUsage:        fantasy.Usage{InputTokens: 10},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Without Force the gate returns an empty result and
+			// never calls the model.
+			calls := 0
+			opts := tc.opts
+			opts.Model = newModel(&calls)
+			opts.Messages = messages
+			opts.Clock = quartz.NewMock(t)
+			result, err := GenerateCompaction(context.Background(), opts)
+			require.NoError(t, err)
+			require.Empty(t, result.SummaryReport)
+			require.Zero(t, calls, "gated run must not call the model")
+
+			// With Force the summary is generated and labeled manual.
+			opts.Force = true
+			opts.Source = CompactionSourceManual
+			result, err = GenerateCompaction(context.Background(), opts)
+			require.NoError(t, err)
+			require.Equal(t, "forced summary", result.SummaryReport)
+			require.Equal(t, CompactionSourceManual, result.Source)
+			require.Equal(t, 1, calls, "forced run calls the model once")
+		})
+	}
+}
+
+// TestGenerateCompaction_DefaultSourceAutomatic verifies an unforced
+// over-threshold run reports the automatic source by default.
+func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
+	t.Parallel()
+
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: []fantasy.Content{
+					fantasy.TextContent{Text: "auto summary"},
+				},
+			}, nil
+		},
+	}
+	result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+		Model:            model,
+		Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		ThresholdPercent: 70,
+		ContextLimit:     100,
+		StepUsage:        fantasy.Usage{InputTokens: 90},
+		Clock:            quartz.NewMock(t),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "auto summary", result.SummaryReport)
+	require.Equal(t, CompactionSourceAutomatic, result.Source)
+}
+
+func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{"P", "Pr", "Pre"} {
+		t.Run(prefix, func(t *testing.T) {
+			t.Parallel()
+			var parts []codersdk.ChatMessagePart
+			result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
+				Model: &chattest.FakeModel{
+					GenerateFn: func(context.Context, fantasy.Call) (*fantasy.Response, error) {
+						return &fantasy.Response{
+							Content: []fantasy.Content{fantasy.TextContent{Text: "界x"}},
+							Usage:   fantasy.Usage{InputTokens: 900, OutputTokens: 400},
+						}, nil
+					},
+				},
+				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				SystemSummaryPrefix: prefix,
+				Force:               true,
+				ContextLimit:        1000,
+				StepUsage:           fantasy.Usage{InputTokens: 800},
+				ToolCallID:          "summary",
+				ToolName:            "chat_summarized",
+				PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+					parts = append(parts, part)
+				},
+				Clock: quartz.NewMock(t),
+			})
+			require.NoError(t, err)
+			require.Equal(t, prefix+"\n\n界x", result.SystemSummary)
+			require.Equal(t, int64(3), result.EstimatedContextTokens)
+			require.Equal(t, int64(800), result.ContextTokens)
+			require.Len(t, parts, 2)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[1].Type)
+			require.False(t, parts[1].IsError)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
+			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
+			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
+		})
+	}
+}
+
+// TestGenerateCompaction_RequiresClock verifies a nil clock is
+// rejected instead of silently falling back to a real clock; tests
+// must supply their own.
+func TestGenerateCompaction_RequiresClock(t *testing.T) {
+	t.Parallel()
+
+	_, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+		Model: &chattest.FakeModel{ProviderName: "fake", ModelName: "fake-model"},
+	})
+	require.ErrorContains(t, err, "clock is required")
 }

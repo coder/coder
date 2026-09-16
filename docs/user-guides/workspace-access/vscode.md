@@ -1,4 +1,6 @@
-# Visual Studio Code
+---
+title: Visual Studio Code
+---
 
 You can develop in your Coder workspace remotely with
 [VS Code](https://code.visualstudio.com/download).
@@ -11,9 +13,8 @@ Learn more about how VS Code Web and code-server compare in the
 
 VS Code desktop is a default app for workspaces.
 
-Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This
-automatically installs the [Coder Remote](https://github.com/coder/vscode-coder)
-extension, authenticates with Coder, and connects to the workspace.
+Select **VS Code Desktop** in the dashboard to one-click enter a workspace.
+This automatically installs the [Coder Remote](https://github.com/coder/vscode-coder) extension, authenticates with Coder, and connects to the workspace.
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
@@ -27,7 +28,7 @@ You can install our extension manually in VS Code using the command palette.
 Launch VS Code Quick Open (Ctrl+P), paste the following command, and press
 enter.
 
-```text
+```txt
 ext install coder.coder-remote
 ```
 
@@ -137,7 +138,7 @@ Web or using the workspace's terminal.
 
 1. Add the `vsix` extension files to the same folder as your Dockerfile.
 
-   ```shell
+   ```sh
    ~/images/base
     ➜  ls -l
     -rw-r--r-- 1 coder coder       0 Aug 1 19:23 Dockerfile
@@ -147,8 +148,8 @@ Web or using the workspace's terminal.
 1. In the Dockerfile, add instructions to make a folder and to copy the `vsix`
    files into the newly created folder.
 
-   ```Dockerfile
-   FROM codercom/enterprise-base:ubuntu
+   ```dockerfile
+   FROM codercom/example-base:ubuntu
 
    # Run below commands as root user
    USER root

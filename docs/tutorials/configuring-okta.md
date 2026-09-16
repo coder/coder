@@ -1,4 +1,6 @@
-# Configuring Custom Claims/Scopes with Okta for group/role
+---
+title: Configure custom claims/scopes with Okta for group/role
+---
 
 <div style="pad: 0px; margin: 0px;">
   <span style="vertical-align:middle;">Author: </span>
@@ -46,7 +48,7 @@ Configure Coder to use these claims for group sync.
 These claims are present in the `id_token`.
 For more group sync configuration options, consult the [IDP sync documentation](../admin/users/idp-sync.md#group-sync).
 
-```bash
+```sh
 # Add the 'groups' scope and include the 'offline_access' scope for refresh tokens
 CODER_OIDC_SCOPES=openid,profile,email,offline_access,groups
 # This name needs to match the "Claim name" in the configuration above.
@@ -59,7 +61,7 @@ CODER_OIDC_GROUP_FIELD=groups
 These groups can also be used to configure role syncing based on group
 membership:
 
-```bash
+```sh
 CODER_OIDC_SCOPES=openid,profile,email,offline_access,groups
 # This name needs to match the "Claim name" in the configuration above.
 CODER_OIDC_USER_ROLE_FIELD=groups
@@ -91,7 +93,7 @@ attribute you have configured to the application:
 
 Configure using these new attributes in Coder:
 
-```bash
+```sh
 # This must be set to false. Coder uses this endpoint to grab the attributes.
 CODER_OIDC_IGNORE_USERINFO=false
 # Include offline_access for refresh tokens
@@ -123,7 +125,7 @@ Authorization servers also give more refined controls over things such as token/
 ![Okta API view](../images/guides/okta/api_view.png)
 
 To get custom claims working, map them to a custom scope.
-Click the authorization server you wish to use (likely just using the default).
+Select the authorization server you wish to use (likely just using the default).
 
 Go to **Scopes**, and **Add Scope**.
 Feel free to create one for roles, groups, or both:
@@ -142,7 +144,7 @@ This is so if other applications exist, we do not send them information they do 
 Now we have a custom scope and claim configured under an authorization server.
 Configure Coder to use this:
 
-```bash
+```sh
 # Grab this value from the Authorization Server > Settings > Issuer
 # DO NOT USE the application issuer URL. Make sure to use the newly configured
 # authorization server.

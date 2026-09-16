@@ -47,26 +47,6 @@ const (
 // String implements fmt.Stringer.
 func (s ExecutionState) String() string { return string(s) }
 
-// AllExecutionStates is the canonical enumeration of every value the
-// classifier can return. Tests rely on this list to iterate over every
-// state when verifying transition coverage.
-var AllExecutionStates = []ExecutionState{
-	StateN,
-	StateW,
-	StateE0,
-	StateE1,
-	StateR0,
-	StateR1,
-	StateI0,
-	StateI1,
-	StateA0,
-	StateA1,
-	StateXW,
-	StateXE0,
-	StateXE1,
-	StateInvalid,
-}
-
 // IsRunnable returns true for the execution states that the chat
 // worker is allowed to acquire and drive forward: R0, R1, I0, I1,
 // A0, and A1. Requires-action states need worker ownership for
@@ -75,27 +55,6 @@ var AllExecutionStates = []ExecutionState{
 func (s ExecutionState) IsRunnable() bool {
 	switch s {
 	case StateR0, StateR1, StateI0, StateI1, StateA0, StateA1:
-		return true
-	default:
-		return false
-	}
-}
-
-// IsArchived returns true for the three archived execution states.
-func (s ExecutionState) IsArchived() bool {
-	switch s {
-	case StateXW, StateXE0, StateXE1:
-		return true
-	default:
-		return false
-	}
-}
-
-// QueueNonEmpty returns true for execution states that require a
-// non-empty queue. Useful when seeding test fixtures.
-func (s ExecutionState) QueueNonEmpty() bool {
-	switch s {
-	case StateE1, StateR1, StateI1, StateA1, StateXE1:
 		return true
 	default:
 		return false
@@ -149,18 +108,3 @@ func ClassifyExecutionState(chat database.Chat, queueNonEmpty, exists bool) Exec
 	}
 	return StateInvalid
 }
-
-// OwnershipState identifies whether a chat row is currently owned by a
-// worker. The state machine treats execution and ownership as
-// orthogonal.
-type OwnershipState string
-
-const (
-	// StateU: chat has no owner (worker_id IS NULL).
-	StateU OwnershipState = "U"
-	// StateO: chat has an owner (worker_id IS NOT NULL).
-	StateO OwnershipState = "O"
-)
-
-// AllOwnershipStates is the canonical enumeration of ownership states.
-var AllOwnershipStates = []OwnershipState{StateU, StateO}

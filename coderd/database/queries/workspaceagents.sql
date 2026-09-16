@@ -337,6 +337,33 @@ WHERE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE;
 
+-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceIDs :many
+SELECT
+	workspace_builds.workspace_id,
+	workspace_builds.id AS build_id,
+	sqlc.embed(workspace_agents)
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	workspace_builds ON workspace_resources.job_id = workspace_builds.job_id
+JOIN (
+	SELECT
+		workspace_id,
+		MAX(build_number) AS build_number
+	FROM
+		workspace_builds
+	WHERE
+		workspace_id = ANY(@workspace_ids :: uuid [ ])
+	GROUP BY
+		workspace_id
+) AS latest_builds ON
+	latest_builds.workspace_id = workspace_builds.workspace_id AND
+	latest_builds.build_number = workspace_builds.build_number
+WHERE
+	workspace_agents.deleted = FALSE;
+
 -- name: GetWorkspaceAgentsByWorkspaceAndBuildNumber :many
 SELECT
 	workspace_agents.*
@@ -414,8 +441,7 @@ WHERE
 SELECT
 	sqlc.embed(workspaces),
 	sqlc.embed(workspace_agents),
-	sqlc.embed(workspace_build_with_user),
-	tasks.id AS task_id
+	sqlc.embed(workspace_build_with_user)
 FROM
 	workspace_agents
 JOIN
@@ -430,10 +456,6 @@ JOIN
 	workspaces
 ON
 	workspace_build_with_user.workspace_id = workspaces.id
-LEFT JOIN
-	tasks
-ON
-	tasks.workspace_id = workspaces.id
 WHERE
 	-- This should only match 1 agent, so 1 returned row or 0.
 	workspace_agents.auth_token = @auth_token::uuid

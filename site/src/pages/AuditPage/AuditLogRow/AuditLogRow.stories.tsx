@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockAuditLog,
 	MockAuditLog2,
@@ -40,7 +39,6 @@ export const NoDiff: Story = {
 };
 
 export const WithDiff: Story = {
-	parameters: { chromatic },
 	args: {
 		auditLog: MockAuditLog2,
 		defaultIsDiffOpen: true,
@@ -48,7 +46,6 @@ export const WithDiff: Story = {
 };
 
 export const WithLongDiffRow: Story = {
-	parameters: { chromatic },
 	args: {
 		auditLog: {
 			...MockAuditLog2,
@@ -149,6 +146,32 @@ export const NoUserAgent: Story = {
 	},
 };
 
+export const WithLegacyTaskResumeReason: Story = {
+	args: {
+		auditLog: {
+			...MockAuditLogWithWorkspaceBuild,
+			action: "start",
+			description: "{user} started build for workspace {target}",
+			additional_fields: {
+				...MockAuditLogWithWorkspaceBuild.additional_fields,
+				build_reason: "task_resume",
+			},
+		},
+	},
+};
+
+export const WithLegacyTaskAutoPause: Story = {
+	args: {
+		auditLog: {
+			...MockAuditLogWithWorkspaceBuild,
+			additional_fields: {
+				...MockAuditLogWithWorkspaceBuild.additional_fields,
+				build_reason: "task_auto_pause",
+			},
+		},
+	},
+};
+
 export const WithConnectionType: Story = {
 	args: {
 		showOrgDetails: true,
@@ -201,7 +224,6 @@ const MockChatAuditLog: AuditLog = {
 };
 
 export const WithChatACLDiff: Story = {
-	parameters: { chromatic },
 	args: {
 		auditLog: {
 			...MockChatAuditLog,

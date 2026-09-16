@@ -1,4 +1,6 @@
-# Kubernetes event logs
+---
+title: Kubernetes event logs
+---
 
 To stream Kubernetes events into your workspace startup logs, you can use
 Coder's [`coder-logstream-kube`](https://github.com/coder/coder-logstream-kube)
@@ -13,7 +15,7 @@ or deployment, such as:
 Install the `coder-logstream-kube` helm chart on the cluster where the
 deployment is running.
 
-```shell
+```sh
 helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
 helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
     --namespace coder \

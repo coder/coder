@@ -76,4 +76,25 @@ func TestParseEventWithType(t *testing.T) {
 		require.Equal(t, eventType, event.EventType())
 		require.Equal(t, map[string]any{"count": int64(1)}, event.Fields())
 	})
+
+	t.Run("HBAgentRuntimeV1", func(t *testing.T) {
+		t.Parallel()
+
+		eventType := usagetypes.UsageEventTypeHBAgentRuntimeV1
+		event, err := usagetypes.ParseEventWithType(eventType, []byte(`{"runtime_ms": 1234}`))
+		require.NoError(t, err)
+		require.Equal(t, usagetypes.HBAgentRuntime{RuntimeMs: 1234}, event)
+		require.Equal(t, eventType, event.EventType())
+		require.Equal(t, map[string]any{"runtime_ms": int64(1234)}, event.Fields())
+
+		event, err = usagetypes.ParseEventWithType(eventType, []byte(`{"runtime_ms": 0}`))
+		require.NoError(t, err)
+		require.Equal(t, usagetypes.HBAgentRuntime{RuntimeMs: 0}, event)
+
+		_, err = usagetypes.ParseEventWithType(eventType, []byte(`{"runtime_ms": -1}`))
+		require.ErrorContains(t, err, "runtime_ms cannot be negative")
+
+		_, err = usagetypes.ParseEventWithType(eventType, []byte(`{"runtime_ms": 1, "extra": "field"}`))
+		require.ErrorContains(t, err, "unmarshal *usagetypes.HBAgentRuntime event")
+	})
 }

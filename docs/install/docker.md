@@ -1,4 +1,6 @@
-# Install Coder via Docker
+---
+title: Install Coder via Docker
+---
 
 You can install and run Coder using the official Docker images published on
 [GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).
@@ -36,7 +38,7 @@ which includes a PostgreSQL container and volume.
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
    group. You can get the `docker` group `gid` by running the below command:
 
-   ```shell
+   ```sh
    getent group docker | cut -d: -f3
    ```
 
@@ -57,7 +59,7 @@ Coder's [configuration options](../admin/setup/index.md).
 For proof-of-concept deployments, you can run a complete Coder instance with the
 following command.
 
-```shell
+```sh
 export CODER_DATA=$HOME/.config/coderv2-docker
 export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 mkdir -p $CODER_DATA
@@ -74,7 +76,7 @@ For production deployments, we recommend using an external PostgreSQL database
 (version 13 or higher). Set `CODER_ACCESS_URL` to the external URL that users
 and workspaces will use to connect to Coder.
 
-```shell
+```sh
 export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 docker run --rm -it \
   -e CODER_ACCESS_URL="https://coder.example.com" \
@@ -105,7 +107,7 @@ Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
 
 If you see an error like:
 
-```text
+```txt
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
@@ -162,4 +164,4 @@ recommend setting an [access URL](../admin/setup/index.md#access-url)
 ## Next steps
 
 - [Create your first template](../tutorials/template-from-scratch.md)
-- [Control plane configuration](../admin/setup/index.md#configure-control-plane-access)
+- [Control plane configuration](../admin/setup/index.md)

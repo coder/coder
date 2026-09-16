@@ -10,7 +10,6 @@ interface UseBatchActionsOptions {
 
 type UpdateAllPayload = Readonly<{
 	workspaces: readonly Workspace[];
-	isDynamicParametersEnabled: boolean;
 }>;
 
 type UseBatchActionsResult = Readonly<{
@@ -78,11 +77,11 @@ export function useBatchActions(
 
 	const updateAllMutation = useMutation({
 		mutationFn: (payload: UpdateAllPayload) => {
-			const { workspaces, isDynamicParametersEnabled } = payload;
+			const { workspaces } = payload;
 			return Promise.all(
 				workspaces
 					.filter((w) => w.outdated && !w.dormant_at)
-					.map((w) => API.updateWorkspace(w, [], isDynamicParametersEnabled)),
+					.map((w) => API.updateWorkspace(w)),
 			);
 		},
 		onSuccess,
@@ -142,6 +141,7 @@ export function useBatchActions(
 			unfavoriteAllMutation.isPending ||
 			startAllMutation.isPending ||
 			stopAllMutation.isPending ||
-			deleteAllMutation.isPending,
+			deleteAllMutation.isPending ||
+			updateAllMutation.isPending,
 	};
 }

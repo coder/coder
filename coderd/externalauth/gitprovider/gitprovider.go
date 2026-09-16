@@ -192,7 +192,7 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 
 	switch providerType {
 	case "github":
-		return newGitHub(apiBaseURL, httpClient, o.clock), nil
+		return newGitHub(apiBaseURL, httpClient, o.clock)
 	case "gitlab":
 		return newGitLab(apiBaseURL, httpClient, o.clock)
 	default:
@@ -207,9 +207,6 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 // resetHeader (unix timestamp). Returns zero if no recognizable header
 // is present.
 func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.Duration {
-	if clk == nil {
-		clk = quartz.NewReal()
-	}
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {
 		if secs, err := strconv.Atoi(ra); err == nil {
@@ -235,9 +232,6 @@ func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader stri
 	}
 	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
 		return nil
-	}
-	if clk == nil {
-		clk = quartz.NewReal()
 	}
 	retryAfter := parseRetryAfter(resp.Header, resetHeader, clk)
 	if retryAfter <= 0 {

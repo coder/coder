@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
@@ -16,7 +17,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 interface CompactOrgSelectorProps {
 	value: Organization | null;
@@ -65,7 +65,7 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 								size="sm"
 								src={value.icon}
 								fallback={value.display_name || value.name}
-								className="!size-3.5 border-0"
+								className="size-3.5! border-0"
 							/>
 							<span className="truncate">
 								{value.display_name || value.name}
@@ -104,10 +104,14 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 								>
 									{" "}
 									<Avatar
+										// Decorative: without this the fallback initials join
+										// the option's accessible name once they render, making
+										// name queries and screen-reader output timing-dependent.
+										aria-hidden
 										size="sm"
 										src={org.icon}
 										fallback={org.display_name || org.name}
-										className="!size-3.5 border-0"
+										className="size-3.5! border-0"
 									/>
 									<span className="truncate">
 										{org.display_name || org.name}

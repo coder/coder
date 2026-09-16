@@ -11,10 +11,15 @@ import type {
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Tooltip,
 	TooltipContent,
@@ -55,6 +60,7 @@ const WorkspaceParametersPage: FC = () => {
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const [isConnecting, setIsConnecting] = useState(false);
 	// The expected ID of the init message, so we can wait until the initial
 	// parameters have gone through before rendering the form.
 	const [initId, setInitId] = useState(Number.NaN);
@@ -67,7 +73,7 @@ const WorkspaceParametersPage: FC = () => {
 		})) ?? [];
 
 	// sendMessage increments the ID and sends the form values on the web socket
-	// and return true.  If the socket is not open, it does not increment the ID
+	// and returns true.  If the socket is not open, it does not increment the ID
 	// and returns false.
 	const sendMessage = (formValues: Record<string, string>): boolean => {
 		const request: DynamicParametersRequest = {
@@ -128,6 +134,9 @@ const WorkspaceParametersPage: FC = () => {
 			workspace.owner_id,
 			{
 				onOpen: () => {
+					if (ws.current === socket) {
+						setIsConnecting(false);
+					}
 					// If we already have the build parameters, send them now.
 					sendInitialParameters();
 				},
@@ -140,11 +149,13 @@ const WorkspaceParametersPage: FC = () => {
 				},
 				onError: (error) => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(error);
 					}
 				},
 				onClose: () => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(
 							new DetailedError(
 								"Websocket connection for dynamic parameters unexpectedly closed.",
@@ -156,6 +167,7 @@ const WorkspaceParametersPage: FC = () => {
 			},
 		);
 
+		setIsConnecting(true);
 		ws.current = socket;
 
 		return () => {
@@ -251,7 +263,7 @@ const WorkspaceParametersPage: FC = () => {
 		!latestResponse ||
 		Number.isNaN(initId) ||
 		latestResponse.id < initId ||
-		(ws.current && ws.current.readyState === WebSocket.CONNECTING);
+		isConnecting;
 
 	let submitLabel = "Update and start";
 	if (restartWithParameters.isPending) {
@@ -263,13 +275,12 @@ const WorkspaceParametersPage: FC = () => {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 max-w-screen-md">
+		<div className="flex flex-col gap-12">
 			<title>{pageTitle(workspace.name, "Parameters")}</title>
 
-			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row items-center gap-2 justify-between w-full">
-					<span className="flex flex-row items-center gap-2">
-						<h1 className="text-3xl m-0">Workspace parameters</h1>
+			<SettingsHeader>
+				<SettingsHeaderTitle
+					tooltip={
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -290,9 +301,14 @@ const WorkspaceParametersPage: FC = () => {
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
-					</span>
-				</span>
-			</header>
+					}
+				>
+					Parameters
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the build parameters for this workspace.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 

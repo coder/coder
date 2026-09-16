@@ -56,10 +56,10 @@ argin: 8px 0 32px; line-height: 1.5;">
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
         <a href=3D"http://test.com/reset-password/change?otp=3Dfad9020b-656=
-2-4cdb-87f1-0486f1bea415&email=3Dbobby%2Fdrop-table%2Buser%40coder.com" sty=
-le=3D"display: inline-block; padding: 13px 24px; background-color: #020617;=
- color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0 4px;"=
->
+2-4cdb-87f1-0486f1bea415&amp;email=3Dbobby%2Fdrop-table%2Buser%40coder.com"=
+ style=3D"display: inline-block; padding: 13px 24px; background-color: #020=
+617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0 4=
+px;">
           Reset password
         </a>
        =20

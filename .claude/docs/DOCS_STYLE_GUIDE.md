@@ -168,6 +168,37 @@ superseded by the canonical content guidelines.
 
 ## Code Examples
 
+### Configuration examples: prefer environment variables
+
+When showing how to configure `coder server` in admin or setup
+documentation, lead with the environment variable form. Production Coder
+deployments are typically run as a system service, container, or Helm
+chart, all of which set configuration through environment variables (for
+example, Helm `values.yaml` for Kubernetes or `/etc/coder.d/coder.env` for
+a system service). Showing the CLI flag form first forces operators to
+mentally translate every example.
+
+Show the equivalent CLI flag only when the example is invoking
+`coder server` directly (for local development or one-off runs), or as a
+supporting note. Point readers at the
+[configuration reference](../../docs/admin/setup/configuration-reference.md)
+for the full mapping between environment variables, flags, and YAML keys.
+
+````markdown
+```sh
+# Preferred for admin/setup docs:
+CODER_UPDATE_CHECK=false
+```
+````
+
+CLI flag form, reserved for ad-hoc invocations:
+
+````markdown
+```sh
+coder server --update-check=false
+```
+````
+
 ### Command Examples
 
 ````markdown
@@ -216,6 +247,11 @@ Link to specific endpoints:
 ```
 
 ## Accuracy Standards
+
+The exact-value instructions in this section are about how to state a value
+once it belongs on the page; whether it belongs there at all is governed by
+[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines.
 
 ### Specific Numbers Matter
 
@@ -331,7 +367,9 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 ## Key Principles
 
 1. **Research first** - Verify against actual code implementation
-2. **Be precise** - Use exact numbers, permission names, API paths
+2. **Be precise** - Use exact numbers, permission names, and API paths for
+   the values that belong on the page per
+   [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 3. **Visual structure** - Organize around screenshots when available
 4. **Link everything** - Related docs, API endpoints, CLI references
 5. **Manifest inclusion** - Add to manifest.json for navigation

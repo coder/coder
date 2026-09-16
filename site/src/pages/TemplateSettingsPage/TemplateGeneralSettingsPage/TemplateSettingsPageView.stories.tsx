@@ -21,6 +21,24 @@ type Story = StoryObj<typeof TemplateSettingsPageView>;
 
 export const Example: Story = {};
 
+export const AgentsNotAllowed: Story = {
+	args: {
+		template: {
+			...MockTemplate,
+			agents_allowed: false,
+		},
+	},
+};
+
+export const ModuleCacheDisabledByDeployment: Story = {
+	args: {
+		template: {
+			...MockTemplate,
+			module_cache_disabled_by_deployment: true,
+		},
+	},
+};
+
 export const SaveTemplateSettingsError: Story = {
 	args: {
 		submitError: mockApiError({

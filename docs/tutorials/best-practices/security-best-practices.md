@@ -1,4 +1,6 @@
-# Security - best practices
+---
+title: Security - best practices
+---
 
 December 16, 2024
 
@@ -78,7 +80,7 @@ A malicious workspace could reuse Coder cookies to call the API or interact with
 
 1. Disable path-based apps:
 
-   ```shell
+   ```sh
    coderd server --disable-path-apps
    # or
    export CODER_DISABLE_PATH_APPS=true

@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	spawnAgentToolName = "spawn_agent"
+	spawnAgentToolName         = "spawn_agent"
+	listSubagentModelsToolName = "list_subagent_models"
 
 	subagentTypeGeneral     = "general"
 	subagentTypeExplore     = "explore"
@@ -37,17 +38,31 @@ const (
 		"external or web research, parallel research, or tasks that may need edits."
 )
 
+// unbilledSubagentToolNames excludes parent-side orchestration because
+// child chats bill their own runtime. Include deprecated aliases.
+var unbilledSubagentToolNames = map[string]bool{
+	spawnAgentToolName:         true,
+	"wait_agent":               true,
+	"message_agent":            true,
+	"interrupt_agent":          true,
+	"close_agent":              true,
+	"list_agents":              true,
+	listSubagentModelsToolName: true,
+}
+
 type spawnAgentArgs struct {
-	Type   string `json:"type"`
-	Prompt string `json:"prompt"`
-	Title  string `json:"title,omitempty"`
+	Type            string `json:"type"`
+	Prompt          string `json:"prompt"`
+	Title           string `json:"title,omitempty"`
+	ModelConfigID   string `json:"model_config_id,omitempty" description:"Optional model config UUID from list_subagent_models. Runs the child on that model instead of the configured default. Not supported for type 'computer_use'."`
+	ReasoningEffort string `json:"reasoning_effort,omitempty" description:"Optional reasoning effort for the child: none, minimal, low, medium, high, xhigh, or max. Clamped to the selected model's supported range. Not supported for type 'computer_use'."`
 }
 
 type subagentDefinition struct {
 	id                string
 	description       string
 	unavailableReason func(context.Context, *Server, database.Chat) string
-	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
+	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, *uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
 func allSubagentDefinitions() []subagentDefinition {
@@ -55,10 +70,14 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeGeneral,
 			description: "substantial delegated research, analysis, reasoning, review, planning support, and implementation",
-			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				if explicitModelConfigID != nil {
+					return childSubagentChatOptions{modelConfigIDOverride: explicitModelConfigID}, nil
+				}
 				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					parent.OwnerID,
+					parent.OrganizationID,
 					codersdk.ChatModelOverrideContextGeneral,
 				)
 				if err != nil {
@@ -75,17 +94,25 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeExplore,
 			description: "narrow repository-local read-only code discovery and code tracing",
-			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
-					ctx,
-					turnParent.OwnerID,
-					codersdk.ChatModelOverrideContextExplore,
-				)
-				if err != nil {
-					return childSubagentChatOptions{}, err
-				}
-				if modelConfigID == uuid.Nil {
-					modelConfigID = currentModelConfigID
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				modelConfigID := currentModelConfigID
+				var reasoningEffort *string
+				if explicitModelConfigID != nil {
+					modelConfigID = *explicitModelConfigID
+				} else {
+					resolvedModelConfigID, resolvedReasoningEffort, err := p.resolveSubagentModelConfigID(
+						ctx,
+						turnParent.OwnerID,
+						turnParent.OrganizationID,
+						codersdk.ChatModelOverrideContextExplore,
+					)
+					if err != nil {
+						return childSubagentChatOptions{}, err
+					}
+					if resolvedModelConfigID != uuid.Nil {
+						modelConfigID = resolvedModelConfigID
+					}
+					reasoningEffort = resolvedReasoningEffort
 				}
 				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
 					ctx,
@@ -129,7 +156,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return childSubagentChatOptions{}, err
@@ -284,7 +311,7 @@ func buildSpawnAgentDescription(
 	description := "Spawn a delegated child subagent to work on a clearly scoped, " +
 		"independent task in parallel. Use the type field to choose " +
 		"the right specialist. Available type values: " +
-		formatSubagentDefinitions(availableDefs) + ". Do not use this for " +
+		formatSubagentDefinitionsWithDescriptionOverrides(availableDefs, nil) + ". Do not use this for " +
 		"simple or quick operations you can handle directly with execute, " +
 		"read_file, or write_file. Prefer type=\"" + subagentTypeGeneral +
 		"\" for substantial delegated research, analysis, reasoning, review, " +
@@ -301,6 +328,11 @@ func buildSpawnAgentDescription(
 		"subagents modify the same files they will conflict with each other, " +
 		"so ensure parallel subagent tasks are independent. The child agent " +
 		"receives the same workspace tools but cannot spawn its own subagents. " +
+		"You may optionally set model_config_id (a model config UUID from " +
+		listSubagentModelsToolName + ") to run the child on a specific model " +
+		"instead of the configured default, and reasoning_effort to pin the " +
+		"child's reasoning effort; both apply only to type \"" +
+		subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
 		"After spawning, use wait_agent to retrieve the result. Agents persist " +
 		"after completion; reuse an agent via message_agent for follow-up work " +
 		"when it already has relevant context. Spawned agents are your " +
@@ -318,10 +350,6 @@ func buildSpawnAgentDescription(
 			"They must not implement changes or intentionally modify workspace files."
 	}
 	return description
-}
-
-func formatSubagentDefinitions(defs []subagentDefinition) string {
-	return formatSubagentDefinitionsWithDescriptionOverrides(defs, nil)
 }
 
 func formatSubagentDefinitionsWithDescriptionOverrides(

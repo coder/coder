@@ -1,22 +1,32 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { within } from "storybook/test";
 import {
 	MockCanceledProvisionerJob,
 	MockCancelingProvisionerJob,
 	MockFailedProvisionerJob,
+	MockNoPermissions,
 	MockPendingProvisionerJob,
+	MockPermissions,
 	MockRunningProvisionerJob,
 	MockTemplateVersion,
+	MockUserOwner,
 } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { VersionsTable } from "./VersionsTable";
 
 const meta: Meta<typeof VersionsTable> = {
 	title: "pages/TemplatePage/VersionsTable",
 	component: VersionsTable,
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
 	args: {
 		onPromoteClick: () => {},
 		onArchiveClick: () => {},
 	},
+	decorators: [withAuthProvider],
 };
 
 export default meta;
@@ -34,6 +44,23 @@ export const Example: Story = {
 			},
 			MockTemplateVersion,
 		],
+	},
+	play: async ({ canvasElement }) => {
+		// With permissions.updateTemplates, VersionRow is a clickable button
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: MockTemplateVersion.name });
+	},
+};
+
+export const NoUpdatePermission: Story = {
+	args: { ...Example.args },
+	parameters: {
+		permissions: MockNoPermissions,
+	},
+	play: async ({ canvasElement }) => {
+		// Without permissions.updateTemplates, VersionRow is a non-clickable row
+		const canvas = within(canvasElement);
+		await canvas.findByRole("row", { name: MockTemplateVersion.name });
 	},
 };
 

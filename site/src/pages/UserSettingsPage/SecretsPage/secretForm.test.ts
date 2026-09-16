@@ -1,10 +1,13 @@
 import type { UserSecret } from "#/api/typesGenerated";
-import { mockApiError } from "#/testHelpers/entities";
+import { MockImportedUserSecret, mockApiError } from "#/testHelpers/entities";
 import {
 	buildCreateUserSecretRequest,
+	buildImportSuccessMessage,
 	buildUpdateUserSecretRequest,
 	getCreateSecretRequiredFieldErrors,
+	getSecretInjectionSummary,
 	mapSecretApiErrorToFormErrors,
+	secretsFileFormatFromFilename,
 } from "./secretForm";
 
 const existingSecrets: UserSecret[] = [
@@ -14,6 +17,7 @@ const existingSecrets: UserSecret[] = [
 		description: "Service token",
 		env_name: "SERVICE_TOKEN",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-05-04T00:00:00Z",
 		updated_at: "2026-05-04T00:00:00Z",
 	},
@@ -23,10 +27,63 @@ const existingSecrets: UserSecret[] = [
 		description: "",
 		env_name: "SERVICE_API_KEY",
 		file_path: "~/.config/service/key",
+		enabled: true,
 		created_at: "2026-05-04T00:00:00Z",
 		updated_at: "2026-05-04T00:00:00Z",
 	},
 ];
+
+describe("buildImportSuccessMessage", () => {
+	it("reports a single secret imported successfully", () => {
+		expect(buildImportSuccessMessage([MockImportedUserSecret])).toBe(
+			"Imported 1 secret successfully.",
+		);
+	});
+
+	it("reports multiple secrets imported successfully", () => {
+		expect(
+			buildImportSuccessMessage([
+				MockImportedUserSecret,
+				{ ...MockImportedUserSecret, id: "second-secret" },
+			]),
+		).toBe("Imported 2 secrets successfully.");
+	});
+
+	it("reports one secret imported without an env name", () => {
+		expect(
+			buildImportSuccessMessage([
+				MockImportedUserSecret,
+				{
+					...MockImportedUserSecret,
+					id: "without-env-name",
+					env_name: "",
+				},
+			]),
+		).toBe(
+			"Imported 2 secrets. " +
+				"1 was imported without an environment variable name " +
+				"because its key is not a valid environment variable name. Edit it to set one.",
+		);
+	});
+
+	it("reports multiple secrets imported without env names", () => {
+		expect(
+			buildImportSuccessMessage([
+				{ ...MockImportedUserSecret, env_name: "" },
+				{
+					...MockImportedUserSecret,
+					id: "second-without-env-name",
+					env_name: "",
+				},
+				MockImportedUserSecret,
+			]),
+		).toBe(
+			"Imported 3 secrets. " +
+				"2 were imported without an environment variable name " +
+				"because their keys are not valid environment variable names. Edit them to set one.",
+		);
+	});
+});
 
 describe("getCreateSecretRequiredFieldErrors", () => {
 	it("requires name and value on create", () => {
@@ -34,6 +91,7 @@ describe("getCreateSecretRequiredFieldErrors", () => {
 			getCreateSecretRequiredFieldErrors({
 				name: "",
 				value: "",
+				env_name: "",
 			}),
 		).toEqual({
 			name: "Name is required.",
@@ -46,9 +104,26 @@ describe("getCreateSecretRequiredFieldErrors", () => {
 			getCreateSecretRequiredFieldErrors({
 				name: "   ",
 				value: "some value",
+				env_name: "",
 			}),
 		).toEqual({
 			name: "Name is required.",
+		});
+	});
+
+	it("requires an environment variable when file paths are disabled", () => {
+		expect(
+			getCreateSecretRequiredFieldErrors(
+				{
+					name: "service-token",
+					value: "some value",
+					env_name: "",
+				},
+				false,
+			),
+		).toEqual({
+			env_name:
+				"Environment variable is required when file path delivery is disabled.",
 		});
 	});
 });
@@ -117,6 +192,89 @@ describe("payload builders", () => {
 			value: "",
 		});
 	});
+
+	// A blocked file path is this secret's only target, so clearing it has to
+	// disable the secret in the same request unless an env target replaces it.
+	const blockedFileOnly = {
+		...existingSecrets[1],
+		env_name: "",
+		file_path: "~/.config/service/key",
+		enabled: true,
+	};
+	const clearBlockedPath = (env_name: string, storedEnvName = "") =>
+		buildUpdateUserSecretRequest(
+			{ ...blockedFileOnly, env_name: storedEnvName },
+			{
+				name: blockedFileOnly.name,
+				value: "",
+				description: blockedFileOnly.description,
+				env_name,
+				file_path: "",
+			},
+			{ filePathEnabled: false },
+		);
+
+	it("clears a blocked path atomically with the enabled flag", () => {
+		expect(clearBlockedPath("")).toEqual({ file_path: "", enabled: false });
+		expect(clearBlockedPath("SERVICE_API_KEY")).toEqual({
+			env_name: "SERVICE_API_KEY",
+			file_path: "",
+		});
+		expect(clearBlockedPath("SERVICE_API_KEY", "SERVICE_API_KEY")).toEqual({
+			file_path: "",
+		});
+	});
+});
+
+describe("getSecretInjectionSummary", () => {
+	const FILE = "~/.config/service/key";
+
+	it("keeps stored targets effective while file paths are allowed", () => {
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "SERVICE_TOKEN", file_path: FILE },
+				true,
+			),
+		).toEqual({ typeLabel: "env var + file", canEnable: true });
+		expect(
+			getSecretInjectionSummary({ env_name: "", file_path: FILE }, true),
+		).toEqual({ typeLabel: "file", canEnable: true });
+	});
+
+	it("drops only the file target while file paths are blocked", () => {
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "SERVICE_TOKEN", file_path: FILE },
+				false,
+			),
+		).toEqual({ typeLabel: "env var", canEnable: true });
+		expect(
+			getSecretInjectionSummary({ env_name: "", file_path: FILE }, false),
+		).toEqual({ typeLabel: "not injected", canEnable: false });
+	});
+});
+
+describe("secretsFileFormatFromFilename", () => {
+	it.each([
+		["a.env", "env"],
+		[".env", "env"],
+		["prod.env", "env"],
+		["config.json", "json"],
+		["values.yaml", "yaml"],
+		["values.yml", "yaml"],
+		["CONFIG.JSON", "json"],
+		["Values.YML", "yaml"],
+		["secrets.ENV", "env"],
+	])("maps %s to the %s format", (filename, format) => {
+		expect(secretsFileFormatFromFilename(filename)).toBe(format);
+	});
+
+	it.each([["foo.txt"], ["noextension"], ["archive.tar.gz"], [""]])(
+		"returns undefined for unsupported filename %s",
+		(filename) => {
+			expect(secretsFileFormatFromFilename(filename)).toBeUndefined();
+		},
+	);
 });
 
 describe("mapSecretApiErrorToFormErrors", () => {

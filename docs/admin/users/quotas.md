@@ -1,4 +1,6 @@
-# Quotas
+---
+title: Quotas
+---
 
 Quotas are a mechanism for controlling spend by associating costs with workspace
 templates and assigning budgets to users. Users that exceed their budget will be
@@ -29,7 +31,7 @@ quota than an online workspace.
 A common use case is separating costs for a persistent volume and ephemeral
 compute:
 
-```hcl
+```tf
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}-root"
 }

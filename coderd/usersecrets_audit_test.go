@@ -29,13 +29,24 @@ func TestUserSecretAudit(t *testing.T) {
 		// collide in the shared user's secret namespace.
 		return strings.ReplaceAll(t.Name(), "/", "-")
 	}
+	genEnvName := func(t *testing.T) string {
+		// Same derivation as genSecretName, but in the
+		// SCREAMING_SNAKE_CASE shape env names require. Every
+		// secret needs at least one of env_name or file_path,
+		// and the per-user UNIQUE index makes empty-injection
+		// not an option.
+		name := strings.ReplaceAll(t.Name(), "/", "_")
+		name = strings.ReplaceAll(name, "-", "_")
+		return strings.ToUpper(name)
+	}
 
 	t.Run("CreateEmitsLog", func(t *testing.T) {
 		auditor.ResetLogs()
 
 		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  genSecretName(t),
-			Value: "ghp_xxxxxxxxxxxx",
+			Name:    genSecretName(t),
+			Value:   "ghp_xxxxxxxxxxxx",
+			EnvName: genEnvName(t),
 		})
 		require.NoError(t, err)
 
@@ -51,8 +62,9 @@ func TestUserSecretAudit(t *testing.T) {
 		auditor.ResetLogs()
 
 		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  genSecretName(t),
-			Value: "old",
+			Name:    genSecretName(t),
+			Value:   "old",
+			EnvName: genEnvName(t),
 		})
 		require.NoError(t, err)
 
@@ -77,8 +89,9 @@ func TestUserSecretAudit(t *testing.T) {
 		auditor.ResetLogs()
 
 		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  genSecretName(t),
-			Value: "value",
+			Name:    genSecretName(t),
+			Value:   "value",
+			EnvName: genEnvName(t),
 		})
 		require.NoError(t, err)
 
@@ -138,8 +151,9 @@ func TestUserSecretAudit(t *testing.T) {
 		name := genSecretName(t)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  name,
-			Value: "value",
+			Name:    name,
+			Value:   "value",
+			EnvName: genEnvName(t),
 		})
 		require.NoError(t, err)
 		// Reset to ignore the created log. We are only testing that the
@@ -159,8 +173,9 @@ func TestUserSecretAudit(t *testing.T) {
 		secretName := genSecretName(t)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  secretName,
-			Value: "value",
+			Name:    secretName,
+			Value:   "value",
+			EnvName: genEnvName(t),
 		})
 		require.NoError(t, err)
 		// Discard the create log so the assertion below only sees audit entries

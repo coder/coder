@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -42,11 +42,10 @@ func SanitizeToolName(name string) string {
 	return toolNameSanitizer.ReplaceAllString(name, "_")
 }
 
-// ToolCaller is the narrowest interface which describes the behavior required from [mcp.Client],
-// which will normally be passed into [Tool] for interaction with an MCP server.
-// TODO: don't expose github.com/mark3labs/mcp-go outside this package.
+// ToolCaller is the subset of [mcp.ClientSession] used by [Tool].
+// TODO: avoid exposing MCP SDK types from this package.
 type ToolCaller interface {
-	CallTool(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	CallTool(ctx context.Context, params *mcp.CallToolParams) (*mcp.CallToolResult, error)
 }
 
 type Tool struct {
@@ -92,11 +91,9 @@ func (t *Tool) Call(ctx context.Context, input any, tracer trace.Tracer) (_ *mcp
 
 	start := time.Now()
 	var res *mcp.CallToolResult
-	res, outErr = t.Client.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name:      t.Name,
-			Arguments: input,
-		},
+	res, outErr = t.Client.CallTool(ctx, &mcp.CallToolParams{
+		Name:      t.Name,
+		Arguments: input,
 	})
 
 	logFn := t.Logger.Debug

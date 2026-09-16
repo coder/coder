@@ -221,6 +221,38 @@ func TestWorkspaceACLDisabled(t *testing.T) {
 	})
 }
 
+// TestOAuth2ProviderAppIsPublic pins IsPublic's contract directly, since it is
+// what decides whether the token endpoint validates a client secret at all.
+// Only the exact string "public" may read as public: anything else, including
+// an unset column or a differently-cased value, must read as confidential so
+// that a garbled value cannot silently skip client authentication.
+func TestOAuth2ProviderAppIsPublic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		clientType string
+		want       bool
+	}{
+		{name: "Public", clientType: "public", want: true},
+		{name: "Confidential", clientType: "confidential", want: false},
+		{name: "Empty", clientType: "", want: false},
+		{name: "MixedCasePublic", clientType: "Public", want: false},
+		{name: "AllCapsPublic", clientType: "PUBLIC", want: false},
+		{name: "LeadingSpace", clientType: " public", want: false},
+		{name: "TrailingSpace", clientType: "public ", want: false},
+		{name: "Bogus", clientType: "bogus", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := OAuth2ProviderApp{ClientType: tt.clientType}
+			require.Equal(t, tt.want, app.IsPublic())
+		})
+	}
+}
+
 // Helpers
 func requirePermission(t *testing.T, s rbac.Scope, resource string, action policy.Action) {
 	t.Helper()

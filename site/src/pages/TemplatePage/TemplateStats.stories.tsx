@@ -46,7 +46,7 @@ export const LongTemplateVersion: Story = {
 		},
 	},
 	parameters: {
-		chromatic: { viewports: [960] },
+		pixel: { matrix: { viewports: ["laptop"] } },
 	},
 };
 
@@ -56,6 +56,6 @@ export const SmallViewport: Story = {
 		activeVersion: MockTemplateVersion,
 	},
 	parameters: {
-		chromatic: { viewports: [600] },
+		pixel: { matrix: { viewports: ["tablet"] } },
 	},
 };

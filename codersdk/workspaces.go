@@ -66,17 +66,18 @@ type Workspace struct {
 	// what is causing an unhealthy status.
 	Health           WorkspaceHealth  `json:"health"`
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
-	AllowRenames     bool             `json:"allow_renames"`
-	Favorite         bool             `json:"favorite"`
-	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	// AllowRenames is the effective rename permission for this workspace,
+	// derived from the template's allow_workspace_renames setting and the
+	// deprecated deployment-wide flag.
+	AllowRenames bool       `json:"allow_renames"`
+	Favorite     bool       `json:"favorite"`
+	NextStartAt  *time.Time `json:"next_start_at" format:"date-time"`
 	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
 	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
 	// such as being managed differently from regular workspaces.
 	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
 	// and IsPrebuild returns false.
-	IsPrebuild bool `json:"is_prebuild"`
-	// TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
-	TaskID     uuid.NullUUID          `json:"task_id,omitempty"`
+	IsPrebuild bool                   `json:"is_prebuild"`
 	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty"`
 }
 
@@ -113,8 +114,6 @@ const (
 	CreateWorkspaceBuildReasonSSHConnection       CreateWorkspaceBuildReason = "ssh_connection"
 	CreateWorkspaceBuildReasonVSCodeConnection    CreateWorkspaceBuildReason = "vscode_connection"
 	CreateWorkspaceBuildReasonJetbrainsConnection CreateWorkspaceBuildReason = "jetbrains_connection"
-	CreateWorkspaceBuildReasonTaskManualPause     CreateWorkspaceBuildReason = "task_manual_pause"
-	CreateWorkspaceBuildReasonTaskResume          CreateWorkspaceBuildReason = "task_resume"
 )
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -135,7 +134,7 @@ type CreateWorkspaceBuildRequest struct {
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	// Reason sets the reason for the workspace build.
-	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection task_manual_pause"`
+	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
 	// OnSuccess queues a follow-up workspace build after this build succeeds.
 	// It currently supports restarting a workspace by starting it after a
 	// successful stop build.
@@ -205,7 +204,7 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 		return Workspace{}, ReadBodyAsError(res)
 	}
 	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+	return workspace, ReadBodyAsJSON(res, &workspace)
 }
 
 type WorkspaceBuildsRequest struct {
@@ -218,7 +217,7 @@ func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest
 	res, err := c.Request(
 		ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
-		nil, req.Pagination.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
+		nil, req.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
 	)
 	if err != nil {
 		return nil, err
@@ -228,7 +227,7 @@ func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest
 		return nil, ReadBodyAsError(res)
 	}
 	var workspaceBuild []WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
 // CreateWorkspaceBuild queues a new build to occur for a workspace.
@@ -242,7 +241,7 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
 func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
@@ -560,6 +559,9 @@ type WorkspaceFilter struct {
 	SharedWithUser string `json:"shared_with_user,omitempty" typescript:"-"`
 	// SharedWithGroup is the group name, group ID, or <org name>/<group name> of the group that the workspace is shared with
 	SharedWithGroup string `json:"shared_with_group,omitempty" typescript:"-"`
+	// IncludeAgentMetadata expands each agent in the response with the
+	// named metadata keys. It does not filter the returned workspaces.
+	IncludeAgentMetadata []string `json:"include_agent_metadata,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -595,6 +597,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		if f.SharedWithGroup != "" {
 			params = append(params, fmt.Sprintf("shared_with_group:%q", f.SharedWithGroup))
 		}
+		for _, key := range f.IncludeAgentMetadata {
+			params = append(params, fmt.Sprintf("include_agent_metadata:%q", key))
+		}
 		if f.FilterQuery != "" {
 			// If custom stuff is added, just add it on here.
 			params = append(params, f.FilterQuery)
@@ -623,7 +628,7 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 	}
 
 	var wres WorkspacesResponse
-	return wres, json.NewDecoder(res.Body).Decode(&wres)
+	return wres, ReadBodyAsJSON(res, &wres)
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
@@ -643,7 +648,7 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	}
 
 	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+	return workspace, ReadBodyAsJSON(res, &workspace)
 }
 
 // SplitWorkspaceIdentifier splits an identifier into owner and
@@ -708,7 +713,7 @@ func (c *Client) WorkspaceQuota(ctx context.Context, organizationID string, user
 		return WorkspaceQuota{}, ReadBodyAsError(res)
 	}
 	var quota WorkspaceQuota
-	return quota, json.NewDecoder(res.Body).Decode(&quota)
+	return quota, ReadBodyAsJSON(res, &quota)
 }
 
 type ResolveAutostartResponse struct {
@@ -725,7 +730,7 @@ func (c *Client) ResolveAutostart(ctx context.Context, workspaceID string) (Reso
 		return ResolveAutostartResponse{}, ReadBodyAsError(res)
 	}
 	var response ResolveAutostartResponse
-	return response, json.NewDecoder(res.Body).Decode(&response)
+	return response, ReadBodyAsJSON(res, &response)
 }
 
 func (c *Client) FavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
@@ -763,7 +768,7 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceB
 		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
 	}
 	var timings WorkspaceBuildTimings
-	return timings, json.NewDecoder(res.Body).Decode(&timings)
+	return timings, ReadBodyAsJSON(res, &timings)
 }
 
 type WorkspaceACL struct {
@@ -814,7 +819,7 @@ func (c *Client) WorkspaceACL(ctx context.Context, workspaceID uuid.UUID) (Works
 		return WorkspaceACL{}, ReadBodyAsError(res)
 	}
 	var acl WorkspaceACL
-	return acl, json.NewDecoder(res.Body).Decode(&acl)
+	return acl, ReadBodyAsJSON(res, &acl)
 }
 
 type UpdateWorkspaceACL struct {
@@ -869,7 +874,7 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 		return ExternalAgentCredentials{}, ReadBodyAsError(res)
 	}
 	var credentials ExternalAgentCredentials
-	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
+	return credentials, ReadBodyAsJSON(res, &credentials)
 }
 
 // WorkspaceBuildUpdate contains information about a workspace build state change.
@@ -941,5 +946,5 @@ func (c *Client) WorkspaceAvailableUsers(ctx context.Context, organizationID uui
 		return nil, ReadBodyAsError(res)
 	}
 	var users []MinimalUser
-	return users, json.NewDecoder(res.Body).Decode(&users)
+	return users, ReadBodyAsJSON(res, &users)
 }

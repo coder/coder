@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // ServerProxier provides an abstraction to communicate with MCP Servers regardless of their transport.

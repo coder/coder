@@ -1,17 +1,25 @@
 import type { FC } from "react";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
-import { getSeverity, usageProgressPercentage } from "#/utils/budget";
+import {
+	formatSpendPeriodLabel,
+	getSeverity,
+	usageProgressPercentage,
+} from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
 
 interface UserDropdownAISpendProps {
 	currentSpend: number;
 	/** A null limit means unlimited. */
 	spendLimit: number | null;
+	periodStart: string;
+	periodEnd: string;
 }
 
 export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
 	currentSpend,
 	spendLimit,
+	periodStart,
+	periodEnd,
 }) => {
 	return (
 		<div className="px-2 py-2">
@@ -31,7 +39,10 @@ export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
 				/>
 			)}
 			<div className="mt-1 text-xs text-content-secondary">
-				(AI spend/month)
+				Approximate AI spend{" "}
+				<span className="whitespace-nowrap">
+					{formatSpendPeriodLabel(periodStart, periodEnd)}
+				</span>
 			</div>
 		</div>
 	);

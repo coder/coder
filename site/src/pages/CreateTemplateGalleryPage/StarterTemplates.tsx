@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
-import { cn } from "#/utils/cn";
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
@@ -48,10 +48,12 @@ const sortVisibleTemplates = (templates: TemplateExample[]) => {
 
 interface StarterTemplatesProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
+	templateBuilderEnabled: boolean;
 }
 
 export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	starterTemplatesByTag,
+	templateBuilderEnabled,
 }) => {
 	const [urlParams] = useSearchParams();
 	const tags = starterTemplatesByTag
@@ -63,13 +65,13 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		: undefined;
 
 	return (
-		<div className="flex flex-row gap-8 items-start">
+		<div className="flex flex-row items-start gap-8">
 			{starterTemplatesByTag && tags && (
-				<div className="flex flex-col gap-4 w-[202px] shrink-0 sticky top-[88px]">
+				<div className="sticky top-[88px] flex w-[202px] shrink-0 flex-col gap-4">
 					<h2 className="m-0 text-base font-normal text-content-primary">
 						Choose a starter template
 					</h2>
-					<span className="text-xs font-semibold uppercase tracking-[0.1em] text-content-secondary">
+					<span className="text-xs font-semibold uppercase tracking-widest text-content-secondary">
 						Filter
 					</span>
 					{tags.map((tag) => (
@@ -89,15 +91,14 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 				</div>
 			)}
 
-			<div className="flex flex-wrap gap-8 h-max">
+			<div className="flex h-max flex-wrap gap-8">
 				{visibleTemplates?.map((example) => (
 					<TemplateExampleCard
-						css={(theme) => ({
-							backgroundColor: theme.palette.background.paper,
-						})}
 						example={example}
 						key={example.id}
 						activeTag={activeTag}
+						templateBuilderEnabled={templateBuilderEnabled}
+						className="bg-surface-primary"
 					/>
 				))}
 			</div>

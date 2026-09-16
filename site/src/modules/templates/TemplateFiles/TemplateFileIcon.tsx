@@ -1,6 +1,6 @@
 import { BracesIcon, FileCodeIcon, FileIcon, TerminalIcon } from "lucide-react";
 import type { ComponentProps, ElementType, FC } from "react";
-import { DockerIcon } from "#/components/Icons/DockerIcon";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 const FileTypeTerraform: FC<ComponentProps<"svg">> = (props) => (
 	<svg
@@ -41,6 +41,10 @@ const FileTypeMarkdown: FC<ComponentProps<"svg">> = (props) => (
 	</svg>
 );
 
+const DockerFileIcon: FC<{ className?: string }> = ({ className }) => (
+	<ExternalImage src="/icon/docker.svg" alt="" className={className} />
+);
+
 export const getTemplateFileIcon = (filename: string): ElementType => {
 	if (filename.endsWith(".tf")) {
 		return FileTypeTerraform;
@@ -49,7 +53,7 @@ export const getTemplateFileIcon = (filename: string): ElementType => {
 		return FileTypeMarkdown;
 	}
 	if (filename.endsWith("Dockerfile")) {
-		return DockerIcon;
+		return DockerFileIcon;
 	}
 	if (filename.endsWith(".sh")) {
 		return TerminalIcon;

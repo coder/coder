@@ -2,8 +2,9 @@
  * Copied from shadc/ui on 03/05/2025
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
+
+import { cn } from "cn";
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
@@ -13,6 +14,7 @@ interface ScrollAreaProps
 	scrollThumbClassName?: string;
 	viewportClassName?: string;
 	viewportTabIndex?: number;
+	viewportAriaLabel?: string;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
 	orientation?: "vertical" | "horizontal" | "both";
 }
@@ -24,6 +26,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	scrollThumbClassName,
 	viewportClassName,
 	viewportTabIndex,
+	viewportAriaLabel,
 	orientation = "vertical",
 	children,
 	...props
@@ -35,6 +38,8 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 		>
 			<ScrollAreaPrimitive.Viewport
 				tabIndex={viewportTabIndex}
+				role={viewportAriaLabel ? "region" : undefined}
+				aria-label={viewportAriaLabel}
 				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
 			>
 				{children}
@@ -63,7 +68,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	);
 };
 
-export const ScrollBar: React.FC<
+const ScrollBar: React.FC<
 	React.ComponentPropsWithRef<
 		typeof ScrollAreaPrimitive.ScrollAreaScrollbar
 	> & {
@@ -76,9 +81,9 @@ export const ScrollBar: React.FC<
 			className={cn(
 				"border-0 border-solid border-border flex touch-none select-none transition-colors",
 				orientation === "vertical" &&
-					"h-full w-2.5 border-l border-l-transparent p-[1px]",
+					"h-full w-2.5 border-l border-l-transparent p-px",
 				orientation === "horizontal" &&
-					"h-2.5 flex-col border-t border-t-transparent p-[1px]",
+					"h-2.5 flex-col border-t border-t-transparent p-px",
 				className,
 			)}
 			{...props}

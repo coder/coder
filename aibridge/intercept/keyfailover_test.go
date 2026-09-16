@@ -178,9 +178,8 @@ var interceptorCases = []interceptorCase{
 }
 
 // TestInterception_KeyFailover verifies that, within a single interception, the
-// centralized key pool fails over across keys (temporary on 429, permanent on
-// 401/403) and reports exhaustion, for every interceptor in both blocking and
-// streaming mode.
+// centralized key pool fails over across keys and reports exhaustion, for every
+// interceptor in both blocking and streaming mode.
 func TestInterception_KeyFailover(t *testing.T) {
 	t.Parallel()
 
@@ -230,33 +229,21 @@ func TestInterception_KeyFailover(t *testing.T) {
 			expectedTransitions: map[string]int{"rate_limited": 1},
 		},
 		{
-			// A 401 marks the key permanent and fails over to the next one.
+			// A 401 marks the key temporary and fails over to the next one.
 			name: "failover_after_401",
 			keys: []string{k0, k1},
 			responses: func(s testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{errResp(http.StatusUnauthorized, ""), s}
 			},
 			expectedStatus:      http.StatusOK,
-			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
+			expectedKeyStates:   []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateValid},
 			expectedSeenKeys:    []string{k0, k1},
 			expectedTransitions: map[string]int{"unauthorized": 1},
 		},
 		{
-			// A 403 marks the key permanent and fails over to the next one.
-			name: "failover_after_403",
-			keys: []string{k0, k1},
-			responses: func(s testutil.UpstreamResponse) []testutil.UpstreamResponse {
-				return []testutil.UpstreamResponse{errResp(http.StatusForbidden, ""), s}
-			},
-			expectedStatus:      http.StatusOK,
-			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
-			expectedSeenKeys:    []string{k0, k1},
-			expectedTransitions: map[string]int{"forbidden": 1},
-		},
-		{
 			// Every key is rate-limited, so the pool is exhausted and the
 			// smallest remaining cooldown is reported.
-			name: "all_keys_rate_limited",
+			name: "all_keys_temporary_blocked",
 			keys: []string{k0, k1, k2},
 			responses: func(testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{
@@ -278,7 +265,9 @@ func TestInterception_KeyFailover(t *testing.T) {
 			expectedExhaustions: map[string]int{"rate_limited": 1},
 		},
 		{
-			// Every key is unauthorized, so the pool is permanently exhausted.
+			// Every key is unauthorized. Each key cools down and recovers on
+			// its own, but while all keys are down the exhaustion surfaces as
+			// an auth failure (502) with no Retry-After.
 			name: "all_keys_unauthorized",
 			keys: []string{k0, k1},
 			responses: func(testutil.UpstreamResponse) []testutil.UpstreamResponse {
@@ -287,11 +276,25 @@ func TestInterception_KeyFailover(t *testing.T) {
 					errResp(http.StatusUnauthorized, ""),
 				}
 			},
-			expectedStatus:      http.StatusBadGateway,
-			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStatePermanent},
-			expectedSeenKeys:    []string{k0, k1},
-			expectedTransitions: map[string]int{"unauthorized": 2},
-			expectedExhaustions: map[string]int{"auth_failed": 1},
+			expectedStatus:       http.StatusBadGateway,
+			expectedRetryAfter:   "",
+			expectedBodyContains: "all configured keys failed authentication. Contact your Administrator",
+			expectedKeyStates:    []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateTemporary},
+			expectedSeenKeys:     []string{k0, k1},
+			expectedTransitions:  map[string]int{"unauthorized": 2},
+			expectedExhaustions:  map[string]int{"auth_failed": 1},
+		},
+		{
+			// A 403 is a per-request authorization failure, so it is surfaced
+			// to the caller without marking the key or failing over.
+			name: "forbidden_no_failover",
+			keys: []string{k0, k1},
+			responses: func(testutil.UpstreamResponse) []testutil.UpstreamResponse {
+				return []testutil.UpstreamResponse{errResp(http.StatusForbidden, "")}
+			},
+			expectedStatus:    http.StatusForbidden,
+			expectedKeyStates: []keypool.KeyState{keypool.KeyStateValid, keypool.KeyStateValid},
+			expectedSeenKeys:  []string{k0},
 		},
 		{
 			// A 500 is not a key-specific failure, so it does not fail over.
@@ -390,7 +393,7 @@ func TestInterception_KeyFailover(t *testing.T) {
 					gathered, err := reg.Gather()
 					require.NoError(t, err)
 					// One transition per marked key, by reason.
-					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+					for _, reason := range []string{"rate_limited", "unauthorized"} {
 						if want := tc.expectedTransitions[reason]; want > 0 {
 							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", ic.provider, reason))
 						} else {
@@ -559,7 +562,7 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 					gathered, err := reg.Gather()
 					require.NoError(t, err)
 					// One transition per marked key, by reason.
-					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+					for _, reason := range []string{"rate_limited", "unauthorized"} {
 						if want := tc.expectedTransitions[reason]; want > 0 {
 							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", ic.provider, reason))
 						} else {

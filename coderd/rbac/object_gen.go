@@ -128,6 +128,17 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceChatModelConfig
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat model config
+	//  - "ActionDelete" :: delete a chat model config
+	//  - "ActionRead" :: read chat model configs
+	//  - "ActionShare" :: share a chat model config with other users or groups
+	//  - "ActionUpdate" :: update a chat model config
+	ResourceChatModelConfig = Object{
+		Type: "chat_model_config",
+	}
+
 	// ResourceConnectionLog
 	// Valid Actions
 	//  - "ActionRead" :: read connection logs
@@ -217,6 +228,17 @@ var (
 	//  - "ActionRead" :: read licenses
 	ResourceLicense = Object{
 		Type: "license",
+	}
+
+	// ResourceMCPServerConfig
+	// Valid Actions
+	//  - "ActionCreate" :: create a new MCP server config
+	//  - "ActionDelete" :: delete MCP server config
+	//  - "ActionRead" :: read MCP server config
+	//  - "ActionShare" :: share MCP server config with other users or groups
+	//  - "ActionUpdate" :: update MCP server config
+	ResourceMCPServerConfig = Object{
+		Type: "mcp_server_config",
 	}
 
 	// ResourceNotificationMessage
@@ -349,16 +371,6 @@ var (
 	//  - "ActionUpdate" :: update a Tailnet coordinator
 	ResourceTailnetCoordinator = Object{
 		Type: "tailnet_coordinator",
-	}
-
-	// ResourceTask
-	// Valid Actions
-	//  - "ActionCreate" :: create a new task
-	//  - "ActionDelete" :: delete task
-	//  - "ActionRead" :: read task data or output to view on the UI or CLI
-	//  - "ActionUpdate" :: edit task settings or send input to an existing task
-	ResourceTask = Object{
-		Type: "task",
 	}
 
 	// ResourceTemplate
@@ -511,6 +523,7 @@ func AllResources() []Objecter {
 		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
+		ResourceChatModelConfig,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
@@ -522,6 +535,7 @@ func AllResources() []Objecter {
 		ResourceIdpsyncSettings,
 		ResourceInboxNotification,
 		ResourceLicense,
+		ResourceMCPServerConfig,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,
@@ -536,7 +550,6 @@ func AllResources() []Objecter {
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,
-		ResourceTask,
 		ResourceTemplate,
 		ResourceUsageEvent,
 		ResourceUser,

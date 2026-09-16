@@ -1,5 +1,5 @@
 import type * as monaco from "monaco-editor";
-import muiTheme from "./mui";
+import palette from "./palette";
 
 export default {
 	base: "vs-dark",
@@ -31,7 +31,7 @@ export default {
 		},
 	],
 	colors: {
-		"editor.foreground": muiTheme.palette.text.primary,
-		"editor.background": muiTheme.palette.background.paper,
+		"editor.foreground": palette.text.primary,
+		"editor.background": palette.background.paper,
 	},
 } satisfies monaco.editor.IStandaloneThemeData as monaco.editor.IStandaloneThemeData;

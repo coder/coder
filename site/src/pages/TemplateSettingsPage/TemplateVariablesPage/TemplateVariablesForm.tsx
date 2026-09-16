@@ -21,7 +21,7 @@ import {
 	TemplateVariableField,
 } from "./TemplateVariableField";
 
-export interface TemplateVariablesForm {
+interface TemplateVariablesFormProps {
 	templateVersion: TemplateVersion;
 	templateVariables: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;
@@ -31,7 +31,7 @@ export interface TemplateVariablesForm {
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<CreateTemplateVersionRequest>;
 }
-export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
+export const TemplateVariablesForm: FC<TemplateVariablesFormProps> = ({
 	templateVersion,
 	templateVariables,
 	onSubmit,
@@ -92,10 +92,13 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 					>
 						<FormFields>
 							<TemplateVariableField
-								{...fieldHelpers}
 								templateVersionVariable={templateVariable}
 								initialValue={initialUserVariableValues[index].value}
 								disabled={isSubmitting}
+								error={fieldHelpers.error}
+								helperText={fieldHelpers.helperText}
+								name={fieldHelpers.name}
+								onBlur={fieldHelpers.onBlur}
 								onChange={async (value) => {
 									await form.setFieldValue(`user_variable_values.${index}`, {
 										name: templateVariable.name,

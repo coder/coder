@@ -4,6 +4,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { templateByNameKey } from "#/api/queries/templates";
+import type { Template } from "#/api/typesGenerated";
 import { MockTemplate, mockApiError } from "#/testHelpers/entities";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { TemplateSettingsLayout } from "../TemplateSettingsLayout";
@@ -59,12 +60,20 @@ export const UpdateSucceeds: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
+		const updatedTemplate: Template = {
+			...MockTemplate,
+			name: "new-name",
+			agents_allowed: false,
+		};
 		const updateTemplateMetaSpy = spyOn(
 			API,
 			"updateTemplateMeta",
-		).mockResolvedValue({ ...MockTemplate, name: "new-name" });
+		).mockResolvedValue(updatedTemplate);
 		await fillAndSubmitForm(canvas, user);
 		await waitFor(() => expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1));
+		expect(updateTemplateMetaSpy.mock.calls[0][1]).toEqual(
+			expect.objectContaining({ agents_allowed: false }),
+		);
 	},
 };
 
@@ -158,6 +167,12 @@ async function fillAndSubmitForm(
 	const iconField = await canvas.findByLabelText("Icon");
 	await user.clear(iconField);
 	await user.type(iconField, "vscode.png");
+
+	const agentsAllowedField = canvas.getByRole("checkbox", {
+		name: /allow coder agents to create workspaces using this template/i,
+	});
+	expect(agentsAllowedField).toBeChecked();
+	await user.click(agentsAllowedField);
 
 	const allowCancelJobsField = canvas.getByRole("checkbox", {
 		name: /allow users to cancel in-progress workspace jobs/i,

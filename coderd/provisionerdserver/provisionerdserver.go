@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -43,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/usage"
-	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -79,6 +79,14 @@ type Options struct {
 	ExternalAuthConfigs []*externalauth.Config
 	AISeatTracker       aiseats.SeatTracker
 
+	// KeyID is the provisioner key the daemon authenticated with, or the
+	// zero value if it did not authenticate with a key.
+	KeyID uuid.UUID
+
+	// SessionCancel terminates the daemon's session. Required when KeyID is a
+	// deletable provisioner key; optional otherwise.
+	SessionCancel context.CancelFunc
+
 	// Clock for testing
 	Clock quartz.Clock
 
@@ -104,6 +112,8 @@ type server struct {
 	lifecycleCtx                context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
+	KeyID                       uuid.UUID
+	sessionCancel               context.CancelFunc
 	OrganizationID              uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
@@ -134,6 +144,16 @@ type server struct {
 	heartbeatInterval time.Duration
 	heartbeatFn       func(ctx context.Context) error
 
+	// jobMu guards activeJobs and terminationPending.
+	jobMu sync.Mutex
+	// activeJobs tracks jobs claimed by this session that have not yet been
+	// completed or failed. The in-tree provisioner daemon runs jobs serially,
+	// so at most one entry is expected; the protocol does not enforce this.
+	activeJobs map[uuid.UUID]struct{}
+	// terminationPending records a termination request that arrived while a
+	// job was active; it is performed when the last active job finishes.
+	terminationPending bool
+
 	metrics *Metrics
 }
 
@@ -141,6 +161,10 @@ type server struct {
 // it cannot be used in the tag keys or values.
 
 var ErrTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
+
+// ErrProvisionerKeyDeleted is returned from job acquisition when the
+// provisioner key the daemon authenticated with no longer exists.
+var ErrProvisionerKeyDeleted = xerrors.New("provisioner key was deleted")
 
 type Tags map[string]string
 
@@ -159,6 +183,15 @@ func (t Tags) Valid() error {
 		}
 	}
 	return nil
+}
+
+// Server is the provisioner daemon DRPC server plus session-lifecycle hooks
+// used by the serve handlers.
+type Server interface {
+	proto.DRPCProvisionerDaemonServer
+	// TerminateSession cancels the session once no acquired job is
+	// active. Safe to call from any goroutine.
+	TerminateSession()
 }
 
 func NewServer(
@@ -186,10 +219,15 @@ func NewServer(
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 	metrics *Metrics,
 	experiments codersdk.Experiments,
-) (proto.DRPCProvisionerDaemonServer, error) {
+) (Server, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
 		return nil, xerrors.New("ctx is nil")
+	}
+	// A deletable key's session must be cancelable, otherwise key deletion
+	// cannot terminate it.
+	if codersdk.IsDeletableProvisionerKey(options.KeyID) && options.SessionCancel == nil {
+		return nil, xerrors.New("SessionCancel is required when KeyID is a deletable provisioner key")
 	}
 	if quotaCommitter == nil {
 		return nil, xerrors.New("quotaCommitter is nil")
@@ -236,6 +274,8 @@ func NewServer(
 		apiVersion:                  apiVersion,
 		AccessURL:                   accessURL,
 		ID:                          id,
+		KeyID:                       options.KeyID,
+		sessionCancel:               options.SessionCancel,
 		OrganizationID:              organizationID,
 		Logger:                      logger,
 		Provisioners:                provisioners,
@@ -260,6 +300,7 @@ func NewServer(
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
 		AISeatTracker:               options.AISeatTracker,
+		activeJobs:                  map[uuid.UUID]struct{}{},
 		metrics:                     metrics,
 		Experiments:                 experiments,
 	}
@@ -297,6 +338,16 @@ func (s *server) heartbeatLoop() {
 			if err := s.heartbeat(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
 				s.Logger.Warn(hbCtx, "heartbeat failed", slog.Error(err))
 			}
+			// The key check rides the heartbeat tick so a session whose deletable
+			// key is gone terminates within one interval. Transient errors are
+			// logged and the session is left running.
+			if deleted, err := s.keyDeleted(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
+				s.Logger.Warn(hbCtx, "check provisioner key on heartbeat", slog.Error(err))
+			} else if deleted {
+				s.Logger.Warn(hbCtx, "provisioner key deleted, canceling session",
+					slog.F("provisioner_key_id", s.KeyID))
+				s.TerminateSession()
+			}
 			hbCancel()
 			elapsed := s.timeNow().Sub(start)
 			nextBeat := s.heartbeatInterval - elapsed
@@ -328,27 +379,105 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 	})
 }
 
+// keyDeleted reports whether the provisioner key no longer exists.
+func (s *server) keyDeleted(ctx context.Context) (bool, error) {
+	if !codersdk.IsDeletableProvisionerKey(s.KeyID) {
+		return false, nil
+	}
+	_, err := s.Database.GetProvisionerKeyByID(
+		//nolint:gocritic // Callers' contexts cannot read provisioner keys
+		// (provisionerd actor or no actor at all), so scope the read to this
+		// narrow subject.
+		dbauthz.AsSystemReadProvisionerDaemons(ctx), s.KeyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner key: %w", err)
+	}
+	return false, nil
+}
+
+// TerminateSession cancels the session. Cancellation is deferred while a job
+// claimed by this session is active so the daemon can report the job's
+// result; the last active job's completion performs it. Requires a configured
+// sessionCancel.
+func (s *server) TerminateSession() {
+	s.jobMu.Lock()
+	if len(s.activeJobs) > 0 {
+		s.terminationPending = true
+		s.jobMu.Unlock()
+		s.Logger.Info(s.lifecycleCtx, "deferring session cancellation until active jobs finish",
+			slog.F("provisioner_key_id", s.KeyID))
+		return
+	}
+	s.jobMu.Unlock()
+	s.sessionCancel()
+}
+
+// jobStarted records a job claimed by this session as active.
+func (s *server) jobStarted(id uuid.UUID) {
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
+	s.activeJobs[id] = struct{}{}
+}
+
+// jobFinished removes an active job and performs a termination deferred while
+// jobs were active. The daemon may not receive the final RPC response when
+// this cancels the session; the job's outcome is already persisted.
+func (s *server) jobFinished(id uuid.UUID) {
+	s.jobMu.Lock()
+	delete(s.activeJobs, id)
+	terminate := s.terminationPending && len(s.activeJobs) == 0
+	s.jobMu.Unlock()
+	if !terminate {
+		return
+	}
+	s.Logger.Warn(s.lifecycleCtx, "canceling session after job completion",
+		slog.F("provisioner_key_id", s.KeyID))
+	s.sessionCancel()
+}
+
 // AcquireJob queries the database to lock a job.
 //
 // Deprecated: This method is only available for back-level provisioner daemons.
 func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
+	if deleted, err := s.keyDeleted(ctx); err != nil {
+		return nil, xerrors.Errorf("acquire job: check provisioner key: %w", err)
+	} else if deleted {
+		s.Logger.Warn(ctx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
+		return nil, xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
+	}
 	// Since AcquireJob blocks until a job is available, we set a long (5s by default) timeout.  This allows back-level
 	// provisioner daemons to gracefully shut down within a few seconds, but keeps them from rapidly polling the
 	// database.
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
-	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
+	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags, s.KeyID)
 	if database.IsQueryCanceledError(err) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
+	}
+	if errors.Is(err, ErrProvisionerKeyDeleted) {
+		s.Logger.Warn(ctx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("acquire job: %w", err)
 	}
 	s.Logger.Debug(ctx, "locked job from database", slog.F("job_id", job.ID))
-	return s.acquireProtoJob(ctx, job)
+	s.jobStarted(job.ID)
+	pj, err := s.acquireProtoJob(ctx, job)
+	if err != nil {
+		s.jobFinished(job.ID)
+		return nil, err
+	}
+	return pj, nil
 }
 
 type jobAndErr struct {
@@ -367,6 +496,14 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 			retErr = closeErr
 		}
 	}()
+	if deleted, err := s.keyDeleted(streamCtx); err != nil {
+		return xerrors.Errorf("acquire job: check provisioner key: %w", err)
+	} else if deleted {
+		s.Logger.Warn(streamCtx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
+		return xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
+	}
 	acqCtx, acqCancel := context.WithCancel(streamCtx)
 	defer acqCancel()
 	recvCh := make(chan error, 1)
@@ -376,7 +513,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 	}()
 	jec := make(chan jobAndErr, 1)
 	go func() {
-		job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
+		job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags, s.KeyID)
 		jec <- jobAndErr{job: job, err: err}
 	}()
 	var recvErr error
@@ -397,67 +534,93 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		}
 		return nil
 	}
+	if errors.Is(je.err, ErrProvisionerKeyDeleted) {
+		s.Logger.Warn(streamCtx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
+	}
 	if je.err != nil {
 		return xerrors.Errorf("acquire job: %w", je.err)
 	}
 	logger := s.Logger.With(slog.F("job_id", je.job.ID))
 	logger.Debug(streamCtx, "locked job from database")
+	s.jobStarted(je.job.ID)
 
 	if recvErr != nil {
 		logger.Error(streamCtx, "recv error and failed to cancel acquire job", slog.Error(recvErr))
 		// Well, this is awkward.  We hit an error receiving from the stream, but didn't cancel before we locked a job
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
-		now := s.timeNow()
-		err := s.Database.UpdateProvisionerJobWithCompleteByID(
-			//nolint:gocritic // Provisionerd has specific authz rules.
-			dbauthz.AsProvisionerd(context.Background()),
-			database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID: je.job.ID,
-				CompletedAt: sql.NullTime{
-					Time:  now,
-					Valid: true,
-				},
-				UpdatedAt: now,
-				Error: sql.NullString{
-					String: "connection to provisioner daemon broken",
-					Valid:  true,
-				},
-				ErrorCode: sql.NullString{},
-			})
-		if err != nil {
-			logger.Error(streamCtx, "error updating failed job", slog.Error(err))
-		}
+		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken")
+		s.jobFinished(je.job.ID)
 		return recvErr
 	}
 
 	pj, err := s.acquireProtoJob(streamCtx, je.job)
 	if err != nil {
+		// acquireProtoJob marks the job failed itself.
+		s.jobFinished(je.job.ID)
 		return err
 	}
 	err = stream.Send(pj)
 	if err != nil {
 		s.Logger.Error(streamCtx, "failed to send job", slog.Error(err))
+		// The job was locked but never delivered, so mark it failed instead of
+		// leaving it assigned to a worker that does not have it.
+		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken")
+		s.jobFinished(je.job.ID)
 		return err
 	}
 	return nil
 }
 
-func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJob) (*proto.AcquiredJob, error) {
-	// Marks the acquired job as failed with the error message provided.
-	failJob := func(errorMessage string) error {
-		err := s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID: job.ID,
+// failAcquiredJob marks a job that was claimed but never delivered to the
+// daemon as failed. It uses a fresh context so the update succeeds even when
+// the session context is canceled.
+func (s *server) failAcquiredJob(logger slog.Logger, jobID uuid.UUID, message string) {
+	now := s.timeNow()
+	err := s.Database.UpdateProvisionerJobWithCompleteByID(
+		//nolint:gocritic // Provisionerd has specific authz rules.
+		dbauthz.AsProvisionerd(context.Background()),
+		database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID: jobID,
 			CompletedAt: sql.NullTime{
-				Time:  s.timeNow(),
+				Time:  now,
 				Valid: true,
 			},
+			UpdatedAt: now,
 			Error: sql.NullString{
-				String: errorMessage,
+				String: message,
 				Valid:  true,
 			},
-			ErrorCode: job.ErrorCode,
-			UpdatedAt: s.timeNow(),
+			ErrorCode: sql.NullString{},
 		})
+	if err != nil {
+		logger.Error(s.lifecycleCtx, "error updating failed job", slog.Error(err))
+	}
+}
+
+func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJob) (*proto.AcquiredJob, error) {
+	// Marks the acquired job as failed with the error message provided. The
+	// update runs on a fresh context so it succeeds even when the session
+	// context is canceled; otherwise the claimed job would stay assigned to
+	// this worker until the job reaper.
+	failJob := func(errorMessage string) error {
+		err := s.Database.UpdateProvisionerJobWithCompleteByID(
+			//nolint:gocritic // Provisionerd has specific authz rules.
+			dbauthz.AsProvisionerd(context.Background()),
+			database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID: job.ID,
+				CompletedAt: sql.NullTime{
+					Time:  s.timeNow(),
+					Valid: true,
+				},
+				Error: sql.NullString{
+					String: errorMessage,
+					Valid:  true,
+				},
+				ErrorCode: job.ErrorCode,
+				UpdatedAt: s.timeNow(),
+			})
 		if err != nil {
 			return xerrors.Errorf("update provisioner job: %w", err)
 		}
@@ -521,9 +684,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
 
-		// Fetch the file id of the cached module files if it exists.
+		// Fetch the file id of the cached module files if it exists. Modules
+		// stay cached for parameter rendering even when the cache is
+		// disabled; they are only withheld from the build.
 		versionModulesFile := ""
-		if !template.DisableModuleCache {
+		if !codersdk.ModuleCacheDisabled(s.DeploymentValues, template.DisableModuleCache) {
 			tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				// Older templates (before dynamic parameters) will not have cached module files.
@@ -632,11 +797,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		workspaceBuildParameters, err := s.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
-		}
-
-		task, err := s.Database.GetTaskByWorkspaceID(ctx, workspaceBuild.WorkspaceID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
@@ -769,8 +929,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
-					TaskId:                        task.ID.String(),
-					TaskPrompt:                    task.Prompt,
 					TemplateVersionModulesFile:    versionModulesFile,
 				},
 				LogLevel: input.LogLevel,
@@ -1385,6 +1543,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		s.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
 	}
+	s.jobFinished(jobID)
 	return &proto.Empty{}, nil
 }
 
@@ -1702,6 +1861,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	}
 
 	s.Logger.Debug(ctx, "stage CompleteJob done", slog.F("job_id", jobID))
+	s.jobFinished(jobID)
 	return &proto.Empty{}, nil
 }
 
@@ -1880,10 +2040,6 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		}
 		err = db.UpdateTemplateVersionFlagsByJobID(ctx, database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID: jobID,
-			HasAITask: sql.NullBool{
-				Bool:  jobType.TemplateImport.HasAiTasks,
-				Valid: true,
-			},
 			HasExternalAgent: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasExternalAgents,
 				Valid: true,
@@ -1891,7 +2047,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 			UpdatedAt: now,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template version ai task and external agent: %w", err)
+			return xerrors.Errorf("update template version external agent: %w", err)
 		}
 
 		// Process terraform values
@@ -2096,8 +2252,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace build deadline: %w", err)
 		}
 
-		appIDs := make([]string, 0)
-		agentIDByAppID := make(map[string]uuid.UUID)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
@@ -2106,34 +2260,20 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 					continue
 				}
 				// By default InsertWorkspaceResource ignores the protoAgent.Id
-				// and generates a new one, but we will insert these using the
-				// InsertWorkspaceResourceWithAgentIDsFromProto option so that
-				// we can properly map agent IDs to app IDs. This is needed for
-				// task linking.
+				// and generates a new one, but we insert these using the
+				// InsertWorkspaceResourceWithAgentIDsFromProto option so the
+				// inserted agents keep the IDs assigned here.
 				agentID := uuid.New()
 				protoAgent.Id = agentID.String()
 
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
-				for _, app := range protoAgent.GetApps() {
-					appIDs = append(appIDs, app.GetId())
-					agentIDByAppID[app.GetId()] = agentID
-				}
 
-				// Subagents in devcontainers can also have apps that need
-				// tracking for task linking, just like the parent agent's
-				// apps above.
 				for _, dc := range protoAgent.GetDevcontainers() {
 					dc.Id = uuid.New().String()
 
 					if dc.GetSubagentId() != "" {
-						subAgentID := uuid.New()
-						dc.SubagentId = subAgentID.String()
-
-						for _, app := range dc.GetApps() {
-							appIDs = append(appIDs, app.GetId())
-							agentIDByAppID[app.GetId()] = subAgentID
-						}
+						dc.SubagentId = uuid.New().String()
 					}
 				}
 			}
@@ -2174,129 +2314,18 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		var (
-			unknownAppID string
-			taskAppID    uuid.NullUUID
-			taskAgentID  uuid.NullUUID
-		)
-		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
-			task := tasks[0]
-			if task == nil {
-				return xerrors.Errorf("update ai task: task is nil")
-			}
-
-			appID := task.GetAppId()
-			if appID == "" && task.GetSidebarApp() != nil {
-				appID = task.GetSidebarApp().GetId()
-			}
-			if appID == "" {
-				return xerrors.Errorf("update ai task: app id is empty")
-			}
-
-			if !slices.Contains(appIDs, appID) {
-				unknownAppID = appID
-			} else {
-				// Only parse for valid app and agent to avoid fk violation.
-				id, err := uuid.Parse(appID)
-				if err != nil {
-					return xerrors.Errorf("parse app id: %w", err)
-				}
-				taskAppID = uuid.NullUUID{UUID: id, Valid: true}
-
-				agentID, ok := agentIDByAppID[appID]
-				taskAgentID = uuid.NullUUID{UUID: agentID, Valid: ok}
-			}
-		}
-
-		if unknownAppID != "" && workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			// Ref: https://github.com/coder/coder/issues/18776
-			// This can happen for a number of reasons:
-			// 1. Misconfigured template
-			// 2. Count=0 on the agent due to stop transition, meaning the associated coder_app was not inserted.
-			// Failing the build at this point is not ideal, so log a warning instead.
-			s.Logger.Warn(ctx, "unknown ai_task_app_id",
-				slog.F("ai_task_app_id", unknownAppID),
-				slog.F("job_id", job.ID.String()),
-				slog.F("workspace_id", workspace.ID),
-				slog.F("workspace_build_id", workspaceBuild.ID),
-				slog.F("transition", string(workspaceBuild.Transition)),
-			)
-			// In order to surface this to the user, we will also insert a warning into the build logs.
-			if _, err := db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
-				JobID:     jobID,
-				CreatedAt: []time.Time{now, now, now, now},
-				Source:    []database.LogSource{database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon},
-				Level:     []database.LogLevel{database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn},
-				Stage:     []string{"Cleaning Up", "Cleaning Up", "Cleaning Up", "Cleaning Up"},
-				Output: []string{
-					fmt.Sprintf("Unknown ai_task_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", unknownAppID),
-					"Template author: double-check the following:",
-					"  - You have associated the coder_ai_task with a valid coder_app in your template (ref: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/ai_task).",
-					"  - You have associated the coder_agent with at least one other compute resource. Agents with no other associated resources are not inserted into the database.",
-				},
-			}); err != nil {
-				s.Logger.Error(ctx, "insert provisioner job log for ai task app id warning",
-					slog.F("job_id", jobID),
-					slog.F("workspace_id", workspace.ID),
-					slog.F("workspace_build_id", workspaceBuild.ID),
-					slog.F("transition", string(workspaceBuild.Transition)),
-				)
-			}
-		}
-
-		var hasAITask bool
-		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
-			hasAITask = true
-			if workspaceBuild.Transition == database.WorkspaceTransitionStart {
-				// Insert usage event for managed agents.
-				usageInserter := s.UsageInserter.Load()
-				if usageInserter != nil {
-					event := usagetypes.DCManagedAgentsV1{
-						Count: 1,
-					}
-					err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
-					if err != nil {
-						return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
-					}
-				}
-			}
-
-			// Irrespective of whether the agent or sidebar app is present,
-			// perform the upsert to ensure a link between the task and
-			// workspace build. Linking the task to the build is typically
-			// already established by wsbuilder.
-			_, err = db.UpsertTaskWorkspaceApp(
-				ctx,
-				database.UpsertTaskWorkspaceAppParams{
-					TaskID:               task.ID,
-					WorkspaceBuildNumber: workspaceBuild.BuildNumber,
-					WorkspaceAgentID:     taskAgentID,
-					WorkspaceAppID:       taskAppID,
-				},
-			)
-			if err != nil {
-				return xerrors.Errorf("upsert task workspace app: %w", err)
-			}
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get task by workspace id: %w", err)
-		}
-
 		_, hasExternalAgent := slice.Find(jobType.WorkspaceBuild.Resources, func(resource *sdkproto.Resource) bool {
 			return resource.Type == "coder_external_agent"
 		})
 		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
-			HasAITask: sql.NullBool{
-				Bool:  hasAITask,
-				Valid: true,
-			},
 			HasExternalAgent: sql.NullBool{
 				Bool:  hasExternalAgent,
 				Valid: true,
 			},
 			UpdatedAt: now,
 		}); err != nil {
-			return xerrors.Errorf("update workspace build ai tasks and external agent flag: %w", err)
+			return xerrors.Errorf("update workspace build external agent flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now
@@ -2424,21 +2453,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("soft delete workspace agents: %w", err)
 		}
 
-		// A user might delete their task workspace directly, instead of
-		// deleting the task. To avoid leaving the Task in a scenario where
-		// it has no workspace, we also attempt to delete the task.
-		//
-		// Deleting the task may fail if it has already been deleted as part
-		// of the typical task deletion workflow, so we explicitly allow that.
-		if workspace.TaskID.Valid {
-			if _, err := db.DeleteTask(ctx, database.DeleteTaskParams{
-				ID:        workspace.TaskID.UUID,
-				DeletedAt: dbtime.Now(),
-			}); err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("delete task related to workspace: %w", err)
-			}
-		}
-
 		return nil
 	}, nil)
 	if err != nil {
@@ -2496,12 +2510,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			Status:           http.StatusOK,
 			AdditionalFields: wriBytes,
 		})
-	}
-
-	// Record AI seat usage for successful task workspace builds.
-	if workspaceBuild.Transition == database.WorkspaceTransitionStart && workspace.TaskID.Valid {
-		s.AISeatTracker.RecordUsage(ctx, workspace.OwnerID,
-			aiseats.ReasonTask("task workspace build succeeded"))
 	}
 
 	if s.PrebuildsOrchestrator != nil && input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
@@ -2812,6 +2820,9 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 
 		return nil
 	}, nil)
+	if database.IsUniqueViolation(err, database.UniqueIndexUniquePresetName) {
+		return xerrors.Errorf("duplicate preset name, must be unique per template: %q", protoPreset.Name)
+	}
 	if err != nil {
 		return xerrors.Errorf("insert preset and parameters: %w", err)
 	}
@@ -2869,7 +2880,15 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentNames = make(map[string]struct{})
 		appSlugs   = make(map[string]struct{})
 	)
-	for _, prAgent := range protoResource.Agents {
+
+	// Agents can't connect to compute that these transitions tore down, so any
+	// agent Terraform still reports for them would only surface as unhealthy.
+	protoAgents := protoResource.Agents
+	if transition == database.WorkspaceTransitionStop || transition == database.WorkspaceTransitionDelete {
+		protoAgents = nil
+	}
+
+	for _, prAgent := range protoAgents {
 		// Similar logic is duplicated in terraform/resources.go.
 		if prAgent.Name == "" {
 			return xerrors.Errorf("agent name cannot be empty")

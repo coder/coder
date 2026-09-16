@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -225,7 +224,7 @@ func Test_Runner(t *testing.T) {
 
 		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
-			request.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
+			request.AllowUserCancelWorkspaceJobs = new(true)
 		})
 
 		const (

@@ -1,4 +1,6 @@
-# Tools
+---
+title: Tools
+---
 
 Coder Agents completes work by calling tools: structured functions the agent
 invokes during a chat to gather context and take action, such as listing
@@ -44,8 +46,7 @@ code), it provisions a workspace using three tools:
 | `read_template`    | Read a template's parameters and presets                  |
 | `create_workspace` | Create the workspace from a chosen template               |
 
-Administrators can restrict which templates these tools can see with the
-[template allowlist](../platform-controls/template-optimization.md#restrict-available-templates).
+Administrators can restrict which templates these tools can use with the switches on the [Templates page](../platform-controls/template-optimization.md#restrict-available-templates).
 
 ### list_templates
 
@@ -90,7 +91,7 @@ outranks a lower tier, regardless of usage.
 Within a relevance tier, or when no query is given, templates are ordered by
 an affinity score:
 
-```text
+```txt
 affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
          + ln(1 + active_developers)
 ```
@@ -214,4 +215,4 @@ Guardrails:
   recommended.
 - The tool is idempotent: if the chat already has a workspace building or
   running, that workspace is returned instead of creating a duplicate.
-- Templates outside the administrator's allowlist are rejected.
+- Templates that do not allow Coder Agents are rejected.

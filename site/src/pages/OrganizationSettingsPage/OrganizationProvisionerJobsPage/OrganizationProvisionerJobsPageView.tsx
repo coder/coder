@@ -9,7 +9,6 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
-import { Loader } from "#/components/Loader/Loader";
 import {
 	Select,
 	SelectContent,
@@ -31,11 +30,12 @@ import {
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
@@ -96,7 +96,7 @@ const OrganizationProvisionerJobsPageView: FC<
 	}
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<title>
 				{pageTitle(
 					"Provisioner Jobs",
@@ -110,7 +110,9 @@ const OrganizationProvisionerJobsPageView: FC<
 					<SettingsHeaderDescription>
 						Provisioner Jobs are the individual tasks assigned to Provisioners
 						when the workspaces are being built.{" "}
-						<Link href={docs("/admin/provisioners")}>View docs</Link>
+						<Link href={docs("/admin/provisioners/manage-provisioner-jobs")}>
+							View docs
+						</Link>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -191,31 +193,19 @@ const OrganizationProvisionerJobsPageView: FC<
 									/>
 								))
 							) : (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState message="No provisioner jobs found" />
-									</TableCell>
-								</TableRow>
+								<TableEmpty message="No provisioner jobs found" />
 							)
 						) : error ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="Error loading the provisioner jobs"
-										cta={
-											<Button size="sm" onClick={onRetry}>
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
+							<TableEmpty
+								message="Error loading the provisioner jobs"
+								cta={
+									<Button size="sm" onClick={onRetry}>
+										Retry
+									</Button>
+								}
+							/>
 						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
+							<TableLoader />
 						)}
 					</TableBody>
 				</Table>

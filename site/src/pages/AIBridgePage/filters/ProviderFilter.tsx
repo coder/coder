@@ -48,9 +48,10 @@ export type ProviderFilterMenu = ReturnType<typeof useProviderFilterMenu>;
 
 interface ProviderFilterProps {
 	menu: ProviderFilterMenu;
+	width?: number;
 }
 
-export const ProviderFilter: FC<ProviderFilterProps> = ({ menu }) => {
+export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select provider"
@@ -59,6 +60,7 @@ export const ProviderFilter: FC<ProviderFilterProps> = ({ menu }) => {
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
+			width={width}
 		/>
 	);
 };

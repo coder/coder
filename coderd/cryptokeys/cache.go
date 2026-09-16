@@ -233,7 +233,7 @@ func isEncryptionKeyFeature(feature codersdk.CryptoKeyFeature) bool {
 
 func isSigningKeyFeature(feature codersdk.CryptoKeyFeature) bool {
 	switch feature {
-	case codersdk.CryptoKeyFeatureTailnetResume, codersdk.CryptoKeyFeatureOIDCConvert, codersdk.CryptoKeyFeatureWorkspaceAppsToken, codersdk.CryptoKeyFeatureNATSCA:
+	case codersdk.CryptoKeyFeatureTailnetResume, codersdk.CryptoKeyFeatureOIDCConvert, codersdk.CryptoKeyFeatureChatFilesToken, codersdk.CryptoKeyFeatureWorkspaceAppsToken, codersdk.CryptoKeyFeatureNATSCA:
 		return true
 	default:
 		return false

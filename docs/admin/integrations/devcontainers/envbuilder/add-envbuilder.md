@@ -1,4 +1,6 @@
-# Add an Envbuilder template
+---
+title: Add an Envbuilder template
+---
 
 A Coder administrator adds an Envbuilder-compatible template to Coder. This
 allows the template to prompt the developer for their dev container repository's
@@ -25,7 +27,7 @@ choose a template from the
 
 1. Use the `template init` command to initialize your choice of image:
 
-   ```shell
+   ```sh
    coder template init --id kubernetes-devcontainer
    ```
 
@@ -34,7 +36,7 @@ choose a template from the
 
 1. `cd` into the directory and push the template to your Coder deployment:
 
-   ```shell
+   ```sh
    cd kubernetes-devcontainer && coder templates push
    ```
 
@@ -52,7 +54,7 @@ choose a template from the
 
    - CLI:
 
-   ```shell
+   ```sh
    coder templates push <template-name> -d <path to folder containing main.tf>
    ```
 
@@ -65,7 +67,7 @@ choose a template from the
 
       - To zip the files through the command line:
 
-        ```shell
+        ```sh
         zip templates.zip Dockerfile main.tf
         ```
 
@@ -84,7 +86,7 @@ choose a template from the
 To set variables such as the namespace, go to the template in your Coder
 dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
 
-<Image height="255px" src="../../../../images/templates/template-menu-settings.png" alt="Choose Settings from the template's menu" align="center" />
+<img height="255px" src="../../../../images/templates/template-menu-settings.png" alt="Choose Settings from the template's menu" align="center" />
 
 ## Envbuilder Terraform provider
 

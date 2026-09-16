@@ -1,0 +1,9 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder oauth2-provider dcr disable
+
+  Disable OAuth2 dynamic client registration
+
+———
+Run `coder --help` for a list of global options.

@@ -2,9 +2,10 @@
  * Copied from shadc/ui on 12/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/breadcrumb}
  */
+
+import { cn } from "cn";
 import { MoreHorizontalIcon } from "lucide-react";
-import { Slot } from "radix-ui";
-import { cn } from "#/utils/cn";
+import { NavLink } from "react-router";
 
 type BreadcrumbProps = React.ComponentPropsWithRef<"nav"> & {
 	separator?: React.ReactNode;
@@ -21,7 +22,7 @@ export const BreadcrumbList: React.FC<React.ComponentPropsWithRef<"ol">> = ({
 	return (
 		<ol
 			className={cn(
-				"flex flex-wrap items-center text-sm pl-6 my-4 gap-1.5 break-words font-medium list-none sm:gap-2.5",
+				"flex flex-wrap items-center text-sm pl-6 my-4 gap-1.5 wrap-break-word font-medium list-none sm:gap-2.5",
 				className,
 			)}
 			{...props}
@@ -44,19 +45,14 @@ export const BreadcrumbItem: React.FC<React.ComponentPropsWithRef<"li">> = ({
 	);
 };
 
-type BreadcrumbLinkProps = React.ComponentPropsWithRef<"a"> & {
-	asChild?: boolean;
-};
+type BreadcrumbLinkProps = React.ComponentProps<typeof NavLink>;
 
 export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
-	asChild,
 	className,
 	...props
 }) => {
-	const Comp = asChild ? Slot.Root : "a";
-
 	return (
-		<Comp
+		<NavLink
 			className={cn(
 				"text-content-secondary transition-colors hover:text-content-primary no-underline hover:underline",
 				className,

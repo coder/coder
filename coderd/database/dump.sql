@@ -10,6 +10,11 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_model_price_source AS ENUM (
+    'default',
+    'custom'
+);
+
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
     'anthropic',
@@ -225,11 +230,6 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_agent_resource_monitor:*',
     'workspace_dormant:*',
     'workspace_proxy:*',
-    'task:create',
-    'task:read',
-    'task:update',
-    'task:delete',
-    'task:*',
     'workspace:share',
     'workspace_dormant:share',
     'boundary_usage:*',
@@ -273,7 +273,19 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_build_orchestration:create',
     'workspace_build_orchestration:delete',
     'workspace_build_orchestration:read',
-    'workspace_build_orchestration:update'
+    'workspace_build_orchestration:update',
+    'mcp_server_config:*',
+    'mcp_server_config:create',
+    'mcp_server_config:read',
+    'mcp_server_config:update',
+    'mcp_server_config:delete',
+    'mcp_server_config:share',
+    'chat_model_config:*',
+    'chat_model_config:create',
+    'chat_model_config:read',
+    'chat_model_config:update',
+    'chat_model_config:delete',
+    'chat_model_config:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -317,10 +329,7 @@ CREATE TYPE build_reason AS ENUM (
     'cli',
     'ssh_connection',
     'vscode_connection',
-    'jetbrains_connection',
-    'task_auto_pause',
-    'task_manual_pause',
-    'task_resume'
+    'jetbrains_connection'
 );
 
 CREATE TYPE chat_client_type AS ENUM (
@@ -333,6 +342,11 @@ CREATE TYPE chat_message_role AS ENUM (
     'user',
     'assistant',
     'tool'
+);
+
+CREATE TYPE chat_message_search_tsv_config AS ENUM (
+    'simple',
+    'english'
 );
 
 CREATE TYPE chat_message_visibility AS ENUM (
@@ -379,7 +393,8 @@ CREATE TYPE connection_type AS ENUM (
     'jetbrains',
     'reconnecting_pty',
     'workspace_app',
-    'port_forwarding'
+    'port_forwarding',
+    'tunnel'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -397,7 +412,8 @@ CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_api_key',
     'oidc_convert',
     'tailnet_resume',
-    'nats_ca'
+    'nats_ca',
+    'chat_files_token'
 );
 
 CREATE TYPE display_app AS ENUM (
@@ -595,7 +611,12 @@ CREATE TYPE resource_type AS ENUM (
     'group_ai_budget',
     'user_skill',
     'ai_gateway_key',
-    'user_ai_budget_override'
+    'user_ai_budget_override',
+    'oauth2_provider_settings',
+    'chat_instruction_settings',
+    'mcp_server_config',
+    'chat_model_config',
+    'chat_operational_settings'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -616,15 +637,6 @@ COMMENT ON DOMAIN tagset IS 'A set of tags that match provisioner daemons to pro
 CREATE TYPE tailnet_status AS ENUM (
     'ok',
     'lost'
-);
-
-CREATE TYPE task_status AS ENUM (
-    'pending',
-    'initializing',
-    'active',
-    'paused',
-    'unknown',
-    'error'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -721,12 +733,66 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
+CREATE TABLE external_auth_links (
+    provider_id text NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    oauth_access_token text NOT NULL,
+    oauth_refresh_token text NOT NULL,
+    oauth_expiry timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text,
+    oauth_extra jsonb,
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
+    refresh_lease_expires_at timestamp with time zone
+);
+
+COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+
+COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
+
+COMMENT ON COLUMN external_auth_links.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+CREATE FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) RETURNS SETOF external_auth_links
+    LANGUAGE plpgsql
+    AS $$
+DECLARE r external_auth_links;
+BEGIN
+	UPDATE external_auth_links
+	SET
+		refresh_lease_expires_at = NOW() + (timeout_ms || ' ms')::interval
+	WHERE
+		provider_id = arg_provider_id
+		AND user_id = arg_user_id
+		AND (refresh_lease_expires_at IS NULL OR refresh_lease_expires_at < NOW())
+	RETURNING * INTO r;
+	-- Got the lease, return the one row.
+	IF FOUND THEN
+		RETURN NEXT r;
+		RETURN;
+	END IF;
+	-- Differentiate between unable to get the lease and the row being gone.
+	IF EXISTS (SELECT 1 FROM external_auth_links WHERE provider_id = arg_provider_id AND user_id = arg_user_id) THEN
+		RAISE EXCEPTION 'row is currently leased by another replica'
+			USING ERRCODE = 'check_violation',
+				CONSTRAINT = 'external_auth_link_active_lease';
+	END IF;
+	-- Row is gone, return nothing.
+	RETURN;
+END;
+$$;
+
+COMMENT ON FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) IS 'Acquire a lease on the external auth link and return the row. If there is already an active lease, an exception is raised.';
+
 CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
     -- Check for supported event types and throw error for unknown types.
-    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1') THEN
+    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1', 'hb_agent_runtime_v1') THEN
         RAISE EXCEPTION 'Unhandled usage event type in aggregate_usage_event: %', NEW.event_type;
     END IF;
 
@@ -754,6 +820,13 @@ BEGIN
 						COALESCE((NEW.event_data->>'count')::bigint, 0)
 					)
 				)
+            -- Hourly runtime heartbeats: sum the runtime per day.
+            WHEN NEW.event_type IN ('hb_agent_runtime_v1') THEN
+                jsonb_build_object(
+                    'runtime_ms',
+                    COALESCE((usage_events_daily.usage_data->>'runtime_ms')::bigint, 0) +
+                    COALESCE((NEW.event_data->>'runtime_ms')::bigint, 0)
+                )
         END;
 
     RETURN NEW;
@@ -782,6 +855,18 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+CREATE FUNCTION chat_message_search_text(content jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+    SELECT CASE WHEN jsonb_typeof(content) = 'array' THEN (
+        SELECT string_agg(part->>'text', ' ' ORDER BY ordinality)
+        FROM jsonb_array_elements(content) WITH ORDINALITY AS t(part, ordinality)
+        WHERE part->>'type' = 'text'
+    ) END
+$$;
+
+COMMENT ON FUNCTION chat_message_search_text(content jsonb) IS 'Extracts searchable content from chat_messages. Returns NULL for scalar JSON strings (content_version=0). Immutable as it is used in indexes.';
 
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
@@ -1365,6 +1450,7 @@ CREATE FUNCTION set_chat_message_revision_before() RETURNS trigger
     AS $$
 DECLARE
     chat_snapshot_version bigint;
+    cmp chat_messages;
 BEGIN
     IF TG_OP = 'INSERT' AND NEW.revision IS NOT NULL THEN
         RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
@@ -1379,7 +1465,10 @@ BEGIN
             RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
         END IF;
 
-        IF OLD IS NOT DISTINCT FROM NEW THEN
+        cmp := NEW;
+        cmp.search_tsv := OLD.search_tsv;
+        cmp.search_tsv_config := OLD.search_tsv_config;
+        IF OLD IS NOT DISTINCT FROM cmp THEN
             RETURN NEW;
         END IF;
     END IF;
@@ -1395,6 +1484,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv and search_tsv_config as they are not relevant to chatd''s processing loop.';
 
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
@@ -1446,7 +1537,7 @@ BEGIN
         SELECT DISTINCT n.chat_id
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE o IS DISTINCT FROM n
+        WHERE (to_jsonb(o) - 'search_tsv' - 'search_tsv_config') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv' - 'search_tsv_config')
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1456,6 +1547,8 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -1482,6 +1575,7 @@ CREATE TABLE ai_model_prices (
     cache_write_price bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source ai_model_price_source NOT NULL,
     CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
     CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
     CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
@@ -1489,6 +1583,8 @@ CREATE TABLE ai_model_prices (
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
+
+COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1944,12 +2040,17 @@ CREATE TABLE chat_messages (
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
-    api_key_id text,
     revision bigint NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    search_tsv tsvector,
+    search_tsv_config chat_message_search_tsv_config
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
+
+COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
+
+COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -1976,9 +2077,23 @@ CREATE TABLE chat_model_configs (
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
     ai_provider_id uuid,
+    organization_id uuid NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_model_configs_ai_provider_required_when_active CHECK (((deleted = true) OR (ai_provider_id IS NOT NULL))),
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
-    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
+    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0)),
+    CONSTRAINT chat_model_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chat_model_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
+);
+
+CREATE TABLE chat_organization_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    model_config_id uuid NOT NULL,
+    reasoning_effort text,
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
 );
 
 CREATE SEQUENCE chat_queued_messages_position_seq
@@ -1994,7 +2109,6 @@ CREATE TABLE chat_queued_messages (
     content jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     model_config_id uuid,
-    api_key_id text,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
     reasoning_effort chat_reasoning_effort
@@ -2032,6 +2146,19 @@ CREATE SEQUENCE chat_usage_limit_config_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
+CREATE TABLE chat_user_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    mode text NOT NULL,
+    model_config_id uuid,
+    reasoning_effort text,
+    CONSTRAINT chat_user_model_overrides_context_check CHECK ((context = ANY (ARRAY['root'::text, 'general'::text, 'explore'::text]))),
+    CONSTRAINT chat_user_model_overrides_mode_check CHECK ((mode = ANY (ARRAY['model'::text, 'chat_default'::text, 'deployment_default'::text]))),
+    CONSTRAINT chat_user_model_overrides_model_requires_config_check CHECK (((mode = 'model'::text) = (model_config_id IS NOT NULL)))
+);
 
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2076,6 +2203,9 @@ CREATE TABLE chats (
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
     last_reasoning_effort chat_reasoning_effort,
+    compaction_requested_at timestamp with time zone,
+    summary text,
+    summary_generated_at timestamp with time zone,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2098,6 +2228,8 @@ COMMENT ON COLUMN chats.context_dirty_resources IS 'Deterministic prefix of reso
 COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
 
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
+
+COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2179,6 +2311,8 @@ CREATE VIEW chats_expanded AS
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
+    c.summary,
+    c.summary_generated_at,
     c.snapshot_version,
     c.history_version,
     c.queue_version,
@@ -2194,7 +2328,8 @@ CREATE VIEW chats_expanded AS
     c.context_aggregate_hash,
     c.context_dirty_since,
     c.context_dirty_resources,
-    c.context_error
+    c.context_error,
+    c.compaction_requested_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -2286,26 +2421,6 @@ COMMENT ON COLUMN dbcrypt_keys.created_at IS 'The time at which the key was crea
 COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revoked.';
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
-
-CREATE TABLE external_auth_links (
-    provider_id text NOT NULL,
-    user_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    oauth_access_token text NOT NULL,
-    oauth_refresh_token text NOT NULL,
-    oauth_expiry timestamp with time zone NOT NULL,
-    oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text,
-    oauth_extra jsonb,
-    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
-);
-
-COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
-
-COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
-
-COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
 
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
@@ -2474,9 +2589,15 @@ CREATE TABLE mcp_server_configs (
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
+    oauth2_revocation_url text DEFAULT ''::text NOT NULL,
+    organization_id uuid NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
-    CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
+    CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
+    CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 CREATE TABLE mcp_server_user_tokens (
@@ -2490,7 +2611,8 @@ CREATE TABLE mcp_server_user_tokens (
     token_type text DEFAULT 'Bearer'::text NOT NULL,
     expiry timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE notification_messages (
@@ -2557,7 +2679,9 @@ CREATE TABLE oauth2_provider_app_codes (
     code_challenge text,
     code_challenge_method text,
     state_hash text,
-    redirect_uri text
+    redirect_uri text,
+    scope text NOT NULL,
+    CONSTRAINT oauth2_provider_app_codes_scope_not_empty CHECK ((scope <> ''::text))
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
@@ -2571,6 +2695,8 @@ COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge_method IS 'PKCE chall
 COMMENT ON COLUMN oauth2_provider_app_codes.state_hash IS 'SHA-256 hash of the OAuth2 state parameter, stored to prevent state reflection attacks.';
 
 COMMENT ON COLUMN oauth2_provider_app_codes.redirect_uri IS 'The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.scope IS 'Space-separated scope negotiated at authorization time, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant.';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
@@ -2590,10 +2716,13 @@ CREATE TABLE oauth2_provider_app_tokens (
     expires_at timestamp with time zone NOT NULL,
     hash_prefix bytea NOT NULL,
     refresh_hash bytea NOT NULL,
-    app_secret_id uuid NOT NULL,
+    app_secret_id uuid,
     api_key_id text NOT NULL,
     audience text,
-    user_id uuid NOT NULL
+    user_id uuid NOT NULL,
+    app_id uuid NOT NULL,
+    scope text NOT NULL,
+    CONSTRAINT oauth2_provider_app_tokens_scope_not_empty CHECK ((scope <> ''::text))
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
@@ -2601,6 +2730,10 @@ COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens pro
 COMMENT ON COLUMN oauth2_provider_app_tokens.audience IS 'Token audience binding from resource parameter';
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID for performance optimization in authorization checks';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.app_id IS 'Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.scope IS 'Space-separated scope granted to this token, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant. Later phases will narrow this on refresh and never widen it.';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -2610,7 +2743,7 @@ CREATE TABLE oauth2_provider_apps (
     icon character varying(256) NOT NULL,
     callback_url text NOT NULL,
     redirect_uris text[],
-    client_type text DEFAULT 'confidential'::text,
+    client_type text DEFAULT 'confidential'::text NOT NULL,
     dynamically_registered boolean DEFAULT false,
     client_id_issued_at timestamp with time zone DEFAULT now(),
     client_secret_expires_at timestamp with time zone,
@@ -2628,7 +2761,8 @@ CREATE TABLE oauth2_provider_apps (
     software_id text,
     software_version text,
     registration_access_token bytea,
-    registration_client_uri text
+    registration_client_uri text,
+    CONSTRAINT oauth2_provider_apps_client_type_check CHECK ((client_type = ANY (ARRAY['confidential'::text, 'public'::text])))
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
@@ -2891,266 +3025,6 @@ CREATE UNLOGGED TABLE tailnet_tunnels (
     updated_at timestamp with time zone NOT NULL
 );
 
-CREATE TABLE task_snapshots (
-    task_id uuid NOT NULL,
-    log_snapshot jsonb NOT NULL,
-    log_snapshot_created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-COMMENT ON TABLE task_snapshots IS 'Stores snapshots of task state when paused, currently limited to conversation history.';
-
-COMMENT ON COLUMN task_snapshots.task_id IS 'The task this snapshot belongs to.';
-
-COMMENT ON COLUMN task_snapshots.log_snapshot IS 'Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.';
-
-COMMENT ON COLUMN task_snapshots.log_snapshot_created_at IS 'When this log snapshot was captured.';
-
-CREATE TABLE task_workspace_apps (
-    task_id uuid NOT NULL,
-    workspace_agent_id uuid,
-    workspace_app_id uuid,
-    workspace_build_number integer NOT NULL
-);
-
-CREATE TABLE tasks (
-    id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    owner_id uuid NOT NULL,
-    name text NOT NULL,
-    workspace_id uuid,
-    template_version_id uuid NOT NULL,
-    template_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
-    prompt text NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    deleted_at timestamp with time zone,
-    display_name character varying(127) DEFAULT ''::character varying NOT NULL
-);
-
-COMMENT ON COLUMN tasks.display_name IS 'Display name is a custom, human-friendly task name.';
-
-CREATE TABLE workspace_agents (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    name character varying(64) NOT NULL,
-    first_connected_at timestamp with time zone,
-    last_connected_at timestamp with time zone,
-    disconnected_at timestamp with time zone,
-    resource_id uuid NOT NULL,
-    auth_token uuid NOT NULL,
-    auth_instance_id character varying,
-    architecture character varying(64) NOT NULL,
-    environment_variables jsonb,
-    operating_system character varying(64) NOT NULL,
-    instance_metadata jsonb,
-    resource_metadata jsonb,
-    directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    version text DEFAULT ''::text NOT NULL,
-    last_connected_replica_id uuid,
-    connection_timeout_seconds integer DEFAULT 0 NOT NULL,
-    troubleshooting_url text DEFAULT ''::text NOT NULL,
-    motd_file text DEFAULT ''::text NOT NULL,
-    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
-    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    logs_length integer DEFAULT 0 NOT NULL,
-    logs_overflowed boolean DEFAULT false NOT NULL,
-    started_at timestamp with time zone,
-    ready_at timestamp with time zone,
-    subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
-    display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
-    api_version text DEFAULT ''::text NOT NULL,
-    display_order integer DEFAULT 0 NOT NULL,
-    parent_id uuid,
-    api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
-    CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
-);
-
-COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
-
-COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection timeout in seconds, 0 means disabled.';
-
-COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
-
-COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
-
-COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
-
-COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
-
-COMMENT ON COLUMN workspace_agents.logs_length IS 'Total length of startup logs';
-
-COMMENT ON COLUMN workspace_agents.logs_overflowed IS 'Whether the startup logs overflowed in length';
-
-COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
-
-COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
-
-COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
-
-COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
-
-COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
-
-CREATE TABLE workspace_apps (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    agent_id uuid NOT NULL,
-    display_name character varying(64) NOT NULL,
-    icon character varying(256) NOT NULL,
-    command character varying(65534),
-    url character varying(65534),
-    healthcheck_url text DEFAULT ''::text NOT NULL,
-    healthcheck_interval integer DEFAULT 0 NOT NULL,
-    healthcheck_threshold integer DEFAULT 0 NOT NULL,
-    health workspace_app_health DEFAULT 'disabled'::workspace_app_health NOT NULL,
-    subdomain boolean DEFAULT false NOT NULL,
-    sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
-    slug text NOT NULL,
-    external boolean DEFAULT false NOT NULL,
-    display_order integer DEFAULT 0 NOT NULL,
-    hidden boolean DEFAULT false NOT NULL,
-    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
-    display_group text,
-    tooltip character varying(2048) DEFAULT ''::character varying NOT NULL
-);
-
-COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
-
-COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
-
-COMMENT ON COLUMN workspace_apps.tooltip IS 'Markdown text that is displayed when hovering over workspace apps.';
-
-CREATE TABLE workspace_builds (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    workspace_id uuid NOT NULL,
-    template_version_id uuid NOT NULL,
-    build_number integer NOT NULL,
-    transition workspace_transition NOT NULL,
-    initiator_id uuid NOT NULL,
-    provisioner_state bytea,
-    job_id uuid NOT NULL,
-    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
-    daily_cost integer DEFAULT 0 NOT NULL,
-    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    template_version_preset_id uuid,
-    has_ai_task boolean,
-    has_external_agent boolean,
-    notified_autostop_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
-);
-
-COMMENT ON COLUMN workspace_builds.notified_autostop_deadline IS 'The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.';
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone,
-    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
-    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
-
-CREATE VIEW tasks_with_status AS
- SELECT tasks.id,
-    tasks.organization_id,
-    tasks.owner_id,
-    tasks.name,
-    tasks.workspace_id,
-    tasks.template_version_id,
-    tasks.template_parameters,
-    tasks.prompt,
-    tasks.created_at,
-    tasks.deleted_at,
-    tasks.display_name,
-    COALESCE(workspaces.group_acl, '{}'::jsonb) AS workspace_group_acl,
-    COALESCE(workspaces.user_acl, '{}'::jsonb) AS workspace_user_acl,
-        CASE
-            WHEN (tasks.workspace_id IS NULL) THEN 'pending'::task_status
-            WHEN (build_status.status <> 'active'::task_status) THEN build_status.status
-            WHEN (agent_status.status <> 'active'::task_status) THEN agent_status.status
-            ELSE app_status.status
-        END AS status,
-    jsonb_build_object('build', jsonb_build_object('transition', latest_build_raw.transition, 'job_status', latest_build_raw.job_status, 'computed', build_status.status), 'agent', jsonb_build_object('lifecycle_state', agent_raw.lifecycle_state, 'computed', agent_status.status), 'app', jsonb_build_object('health', app_raw.health, 'computed', app_status.status)) AS status_debug,
-    task_app.workspace_build_number,
-    task_app.workspace_agent_id,
-    task_app.workspace_app_id,
-    agent_raw.lifecycle_state AS workspace_agent_lifecycle_state,
-    app_raw.health AS workspace_app_health,
-    task_owner.owner_username,
-    task_owner.owner_name,
-    task_owner.owner_avatar_url
-   FROM (((((((((tasks
-     LEFT JOIN workspaces ON ((workspaces.id = tasks.workspace_id)))
-     CROSS JOIN LATERAL ( SELECT vu.username AS owner_username,
-            vu.name AS owner_name,
-            vu.avatar_url AS owner_avatar_url
-           FROM visible_users vu
-          WHERE (vu.id = tasks.owner_id)) task_owner)
-     LEFT JOIN LATERAL ( SELECT task_app_1.workspace_build_number,
-            task_app_1.workspace_agent_id,
-            task_app_1.workspace_app_id
-           FROM task_workspace_apps task_app_1
-          WHERE (task_app_1.task_id = tasks.id)
-          ORDER BY task_app_1.workspace_build_number DESC
-         LIMIT 1) task_app ON (true))
-     LEFT JOIN LATERAL ( SELECT workspace_build.transition,
-            provisioner_job.job_status,
-            workspace_build.job_id
-           FROM (workspace_builds workspace_build
-             JOIN provisioner_jobs provisioner_job ON ((provisioner_job.id = workspace_build.job_id)))
-          WHERE ((workspace_build.workspace_id = tasks.workspace_id) AND (workspace_build.build_number = task_app.workspace_build_number))) latest_build_raw ON (true))
-     LEFT JOIN LATERAL ( SELECT workspace_agent.lifecycle_state
-           FROM workspace_agents workspace_agent
-          WHERE (workspace_agent.id = task_app.workspace_agent_id)) agent_raw ON (true))
-     LEFT JOIN LATERAL ( SELECT workspace_app.health
-           FROM workspace_apps workspace_app
-          WHERE (workspace_app.id = task_app.workspace_app_id)) app_raw ON (true))
-     CROSS JOIN LATERAL ( SELECT
-                CASE
-                    WHEN (latest_build_raw.job_status IS NULL) THEN 'pending'::task_status
-                    WHEN (latest_build_raw.job_status = ANY (ARRAY['failed'::provisioner_job_status, 'canceling'::provisioner_job_status, 'canceled'::provisioner_job_status])) THEN 'error'::task_status
-                    WHEN ((latest_build_raw.transition = ANY (ARRAY['stop'::workspace_transition, 'delete'::workspace_transition])) AND (latest_build_raw.job_status = 'succeeded'::provisioner_job_status)) THEN 'paused'::task_status
-                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = 'pending'::provisioner_job_status)) THEN 'pending'::task_status
-                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN 'active'::task_status
-                    ELSE 'unknown'::task_status
-                END AS status) build_status)
-     CROSS JOIN LATERAL ( SELECT
-                CASE
-                    WHEN ((agent_raw.lifecycle_state IS NULL) OR (agent_raw.lifecycle_state = ANY (ARRAY['created'::workspace_agent_lifecycle_state, 'starting'::workspace_agent_lifecycle_state]))) THEN 'initializing'::task_status
-                    WHEN (agent_raw.lifecycle_state = ANY (ARRAY['ready'::workspace_agent_lifecycle_state, 'start_timeout'::workspace_agent_lifecycle_state, 'start_error'::workspace_agent_lifecycle_state])) THEN 'active'::task_status
-                    WHEN (agent_raw.lifecycle_state <> ALL (ARRAY['created'::workspace_agent_lifecycle_state, 'starting'::workspace_agent_lifecycle_state, 'ready'::workspace_agent_lifecycle_state, 'start_timeout'::workspace_agent_lifecycle_state, 'start_error'::workspace_agent_lifecycle_state])) THEN 'unknown'::task_status
-                    ELSE 'unknown'::task_status
-                END AS status) agent_status)
-     CROSS JOIN LATERAL ( SELECT
-                CASE
-                    WHEN (app_raw.health = 'initializing'::workspace_app_health) THEN 'initializing'::task_status
-                    WHEN (app_raw.health = 'unhealthy'::workspace_app_health) THEN 'error'::task_status
-                    WHEN (app_raw.health = ANY (ARRAY['healthy'::workspace_app_health, 'disabled'::workspace_app_health])) THEN 'active'::task_status
-                    ELSE 'unknown'::task_status
-                END AS status) app_status)
-  WHERE (tasks.deleted_at IS NULL);
-
 CREATE TABLE telemetry_items (
     key text NOT NULL,
     value text NOT NULL,
@@ -3349,7 +3223,6 @@ CREATE TABLE template_versions (
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
-    has_ai_task boolean,
     has_external_agent boolean
 );
 
@@ -3371,7 +3244,6 @@ CREATE VIEW template_version_with_user AS
     template_versions.message,
     template_versions.archived,
     template_versions.source_example_id,
-    template_versions.has_ai_task,
     template_versions.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
@@ -3419,7 +3291,9 @@ CREATE TABLE templates (
     use_classic_parameter_flow boolean DEFAULT false NOT NULL,
     cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
     disable_module_cache boolean DEFAULT false NOT NULL,
-    time_til_autostop_notify bigint DEFAULT 0 NOT NULL
+    time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
+    agents_allowed boolean DEFAULT true NOT NULL,
+    allow_workspace_renames boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3443,6 +3317,10 @@ COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the tem
 COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.';
 
 COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.';
+
+COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
+
+COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3477,6 +3355,8 @@ CREATE VIEW template_with_names AS
     templates.cors_behavior,
     templates.disable_module_cache,
     templates.time_til_autostop_notify,
+    templates.agents_allowed,
+    templates.allow_workspace_renames,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -3497,7 +3377,8 @@ CREATE TABLE usage_events (
     publish_started_at timestamp with time zone,
     published_at timestamp with time zone,
     failure_message text,
-    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text])))
+    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text, 'hb_agent_runtime_v1'::text]))),
+    CONSTRAINT usage_events_agent_runtime_hour_aligned CHECK (((event_type <> 'hb_agent_runtime_v1'::text) OR (date_trunc('hour'::text, timezone('UTC'::text, created_at)) = timezone('UTC'::text, created_at))))
 );
 
 COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
@@ -3507,6 +3388,8 @@ COMMENT ON COLUMN usage_events.id IS 'For "discrete" event types, this is a rand
 COMMENT ON COLUMN usage_events.event_type IS 'The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).';
 
 COMMENT ON COLUMN usage_events.event_data IS 'Event payload. Determined by the matching usage struct for this event type.';
+
+COMMENT ON COLUMN usage_events.created_at IS 'The time the usage occurred, which is not necessarily the time the row was inserted. Events that measure a time bucket (e.g. hb_agent_runtime_v1) always set this to the bucket start, regardless of when the row was inserted. This timestamp determines the day used by the daily rollup trigger and is sent to the usage collector service as the event timestamp.';
 
 COMMENT ON COLUMN usage_events.publish_started_at IS 'Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.';
 
@@ -3594,7 +3477,9 @@ CREATE TABLE user_secrets (
     file_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    value_key_id text
+    value_key_id text,
+    enabled boolean DEFAULT true NOT NULL,
+    CONSTRAINT user_secrets_enabled_requires_target CHECK (((NOT enabled) OR (env_name <> ''::text) OR (file_path <> ''::text)))
 );
 
 CREATE TABLE user_skills (
@@ -3800,12 +3685,11 @@ CREATE TABLE workspace_agent_stats (
     tx_packets bigint DEFAULT 0 NOT NULL,
     tx_bytes bigint DEFAULT 0 NOT NULL,
     connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
-    session_count_vscode bigint DEFAULT 0 NOT NULL,
-    session_count_jetbrains bigint DEFAULT 0 NOT NULL,
-    session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL,
-    usage boolean DEFAULT false NOT NULL
+    usage boolean DEFAULT false NOT NULL,
+    session_counts jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agent_stats.session_counts IS 'Positive session counts keyed by the canonical app name reported by the agent.';
 
 CREATE TABLE workspace_agent_volume_resource_monitors (
     agent_id uuid NOT NULL,
@@ -3817,6 +3701,71 @@ CREATE TABLE workspace_agent_volume_resource_monitors (
     state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
     debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
+
+CREATE TABLE workspace_agents (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    first_connected_at timestamp with time zone,
+    last_connected_at timestamp with time zone,
+    disconnected_at timestamp with time zone,
+    resource_id uuid NOT NULL,
+    auth_token uuid NOT NULL,
+    auth_instance_id character varying,
+    architecture character varying(64) NOT NULL,
+    environment_variables jsonb,
+    operating_system character varying(64) NOT NULL,
+    instance_metadata jsonb,
+    resource_metadata jsonb,
+    directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    version text DEFAULT ''::text NOT NULL,
+    last_connected_replica_id uuid,
+    connection_timeout_seconds integer DEFAULT 0 NOT NULL,
+    troubleshooting_url text DEFAULT ''::text NOT NULL,
+    motd_file text DEFAULT ''::text NOT NULL,
+    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
+    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    logs_length integer DEFAULT 0 NOT NULL,
+    logs_overflowed boolean DEFAULT false NOT NULL,
+    started_at timestamp with time zone,
+    ready_at timestamp with time zone,
+    subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
+    display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
+    api_version text DEFAULT ''::text NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
+    parent_id uuid,
+    api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
+    CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
+);
+
+COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
+
+COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection timeout in seconds, 0 means disabled.';
+
+COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
+
+COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
+
+COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
+
+COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
+
+COMMENT ON COLUMN workspace_agents.logs_length IS 'Total length of startup logs';
+
+COMMENT ON COLUMN workspace_agents.logs_overflowed IS 'Whether the startup logs overflowed in length';
+
+COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
+
+COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
+
+COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
+
+COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
@@ -3906,6 +3855,35 @@ CREATE TABLE workspace_app_statuses (
     uri text
 );
 
+CREATE TABLE workspace_apps (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    agent_id uuid NOT NULL,
+    display_name character varying(64) NOT NULL,
+    icon character varying(256) NOT NULL,
+    command character varying(65534),
+    url character varying(65534),
+    healthcheck_url text DEFAULT ''::text NOT NULL,
+    healthcheck_interval integer DEFAULT 0 NOT NULL,
+    healthcheck_threshold integer DEFAULT 0 NOT NULL,
+    health workspace_app_health DEFAULT 'disabled'::workspace_app_health NOT NULL,
+    subdomain boolean DEFAULT false NOT NULL,
+    sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    slug text NOT NULL,
+    external boolean DEFAULT false NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
+    hidden boolean DEFAULT false NOT NULL,
+    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
+    display_group text,
+    tooltip character varying(2048) DEFAULT ''::character varying NOT NULL
+);
+
+COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.tooltip IS 'Markdown text that is displayed when hovering over workspace apps.';
+
 CREATE TABLE workspace_build_orchestrations (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -3954,6 +3932,29 @@ COMMENT ON COLUMN workspace_build_parameters.name IS 'Parameter name';
 
 COMMENT ON COLUMN workspace_build_parameters.value IS 'Parameter value';
 
+CREATE TABLE workspace_builds (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    workspace_id uuid NOT NULL,
+    template_version_id uuid NOT NULL,
+    build_number integer NOT NULL,
+    transition workspace_transition NOT NULL,
+    initiator_id uuid NOT NULL,
+    provisioner_state bytea,
+    job_id uuid NOT NULL,
+    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
+    daily_cost integer DEFAULT 0 NOT NULL,
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    template_version_preset_id uuid,
+    has_external_agent boolean,
+    notified_autostop_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
+);
+
+COMMENT ON COLUMN workspace_builds.notified_autostop_deadline IS 'The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.';
+
 CREATE VIEW workspace_build_with_user AS
  SELECT workspace_builds.id,
     workspace_builds.created_at,
@@ -3969,7 +3970,6 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.daily_cost,
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
-    workspace_builds.has_ai_task,
     workspace_builds.has_external_agent,
     workspace_builds.notified_autostop_deadline,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
@@ -3979,6 +3979,31 @@ CREATE VIEW workspace_build_with_user AS
      LEFT JOIN visible_users ON ((workspace_builds.initiator_id = visible_users.id)));
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspace_latest_builds AS
  SELECT latest_build.id,
@@ -4167,18 +4192,16 @@ CREATE VIEW workspaces_expanded AS
     templates.display_name AS template_display_name,
     templates.icon AS template_icon,
     templates.description AS template_description,
-    tasks.id AS task_id,
     COALESCE(( SELECT jsonb_object_agg(acl.key, jsonb_build_object('name', COALESCE(g.name, ''::text), 'avatar_url', COALESCE(g.avatar_url, ''::text))) AS jsonb_object_agg
            FROM (jsonb_each(workspaces.group_acl) acl(key, value)
              LEFT JOIN groups g ON ((g.id = (acl.key)::uuid)))), '{}'::jsonb) AS group_acl_display_info,
     COALESCE(( SELECT jsonb_object_agg(acl.key, jsonb_build_object('name', COALESCE(vu.name, ''::text), 'avatar_url', COALESCE(vu.avatar_url, ''::text))) AS jsonb_object_agg
            FROM (jsonb_each(workspaces.user_acl) acl(key, value)
              LEFT JOIN visible_users vu ON ((vu.id = (acl.key)::uuid)))), '{}'::jsonb) AS user_acl_display_info
-   FROM ((((workspaces
+   FROM (((workspaces
      JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
-     JOIN templates ON ((workspaces.template_id = templates.id)))
-     LEFT JOIN tasks ON ((workspaces.id = tasks.workspace_id)));
+     JOIN templates ON ((workspaces.template_id = templates.id)));
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
@@ -4207,7 +4230,7 @@ ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_model_prices
-    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
@@ -4263,6 +4286,9 @@ ALTER TABLE ONLY chat_diff_statuses
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
 
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_file_id_key UNIQUE (file_id);
+
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
@@ -4273,7 +4299,16 @@ ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_id_key UNIQUE (organization_id, id);
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_context_key UNIQUE (organization_id, context);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
@@ -4283,6 +4318,12 @@ ALTER TABLE ONLY chat_usage_limit_config
 
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_organization_context_key UNIQUE (user_id, organization_id, context);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -4342,10 +4383,10 @@ ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT mcp_server_configs_organization_id_slug_key UNIQUE (organization_id, slug);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_slug_key UNIQUE (slug);
+    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
@@ -4430,15 +4471,6 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
-
-ALTER TABLE ONLY task_snapshots
-    ADD CONSTRAINT task_snapshots_pkey PRIMARY KEY (task_id);
-
-ALTER TABLE ONLY task_workspace_apps
-    ADD CONSTRAINT task_workspace_apps_pkey PRIMARY KEY (task_id, workspace_build_number);
-
-ALTER TABLE ONLY tasks
-    ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
@@ -4644,7 +4676,7 @@ CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHER
 
 CREATE INDEX idx_ai_user_daily_spend_effective_group_id_day ON ai_user_daily_spend USING btree (effective_group_id, day);
 
-CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_id ON aibridge_interceptions USING btree (agent_firewall_session_id) WHERE (agent_firewall_session_id IS NOT NULL);
+CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_seq ON aibridge_interceptions USING btree (agent_firewall_session_id, agent_firewall_sequence_number) WHERE (agent_firewall_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
@@ -4667,6 +4699,8 @@ CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptio
 CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions USING btree (thread_root_id);
 
 CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_token_usages_effective_group_id_created_at ON aibridge_token_usages USING btree (effective_group_id, created_at) WHERE (effective_group_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 
@@ -4698,7 +4732,7 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_boundary_logs_captured_at ON boundary_logs USING btree (captured_at);
 
-CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number);
+CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number) INCLUDE (matched_rule);
 
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
 
@@ -4716,11 +4750,15 @@ CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btre
 
 CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
+CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING gin (to_tsvector('simple'::regconfig, pull_request_title));
+
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
 
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
+
+CREATE INDEX idx_chat_files_created_at ON chat_files USING btree (created_at);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
@@ -4730,11 +4768,19 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
-CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
+CREATE INDEX idx_chat_messages_chat_role_id ON chat_messages USING btree (chat_id, role, id DESC) WHERE (deleted = false);
+
+CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, id DESC) WHERE ((compressed = true) AND (deleted = false) AND (visibility = 'model'::chat_message_visibility));
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
 CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
+
+CREATE INDEX idx_chat_messages_search_tsv ON chat_messages USING gin (search_tsv) WHERE ((search_tsv IS NOT NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
+
+COMMENT ON INDEX idx_chat_messages_search_tsv IS 'Partial index over chat_messages used for populating search_tsv in the background. Only defined over ''searchable'' rows of chat_messages where search_tsv is NULL.';
+
+CREATE INDEX idx_chat_messages_search_tsv_pending ON chat_messages USING btree (id DESC) WHERE ((search_tsv IS NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
 
 CREATE INDEX idx_chat_messages_user_prompts ON chat_messages USING btree (chat_id, id DESC) WHERE ((deleted = false) AND (role = 'user'::chat_message_role) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])));
 
@@ -4742,7 +4788,9 @@ CREATE INDEX idx_chat_model_configs_ai_provider_id ON chat_model_configs USING b
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
-CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
+CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING btree (organization_id);
+
+CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -4762,7 +4810,11 @@ CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
-CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (status, updated_at, id) WHERE (archived = false);
+CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regconfig, title));
+
+COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
+
+CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (((parent_chat_id IS NULL)), status, updated_at, id) WHERE (archived = false);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
 
@@ -4790,6 +4842,8 @@ CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (e
 
 CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
 
+CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs USING btree (organization_id);
+
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
@@ -4816,9 +4870,9 @@ CREATE INDEX idx_telemetry_locks_period_ending_at ON telemetry_locks USING btree
 
 CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
 
-CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
-
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
+CREATE UNIQUE INDEX idx_usage_events_agent_runtime ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_agent_runtime_v1'::text);
 
 CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
 
@@ -4853,16 +4907,6 @@ CREATE INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx ON prov
 COMMENT ON INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx IS 'Support index for finding the latest completed jobs for a worker (and organization), nulls first so that active jobs have priority; targets: GetProvisionerDaemonsWithStatusByOrganization';
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
-
-CREATE INDEX tasks_organization_id_idx ON tasks USING btree (organization_id);
-
-CREATE INDEX tasks_owner_id_idx ON tasks USING btree (owner_id);
-
-CREATE UNIQUE INDEX tasks_owner_id_name_unique_idx ON tasks USING btree (owner_id, lower(name)) WHERE (deleted_at IS NULL);
-
-COMMENT ON INDEX tasks_owner_id_name_unique_idx IS 'Index to ensure uniqueness for task owner/name';
-
-CREATE INDEX tasks_workspace_id_idx ON tasks USING btree (workspace_id);
 
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
 
@@ -4900,7 +4944,7 @@ COMMENT ON INDEX workspace_agent_scripts_workspace_agent_id_idx IS 'Foreign key 
 
 CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_logs USING btree (agent_id, id);
 
-CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, connection_median_latency_ms) WHERE (connection_count > 0);
+CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (connection_median_latency_ms) WHERE (connection_count > 0);
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
 
@@ -5105,9 +5149,6 @@ ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
@@ -5120,13 +5161,28 @@ ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
 
-ALTER TABLE ONLY chat_queued_messages
-    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_model_config_fkey FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
@@ -5219,6 +5275,9 @@ ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_oauth2_client_secret_key_id_fkey FOREIGN KEY (oauth2_client_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY mcp_server_user_tokens
@@ -5258,6 +5317,9 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT oauth2_provider_app_tokens_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
@@ -5292,30 +5354,6 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY task_snapshots
-    ADD CONSTRAINT task_snapshots_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY task_workspace_apps
-    ADD CONSTRAINT task_workspace_apps_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY task_workspace_apps
-    ADD CONSTRAINT task_workspace_apps_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY task_workspace_apps
-    ADD CONSTRAINT task_workspace_apps_workspace_app_id_fkey FOREIGN KEY (workspace_app_id) REFERENCES workspace_apps(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tasks
-    ADD CONSTRAINT tasks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tasks
-    ADD CONSTRAINT tasks_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tasks
-    ADD CONSTRAINT tasks_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tasks
-    ADD CONSTRAINT tasks_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

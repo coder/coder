@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/tidwall/sjson"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -18,11 +19,13 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 type BlockingInterception struct {
@@ -37,11 +40,36 @@ func NewBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
+	return buildBlockingInterceptor(id, req, cfg, cred, nil, clientHeaders, tracer)
+}
+
+func NewBedrockBlockingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingInterception {
+	return buildBlockingInterceptor(id, req, cfg, cred, bedrockMantle, clientHeaders, tracer)
+}
+
+func buildBlockingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
 		id:            id,
 		req:           req,
 		cfg:           cfg,
 		cred:          cred,
+		bedrockMantle: bedrockMantle,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}
@@ -56,7 +84,7 @@ func (*BlockingInterception) Streaming() bool {
 }
 
 func (i *BlockingInterception) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.interceptionBase.baseTraceAttributes(r, false)
+	return i.baseTraceAttributes(r, false)
 }
 
 func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Request) (outErr error) {
@@ -123,7 +151,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		lastUsage := completion.Usage
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
-		i.recordTokenUsage(ctx, completion.ID, lastUsage)
+		i.recordTokenUsage(ctx, completion.ID, lastUsage, string(completion.ServiceTier))
 
 		// Check if we have tool calls to process.
 		var pendingToolCalls []openai.ChatCompletionMessageToolCallUnion
@@ -247,7 +275,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	out, err := json.Marshal(completion)
+	out, err := i.marshalCompletion(completion)
 	if err != nil {
 		out, _ = json.Marshal(i.newErrorResponse(xerrors.Errorf("failed to marshal response: %w", err)))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -258,6 +286,29 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	_, _ = w.Write(out)
 
 	return nil
+}
+
+// marshalCompletion renders the final blocking response. Google responses are
+// serialized from the raw upstream body, mirroring marshalChunk on the
+// streaming path, because the typed round trip drops provider-specific fields
+// such as Gemini's extra_content thought metadata, which clients need to
+// separate thought output from the answer. The ID and usage overrides applied
+// to the typed completion are re-applied on top of the raw body.
+func (i *BlockingInterception) marshalCompletion(completion *openai.ChatCompletion) ([]byte, error) {
+	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL) || completion.RawJSON() == "" {
+		return json.Marshal(completion)
+	}
+	sj, err := sjson.Set(completion.RawJSON(), "id", completion.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal completion id failed: %w", err)
+	}
+	if completion.Usage.CompletionTokens > 0 {
+		sj, err = sjson.Set(sj, "usage", completion.Usage)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal completion usage failed: %w", err)
+		}
+	}
+	return []byte(sj), nil
 }
 
 // newChatCompletion routes by credential type, returning the upstream

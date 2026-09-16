@@ -1,4 +1,6 @@
-# External Workspaces
+---
+title: External Workspaces
+---
 
 External workspaces allow you to seamlessly connect externally managed infrastructure as Coder workspaces. This enables you to integrate existing servers, on-premises systems, or any capable machine with the Coder environment, ensuring a smooth and efficient development workflow without requiring Coder to provision additional compute resources.
 
@@ -64,7 +66,7 @@ You can create and manage external workspaces using either the **CLI** or the **
 
 1. **Create an external workspace**
 
-   ```bash
+   ```sh
    coder external-workspaces create hello-world \
      --template=externally-managed-workspace -y
    ```
@@ -74,13 +76,13 @@ You can create and manage external workspaces using either the **CLI** or the **
 
 2. **List external workspaces**
 
-   ```bash
+   ```sh
    coder external-workspaces list
    ```
 
    Example output:
 
-   ```bash
+   ```sh
    WORKSPACE        TEMPLATE                     STATUS   HEALTHY  LAST BUILT  CURRENT VERSION  OUTDATED
    hello-world      externally-managed-workspace Started  true     15m         happy_mendel9    false
    ```
@@ -89,13 +91,13 @@ You can create and manage external workspaces using either the **CLI** or the **
 
    Use this command to query the script you must run on the external machine:
 
-   ```bash
+   ```sh
    coder external-workspaces agent-instructions hello-world
    ```
 
    Example:
 
-   ```bash
+   ```sh
    Please run the following command to attach external agent to the workspace hello-world:
 
    curl -fsSL "https://<DEPLOYMENT_URL>/api/v2/init-script/linux/amd64" | CODER_AGENT_TOKEN="<token>" sh
@@ -103,7 +105,7 @@ You can create and manage external workspaces using either the **CLI** or the **
 
    You can also output JSON for automation:
 
-   ```bash
+   ```sh
    coder external-workspaces agent-instructions hello-world --output=json
    ```
 

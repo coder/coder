@@ -29,28 +29,21 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 	}
 }
 
-// HydrateAndMarkChatsDirty implements agentapi.ContextDirtyMarker. It runs
-// inside the PushContextState transaction: it stamps the pushed snapshot hash
-// on chats for the agent that have not been hydrated yet (no dirty event),
-// then flips already-pinned chats whose hash differs to dirty. It returns a
-// callback that publishes the dirty watch events; the caller invokes it only
-// after the transaction commits, and the callback is a no-op when nothing
-// transitioned to dirty.
-//
-// The pinned hash on dirtied chats is intentionally left unchanged; the
-// refresh endpoint re-pins it.
+// HydrateAndMarkChatsDirty pins context for unpinned chats, marks drifted chats
+// dirty, and live-syncs MCP resources. Its post-commit callback publishes one
+// context event per affected chat without changing dirty chats' pinned hash.
 func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
 
 	// Chats created before the agent's first push land with a NULL pinned
-	// hash. Stamp them now so they start clean; this is their first
-	// hydration, so no dirty event is emitted.
-	if err := tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+	// hash. Stamp them now so they start clean.
+	hydrated, err := tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
 		ContextError:  snapshotError,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, xerrors.Errorf("hydrate agent chats context: %w", err)
 	}
 
@@ -62,26 +55,51 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	if err != nil {
 		return nil, xerrors.Errorf("mark chats context dirty: %w", err)
 	}
-	if len(dirtied) == 0 {
+	// MCP resources bypass drift detection, so sync them on every agent push.
+	synced, err := tx.SyncAgentChatsContextMCPResources(ctx, agentID)
+	if err != nil {
+		return nil, xerrors.Errorf("sync agent chats mcp context resources: %w", err)
+	}
+
+	// A dirtied chat can also be MCP-synced, so publish it only once.
+	seen := make(map[uuid.UUID]struct{}, len(hydrated)+len(dirtied)+len(synced))
+	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied)+len(synced))
+	appendTouched := func(id uuid.UUID) {
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		touched = append(touched, id)
+	}
+	for _, id := range hydrated {
+		appendTouched(id)
+	}
+	for _, d := range dirtied {
+		appendTouched(d.ID)
+	}
+	for _, id := range synced {
+		appendTouched(id)
+	}
+	if len(touched) == 0 {
 		return func() {}, nil
 	}
 
-	// Read the dirtied chats inside the transaction and capture their rows so
+	// Read the touched chats inside the transaction and capture their rows so
 	// the post-commit callback needs no database access: the published payload
-	// reflects the just-committed dirty state (no re-read a concurrent refresh
+	// reflects the just-committed state (no re-read a concurrent refresh
 	// could race), and the callback does not depend on the request-scoped
 	// context surviving past commit. Only the transitioned chats are read.
-	dirtyChats := make([]database.Chat, 0, len(dirtied))
-	for _, d := range dirtied {
-		chat, err := tx.GetChatByID(ctx, d.ID)
+	touchedChats := make([]database.Chat, 0, len(touched))
+	for _, id := range touched {
+		chat, err := tx.GetChatByID(ctx, id)
 		if err != nil {
-			return nil, xerrors.Errorf("get dirtied chat %s: %w", d.ID, err)
+			return nil, xerrors.Errorf("get touched chat %s: %w", id, err)
 		}
-		dirtyChats = append(dirtyChats, chat)
+		touchedChats = append(touchedChats, chat)
 	}
 
 	return func() {
-		p.publishChatPubsubEvents(dirtyChats, codersdk.ChatWatchEventKindContextDirty)
+		p.publishChatPubsubEvents(touchedChats, codersdk.ChatWatchEventKindContextDirty)
 	}, nil
 }
 
@@ -94,22 +112,31 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 // HydrateAgentChatsContext only touches NULL-hash chats (a concurrent push that
 // already hydrated the chat is not clobbered), and snapshot-gated so it does
 // nothing when the agent has not pushed yet, never stamping empty state that
-// would keep a later push from hydrating.
-func (p *Server) hydrateAgentChatsFromSnapshot(ctx context.Context, agentID uuid.UUID) error {
-	return database.ReadModifyUpdate(p.db, func(tx database.Store) error {
+// would keep a later push from hydrating. It returns the IDs of the chats it
+// pinned; empty when the agent has no snapshot or every chat was already
+// pinned.
+func (p *Server) hydrateAgentChatsFromSnapshot(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	var hydrated []uuid.UUID
+	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
 		aggregateHash, snapshotError, ok, err := latestAgentSnapshot(ctx, tx, agentID)
 		if err != nil {
 			return err
 		}
 		if !ok {
+			hydrated = nil
 			return nil
 		}
-		return tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+		hydrated, err = tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 			AgentID:       agentID,
 			AggregateHash: aggregateHash,
 			ContextError:  snapshotError,
 		})
+		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return hydrated, nil
 }
 
 // hydrateChatContextOnCreate pins a newly created chat to its agent's latest
@@ -125,7 +152,7 @@ func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.C
 	}
 	//nolint:gocritic // Chatd stamps chats it does not own as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
-	if err := p.hydrateAgentChatsFromSnapshot(ctx, chat.AgentID.UUID); err != nil {
+	if _, err := p.hydrateAgentChatsFromSnapshot(ctx, chat.AgentID.UUID); err != nil {
 		p.logger.Warn(ctx, "hydrate chat context on create",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 	}
@@ -140,20 +167,40 @@ func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.C
 // exist. It reuses the create-path hydration, which is idempotent and
 // snapshot-gated, so it never clobbers an already-pinned chat and never stamps
 // empty state. The NULL-hash gate also leaves dirtied chats alone: their stale
-// pinned hash is non-NULL until the refresh endpoint re-pins. Best-effort:
-// failures are logged and swallowed so they never fail the turn.
+// pinned hash is non-NULL until the refresh endpoint re-pins. Hydration
+// pins every unpinned chat bound to the agent in one statement, so a
+// context watch event is published for each pinned chat: watching clients
+// cached those chats' details without pinned resources and need to
+// refetch. Best-effort: failures are logged and swallowed so they never
+// fail the turn.
 func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat database.Chat) {
 	if !chat.AgentID.Valid || chat.ContextAggregateHash != nil {
 		return
 	}
 	//nolint:gocritic // Chatd stamps chats it does not own as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
-	if err := p.hydrateAgentChatsFromSnapshot(ctx, chat.AgentID.UUID); err != nil {
+	hydrated, err := p.hydrateAgentChatsFromSnapshot(ctx, chat.AgentID.UUID)
+	if err != nil {
 		p.logger.Warn(ctx, "ensure chat context pinned on first turn",
 			slog.F("chat_id", chat.ID),
 			slog.F("agent_id", chat.AgentID.UUID),
 			slog.Error(err))
+		return
 	}
+	pinnedChats := make([]database.Chat, 0, len(hydrated))
+	for _, chatID := range hydrated {
+		// Re-read each chat so the event payload carries the pinned
+		// state, not the pre-hydration row.
+		pinned, err := p.db.GetChatByID(ctx, chatID)
+		if err != nil {
+			p.logger.Warn(ctx, "read chat after first-turn context pin",
+				slog.F("chat_id", chatID),
+				slog.Error(err))
+			continue
+		}
+		pinnedChats = append(pinnedChats, pinned)
+	}
+	p.publishChatPubsubEvents(pinnedChats, codersdk.ChatWatchEventKindContextDirty)
 }
 
 // repinChatContext re-pins a single chat to its agent's latest context

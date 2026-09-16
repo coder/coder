@@ -49,8 +49,14 @@ func (s *Server) Reload(ctx context.Context) error {
 	}
 	s.providerRouter.Store(router)
 	for _, p := range reload.Providers {
-		if p.Status == aibridged.ProviderStatusError {
+		switch p.Status {
+		case aibridged.ProviderStatusError:
 			s.logger.Warn(s.ctx, "provider excluded from routing",
+				slog.F("provider", p.Name),
+				slog.Error(p.Err),
+			)
+		case aibridged.ProviderStatusProxyExcluded:
+			s.logger.Info(s.ctx, "provider excluded from proxy routing",
 				slog.F("provider", p.Name),
 				slog.Error(p.Err),
 			)
@@ -112,14 +118,12 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 }
 
 // buildProviderRouter constructs a router snapshot from a classified
-// provider reload. Only providers with Status ==
-// aibridged.ProviderStatusEnabled are included in the active routing
-// tables; the refresh function is responsible for classifying disabled
-// and errored rows. First entry wins on duplicate hostnames as a
-// defense-in-depth measure even though the refresh function should
-// mark duplicates as errors.
+// provider reload. Only enabled providers are included in the active
+// routing tables. First entry wins on duplicate hostnames as
+// defense-in-depth even though the refresh function should mark
+// duplicates as proxy-excluded.
 func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*providerRouter, error) {
-	nameByHost := make(map[string]string, len(reload.Providers))
+	providerByHost := make(map[string]routedProvider, len(reload.Providers))
 	domains := make([]string, 0, len(reload.Providers))
 	for _, p := range reload.Providers {
 		if p.Status != aibridged.ProviderStatusEnabled {
@@ -129,15 +133,18 @@ func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*provide
 		if host == "" {
 			continue
 		}
-		if _, exists := nameByHost[host]; exists {
+		if _, exists := providerByHost[host]; exists {
 			continue
 		}
-		nameByHost[host] = p.Name
+		providerByHost[host] = routedProvider{name: p.Name, providerType: p.Type}
 		domains = append(domains, host)
 	}
 	mitmHosts, err := convertDomainsToHosts(domains, allowedPorts)
 	if err != nil {
 		return nil, err
 	}
-	return &providerRouter{mitmHosts: mitmHosts, nameByHost: nameByHost}, nil
+	return &providerRouter{
+		mitmHosts:      mitmHosts,
+		providerByHost: providerByHost,
+	}, nil
 }

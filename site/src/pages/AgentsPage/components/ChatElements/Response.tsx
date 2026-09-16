@@ -1,8 +1,8 @@
-import { useTheme } from "@emotion/react";
 import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
+import { cn } from "cn";
 import type { ComponentPropsWithRef, ReactNode } from "react";
 import {
 	type Components,
@@ -11,14 +11,16 @@ import {
 	type UrlTransform,
 } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { cn } from "#/utils/cn";
+import { useTheme } from "#/theme/context";
+import { MarkdownImage } from "./MarkdownImage";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
-	 * preprocessing (remend) and useTransition-based render
-	 * scheduling. Pass true only for live-streaming output. */
+	 * preprocessing (remend). Pass true only for live-streaming
+	 * output. */
 	streaming?: boolean;
 }
 
@@ -44,6 +46,8 @@ type HastNode = {
 
 type MarkdownComponentProps = {
 	href?: string;
+	src?: string;
+	alt?: string;
 	children?: ReactNode;
 	node?: HastNode;
 	type?: string;
@@ -184,8 +188,14 @@ const createComponents = (
 			);
 		},
 
-		// Horizontal rule: reset browser default inset/ridge border
-		// (preflight is disabled) to a clean 1px solid line.
+		// Gate externally hosted images behind viewer consent so
+		// rendering a chat never discloses the viewer's IP address
+		// to an attacker-controlled host (Cure53 CDM-02-006).
+		img: ({ src, alt }: MarkdownComponentProps) => (
+			<MarkdownImage src={src} alt={alt} />
+		),
+		// Horizontal rule: render a clean 1px solid line using theme
+		// tokens instead of the default border.
 		hr: () => (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),
@@ -215,7 +225,14 @@ const createComponents = (
 				const lang = langClass?.replace(/^language-/, "") ?? "text";
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
-					return (
+					const isMermaid = lang === "mermaid";
+					// Shiki has no Mermaid grammar and the viewer renders
+					// nothing for unknown languages, so the fallback source
+					// view is highlighted as plain text.
+					const viewerLang: SupportedLanguages = isMermaid
+						? "text"
+						: (lang as SupportedLanguages);
+					const codeBlock = (
 						<ScrollArea
 							orientation="both"
 							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
@@ -224,8 +241,8 @@ const createComponents = (
 						>
 							<FileViewer
 								file={{
-									name: `block.${lang}`,
-									lang: lang as SupportedLanguages,
+									name: `block.${viewerLang}`,
+									lang: viewerLang,
 									contents: content,
 									cacheKey: content,
 								}}
@@ -241,6 +258,10 @@ const createComponents = (
 							/>
 						</ScrollArea>
 					);
+					if (isMermaid) {
+						return <MermaidDiagram source={content} fallback={codeBlock} />;
+					}
+					return codeBlock;
 				}
 			}
 			return <pre>{getHastText(node)}</pre>;
@@ -286,6 +307,15 @@ export const Response = ({
 				rehypePlugins={chatRehypePlugins}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}
+				// Streamdown only flags the trailing block as an
+				// incomplete code fence while isAnimating is set, which
+				// MermaidDiagram relies on to defer rendering.
+				isAnimating={streaming}
+				// Streamdown 2.6 caps table height at 300px by
+				// default, even with controls disabled. Chat tables
+				// should grow with their content instead of
+				// scrolling internally.
+				tableMaxHeight={0}
 			>
 				{children}
 			</Streamdown>

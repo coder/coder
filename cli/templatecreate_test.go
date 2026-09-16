@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -58,6 +59,56 @@ func TestCliTemplateCreate(t *testing.T) {
 			}
 		}
 	})
+	t.Run("AgentsAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		for _, tt := range []struct {
+			name          string
+			flag          string
+			agentsAllowed bool
+		}{
+			{
+				name:          "DefaultTrue",
+				agentsAllowed: true,
+			},
+			{
+				name:          "False",
+				flag:          "--agents-allowed=false",
+				agentsAllowed: false,
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				templateName := coderdtest.RandomUsername(t)
+				source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
+				args := []string{
+					"templates",
+					"create",
+					templateName,
+					"--yes",
+					"--directory", source,
+					"--test.provisioner", string(database.ProvisionerTypeEcho),
+				}
+				if tt.flag != "" {
+					args = append(args, tt.flag)
+				}
+				inv, root := clitest.New(t, args...)
+				clitest.SetupConfig(t, templateAdmin, root)
+
+				require.NoError(t, inv.Run())
+
+				template, err := client.TemplateByName(t.Context(), owner.OrganizationID, templateName)
+				require.NoError(t, err)
+				require.Equal(t, tt.agentsAllowed, template.AgentsAllowed)
+			})
+		}
+	})
+
 	t.Run("CreateNoLockfile", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)

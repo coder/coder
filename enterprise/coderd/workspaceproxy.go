@@ -405,7 +405,7 @@ func validateProxyURL(u string) error {
 	if p.Scheme != "http" && p.Scheme != "https" {
 		return xerrors.New("scheme must be http or https")
 	}
-	if !(p.Path == "/" || p.Path == "") {
+	if p.Path != "/" && p.Path != "" {
 		return xerrors.New("path must be empty or /")
 	}
 	return nil
@@ -623,7 +623,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
+	startingRegionID, _ := getProxyDERPStartingRegionID(api.BaseDERPMap)
 	// #nosec G115 - Safe conversion as DERP region IDs are small integers expected to be within int32 range
 	regionID := int32(startingRegionID) + proxy.RegionID
 
@@ -723,7 +723,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// Find sibling regions to respond with for derpmesh.
-	siblings := api.replicaManager.InRegion(regionID)
+	siblings := api.replicaManager.DERPReplicasInRegion(regionID)
 	siblingsRes := make([]codersdk.Replica, 0, len(siblings))
 	for _, replica := range siblings {
 		if replica.ID == req.ReplicaID {

@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	getProvidedSubagentTitle,
@@ -71,6 +72,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	tools: [],
 	blocks: [],
 	sources: [],
+	hookNotices: [],
 });
 
 export const ensureToolBlock = (
@@ -111,11 +113,7 @@ export const getPendingToolCallIDs = (
 		}
 	}
 
-	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		const message = messages[index];
-		if (!message) {
-			continue;
-		}
+	for (const message of messages.toReversed()) {
 		if (message.role === "user") {
 			return undefined;
 		}
@@ -173,6 +171,7 @@ export const mergeTools = (
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
+			hookRewritten: call.hookRewritten,
 		});
 	}
 
@@ -227,6 +226,7 @@ export const parseMessageContent = (
 					args: part.args,
 					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
+					hookRewritten: part.hook_rewritten,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -274,7 +274,7 @@ export const parseMessageContent = (
 						!lastBlock.sources.some((s) => s.url === part.url)
 					) {
 						lastBlock.sources.push(source);
-					} else if (!lastBlock || lastBlock.type !== "sources") {
+					} else if (lastBlock?.type !== "sources") {
 						parsed.blocks.push({
 							type: "sources",
 							sources: [source],
@@ -293,6 +293,12 @@ export const parseMessageContent = (
 				// they are not rendered in the conversation timeline.
 				break;
 			}
+			case "hook-notice": {
+				if (part.text.trim()) {
+					parsed.hookNotices.push(part.text);
+				}
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;
@@ -303,12 +309,7 @@ export const parseMessageContent = (
 };
 
 const isEditableAttachmentMediaType = (mediaType: string): boolean =>
-	mediaType.startsWith("image/") ||
-	mediaType === "text/plain" ||
-	mediaType === "text/markdown" ||
-	mediaType === "text/csv" ||
-	mediaType === "application/json" ||
-	mediaType === "application/pdf";
+	ChatAttachmentMediaTypes.some((allowed) => allowed === mediaType);
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,

@@ -31,8 +31,8 @@ type AvailableMetadata = Readonly<{
 	entitlements: Entitlements;
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
-	"tasks-tab-visible": boolean;
 	"ai-gateway-enabled": boolean;
+	"user-secret-file-path-enabled": boolean;
 	permissions: Permissions;
 	organizations: Organization[];
 }>;
@@ -96,8 +96,10 @@ export class MetadataManager implements MetadataManagerApi {
 			experiments: this.registerValue<Experiment[]>("experiments"),
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),
 			regions: this.registerRegionValue(),
-			"tasks-tab-visible": this.registerValue<boolean>("tasks-tab-visible"),
 			"ai-gateway-enabled": this.registerValue<boolean>("ai-gateway-enabled"),
+			"user-secret-file-path-enabled": this.registerValue<boolean>(
+				"user-secret-file-path-enabled",
+			),
 			permissions: this.registerValue<Permissions>("permissions"),
 			organizations: this.registerValue<Organization[]>("organizations"),
 		};

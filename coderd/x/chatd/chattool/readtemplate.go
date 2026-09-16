@@ -18,8 +18,7 @@ const ReadTemplateReadmeMaxRunes = 8000
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
-	OwnerID            uuid.UUID
-	AllowedTemplateIDs func() map[uuid.UUID]bool
+	OwnerID uuid.UUID
 }
 
 type readTemplateArgs struct {
@@ -50,10 +49,6 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				), nil
 			}
 
-			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
-				return fantasy.NewTextErrorResponse("template not found"), nil
-			}
-
 			ctx, err = asOwner(ctx, db, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -66,6 +61,9 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 
 			if template.OrganizationID != organizationID {
 				return fantasy.NewTextErrorResponse("template not found"), nil
+			}
+			if !template.AgentsAllowed {
+				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
 
 			params, err := db.GetTemplateVersionParameters(ctx, template.ActiveVersionID)

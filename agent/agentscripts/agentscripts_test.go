@@ -47,6 +47,50 @@ func TestExecuteBasic(t *testing.T) {
 	require.Equal(t, "hello", log.Output)
 }
 
+func TestExecuteCreatesMissingLogDir(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	fs := afero.NewOsFs()
+	logger := testutil.Logger(t)
+	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = s.Close()
+	})
+
+	fLogger := newFakeScriptLogger()
+	runner := agentscripts.New(agentscripts.Options{
+		LogDir:      t.TempDir(),
+		DataDirBase: t.TempDir(),
+		Logger:      logger,
+		SSHServer:   s,
+		Filesystem:  fs,
+		GetScriptLogger: func(uuid.UUID) agentscripts.ScriptLogger {
+			return fLogger
+		},
+	})
+	defer runner.Close()
+
+	logPath := filepath.Join(t.TempDir(), "does", "not", "exist", "install.log")
+
+	aAPI := agenttest.NewFakeAgentAPI(t, logger, nil, nil)
+	err = runner.Init([]codersdk.WorkspaceAgentScript{{
+		LogSourceID: uuid.New(),
+		LogPath:     logPath,
+		Script:      "echo hello",
+	}}, aAPI.ScriptCompleted)
+	require.NoError(t, err)
+	require.NoError(t, runner.Execute(ctx, agentscripts.ExecuteAllScripts))
+
+	log := testutil.TryReceive(ctx, t, fLogger.logs)
+	require.Equal(t, "hello", log.Output)
+
+	exists, err := afero.Exists(fs, logPath)
+	require.NoError(t, err)
+	require.True(t, exists, "expected log file to be created at %s", logPath)
+}
+
 func TestEnv(t *testing.T) {
 	t.Parallel()
 	fLogger := newFakeScriptLogger()

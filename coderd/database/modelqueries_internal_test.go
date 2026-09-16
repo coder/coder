@@ -1,6 +1,7 @@
 package database
 
 import (
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -58,45 +59,6 @@ func TestWorkspaceTableConvert(t *testing.T) {
 	require.Equal(t, workspace.WorkspaceTable(), subset,
 		"'workspace.WorkspaceTable()' is not missing at least 1 field when converting to 'WorkspaceTable'. "+
 			"To resolve this, go to the 'func (w Workspace) WorkspaceTable()' and ensure all fields are converted.")
-}
-
-// TestTaskTableConvert verifies all task fields are converted
-// when reducing a `Task` to a `TaskTable`.
-// This test is a guard rail to prevent developer oversight mistakes.
-func TestTaskTableConvert(t *testing.T) {
-	t.Parallel()
-
-	staticRandoms := &testutil.Random{
-		String:  func() string { return "foo" },
-		Bool:    func() bool { return true },
-		Int:     func() int64 { return 500 },
-		Uint:    func() uint64 { return 126 },
-		Float:   func() float64 { return 3.14 },
-		Complex: func() complex128 { return 6.24 },
-		Time: func() time.Time {
-			return time.Date(2020, 5, 2, 5, 19, 21, 30, time.UTC)
-		},
-	}
-
-	// Copies the approach taken by TestWorkspaceTableConvert.
-	//
-	// If you use 'PopulateStruct' to create 2 tasks, using the same
-	// "random" values for each type. Then they should be identical.
-	//
-	// So if 'task.TaskTable()' was missing any fields in its
-	// conversion, the comparison would fail.
-
-	var task Task
-	err := testutil.PopulateStruct(&task, staticRandoms)
-	require.NoError(t, err)
-
-	var subset TaskTable
-	err = testutil.PopulateStruct(&subset, staticRandoms)
-	require.NoError(t, err)
-
-	require.Equal(t, task.TaskTable(), subset,
-		"'task.TaskTable()' is not missing at least 1 field when converting to 'TaskTable'. "+
-			"To resolve this, go to the 'func (t Task) TaskTable()' and ensure all fields are converted.")
 }
 
 // TestAuditLogsQueryConsistency ensures that GetAuditLogsOffset and CountAuditLogs
@@ -166,6 +128,27 @@ func TestFinalizeStaleChatDebugRows_TerminalStatusAlignment(t *testing.T) {
 				"codersdk.ChatDebugTerminalStatuses(); update both when adding "+
 				"a new terminal status")
 	}
+}
+
+// TestInsertChatMessagesOrderContract guards the input-order guarantee that
+// callers rely on when indexing the returned slice. A behavior test cannot:
+// Postgres evaluates the id default in row order anyway, so a batch still looks
+// ordered once the guarantee is removed.
+func TestInsertChatMessagesOrderContract(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, insertChatMessages, "nextval('chat_messages_id_seq')",
+		"ids must be allocated explicitly so they can be correlated to input array position")
+	require.Contains(t, insertChatMessages, "ROW_NUMBER() OVER (ORDER BY id)",
+		"the k-th smallest allocated id must be assigned to input index k")
+	require.Regexp(t, `(?s)ORDER BY id\s*\z`, strings.TrimSpace(insertChatMessages),
+		"returned rows must be explicitly ordered by id rather than relying on RETURNING order")
+
+	// Every parallel input array must be read at the allocated ordinal. A column
+	// left on UNNEST would be positioned by the executor instead.
+	subscripted := regexp.MustCompile(`\)\[allocated\.ord\]`).FindAllString(insertChatMessages, -1)
+	require.Len(t, subscripted, reflect.TypeOf(InsertChatMessagesParams{}).NumField()-1,
+		"each InsertChatMessagesParams array field, all but ChatID, must be subscripted by allocated.ord")
 }
 
 // extractWhereClause extracts the WHERE clause from a SQL query string

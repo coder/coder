@@ -109,7 +109,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
-			subject, _, err := UserRBACSubject(
+			subject, userStatus, err := UserRBACSubject(
 				ctx,
 				opts.DB,
 				row.WorkspaceTable.OwnerID,
@@ -118,7 +118,6 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 					OwnerID:       row.WorkspaceTable.OwnerID,
 					TemplateID:    row.WorkspaceTable.TemplateID,
 					VersionID:     row.WorkspaceBuild.TemplateVersionID,
-					TaskID:        row.TaskID,
 					BlockUserData: row.WorkspaceAgent.APIKeyScope == database.AgentKeyScopeEnumNoUserData,
 				}),
 			)
@@ -126,6 +125,12 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error with workspace agent authorization context.",
 					Detail:  err.Error(),
+				})
+				return
+			}
+			if userStatus != database.UserStatusActive {
+				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+					Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", userStatus),
 				})
 				return
 			}

@@ -25,8 +25,8 @@ type Story = StoryObj<typeof TableEmpty>;
 
 export const Example: Story = {};
 
-export const WithImageAndCta: Story = {
-	name: "With Image and CTA",
+export const WithCta: Story = {
+	name: "With CTA",
 	args: {
 		description: "A gruff voice crackles to life on the intercom.",
 		cta: (
@@ -35,13 +35,5 @@ export const WithImageAndCta: Story = {
 				code="say &ldquo;Actually, it's the BBC controlling us from London&rdquo;"
 			/>
 		),
-		image: (
-			<img
-				src="/featured/templates.webp"
-				alt=""
-				className="max-w-3xl h-[320px] overflow-hidden object-cover object-top"
-			/>
-		),
-		style: { paddingBottom: 0 },
 	},
 };

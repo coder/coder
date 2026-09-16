@@ -1,4 +1,6 @@
-# Notifications
+---
+title: Notifications
+---
 
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
@@ -13,13 +15,6 @@ Notifications are sent in response to internal events, to alert the affected
 user(s) of the event.
 
 Coder supports the following list of events:
-
-### Task Events
-
-These notifications are sent to the owner of the workspace where the task is running:
-
-- Task Idle
-- Task Working
 
 ### Template Events
 
@@ -39,6 +34,8 @@ These notifications are sent to users with **owner** and **user admin** roles:
 - User account created
 - User account deleted
 - User account suspended
+
+These account notifications cover both user and service accounts.
 
 These notifications are sent to users themselves:
 
@@ -148,7 +145,7 @@ After setting the required fields above:
 
 1. Set the following configuration options:
 
-   ```text
+   ```txt
    CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
    CODER_EMAIL_AUTH_PASSWORD="<app password created above (no spaces)>"
@@ -167,7 +164,7 @@ After setting the required fields above:
 1. Set up an account on Microsoft 365 or outlook.com
 1. Set the following configuration options:
 
-   ```text
+   ```txt
    CODER_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
    CODER_EMAIL_TLS_STARTTLS=true
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
@@ -289,13 +286,13 @@ To send a custom notification, execute [`coder notifications custom <title> <mes
 
 - Send yourself a quick update:
 
-```shell
+```sh
 coder templates push -y && coder notifications custom "Template push complete" "Template version uploaded."
 ```
 
 - Use in a script after a long-running task:
 
-```shell
+```sh
 #!/usr/bin/env bash
 set -o pipefail
 

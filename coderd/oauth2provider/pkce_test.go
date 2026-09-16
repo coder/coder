@@ -3,6 +3,7 @@ package oauth2provider_test
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -121,6 +122,79 @@ func TestValidatePKCECodeChallengeMethod(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestValidPKCEFormat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		verifier    string
+		expectValid bool
+	}{
+		{
+			name:        "Empty",
+			verifier:    "",
+			expectValid: false,
+		},
+		{
+			name:        "OneCharacter",
+			verifier:    "a",
+			expectValid: false,
+		},
+		{
+			name:        "OneBelowMinLength",
+			verifier:    strings.Repeat("a", 42),
+			expectValid: false,
+		},
+		{
+			name:        "AtMinLength",
+			verifier:    strings.Repeat("a", 43),
+			expectValid: true,
+		},
+		{
+			name:        "AtMaxLength",
+			verifier:    strings.Repeat("a", 128),
+			expectValid: true,
+		},
+		{
+			name:        "OneAboveMaxLength",
+			verifier:    strings.Repeat("a", 129),
+			expectValid: false,
+		},
+		{
+			name:        "AllowedCharacters",
+			verifier:    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~",
+			expectValid: true,
+		},
+		{
+			name:        "PlusIsRejected",
+			verifier:    strings.Repeat("a", 42) + "+",
+			expectValid: false,
+		},
+		{
+			name:        "SlashIsRejected",
+			verifier:    strings.Repeat("a", 42) + "/",
+			expectValid: false,
+		},
+		{
+			name:        "EqualsIsRejected",
+			verifier:    strings.Repeat("a", 42) + "=",
+			expectValid: false,
+		},
+		{
+			name:        "SpaceIsRejected",
+			verifier:    strings.Repeat("a", 42) + " ",
+			expectValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expectValid, oauth2provider.ValidPKCEFormat(tt.verifier))
 		})
 	}
 }

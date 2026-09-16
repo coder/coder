@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	LoaderIcon,
 	MessageCircleQuestionIcon,
@@ -8,7 +9,6 @@ import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { cn } from "#/utils/cn";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -389,11 +389,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	>(null);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (message: string) => {
-			if (!onSubmitAnswer) {
-				return;
-			}
-
-			await onSubmitAnswer(message);
+			await onSubmitAnswer?.(message);
 		},
 		onSuccess: (_data, message) => {
 			setSubmittedResponseText(message);
@@ -692,7 +688,6 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					/>
 				</ToolCall.Root>
 			)}
-
 			{isInteractive ? (
 				<form onSubmit={handleFormSubmit}>{content}</form>
 			) : (

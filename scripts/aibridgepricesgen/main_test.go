@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/aibridge/prices/pricebook"
 )
 
 func TestToMicros(t *testing.T) {
@@ -136,7 +138,7 @@ func TestValidate(t *testing.T) {
 
 	t.Run("PassesWhenAnyRowHasPricing", func(t *testing.T) {
 		t.Parallel()
-		rows := []priceRow{
+		rows := []pricebook.Row{
 			{Provider: "openai", Model: "no-prices"},
 			{Provider: "anthropic", Model: "claude", InputPrice: int64Ptr(3_000_000)},
 		}
@@ -148,7 +150,7 @@ func TestValidate(t *testing.T) {
 		// Mirrors what would happen if upstream renamed the `cost` key:
 		// Go's decoder silently drops it, every row gets all-null prices,
 		// and convert returns syntactically valid rows with no pricing.
-		rows := []priceRow{
+		rows := []pricebook.Row{
 			{Provider: "anthropic", Model: "claude-x"},
 			{Provider: "openai", Model: "gpt-x"},
 		}

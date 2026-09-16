@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -131,7 +130,7 @@ func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsight
 		return UserLatencyInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result UserLatencyInsightsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }
 
 type UserActivityInsightsRequest struct {
@@ -163,7 +162,7 @@ func (c *Client) UserActivityInsights(ctx context.Context, req UserActivityInsig
 		return UserActivityInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result UserActivityInsightsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }
 
 // TemplateInsightsResponse is the response from the template insights endpoint.
@@ -281,7 +280,7 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 		return TemplateInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result TemplateInsightsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }
 
 type GetUserStatusCountsResponse struct {
@@ -318,5 +317,5 @@ func (c *Client) GetUserStatusCounts(ctx context.Context, req GetUserStatusCount
 		return GetUserStatusCountsResponse{}, ReadBodyAsError(resp)
 	}
 	var result GetUserStatusCountsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }

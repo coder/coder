@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { TriangleAlertIcon } from "lucide-react";
 import { Label, Slot } from "radix-ui";
 import {
@@ -24,7 +25,6 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
-import { cn } from "#/utils/cn";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,
@@ -42,7 +42,7 @@ export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 				}
 			}}
 		>
-			<DialogContent className="max-w-screen-md">
+			<DialogContent className="max-w-(--breakpoint-md)">
 				<ReviewForm
 					workspacesToUpdate={workspacesToUpdate}
 					isProcessing={isProcessing}
@@ -137,7 +137,7 @@ const ReviewPanel: FC<ReviewPanelProps> = ({
 
 const PanelListItem: FC<{ children: ReactNode }> = ({ children }) => {
 	return (
-		<li className="[&:not(:last-child)]:border-b-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-solid border-0">
+		<li className="not-last:border-b-border not-last:border-b not-last:border-solid border-0">
 			{children}
 		</li>
 	);
@@ -552,7 +552,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 								{dormant.map((ws) => (
 									<li
 										key={ws.id}
-										className="[&:not(:last-child)]:border-b-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-solid border-0"
+										className="not-last:border-b-border not-last:border-b not-last:border-solid border-0"
 									>
 										<ReviewPanel
 											className="border-none"

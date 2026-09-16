@@ -3,10 +3,32 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentPortShareProtocol,
 } from "#/api/typesGenerated";
-import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
+import {
+	AGENT_BROWSER_APP_SLUG,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
 import { findWorkspaceAgent } from "#/utils/workspace";
+
+/**
+ * Built-in panels that the user shows or hides from the add-tab dropdown.
+ * Each one can appear at most once, so the tab ID is the panel ID.
+ */
+export const singletonRightPanelTabIds = [
+	"browser",
+	"desktop",
+	"debug",
+] as const;
+
+export type SingletonRightPanelTabId =
+	(typeof singletonRightPanelTabIds)[number];
+
+export function isSingletonRightPanelTabId(
+	value: unknown,
+): value is SingletonRightPanelTabId {
+	return singletonRightPanelTabIds.some((id) => id === value);
+}
 
 export type PortSelection = {
 	label: string;
@@ -114,7 +136,12 @@ export function validateUserRightPanelTabs(
 
 		if (tab.kind === "workspace_app") {
 			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
-			return app !== undefined && isWorkspaceAppEmbeddable(app);
+			// agent-browser already has the built-in Browser tab.
+			return (
+				app !== undefined &&
+				app.slug !== AGENT_BROWSER_APP_SLUG &&
+				isWorkspaceAppEmbeddable(app)
+			);
 		}
 
 		// Mirror the add-menu gate so a persisted port tab disappears when

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -519,6 +520,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -549,6 +551,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
@@ -563,6 +566,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -586,6 +590,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		maliciousHost := "https://malicious.com"
@@ -619,6 +624,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -676,10 +682,11 @@ func TestExternalAuthCallback(t *testing.T) {
 						Expiry:       dbtime.Now().Add(-time.Hour),
 					},
 				},
-				ID:        "github",
-				Regex:     regexp.MustCompile(`github\.com`),
-				Type:      codersdk.EnhancedExternalAuthProviderGitHub.String(),
-				NoRefresh: true,
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				NoRefresh:    true,
+				RefreshGroup: new(singleflight.Group),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -726,6 +733,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -791,6 +799,7 @@ func TestExternalAuthCallback(t *testing.T) {
 						ID:                       "github",
 						Regex:                    regexp.MustCompile(`github\.com`),
 						Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+						RefreshGroup:             new(singleflight.Group),
 					}},
 				})
 				user := coderdtest.CreateFirstUser(t, client)

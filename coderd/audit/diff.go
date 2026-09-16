@@ -25,6 +25,7 @@ type Auditable interface {
 		database.OAuth2ProviderApp |
 		database.OAuth2ProviderAppSecret |
 		database.PrebuildsSettings |
+		database.OAuth2ProviderSettings |
 		database.CustomRole |
 		database.AuditableOrganizationMember |
 		database.Organization |
@@ -32,16 +33,19 @@ type Auditable interface {
 		idpsync.OrganizationSyncSettings |
 		idpsync.GroupSyncSettings |
 		idpsync.RoleSyncSettings |
-		database.TaskTable |
 		database.AISeatState |
 		database.AIProvider |
 		database.AIProviderKey |
 		database.AIGatewayKey |
 		database.Chat |
+		database.ChatModelConfig |
+		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
-		database.UserSkill
+		database.UserSkill |
+		database.ChatInstructionSettings |
+		database.ChatOperationalSettings
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

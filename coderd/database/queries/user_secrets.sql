@@ -8,12 +8,18 @@ SELECT *
 FROM user_secrets
 WHERE id = @id;
 
+-- name: GetUserSecretByUserIDAndNameForUpdate :one
+SELECT *
+FROM user_secrets
+WHERE user_id = @user_id AND name = @name
+FOR UPDATE;
+
 -- name: ListUserSecrets :many
 -- Returns metadata only (no value or value_key_id) for the
 -- REST API list and get endpoints.
 SELECT
     id, user_id, name, description,
-    env_name, file_path,
+    env_name, file_path, enabled,
     created_at, updated_at
 FROM user_secrets
 WHERE user_id = @user_id
@@ -37,7 +43,8 @@ INSERT INTO user_secrets (
     value,
     value_key_id,
     env_name,
-    file_path
+    file_path,
+    enabled
 ) VALUES (
     @id,
     @user_id,
@@ -46,7 +53,8 @@ INSERT INTO user_secrets (
     @value,
     @value_key_id,
     @env_name,
-    @file_path
+    @file_path,
+    @enabled
 ) RETURNING *;
 
 -- name: UpdateUserSecretByUserIDAndName :one
@@ -57,6 +65,7 @@ SET
     description = CASE WHEN @update_description::bool THEN @description ELSE description END,
     env_name    = CASE WHEN @update_env_name::bool THEN @env_name ELSE env_name END,
     file_path   = CASE WHEN @update_file_path::bool THEN @file_path ELSE file_path END,
+    enabled     = CASE WHEN @update_enabled::bool THEN @enabled ELSE enabled END,
     updated_at  = CURRENT_TIMESTAMP
 WHERE user_id = @user_id AND name = @name
 RETURNING *;

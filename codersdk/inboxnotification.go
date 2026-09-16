@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -86,7 +85,7 @@ func (c *Client) ListInboxNotifications(ctx context.Context, req ListInboxNotifi
 	}
 
 	var listInboxNotificationsResponse ListInboxNotificationsResponse
-	return listInboxNotificationsResponse, json.NewDecoder(res.Body).Decode(&listInboxNotificationsResponse)
+	return listInboxNotificationsResponse, ReadBodyAsJSON(res, &listInboxNotificationsResponse)
 }
 
 type UpdateInboxNotificationReadStatusRequest struct {
@@ -114,7 +113,7 @@ func (c *Client) UpdateInboxNotificationReadStatus(ctx context.Context, notifID 
 	}
 
 	var resp UpdateInboxNotificationReadStatusResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) MarkAllInboxNotificationsAsRead(ctx context.Context) error {

@@ -1,4 +1,6 @@
-# STUN and NAT
+---
+title: STUN and NAT
+---
 
 [Session Traversal Utilities for NAT (STUN)](https://www.rfc-editor.org/rfc/rfc8489.html)
 is a protocol used to assist applications in establishing peer-to-peer

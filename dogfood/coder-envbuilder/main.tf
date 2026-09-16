@@ -117,13 +117,13 @@ module "dotfiles" {
 
 module "personalize" {
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.32"
+  version  = "1.0.33"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.5.0"
+  version                 = "1.5.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -140,7 +140,7 @@ module "jetbrains" {
 
 module "filebrowser" {
   source   = "dev.registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.5"
+  version  = "1.1.6"
   agent_id = coder_agent.dev.id
 }
 

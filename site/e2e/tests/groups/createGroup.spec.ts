@@ -18,8 +18,8 @@ test("create group", async ({ page, baseURL }) => {
 	});
 	await expect(page).toHaveTitle("Groups - Coder");
 
-	await page.getByText("Create group").click();
-	await expect(page).toHaveTitle("Create Group - Coder");
+	await page.getByRole("link", { name: "New group" }).click();
+	await expect(page).toHaveTitle("New group - Coder");
 
 	const name = randomName();
 	const groupValues = {
@@ -28,8 +28,8 @@ test("create group", async ({ page, baseURL }) => {
 		avatarURL: "/emojis/1f60d.png",
 	};
 
-	await page.getByLabel("Name", { exact: true }).fill(groupValues.name);
-	await page.getByLabel("Display Name").fill(groupValues.displayName);
+	await page.getByRole("textbox", { name: /^Name/ }).fill(groupValues.name);
+	await page.getByLabel("Display name").fill(groupValues.displayName);
 	await page.getByLabel("Avatar URL").fill(groupValues.avatarURL);
 	await page.getByRole("button", { name: /save/i }).click();
 

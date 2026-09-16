@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -16,18 +17,19 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 type aibridgeTestFactory struct {
+	mu           sync.Mutex
 	providerName string
 	source       aibridge.Source
 	err          error
@@ -35,12 +37,20 @@ type aibridgeTestFactory struct {
 }
 
 func (f *aibridgeTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.providerName = providerName
 	f.source = source
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.rt, nil
+}
+
+func (f *aibridgeTestFactory) recorded() (providerName string, source aibridge.Source) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.providerName, f.source
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -79,24 +89,69 @@ func aibridgeTestRequest(chat database.Chat, model string) modelClientRequest {
 func TestAIBridgeProviderFormatMapping(t *testing.T) {
 	t.Parallel()
 
+	// bedrock is the only provider type whose fantasy client depends on the
+	// model ID: anthropic.* models keep the Anthropic Messages wire shape, and
+	// everything else routes through the OpenAI Responses client. Non-bedrock
+	// provider types ignore the model parameter entirely.
 	tests := []struct {
 		name         string
 		providerType database.AIProviderType
+		model        string
 		wantProvider string
 		wantBaseURL  string
 	}{
-		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
-		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Bedrock", providerType: database.AIProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Google", providerType: database.AIProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "gpt-4o", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "OpenAICompat", providerType: database.AIProviderTypeOpenaiCompat, model: "qwen/qwen3", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, model: "claude-opus-4-6", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-4o", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Copilot", providerType: database.AIProviderTypeCopilot, model: "gpt-4o", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "BedrockAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-5", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "BedrockClaudeAlias", providerType: database.AIProviderTypeBedrock, model: "claude-sonnet-4-6", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "BedrockRegionalAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "us.anthropic.claude-sonnet-4-6", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "BedrockOpenAIModel", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.6-luna", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "BedrockMistralModel", providerType: database.AIProviderTypeBedrock, model: "mistral.ministral-3-3b-instruct", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "BedrockEmptyModel", providerType: database.AIProviderTypeBedrock, model: "", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			config := fantasyConfigForAIBridge(tt.providerType)
+			config := fantasyConfigForAIBridge(tt.providerType, tt.model)
 			require.Equal(t, tt.wantProvider, config.ProviderHint)
 			require.Equal(t, tt.wantBaseURL, config.Keys.BaseURL(config.ProviderHint))
 			require.Equal(t, aibridgePlaceholderAPIKey, config.Keys.APIKey(config.ProviderHint))
+		})
+	}
+}
+
+func TestAIGatewayRequestFormatForProviderType(t *testing.T) {
+	t.Parallel()
+
+	// The BYOK header shape must agree with the inferred wire format: bedrock
+	// anthropic.* models use the X-Api-Key header, and bedrock non-anthropic
+	// models use the Authorization Bearer header. Non-bedrock provider types
+	// ignore the model parameter.
+	tests := []struct {
+		name         string
+		providerType database.AIProviderType
+		model        string
+		wantFormat   aiGatewayRequestFormat
+	}{
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "gpt-4o", wantFormat: aiGatewayRequestFormatOpenAI},
+		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, model: "claude-opus-4-6", wantFormat: aiGatewayRequestFormatAnthropic},
+		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", wantFormat: aiGatewayRequestFormatOpenAI},
+		{name: "BedrockAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-5", wantFormat: aiGatewayRequestFormatAnthropic},
+		{name: "BedrockClaudeAlias", providerType: database.AIProviderTypeBedrock, model: "claude-sonnet-4-6", wantFormat: aiGatewayRequestFormatAnthropic},
+		{name: "BedrockRegionalAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "us.anthropic.claude-sonnet-4-6", wantFormat: aiGatewayRequestFormatAnthropic},
+		{name: "BedrockOpenAIModel", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.6-luna", wantFormat: aiGatewayRequestFormatOpenAI},
+		{name: "BedrockMistralModel", providerType: database.AIProviderTypeBedrock, model: "mistral.ministral-3-3b-instruct", wantFormat: aiGatewayRequestFormatOpenAI},
+		{name: "BedrockEmptyModel", providerType: database.AIProviderTypeBedrock, model: "", wantFormat: aiGatewayRequestFormatOpenAI},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := aiGatewayRequestFormatForProviderType(tt.providerType, tt.model)
+			require.Equal(t, tt.wantFormat, got)
 		})
 	}
 }
@@ -315,7 +370,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 		require.NoError(t, err)
-		_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
 		require.NoError(t, err)
 
 		got := <-seen
@@ -337,7 +392,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "claude-haiku-4-5"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
 		require.NoError(t, err)
-		_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
 		require.NoError(t, err)
 
 		got := <-seen
@@ -356,7 +411,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
 		require.NoError(t, err)
-		_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
 		require.NoError(t, err)
 
 		got := <-seen
@@ -367,217 +422,244 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 	})
 }
 
-func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
+// TestAIGatewayModelBedrockInferredOpenAIDefaultsToResponses verifies that a
+// bedrock provider with a non-anthropic model ID infers the OpenAI Responses
+// wire shape even for models absent from the provider SDK's known-model list.
+// The Mantle bridge only serves /v1/responses for non-anthropic bedrock
+// models, so Chat Completions would fail at the bridge.
+func TestAIGatewayModelBedrockInferredOpenAIDefaultsToResponses(t *testing.T) {
 	t.Parallel()
 
-	oldKeyID := uuid.NewString()
-	currentKeyID := uuid.NewString()
-	tests := []struct {
-		name     string
-		messages []database.ChatMessage
-		wantKey  string
-		wantOK   bool
-	}{
-		{
-			name: "CurrentUserMessage",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
-				{ID: 3, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(currentKeyID)},
-			},
-			wantKey: currentKeyID,
-			wantOK:  true,
-		},
-		{
-			name: "MissingCurrentUserAPIKeyDoesNotFallBack",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
-			},
-		},
-		{
-			name: "SkipsUncompressedModelOnlyUserMessages",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
-			},
-			wantKey: oldKeyID,
-			wantOK:  true,
-		},
-		{
-			name: "CompressedSummaryFallback",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
-			},
-			wantKey: currentKeyID,
-			wantOK:  true,
-		},
-		{
-			name: "LatestCompressedSummaryWins",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
-				{ID: 3, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
-			},
-			wantKey: currentKeyID,
-			wantOK:  true,
-		},
-		{
-			name: "VisibleUserWinsOverCompressedSummary",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(currentKeyID)},
-			},
-			wantKey: currentKeyID,
-			wantOK:  true,
-		},
-		{
-			name: "MissingVisibleUserKeyDoesNotFallBackToCompressedSummary",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
-			},
-		},
-		{
-			name: "UncompressedModelOnlyUserIgnored",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
-			},
-		},
-		{
-			name: "CompressedSummaryMissingKeyDoesNotFallBack",
-			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
-				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true},
-			},
-		},
+	paths := make(chan string, 1)
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		paths <- req.URL.Path
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"mistral.ministral-3-3b-instruct","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		if strings.HasSuffix(req.URL.Path, "/chat/completions") {
+			body = `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"mistral.ministral-3-3b-instruct","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+	provider := aibridgeTestAIProvider(uuid.New(), "primary-bedrock", database.AIProviderTypeBedrock)
+	route := newAIGatewayModelRoute(provider, string(provider.Type), aiGatewayProviderAuth{})
+	req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "mistral.ministral-3-3b-instruct")
+	model, err := server.newModel(t.Context(), req, route, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	require.NoError(t, err)
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+	}}})
+	require.NoError(t, err)
+
+	require.Equal(t, "/v1/responses", <-paths)
+}
+
+func TestBedrockReasoningSummary(t *testing.T) {
+	t.Parallel()
+
+	for _, summary := range []*string{nil, new("auto"), new("concise"), new("detailed"), new(""), new("other")} {
+		name := "Unset"
+		if summary != nil {
+			name = "Set_" + *summary
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			config := codersdk.ChatModelCallConfig{
+				Temperature: new(0.5),
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						ReasoningSummary: summary,
+						User:             new("test-user"),
+					},
+					Anthropic: &codersdk.ChatModelAnthropicProviderOptions{SendReasoning: new(true)},
+				},
+			}
+			before, err := json.Marshal(config)
+			require.NoError(t, err)
+			got := coerceBedrockReasoningSummary(database.AIProviderTypeBedrock, "openai.gpt-5.6-luna", config)
+			after, err := json.Marshal(config)
+			require.NoError(t, err)
+			require.JSONEq(t, string(before), string(after), "input config must not be mutated")
+			require.Equal(t, config.Temperature, got.Temperature)
+			require.Equal(t, config.ProviderOptions.OpenAI.User, got.ProviderOptions.OpenAI.User)
+			require.Same(t, config.ProviderOptions.Anthropic, got.ProviderOptions.Anthropic)
+			if summary == nil || *summary == "auto" {
+				require.Same(t, config.ProviderOptions, got.ProviderOptions)
+			} else {
+				require.NotSame(t, config.ProviderOptions, got.ProviderOptions)
+				require.NotSame(t, config.ProviderOptions.OpenAI, got.ProviderOptions.OpenAI)
+				require.Equal(t, "auto", *got.ProviderOptions.OpenAI.ReasoningSummary)
+			}
+		})
 	}
-	for _, tt := range tests {
+
+	for _, config := range []codersdk.ChatModelCallConfig{{}, {ProviderOptions: &codersdk.ChatModelProviderOptions{}}} {
+		got := coerceBedrockReasoningSummary(database.AIProviderTypeBedrock, "openai.gpt-5.6-luna", config)
+		require.Equal(t, config, got)
+	}
+}
+
+func TestAIGatewayModelBedrockReasoningSummary(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name         string
+		providerType database.AIProviderType
+		model        string
+		wantSummary  string
+		wantPath     string
+	}{
+		{name: "BedrockOpenAI", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.6-luna", wantSummary: "auto", wantPath: "/v1/responses"},
+		{name: "BedrockAnthropic", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-4", wantSummary: "detailed", wantPath: "/v1/messages"},
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "openai.gpt-5.6-luna", wantSummary: "detailed", wantPath: "/v1/responses"},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			gotKey, gotOK := activeTurnAPIKeyIDFromMessages(tt.messages)
-			require.Equal(t, tt.wantOK, gotOK)
-			require.Equal(t, tt.wantKey, gotKey)
+			requests := make(chan *http.Request, 1)
+			factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				requests <- req
+				body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+				if tt.wantPath == "/v1/messages" {
+					body = `{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"text","text":"hello"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(body)),
+					Request:    req,
+				}, nil
+			})}
+			provider := aibridgeTestAIProvider(uuid.New(), "test-provider", tt.providerType)
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			db.EXPECT().GetAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil)
+			server := &Server{
+				db:                       db,
+				logger:                   slogtest.Make(t, nil),
+				aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+			}
+			config := codersdk.ChatModelCallConfig{
+				MaxOutputTokens: new(int64(64)),
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningSummary: new("detailed")},
+				},
+			}
+			if tt.providerType == database.AIProviderTypeOpenai {
+				config.OpenAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true)}
+			}
+			options, err := json.Marshal(config)
+			require.NoError(t, err)
+			resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
+				chat: database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+				explicitConfig: &database.ChatModelConfig{
+					ID:           uuid.New(),
+					Model:        tt.model,
+					AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+					Options:      options,
+				},
+				buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			})
+			require.NoError(t, err)
+			call := resolved.newCall()
+			call.Prompt = []fantasy.Message{{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			}}
+			_, err = resolved.model.LanguageModel().Generate(t.Context(), call)
+			require.NoError(t, err)
+			request := <-requests
+			require.Equal(t, tt.wantPath, request.URL.Path)
+			var body struct {
+				Reasoning *struct {
+					Summary string `json:"summary"`
+				} `json:"reasoning"`
+			}
+			require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
+			if tt.wantPath == "/v1/messages" {
+				require.Nil(t, body.Reasoning)
+				require.Equal(t, config.ProviderOptions, resolved.callConfig.ProviderOptions)
+			} else {
+				require.NotNil(t, body.Reasoning)
+				require.Equal(t, tt.wantSummary, body.Reasoning.Summary)
+			}
+			// The resolved config keeps the configured value so a provider
+			// substitution (computer use) does not inherit the Bedrock coercion.
+			require.Equal(t, "detailed", *resolved.callConfig.ProviderOptions.OpenAI.ReasoningSummary)
 		})
 	}
 }
 
-func TestPromptMessagesForVisibleUserPreserveActiveAPIKeyID(t *testing.T) {
+func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
-	ctx := t.Context()
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
-	oldKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	currentKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	modelOnlyKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityBoth,
-		APIKeyID:      sqlNullString(oldKey.ID),
-	})
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleSystem,
-		Visibility:    database.ChatMessageVisibilityModel,
-		Compressed:    true,
-	})
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityBoth,
-		APIKeyID:      sqlNullString(currentKey.ID),
-	})
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityModel,
-		APIKeyID:      sqlNullString(modelOnlyKey.ID),
-	})
-
-	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
-	require.True(t, ok)
-	require.Equal(t, currentKey.ID, gotKey)
-}
-
-func TestPromptMessagesForCompactedChatPreserveActiveAPIKeyID(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	ctx := t.Context()
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
-	key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-
-	visibleUser := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityBoth,
-		APIKeyID:      sqlNullString(key.ID),
-	})
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleAssistant,
-		Visibility:    database.ChatMessageVisibilityBoth,
-	})
-	compressedSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityModel,
-		Compressed:    true,
-		APIKeyID:      sqlNullString(key.ID),
-	})
-	afterSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleAssistant,
-		Visibility:    database.ChatMessageVisibilityBoth,
-	})
-
-	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-
-	ids := make(map[int64]struct{}, len(messages))
-	for _, message := range messages {
-		ids[message.ID] = struct{}{}
+	newServer := func(t *testing.T, paths chan string) *Server {
+		t.Helper()
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			paths <- req.URL.Path
+			body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+			if strings.HasSuffix(req.URL.Path, "/chat/completions") {
+				body = `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    req,
+			}, nil
+		})}
+		return &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
 	}
-	_, hasVisibleUser := ids[visibleUser.ID]
-	require.False(t, hasVisibleUser)
-	_, hasSummary := ids[compressedSummary.ID]
-	require.True(t, hasSummary)
-	_, hasAfterSummary := ids[afterSummary.ID]
-	require.True(t, hasAfterSummary)
 
-	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
-	require.True(t, ok)
-	require.Equal(t, key.ID, gotKey)
-}
+	callConfig := func(useResponsesAPI *bool) codersdk.ChatModelCallConfig {
+		return codersdk.ChatModelCallConfig{
+			OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: useResponsesAPI},
+		}
+	}
 
-func sqlNullString(value string) sql.NullString {
-	return sql.NullString{String: value, Valid: value != ""}
+	forceResponses := true
+	forceCompletions := false
+
+	tests := []struct {
+		name     string
+		model    string
+		override *bool
+		wantPath string
+	}{
+		{name: "ForceResponsesOnUnknownModel", model: "gpt-9-brand-new", override: &forceResponses, wantPath: "/v1/responses"},
+		{name: "ForceCompletionsOnKnownModel", model: "gpt-4o", override: &forceCompletions, wantPath: "/v1/chat/completions"},
+		{name: "UnsetKeepsKnownModelList", model: "gpt-4o", override: nil, wantPath: "/v1/responses"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			paths := make(chan string, 1)
+			server := newServer(t, paths)
+			provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+			req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, tt.model)
+			req.CallConfig = callConfig(tt.override)
+
+			model, err := server.newModel(
+				t.Context(),
+				req,
+				aibridgeTestRoute(provider),
+				modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			)
+			require.NoError(t, err)
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			}}})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantPath, <-paths)
+		})
+	}
 }
 
 func TestAIBridgeRoutingFailClosed(t *testing.T) {
@@ -750,7 +832,7 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 				modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			)
 			require.NoError(t, err)
-			_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
 				Role:    fantasy.MessageRoleUser,
 				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
 			}}})
@@ -759,79 +841,110 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 			got := <-seen
 			require.NotEmpty(t, got.path)
 			require.Equal(t, modelName, got.model)
-			require.Equal(t, tt.providerName, factory.providerName)
-			require.Equal(t, aibridge.SourceAgents, factory.source)
+			gotProvider, gotSource := factory.recorded()
+			require.Equal(t, tt.providerName, gotProvider)
+			require.Equal(t, aibridge.SourceAgents, gotSource)
 		})
 	}
+}
+
+func computerUseTestServer(t *testing.T, factory *aibridgeTestFactory) *Server {
+	t.Helper()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{
+		aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai),
+	}, nil).AnyTimes()
+	return &Server{db: db, aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
 }
 
 func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	t.Parallel()
 
-	providerID := uuid.New()
 	apiKeyID := uuid.NewString()
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("computer use model construction must not send a request")
 		return nil, xerrors.New("unreachable")
 	})}
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := &Server{
-		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
-	}
+	server := computerUseTestServer(t, factory)
 	provider := codersdk.ChatComputerUseProviderOpenAI
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
 	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
-	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
-		ctx,
-		chat,
-		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
-		provider,
-		modelProvider,
-		modelName,
-		modelBuildOptions{ActiveAPIKeyID: apiKeyID},
-	)
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:      "computer_use",
+		chat:         chat,
+		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
+		buildOptions: modelBuildOptions{ActiveAPIKeyID: apiKeyID},
+	})
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.False(t, debugEnabled)
-	require.EqualValues(t, codersdk.ChatComputerUseProviderOpenAI, resolvedProvider)
-	require.Equal(t, modelName, resolvedModel)
-	require.Equal(t, "primary-openai", factory.providerName)
-	require.Equal(t, aibridge.SourceAgents, factory.source)
+	require.True(t, resolved.model.Valid())
+	require.False(t, resolved.debugEnabled)
+	require.EqualValues(t, codersdk.ChatComputerUseProviderOpenAI, resolved.resolvedProvider)
+	require.Equal(t, modelName, resolved.resolvedModel)
+	gotProvider, gotSource := factory.recorded()
+	require.Equal(t, "primary-openai", gotProvider)
+	require.Equal(t, aibridge.SourceAgents, gotSource)
 }
 
-func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {
+// The computer-use model is a hardcoded default with no config of its own, so
+// its transport must come from its own client rather than inheriting the chat
+// model's openai_config. Request preparation reads the same value back.
+func TestComputerUseModelCall_TransportIndependentOfChatConfig(t *testing.T) {
 	t.Parallel()
 
-	providerID := uuid.New()
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("computer use model construction must not send a request")
+		return nil, xerrors.New("unreachable")
+	})}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	server := computerUseTestServer(t, factory)
+
+	provider := codersdk.ChatComputerUseProviderOpenAI
+	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
+	require.True(t, ok)
+
+	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
+		purpose:      "computer_use",
+		chat:         chat,
+		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
+		buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	})
+	require.NoError(t, err)
+
+	wantTransport := chatopenai.TransportFor(modelProvider, modelName, nil)
+	require.Equal(t, wantTransport, resolved.model.Transport())
+
+	// The assertion above only has teeth if an override could have changed the
+	// result for this model.
+	opposite := !wantTransport.UsesResponses()
+	require.NotEqual(t, wantTransport, chatopenai.TransportFor(modelProvider, modelName, &opposite))
+}
+
+func TestComputerUseModelCall_AIGatewayMissingAPIKeyID(t *testing.T) {
+	t.Parallel()
+
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("transport must not be used without an API key ID")
 		return nil, xerrors.New("unreachable")
 	})}
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := &Server{
-		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
-	}
+	server := computerUseTestServer(t, factory)
 	provider := codersdk.ChatComputerUseProviderOpenAI
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
-	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
-		t.Context(),
-		chat,
-		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
-		provider,
-		modelProvider,
-		modelName,
-		modelBuildOptions{}, // no ActiveAPIKeyID
-	)
+	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
+		purpose:    "computer_use",
+		chat:       chat,
+		fixedModel: &fixedModelCall{providerType: modelProvider, modelName: modelName},
+	})
 	require.Error(t, err)
-	require.Nil(t, model)
-	require.False(t, debugEnabled)
-	require.Empty(t, resolvedProvider)
-	require.Empty(t, resolvedModel)
-	require.Contains(t, err.Error(), `resolve computer use model for provider "openai" model "gpt-5.5"`)
+	require.False(t, resolved.model.Valid())
+	require.False(t, resolved.debugEnabled)
+	require.Contains(t, err.Error(), "create model")
 	require.Contains(t, err.Error(), "active turn API key ID")
 }
 
@@ -869,15 +982,16 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
 	model, err := server.newModel(ctx, aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)), modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 	require.NoError(t, err)
-	_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
 		Role:    fantasy.MessageRoleUser,
 		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
 	}}})
 	require.NoError(t, err)
 
 	got := <-seen
-	require.Equal(t, "primary-openai", factory.providerName)
-	require.Equal(t, aibridge.SourceAgents, factory.source)
+	gotProvider, gotSource := factory.recorded()
+	require.Equal(t, "primary-openai", gotProvider)
+	require.Equal(t, aibridge.SourceAgents, gotSource)
 	require.True(t, got.ok)
 	require.Equal(t, "/v1/responses", got.path)
 	require.Equal(t, apiKeyID, got.apiKeyID)

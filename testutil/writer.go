@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/ssh"
 	"gvisor.dev/gvisor/pkg/context"
 
 	"cdr.dev/slog/v3"
@@ -29,6 +30,20 @@ func NewWriterAttachedToInvocation(t *testing.T, logger slog.Logger, invocation 
 		t: t,
 		w: w,
 		l: logger,
+	}
+}
+
+func NewWriterAttachedToSSHSession(t *testing.T, l slog.Logger, session *ssh.Session) *Writer {
+	r, w := io.Pipe()
+	session.Stdin = r
+	// Close the pipe at the end of the test to ensure any goroutine in the Invocation that reads from stdin won't leak.
+	t.Cleanup(func() {
+		_ = w.Close()
+	})
+	return &Writer{
+		t: t,
+		w: w,
+		l: l,
 	}
 }
 

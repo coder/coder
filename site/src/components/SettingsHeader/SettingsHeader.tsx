@@ -1,8 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { SquareArrowOutUpRightIcon } from "lucide-react";
+import { cn } from "cn";
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
+import { Link } from "#/components/Link/Link";
 
 type SettingsHeaderProps = Readonly<
 	PropsWithChildren<{
@@ -16,30 +15,35 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 	className,
 }) => {
 	return (
-		<hgroup className="flex flex-col justify-between items-start gap-2 pb-6 sm:flex-row">
-			<div className={cn("text-sm flex flex-col gap-2 flex-1", className)}>
-				{children}
-			</div>
+		<hgroup
+			className={cn(
+				"flex flex-col justify-between items-start gap-2 pb-6 sm:flex-row",
+				className,
+			)}
+		>
+			<div className="text-sm flex flex-col gap-2 flex-1">{children}</div>
 			{actions}
 		</hgroup>
 	);
 };
 
 type SettingsHeaderDocsLinkProps = Readonly<
-	PropsWithChildren<{ href: string }>
+	PropsWithChildren<{
+		href: string;
+		context?: string;
+	}>
 >;
 export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
 	href,
-	children = "Read the docs",
+	context,
+	children = "View docs",
 }) => {
 	return (
-		<Button asChild variant="outline">
-			<a href={href} target="_blank" rel="noreferrer">
-				<SquareArrowOutUpRightIcon />
-				{children}
-				<span className="sr-only"> (link opens in new tab)</span>
-			</a>
-		</Button>
+		<Link href={href} target="_blank" rel="noreferrer">
+			{children}
+			{context && <span className="sr-only"> {context}</span>}
+			<span className="sr-only"> (opens in new tab)</span>
+		</Link>
 	);
 };
 
@@ -48,6 +52,7 @@ const titleVariants = cva("m-0 flex items-center gap-2 leading-tight", {
 		hierarchy: {
 			primary: "text-3xl font-semibold",
 			secondary: "text-2xl font-medium",
+			tertiary: "text-xl font-medium",
 		},
 	},
 	defaultVariants: {
@@ -97,7 +102,7 @@ export const SettingsHeaderDescription: FC<SettingsHeaderDescriptionProps> = ({
 	return (
 		<p
 			className={cn(
-				"m-0 text-content-secondary font-medium leading-normal",
+				"m-0 text-content-secondary font-medium leading-6",
 				className,
 			)}
 		>

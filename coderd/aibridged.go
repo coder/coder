@@ -43,7 +43,7 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 	api.aiGatewayHandler = srv
 
 	factory := aibridged.NewTransportFactory(http.StripPrefix(agplaibridge.AIGatewayRootPath, srv))
-	var asInterface agplaibridge.TransportFactory = factory
+	asInterface := factory
 	api.AIBridgeTransportFactory.Store(&asInterface)
 }
 
@@ -65,15 +65,27 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	mux := drpcmux.New()
-	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Pubsub, api.Logger.Named("aibridgedserver"),
-		api.AccessURL.String(), api.DeploymentValues.AI.BridgeConfig, api.ExternalAuthConfigs, api.Experiments, api.AISeatTracker, api.Clock)
+	srv, err := aibridgedserver.NewServer(api.ctx, aibridgedserver.Options{
+		Store:                 api.Database,
+		Pubsub:                api.Pubsub,
+		AISeatTracker:         api.AISeatTracker,
+		Enqueuer:              api.NotificationsEnqueuer,
+		AccessURL:             api.AccessURL.String(),
+		GatewayCfg:            api.DeploymentValues.AI.BridgeConfig,
+		ExternalAuthConfigs:   api.ExternalAuthConfigs,
+		Experiments:           api.Experiments,
+		OAuth2ProviderEnabled: api.DeploymentValues.OAuth2.Provider.Enable.Value(),
+		Logger:                api.Logger.Named("aibridgedserver"),
+		Clock:                 api.Clock,
+		Metrics:               api.AIGatewayServerMetrics,
+	})
 	if err != nil {
 		return nil, err
 	}
 	if err := aibridgedserver.Register(mux, srv); err != nil {
 		return nil, err
 	}
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(api.Logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {

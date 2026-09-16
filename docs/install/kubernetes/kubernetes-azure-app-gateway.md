@@ -1,4 +1,6 @@
-# Deploy Coder on Azure with an Application Gateway
+---
+title: Deploy Coder on Azure with an Application Gateway
+---
 
 In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) is required.
 
@@ -100,13 +102,13 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
 
 1. Create Coder namespace:
 
-   ```shell
+   ```sh
    kubectl create ns coder
    ```
 
 1. Deploy non-production PostgreSQL instance to AKS cluster:
 
-   ```shell
+   ```sh
    helm repo add bitnami https://charts.bitnami.com/bitnami
    helm install coder-db bitnami/postgresql \
    --set image.repository=bitnamilegacy/postgresql \
@@ -119,13 +121,13 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
 
 1. Create the PostgreSQL secret:
 
-   ```shell
+   ```sh
    kubectl create secret generic coder-db-url -n coder --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
    ```
 
 1. Deploy Coder to AKS cluster:
 
-   ```shell
+   ```sh
    helm repo add coder-v2 https://helm.coder.com/v2
    helm install coder coder-v2/coder \
        --namespace coder \

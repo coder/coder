@@ -8,17 +8,15 @@ import { DeploymentSidebarView } from "./DeploymentSidebarView";
  */
 export const DeploymentSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements, showOrganizations, experiments, buildInfo } =
-		useDashboard();
-	const hasPremiumLicense =
-		entitlements.features.multiple_organizations.enabled;
+	const { entitlements, showOrganizations, buildInfo } = useDashboard();
+	// Trialing deployments keep the Premium tab so they can convert.
+	const hidePremiumTab = entitlements.has_license && !entitlements.trial;
 
 	return (
 		<DeploymentSidebarView
 			permissions={permissions}
 			showOrganizations={showOrganizations}
-			hasPremiumLicense={hasPremiumLicense}
-			experiments={experiments}
+			hidePremiumTab={hidePremiumTab}
 			buildInfo={buildInfo}
 		/>
 	);

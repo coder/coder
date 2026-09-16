@@ -8,7 +8,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -33,6 +32,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		allowUserCancelWorkspaceJobs   bool
 		allowUserAutostart             bool
 		allowUserAutostop              bool
+		agentsAllowed                  bool
 		requireActiveVersion           bool
 		deprecationMessage             string
 		disableEveryone                bool
@@ -142,6 +142,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 			}
 
+			if !userSetOption(inv, "agents-allowed") {
+				agentsAllowed = template.AgentsAllowed
+			}
+
 			if !userSetOption(inv, "require-active-version") {
 				requireActiveVersion = template.RequireActiveVersion
 			}
@@ -183,9 +187,9 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				DisplayName:                 &displayName,
 				Description:                 &description,
 				Icon:                        &icon,
-				DefaultTTLMillis:            ptr.Ref(defaultTTL.Milliseconds()),
-				ActivityBumpMillis:          ptr.Ref(activityBump.Milliseconds()),
-				TimeTilAutostopNotifyMillis: ptr.Ref(timeTilAutostopNotify.Milliseconds()),
+				DefaultTTLMillis:            new(defaultTTL.Milliseconds()),
+				ActivityBumpMillis:          new(activityBump.Milliseconds()),
+				TimeTilAutostopNotifyMillis: new(timeTilAutostopNotify.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -193,12 +197,13 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 					DaysOfWeek: autostartRequirementDaysOfWeek,
 				},
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
+				FailureTTLMillis:               new(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           new(dormancyThreshold.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: new(dormancyAutoDeletion.Milliseconds()),
 				AllowUserCancelWorkspaceJobs:   &allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:             &allowUserAutostart,
 				AllowUserAutostop:              &allowUserAutostop,
+				AgentsAllowed:                  &agentsAllowed,
 				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
@@ -291,6 +296,12 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
 			Default:     "0h",
 			Value:       serpent.DurationOf(&dormancyAutoDeletion),
+		},
+		{
+			Flag:        "agents-allowed",
+			Description: "Allow Coder Agents to create workspaces using this template.",
+			Default:     "true",
+			Value:       serpent.BoolOf(&agentsAllowed),
 		},
 		{
 			Flag:        "allow-user-cancel-workspace-jobs",

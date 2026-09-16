@@ -16,12 +16,11 @@ import type {
 	OrganizationMemberWithUserData,
 	User,
 } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
-import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -36,10 +35,8 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const { entitlements, experiments } = useDashboard();
+	const { entitlements } = useDashboard();
 	const searchParamsResult = useSearchParams();
-	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
-	const defaultRolesEnabled = experiments.includes("minimum-implicit-member");
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -81,9 +78,6 @@ const OrganizationMembersPage: FC = () => {
 	// Resolve the org's default member role names against the assignable
 	// roles list so the dialog can show full display names + descriptions.
 	const defaultMemberImpliedRoles = useMemo<AssignableRoles[]>(() => {
-		if (!defaultRolesEnabled) {
-			return [];
-		}
 		const available = organizationRolesQuery.data;
 		if (!available) {
 			return [];
@@ -91,11 +85,7 @@ const OrganizationMembersPage: FC = () => {
 		return (organization?.default_org_member_roles ?? [])
 			.map((name) => available.find((r) => r.name === name))
 			.filter((r): r is AssignableRoles => r !== undefined);
-	}, [
-		defaultRolesEnabled,
-		organization?.default_org_member_roles,
-		organizationRolesQuery.data,
-	]);
+	}, [organization?.default_org_member_roles, organizationRolesQuery.data]);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -131,7 +121,6 @@ const OrganizationMembersPage: FC = () => {
 				organizationName={organizationName}
 				membersQuery={membersQuery}
 				members={members}
-				showAISeatColumn={showAISeatColumn}
 				addMembers={async (users: User[]) => {
 					// TODO: Replace with a batch endpoint (POST /organizations/{org}/members)
 					// to add all users in a single request instead of N individual calls.

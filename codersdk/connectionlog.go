@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -26,6 +25,7 @@ type ConnectionLog struct {
 	// WebInfo is only set when `type` is one of:
 	// - `ConnectionTypePortForwarding`
 	// - `ConnectionTypeWorkspaceApp`
+	// - `ConnectionTypeTunnel`
 	WebInfo *ConnectionLogWebInfo `json:"web_info,omitempty"`
 
 	// SSHInfo is only set when `type` is one of:
@@ -46,6 +46,9 @@ const (
 	ConnectionTypeReconnectingPTY ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	// ConnectionTypeTunnel records accepted and denied tailnet tunnel
+	// requests made by authenticated users.
+	ConnectionTypeTunnel ConnectionType = "tunnel"
 )
 
 // ConnectionLogStatus is the status of a connection log entry.
@@ -68,10 +71,10 @@ func (s ConnectionLogStatus) Valid() bool {
 
 type ConnectionLogWebInfo struct {
 	UserAgent string `json:"user_agent"`
-	// User is omitted if the connection event was from an unauthenticated user.
+	// User is omitted if the connection event was unauthenticated.
 	User       *User  `json:"user"`
 	SlugOrPort string `json:"slug_or_port"`
-	// StatusCode is the HTTP status code of the request.
+	// StatusCode is the HTTP status code or tunnel authorization outcome.
 	StatusCode int32 `json:"status_code"`
 }
 
@@ -100,7 +103,7 @@ type ConnectionLogResponse struct {
 }
 
 func (c *Client) ConnectionLogs(ctx context.Context, req ConnectionLogsRequest) (ConnectionLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil, req.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {
@@ -119,7 +122,7 @@ func (c *Client) ConnectionLogs(ctx context.Context, req ConnectionLogsRequest) 
 	}
 
 	var logRes ConnectionLogResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
+	err = ReadBodyAsJSON(res, &logRes)
 	if err != nil {
 		return ConnectionLogResponse{}, err
 	}

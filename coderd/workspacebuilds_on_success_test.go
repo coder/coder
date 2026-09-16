@@ -347,7 +347,7 @@ func TestPostWorkspaceBuildsOnSuccessPinnedChildVersionRequiresTemplateUpdate(t 
 	var apiErr *codersdk.Error
 	require.ErrorAs(t, err, &apiErr)
 	require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
-	require.Contains(t, apiErr.Response.Detail, "template update permission")
+	require.Contains(t, apiErr.Detail, "template update permission")
 
 	// THEN: no new workspace build is created.
 	builds, err := userClient.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID})

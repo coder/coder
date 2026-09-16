@@ -1,6 +1,8 @@
-<!-- markdownlint-disable MD024 -->
-# IdP Sync
+---
+title: IdP Sync
+---
 
+<!-- markdownlint-disable MD024 -->
 > [!NOTE]
 > IdP sync is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
@@ -15,7 +17,7 @@ synchronize Coder groups, roles, and organizations based on claims from your IdP
 To confirm that your OIDC provider is sending claims, log in with OIDC and visit
 the following URL with an `Owner` account:
 
-```text
+```txt
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 ```
 
@@ -53,14 +55,14 @@ group sync for each organization.
 
 1. Fetch the corresponding group IDs using the following endpoint:
 
-   ```text
+   ```txt
    https://[coder.example.com]/api/v2/groups
    ```
 
 1. As an Owner or Organization Admin, go to **Admin settings**, select
    **Organizations**, then **IdP Sync**:
 
-   ![IdP Sync - Group sync settings](../../images/admin/users/organizations/group-sync-empty.png)
+   ![IdP Sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
 
 1. Enter the **Group sync field** and an optional **Regex filter**, then select
    **Save**.
@@ -206,7 +208,7 @@ You can limit which groups from your identity provider can log in to Coder with
 [CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server.md#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
-<Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
+<img height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
 
 ## Role Sync
 
@@ -241,7 +243,7 @@ role sync at the organization level.
 1. Confirm you have the [Coder CLI](../../install/index.md) installed and are
    logged in with a user who is an Owner or has an Organization Admin role.
 
-1. To fetch the current group sync settings for an organization, run the
+1. To fetch the current role sync settings for an organization, run the
    following:
 
    ```sh
@@ -301,7 +303,7 @@ Visit the Coder UI to confirm these changes:
 
 1. Set the following in your Coder server [configuration](../setup/index.md).
 
-   ```env
+   ```dotenv
     # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
    CODER_OIDC_SCOPES=openid,profile,email,offline_access,roles
 
@@ -335,7 +337,7 @@ You can initiate an organization sync through the Coder dashboard or CLI:
 
 1. Fetch the corresponding organization IDs using the following endpoint:
 
-   ```text
+   ```txt
    https://[coder.example.com]/api/v2/organizations
    ```
 
@@ -388,7 +390,7 @@ settings, a user's memberships will update when they log out and log back in.
             "cbdcf774-4123-4118-8cd9-b3f502c84dfb"
          ],
          "sales": [
-            "d79144d9-b30a-555a-9af8-7dac83b2q4ec",
+            "d79144d9-b30a-555a-9af8-7dac83b2q4ec"
          ]
       },
       "organization_assign_default": true
@@ -454,12 +456,12 @@ If you enable this, your OIDC provider might be sending over many unnecessary
 groups. Use filtering options on the OIDC provider to limit the groups sent over
 to prevent creating excess groups.
 
-```env
+```dotenv
 # as an environment variable
 CODER_OIDC_GROUP_AUTO_CREATE=true
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-auto-create=true
 ```
@@ -471,12 +473,12 @@ want to filter out groups that do not match a certain pattern. For example, if
 you want to only allow groups that start with `my-group-` to be created, you can
 set the following environment variable.
 
-```env
+```dotenv
 # as an environment variable
 CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-regex-filter="^my-group-.*$"
 ```
@@ -574,6 +576,8 @@ Steps to troubleshoot.
    - (Optional) If using Group Sync, send the required groups in the configured
      groups claim field.
      Use [this answer from Stack Overflow](https://stackoverflow.com/a/55570286) for an example.
+
+</div>
 
 ## Next Steps
 

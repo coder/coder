@@ -1,7 +1,6 @@
 package chatstate_test
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -249,7 +248,6 @@ func testEditMessageSynthesizesToolCancellationsBeforeReplacement(t *testing.T) 
 			MessageID: secondUserID,
 			CreatedBy: f.User.ID,
 			Content:   editedContent,
-			APIKeyID:  f.apiKeyID(),
 		})
 		return err
 	}))
@@ -511,7 +509,3 @@ func testFinishInterruptionRejectsOutstandingToolCalls(t *testing.T) {
 	require.Equal(t, publishedBefore, len(f.Pub.channels),
 		"failed FinishInterruption publishes nothing")
 }
-
-// ensure unused imports don't break the build if any helper is
-// removed later.
-var _ = context.Background

@@ -69,6 +69,46 @@ func TestTemplateBuilderCompose(t *testing.T) {
 		require.Contains(t, files["modules.tf"], `coder_agent.main.id`)
 	})
 
+	t.Run("PerModuleAgentName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		tarData, err := client.TemplateBuilderCompose(ctx, codersdk.TemplateBuilderComposeRequest{
+			BaseTemplateID: "docker",
+			Modules: []codersdk.TemplateBuilderComposeModule{
+				{ID: "code-server", AgentName: "main"},
+			},
+		})
+		require.NoError(t, err)
+
+		files := extractTarFiles(t, tarData)
+		require.Contains(t, files["modules.tf"], `coder_agent.main.id`)
+	})
+
+	t.Run("UnknownAgentName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateBuilderCompose(ctx, codersdk.TemplateBuilderComposeRequest{
+			BaseTemplateID: "docker",
+			Modules: []codersdk.TemplateBuilderComposeModule{
+				{ID: "code-server", AgentName: "nonexistent"},
+			},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
 	t.Run("UnknownBase", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

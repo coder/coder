@@ -3,6 +3,7 @@ package support_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,13 +20,14 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -49,7 +51,7 @@ func TestRun(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: cfg,
-			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger:           new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
@@ -119,7 +121,7 @@ func TestRun(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues: cfg,
-			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger:           new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		bun, err := support.Run(ctx, &support.Deps{
@@ -155,7 +157,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
-			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger: new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: client,
@@ -171,7 +173,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
-			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger: new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -197,6 +199,35 @@ func TestRun(t *testing.T) {
 		assert.Empty(t, bun.Agent, "did not expect agent to be present")
 		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
 	})
+}
+
+func TestRunCollectsWorkspaceFiles(t *testing.T) {
+	// The resolved dir matches the agent's canonicalized manifest paths
+	// (the macOS temp dir is a symlink).
+	home := testutil.TempDirResolved(t)
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.NoError(t, os.WriteFile(filepath.Join(home, "workspace-service.log"), []byte("workspace service log"), 0o600))
+
+	cfg := coderdtest.DeploymentValues(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: cfg,
+		Logger:           new(slog.Make(sloghuman.Sink(io.Discard))),
+	})
+	admin := coderdtest.CreateFirstUser(t, client)
+	ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
+
+	bun, err := support.Run(ctx, &support.Deps{
+		Client:                client,
+		Log:                   testutil.Logger(t).Named("bundle"),
+		WorkspaceID:           ws.ID,
+		AgentID:               agt.ID,
+		WorkspaceFilePatterns: []string{"$HOME/workspace-service.log"},
+	})
+	require.NoError(t, err)
+
+	assertWorkspaceFilesArchive(t, bun.Agent.WorkspaceFilesArchive, agentfiles.BundleFilesArchivePath(filepath.Join(home, "workspace-service.log")), "workspace service log")
 }
 
 func assertSanitizedDeploymentConfig(t *testing.T, dc *codersdk.DeploymentConfig) {
@@ -280,6 +311,19 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 	coderdtest.NewWorkspaceAgentWaiter(t, client, wbr.Workspace.ID).Wait()
 
 	return ws, agt
+}
+
+func assertWorkspaceFilesArchive(t *testing.T, data []byte, wantEntry string, wantContent string) {
+	t.Helper()
+
+	require.NotEmpty(t, data)
+	entries := testutil.ReadTar(t, data)
+	require.Equal(t, wantContent, string(entries[wantEntry]))
+
+	var manifest workspacesdk.BundleFilesManifest
+	require.NoError(t, json.Unmarshal(entries["manifest.json"], &manifest))
+	require.Len(t, manifest.Files, 1)
+	require.Equal(t, wantEntry, manifest.Files[0].ArchivePath)
 }
 
 func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {

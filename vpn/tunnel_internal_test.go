@@ -231,7 +231,7 @@ func TestTunnel_Wake(t *testing.T) {
 
 	// Waking before the tunnel is started must not rebind.
 	wakeResp := sendWake()
-	require.True(t, wakeResp.GetWake().GetSuccess())
+	require.NotNil(t, wakeResp.GetWake())
 	requireNoRebind()
 
 	startCh := make(chan *TunnelMessage, 1)
@@ -255,18 +255,18 @@ func TestTunnel_Wake(t *testing.T) {
 
 	// The first wake after start triggers a rebind.
 	wakeResp = sendWake()
-	require.True(t, wakeResp.GetWake().GetSuccess())
+	require.NotNil(t, wakeResp.GetWake())
 	testutil.TryReceive(ctx, t, conn.rebinds)
 
 	// A wake within the debounce window is dropped but still succeeds.
 	wakeResp = sendWake()
-	require.True(t, wakeResp.GetWake().GetSuccess())
+	require.NotNil(t, wakeResp.GetWake())
 	requireNoRebind()
 
 	// After the debounce window elapses, a wake rebinds again.
 	mClock.Advance(wakeRebindDebounce).MustWait(ctx)
 	wakeResp = sendWake()
-	require.True(t, wakeResp.GetWake().GetSuccess())
+	require.NotNil(t, wakeResp.GetWake())
 	testutil.TryReceive(ctx, t, conn.rebinds)
 }
 

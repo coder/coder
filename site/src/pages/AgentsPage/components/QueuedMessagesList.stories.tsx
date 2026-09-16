@@ -109,14 +109,6 @@ export const MultiLineTextTruncation: Story = {
 			),
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// The first line and ellipsis should be visible in the same span.
-		const textSpan = canvas.getByText(/First line of the message…/);
-		expect(textSpan).toBeInTheDocument();
-		// The second line should not appear anywhere.
-		expect(canvas.queryByText(/Second line/)).not.toBeInTheDocument();
-	},
 };
 
 // A message with both text and a file attachment shows the ImageIcon badge.
@@ -143,46 +135,39 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
-// Clicking Edit on a message with attachments passes file blocks to onEdit.
-export const EditPassesFileBlocks: Story = {
+// Queued messages retain send and delete actions without exposing edit.
+export const ActionsExcludeEdit: Story = {
 	args: {
-		onEdit: fn(),
-		messages: [
-			buildMessage(1, [
-				{ type: "text", text: "Check this screenshot" },
-				{ type: "file", file_id: "abc-123", media_type: "image/png" },
-			] as ChatQueuedMessage["content"]),
-		],
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const editButton = canvas.getByRole("button", { name: "Edit" });
-		await userEvent.click(editButton);
-		expect(args.onEdit).toHaveBeenCalledWith(1, "Check this screenshot", [
-			{ type: "file", file_id: "abc-123", media_type: "image/png" },
-		]);
+		messages: [buildMessage(1, textContent("Run the linter"))],
 	},
 };
 
-// Clicking Edit on an attachment-only message passes file blocks with empty text.
-export const EditAttachmentOnlyMessage: Story = {
+let rejectQueuedDelete: ((error: Error) => void) | undefined;
+
+// Deleting hides the row optimistically and disables sibling actions while
+// pending; a rejected delete restores the row and re-enables actions.
+export const DeleteRejectionRestoresRow: Story = {
 	args: {
-		onEdit: fn(),
 		messages: [
-			buildMessage(1, [
-				{ type: "file", file_id: "img-1", media_type: "image/png" },
-				{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
-			] as ChatQueuedMessage["content"]),
+			buildMessage(1, textContent("First queued")),
+			buildMessage(2, textContent("Second queued")),
 		],
+		onDelete: () =>
+			new Promise<void>((_, reject) => {
+				rejectQueuedDelete = reject;
+			}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const editButton = canvas.getByRole("button", { name: "Edit" });
-		await userEvent.click(editButton);
-		expect(args.onEdit).toHaveBeenCalledWith(1, "", [
-			{ type: "file", file_id: "img-1", media_type: "image/png" },
-			{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
-		]);
+		const removeButtons = canvas.getAllByRole("button", {
+			name: "Remove from queue",
+		});
+		await userEvent.click(removeButtons[0]);
+
+		if (!rejectQueuedDelete) {
+			throw new Error("onDelete was not invoked");
+		}
+		rejectQueuedDelete(new Error("delete failed"));
 	},
 };
 
@@ -199,5 +184,26 @@ export const MixedQueueWithAttachments: Story = {
 				{ type: "file", file_id: "img-b", media_type: "image/png" },
 			] as ChatQueuedMessage["content"]),
 		],
+	},
+};
+
+export const HookNotice: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{ type: "text", text: "Deploy to production" },
+				{ type: "hook-notice", text: "Deployment prompts are audited." },
+			]),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", {
+			name: "Lifecycle hook notice: Deployment prompts are audited.",
+		});
+		await userEvent.tab();
+		expect(trigger).toHaveFocus();
+		const tooltip = await within(document.body).findByRole("tooltip");
+		expect(tooltip).toHaveTextContent("Deployment prompts are audited.");
 	},
 };

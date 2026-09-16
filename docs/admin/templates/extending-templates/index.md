@@ -1,4 +1,6 @@
-# Extending templates
+---
+title: Extend templates
+---
 
 There are a variety of Coder-native features to extend the configuration of your
 development environments. Many of the following features are defined in your
@@ -95,7 +97,7 @@ You can use these examples to add new Coder apps:
 
 ## code-server
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -109,7 +111,7 @@ resource "coder_app" "code-server" {
 
 ## Filebrowser
 
-```hcl
+```tf
 resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.main.id
   display_name = "file browser"
@@ -123,7 +125,7 @@ resource "coder_app" "filebrowser" {
 
 ## Zed
 
-```hcl
+```tf
 resource "coder_app" "zed" {
     agent_id = coder_agent.main.id
     slug          = "slug"

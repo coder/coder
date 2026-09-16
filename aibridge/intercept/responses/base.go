@@ -29,6 +29,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -46,6 +47,10 @@ type responsesInterceptionBase struct {
 
 	cfg  intercept.Config
 	cred intercept.Credential
+	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
+	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
+	// using a key pool or BYOK secret.
+	bedrockMantle *bedrocksig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -57,18 +62,46 @@ type responsesInterceptionBase struct {
 	mcpProxy mcp.ServerProxier
 }
 
+func sumUsage(ref responses.ResponseUsage, in responses.ResponseUsage) responses.ResponseUsage {
+	return responses.ResponseUsage{
+		InputTokens:  ref.InputTokens + in.InputTokens,
+		OutputTokens: ref.OutputTokens + in.OutputTokens,
+		TotalTokens:  ref.TotalTokens + in.TotalTokens,
+		InputTokensDetails: responses.ResponseUsageInputTokensDetails{
+			CachedTokens:     ref.InputTokensDetails.CachedTokens + in.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: ref.InputTokensDetails.CacheWriteTokens + in.InputTokensDetails.CacheWriteTokens,
+		},
+		OutputTokensDetails: responses.ResponseUsageOutputTokensDetails{
+			ReasoningTokens: ref.OutputTokensDetails.ReasoningTokens + in.OutputTokensDetails.ReasoningTokens,
+		},
+	}
+}
+
 // newResponsesService builds the SDK service used for upstream calls.
 func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
 	var opts []option.RequestOption
-	// Only BYOK sets its credential here. Centralized keys are injected
-	// per-attempt in the failover loop.
-	if byok, ok := intercept.AsBYOK(i.cred); ok {
-		i.logger.Debug(ctx, "using byok auth",
-			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
-		)
-		opts = append(opts, option.WithAPIKey(byok.Secret))
+	if i.bedrockMantle != nil {
+		base, err := bedrocksig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
+		if err != nil {
+			// Fail the request loudly: a malformed base URL is a provider
+			// misconfiguration, not a retryable upstream error.
+			opts = append(opts, option.WithMiddleware(func(_ *http.Request, _ option.MiddlewareNext) (*http.Response, error) {
+				return nil, xerrors.Errorf("bedrock mantle base URL: %w", err)
+			}))
+			return responses.NewResponseService(opts...)
+		}
+		opts = append(opts, option.WithBaseURL(base))
+	} else {
+		// Only BYOK sets its credential here. Centralized keys are injected
+		// per-attempt in the failover loop.
+		if byok, ok := intercept.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth",
+				slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+			)
+			opts = append(opts, option.WithAPIKey(byok.Secret))
+		}
+		opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 	}
-	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
@@ -83,6 +116,14 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// Add API dump middleware if configured
 	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
+	}
+
+	// Bedrock mantle: install the SigV4 signing middleware last so it runs
+	// innermost (right before the HTTP send) and signs the request after all
+	// other headers are set.
+	if i.bedrockMantle != nil {
+		//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
+		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
 	}
 
 	return responses.NewResponseService(opts...)
@@ -264,7 +305,9 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 		// have no uniform argument representation.
 		switch item.Type {
 		case string(constant.ValueOf[constant.FunctionCall]()):
-			args = i.parseFunctionCallJSONArgs(ctx, item.Arguments)
+			// Arguments is a union since openai-go v3.50; function_call
+			// arguments are always the JSON string variant.
+			args = i.parseFunctionCallJSONArgs(ctx, item.Arguments.OfString)
 		case string(constant.ValueOf[constant.CustomToolCall]()):
 			args = item.Input
 		case string(constant.ValueOf[constant.WebSearchCall]()),
@@ -325,16 +368,26 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 
 	usage := response.Usage
 
-	// Keeping logic consistent with chat completions
-	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	inputNonCacheTokens := max(0, usage.InputTokens-usage.InputTokensDetails.CachedTokens)
+	// InputTokens include cache read and write tokens, see OpenAI spending controller cookbook for reference:
+	// https://github.com/openai/openai-cookbook/blob/51c769595490f7513d4bd7c6e7700a7ab8dedbd4/articles/per_run_spending_controller_responses_api.md?plain=1#L197
+	inputNonCacheTokens := max(0, usage.InputTokens-
+		usage.InputTokensDetails.CachedTokens-
+		usage.InputTokensDetails.CacheWriteTokens)
+
+	serviceTier := string(response.ServiceTier)
+	var metadata recorder.Metadata
+	if serviceTier != "" {
+		metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: serviceTier}
+	}
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-		InterceptionID:       i.ID().String(),
-		MsgID:                response.ID,
-		Input:                inputNonCacheTokens,
-		Output:               usage.OutputTokens,
-		CacheReadInputTokens: usage.InputTokensDetails.CachedTokens,
+		InterceptionID:        i.ID().String(),
+		MsgID:                 response.ID,
+		Input:                 inputNonCacheTokens,
+		Output:                usage.OutputTokens,
+		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,
+		CacheWriteInputTokens: usage.InputTokensDetails.CacheWriteTokens,
+		Metadata:              metadata,
 		ExtraTokenTypes: map[string]int64{
 			"output_reasoning": usage.OutputTokensDetails.ReasoningTokens,
 			"total_tokens":     usage.TotalTokens,
@@ -446,6 +499,14 @@ func (r *responseCopier) readAll() ([]byte, error) {
 
 // forwardResp writes whole response as received to ResponseWriter
 func (r *responseCopier) forwardResp(w http.ResponseWriter) error {
+	b, err := r.readAll()
+	if err != nil {
+		return xerrors.Errorf("failed to read response body: %w", err)
+	}
+	return r.forwardBytes(w, b)
+}
+
+func (r *responseCopier) forwardBytes(w http.ResponseWriter, b []byte) error {
 	// no response was received, nothing to forward
 	if !r.responseReceived.Load() {
 		return nil
@@ -458,11 +519,6 @@ func (r *responseCopier) forwardResp(w http.ResponseWriter) error {
 		w.Header().Set("Retry-After", retryAfter)
 	}
 	w.WriteHeader(r.responseStatus)
-
-	b, err := r.readAll()
-	if err != nil {
-		return xerrors.Errorf("failed to read response body: %w", err)
-	}
 
 	if _, err := w.Write(b); err != nil {
 		return xerrors.Errorf("failed to write response body: %w", err)

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderBases } from "#/api/queries/templateBuilder";
@@ -10,11 +11,7 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import { cn } from "#/utils/cn";
-import {
-	type ConfigurationFieldDefinition,
-	ConfigurationFieldLabel,
-} from "./ConfigurationField";
+import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
@@ -22,6 +19,7 @@ interface BaseTemplateParametersStepProps {
 	baseId: string;
 	values: Record<string, string>;
 	onChangeValues: (values: Record<string, string>) => void;
+	showErrors?: boolean;
 }
 
 function detailsUrl(baseId: string): string {
@@ -36,9 +34,10 @@ function variableToField(
 	variable: TemplateBuilderModuleVariable,
 	value: string,
 	onChange: (name: string, value: string) => void,
+	error: boolean,
 ): ConfigurationFieldDefinition {
 	const id = `base-var-${variable.name}`;
-	const label = <ConfigurationFieldLabel variable={variable} />;
+	const label = variable.name;
 
 	if (variable.type === "bool") {
 		return {
@@ -61,14 +60,14 @@ function variableToField(
 		required: variable.required,
 		placeholder:
 			defaultPlaceholder(variable.default) ??
-			(variable.required ? "Required" : "Optional"),
+			(variable.required ? "Required" : ""),
 		field: {
 			name: variable.name,
 			id,
 			value,
 			onChange: (e) => onChange(variable.name, e.target.value),
 			onBlur: () => {},
-			error: false,
+			error,
 		},
 	};
 }
@@ -98,7 +97,7 @@ export function baseParametersComplete(
 
 export const BaseTemplateParametersStep: FC<
 	BaseTemplateParametersStepProps
-> = ({ baseId, values, onChangeValues }) => {
+> = ({ baseId, values, onChangeValues, showErrors = false }) => {
 	const { data } = useQuery(templateBuilderBases());
 	const base = data?.bases.find((b) => b.id === baseId);
 	const variables = base?.variables.filter((v) => !v.sensitive) ?? [];
@@ -108,13 +107,17 @@ export const BaseTemplateParametersStep: FC<
 		onChangeValues({ ...values, [name]: value });
 	};
 
-	const fields: ConfigurationFieldDefinition[] = variables.map((v) =>
-		variableToField(
+	const fields: ConfigurationFieldDefinition[] = variables.map((v) => {
+		const rawValue = values[v.name];
+		const hasError =
+			showErrors && v.required && (rawValue === undefined || rawValue === "");
+		return variableToField(
 			v,
 			values[v.name] ?? defaultPlaceholder(v.default) ?? "",
 			handleChange,
-		),
-	);
+			hasError,
+		);
+	});
 
 	return (
 		<>
@@ -123,32 +126,31 @@ export const BaseTemplateParametersStep: FC<
 				Your base template requires customizations.
 			</TemplateBuilderSubtitle>
 
-			{/* 340px accounts for navbar, page header, card padding, and nav controls */}
-			<div className="max-h-[calc(100vh-340px)] overflow-y-auto">
-				<TemplateConfiguration
-					name={base?.name ?? "Base Template"}
-					description={base?.description ?? ""}
-					iconUrl={base?.icon}
-					detailsUrl={detailsUrl(baseId)}
-					fields={fields}
-				>
-					{prerequisites && (
-						<div className="mt-6">
-							<MemoizedMarkdown
-								className={cn(
-									"text-sm font-normal",
-									"[&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-semibold",
-									"[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
-									"[&_p]:mb-3 [&_p]:text-content-secondary",
-									"[&_a]:font-normal",
-								)}
-							>
-								{prerequisites}
-							</MemoizedMarkdown>
-						</div>
-					)}
-				</TemplateConfiguration>
-			</div>
+			<TemplateConfiguration
+				name={base?.name ?? "Base Template"}
+				description={base?.description ?? ""}
+				iconUrl={base?.icon}
+				detailsUrl={detailsUrl(baseId)}
+				fields={fields}
+			>
+				{prerequisites && (
+					<div className="mt-6">
+						<MemoizedMarkdown
+							className={cn(
+								"text-xs font-normal",
+								"[&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-semibold",
+								"[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
+								"[&_p]:mb-3 [&_p]:text-content-secondary",
+								"[&_li]:text-content-secondary",
+								"[&_a]:font-normal",
+								"[&_code]:text-[length:inherit]",
+							)}
+						>
+							{prerequisites}
+						</MemoizedMarkdown>
+					</div>
+				)}
+			</TemplateConfiguration>
 		</>
 	);
 };

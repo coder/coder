@@ -1,19 +1,18 @@
 import { ArrowUpRightIcon } from "lucide-react";
 import type { FC } from "react";
-import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
+import type { BuildInfoResponse } from "#/api/typesGenerated";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
 import type { Permissions } from "#/modules/permissions";
-import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	showOrganizations: boolean;
-	hasPremiumLicense: boolean;
-	experiments: Experiment[];
+	hidePremiumTab: boolean;
 	buildInfo: BuildInfoResponse;
 }
 
@@ -24,8 +23,7 @@ interface DeploymentSidebarViewProps {
 export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 	permissions,
 	showOrganizations,
-	hasPremiumLicense,
-	experiments,
+	hidePremiumTab,
 	buildInfo,
 }) => {
 	return (
@@ -52,13 +50,11 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						External Authentication
 					</SidebarNavItem>
 				)}
-				{permissions.viewDeploymentConfig &&
-					(experiments.includes("oauth2") ||
-						getPrereleaseFlag(buildInfo) === "devel") && (
-						<SidebarNavItem href="/deployment/oauth2-provider/apps">
-							OAuth2 Applications
-						</SidebarNavItem>
-					)}
+				{permissions.viewDeploymentConfig && buildInfo.oauth2_provider && (
+					<SidebarNavItem href="/deployment/oauth2-provider/apps">
+						OAuth2 Applications
+					</SidebarNavItem>
+				)}
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/network">Network</SidebarNavItem>
 				)}
@@ -98,8 +94,10 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						</div>
 					</SidebarNavItem>
 				)}
-				{!hasPremiumLicense && (
-					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
+				{!hidePremiumTab && (
+					<SidebarNavItem href={PREMIUM_PAGE_PATH}>
+						Trial Upgrade
+					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

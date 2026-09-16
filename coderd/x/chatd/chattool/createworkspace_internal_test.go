@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -261,6 +260,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: orgID,
+			AgentsAllowed:  true,
 		}, nil)
 
 	db.EXPECT().
@@ -362,6 +362,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: orgID,
+			AgentsAllowed:  true,
 		}, nil)
 	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
@@ -472,6 +473,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: orgID,
+			AgentsAllowed:  true,
 		}, nil)
 
 	db.EXPECT().
@@ -571,6 +573,7 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: orgID,
+			AgentsAllowed:  true,
 		}, nil)
 
 	db.EXPECT().
@@ -811,6 +814,7 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: orgID,
+			AgentsAllowed:  true,
 		}, nil)
 
 	db.EXPECT().
@@ -932,7 +936,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 		{
 			name:      "PositiveTTL",
 			ttlReturn: "2h",
-			wantTTLMs: ptr.Ref(int64(2 * time.Hour / time.Millisecond)),
+			wantTTLMs: new(int64(2 * time.Hour / time.Millisecond)),
 		},
 		{
 			name:      "ZeroTTLUsesTemplateDefault",
@@ -988,6 +992,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 				Return(database.Template{
 					ID:             templateID,
 					OrganizationID: orgID,
+					AgentsAllowed:  true,
 				}, nil)
 
 			db.EXPECT().
@@ -1091,6 +1096,7 @@ func TestCreateWorkspace_RejectsCrossOrgTemplate(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: templateOrgID,
+			AgentsAllowed:  true,
 			Name:           "wrong-org-template",
 		}, nil)
 
@@ -1115,6 +1121,68 @@ func TestCreateWorkspace_RejectsCrossOrgTemplate(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, createCalled, "CreateFn must not be called for cross-org template")
 	require.Contains(t, resp.Content, "organization")
+}
+
+func TestCreateWorkspace_ReturnsExistingWorkspaceBeforeTemplateValidation(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := newCreateWorkspaceMockStore(ctrl)
+
+	chatID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	agentID := uuid.New()
+	now := time.Now().UTC()
+
+	expectExistingWorkspaceLookup(
+		db,
+		chatID,
+		workspaceID,
+		jobID,
+		"existing-workspace",
+		database.ProvisionerJobStatusSucceeded,
+		database.WorkspaceTransitionStart,
+	)
+	db.EXPECT().
+		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{{
+			ID:               agentID,
+			Name:             "dev",
+			CreatedAt:        now.Add(-time.Minute),
+			FirstConnectedAt: validNullTime(now.Add(-45 * time.Second)),
+			LastConnectedAt:  validNullTime(now.Add(-5 * time.Second)),
+		}}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+		Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}, nil)
+
+	tool := CreateWorkspace(db, uuid.New(), chatID, CreateWorkspaceOptions{
+		OwnerID: uuid.New(),
+		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			t.Fatal("CreateFn should not be called when the chat already has a workspace")
+			return codersdk.Workspace{}, nil
+		},
+		WorkspaceMu:                    &sync.Mutex{},
+		AgentInactiveDisconnectTimeout: time.Minute,
+		Logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q}`, uuid.New().String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "already_exists", result["status"])
+	require.Equal(t, "existing-workspace", result["workspace_name"])
 }
 
 func TestCreateWorkspace_BlocksExternalTemplate(t *testing.T) {
@@ -1145,6 +1213,7 @@ func TestCreateWorkspace_BlocksExternalTemplate(t *testing.T) {
 		Return(database.Template{
 			ID:              templateID,
 			OrganizationID:  orgID,
+			AgentsAllowed:   true,
 			ActiveVersionID: activeVersionID,
 		}, nil)
 	db.EXPECT().
@@ -1553,6 +1622,7 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: orgID,
+			AgentsAllowed:  true,
 		}, nil)
 
 	db.EXPECT().
@@ -1770,6 +1840,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		Return(database.Template{
 			ID:             templateID,
 			OrganizationID: uuid.Nil,
+			AgentsAllowed:  true,
 		}, nil)
 
 	db.EXPECT().
@@ -1913,6 +1984,7 @@ func setupCreateWorkspacePresetTest(t *testing.T) createWorkspacePresetTestSetup
 		Return(database.Template{
 			ID:              s.TemplateID,
 			OrganizationID:  s.OrgID,
+			AgentsAllowed:   true,
 			Name:            "test-template",
 			ActiveVersionID: uuid.New(),
 		}, nil)

@@ -1,13 +1,13 @@
+import { cn } from "cn";
 import { Building2Icon, UserIcon } from "lucide-react";
 import type { FC } from "react";
 import type { HealthMessage, ProvisionerDaemon } from "#/api/typesGenerated";
-import { Pill } from "#/components/Pill/Pill";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
 
@@ -52,11 +52,10 @@ export const Provisioner: FC<ProvisionerProps> = ({
 				<div className="ml-auto flex flex-wrap gap-3 justify-end">
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Pill size="lg" icon={iconScope}>
-								<span className="[&::first-letter]:uppercase">
-									{daemonScope}
-								</span>
-							</Pill>
+							<Badge size="md">
+								{iconScope}
+								<span className="first-letter:uppercase">{daemonScope}</span>
+							</Badge>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">Scope</TooltipContent>
 					</Tooltip>

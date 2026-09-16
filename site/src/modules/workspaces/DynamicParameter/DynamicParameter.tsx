@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	EyeIcon,
@@ -45,7 +46,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
 interface DynamicParameterProps {
@@ -677,7 +677,7 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 };
 
 export const getInitialParameterValues = (
-	params: PreviewParameter[],
+	params: readonly PreviewParameter[],
 	autofillParams?: AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
 	return params.map((parameter) => {

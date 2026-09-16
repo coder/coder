@@ -1,4 +1,6 @@
-# Write a template from scratch
+---
+title: Write a template from scratch
+---
 
 > [!TIP]
 > If you want to create a template without writing Terraform, use the
@@ -365,7 +367,7 @@ use the Coder CLI.
 
 1. Paste it into the CLI:
 
-   ```output
+   ```txt
    > Welcome to Coder, marc! You're authenticated.
    $
    ```
@@ -414,7 +416,7 @@ through the CLI, or through the Coder dashboard:
 
    - To zip the files through the command line:
 
-     ```shell
+     ```sh
      zip templates.zip Dockerfile main.tf
      ```
 

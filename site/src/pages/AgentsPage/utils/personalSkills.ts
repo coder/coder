@@ -1,5 +1,4 @@
 import frontMatter from "front-matter";
-import type * as TypesGen from "#/api/typesGenerated";
 
 export const PERSONAL_SKILL_MAX_SIZE_BYTES = 64 * 1024;
 const PERSONAL_SKILL_MAX_NAME_BYTES = 256;
@@ -15,15 +14,23 @@ export type PersonalSkillFormValues = {
 	body: string;
 };
 
-type RankedPersonalSkill = {
-	skill: TypesGen.UserSkillMetadata;
+type SkillSearchMetadata = {
+	name: string;
+	description: string;
+	triggerText?: string;
+	// Alternate trigger form that stays searchable regardless of which
+	// form is displayed, e.g. the qualified /source/name alias.
+	altTriggerText?: string;
+};
+
+type RankedSkill<T extends SkillSearchMetadata> = {
+	skill: T;
 	rank: number;
 	index: number;
 };
 
-export const personalSkillTriggerText = (
-	skill: TypesGen.UserSkillMetadata,
-): string => `/${skill.name}`;
+export const personalSkillTriggerText = (skill: { name: string }): string =>
+	`/${skill.name}`;
 
 type PersonalSkillTriggerMatch = {
 	slashOffset: number;
@@ -48,26 +55,41 @@ export const isPersonalSkillTriggerToken = (token: string): boolean =>
 	/^\/\S*$/.test(token);
 
 /**
- * Filters personal skills by name and description. Matches are ranked by
- * name prefix, name substring, then description substring.
+ * Filters skills by name, trigger text, and description. Matches are ranked
+ * by name or trigger text prefix, name or trigger text substring, then
+ * description substring.
  */
-export const filterPersonalSkills = (
-	skills: readonly TypesGen.UserSkillMetadata[],
+export const filterSkillsByQuery = <T extends SkillSearchMetadata>(
+	skills: readonly T[],
 	query: string,
-): TypesGen.UserSkillMetadata[] => {
+): T[] => {
 	const normalizedQuery = query.toLocaleLowerCase("en-US");
 	if (!normalizedQuery) {
 		return skills.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
 	}
 
-	const rankedSkills: RankedPersonalSkill[] = [];
+	const rankedSkills: RankedSkill<T>[] = [];
 	for (const [index, skill] of skills.entries()) {
 		const name = skill.name.toLocaleLowerCase("en-US");
+		const triggerText = skill.triggerText
+			?.replace(/^\//, "")
+			.toLocaleLowerCase("en-US");
+		const altTriggerText = skill.altTriggerText
+			?.replace(/^\//, "")
+			.toLocaleLowerCase("en-US");
 		const description = skill.description.toLocaleLowerCase("en-US");
 		let rank: number | undefined;
-		if (name.startsWith(normalizedQuery)) {
+		if (
+			name.startsWith(normalizedQuery) ||
+			triggerText?.startsWith(normalizedQuery) ||
+			altTriggerText?.startsWith(normalizedQuery)
+		) {
 			rank = 0;
-		} else if (name.includes(normalizedQuery)) {
+		} else if (
+			name.includes(normalizedQuery) ||
+			triggerText?.includes(normalizedQuery) ||
+			altTriggerText?.includes(normalizedQuery)
+		) {
 			rank = 1;
 		} else if (description.includes(normalizedQuery)) {
 			rank = 2;

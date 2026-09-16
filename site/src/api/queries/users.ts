@@ -31,10 +31,13 @@ import {
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import { prepareQuery } from "#/utils/filters";
 import { getAuthorizationKey } from "./authCheck";
+import { invalidateGroupMembersAISpend } from "./groups";
 import { cachedQuery } from "./util";
 
+export const usersQueryKey = ["users"] as const;
+
 export function usersKey(req: UsersRequest) {
-	return ["users", req] as const;
+	return [...usersQueryKey, req] as const;
 }
 
 export function paginatedUsers(
@@ -89,7 +92,7 @@ export const createUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.createUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["users"] });
+			await queryClient.invalidateQueries({ queryKey: usersQueryKey });
 		},
 	};
 };
@@ -104,7 +107,7 @@ export const suspendUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.suspendUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["users"] });
+			await queryClient.invalidateQueries({ queryKey: usersQueryKey });
 		},
 	};
 };
@@ -113,7 +116,7 @@ export const activateUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.activateUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["users"] });
+			await queryClient.invalidateQueries({ queryKey: usersQueryKey });
 		},
 	};
 };
@@ -122,7 +125,7 @@ export const deleteUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.deleteUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["users"] });
+			await queryClient.invalidateQueries({ queryKey: usersQueryKey });
 		},
 	};
 };
@@ -132,7 +135,7 @@ export const updateRoles = (queryClient: QueryClient) => {
 		mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
 			API.updateUserRoles(roles, userId),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["users"] });
+			await queryClient.invalidateQueries({ queryKey: usersQueryKey });
 		},
 	};
 };
@@ -169,7 +172,8 @@ export const meAISpend = (): UseQueryOptions<UserAISpendStatus> => {
 	};
 };
 
-const userKey = (usernameOrId: string) => ["user", usernameOrId];
+export const userKey = (usernameOrId: string) =>
+	["user", usernameOrId] as const;
 
 export const user = (usernameOrId: string) => {
 	return {
@@ -203,6 +207,17 @@ export const userAIBudgetOverride = (
 	};
 };
 
+const invalidateUserAIBudgetQueries = (
+	queryClient: QueryClient,
+	userId: string,
+) =>
+	Promise.all([
+		queryClient.invalidateQueries({
+			queryKey: getUserAIBudgetOverrideQueryKey(userId),
+		}),
+		invalidateGroupMembersAISpend(queryClient, userId),
+	]);
+
 export const saveUserAIBudgetOverride = (
 	queryClient: QueryClient,
 	userId: string,
@@ -211,9 +226,7 @@ export const saveUserAIBudgetOverride = (
 		mutationFn: (request: UpsertUserAIBudgetOverrideRequest) =>
 			API.upsertUserAIBudgetOverride(userId, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: getUserAIBudgetOverrideQueryKey(userId),
-			});
+			await invalidateUserAIBudgetQueries(queryClient, userId);
 		},
 	};
 };
@@ -225,9 +238,7 @@ export const deleteUserAIBudgetOverride = (
 	return {
 		mutationFn: () => API.deleteUserAIBudgetOverride(userId),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: getUserAIBudgetOverrideQueryKey(userId),
-			});
+			await invalidateUserAIBudgetQueries(queryClient, userId);
 		},
 	};
 };
@@ -392,12 +403,12 @@ export const updateAppearanceSettings = (
 	};
 };
 
-const myPreferencesKey = ["me", "preferences"];
+export const preferenceSettingsKey = ["me", "preferences"] as const;
 
 export const preferenceSettings =
 	(): UseQueryOptions<UserPreferenceSettings> => {
 		return {
-			queryKey: myPreferencesKey,
+			queryKey: preferenceSettingsKey,
 			queryFn: () => API.getUserPreferenceSettings(),
 		};
 	};
@@ -414,7 +425,7 @@ export const updatePreferenceSettings = (
 		mutationFn: (req) => API.updateUserPreferenceSettings(req),
 		onSuccess: async () =>
 			await queryClient.invalidateQueries({
-				queryKey: myPreferencesKey,
+				queryKey: preferenceSettingsKey,
 			}),
 	};
 };

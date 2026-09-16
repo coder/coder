@@ -345,28 +345,41 @@ func (r *remoteReporter) deployment() error {
 	scimEnabled := r.options.SCIMEnabled
 	scimUseLegacy := r.options.SCIMUseLegacy
 
+	agentsExperimentValues := make(map[string]json.RawMessage, len(agentsExperiments))
+	for _, exp := range agentsExperiments {
+		agentsExperimentValues[exp.name] = exp.collect(r.ctx, r.options)
+	}
+	agentsExperimentsJSON, err := json.Marshal(agentsExperimentValues)
+	if err != nil {
+		// Best-effort: the field is omitempty, so the deployment report
+		// proceeds without it.
+		r.options.Logger.Warn(r.ctx, "marshal agent experiments telemetry", slog.Error(err))
+		agentsExperimentsJSON = nil
+	}
+
 	data, err := json.Marshal(&Deployment{
-		ID:              r.options.DeploymentID,
-		Architecture:    sysInfo.Architecture,
-		BuiltinPostgres: r.options.BuiltinPostgres,
-		Containerized:   containerized,
-		Config:          r.options.DeploymentConfig,
-		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:   installSource,
-		Tunnel:          r.options.Tunnel,
-		OSType:          sysInfo.OS.Type,
-		OSFamily:        sysInfo.OS.Family,
-		OSPlatform:      sysInfo.OS.Platform,
-		OSName:          sysInfo.OS.Name,
-		OSVersion:       sysInfo.OS.Version,
-		CPUCores:        runtime.NumCPU(),
-		MemoryTotal:     mem.Total,
-		MachineID:       sysInfo.UniqueID,
-		StartedAt:       r.startedAt,
-		ShutdownAt:      r.shutdownAt,
-		IDPOrgSync:      &idpOrgSync,
-		SCIMEnabled:     &scimEnabled,
-		SCIMUseLegacy:   &scimUseLegacy,
+		ID:                r.options.DeploymentID,
+		Architecture:      sysInfo.Architecture,
+		BuiltinPostgres:   r.options.BuiltinPostgres,
+		Containerized:     containerized,
+		Config:            r.options.DeploymentConfig,
+		Kubernetes:        os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:     installSource,
+		Tunnel:            r.options.Tunnel,
+		OSType:            sysInfo.OS.Type,
+		OSFamily:          sysInfo.OS.Family,
+		OSPlatform:        sysInfo.OS.Platform,
+		OSName:            sysInfo.OS.Name,
+		OSVersion:         sysInfo.OS.Version,
+		CPUCores:          runtime.NumCPU(),
+		MemoryTotal:       mem.Total,
+		MachineID:         sysInfo.UniqueID,
+		StartedAt:         r.startedAt,
+		ShutdownAt:        r.shutdownAt,
+		IDPOrgSync:        &idpOrgSync,
+		SCIMEnabled:       &scimEnabled,
+		SCIMUseLegacy:     &scimUseLegacy,
+		AgentsExperiments: agentsExperimentsJSON,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -640,7 +653,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
+				converted, err := ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat))
+				if err != nil {
+					return xerrors.Errorf("convert workspace agent stat: %w", err)
+				}
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
 			}
 		} else {
 			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
@@ -649,7 +666,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
+				converted, err := ConvertWorkspaceAgentStat(stat)
+				if err != nil {
+					return xerrors.Errorf("convert workspace agent stat: %w", err)
+				}
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
 			}
 		}
 		return nil
@@ -753,22 +774,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 				Count:     int(totalClaimed),
 			})
 		}
-		return nil
-	})
-	eg.Go(func() error {
-		tasks, err := CollectTasks(ctx, r.options.Database)
-		if err != nil {
-			return xerrors.Errorf("collect tasks telemetry: %w", err)
-		}
-		snapshot.Tasks = tasks
-		return nil
-	})
-	eg.Go(func() error {
-		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter, now)
-		if err != nil {
-			return xerrors.Errorf("collect task events telemetry: %w", err)
-		}
-		snapshot.TaskEvents = events
 		return nil
 	})
 	eg.Go(func() error {
@@ -1022,123 +1027,6 @@ func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSe
 	}, nil
 }
 
-func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
-	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{
-		OwnerID:        uuid.Nil,
-		OrganizationID: uuid.Nil,
-		Status:         "",
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("list tasks: %w", err)
-	}
-	if len(dbTasks) == 0 {
-		return []Task{}, nil
-	}
-
-	tasks := make([]Task, 0, len(dbTasks))
-	for _, dbTask := range dbTasks {
-		tasks = append(tasks, ConvertTask(dbTask))
-	}
-	return tasks, nil
-}
-
-// buildTaskEvent constructs a TaskEvent from the combined query row.
-func buildTaskEvent(
-	row database.GetTelemetryTaskEventsRow,
-	createdAfter time.Time,
-	now time.Time,
-) TaskEvent {
-	event := TaskEvent{
-		TaskID: row.TaskID.String(),
-	}
-
-	var (
-		hasStartBuild    = row.StartBuildCreatedAt.Valid
-		isResumed        = hasStartBuild && row.StartBuildNumber.Valid && row.StartBuildNumber.Int32 > 1
-		hasStopBuild     = row.StopBuildCreatedAt.Valid
-		startedAfterStop = hasStartBuild && hasStopBuild && row.StartBuildCreatedAt.Time.After(row.StopBuildCreatedAt.Time)
-		currentlyPaused  = hasStopBuild && !startedAfterStop
-	)
-
-	// Pause-related fields (requires a stop build).
-	if hasStopBuild {
-		event.LastPausedAt = &row.StopBuildCreatedAt.Time
-		switch {
-		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskAutoPause:
-			event.PauseReason = ptr.Ref("auto")
-		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskManualPause:
-			event.PauseReason = ptr.Ref("manual")
-		default:
-			event.PauseReason = ptr.Ref("other")
-		}
-
-		// Idle duration: time between last working status and the pause.
-		if row.LastWorkingStatusAt.Valid &&
-			row.StopBuildCreatedAt.Time.After(row.LastWorkingStatusAt.Time) {
-			idle := row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time)
-			event.IdleDurationMS = ptr.Ref(idle.Milliseconds())
-		}
-	}
-
-	// Resume-related fields (requires task_resume start after stop).
-	if startedAfterStop {
-		// Paused duration: time between pause and resume.
-		if row.StartBuildCreatedAt.Time.After(createdAfter) {
-			paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
-			event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
-		}
-
-		// Below only relevant for "resumed" tasks, not when initially created.
-		if isResumed {
-			event.LastResumedAt = &row.StartBuildCreatedAt.Time
-			switch {
-			// TODO(Cian): will this exist? Future readers may know better than I.
-			// case row.StartBuildReason == database.BuildReasonTaskAutoResume:
-			//	event.ResumeReason = ptr.Ref("auto")
-			case row.StartBuildReason.BuildReason == database.BuildReasonTaskResume:
-				event.ResumeReason = ptr.Ref("manual")
-			default: // Task resumed by starting workspace?
-				event.ResumeReason = ptr.Ref("other")
-			}
-		}
-	}
-
-	// Unresolved pause: report current paused duration.
-	if currentlyPaused {
-		paused := now.Sub(row.StopBuildCreatedAt.Time)
-		event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
-	}
-
-	// Resume-to-status duration.
-	if row.FirstStatusAfterResumeAt.Valid && isResumed {
-		delta := row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time)
-		event.ResumeToStatusMS = ptr.Ref(delta.Milliseconds())
-	}
-
-	// Active duration: from SQL calculation.
-	if row.ActiveDurationMs > 0 {
-		event.ActiveDurationMS = ptr.Ref(row.ActiveDurationMs)
-	}
-
-	return event
-}
-
-// CollectTaskEvents collects lifecycle events for tasks with recent activity.
-func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter, now time.Time) ([]TaskEvent, error) {
-	rows, err := db.GetTelemetryTaskEvents(ctx, database.GetTelemetryTaskEventsParams{
-		CreatedAfter: createdAfter,
-		Now:          now,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get telemetry task events: %w", err)
-	}
-	events := make([]TaskEvent, 0, len(rows))
-	for _, row := range rows {
-		events = append(events, buildTaskEvent(row, createdAfter, now))
-	}
-	return events, nil
-}
-
 // HashContent returns a SHA256 hash of the content as a hex string.
 // This is useful for hashing sensitive content like prompts for telemetry.
 func HashContent(content string) string {
@@ -1185,9 +1073,6 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		TemplateVersionID: build.TemplateVersionID,
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
-	}
-	if build.HasAITask.Valid {
-		wb.HasAITask = ptr.Ref(build.HasAITask.Bool)
 	}
 	return wb
 }
@@ -1266,8 +1151,14 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 	}
 }
 
-// ConvertWorkspaceAgentStat anonymizes a workspace agent stat.
-func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) WorkspaceAgentStat {
+// ConvertWorkspaceAgentStat anonymizes a workspace agent stat. The query sums
+// sessions per app name, so a session reported under a name this version does
+// not know about is counted here rather than dropped.
+func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
+	sessionCounts, err := codersdk.SessionCountsByFamilyJSON(stat.SessionCounts)
+	if err != nil {
+		return WorkspaceAgentStat{}, xerrors.Errorf("group session counts by app family: %w", err)
+	}
 	return WorkspaceAgentStat{
 		UserID:                      stat.UserID,
 		TemplateID:                  stat.TemplateID,
@@ -1278,11 +1169,11 @@ func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) Workspac
 		ConnectionLatency95:         stat.WorkspaceConnectionLatency95,
 		RxBytes:                     stat.WorkspaceRxBytes,
 		TxBytes:                     stat.WorkspaceTxBytes,
-		SessionCountVSCode:          stat.SessionCountVSCode,
-		SessionCountJetBrains:       stat.SessionCountJetBrains,
-		SessionCountReconnectingPTY: stat.SessionCountReconnectingPTY,
-		SessionCountSSH:             stat.SessionCountSSH,
-	}
+		SessionCountVSCode:          sessionCounts[codersdk.AppFamilyVSCode],
+		SessionCountJetBrains:       sessionCounts[codersdk.AppFamilyJetBrains],
+		SessionCountReconnectingPTY: sessionCounts[codersdk.AppFamilyReconnectingPTY],
+		SessionCountSSH:             sessionCounts[codersdk.AppFamilySSH],
+	}, nil
 }
 
 // ConvertWorkspaceApp anonymizes a workspace app.
@@ -1499,6 +1390,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AutostopRequirementWeeks:      dbTemplate.AutostopRequirementWeeks,
 		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
+		AgentsAllowed:                 dbTemplate.AgentsAllowed,
 		Deprecated:                    dbTemplate.Deprecated != "",
 		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
 	}
@@ -1517,9 +1409,6 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	}
 	if version.SourceExampleID.Valid {
 		snapVersion.SourceExampleID = &version.SourceExampleID.String
-	}
-	if version.HasAITask.Valid {
-		snapVersion.HasAITask = ptr.Ref(version.HasAITask.Bool)
 	}
 	return snapVersion
 }
@@ -1612,8 +1501,6 @@ type Snapshot struct {
 	Workspaces                           []Workspace                           `json:"workspaces"`
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
-	Tasks                                []Task                                `json:"tasks"`
-	TaskEvents                           []TaskEvent                           `json:"task_events"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
@@ -1626,6 +1513,7 @@ type Snapshot struct {
 	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
 	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
 	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
+	PremiumFunnelEvents                  []PremiumFunnelEvent                  `json:"premium_funnel_events"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1660,6 +1548,10 @@ type Deployment struct {
 	// enterprise/coderd/scim. Nullable for the same backward compatibility
 	// reason as SCIMEnabled.
 	SCIMUseLegacy *bool `json:"scim_use_legacy"`
+	// AgentsExperiments reports the state of the Coder Agents experiments as
+	// opaque per-experiment JSON, so rotating the reported set is a code-only
+	// change. Omitted by older Coder versions, so it decodes as nil there.
+	AgentsExperiments json.RawMessage `json:"agents_experiments,omitempty"`
 }
 
 type APIKey struct {
@@ -1801,7 +1693,6 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
-	HasAITask         *bool     `json:"has_ai_task"`
 }
 
 type Workspace struct {
@@ -1838,6 +1729,7 @@ type Template struct {
 	AutostopRequirementWeeks       int64    `json:"autostop_requirement_weeks"`
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
+	AgentsAllowed                  bool     `json:"agents_allowed"`
 	Deprecated                     bool     `json:"deprecated"`
 	UseClassicParameterFlow        *bool    `json:"use_classic_parameter_flow"`
 }
@@ -1849,7 +1741,6 @@ type TemplateVersion struct {
 	OrganizationID  uuid.UUID  `json:"organization_id"`
 	JobID           uuid.UUID  `json:"job_id"`
 	SourceExampleID *string    `json:"source_example_id,omitempty"`
-	HasAITask       *bool      `json:"has_ai_task"`
 }
 
 type ProvisionerJob struct {
@@ -2188,68 +2079,12 @@ type Organization struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type Task struct {
-	ID                   string    `json:"id"`
-	OrganizationID       string    `json:"organization_id"`
-	OwnerID              string    `json:"owner_id"`
-	Name                 string    `json:"name"`
-	WorkspaceID          *string   `json:"workspace_id"`
-	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
-	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
-	WorkspaceAppID       *string   `json:"workspace_app_id"`
-	TemplateVersionID    string    `json:"template_version_id"`
-	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
-	Status               string    `json:"status"`
-	CreatedAt            time.Time `json:"created_at"`
-}
-
-// TaskEvent represents lifecycle events for a task (pause/resume
-// cycles). The createdAfter parameter gates PausedDurationMS so
-// that only recent pause/resume pairs are reported.
-type TaskEvent struct {
-	TaskID           string     `json:"task_id"`
-	LastPausedAt     *time.Time `json:"last_paused_at"`
-	LastResumedAt    *time.Time `json:"last_resumed_at"`
-	PauseReason      *string    `json:"pause_reason"`
-	ResumeReason     *string    `json:"resume_reason"`
-	IdleDurationMS   *int64     `json:"idle_duration_ms"`
-	PausedDurationMS *int64     `json:"paused_duration_ms"`
-	ResumeToStatusMS *int64     `json:"resume_to_status_ms"`
-	ActiveDurationMS *int64     `json:"active_duration_ms"`
-}
-
-// ConvertTask converts a database Task to a telemetry Task.
-func ConvertTask(task database.Task) Task {
-	t := Task{
-		ID:                task.ID.String(),
-		OrganizationID:    task.OrganizationID.String(),
-		OwnerID:           task.OwnerID.String(),
-		Name:              task.Name,
-		TemplateVersionID: task.TemplateVersionID.String(),
-		PromptHash:        HashContent(task.Prompt),
-		Status:            string(task.Status),
-		CreatedAt:         task.CreatedAt,
-	}
-	if task.WorkspaceID.Valid {
-		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
-	}
-	if task.WorkspaceBuildNumber.Valid {
-		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
-	}
-	if task.WorkspaceAgentID.Valid {
-		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
-	}
-	if task.WorkspaceAppID.Valid {
-		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
-	}
-	return t
-}
-
 // ConvertChat converts a database chat row to a telemetry Chat.
 func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 	c := Chat{
 		ID:                dbChat.ID,
 		OwnerID:           dbChat.OwnerID,
+		OrganizationID:    dbChat.OrganizationID,
 		CreatedAt:         dbChat.CreatedAt,
 		UpdatedAt:         dbChat.UpdatedAt,
 		Status:            string(dbChat.Status),
@@ -2289,7 +2124,6 @@ func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow)
 		TotalReasoningTokens:     dbRow.TotalReasoningTokens,
 		TotalCacheCreationTokens: dbRow.TotalCacheCreationTokens,
 		TotalCacheReadTokens:     dbRow.TotalCacheReadTokens,
-		TotalCostMicros:          dbRow.TotalCostMicros,
 		TotalRuntimeMs:           dbRow.TotalRuntimeMs,
 		DistinctModelCount:       dbRow.DistinctModelCount,
 		CompressedMessageCount:   dbRow.CompressedMessageCount,
@@ -2300,12 +2134,13 @@ func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow)
 // telemetry ChatModelConfig.
 func ConvertChatModelConfig(dbRow database.GetChatModelConfigsForTelemetryRow) ChatModelConfig {
 	return ChatModelConfig{
-		ID:           dbRow.ID,
-		Provider:     dbRow.Provider,
-		Model:        dbRow.Model,
-		ContextLimit: dbRow.ContextLimit,
-		Enabled:      dbRow.Enabled,
-		IsDefault:    dbRow.IsDefault,
+		ID:             dbRow.ID,
+		OrganizationID: dbRow.OrganizationID,
+		Provider:       dbRow.Provider,
+		Model:          dbRow.Model,
+		ContextLimit:   dbRow.ContextLimit,
+		Enabled:        dbRow.Enabled,
+		IsDefault:      dbRow.IsDefault,
 	}
 }
 
@@ -2321,6 +2156,131 @@ const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
 )
+
+// agentsExperiment is one entry in the Deployment.AgentsExperiments field.
+// Edit agentsExperiments to rotate the reported set without schema or
+// telemetry-server changes. Collectors are best-effort: they log and return
+// a degraded payload instead of erroring, so they can never fail a report.
+type agentsExperiment struct {
+	name    string
+	collect func(ctx context.Context, opts Options) json.RawMessage
+}
+
+var agentsExperiments = []agentsExperiment{
+	{name: "virtual_desktop", collect: CollectAgentsVirtualDesktop},
+	{name: "advisor", collect: CollectAgentsAdvisor},
+}
+
+const (
+	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
+	// dedicated model override and reuses the chat model at runtime.
+	AgentsExperimentAdvisorReuseChatModel = "advisor_reuse_chat_model"
+	// AgentsExperimentUnknown reports a value that could not be determined,
+	// e.g. after a transient DB error.
+	AgentsExperimentUnknown = "unknown"
+)
+
+// AgentsVirtualDesktopTelemetry is the value shape for the virtual_desktop
+// entry in Deployment.AgentsExperiments.
+type AgentsVirtualDesktopTelemetry struct {
+	Enabled     bool                       `json:"enabled"`
+	ComputerUse AgentsComputerUseTelemetry `json:"computer_use"`
+}
+
+type AgentsComputerUseTelemetry struct {
+	Provider       string `json:"provider"`
+	ProviderSource string `json:"provider_source"`
+}
+
+// AgentsAdvisorOverrideTelemetry describes one organization's advisor model override.
+type AgentsAdvisorOverrideTelemetry struct {
+	OrganizationID string `json:"organization_id"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+}
+
+// AgentsAdvisorTelemetry is the value shape for the advisor entry in
+// Deployment.AgentsExperiments.
+type AgentsAdvisorTelemetry struct {
+	Enabled         bool                             `json:"enabled"`
+	MaxUsesPerRun   int                              `json:"max_uses_per_run"`
+	MaxOutputTokens int64                            `json:"max_output_tokens"`
+	Overrides       []AgentsAdvisorOverrideTelemetry `json:"overrides"`
+}
+
+// CollectAgentsVirtualDesktop collects the virtual_desktop entry in
+// Deployment.AgentsExperiments. The chat-virtual-desktop experiment gates both
+// the desktop and computer use.
+func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
+	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
+	providerSource := "configured"
+	switch {
+	case err != nil:
+		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
+		provider = AgentsExperimentUnknown
+		providerSource = AgentsExperimentUnknown
+	case provider == "":
+		provider = string(codersdk.ChatComputerUseProviderAnthropic)
+		providerSource = "default"
+	}
+	val, err := json.Marshal(AgentsVirtualDesktopTelemetry{
+		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
+		ComputerUse: AgentsComputerUseTelemetry{
+			Provider:       provider,
+			ProviderSource: providerSource,
+		},
+	})
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
+
+// CollectAgentsAdvisor collects the advisor entry in
+// Deployment.AgentsExperiments.
+func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	payload := AgentsAdvisorTelemetry{
+		Enabled:   opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Overrides: []AgentsAdvisorOverrideTelemetry{},
+	}
+	var cfg codersdk.AdvisorConfig
+	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
+	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
+	} else {
+		payload.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
+		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
+	}
+
+	overrides, err := opts.Database.GetChatOrganizationModelOverridesByContext(ctx, string(codersdk.ChatModelOverrideContextAdvisor))
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat advisor model overrides for telemetry", slog.Error(err))
+	} else {
+		for _, override := range overrides {
+			// When the override's model is disabled or deleted, the runtime
+			// falls back to the chat model.
+			provider, model := AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+			if override.ModelAvailable {
+				provider, model = override.ProviderType, override.Model
+			}
+			payload.Overrides = append(payload.Overrides, AgentsAdvisorOverrideTelemetry{
+				OrganizationID: override.OrganizationID.String(),
+				Provider:       provider,
+				Model:          model,
+			})
+		}
+	}
+
+	val, err := json.Marshal(payload)
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent advisor telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
 
 type TelemetryItem struct {
 	Key       string    `json:"key"`
@@ -2435,6 +2395,7 @@ type BoundaryUsageSummary struct {
 type Chat struct {
 	ID                uuid.UUID  `json:"id"`
 	OwnerID           uuid.UUID  `json:"owner_id"`
+	OrganizationID    uuid.UUID  `json:"organization_id"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 	Status            string     `json:"status"`
@@ -2462,7 +2423,6 @@ type ChatMessageSummary struct {
 	TotalReasoningTokens     int64     `json:"total_reasoning_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
-	TotalCostMicros          int64     `json:"total_cost_micros"`
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 	DistinctModelCount       int64     `json:"distinct_model_count"`
 	CompressedMessageCount   int64     `json:"compressed_message_count"`
@@ -2471,12 +2431,14 @@ type ChatMessageSummary struct {
 // ChatModelConfig contains model configuration metadata for
 // telemetry. Sensitive fields like API keys are excluded.
 type ChatModelConfig struct {
-	ID           uuid.UUID `json:"id"`
-	Provider     string    `json:"provider"`
-	Model        string    `json:"model"`
-	ContextLimit int64     `json:"context_limit"`
-	Enabled      bool      `json:"enabled"`
-	IsDefault    bool      `json:"is_default"`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Provider       string    `json:"provider"`
+	Model          string    `json:"model"`
+	ContextLimit   int64     `json:"context_limit"`
+	Enabled        bool      `json:"enabled"`
+	// Each organization has at most one default configuration.
+	IsDefault bool `json:"is_default"`
 }
 
 // ChatDiffStatusSummary contains aggregate PR counts across all
@@ -2501,7 +2463,9 @@ type ChatDiffStatusSummary struct {
 // UsersWithSecrets is the count of active non-system users that have
 // at least one secret. TotalSecrets is the count of secrets owned by
 // those users. EnvNameOnly, FilePathOnly, Both, and Neither break
-// TotalSecrets down by which injection fields are populated.
+// TotalSecrets down by which target fields are stored. They do not
+// describe effective delivery because deployment policy can block a
+// stored target.
 //
 // The SecretsPerUser* fields describe the distribution of secrets per
 // user across the entire active non-system user base, including users
@@ -2523,9 +2487,8 @@ type UserSecretsSummary struct {
 }
 
 // TemplateBuilderSession tracks a single event in the template builder
-// wizard. Two events are emitted per session: one on wizard entry and
-// one on compose completion. User-supplied variable values are never
-// included.
+// wizard: entry, compose completion, and build failure. User-supplied
+// variable values are never included.
 type TemplateBuilderSession struct {
 	ID              uuid.UUID `json:"id"`
 	EventType       string    `json:"event_type"`
@@ -2534,7 +2497,53 @@ type TemplateBuilderSession struct {
 	ModuleIDs       []string  `json:"module_ids,omitempty"`
 	DurationSeconds float64   `json:"duration_seconds,omitempty"`
 	Success         bool      `json:"success,omitempty"`
+	FailureReason   string    `json:"failure_reason,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
+}
+
+// TemplateBuilderSessionEventBuildFailure is stamped by coderd when a
+// template builder create request fails. The wizard reports entry and
+// compose completion itself, but only the server knows why a build failed,
+// and the event must survive the browser navigating away. It is therefore
+// absent from the codersdk event type enum, which clients may send.
+const TemplateBuilderSessionEventBuildFailure = "build_failure"
+
+// Reasons a template builder build failed, reported on
+// TemplateBuilderSessionEventBuildFailure events. The provisioner reasons
+// mirror templatebuilder.ProvisionerErrorCategory, which is derived from the
+// provisioner job error and its logs.
+const (
+	TemplateBuilderFailureInvalidRequest     = "invalid_request"
+	TemplateBuilderFailureComposeInvalid     = "compose_invalid"
+	TemplateBuilderFailureNameConflict       = "name_conflict"
+	TemplateBuilderFailureImportCanceled     = "import_canceled"
+	TemplateBuilderFailureImportTimeout      = "import_timeout"
+	TemplateBuilderFailureProvisionerNetwork = "provisioner_network"
+	TemplateBuilderFailureProvisionerAuth    = "provisioner_auth"
+	TemplateBuilderFailureProvisionerUnknown = "provisioner_unknown"
+	TemplateBuilderFailureInternal           = "internal"
+)
+
+// Steps of the premium trial funnel. These are set by coderd rather than the
+// client so that a conversion cannot be forged.
+const (
+	PremiumFunnelEventCTAClick    = "cta_click"
+	PremiumFunnelEventTrialSignup = "trial_signup"
+)
+
+// PremiumFunnelEvent tracks a single step of the premium trial funnel: a
+// paywall call to action being clicked, or a trial license being issued.
+// AttributionID carries the ID of the cta_click event that led to a trial
+// signup, so signups can be joined back to the paywall that produced them; it
+// is the nil UUID for clicks and for trials started without a paywall.
+type PremiumFunnelEvent struct {
+	ID            uuid.UUID `json:"id"`
+	EventType     string    `json:"event_type"`
+	Source        string    `json:"source"`
+	Variant       string    `json:"variant"`
+	AttributionID uuid.UUID `json:"attribution_id"`
+	UserID        uuid.UUID `json:"user_id"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

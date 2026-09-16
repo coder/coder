@@ -81,6 +81,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 			"CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=hunter12",
 			"CODER_EXTERNAL_AUTH_1_TOKEN_URL=google.com",
 			"CODER_EXTERNAL_AUTH_1_VALIDATE_URL=bing.com",
+			"CODER_EXTERNAL_AUTH_1_REDIRECT_URL=coder.com",
 			"CODER_EXTERNAL_AUTH_1_REVOKE_URL=revoke.url",
 			"CODER_EXTERNAL_AUTH_1_SCOPES=repo:read repo:write",
 			"CODER_EXTERNAL_AUTH_1_NO_REFRESH=true",
@@ -101,6 +102,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "hunter12", providers[1].ClientSecret)
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, "coder.com", providers[1].RedirectURL)
 		assert.Equal(t, "revoke.url", providers[1].RevokeURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
 		assert.Equal(t, true, providers[1].NoRefresh)
@@ -193,6 +195,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 			"CODER_GITAUTH_1_CLIENT_SECRET=hunter12",
 			"CODER_GITAUTH_1_TOKEN_URL=google.com",
 			"CODER_GITAUTH_1_VALIDATE_URL=bing.com",
+			"CODER_GITAUTH_1_REDIRECT_URL=coder.com",
 			"CODER_GITAUTH_1_SCOPES=repo:read repo:write",
 			"CODER_GITAUTH_1_NO_REFRESH=true",
 		})
@@ -209,6 +212,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "hunter12", providers[1].ClientSecret)
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, "coder.com", providers[1].RedirectURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
 		assert.Equal(t, true, providers[1].NoRefresh)
 	})
@@ -225,14 +229,14 @@ func TestServer(t *testing.T) {
 
 		inv, cfg := clitest.New(t,
 			"server",
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--cache-dir", t.TempDir(),
 		)
 
 		const superDuperLong = testutil.WaitSuperLong * 3
 		ctx := testutil.Context(t, superDuperLong)
-		clitest.Start(t, inv.WithContext(ctx))
+		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 
 		//nolint:gocritic // Embedded postgres take a while to fire up.
 		require.Eventually(t, func() bool {
@@ -248,7 +252,7 @@ func TestServer(t *testing.T) {
 
 		inv, _ := clitest.New(t,
 			"server",
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--ephemeral",
 		)
@@ -326,13 +330,13 @@ func TestServer(t *testing.T) {
 		inv, cfg := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t).Attach(inv)
 		require.NoError(t, pty.Resize(20, 80))
-		clitest.Start(t, inv)
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -377,7 +381,9 @@ func TestServer(t *testing.T) {
 		out := pty.ReadAll()
 		numLines := countLines(string(out))
 		t.Logf("numLines: %d", numLines)
-		require.Less(t, numLines, 20, "expected less than 20 lines of output (terminal width 80), got %d", numLines)
+		// The OAuth2 provider state line is logged on every start and wraps
+		// to two rows at this width.
+		require.Less(t, numLines, 22, "expected less than 22 lines of output (terminal width 80), got %d", numLines)
 	})
 
 	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {
@@ -410,7 +416,8 @@ func TestServer(t *testing.T) {
 			args := []string{
 				"server",
 				"--postgres-url", dbURL,
-				"--http-address", ":0",
+				// Match the client's loopback address to avoid overlapping wildcard listeners on macOS.
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "https://example.com",
 			}
 			if tc.githubClientID != "" {
@@ -532,7 +539,7 @@ func TestServer(t *testing.T) {
 		inv, cfg := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
 		)
@@ -558,7 +565,7 @@ func TestServer(t *testing.T) {
 		inv, cfg := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
 		)
@@ -582,7 +589,7 @@ func TestServer(t *testing.T) {
 		inv, cfg := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
 		)
@@ -606,7 +613,7 @@ func TestServer(t *testing.T) {
 		root, _ := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
 		)
@@ -625,7 +632,7 @@ func TestServer(t *testing.T) {
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
-			"--tls-address", ":0",
+			"--tls-address", "127.0.0.1:0",
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
 		)
@@ -643,7 +650,7 @@ func TestServer(t *testing.T) {
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
-			"--tls-address", ":0",
+			"--tls-address", "127.0.0.1:0",
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
 		)
@@ -692,7 +699,7 @@ func TestServer(t *testing.T) {
 				args := []string{
 					"server",
 					dbArg(t),
-					"--http-address", ":0",
+					"--http-address", "127.0.0.1:0",
 					"--access-url", "http://example.com",
 					"--cache-dir", t.TempDir(),
 				}
@@ -717,7 +724,7 @@ func TestServer(t *testing.T) {
 			"--http-address", "",
 			"--access-url", "https://example.com",
 			"--tls-enable",
-			"--tls-address", ":0",
+			"--tls-address", "127.0.0.1:0",
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
@@ -753,7 +760,7 @@ func TestServer(t *testing.T) {
 			"--http-address", "",
 			"--access-url", "https://example.com",
 			"--tls-enable",
-			"--tls-address", ":0",
+			"--tls-address", "127.0.0.1:0",
 			"--tls-cert-file", cert1Path,
 			"--tls-key-file", key1Path,
 			"--tls-cert-file", cert2Path,
@@ -828,11 +835,11 @@ func TestServer(t *testing.T) {
 		inv, _ := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "https://example.com",
 			"--tls-enable",
 			"--tls-redirect-http-to-https=false",
-			"--tls-address", ":0",
+			"--tls-address", "127.0.0.1:0",
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
@@ -947,7 +954,7 @@ func TestServer(t *testing.T) {
 
 				httpListenAddr := ""
 				if c.httpListener {
-					httpListenAddr = ":0"
+					httpListenAddr = "127.0.0.1:0"
 				}
 
 				certPath, keyPath := generateTLSCertificate(t)
@@ -960,7 +967,7 @@ func TestServer(t *testing.T) {
 				if c.tlsListener {
 					flags = append(flags,
 						"--tls-enable",
-						"--tls-address", ":0",
+						"--tls-address", "127.0.0.1:0",
 						"--tls-cert-file", certPath,
 						"--tls-key-file", keyPath,
 						"--wildcard-access-url", "*.example.com",
@@ -1148,7 +1155,7 @@ func TestServer(t *testing.T) {
 			inv, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--address", ":0",
+				"--address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--cache-dir", t.TempDir(),
 			)
@@ -1173,7 +1180,7 @@ func TestServer(t *testing.T) {
 			root, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--address", ":0",
+				"--address", "127.0.0.1:0",
 				"--access-url", "https://example.com",
 				"--tls-enable",
 				"--tls-cert-file", certPath,
@@ -1208,7 +1215,7 @@ func TestServer(t *testing.T) {
 		inv, _ := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--trace=true",
 			"--cache-dir", t.TempDir(),
@@ -1230,7 +1237,7 @@ func TestServer(t *testing.T) {
 		inv, cfg := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--telemetry",
 			"--telemetry-url", telemetryServerURL.String(),
@@ -1270,11 +1277,11 @@ func TestServer(t *testing.T) {
 			inv, _ := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
 				"--prometheus-enable",
-				"--prometheus-address", ":0",
+				"--prometheus-address", "127.0.0.1:0",
 				// "--prometheus-collect-db-metrics", // disabled by default
 				"--cache-dir", t.TempDir(),
 			)
@@ -1331,11 +1338,11 @@ func TestServer(t *testing.T) {
 			inv, _ := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
 				"--prometheus-enable",
-				"--prometheus-address", ":0",
+				"--prometheus-address", "127.0.0.1:0",
 				"--prometheus-collect-db-metrics",
 				"--cache-dir", t.TempDir(),
 			)
@@ -1387,7 +1394,7 @@ func TestServer(t *testing.T) {
 		inv, cfg := clitest.New(t,
 			"server",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--oauth2-github-allow-everyone",
 			"--oauth2-github-client-id", "fake",
@@ -1434,7 +1441,7 @@ func TestServer(t *testing.T) {
 			inv, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--oidc-client-id", "fake",
 				"--oidc-client-secret", "fake",
@@ -1510,7 +1517,7 @@ func TestServer(t *testing.T) {
 			inv, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--oidc-client-id", "fake",
 				"--oidc-client-secret", "fake",
@@ -1611,7 +1618,7 @@ func TestServer(t *testing.T) {
 			inv, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--oidc-client-id", "fake",
 				"--oidc-client-secret", "fake",
@@ -1663,7 +1670,7 @@ func TestServer(t *testing.T) {
 			root, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 			)
 			serverErr := make(chan error, 1)
@@ -1691,7 +1698,7 @@ func TestServer(t *testing.T) {
 			root, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", val,
 			)
@@ -1719,7 +1726,7 @@ func TestServer(t *testing.T) {
 			root, cfg := clitest.New(t,
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", "-1",
 			)
@@ -1751,13 +1758,13 @@ func TestServer(t *testing.T) {
 				"server",
 				"--log-filter=.*",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
 				"--provisioner-types=echo",
 				"--log-human", fiName,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fiName, testutil.WaitLong)
 		})
@@ -1770,13 +1777,13 @@ func TestServer(t *testing.T) {
 				"server",
 				"--log-filter=.*",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
 				"--provisioner-types=echo",
 				"--log-human", fi,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
@@ -1789,13 +1796,13 @@ func TestServer(t *testing.T) {
 				"server",
 				"--log-filter=.*",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
 				"--provisioner-types=echo",
 				"--log-json", fi,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
@@ -1813,7 +1820,7 @@ func TestServer(t *testing.T) {
 			args := []string{
 				"server",
 				dbArg(t),
-				"--http-address", ":0",
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "http://example.com",
 				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-human"),
 				// We use ecdsa here because it's the fastest alternative algorithm.
@@ -2012,7 +2019,7 @@ func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
 		args := []string{
 			"server",
 			"--postgres-url", dbURL,
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "https://example.com",
 		}
 		args = append(args, tc.args...)
@@ -2137,7 +2144,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 			"server",
 			"--log-filter=.*",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--provisioner-daemons=3",
 			"--provisioner-types=echo",
@@ -2172,7 +2179,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 			"server",
 			"--log-filter=.*",
 			dbArg(t),
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--provisioner-daemons=3",
 			"--provisioner-types=echo",
@@ -2229,7 +2236,7 @@ func TestServer_Production(t *testing.T) {
 
 	inv, cfg := clitest.New(t,
 		"server",
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		dbArg(t),
 		"--cache-dir", t.TempDir(),
@@ -2288,7 +2295,7 @@ func TestServer_InterruptShutdown(t *testing.T) {
 	root, cfg := clitest.New(t,
 		"server",
 		dbArg(t),
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--provisioner-daemons", "1",
 		"--cache-dir", t.TempDir(),
@@ -2325,7 +2332,7 @@ func TestServer_AIGatewayShutdownOrdering(t *testing.T) {
 	inv, cfg := clitest.New(t,
 		"server",
 		dbArg(t),
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--cache-dir", t.TempDir(),
 		// Explicit so the test catches the regression even if the
@@ -2367,7 +2374,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	root, cfg := clitest.New(t,
 		"server",
 		dbArg(t),
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--provisioner-daemons", "1",
 		"--cache-dir", t.TempDir(),
@@ -2552,11 +2559,11 @@ func TestServer_DisabledDERP_EmptyBaseMap(t *testing.T) {
 	inv, cfg := clitest.New(t,
 		"server",
 		dbArg(t),
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
 	)
-	clitest.Start(t, inv.WithContext(ctx))
+	startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 	waitAccessURL(t, cfg)
 }
 
@@ -2577,12 +2584,12 @@ func TestServer_DisabledDERP_ExternalMap(t *testing.T) {
 	inv, cfg := clitest.New(t,
 		"server",
 		dbArg(t),
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
 		"--derp-config-url", srv.URL,
 	)
-	clitest.Start(t, inv.WithContext(ctx))
+	startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
 	derpURL, err := accessURL.Parse("/derp")
 	require.NoError(t, err)
@@ -2615,7 +2622,7 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		inv, _ := clitest.New(t,
 			"server",
 			"--postgres-url", dbConnURL,
-			"--http-address", ":0",
+			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example.com",
 			"--telemetry="+strconv.FormatBool(!opts.telemetryDisabled),
 			"--telemetry-url", telemetryServerURL.String(),

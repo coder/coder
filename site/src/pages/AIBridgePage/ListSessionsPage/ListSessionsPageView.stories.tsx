@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -14,19 +15,29 @@ import { ListSessionsPageView } from "./ListSessionsPageView";
 
 type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];
 
-const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-	query: "owner:me",
-	values: {
-		username: undefined,
-		provider: undefined,
-	},
-	menus: {
-		user: MockMenu,
-		provider: MockMenu,
-		client: MockMenu,
-		model: MockMenu,
-	},
-});
+const timeRange: DateTimeRangeValue = {
+	start: new Date("2026-08-12T15:00:00Z"),
+	end: new Date("2026-08-13T15:00:00Z"),
+	preset: "last_24h",
+};
+
+const defaultFilterProps: FilterProps = {
+	...getDefaultFilterProps<FilterProps>({
+		query: "owner:me",
+		values: {
+			username: undefined,
+			provider: undefined,
+		},
+		menus: {
+			user: MockMenu,
+			provider: MockMenu,
+			client: MockMenu,
+			model: MockMenu,
+		},
+	}),
+	timeRange,
+	onTimeRangeChange: fn(),
+};
 
 const meta: Meta<typeof ListSessionsPageView> = {
 	title: "pages/AIBridgePage/ListSessionsPageView",
@@ -106,6 +117,13 @@ export const MultipleSessions: Story = {
 				cache_read_input_tokens: 800 * (i + 1),
 				cache_write_input_tokens: 50 * (i + 1),
 			},
+			network_calls: [
+				{ total: 23, blocked: 2 },
+				{ total: 5, blocked: 1 },
+				{ total: 0, blocked: 0 },
+				undefined,
+				{ total: 150, blocked: 0 },
+			][i],
 		})),
 	},
 };

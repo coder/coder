@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/tidwall/gjson"
-
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: save compilation on each call.
@@ -62,7 +60,9 @@ func GuessSessionID(client Client, r *http.Request) *string {
 			return sid
 		}
 		return cleanRef(r.Header.Get("session_id"))
-	case ClientMux:
+	case ClientXum:
+		// Header name is intentionally still "X-Mux-Workspace-Id"; Xum keeps the
+		// wire value from before the Mux rename.
 		return cleanRef(r.Header.Get("X-Mux-Workspace-Id"))
 	case ClientZed:
 		return nil // Zed does not send a session ID from Zed Agent or Text Thread.
@@ -105,5 +105,5 @@ func cleanRef(str string) *string {
 		return nil
 	}
 
-	return utils.PtrTo(str)
+	return new(str)
 }

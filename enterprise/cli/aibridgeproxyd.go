@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -57,11 +58,19 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 		}
 	}
 
+	target, err := resolveAIGatewayProxyTarget(
+		coderAPI.AccessURL,
+		coderAPI.DeploymentValues.AI.BridgeProxyConfig.Target.String(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	srv, err := aibridgeproxyd.New(ctx, logger, aibridgeproxyd.Options{
 		ListenAddr:          coderAPI.DeploymentValues.AI.BridgeProxyConfig.ListenAddr.String(),
 		TLSCertFile:         coderAPI.DeploymentValues.AI.BridgeProxyConfig.TLSCertFile.String(),
 		TLSKeyFile:          coderAPI.DeploymentValues.AI.BridgeProxyConfig.TLSKeyFile.String(),
-		CoderAccessURL:      coderAPI.AccessURL.String(),
+		GatewayURL:          target,
 		MITMCertFile:        coderAPI.DeploymentValues.AI.BridgeProxyConfig.MITMCertFile.String(),
 		MITMKeyFile:         coderAPI.DeploymentValues.AI.BridgeProxyConfig.MITMKeyFile.String(),
 		UpstreamProxy:       coderAPI.DeploymentValues.AI.BridgeProxyConfig.UpstreamProxy.String(),
@@ -92,6 +101,19 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 	}, nil
 }
 
+// resolveAIGatewayProxyTarget returns the URL to which the aibridgeproxyd should forward requests.
+func resolveAIGatewayProxyTarget(accessURL *url.URL, target string) (string, error) {
+	if target != "" {
+		return target, nil
+	}
+
+	target, err := url.JoinPath(accessURL.String(), agplaibridge.AIGatewayRootPath)
+	if err != nil {
+		return "", xerrors.Errorf("build embedded AI Gateway proxy target: %w", err)
+	}
+	return target, nil
+}
+
 // refreshProxyProviders classifies every ai_providers row as enabled,
 // disabled, or error so the proxy router and any observers see the full
 // configured set. Disabled rows are excluded from routing; errored rows
@@ -118,8 +140,8 @@ func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFun
 }
 
 // classifyProviderRow evaluates a single ai_providers row for routing.
-// seenHost is mutated to track the first provider that claimed each
-// hostname so later duplicates can be flagged as errors.
+// seenHost tracks the first provider per hostname so later duplicates
+// are flagged as proxy-excluded.
 func classifyProviderRow(row database.AIProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
 	out := aibridgeproxyd.ReloadedProvider{
 		ProviderOutcome: aibridged.ProviderOutcome{
@@ -136,21 +158,15 @@ func classifyProviderRow(row database.AIProvider, seenHost map[string]string) ai
 		out.Err = xerrors.New("base url is empty")
 		return out
 	}
-	u, err := url.Parse(row.BaseUrl)
-	if err != nil {
-		out.Status = aibridged.ProviderStatusError
-		out.Err = xerrors.Errorf("invalid base url %q: %w", row.BaseUrl, err)
-		return out
-	}
-	host := strings.ToLower(u.Hostname())
+	host := aibridged.BaseURLHostname(row.BaseUrl)
 	if host == "" {
 		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("base url %q has no hostname", row.BaseUrl)
 		return out
 	}
 	if claimedBy, taken := seenHost[host]; taken {
-		out.Status = aibridged.ProviderStatusError
-		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
+		out.Status = aibridged.ProviderStatusProxyExcluded
+		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, claimedBy, row.Name)
 		return out
 	}
 	seenHost[host] = row.Name

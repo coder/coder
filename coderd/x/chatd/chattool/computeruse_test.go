@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -140,7 +139,7 @@ func TestComputerUseProviderTool(t *testing.T) {
 		geometry.DeclaredHeight,
 	)
 	require.NoError(t, err)
-	assert.True(t, openaicomputeruse.IsTool(openAITool))
+	assert.True(t, fantasyopenai.IsComputerUseTool(openAITool))
 
 	_, err = chattool.ComputerUseProviderTool(
 		codersdk.ChatComputerUseProvider("unsupported"),

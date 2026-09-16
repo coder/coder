@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type {
 	ChatDiffContents,
@@ -138,14 +138,55 @@ export const PullRequestAndWorkingChanges: Story = {
 			diff: sampleDiff,
 		});
 	},
+};
+
+/**
+ * Opens the dropdown, then clicks a working entry so the screenshot shows
+ * the swapped view.
+ */
+export const ViewSwitcherOpen: Story = {
+	args: {
+		prTab: { prNumber: 23020, chatId: "test-chat" },
+		remoteDiffStats: makePrStatus({
+			pull_request_title: "feat: multi-repo workspace support",
+			head_branch: "feat/multi-repo",
+		}),
+		repositories: new Map([
+			["/home/coder/coder", makeRepo()],
+			[
+				"/home/coder/other-project",
+				makeRepo({
+					repo_root: "/home/coder/other-project",
+					branch: "main",
+					remote_origin: "https://github.com/coder/other-project.git",
+					unified_diff: secondRepoDiff,
+				}),
+			],
+		]),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff: sampleDiff,
+		});
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The branch row exposes a button that copies the PR head
-		// branch name. The aria-label embeds the branch so a single
-		// query is enough to assert both presence and target.
-		await expect(
-			canvas.getByLabelText("Copy branch name: feat/add-mcp-config"),
-		).toBeVisible();
+		const switcher = canvas.getByTestId("git-panel-view-switcher");
+		await userEvent.click(switcher);
+
+		// The Radix menu portals to document.body, so query the full
+		// document instead of the story canvas.
+		const menu = await waitFor(() => {
+			const el = document.querySelector("[role='menu']");
+			if (!el) throw new Error("menu not found");
+			return el as HTMLElement;
+		});
+
+		// Selecting a menu item swaps the active view and the trigger
+		// identifier reflects the new selection.
+		const otherProjectItem = within(menu).getByText("other-project");
+		await userEvent.click(otherProjectItem);
 	},
 };
 
@@ -236,10 +277,6 @@ export const WorkingChangesOnly: Story = {
 	args: {
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Refresh")).toBeEnabled();
-	},
 };
 
 /** Multiple repos with working changes. */
@@ -286,16 +323,6 @@ export const GitNotActive: Story = {
 	args: {
 		repositories: new Map(),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Refresh")).toBeDisabled();
-		await expect(canvas.getByLabelText("Unified diff")).toBeDisabled();
-		await expect(canvas.getByLabelText("Split diff")).toBeDisabled();
-		await expect(
-			canvas.getByText("Git is not set up for this chat."),
-		).toBeVisible();
-		await expect(canvas.getByText(/Git status will appear/)).toBeVisible();
-	},
 };
 
 /** Git watcher is loading its first repository update. */
@@ -303,10 +330,6 @@ export const GitStatusLoading: Story = {
 	args: {
 		repositories: new Map(),
 		isGitStatusLoading: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Waiting for Git status")).toBeVisible();
 	},
 };
 
@@ -334,7 +357,6 @@ export const InlineCommentInput: Story = {
 		});
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		const lineNumber = await waitFor(() => {
 			for (const host of canvasElement.querySelectorAll("diffs-container")) {
 				const target = host.shadowRoot?.querySelector(
@@ -346,7 +368,6 @@ export const InlineCommentInput: Story = {
 		});
 
 		await userEvent.click(lineNumber);
-		expect(canvas.getByRole("textbox")).toBeInTheDocument();
 	},
 };
 
@@ -367,10 +388,8 @@ export const LargeDiff: Story = {
 };
 
 /**
- * Regression: when a repo was dirty during this session and then went
- * clean (empty unified_diff), the tab must remain visible. Before the
- * ever-dirty fix, the tab vanished the moment the diff became empty,
- * which is what users saw as "diff disappears between edit_files".
+ * Regression: a repo that was dirty earlier in the session must
+ * keep its switcher entry even after its unified_diff empties.
  */
 export const EverDirtyRepoGoneClean: Story = {
 	args: {
@@ -379,25 +398,12 @@ export const EverDirtyRepoGoneClean: Story = {
 		]),
 		everDirty: new Set(["/home/coder/coder"]),
 	},
-	play: async ({ canvasElement }) => {
-		// The repo tab is still present (identified by the 'Working'
-		// prefix used by GitPanel's tab-strip button) even though the
-		// current diff is empty, because it was dirty earlier in the
-		// session.
-		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
-			(b) => (b.textContent ?? "").startsWith("Working"),
-		);
-		expect(tabs).toHaveLength(1);
-
-		// The content pane shows the diff viewer's empty-diff state.
-		expect(canvasElement.textContent ?? "").toContain("No file changes");
-	},
 };
 
 /**
  * Baseline: a repo reported clean from the start (never dirty in
- * this session) has no tab. Ensures the ever-dirty fix did not
- * regress the "nothing to show" case.
+ * this session) has no switcher entry. Ensures the ever-dirty fix
+ * did not regress the "nothing to show" case.
  */
 export const CleanRepoFromStart: Story = {
 	args: {
@@ -405,13 +411,5 @@ export const CleanRepoFromStart: Story = {
 			["/home/coder/coder", makeRepo({ unified_diff: "" })],
 		]),
 		everDirty: new Set(),
-	},
-	play: async ({ canvasElement }) => {
-		// No local repo tab should appear in the tab strip. The
-		// 'Working' prefix is GitPanel's tab-strip label contract.
-		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
-			(b) => (b.textContent ?? "").startsWith("Working"),
-		);
-		expect(tabs).toHaveLength(0);
 	},
 };

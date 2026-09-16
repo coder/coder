@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -20,6 +21,14 @@ const embeddableApp: WorkspaceApp = {
 	external: false,
 	hidden: false,
 	command: undefined,
+};
+
+const mockAgentBrowserApp: WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "agent-browser-app",
+	slug: AGENT_BROWSER_APP_SLUG,
+	display_name: "agent-browser",
+	health: "healthy",
 };
 
 const commandApp: WorkspaceApp = {
@@ -55,6 +64,9 @@ const meta = {
 		},
 		host: "*.apps.example.com",
 		isRunning: true,
+		supportedSingletonTabs: ["browser", "desktop", "debug"],
+		visibleSingletonTabs: ["desktop"],
+		onToggleSingletonTab: fn(),
 		onNewTerminal: fn(),
 		onOpenWorkspaceApp: fn(),
 		onOpenCommandApp: fn(),
@@ -103,8 +115,41 @@ export const Default: Story = {
 			expect(body.getByText("Ports (3)")).toBeInTheDocument();
 		});
 
+		// Only the singleton panels are toggles. Terminals are unlimited, so
+		// "New Terminal" stays a plain action.
+		expect(
+			body.getByRole("menuitemcheckbox", { name: "Desktop" }),
+		).toHaveAttribute("aria-checked", "true");
+		expect(
+			body.getByRole("menuitemcheckbox", { name: "Browser" }),
+		).toHaveAttribute("aria-checked", "false");
+		expect(
+			body.getByRole("menuitemcheckbox", { name: "Debug" }),
+		).toHaveAttribute("aria-checked", "false");
+		expect(
+			body.queryAllByRole("menuitemcheckbox", { name: "New Terminal" }),
+		).toHaveLength(0);
+
 		// Radix closes the menu after each item click, so reopen between
 		// callback assertions.
+		await userEvent.click(
+			body.getByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+		await expect(args.onToggleSingletonTab).toHaveBeenCalledWith("browser");
+
+		await openMenu();
+		await userEvent.click(
+			body.getByRole("menuitemcheckbox", { name: "Desktop" }),
+		);
+		await expect(args.onToggleSingletonTab).toHaveBeenCalledWith("desktop");
+
+		await openMenu();
+		await userEvent.click(
+			body.getByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await expect(args.onToggleSingletonTab).toHaveBeenCalledWith("debug");
+
+		await openMenu();
 		await userEvent.click(body.getByText("New Terminal"));
 		await expect(args.onNewTerminal).toHaveBeenCalledTimes(1);
 
@@ -130,6 +175,36 @@ export const Default: Story = {
 		await expect(args.onOpenPort).toHaveBeenCalledWith(
 			expect.objectContaining({ port: 8080 }),
 		);
+	},
+};
+
+export const UnsupportedSingletonPanels: Story = {
+	args: {
+		supportedSingletonTabs: [],
+		visibleSingletonTabs: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Add panel"));
+
+		await within(document.body).findByText("New Terminal");
+	},
+};
+
+export const ExcludesAgentBrowserApp: Story = {
+	args: {
+		agent: {
+			...MockWorkspaceAgent,
+			apps: [embeddableApp, mockAgentBrowserApp],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Add panel"));
+
+		const body = within(document.body);
+		await body.findByText("Preview");
+		await body.findByRole("menuitemcheckbox", { name: "Browser" });
 	},
 };
 

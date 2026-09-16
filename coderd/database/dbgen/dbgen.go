@@ -93,6 +93,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	}
 
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
 		WorkspaceID:       seed.WorkspaceID,
@@ -122,20 +123,10 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		content = string(seed.Content.RawMessage)
 	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
-	apiKeyID := seed.APIKeyID.String
-	// Mint a real API key for user turns so the api_key_id foreign key is
-	// satisfied. Without a creator we leave it empty, which the insert query
-	// stores as NULL.
-	if role == database.ChatMessageRoleUser && apiKeyID == "" &&
-		seed.CreatedBy.Valid && seed.CreatedBy.UUID != uuid.Nil {
-		key, _ := APIKey(t, db, database.APIKey{UserID: seed.CreatedBy.UUID})
-		apiKeyID = key.ID
-	}
 
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-		APIKeyID:            []string{apiKeyID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
 		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
 		Role:                []database.ChatMessageRole{role},
@@ -150,12 +141,11 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
-		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
-	return msgs[0]
+	return database.ChatMessage(msgs[0])
 }
 
 const (
@@ -188,6 +178,19 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		}
 		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
 	params := database.InsertChatModelConfigParams{
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
@@ -199,6 +202,9 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
 		AIProviderID:         aiProviderID,
+		OrganizationID:       organizationID,
+		GroupACL:             groupACL,
+		UserACL:              userACL,
 	}
 	for _, fn := range munge {
 		fn(&params)
@@ -338,6 +344,15 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
 	t.Helper()
 
+	// New configs belong to the default organization, matching the
+	// org-less shape they had before configs became org-scoped.
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+
 	// CreatedBy and UpdatedBy are user FKs, so default fixtures create a user.
 	createdBy := seed.CreatedBy.UUID
 	if createdBy == uuid.Nil {
@@ -348,7 +363,20 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		updatedBy = createdBy
 	}
 
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
+	if userACL == nil {
+		userACL = database.ChatACL{}
+	}
+
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		OrganizationID:          organizationID,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
 		Description:             seed.Description,
@@ -361,6 +389,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
+		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -374,6 +403,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		ModelIntent:             seed.ModelIntent,
 		AllowInPlanMode:         seed.AllowInPlanMode,
 		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
+		GroupACL:                groupACL,
+		UserACL:                 userACL,
 		CreatedBy:               createdBy,
 		UpdatedBy:               updatedBy,
 	})
@@ -564,6 +595,8 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
+		AgentsAllowed:                seed.AgentsAllowed,
+		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
 	})
 	require.NoError(t, err, "insert template")
 
@@ -787,7 +820,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		}
 		// Some tests run WorkspaceAgentScriptTiming in a loop and run into
 		// a unique violation - 2 rows get the same started_at value.
-		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt == time.Time{}) {
+		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt.Equal(time.Time{})) {
 			// Wait 1 millisecond so dbtime.Now() changes
 			time.Sleep(time.Millisecond * 1)
 			continue
@@ -903,7 +936,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 
 	buildID := takeFirst(orig.ID, uuid.New())
 	jobID := takeFirst(orig.JobID, uuid.New())
-	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
 	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -938,10 +970,9 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			require.NoError(t, err)
 		}
 
-		if hasAITask.Valid || hasExternalAgent.Valid {
+		if hasExternalAgent.Valid {
 			require.NoError(t, db.UpdateWorkspaceBuildFlagsByID(genCtx, database.UpdateWorkspaceBuildFlagsByIDParams{
 				ID:               buildID,
-				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
 				UpdatedAt:        dbtime.Now(),
 			}))
@@ -1158,7 +1189,7 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 	require.NotEqual(t, member.UserID, uuid.Nil, "A user id is required to use 'dbgen.GroupMember', use 'dbgen.User'.")
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
 
-	//nolint:gosimple
+	//nolint:staticcheck
 	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
 		UserID:  member.UserID,
 		GroupID: member.GroupID,
@@ -1559,7 +1590,6 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
-	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
 	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	jobID := takeFirst(orig.JobID, uuid.New())
 	err := db.InTx(func(db database.Store) error {
@@ -1581,10 +1611,9 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			return err
 		}
 
-		if hasAITask.Valid || hasExternalAgent.Valid {
+		if hasExternalAgent.Valid {
 			require.NoError(t, db.UpdateTemplateVersionFlagsByJobID(genCtx, database.UpdateTemplateVersionFlagsByJobIDParams{
 				JobID:            jobID,
-				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
 				UpdatedAt:        dbtime.Now(),
 			}))
@@ -1681,55 +1710,74 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	return v
 }
 
+// WorkspaceAgentStat inserts a workspace agent stat row. Seed the
+// session_counts column by setting SessionCounts on orig, for example with
+// the SessionCounts helper:
+//
+//	WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+//		SessionCounts: dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
+//	})
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
 	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
 
+	// The insert rejects null session count elements.
+	jsonCounts := orig.SessionCounts
+	if jsonCounts == nil {
+		jsonCounts = json.RawMessage("{}")
+	}
+
 	params := database.InsertWorkspaceAgentStatsParams{
-		ID:                          []uuid.UUID{takeFirst(orig.ID, uuid.New())},
-		CreatedAt:                   []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
-		UserID:                      []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
-		TemplateID:                  []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
-		WorkspaceID:                 []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
-		AgentID:                     []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
-		ConnectionsByProto:          jsonProto,
-		ConnectionCount:             []int64{takeFirst(orig.ConnectionCount, 0)},
-		RxPackets:                   []int64{takeFirst(orig.RxPackets, 0)},
-		RxBytes:                     []int64{takeFirst(orig.RxBytes, 0)},
-		TxPackets:                   []int64{takeFirst(orig.TxPackets, 0)},
-		TxBytes:                     []int64{takeFirst(orig.TxBytes, 0)},
-		SessionCountVSCode:          []int64{takeFirst(orig.SessionCountVSCode, 0)},
-		SessionCountJetBrains:       []int64{takeFirst(orig.SessionCountJetBrains, 0)},
-		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
-		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
-		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
-		Usage:                       []bool{takeFirst(orig.Usage, false)},
+		ID:                        []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		CreatedAt:                 []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		UserID:                    []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
+		TemplateID:                []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
+		WorkspaceID:               []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
+		AgentID:                   []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
+		ConnectionsByProto:        jsonProto,
+		ConnectionCount:           []int64{takeFirst(orig.ConnectionCount, 0)},
+		RxPackets:                 []int64{takeFirst(orig.RxPackets, 0)},
+		RxBytes:                   []int64{takeFirst(orig.RxBytes, 0)},
+		TxPackets:                 []int64{takeFirst(orig.TxPackets, 0)},
+		TxBytes:                   []int64{takeFirst(orig.TxBytes, 0)},
+		SessionCounts:             json.RawMessage(fmt.Sprintf("[%s]", jsonCounts)),
+		ConnectionMedianLatencyMS: []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+		Usage:                     []bool{takeFirst(orig.Usage, false)},
 	}
 	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
 
 	return database.WorkspaceAgentStat{
-		ID:                          params.ID[0],
-		CreatedAt:                   params.CreatedAt[0],
-		UserID:                      params.UserID[0],
-		AgentID:                     params.AgentID[0],
-		WorkspaceID:                 params.WorkspaceID[0],
-		TemplateID:                  params.TemplateID[0],
-		ConnectionsByProto:          orig.ConnectionsByProto,
-		ConnectionCount:             params.ConnectionCount[0],
-		RxPackets:                   params.RxPackets[0],
-		RxBytes:                     params.RxBytes[0],
-		TxPackets:                   params.TxPackets[0],
-		TxBytes:                     params.TxBytes[0],
-		ConnectionMedianLatencyMS:   params.ConnectionMedianLatencyMS[0],
-		SessionCountVSCode:          params.SessionCountVSCode[0],
-		SessionCountJetBrains:       params.SessionCountJetBrains[0],
-		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
-		SessionCountSSH:             params.SessionCountSSH[0],
-		Usage:                       params.Usage[0],
+		ID:                        params.ID[0],
+		CreatedAt:                 params.CreatedAt[0],
+		UserID:                    params.UserID[0],
+		AgentID:                   params.AgentID[0],
+		WorkspaceID:               params.WorkspaceID[0],
+		TemplateID:                params.TemplateID[0],
+		ConnectionsByProto:        orig.ConnectionsByProto,
+		ConnectionCount:           params.ConnectionCount[0],
+		RxPackets:                 params.RxPackets[0],
+		RxBytes:                   params.RxBytes[0],
+		TxPackets:                 params.TxPackets[0],
+		TxBytes:                   params.TxBytes[0],
+		ConnectionMedianLatencyMS: params.ConnectionMedianLatencyMS[0],
+		Usage:                     params.Usage[0],
+		SessionCounts:             jsonCounts,
 	}
+}
+
+// SessionCounts marshals counts for the SessionCounts seed field of
+// WorkspaceAgentStat.
+func SessionCounts(t testing.TB, counts map[string]int64) json.RawMessage {
+	t.Helper()
+	if counts == nil {
+		counts = map[string]int64{}
+	}
+	raw, err := json.Marshal(counts)
+	require.NoError(t, err, "marshal session counts")
+	return raw
 }
 
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
@@ -1741,7 +1789,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		Icon:                    takeFirst(seed.Icon, ""),
 		CallbackURL:             takeFirst(seed.CallbackURL, "http://localhost"),
 		RedirectUris:            takeFirstSlice(seed.RedirectUris, []string{}),
-		ClientType:              takeFirst(seed.ClientType, sql.NullString{String: "confidential", Valid: true}),
+		ClientType:              takeFirst(seed.ClientType, "confidential"),
 		DynamicallyRegistered:   takeFirst(seed.DynamicallyRegistered, sql.NullBool{Bool: false, Valid: true}),
 		ClientIDIssuedAt:        takeFirst(seed.ClientIDIssuedAt, sql.NullTime{}),
 		ClientSecretExpiresAt:   takeFirst(seed.ClientSecretExpiresAt, sql.NullTime{}),
@@ -1792,22 +1840,29 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		CodeChallengeMethod: seed.CodeChallengeMethod,
 		StateHash:           seed.StateHash,
 		RedirectUri:         seed.RedirectUri,
+		Scope:               takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
 }
 
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
+	require.NotEqual(t, uuid.Nil, seed.AppID, "An app id is required to use 'dbgen.OAuth2ProviderAppToken', use 'dbgen.OAuth2ProviderApp'.")
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
-		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
+		AppID:       seed.AppID,
+		// Public (secretless) clients reference no secret, so a zero-value
+		// NullUUID is passed through as NULL rather than defaulted. takeFirst
+		// cannot express that, since NULL is its "unset" sentinel.
+		AppSecretID: seed.AppSecretID,
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
+		Scope:       takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
@@ -1971,6 +2026,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
+		Enabled:     takeFirst(seed.Enabled, true),
 	}
 	for _, mut := range mutators {
 		mut(&params)
@@ -2111,50 +2167,6 @@ func AIBridgeModelThought(t testing.TB, db database.Store, seed database.InsertA
 	return thought
 }
 
-func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Task {
-	t.Helper()
-
-	parameters := orig.TemplateParameters
-	if parameters == nil {
-		parameters = json.RawMessage([]byte("{}"))
-	}
-
-	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
-		ID:                 takeFirst(orig.ID, uuid.New()),
-		OrganizationID:     orig.OrganizationID,
-		OwnerID:            orig.OwnerID,
-		Name:               takeFirst(orig.Name, testutil.GetRandomNameHyphenated(t)),
-		DisplayName:        takeFirst(orig.DisplayName, testutil.GetRandomNameHyphenated(t)),
-		WorkspaceID:        orig.WorkspaceID,
-		TemplateVersionID:  orig.TemplateVersionID,
-		TemplateParameters: parameters,
-		Prompt:             orig.Prompt,
-		CreatedAt:          takeFirst(orig.CreatedAt, dbtime.Now()),
-	})
-	require.NoError(t, err, "failed to insert task")
-
-	// Return the Task from the view instead of the TaskTable
-	fetched, err := db.GetTaskByID(genCtx, task.ID)
-	require.NoError(t, err, "failed to fetch task")
-	require.Equal(t, task.ID, fetched.ID)
-
-	return fetched
-}
-
-func TaskWorkspaceApp(t testing.TB, db database.Store, orig database.TaskWorkspaceApp) database.TaskWorkspaceApp {
-	t.Helper()
-
-	app, err := db.UpsertTaskWorkspaceApp(genCtx, database.UpsertTaskWorkspaceAppParams{
-		TaskID:               orig.TaskID,
-		WorkspaceBuildNumber: orig.WorkspaceBuildNumber,
-		WorkspaceAgentID:     orig.WorkspaceAgentID,
-		WorkspaceAppID:       orig.WorkspaceAppID,
-	})
-	require.NoError(t, err, "failed to upsert task workspace app")
-
-	return app
-}
-
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
 	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
 		JobID:     takeFirst(seed.JobID, uuid.New()),
@@ -2228,6 +2240,8 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
+		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureChatFilesToken:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureNATSCA:
 		return generateCACryptoKeySecret()

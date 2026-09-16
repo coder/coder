@@ -1,4 +1,6 @@
-# Dynamic Parameters
+---
+title: Dynamic Parameters
+---
 
 Coder v2.24.0 introduces Dynamic Parameters to extend Coder [parameters](./parameters.md) with conditional form controls,
 enriched input types, and user identity awareness.
@@ -36,17 +38,16 @@ Dynamic Parameters help you reduce template duplication by setting the condition
 They reduce the potential complexity of user-facing configuration by allowing administrators to organize a long list of options into interactive, branching paths for workspace customization.
 They allow you to set resource guardrails by referencing Coder identity in the `coder_workspace_owner` data source.
 
-## How to enable Dynamic Parameters
+## How to use Dynamic Parameters
 
-In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new templates. For Coder v2.24 and below, you can opt-in to Dynamic Parameters for individual existing templates via template settings.
+Dynamic Parameters is the standard workspace creation experience.
+In Coder v2.25.0 and later it is enabled automatically, and the classic parameter flow is deprecated.
 
-1. Go to your template's settings and enable the **Enable dynamic parameters for workspace creation** option.
-
-   ![Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/dynamic-parameters-ga-settings.png)
+To use the features described on this page in an existing template:
 
 1. Update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
-   ```terraform
+   ```tf
    terraform {
      required_providers {
        coder = {
@@ -57,8 +58,7 @@ In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new
    }
    ```
 
-1. This enables Dynamic Parameters in the template.
-   Add some [conditional parameters](#available-form-input-types).
+1. Add some [conditional parameters](#available-form-input-types).
 
    Note that these new features must be declared in your Terraform to start leveraging Dynamic Parameters.
 
@@ -67,7 +67,17 @@ In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new
 1. Users should see the updated workspace creation form.
 
 Dynamic Parameters features are backwards compatible, so all existing templates may be upgraded in-place.
-If you decide to revert to the legacy flow later, disable Dynamic Parameters in the template's settings.
+
+## Data sources and cached template data
+
+Coder reads Terraform `data` sources once, when it imports a template version, and stores the results.
+Rendering the form evaluates your parameter expressions against those stored results, so a `data` source whose underlying value changes in your cloud or cluster keeps returning the imported value.
+
+The `coder_workspace_owner` data source is the exception.
+Coder substitutes the identity of the user filling in the form each time it renders, which is what makes [Identity-Aware Parameters](#identity-aware-parameters-premium) work.
+
+To pick up a change to any other `data` source, [refresh the template data](../managing-templates/index.md#refresh-template-data).
+This imports the active version's source files again and publishes the result as a new active version.
 
 ## Features and Capabilities
 
@@ -148,7 +158,7 @@ Users can avoid restrictions like `disabled` if they create a workspace via the 
 
 This attribute accepts JSON like so:
 
-```terraform
+```tf
 data "coder_parameter" "styled_parameter" {
   ...
   styling = jsonencode({
@@ -182,7 +192,7 @@ Single-select parameters with options can use the `form_type="dropdown"` attribu
 
 [Try dropdown lists on the Parameter Playground](https://playground.coder.app/parameters/kgNBpjnz7x)
 
-```terraform
+```tf
 locals {
   ides = [
     "VS Code",
@@ -219,7 +229,7 @@ The large text entry option can be used to enter long strings like AI prompts, s
 
 [Try textarea parameters on the Parameter Playground](https://playground.coder.app/parameters/RCAHA1Oi1_)
 
-```terraform
+```tf
 
 data "coder_parameter" "text_area" {
   name = "text_area"
@@ -249,7 +259,7 @@ For example, adding multiple IDEs with a single parameter.
 
 [Try multi-select parameters on the Parameter Playground](https://playground.coder.app/parameters/XogX54JV_f)
 
-```terraform
+```tf
 locals {
   ides = [
     "VS Code", "JetBrains IntelliJ",
@@ -289,7 +299,7 @@ This is the original styling for list parameters.
 
 [Try radio parameters on the Parameter Playground](https://playground.coder.app/parameters/3OMDp5ANZI).
 
-```terraform
+```tf
 data "coder_parameter" "environment" {
   name         = "environment"
   display_name = "Environment"
@@ -325,7 +335,7 @@ This can be used for a TOS confirmation or to expose advanced options.
 
 [Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 
-```terraform
+```tf
 data "coder_parameter" "enable_gpu" {
   name         = "enable_gpu"
   display_name = "Enable GPU"
@@ -342,7 +352,7 @@ The `validation` block is used to constrain (or clamp) the minimum and maximum v
 
 [Try slider parameters on the Parameters Playground](https://playground.coder.app/parameters/RsBNcWVvfm).
 
-```terraform
+```tf
 data "coder_parameter" "cpu_cores" {
   name         = "cpu_cores"
   display_name = "CPU Cores"
@@ -366,7 +376,7 @@ Note that this does not secure information on the backend and is purely cosmetic
 Note: This text may not be properly hidden in the Playground.
 The `mask_input` styling attribute is supported in v2.24.0 and later.
 
-```terraform
+```tf
 data "coder_parameter" "private_api_key" {
   name         = "private_api_key"
   display_name = "Your super secret API key"
@@ -405,7 +415,7 @@ Use Terraform conditionals and the `count` block to allow a checkbox to expose o
 
 [Try conditional parameters on the Parameter Playground](https://playground.coder.app/parameters/xmG5MKEGNM).
 
-```terraform
+```tf
 data "coder_parameter" "show_cpu_cores" {
   name         = "show_cpu_cores"
   display_name = "Toggles next parameter"
@@ -440,7 +450,7 @@ This allows you to suggest an option dynamically without strict enforcement.
 
 [Try dynamic defaults in the Parameter Playground](https://playground.coder.app/parameters/DEi-Bi6DVe).
 
-```terraform
+```tf
 locals {
   ides = [
     "VS Code",
@@ -505,7 +515,7 @@ A parameter's validation block can leverage inputs from other parameters.
 
 [Try dynamic validation in the Parameter Playground](https://playground.coder.app/parameters/sdbzXxagJ4).
 
-```terraform
+```tf
 data "coder_parameter" "git_repo" {
   name = "git_repo"
   display_name = "Git repo"
@@ -529,9 +539,6 @@ data "coder_parameter" "git_repo" {
 }
 
 data "coder_parameter" "cpu_cores" {
-  # Only show this parameter if the previous box is selected.
-  count = data.coder_parameter.show_cpu_cores.value ? 1 : 0
-
   name         = "cpu_cores"
   display_name = "CPU Cores"
   type         = "number"
@@ -557,7 +564,7 @@ Note that parameters must be indexed when using the `count` attribute.
 
 [Try daisy-chaining parameters in the Parameter Playground](https://playground.coder.app/parameters/jLUUhoDLIa).
 
-```terraform
+```tf
 
 locals {
   ides = [
@@ -659,7 +666,7 @@ data source.
 
 [Try out admin-only options in the Playground](https://playground.coder.app/parameters/5Gn9W3hYs7).
 
-```terraform
+```tf
 
 locals {
   roles = [for r in data.coder_workspace_owner.me.rbac_roles: r.name]
@@ -701,7 +708,7 @@ This way developers can't accidentally induce low-latency with world-spanning co
 
 [Try user-aware regions in the parameter playground](https://playground.coder.app/parameters/tBD-mbZRGm)
 
-```terraform
+```tf
 
 locals {
   eu_regions = [
@@ -752,7 +759,7 @@ Some users associate groups with namespaces, such as Kubernetes, then allow user
 
 [Try groups as options in the Parameter Playground](https://playground.coder.app/parameters/lKbU53nYjl).
 
-```terraform
+```tf
 locals {
   groups = data.coder_workspace_owner.me.groups
 }
@@ -803,18 +810,18 @@ Ensure that the following version requirements are met:
 
 Enabling Dynamic Parameters on an existing template requires administrators to publish a new template version.
 This will resolve the necessary template metadata to render the form.
+To publish one without editing the template's Terraform, [refresh the template data](../managing-templates/index.md#refresh-template-data).
 
-### Reverting to classic parameters
+### Revert to classic parameters
 
-To revert Dynamic Parameters on a template:
+The classic parameter flow is deprecated and will be removed in a future release.
+If a template does not work with Dynamic Parameters, you can opt that template out.
+Select **Settings** > **Parameters** on the template, then select **Use parameter compatibility mode for workspace builds**.
+You can also set the `use_classic_parameter_flow` field through the
+[templates API](../../../reference/api/templates.md#update-template-settings-by-id).
 
-1. Prepare your template by removing any conditional logic or user data references in parameters.
-1. As a template administrator or owner, go to your template's settings:
-
-   **Templates** > **Your template** > **Settings**
-
-1. Uncheck the **Enable dynamic parameters for workspace creation** option.
-1. Create a new template version and publish to the active version.
+If your template's parameters do not work with Dynamic Parameters, please
+[file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
 
 ### Template variables not showing up
 
@@ -839,8 +846,29 @@ Dynamic Parameters require Terraform modules to be archived and stored in the da
 
 You may see warnings in the provisioner logs:
 
-```text
+```txt
 [API] 2026-01-29 22:00:22.691 [warn]  provisionerd-nixos-0.executor: some (or all) terraform modules were not archived, template will have reduced function  skipped_modules=large:git::https://github.com/coder/large-module.git
 ```
 
 If encountered, reduce the size of the module by removing unnecessary files.
+
+You can hit the same error for a different reason: if the active template
+version has no cached module archive at all, the workspace creation form
+shows a warning for every module in the template, for example:
+
+```txt
+Module not loaded. Did you run `terraform init`?
+Module 'jetbrains' in file "main.tf:149,1-19" cannot be resolved. This module will be ignored.
+```
+
+This happens for template versions published before Coder started archiving
+modules for Dynamic Parameters. **Workspace builds still succeed**, since
+Terraform fetches modules from their original sources during the build
+regardless of the cache; only the form's ability to evaluate module-backed
+parameter values is affected. To fix it,
+[publish a new template version](../managing-templates/index.md#refresh-template-data),
+which re-runs `terraform init` and populates the archive for that version.
+
+This archive is the same one Coder reuses across workspace builds to avoid
+re-downloading modules. See [module caching](./modules.md#module-caching) for
+how to disable that behavior for a template.

@@ -1,4 +1,6 @@
-# Troubleshooting templates
+---
+title: Troubleshoot templates
+---
 
 Occasionally, you may run into scenarios where a workspace is created, but the
 agent is either not connected or the
@@ -119,10 +121,8 @@ Common causes for startup script errors:
 
 ### Debugging the startup script
 
-The simplest way to debug the
-[startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1)
-is to open the workspace in the Coder dashboard and click "Show startup log" (if
-not already visible). This will show all the output from the script. Another
+The simplest way to debug the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is to open the workspace in the Coder dashboard and select "Show startup log" (if not already visible).
+This will show all the output from the script. Another
 option is to view the log file inside the workspace (usually
 `/tmp/coder-startup-script.log`). If the logs don't indicate what's going on or
 going wrong, you can increase verbosity by adding `set -x` to the top of the
@@ -132,7 +132,7 @@ what's going on.
 
 Here's a short example of an informative startup script:
 
-```shell
+```sh
 echo "Running startup script..."
 echo "Run: long-running-command"
 /path/to/long-running-command
@@ -184,7 +184,7 @@ Refer to [Cannot connect to the Docker daemon](../../install/docker.md#cannot-co
 
 When you query `ContainerMemory` and encounter the error:
 
-```shell
+```sh
 open /sys/fs/cgroup/memory.max: no such file or directory
 ```
 
@@ -204,19 +204,19 @@ This error mostly affects Raspberry Pi OS, but might also affect older Debian-ba
 
 1. Add cgroup entries to `cmdline.txt` in `/boot/firmware` (or `/boot/` on older Pi OS releases):
 
-   ```text
+   ```txt
    cgroup_memory=1 cgroup_enable=memory
    ```
 
    You can use `sed` to add it to the file for you:
 
-   ```bash
+   ```sh
    sudo sed -i '$s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
    ```
 
 1. Reboot:
 
-   ```bash
+   ```sh
    sudo reboot
    ```
 

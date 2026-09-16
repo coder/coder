@@ -1,4 +1,6 @@
-# Test and Publish Coder Templates Through CI/CD
+---
+title: Test and publish Coder templates through CI/CD
+---
 
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
@@ -35,7 +37,7 @@ ensures your templates are validated, tested, and promoted seamlessly.
 
 For Premium deployments, create a service account:
 
-```shell
+```sh
 coder users create \
   --username machine-user \
   --service-account
@@ -46,7 +48,7 @@ coder tokens create --user machine-user --lifetime 8760h
 
 For OSS deployments, create a regular user:
 
-```shell
+```sh
 coder users create \
   --username machine-user \
   --email machine-user@example.com \
@@ -131,5 +133,5 @@ jobs:
       - name: Promote template version
         if: success()
         run: |
-          coder template version promote --template=$TEMPLATE_NAME --template-version=${{ steps.name.outputs.version_name }} --yes
+          coder template version promote --template=$TEMPLATE_NAME --template-version=${{ steps.name.outputs.version_name }}
 ```

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -13,7 +14,6 @@ import {
 } from "react";
 import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 const CONTENT_PADDING = 36;
@@ -241,7 +241,7 @@ export const Logs: FC<LogsProps> = ({ className, lines, ...divProps }) => {
 	return (
 		<div
 			className={cn(
-				"font-mono text-[13px] leading-relaxed p-6 bg-surface-secondary overflow-x-auto whitespace-pre-wrap break-all",
+				"font-mono text-sm font-normal leading-relaxed p-6 bg-surface-secondary overflow-x-auto whitespace-pre-wrap break-all",
 				className,
 			)}
 			{...divProps}

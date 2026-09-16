@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
@@ -50,6 +52,7 @@ func TestInstrument(t *testing.T) {
 		InstrumentedOAuth2Config: factory.New(id, idp.OIDCConfig(t, []string{})),
 		ID:                       "test",
 		ValidateURL:              must[*url.URL](t)(idp.IssuerURL().Parse("/oauth2/userinfo")).String(),
+		RefreshGroup:             new(singleflight.Group),
 	}
 
 	// 0 Requests before we start
@@ -235,4 +238,52 @@ func must[V any](t *testing.T) func(v V, err error) V {
 		require.NoError(t, err)
 		return v
 	}
+}
+
+func TestExternalRequestRateLimitedMetric(t *testing.T) {
+	t.Parallel()
+
+	const metricName = "coderd_oauth2_external_requests_rate_limited_total"
+	labels := func(status int) prometheus.Labels {
+		return prometheus.Labels{
+			"name":        "test",
+			"source":      string(promoauth.SourceValidateToken),
+			"status_code": fmt.Sprintf("%d", status),
+		}
+	}
+
+	reg := prometheus.NewRegistry()
+	cfg := promoauth.NewFactory(reg).New("test", &oauth2.Config{})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	do := func(t *testing.T, status int, headers map[string]string) {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			for k, v := range headers {
+				w.Header().Set(k, v)
+			}
+			w.WriteHeader(status)
+		}))
+		t.Cleanup(srv.Close)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+		require.NoError(t, err)
+		resp, err := cfg.Do(ctx, promoauth.SourceValidateToken, req)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+	}
+
+	// A 429 is counted as rate-limited under its status code.
+	do(t, http.StatusTooManyRequests, nil)
+	assert.Equal(t, 1, promhelp.CounterValue(t, reg, metricName, labels(http.StatusTooManyRequests)))
+
+	// A 403 carrying rate-limit headers is counted under its own status code.
+	do(t, http.StatusForbidden, map[string]string{"X-RateLimit-Remaining": "0"})
+	assert.Equal(t, 1, promhelp.CounterValue(t, reg, metricName, labels(http.StatusForbidden)))
+
+	// A 200 and a plain 403 (a genuine revocation) are not counted.
+	do(t, http.StatusOK, nil)
+	do(t, http.StatusForbidden, nil)
+	assert.Equal(t, 1, promhelp.CounterValue(t, reg, metricName, labels(http.StatusTooManyRequests)))
+	assert.Equal(t, 1, promhelp.CounterValue(t, reg, metricName, labels(http.StatusForbidden)))
+	assert.Nil(t, promhelp.MetricValue(t, reg, metricName, labels(http.StatusOK)))
 }

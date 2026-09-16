@@ -121,11 +121,12 @@ WHERE
 			organization_id = @organization_id
 		ELSE true
 	END
-	-- Filter by email or username
+	-- Filter by email, username, or name (display name)
 	AND CASE
 		WHEN @search :: text != '' THEN (
 			users.email ILIKE concat('%', @search, '%')
 			OR users.username ILIKE concat('%', @search, '%')
+			OR users.name ILIKE concat('%', @search, '%')
 		)
 		ELSE true
 	END
@@ -133,6 +134,18 @@ WHERE
 	AND CASE
 		WHEN @name :: text != '' THEN
 			users.name ILIKE concat('%', @name, '%')
+		ELSE true
+	END
+	-- Filter by exact username
+	AND CASE
+		WHEN @exact_username :: text != '' THEN
+			lower(users.username) = lower(@exact_username)
+		ELSE true
+	END
+	-- Filter by exact email
+	AND CASE
+		WHEN @exact_email :: text != '' THEN
+			lower(users.email) = lower(@exact_email)
 		ELSE true
 	END
 	-- Filter by status

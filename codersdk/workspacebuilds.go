@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,15 +62,6 @@ const (
 	BuildReasonVSCodeConnection BuildReason = "vscode_connection"
 	// BuildReasonJetbrainsConnection "jetbrains_connection" is used when a build to start a workspace is triggered by a JetBrains connection.
 	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
-	// BuildReasonTaskAutoPause "task_auto_pause" is used when a build to stop
-	// a task workspace is triggered by the lifecycle executor.
-	BuildReasonTaskAutoPause BuildReason = "task_auto_pause"
-	// BuildReasonTaskManualPause "task_manual_pause" is used when a build to
-	// stop a task workspace is triggered by a user.
-	BuildReasonTaskManualPause BuildReason = "task_manual_pause"
-	// BuildReasonTaskResume "task_resume" is used when a build to
-	// start a task workspace is triggered by a user.
-	BuildReasonTaskResume BuildReason = "task_resume"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
@@ -101,9 +91,7 @@ type WorkspaceBuild struct {
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
-	// Deprecated: This field has been deprecated in favor of Task WorkspaceID.
-	HasAITask        *bool `json:"has_ai_task,omitempty"`
-	HasExternalAgent *bool `json:"has_external_agent,omitempty"`
+	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:
@@ -147,7 +135,7 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
 type CancelWorkspaceBuildStatus string
@@ -233,7 +221,7 @@ func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx cont
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
 func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) ([]WorkspaceBuildParameter, error) {
@@ -246,7 +234,7 @@ func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) 
 		return nil, ReadBodyAsError(res)
 	}
 	var params []WorkspaceBuildParameter
-	return params, json.NewDecoder(res.Body).Decode(&params)
+	return params, ReadBodyAsJSON(res, &params)
 }
 
 type TimingStage string
@@ -313,5 +301,5 @@ func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (Wo
 		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
 	}
 	var timings WorkspaceBuildTimings
-	return timings, json.NewDecoder(res.Body).Decode(&timings)
+	return timings, ReadBodyAsJSON(res, &timings)
 }

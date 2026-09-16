@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import {
@@ -6,7 +7,6 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Label } from "#/components/Label/Label";
-import { cn } from "#/utils/cn";
 
 const RequiredMark = () => (
 	<span className="text-xs font-bold text-content-destructive">*</span>

@@ -1,17 +1,24 @@
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { MissingBuildParameters, ParameterValidationError } from "#/api/api";
+import { Link } from "react-router";
+import { ParameterValidationError } from "#/api/api";
 import { updateWorkspace } from "#/api/queries/workspaces";
 import type {
 	TemplateVersion,
 	Workspace,
 	WorkspaceBuild,
-	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
-import { UpdateBuildParametersDialog } from "#/modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
-import { UpdateBuildParametersDialogExperimental } from "#/modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 
 type UseWorkspaceUpdateOptions = {
 	workspace: Workspace;
@@ -23,10 +30,7 @@ type UseWorkspaceUpdateOptions = {
 type UseWorkspaceUpdateResult = {
 	update: () => void;
 	isUpdating: boolean;
-	dialogs: {
-		updateConfirmation: UpdateConfirmationDialogProps;
-		missingBuildParameters: MissingBuildParametersDialogProps;
-	};
+	dialogProps: WorkspaceUpdateDialogsProps;
 };
 
 export const useWorkspaceUpdate = ({
@@ -52,11 +56,9 @@ export const useWorkspaceUpdate = ({
 		setIsConfirmingUpdate(true);
 	};
 
-	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
+	const confirmUpdate = () => {
 		updateWorkspaceMutation.mutate({
-			buildParameters,
-			isDynamicParametersEnabled:
-				!workspace.template_use_classic_parameter_flow,
+			buildParameters: [],
 		});
 		setIsConfirmingUpdate(false);
 	};
@@ -64,57 +66,54 @@ export const useWorkspaceUpdate = ({
 	return {
 		update,
 		isUpdating: updateWorkspaceMutation.isPending,
-		dialogs: {
-			updateConfirmation: {
+		dialogProps: {
+			confirmUpdateDialogProps: {
 				open: isConfirmingUpdate,
 				onClose: () => setIsConfirmingUpdate(false),
 				onConfirm: () => confirmUpdate(),
 				latestVersion,
 			},
-			missingBuildParameters: {
-				workspace,
-				error: updateWorkspaceMutation.error,
-				onClose: () => {
-					updateWorkspaceMutation.reset();
-				},
-				onUpdate: (buildParameters: WorkspaceBuildParameter[]) => {
-					if (
-						updateWorkspaceMutation.error instanceof MissingBuildParameters ||
-						updateWorkspaceMutation.error instanceof ParameterValidationError
-					) {
-						confirmUpdate(buildParameters);
-					}
-				},
-			},
+			updateBuildParametersDialogProps:
+				updateWorkspaceMutation.error instanceof ParameterValidationError
+					? {
+							workspace,
+							error: updateWorkspaceMutation.error,
+							onClose: () => {
+								updateWorkspaceMutation.reset();
+							},
+						}
+					: undefined,
 		},
 	};
 };
 
 type WorkspaceUpdateDialogsProps = {
-	updateConfirmation: UpdateConfirmationDialogProps;
-	missingBuildParameters: MissingBuildParametersDialogProps;
+	confirmUpdateDialogProps: ConfirmUpdateDialogProps;
+	updateBuildParametersDialogProps?: UpdateBuildParametersDialogProps;
 };
 
 export const WorkspaceUpdateDialogs: FC<WorkspaceUpdateDialogsProps> = ({
-	updateConfirmation,
-	missingBuildParameters,
+	confirmUpdateDialogProps,
+	updateBuildParametersDialogProps,
 }) => {
 	return (
 		<>
-			<UpdateConfirmationDialog {...updateConfirmation} />
-			<MissingBuildParametersDialog {...missingBuildParameters} />
+			<ConfirmUpdateDialog {...confirmUpdateDialogProps} />
+			{updateBuildParametersDialogProps && (
+				<UpdateBuildParametersDialog {...updateBuildParametersDialogProps} />
+			)}
 		</>
 	);
 };
 
-type UpdateConfirmationDialogProps = {
+type ConfirmUpdateDialogProps = {
 	open: boolean;
 	onClose: () => void;
 	onConfirm: () => void;
 	latestVersion?: TemplateVersion;
 };
 
-const UpdateConfirmationDialog: FC<UpdateConfirmationDialogProps> = ({
+const ConfirmUpdateDialog: FC<ConfirmUpdateDialogProps> = ({
 	latestVersion,
 	...dialogProps
 }) => {
@@ -144,42 +143,49 @@ const UpdateConfirmationDialog: FC<UpdateConfirmationDialogProps> = ({
 	);
 };
 
-type MissingBuildParametersDialogProps = {
+type UpdateBuildParametersDialogProps = {
 	workspace: Workspace;
-	error: unknown;
+	error: ParameterValidationError;
 	onClose: () => void;
-	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 };
 
-const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
-	workspace,
-	error,
-	...dialogProps
-}) => {
-	const missedParameters =
-		error instanceof MissingBuildParameters ? error.parameters : [];
-	const versionId =
-		error instanceof ParameterValidationError ? error.versionId : undefined;
-	const isOpen =
-		error instanceof MissingBuildParameters ||
-		error instanceof ParameterValidationError;
+export const UpdateBuildParametersDialog: FC<
+	UpdateBuildParametersDialogProps
+> = ({ workspace, error, onClose }) => {
+	const templateVersionId = error.versionId;
+	const validations = error.validations;
 
-	return workspace.template_use_classic_parameter_flow ? (
-		<UpdateBuildParametersDialog
-			missedParameters={missedParameters}
-			open={isOpen}
-			{...dialogProps}
-		/>
-	) : (
-		<UpdateBuildParametersDialogExperimental
-			validations={
-				error instanceof ParameterValidationError ? error.validations : []
-			}
-			open={isOpen}
-			onClose={dialogProps.onClose}
-			workspaceOwnerName={workspace.owner_name}
-			workspaceName={workspace.name}
-			templateVersionId={versionId}
-		/>
+	return (
+		<Dialog open onOpenChange={() => onClose()}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Update workspace parameters</DialogTitle>
+					<DialogDescription>
+						This workspace has{" "}
+						<strong className="text-content-primary">
+							{validations.length} parameter
+							{validations.length === 1 ? "" : "s"}
+						</strong>{" "}
+						that must be configured to complete the update.
+					</DialogDescription>
+					<DialogDescription>
+						Would you like to go to the workspace parameters page to review and
+						update these parameters before continuing?
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button onClick={onClose} variant="outline">
+						Cancel
+					</Button>
+					<Button asChild>
+						<Link
+							to={`/@${workspace.owner_name}/${workspace.name}/settings/parameters?templateVersionId=${templateVersionId}`}
+						>
+							Go to workspace parameters
+						</Link>
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 };

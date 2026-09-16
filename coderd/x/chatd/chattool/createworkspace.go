@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -71,7 +71,6 @@ type CreateWorkspaceOptions struct {
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
 	Logger                         slog.Logger
-	AllowedTemplateIDs             func() map[uuid.UUID]bool
 }
 
 type createWorkspaceArgs struct {
@@ -115,10 +114,6 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("invalid template_id: %w", err).Error(),
 				), nil
-			}
-
-			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
-				return fantasy.NewTextErrorResponse("template not available for chat workspaces; use list_templates to find allowed templates"), nil
 			}
 
 			// Serialize workspace creation to prevent parallel
@@ -172,6 +167,9 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 					"template belongs to a different organization than this chat; " +
 						"use list_templates to find templates in the correct organization",
 				), nil
+			}
+			if !tmpl.AgentsAllowed {
+				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
 
 			hasExternalAgent, externalAgentErr := templateHasExternalAgent(ctx, db, tmpl)

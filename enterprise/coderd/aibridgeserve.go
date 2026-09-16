@@ -134,18 +134,20 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	go aiGatewayCheckEntitlementAndTrackKeyUsage(connCtx, keyCtxCancel, api, gatewayKey.ID, logger)
 
 	mux := drpcmux.New()
-	srv, err := aibridgedserver.NewServer(
-		connCtx,
-		api.Database,
-		api.AGPL.Pubsub,
-		logger,
-		api.AccessURL.String(),
-		api.DeploymentValues.AI.BridgeConfig,
-		api.ExternalAuthConfigs,
-		api.AGPL.Experiments,
-		api.AGPL.AISeatTracker,
-		api.AGPL.Clock,
-	)
+	srv, err := aibridgedserver.NewServer(connCtx, aibridgedserver.Options{
+		Store:                 api.Database,
+		Pubsub:                api.AGPL.Pubsub,
+		AISeatTracker:         api.AGPL.AISeatTracker,
+		Enqueuer:              api.AGPL.NotificationsEnqueuer,
+		AccessURL:             api.AccessURL.String(),
+		GatewayCfg:            api.DeploymentValues.AI.BridgeConfig,
+		ExternalAuthConfigs:   api.ExternalAuthConfigs,
+		Experiments:           api.AGPL.Experiments,
+		OAuth2ProviderEnabled: api.DeploymentValues.OAuth2.Provider.Enable.Value(),
+		Logger:                logger,
+		Clock:                 api.AGPL.Clock,
+		Metrics:               api.AGPL.AIGatewayServerMetrics,
+	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
 			logger.Error(connCtx, "server creation failed", slog.Error(err))
@@ -158,7 +160,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {

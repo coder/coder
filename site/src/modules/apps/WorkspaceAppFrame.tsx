@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
@@ -15,7 +16,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useProxy } from "#/contexts/ProxyContext";
-import { cn } from "#/utils/cn";
 import { isAppBlockedByMissingWildcard } from "./apps";
 import { useAppLink } from "./useAppLink";
 import { WorkspaceWildcardWarning } from "./WorkspaceWildcardWarning";
@@ -63,7 +63,7 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 						variant="subtle"
 						onClick={(e) => {
 							e.preventDefault();
-							if (frameRef.current?.contentWindow) {
+							if (link.href && frameRef.current?.contentWindow) {
 								frameRef.current.contentWindow.location.href = link.href;
 							}
 						}}
@@ -83,7 +83,11 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink to={link.href} target="_blank" rel="noreferrer">
+								<RouterLink
+									to={link.href ?? ""}
+									target="_blank"
+									rel="noreferrer"
+								>
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>

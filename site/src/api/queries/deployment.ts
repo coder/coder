@@ -18,9 +18,11 @@ export const deploymentDAUs = () => {
 	};
 };
 
+export const deploymentStatsQueryKey = ["deployment", "stats"];
+
 export const deploymentStats = () => {
 	return {
-		queryKey: ["deployment", "stats"],
+		queryKey: deploymentStatsQueryKey,
 		queryFn: API.getDeploymentStats,
 	};
 };

@@ -115,6 +115,76 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, template.AllowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
 	})
+	t.Run("AgentsAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		for _, tt := range []struct {
+			name                 string
+			initialAgentsAllowed bool
+			flag                 string
+			description          string
+			wantAgentsAllowed    bool
+		}{
+			{
+				name:                 "ExplicitTrue",
+				initialAgentsAllowed: false,
+				flag:                 "--agents-allowed=true",
+				wantAgentsAllowed:    true,
+			},
+			{
+				name:                 "ExplicitFalse",
+				initialAgentsAllowed: true,
+				flag:                 "--agents-allowed=false",
+				wantAgentsAllowed:    false,
+			},
+			{
+				name:                 "OmittedPreservesTrue",
+				initialAgentsAllowed: true,
+				description:          "updated description",
+				wantAgentsAllowed:    true,
+			},
+			{
+				name:                 "OmittedPreservesFalse",
+				initialAgentsAllowed: false,
+				description:          "updated description",
+				wantAgentsAllowed:    false,
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+				_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
+					req.AgentsAllowed = &tt.initialAgentsAllowed
+				})
+
+				cmdArgs := []string{"templates", "edit", template.Name}
+				if tt.flag != "" {
+					cmdArgs = append(cmdArgs, tt.flag)
+				}
+				if tt.description != "" {
+					cmdArgs = append(cmdArgs, "--description", tt.description)
+				}
+				inv, root := clitest.New(t, cmdArgs...)
+				clitest.SetupConfig(t, templateAdmin, root)
+
+				require.NoError(t, inv.Run())
+
+				updated, err := client.Template(t.Context(), template.ID)
+				require.NoError(t, err)
+				require.Equal(t, tt.wantAgentsAllowed, updated.AgentsAllowed)
+				if tt.description != "" {
+					require.Equal(t, tt.description, updated.Description)
+				}
+			})
+		}
+	})
+
 	t.Run("InvalidDisplayName", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

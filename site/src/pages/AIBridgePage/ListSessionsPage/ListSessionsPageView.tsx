@@ -5,7 +5,6 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
-import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Table,
 	TableBody,
@@ -21,6 +20,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { ListSessionsFilter } from "./ListSessionsFilter";
@@ -64,7 +64,12 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 	onSessionRowClick,
 }) => {
 	if (!isAISessionsEntitled) {
-		return <PaywallAIGovernance />;
+		return (
+			<PremiumPaywallAIGovernance
+				variant="sessions"
+				source="aibridge_sessions"
+			/>
+		);
 	}
 
 	if (!isAISessionsEnabled) {
@@ -86,6 +91,7 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
 							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
+							<TableHead className="text-nowrap">Network Requests</TableHead>
 							<TableHead className="flex items-center flex-nowrap gap-1">
 								Threads
 								<ThreadTooltip>

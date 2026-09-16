@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -73,13 +73,15 @@ export const EnablingAutostopUsesTemplateDefault: Story = {
 	},
 };
 
-export const ChangingAutostopShowsRestartDialog: Story = {
+export const EnablingAutostopShowsRestartDialog: Story = {
 	parameters: {
-		reactRouter: workspaceRouterParameters(MockWorkspace),
-		queries: workspaceQueries(MockWorkspace),
+		reactRouter: workspaceRouterParameters(autostopDisabledWorkspace),
+		queries: workspaceQueries(autostopDisabledWorkspace),
 	},
 	beforeEach: () => {
-		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			autostopDisabledWorkspace,
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -94,19 +96,94 @@ export const ChangingAutostopShowsRestartDialog: Story = {
 	},
 };
 
-const stoppedWorkspace: Workspace = {
-	...MockWorkspace,
-	latest_build: { ...MockWorkspaceBuild, status: "stopped" },
-};
-
-export const ChangingAutostopWhileStoppedSkipsDialog: Story = {
+export const ApplyLaterKeepsUserOnSchedulePage: Story = {
 	parameters: {
-		reactRouter: workspaceRouterParameters(stoppedWorkspace),
-		queries: workspaceQueries(stoppedWorkspace),
+		reactRouter: workspaceRouterParameters(autostopDisabledWorkspace),
+		queries: workspaceQueries(autostopDisabledWorkspace),
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
-			stoppedWorkspace,
+			autostopDisabledWorkspace,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+		const restartSpy = spyOn(API, "restartWorkspace");
+		await user.click(await canvas.findByLabelText("Enable Autostop"));
+		await user.click(await canvas.findByRole("button", { name: /save/i }));
+		await body.findByText("Restart workspace?");
+		await user.click(await body.findByRole("button", { name: /apply later/i }));
+		// The dialog closes without restarting or leaving the schedule page.
+		await waitFor(() =>
+			expect(body.queryByText("Restart workspace?")).not.toBeInTheDocument(),
+		);
+		expect(restartSpy).not.toHaveBeenCalled();
+		await canvas.findByLabelText("Enable Autostop");
+	},
+};
+
+export const ChangingAutostopValueShowsRestartDialog: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(MockWorkspace),
+		queries: workspaceQueries(MockWorkspace),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+		const ttlInput = await canvas.findByLabelText(
+			"Time until shutdown (hours)",
+		);
+		await user.clear(ttlInput);
+		await user.type(ttlInput, "4");
+		await user.click(await canvas.findByRole("button", { name: /save/i }));
+		await body.findByText(
+			`Schedule for workspace "${MockWorkspace.name}" updated successfully.`,
+		);
+		await body.findByText("Restart workspace?");
+	},
+};
+
+export const DisablingAutostopSkipsRestartDialog: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(MockWorkspace),
+		queries: workspaceQueries(MockWorkspace),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+		// MockWorkspace has autostop enabled, so clicking the toggle disables it.
+		await user.click(await canvas.findByLabelText("Enable Autostop"));
+		await user.click(await canvas.findByRole("button", { name: /save/i }));
+		await body.findByText(
+			`Schedule for workspace "${MockWorkspace.name}" updated successfully.`,
+		);
+		expect(body.queryByText("Restart workspace?")).not.toBeInTheDocument();
+	},
+};
+
+const stoppedAutostopDisabledWorkspace: Workspace = {
+	...autostopDisabledWorkspace,
+	latest_build: { ...MockWorkspaceBuild, status: "stopped" },
+};
+
+export const EnablingAutostopWhileStoppedSkipsDialog: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(stoppedAutostopDisabledWorkspace),
+		queries: workspaceQueries(stoppedAutostopDisabledWorkspace),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			stoppedAutostopDisabledWorkspace,
 		);
 	},
 	play: async ({ canvasElement }) => {

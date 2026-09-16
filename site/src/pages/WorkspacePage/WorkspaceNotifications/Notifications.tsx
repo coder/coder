@@ -1,25 +1,27 @@
+import { cn } from "cn";
 import { type FC, type ReactNode, useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { Pill } from "#/components/Pill/Pill";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import type { ThemeRole } from "#/theme/roles";
-import { cn } from "#/utils/cn";
 
-export type NotificationItem = {
+export type Notification = {
 	title: string;
 	severity: AlertProps["severity"];
 	detail?: ReactNode;
 	actions?: ReactNode;
 };
 
+type NotificationSeverity = "warning" | "info";
+
 type NotificationsProps = {
-	items: NotificationItem[];
-	severity: ThemeRole;
+	items: Notification[];
+	severity: NotificationSeverity;
 	icon: ReactNode;
 };
 
@@ -116,20 +118,20 @@ const NotificationPill: FC<NotificationPillProps> = ({
 	isOpen,
 }) => {
 	return (
-		<Pill
-			icon={icon}
+		<Badge
 			className={cn(
 				severityStyles[severity].svgColor,
 				isOpen && severityStyles[severity].border,
 			)}
 		>
+			{icon}
 			{items.length}
-		</Pill>
+		</Badge>
 	);
 };
 
 interface NotificationItemProps {
-	notification: NotificationItem;
+	notification: Notification;
 }
 
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {

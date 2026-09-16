@@ -42,28 +42,28 @@ import (
 
 func workspaceAgent() *serpent.Command {
 	var (
-		logDir                         string
-		scriptDataDir                  string
-		pprofAddress                   string
-		noReap                         bool
-		sshMaxTimeout                  time.Duration
-		tailnetListenPort              int64
-		prometheusAddress              string
-		debugAddress                   string
-		slogHumanPath                  string
-		slogJSONPath                   string
-		slogStackdriverPath            string
-		blockFileTransfer              bool
-		blockReversePortForwarding     bool
-		blockLocalPortForwarding       bool
-		agentHeaderCommand             string
-		agentHeader                    []string
-		devcontainers                  bool
-		devcontainerProjectDiscovery   bool
-		devcontainerDiscoveryAutostart bool
-		socketServerEnabled            bool
-		socketPath                     string
-		boundaryLogProxySocketPath     string
+		logDir                          string
+		scriptDataDir                   string
+		pprofAddress                    string
+		noReap                          bool
+		sshMaxTimeout                   time.Duration
+		tailnetListenPort               int64
+		prometheusAddress               string
+		debugAddress                    string
+		slogHumanPath                   string
+		slogJSONPath                    string
+		slogStackdriverPath             string
+		blockFileTransfer               bool
+		blockReversePortForwarding      bool
+		blockLocalPortForwarding        bool
+		agentHeaderCommand              string
+		agentHeader                     []string
+		devcontainers                   bool
+		devcontainerProjectDiscovery    bool
+		devcontainerDiscoveryAutostart  bool
+		socketServerEnabled             bool
+		socketPath                      string
+		agentFirewallLogProxySocketPath string
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -337,10 +337,10 @@ func workspaceAgent() *serpent.Command {
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
 						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
 					},
-					SocketPath:                 socketPath,
-					SocketServerEnabled:        socketServerEnabled,
-					BoundaryLogProxySocketPath: boundaryLogProxySocketPath,
-					ContextConfig:              contextConfig,
+					SocketPath:                      socketPath,
+					SocketServerEnabled:             socketServerEnabled,
+					AgentFirewallLogProxySocketPath: agentFirewallLogProxySocketPath,
+					ContextConfig:                   contextConfig,
 				})
 
 				if debugAddress != "" {
@@ -556,7 +556,21 @@ func workspaceAgent() *serpent.Command {
 			Default:     boundarylogproxy.DefaultSocketPath(),
 			Env:         "CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH",
 			Description: "The path for the boundary log proxy server Unix socket. Boundary should write audit logs to this socket.",
-			Value:       serpent.StringOf(&boundaryLogProxySocketPath),
+			Value:       serpent.StringOf(&agentFirewallLogProxySocketPath),
+			Hidden:      true,
+			UseInstead: []serpent.Option{
+				{
+					Flag: "agent-firewall-log-proxy-socket-path",
+					Env:  "CODER_AGENT_FIREWALL_LOG_PROXY_SOCKET_PATH",
+				},
+			},
+		},
+		{
+			Flag:        "agent-firewall-log-proxy-socket-path",
+			Default:     boundarylogproxy.DefaultSocketPath(),
+			Env:         "CODER_AGENT_FIREWALL_LOG_PROXY_SOCKET_PATH",
+			Description: "The path for the agent firewall log proxy server Unix socket. Agent firewall should write audit logs to this socket.",
+			Value:       serpent.StringOf(&agentFirewallLogProxySocketPath),
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)

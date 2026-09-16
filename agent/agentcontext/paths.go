@@ -9,8 +9,16 @@ import (
 )
 
 // lexicalPath returns raw as a cleaned, absolute path with ~
-// expanded and symlinks left unresolved.
+// expanded against the current user's home and symlinks left
+// unresolved.
 func lexicalPath(raw string) (string, error) {
+	return lexicalPathIn(os.UserHomeDir, raw)
+}
+
+// lexicalPathIn is lexicalPath with home injected. home is called
+// only when a ~ prefix needs expanding, so an absolute path resolves
+// even when home is unavailable.
+func lexicalPathIn(home func() (string, error), raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", xerrors.New("path is empty")
@@ -18,14 +26,14 @@ func lexicalPath(raw string) (string, error) {
 
 	// ~user forms are intentionally unsupported.
 	if raw == "~" || strings.HasPrefix(raw, "~/") {
-		home, err := os.UserHomeDir()
+		h, err := home()
 		if err != nil {
 			return "", xerrors.Errorf("expand home dir: %w", err)
 		}
 		if raw == "~" {
-			raw = home
+			raw = h
 		} else {
-			raw = filepath.Join(home, raw[2:])
+			raw = filepath.Join(h, raw[2:])
 		}
 	}
 
@@ -40,7 +48,19 @@ func lexicalPath(raw string) (string, error) {
 // CanonicalizePath returns lexicalPath with symlinks resolved
 // when the target exists.
 func CanonicalizePath(raw string) (string, error) {
-	cleaned, err := lexicalPath(raw)
+	return resolveCanonicalPath(os.UserHomeDir, raw)
+}
+
+// CanonicalizePathIn is CanonicalizePath with ~ expanded against
+// the given home directory instead of the current user's.
+func CanonicalizePathIn(home string, raw string) (string, error) {
+	return resolveCanonicalPath(func() (string, error) { return home, nil }, raw)
+}
+
+// resolveCanonicalPath implements both CanonicalizePath and
+// CanonicalizePathIn.
+func resolveCanonicalPath(home func() (string, error), raw string) (string, error) {
+	cleaned, err := lexicalPathIn(home, raw)
 	if err != nil {
 		return "", err
 	}

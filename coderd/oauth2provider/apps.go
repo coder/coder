@@ -92,7 +92,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			Icon:                    req.Icon,
 			CallbackURL:             req.CallbackURL,
 			RedirectUris:            []string{},
-			ClientType:              sql.NullString{String: "confidential", Valid: true},
+			ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
 			DynamicallyRegistered:   sql.NullBool{Bool: false, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{},
 			ClientSecretExpiresAt:   sql.NullTime{},
@@ -142,6 +142,18 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		var req codersdk.PutOAuth2ProviderAppRequest
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
+		}
+		if app.IsPublic() {
+			if err := codersdk.ValidateRedirectURIs([]string{req.CallbackURL}, codersdk.OAuth2ClientTypePublic); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Validation failed.",
+					Validations: []codersdk.ValidationError{{
+						Field:  "callback_url",
+						Detail: err.Error(),
+					}},
+				})
+				return
+			}
 		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,

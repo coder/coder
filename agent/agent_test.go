@@ -54,10 +54,10 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/quartz"
 )
 
@@ -310,13 +310,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
+		session.Setenv(agentssh.AppNameEnvironmentVariable, string(codersdk.AppFamilyVSCode))
 		defer session.Close()
 
-		command := "sh -c 'echo $" + agentssh.MagicSessionTypeEnvironmentVariable + "'"
+		command := "sh -c 'echo $" + agentssh.AppNameEnvironmentVariable + "'"
 		expected := ""
 		if runtime.GOOS == "windows" {
-			expected = "%" + agentssh.MagicSessionTypeEnvironmentVariable + "%"
+			expected = "%" + agentssh.AppNameEnvironmentVariable + "%"
 			command = "cmd.exe /c echo " + expected
 		}
 		output, err := session.Output(command)
@@ -338,7 +338,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
+		session.Setenv(agentssh.AppNameEnvironmentVariable, string(codersdk.AppFamilyVSCode))
 		defer session.Close()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
@@ -462,7 +462,6 @@ func TestAgent_SessionExec(t *testing.T) {
 	}
 }
 
-//nolint:tparallel // Sub tests need to run sequentially.
 func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
@@ -479,70 +478,37 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 			"MY_SESSION_MANIFEST": "false",
 		},
 	}
-	banner := codersdk.ServiceBannerConfig{}
-	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
 	})
-
-	err := session.Setenv("MY_SESSION_MANIFEST", "true")
+	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
-	err = session.Setenv("MY_SESSION", "true")
-	require.NoError(t, err)
+	t.Cleanup(func() { _ = sshClient.Close() })
 
-	command := "sh"
-	echoEnv := func(t *testing.T, w io.Writer, env string) {
-		if runtime.GOOS == "windows" {
-			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
-			require.NoError(t, err)
-		} else {
-			_, err := fmt.Fprintf(w, "echo $%s\n", env)
-			require.NoError(t, err)
-		}
-	}
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
-	}
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
-	defer stdin.Close()
-	stdout, err := session.StdoutPipe()
-	require.NoError(t, err)
-
-	err = session.Start(command)
-	require.NoError(t, err)
-
-	// Context is fine here since we're not doing a parallel subtest.
-	ctx := testutil.Context(t, testutil.WaitLong)
-	go func() {
-		<-ctx.Done()
-		_ = session.Close()
-	}()
-
-	s := bufio.NewScanner(stdout)
-
-	//nolint:paralleltest // These tests need to run sequentially.
-	for k, partialV := range map[string]string{
+	for envName, want := range map[string]string{
 		"CODER":               "true",  // From the agent.
 		"MY_MANIFEST":         "true",  // From the manifest.
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
 		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
 		"MY_SESSION":          "true",  // From the session.
-		"PATH":                scriptBinDir + string(filepath.ListSeparator),
+		"PATH":                scriptBinDir,
 	} {
-		t.Run(k, func(t *testing.T) {
-			echoEnv(t, stdin, k)
-			// Windows is unreliable, so keep scanning until we find a match.
-			for s.Scan() {
-				got := strings.TrimSpace(s.Text())
-				t.Logf("%s=%s", k, got)
-				if strings.Contains(got, partialV) {
-					break
-				}
+		t.Run(envName, func(t *testing.T) {
+			t.Parallel()
+
+			got := sessionEnvValue(t, sshClient, envName, map[string]string{
+				"MY_SESSION":          "true",
+				"MY_SESSION_MANIFEST": "true",
+			})
+			if envName == "PATH" {
+				require.Contains(t, filepath.SplitList(got), want)
+				return
 			}
-			if err := s.Err(); !errors.Is(err, io.EOF) {
-				require.NoError(t, err)
-			}
+			require.Equal(t, want, got)
 		})
 	}
 }
@@ -575,67 +541,50 @@ func TestAgent_Session_SecretInjection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "both-value", string(content))
 
-	// Verify env var injection via an SSH session.
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sshClient.Close() })
 
+	for envName, want := range map[string]string{
+		"MY_SECRET_ENV":        "env-secret-value",
+		"BOTH_ENV":             "both-value",
+		"SHOULD_BE_OVERRIDDEN": "secret-wins",
+	} {
+		t.Run(envName, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, want, sessionEnvValue(t, sshClient, envName, nil))
+		})
+	}
+}
+
+func sessionEnvValue(t *testing.T, sshClient *ssh.Client, envName string, sessionEnv map[string]string) string {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = session.Close() })
-
-	command := "sh"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
-	}
-
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
-	defer stdin.Close()
-	stdout, err := session.StdoutPipe()
-	require.NoError(t, err)
-
-	err = session.Start(command)
-	require.NoError(t, err)
-
+	defer session.Close()
 	go func() {
 		<-ctx.Done()
 		_ = session.Close()
 	}()
 
-	s := bufio.NewScanner(stdout)
-
-	echoEnv := func(t *testing.T, w io.Writer, env string) {
-		t.Helper()
-		if runtime.GOOS == "windows" {
-			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
-			require.NoError(t, err)
-		} else {
-			_, err := fmt.Fprintf(w, "echo $%s\n", env)
-			require.NoError(t, err)
-		}
+	for name, value := range sessionEnv {
+		require.NoError(t, session.Setenv(name, value))
 	}
 
-	for k, partialV := range map[string]string{
-		"MY_SECRET_ENV":        "env-secret-value",
-		"BOTH_ENV":             "both-value",
-		"SHOULD_BE_OVERRIDDEN": "secret-wins",
-	} {
-		echoEnv(t, stdin, k)
-		found := false
-		for s.Scan() {
-			got := strings.TrimSpace(s.Text())
-			t.Logf("%s=%s", k, got)
-			if strings.Contains(got, partialV) {
-				found = true
-				break
-			}
-		}
-		require.True(t, found, "env %s not found in output", k)
-		if err := s.Err(); !errors.Is(err, io.EOF) {
-			require.NoError(t, err)
-		}
+	stderr := &bytes.Buffer{}
+	session.Stderr = stderr
+	command := "sh -c 'echo $" + envName + "'"
+	if runtime.GOOS == "windows" {
+		command = `cmd.exe /c echo %` + envName + `%`
 	}
+	out, err := session.Output(command)
+	if err != nil && ctx.Err() != nil {
+		t.Fatalf("SSH session deadline expired: %v; output: %q, stderr: %q", ctx.Err(), out, stderr.String())
+	}
+	require.NoError(t, err, "output: %q, stderr: %q", out, stderr.String())
+	return strings.TrimSpace(string(out))
 }
 
 func TestAgent_StartupScript_SecretInjection(t *testing.T) {
@@ -721,6 +670,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := testutil.Logger(t)
 
 			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
 			command := "sh"
@@ -729,16 +679,14 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 			}
 			err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 			require.NoError(t, err)
-			ptty := ptytest.New(t)
-			session.Stdout = ptty.Output()
-			session.Stderr = ptty.Output()
-			session.Stdin = ptty.Input()
+			stdout := expecter.NewAttachedToSSHSession(t, session)
+			stdin := testutil.NewWriterAttachedToSSHSession(t, logger.Named("sshin"), session)
 			err = session.Start(command)
 			require.NoError(t, err)
-			_ = ptty.Peek(ctx, 1) // wait for the prompt
-			ptty.WriteLine("echo test")
-			ptty.ExpectMatch(ctx, "test")
-			ptty.WriteLine("exit")
+			_ = stdout.Peek(ctx, 1) // wait for the prompt
+			stdin.WriteLine("echo test")
+			stdout.ExpectMatch(ctx, "test")
+			stdin.WriteLine("exit")
 			err = session.Wait()
 			require.NoError(t, err)
 		})
@@ -751,10 +699,6 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 	command := "areallynotrealcommand"
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
-	ptty := ptytest.New(t)
-	session.Stdout = ptty.Output()
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
 	err = session.Start(command)
 	require.NoError(t, err)
 	err = session.Wait()
@@ -1035,9 +979,8 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		stdout := testutil.NewWaitBuffer()
-		ptty := ptytest.New(t)
+
 		session.Stdout = stdout
-		session.Stderr = ptty.Output()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
 		require.NoError(t, session.Shell())
@@ -1076,8 +1019,6 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 	require.NoError(t, err)
 	defer sshClient.Close()
 
-	ptty := ptytest.New(t)
-
 	var stdout bytes.Buffer
 	// NOTE(mafredri): Increase iterations to increase chance of failure,
 	//                 assuming bug is present. Limiting GOMAXPROCS further
@@ -1097,8 +1038,6 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 			require.NoError(t, err)
 
 			session.Stdout = &stdout
-			session.Stderr = ptty.Output()
-			session.Stdin = ptty.Input()
 			err = session.Start("echo wazzup")
 			require.NoError(t, err)
 
@@ -1126,8 +1065,6 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 	require.NoError(t, err)
 	defer sshClient.Close()
 
-	ptty := ptytest.New(t)
-
 	var stdout bytes.Buffer
 	// NOTE(mafredri): Increase iterations to increase chance of failure,
 	//                 assuming bug is present.
@@ -1146,8 +1083,6 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 			require.NoError(t, err)
 
 			session.Stdout = &stdout
-			session.Stderr = ptty.Output()
-			session.Stdin = ptty.Input()
 			want := strings.Repeat("wazzup", 1024+1) // ~6KB, +1 because 1024 is a common buffer size.
 			err = session.Start("echo " + want)
 			require.NoError(t, err)
@@ -4220,19 +4155,18 @@ func assertWritePayload(t testing.TB, w io.Writer, payload []byte) {
 
 func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
 	t.Helper()
+	logger := testutil.Logger(t)
 
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
 
-	ptty := ptytest.New(t)
 	var stdout bytes.Buffer
 	session.Stdout = &stdout
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
+	stdin := testutil.NewWriterAttachedToSSHSession(t, logger.Named("sshin"), session)
 	err = session.Shell()
 	require.NoError(t, err)
 
-	ptty.WriteLine("exit 0")
+	stdin.WriteLine("exit 0")
 
 	waitErr := make(chan error, 1)
 	go func() {
@@ -4410,9 +4344,10 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		for _, m := range mf.GetMetric() {
 			assert.Equal(t, expected[i].Name, mf.GetName())
 			assert.Equal(t, expected[i].Type.String(), mf.GetType().String())
-			if expected[i].Type == proto.Stats_Metric_GAUGE {
+			switch expected[i].Type {
+			case proto.Stats_Metric_GAUGE:
 				assert.NoError(t, expected[i].CheckFn(m.GetGauge().GetValue()), "check fn for %s failed", expected[i].Name)
-			} else if expected[i].Type == proto.Stats_Metric_COUNTER {
+			case proto.Stats_Metric_COUNTER:
 				assert.NoError(t, expected[i].CheckFn(m.GetCounter().GetValue()), "check fn for %s failed", expected[i].Name)
 			}
 			for j, lbl := range expected[i].Labels {

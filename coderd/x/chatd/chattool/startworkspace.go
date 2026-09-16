@@ -11,7 +11,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -76,9 +76,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 			ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("load workspace: %w", err).Error(),
-				), nil
+				return workspaceLoadErrorResponse(err), nil
 			}
 			if ws.Deleted {
 				return fantasy.NewTextErrorResponse(

@@ -1,3 +1,4 @@
+import { RadioIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ import { Latency } from "#/components/Latency/Latency";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { getLatencyColor } from "#/utils/latency";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
@@ -80,14 +82,21 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
 					{selectedProxy ? (
 						<>
-							<ExternalImage
-								// Empty alt text used because we don't want to double up on
-								// screen reader announcements from visually-hidden span
-								alt=""
-								src={selectedProxy.icon_url}
+							<RadioIcon
+								aria-hidden="true"
+								className={getLatencyColor(
+									proxyLatencyLoading(selectedProxy)
+										? undefined
+										: latencies?.[selectedProxy.id]?.latencyMS,
+								)}
 							/>
 
 							<Latency
+								className={
+									latencies?.[selectedProxy.id]?.latencyMS
+										? "text-content-primary"
+										: undefined
+								}
 								latency={latencies?.[selectedProxy.id]?.latencyMS}
 								isLoading={proxyLatencyLoading(selectedProxy)}
 							/>
@@ -103,7 +112,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				{proxyContextValue.proxies && proxyContextValue.proxies.length > 1 && (
 					<DropdownMenuItem
 						disabled
-						className="flex flex-col gap-1 items-start data-[disabled]:opacity-100"
+						className="flex flex-col gap-1 items-start data-disabled:opacity-100"
 					>
 						<div className="text-content-primary font-semibold text-left">
 							Select a region nearest to you
@@ -124,7 +133,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				{proxyContextValue.proxies && (
-					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 						<DropdownMenuRadioGroup value={selectedProxy?.id}>
 							{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
 								(proxy) => (

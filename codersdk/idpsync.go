@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -51,7 +50,7 @@ func (c *Client) GroupIDPSyncSettings(ctx context.Context, orgID string) (GroupS
 		return GroupSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp GroupSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) PatchGroupIDPSyncSettings(ctx context.Context, orgID string, req GroupSyncSettings) (GroupSyncSettings, error) {
@@ -65,7 +64,7 @@ func (c *Client) PatchGroupIDPSyncSettings(ctx context.Context, orgID string, re
 		return GroupSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp GroupSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type PatchGroupIDPSyncConfigRequest struct {
@@ -85,7 +84,7 @@ func (c *Client) PatchGroupIDPSyncConfig(ctx context.Context, orgID string, req 
 		return GroupSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp GroupSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // If the same mapping is present in both Add and Remove, Remove will take presidence.
@@ -105,7 +104,7 @@ func (c *Client) PatchGroupIDPSyncMapping(ctx context.Context, orgID string, req
 		return GroupSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp GroupSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type RoleSyncSettings struct {
@@ -127,7 +126,7 @@ func (c *Client) RoleIDPSyncSettings(ctx context.Context, orgID string) (RoleSyn
 		return RoleSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp RoleSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) PatchRoleIDPSyncSettings(ctx context.Context, orgID string, req RoleSyncSettings) (RoleSyncSettings, error) {
@@ -141,7 +140,7 @@ func (c *Client) PatchRoleIDPSyncSettings(ctx context.Context, orgID string, req
 		return RoleSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp RoleSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type PatchRoleIDPSyncConfigRequest struct {
@@ -159,7 +158,7 @@ func (c *Client) PatchRoleIDPSyncConfig(ctx context.Context, orgID string, req P
 		return RoleSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp RoleSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // If the same mapping is present in both Add and Remove, Remove will take presidence.
@@ -179,7 +178,7 @@ func (c *Client) PatchRoleIDPSyncMapping(ctx context.Context, orgID string, req 
 		return RoleSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp RoleSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type OrganizationSyncSettings struct {
@@ -205,7 +204,7 @@ func (c *Client) OrganizationIDPSyncSettings(ctx context.Context) (OrganizationS
 		return OrganizationSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) PatchOrganizationIDPSyncSettings(ctx context.Context, req OrganizationSyncSettings) (OrganizationSyncSettings, error) {
@@ -219,7 +218,7 @@ func (c *Client) PatchOrganizationIDPSyncSettings(ctx context.Context, req Organ
 		return OrganizationSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type PatchOrganizationIDPSyncConfigRequest struct {
@@ -238,7 +237,7 @@ func (c *Client) PatchOrganizationIDPSyncConfig(ctx context.Context, req PatchOr
 		return OrganizationSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // If the same mapping is present in both Add and Remove, Remove will take presidence.
@@ -258,7 +257,7 @@ func (c *Client) PatchOrganizationIDPSyncMapping(ctx context.Context, req PatchO
 		return OrganizationSyncSettings{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationSyncSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) GetAvailableIDPSyncFields(ctx context.Context) ([]string, error) {
@@ -272,7 +271,7 @@ func (c *Client) GetAvailableIDPSyncFields(ctx context.Context) ([]string, error
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []string
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) GetOrganizationAvailableIDPSyncFields(ctx context.Context, orgID string) ([]string, error) {
@@ -286,7 +285,7 @@ func (c *Client) GetOrganizationAvailableIDPSyncFields(ctx context.Context, orgI
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []string
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) GetIDPSyncFieldValues(ctx context.Context, claimField string) ([]string, error) {
@@ -302,7 +301,7 @@ func (c *Client) GetIDPSyncFieldValues(ctx context.Context, claimField string) (
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []string
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) GetOrganizationIDPSyncFieldValues(ctx context.Context, orgID string, claimField string) ([]string, error) {
@@ -318,5 +317,5 @@ func (c *Client) GetOrganizationIDPSyncFieldValues(ctx context.Context, orgID st
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []string
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }

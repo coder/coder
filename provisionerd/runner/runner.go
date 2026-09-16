@@ -21,7 +21,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	strings2 "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -356,7 +355,7 @@ func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 	defer func() {
-		r.lastUpdate.Store(ptr.Ref(time.Now()))
+		r.lastUpdate.Store(new(time.Now()))
 	}()
 
 	span.SetAttributes(
@@ -621,7 +620,6 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				ModuleFiles:                initResp.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
 				ModuleFilesHash:   []byte{},
-				HasAiTasks:        startProvision.HasAITasks,
 				HasExternalAgents: startProvision.HasExternalAgents,
 			},
 		},
@@ -684,7 +682,6 @@ type templateImportProvision struct {
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Presets               []*sdkproto.Preset
 	Plan                  json.RawMessage
-	HasAITasks            bool
 	HasExternalAgents     bool
 }
 
@@ -752,7 +749,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		ExternalAuthProviders: graphComplete.ExternalAuthProviders,
 		Presets:               graphComplete.Presets,
 		Plan:                  planComplete.Plan,
-		HasAITasks:            graphComplete.HasAiTasks,
 		HasExternalAgents:     graphComplete.HasExternalAgents,
 	}, nil
 }
@@ -989,10 +985,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		}
 	}
 
-	if planComplete.AiTaskCount > 1 {
-		return nil, r.failedWorkspaceBuildf("only one 'coder_ai_task' resource can be provisioned per template, found %d", planComplete.AiTaskCount)
-	}
-
 	r.logger.Info(context.Background(), "plan request successful")
 	r.flushQueuedLogs(ctx)
 	if commitQuota {
@@ -1090,7 +1082,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				Modules: initComplete.Modules,
 				// Resource replacements are discovered at plan time, only.
 				ResourceReplacements: planComplete.ResourceReplacements,
-				AiTasks:              graphComplete.AiTasks,
 			},
 		},
 	}, nil

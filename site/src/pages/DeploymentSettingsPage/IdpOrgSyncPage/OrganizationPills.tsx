@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { Pill } from "#/components/Pill/Pill";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -22,9 +22,12 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	return (
 		<div className="flex flex-row gap-2">
 			{orgs.length > 0 ? (
-				<Pill type={orgs[0].isUUID ? "error" : "muted"} className="w-fit">
+				<Badge
+					variant={orgs[0].isUUID ? "destructive" : "default"}
+					className="w-fit"
+				>
 					{orgs[0].name}
-				</Pill>
+				</Badge>
 			) : (
 				<p>None</p>
 			)}
@@ -42,21 +45,21 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill type="muted" className="w-fit" data-testid="overflow-pill">
+				<Badge className="w-fit" data-testid="overflow-pill">
 					+{organizations.length}
-				</Pill>
+				</Badge>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">
 				<ul className="flex flex-col gap-2 list-none my-0 pl-0">
 					{organizations.map((organization) => (
 						<li key={organization.name}>
-							<Pill
-								type={organization.isUUID ? "error" : "muted"}
+							<Badge
+								variant={organization.isUUID ? "destructive" : "default"}
 								className="w-fit"
 							>
 								{organization.name}
-							</Pill>
+							</Badge>
 						</li>
 					))}
 				</ul>

@@ -117,7 +117,8 @@ SELECT
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
 	latest_build.job_status as latest_build_status,
-	latest_build.has_external_agent as latest_build_has_external_agent
+	latest_build.has_external_agent as latest_build_has_external_agent,
+	latest_build.provisioner_job_id as latest_build_provisioner_job_id
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -129,7 +130,6 @@ LEFT JOIN LATERAL (
 		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
-		workspace_builds.has_ai_task,
 		workspace_builds.has_external_agent,
 		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
@@ -350,21 +350,6 @@ WHERE
 			  (latest_build.template_version_id = template.active_version_id) = sqlc.narg('using_active') :: boolean
 		  ELSE true
 	END
-	-- Filter by has_ai_task, checks if this is a task workspace.
-	AND CASE
-		WHEN sqlc.narg('has_ai_task')::boolean IS NOT NULL
-		THEN sqlc.narg('has_ai_task')::boolean = EXISTS (
-			SELECT
-				1
-			FROM
-				tasks
-			WHERE
-				-- Consider all tasks, deleting a task does not turn the
-				-- workspace into a non-task workspace.
-				tasks.workspace_id = workspaces.id
-		)
-		ELSE true
-	END
 	-- Filter by has_external_agent in latest build
 	AND CASE
 		WHEN sqlc.narg('has_external_agent') :: boolean IS NOT NULL THEN
@@ -451,7 +436,6 @@ WHERE
 		'', -- template_display_name
 		'', -- template_icon
 		'', -- template_description
-		'00000000-0000-0000-0000-000000000000'::uuid, -- task_id
 		'{}'::jsonb, -- group_acl_display_info
 		'{}'::jsonb, -- user_acl_display_info
 		-- Extra columns added to `filtered_workspaces`
@@ -462,7 +446,8 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
 		'unknown'::provisioner_job_status, -- latest_build_status
-		false -- latest_build_has_external_agent
+		false, -- latest_build_has_external_agent
+		'00000000-0000-0000-0000-000000000000'::uuid -- latest_build_provisioner_job_id
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
@@ -473,6 +458,59 @@ WHERE
 )
 SELECT
 	fwos.*,
+	-- agent_metadata expands the response with the requested agent
+	-- metadata keys for the latest build's agents. The CASE keeps the
+	-- subquery unevaluated for every caller that does not opt in, and
+	-- it only runs for the returned page. Each element carries the
+	-- workspace_agent_id so multi-agent workspaces can map values onto
+	-- the right agent.
+	CASE WHEN cardinality(@include_agent_metadata :: text[]) > 0 THEN
+		COALESCE((
+			SELECT
+				jsonb_agg(jsonb_build_object(
+					'workspace_agent_id', workspace_agents.id,
+					'display_name', workspace_agent_metadata.display_name,
+					'key', workspace_agent_metadata.key,
+					-- script is deliberately omitted: it can be long and
+					-- list consumers want values, not collection commands.
+					'value', workspace_agent_metadata.value,
+					'error', workspace_agent_metadata.error,
+					'timeout', workspace_agent_metadata.timeout,
+					'interval', workspace_agent_metadata.interval,
+					-- Rendered explicitly as UTC RFC3339: jsonb renders
+					-- timestamptz in the session TimeZone, and the year-1
+					-- default of collected_at renders named zones with
+					-- LMT second-offsets (even BC), which Go rejects.
+					'collected_at', to_char(workspace_agent_metadata.collected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+					'display_order', workspace_agent_metadata.display_order
+				))
+			FROM
+				workspace_agents
+			JOIN
+				workspace_resources
+			ON
+				workspace_resources.id = workspace_agents.resource_id
+			JOIN
+				workspace_agent_metadata
+			ON
+				workspace_agent_metadata.workspace_agent_id = workspace_agents.id
+			WHERE
+				-- The latest build's job was already resolved by the
+				-- latest_build lateral; resources hang off its job.
+				workspace_resources.job_id = fwos.latest_build_provisioner_job_id
+				-- Filter out deleted sub agents.
+				AND workspace_agents.deleted = FALSE
+				-- Both sides are lowercased so matching is
+				-- case-insensitive regardless of how the caller cased
+				-- the requested keys.
+				AND LOWER(workspace_agent_metadata.key) = ANY(ARRAY(
+					SELECT LOWER(key) FROM unnest(@include_agent_metadata :: text[]) AS k(key)
+				))
+		), '[]'::jsonb)
+	ELSE
+		-- Never NULL: lib/pq cannot scan NULL into json.RawMessage.
+		'[]'::jsonb
+	END :: jsonb AS agent_metadata,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos

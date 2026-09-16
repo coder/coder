@@ -1,4 +1,6 @@
-# Configure a template for Dev Containers
+---
+title: Configure a template for Dev Containers
+---
 
 This guide covers the Dev Containers Integration, which uses Docker. For
 environments without Docker, see [Envbuilder](./envbuilder/index.md) as an
@@ -40,7 +42,7 @@ Use the
 [devcontainers-cli](https://registry.coder.com/modules/devcontainers-cli) module
 to ensure the `@devcontainers/cli` is installed in your workspace:
 
-```terraform
+```tf
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/devcontainers-cli/coder"
@@ -57,7 +59,7 @@ The
 resource automatically starts a Dev Container in your workspace, ensuring it's
 ready when you access the workspace:
 
-```terraform
+```tf
 resource "coder_devcontainer" "my-repository" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.dev.id
@@ -83,7 +85,7 @@ default behavior.
 If you need to explicitly disable Dev Containers, set the
 `CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to `false`:
 
-```terraform
+```tf
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/oss-dogfood:latest"
@@ -153,7 +155,7 @@ and [`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/doc
 resources to a `coder_devcontainer` by referencing its `subagent_id` attribute
 as the `agent_id`:
 
-```terraform
+```tf
 resource "coder_devcontainer" "my-repository" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.dev.id
@@ -227,7 +229,7 @@ For the full reference, see
 Here's a simplified template example that uses Dev Containers with manual
 configuration:
 
-```terraform
+```tf
 terraform {
   required_providers {
     coder  = { source = "coder/coder" }
@@ -277,7 +279,7 @@ resource "coder_env" "env" {
 By default, discovered containers appear in the dashboard but developers must
 manually start them. To have them start automatically, enable autostart:
 
-```terraform
+```tf
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/oss-dogfood:latest"

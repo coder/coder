@@ -1,4 +1,6 @@
-# Slack Notifications
+---
+title: Slack Notifications
+---
 
 [Slack](https://slack.com/) is a popular messaging platform designed for teams
 and businesses, enabling real-time collaboration through channels, direct
@@ -51,13 +53,13 @@ To build the server to receive webhooks and interact with Slack:
 
 1. Initialize your project by running:
 
-   ```bash
+   ```sh
    npm init -y
    ```
 
 2. Install the Bolt library:
 
-   ```bash
+   ```sh
    npm install @slack/bolt
    ```
 
@@ -165,20 +167,20 @@ To build the server to receive webhooks and interact with Slack:
 
 4. Set environment variables to identify the Slack app:
 
-   ```bash
+   ```sh
    export SLACK_BOT_TOKEN=xoxb-...
    export SLACK_SIGNING_SECRET=0da4b...
    ```
 
 5. Start the web application by running:
 
-   ```bash
+   ```sh
    node app.js
    ```
 
 ## Enable Interactivity in Slack
 
-Slack requires the bot to acknowledge when a user clicks on a URL action button.
+Slack requires the bot to acknowledge when a user selects a URL action button.
 This is handled by setting up interactivity.
 
 Under "Interactivity & Shortcuts" in your Slack app settings, set the Request
@@ -195,8 +197,8 @@ must respond appropriately.
 To enable webhook integration in Coder, define the POST webhook endpoint
 matching the deployed Slack bot:
 
-```bash
-export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/v1/webhook`
+```sh
+export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/v1/webhook
 ```
 
 Finally, go to the **Notification Settings** in Coder and switch the notifier to

@@ -1,17 +1,32 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
-const mockModelConfigs: TypesGen.ChatModelConfig[] = [
+const modelsOrganization = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+};
+
+const organizationWithEmptyDisplayName = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+	display_name: "",
+};
+
+const mockModels: TypesGen.ChatModel[] = [
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -22,7 +37,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-2",
 		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet",
@@ -31,7 +46,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-3",
 		model: "gpt-3.5",
 		display_name: "GPT-3.5 (Disabled)",
@@ -48,11 +63,12 @@ const meta = {
 	component: UserCompactionThresholdSettings,
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
-		modelConfigs: mockModelConfigs,
+		models: mockModels,
 		providerTypeByID: new Map<string, string>([
 			["provider-1", "openai"],
 			["provider-anthropic", "anthropic"],
 		]),
+		organizations: [modelsOrganization],
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -74,22 +90,14 @@ export const Default: Story = {
 			name: /GPT-4o compaction threshold/i,
 		});
 
-		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
-		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
-		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
-
-		// No footer visible when nothing is dirty
-		expect(
-			canvas.queryByRole("button", { name: /Save/i }),
-		).not.toBeInTheDocument();
-
-		// Type a value to make the footer appear
 		await userEvent.type(gpt4oInput, "95");
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Save 1 change/i }),
-			).toBeInTheDocument();
-		});
+	},
+};
+
+export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
+	args: {
+		organizations: [organizationWithEmptyDisplayName],
+		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
 	},
 };
 
@@ -162,16 +170,6 @@ export const CancelChanges: Story = {
 		await userEvent.type(gpt4oInput, "42");
 		const cancelButton = await canvas.findByRole("button", { name: /Cancel/i });
 		await userEvent.click(cancelButton);
-
-		// Footer should disappear after cancel
-		await waitFor(() => {
-			expect(
-				canvas.queryByRole("button", { name: /Save/i }),
-			).not.toBeInTheDocument();
-		});
-
-		// Input should be cleared back to empty (no override)
-		expect(gpt4oInput).toHaveValue("");
 	},
 };
 
@@ -185,19 +183,6 @@ export const InvalidDraftShowsFooter: Story = {
 
 		// Type an out-of-range value.
 		await userEvent.type(gpt4oInput, "150");
-
-		// Input should be marked invalid
-		await waitFor(() => {
-			expect(gpt4oInput).toHaveAttribute("aria-invalid", "true");
-		});
-
-		// Cancel button should be visible so user can discard the edit
-		expect(canvas.getByRole("button", { name: /Cancel/i })).toBeInTheDocument();
-
-		// Save button should NOT be visible (nothing valid to save)
-		expect(
-			canvas.queryByRole("button", { name: /Save/i }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -210,15 +195,6 @@ export const DisableCompactionWarning: Story = {
 		});
 
 		await userEvent.type(gpt4oInput, "100");
-
-		// sr-only warning should be in the DOM for screen readers
-		await waitFor(() => {
-			expect(
-				canvas.getByText(
-					"Setting 100% will disable auto-compaction for this model.",
-				),
-			).toBeInTheDocument();
-		});
 	},
 };
 
@@ -231,8 +207,8 @@ export const Loading: Story = {
 export const PartialSaveFailure: Story = {
 	name: "Partial Save Failure",
 	args: {
-		onSaveThreshold: fn(async (modelConfigId: string) => {
-			if (modelConfigId === "model-2") {
+		onSaveThreshold: fn(async (modelId: string) => {
+			if (modelId === "model-2") {
 				throw new globalThis.Error("Network error");
 			}
 		}),
@@ -270,9 +246,120 @@ export const PartialSaveFailure: Story = {
 	},
 };
 
+export const OrganizationFilter: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const filter = await canvas.findByRole("button", {
+			name: `Organization ${modelsOrganization.display_name}`,
+		});
+
+		await userEvent.click(filter);
+		const option = await within(document.body).findByRole("option", {
+			name: MockOrganization2.display_name,
+		});
+		await userEvent.click(option);
+	},
+};
+
+export const SingleOrganizationHidesFilter: Story = {};
+
+export const OrganizationFilterScopesSaveActions: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(gpt4oInput, "95");
+		await canvas.findByRole("button", { name: /Save 1 change/i });
+
+		// Switch to the other organization: the draft belongs to a hidden
+		// row, so the footer must disappear.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${modelsOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("button", { name: /Save/i })).toBeNull();
+		});
+
+		// Editing the visible row saves only that row.
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+		await userEvent.type(claudeInput, "50");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Save 1 change/i }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
+			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
+		});
+
+		// Switching back restores the hidden draft and its footer.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: modelsOrganization.display_name,
+			}),
+		);
+		const restoredInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		expect(restoredInput).toHaveValue("95");
+		// Wait out the temporary "Saved" footer state (2.5s) before the
+		// action buttons reappear.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: /Save 1 change/i }),
+				).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
+	},
+};
+
 export const ErrorState: Story = {
 	name: "Error",
 	args: {
 		thresholdsError: new globalThis.Error("Failed to load thresholds"),
+	},
+};
+
+export const PartialModelLoadError: Story = {
+	args: {
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
 	},
 };

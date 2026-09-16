@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -23,6 +24,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -79,6 +82,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	namesByHost := buildHostnameCollisionMap(rows)
 	out := make([]codersdk.AIProvider, 0, len(rows))
 	for _, row := range rows {
 		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
@@ -90,6 +94,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		sdk.Status = api.aiProviderStatus(row, namesByHost)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -131,6 +136,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = api.aiProviderStatusFromDB(ctx, row)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -155,6 +161,14 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
+
+	// Provider configuration has side effects outside the database, notably
+	// the Bedrock profile lookup below, so the permission is checked before
+	// any of them rather than only by dbauthz on the write.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	var req codersdk.CreateAIProviderRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -181,6 +195,16 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	// Generate the server-owned external ID when the provider assumes a role.
 	ensureBedrockExternalID(&req.Settings)
+
+	// Resolve application inference profile ARNs before storing them, so an
+	// unresolvable profile is never written and the gateway never calls the
+	// Bedrock control plane.
+	resolved, err := resolveBedrockProfiles(ctx, req.Settings)
+	if err != nil {
+		api.writeAIProviderResolutionError(ctx, rw, err)
+		return
+	}
+	applyBedrockResolution(&req.Settings, resolved)
 
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
@@ -252,6 +276,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = api.aiProviderStatusFromDB(ctx, row)
 	httpapi.Write(ctx, rw, http.StatusCreated, sdk)
 }
 
@@ -283,6 +308,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
+	// Matches the create path: the Bedrock profile lookup below runs before
+	// dbauthz sees the write, so gate on the permission first.
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	var req codersdk.UpdateAIProviderRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -304,50 +336,59 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 	idOrName := chi.URLParam(r, "idOrName")
 
+	// Resolve outside the transaction, because it calls AWS. The merge is
+	// redone inside against the row that gets written; both merges take the
+	// model identifiers from the patch, so they cannot disagree on them.
+	var resolved map[string]string
+	if req.Settings != nil {
+		_, preview, err := lookupAndMergeSettings(ctx, api.Database, idOrName, req.Settings)
+		if err != nil {
+			writeAIProviderError(ctx, api.Logger, rw, err, "update AI provider", "Internal error updating AI provider.")
+			return
+		}
+		resolved, err = resolveBedrockProfiles(ctx, preview)
+		if err != nil {
+			api.writeAIProviderResolutionError(ctx, rw, err)
+			return
+		}
+	}
+
 	var (
 		updated    database.AIProvider
 		keys       []database.AIProviderKey
 		keyChanges aiProviderKeyChanges
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
-		old, err := lookupAIProvider(ctx, tx, idOrName)
+		old, merged, err := lookupAndMergeSettings(ctx, tx, idOrName, req.Settings)
 		if err != nil {
 			return err
 		}
 		aReq.Old = old
 
-		// Decode the existing settings to merge with the patch. The dbcrypt
-		// wrapper has already decrypted the blob for us.
-		existing, err := db2sdk.AIProviderSettings(old.Settings)
-		if err != nil {
-			return xerrors.Errorf("decode existing settings: %w", err)
-		}
 		if req.Settings != nil {
-			if err := validateBedrockExternalIDUnchanged(existing, *req.Settings); err != nil {
+			if err := validateBedrockExternalIDUnchanged(merged, *req.Settings); err != nil {
 				return err
 			}
-			existing = mergeAIProviderSettings(existing, *req.Settings)
+			applyBedrockResolution(&merged, resolved)
 		}
 		// Bedrock settings are only meaningful for anthropic- or
 		// bedrock-typed providers; rejecting the mismatch keeps a
 		// misconfiguration from sitting silently in the encrypted
 		// blob.
-		if existing.Bedrock != nil &&
+		if merged.Bedrock != nil &&
 			old.Type != database.AIProviderTypeAnthropic &&
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
-		// Generate the server-owned external ID when the provider assumes a role
-		// and lacks one.
-		ensureBedrockExternalID(&existing)
-		settings, err := encodeAIProviderSettings(existing)
+		ensureBedrockExternalID(&merged)
+		settings, err := encodeAIProviderSettings(merged)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
 		}
 
 		// Reject keys against Bedrock providers (whether the existing
 		// row is Bedrock or the patch would make it so).
-		if req.APIKeys != nil && existing.Bedrock != nil && len(*req.APIKeys) > 0 {
+		if req.APIKeys != nil && merged.Bedrock != nil && len(*req.APIKeys) > 0 {
 			return errBedrockRejectsAPIKeys
 		}
 
@@ -445,6 +486,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = api.aiProviderStatusFromDB(ctx, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -554,6 +596,65 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 		return database.AIProvider{}, errAIProviderInvalidName
 	}
 	return store.GetAIProviderByName(ctx, idOrName)
+}
+
+// buildHostnameCollisionMap returns a map from normalized hostname to
+// the names of enabled, non-deleted providers sharing that hostname,
+// in the order the database returned them (ORDER BY name ASC). The
+// first name is the proxy winner and does not get a warning; later
+// names do.
+func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
+	namesByHost := make(map[string][]string)
+	for _, row := range rows {
+		if !row.Enabled || row.Deleted {
+			continue
+		}
+		host := aibridged.BaseURLHostname(row.BaseUrl)
+		if host == "" {
+			continue
+		}
+		namesByHost[host] = append(namesByHost[host], row.Name)
+	}
+	return namesByHost
+}
+
+// aiProviderStatus collects warnings for an AI provider.
+func (api *API) aiProviderStatus(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
+	var warnings []string
+	if warning := api.proxyCollisionWarning(provider, namesByHost); warning != "" {
+		warnings = append(warnings, warning)
+	}
+	if len(warnings) == 0 {
+		return nil
+	}
+	return &codersdk.AIProviderStatus{Warnings: warnings}
+}
+
+// proxyCollisionWarning reports when another provider claims the proxy
+// hostname first in database order.
+func (api *API) proxyCollisionWarning(provider database.AIProvider, namesByHost map[string][]string) string {
+	if !api.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() || !provider.Enabled || provider.Deleted {
+		return ""
+	}
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
+	if host == "" {
+		return ""
+	}
+	names := namesByHost[host]
+	if len(names) < 2 || provider.Name == names[0] {
+		return ""
+	}
+	return fmt.Sprintf("Hostname %q is claimed by provider %q. AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/%s/... endpoint).", host, names[0], provider.Name)
+}
+
+// aiProviderStatusFromDB loads status data for a single provider response.
+func (api *API) aiProviderStatusFromDB(ctx context.Context, provider database.AIProvider) *codersdk.AIProviderStatus {
+	rows, err := api.Database.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	if err != nil {
+		api.Logger.Error(ctx, "load AI providers for status", slog.Error(err))
+		return nil
+	}
+	return api.aiProviderStatus(provider, buildHostnameCollisionMap(rows))
 }
 
 // writeAIProviderError translates an error from the AI provider
@@ -775,6 +876,24 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 		return sql.NullString{}, err
 	}
 	return sql.NullString{String: string(out), Valid: true}, nil
+}
+
+// lookupAndMergeSettings loads a provider and merges patch onto its stored
+// settings.
+func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName string, patch *codersdk.AIProviderSettings) (database.AIProvider, codersdk.AIProviderSettings, error) {
+	old, err := lookupAIProvider(ctx, db, idOrName)
+	if err != nil {
+		return database.AIProvider{}, codersdk.AIProviderSettings{}, err
+	}
+	// The dbcrypt wrapper has already decrypted the blob for us.
+	settings, err := db2sdk.AIProviderSettings(old.Settings)
+	if err != nil {
+		return database.AIProvider{}, codersdk.AIProviderSettings{}, xerrors.Errorf("decode existing settings: %w", err)
+	}
+	if patch != nil {
+		settings = mergeAIProviderSettings(settings, *patch)
+	}
+	return old, settings, nil
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings

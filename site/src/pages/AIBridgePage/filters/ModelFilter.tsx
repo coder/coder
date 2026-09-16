@@ -55,9 +55,10 @@ export type ModelFilterMenu = ReturnType<typeof useModelFilterMenu>;
 
 interface ModelFilterProps {
 	menu: ModelFilterMenu;
+	width?: number;
 }
 
-export const ModelFilter: FC<ModelFilterProps> = ({ menu }) => {
+export const ModelFilter: FC<ModelFilterProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select model"
@@ -66,6 +67,7 @@ export const ModelFilter: FC<ModelFilterProps> = ({ menu }) => {
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
+			width={width}
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search model..."

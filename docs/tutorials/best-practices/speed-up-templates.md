@@ -1,4 +1,6 @@
-# Speed up your Coder templates and workspaces
+---
+title: Speed up your Coder templates and workspaces
+---
 
 October 31, 2024
 
@@ -23,7 +25,7 @@ potentially optimize within the template.
 
 You can also retrieve this detail programmatically from the API:
 
-```shell
+```sh
 curl -X GET https://coder.example.com/api/v2/workspacebuilds/{workspacebuild}/timings \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -137,19 +139,19 @@ To use `terraform init` to build the static provider version list:
 
 1. Pull your template to your local device:
 
-   ```shell
+   ```sh
    coder templates pull <template>
    ```
 
 1. Run `terraform init` inside the template directory to build the lock file:
 
-   ```shell
+   ```sh
    terraform init
    ```
 
 1. Push the templates back to your Coder deployment:
 
-   ```shell
+   ```sh
    coder templates push <template>
    ```
 

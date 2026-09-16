@@ -138,7 +138,7 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 	}
 
 	// Inherit collector options from coderd, but keep the wsproxy reporter.
-	statsCollectorOptions := coderdAPI.Options.WorkspaceAppsStatsCollectorOptions
+	statsCollectorOptions := coderdAPI.WorkspaceAppsStatsCollectorOptions
 	statsCollectorOptions.Reporter = nil
 	if options.FlushStats != nil {
 		statsCollectorOptions.Flush = options.FlushStats

@@ -1,4 +1,6 @@
-# Deploy Coder on Rancher
+---
+title: Deploy Coder on Rancher
+---
 
 You can deploy Coder on Rancher as a
 [Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).
@@ -22,7 +24,7 @@ Installing Coder on Rancher involves four key steps:
 
 Create a namespace for the Coder control plane. In this tutorial, we call it `coder`:
 
-```shell
+```sh
 kubectl create namespace coder
 ```
 
@@ -65,7 +67,7 @@ helm install coder-db bitnami/postgresql \
 
 After installation, the cluster-internal database URL will be:
 
-```text
+```txt
 postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
 ```
 
@@ -78,12 +80,12 @@ For more advanced PostgreSQL management, consider using the
 
 Create a Kubernetes secret with your PostgreSQL connection URL:
 
-```shell
+```sh
 kubectl create secret generic coder-db-url -n coder \
   --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
 ```
 
-> [!Important]
+> [!IMPORTANT]
 > If you're using a managed PostgreSQL service, replace the connection URL with your specific database credentials.
 
 ## Install Coder through the Rancher UI
@@ -134,8 +136,8 @@ kubectl create secret generic coder-db-url -n coder \
 
 1. Select a Coder version:
 
-   - **Mainline**: `2.34.0`
-   - **Stable**: `2.33.6`
+   - **Mainline**: `2.37.1`
+   - **Stable**: `2.36.5`
 
    Learn more about release channels in the [Releases documentation](./releases/index.md).
 

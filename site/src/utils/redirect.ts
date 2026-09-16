@@ -23,9 +23,26 @@ export const retrieveRedirect = (search: string): string => {
 };
 
 /**
- * Ensures the redirect is not an open redirect, aka it's relative
+ * Ensures the redirect is not an open redirect, aka it's relative.
+ *
+ * A parsed URL's pathname can itself start with "//" (via percent-encoded
+ * slashes, backslashes, or dot-segment normalization), and a string starting
+ * with "//" is a protocol-relative URL when assigned to `location.href`.
+ * Building a path is therefore not enough; the candidate is re-parsed
+ * against our own origin and rejected if it would resolve anywhere else.
+ * See Cure53 CDM-02-001 (coder/security-disclosures#164).
  */
-export const sanitizeRedirect = (redirectTo: string) => {
-	const sanitizedUrl = new URL(redirectTo, location.origin);
-	return sanitizedUrl.pathname + sanitizedUrl.search;
+export const sanitizeRedirect = (redirectTo: string): string => {
+	const fallbackRedirect = "/";
+	try {
+		const url = new URL(redirectTo, location.origin);
+		const candidate = url.pathname + url.search;
+		const resolved = new URL(candidate, location.origin);
+		if (resolved.origin !== location.origin) {
+			return fallbackRedirect;
+		}
+		return candidate;
+	} catch {
+		return fallbackRedirect;
+	}
 };

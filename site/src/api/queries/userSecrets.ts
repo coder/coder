@@ -50,3 +50,15 @@ export const deleteUserSecret = (queryClient: QueryClient, userId: string) => {
 		},
 	};
 };
+
+export const importUserSecrets = (queryClient: QueryClient, userId: string) => {
+	return {
+		mutationFn: (request: TypesGen.ImportUserSecretsRequest) =>
+			API.importUserSecrets(userId, request),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: userSecretsKey(userId),
+			});
+		},
+	};
+};

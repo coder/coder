@@ -1,13 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 import type { Feature } from "#/api/typesGenerated";
-import { chromatic } from "#/testHelpers/chromatic";
-import { MockLicenseResponse } from "#/testHelpers/entities";
+import {
+	MockAgentRuntimeHoursFeature,
+	MockLicenseResponse,
+} from "#/testHelpers/entities";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const meta: Meta<typeof LicensesSettingsPageView> = {
 	title: "pages/DeploymentSettingsPage/LicensesSettingsPageView",
-	parameters: { chromatic },
 	component: LicensesSettingsPageView,
 	args: {
 		showConfetti: false,
@@ -21,11 +22,11 @@ const meta: Meta<typeof LicensesSettingsPageView> = {
 		removeLicense: fn(),
 		refreshEntitlements: fn(),
 		activeUsers: [{ date: "2024-01-01", count: 1 }],
-		managedAgentFeature: {
+		aiGovernanceUserFeature: {
 			enabled: false,
 			entitlement: "not_entitled",
 		} satisfies Feature,
-		aiGovernanceUserFeature: {
+		agentRuntimeHoursFeature: {
 			enabled: false,
 			entitlement: "not_entitled",
 		} satisfies Feature,
@@ -71,5 +72,27 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 		).toBeInTheDocument();
 		await expect(canvas.getByText("512")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+	},
+};
+
+export const TotalAgentHoursUsage: Story = {
+	args: {
+		agentRuntimeHoursFeature: {
+			...MockAgentRuntimeHoursFeature,
+			limit: 2000,
+			soft_limit: 1700,
+			actual: 435,
+			// 435 hours and 48 minutes: renders as 435.8.
+			actual_ms: 435 * 3_600_000 + 48 * 60_000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentHoursHeading = canvas.getByRole("heading", {
+			name: "Total agent hours",
+		});
+		const agentHoursCard = within(agentHoursHeading.closest("section")!);
+		await expect(agentHoursCard.getByText("435.8")).toBeInTheDocument();
+		await expect(agentHoursCard.getByText("2,000")).toBeInTheDocument();
 	},
 };

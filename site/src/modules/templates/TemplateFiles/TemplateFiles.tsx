@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import set from "lodash/set";
 import { EditIcon } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
 import { Link as RouterLink } from "react-router";
 import { SyntaxHighlighter } from "#/components/SyntaxHighlighter/SyntaxHighlighter";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
-import { cn } from "#/utils/cn";
 import type { FileTree } from "#/utils/filetree";
 import type { TemplateVersionFiles } from "#/utils/templateVersion";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
@@ -74,7 +74,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 						}}
 						Label={({ path, filename, isFolder }) => {
 							if (isFolder) {
-								return <>{filename}</>;
+								return filename;
 							}
 
 							const hasDiff = fileInfo(path).hasDiff;
@@ -103,7 +103,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 									id={filename}
 									className="overflow-hidden rounded-lg border border-solid border-surface-quaternary"
 								>
-									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-[13px] font-medium">
+									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-sm font-medium">
 										<div className="flex items-center gap-2">
 											<TemplateFileIcon className="text-content-secondary size-icon-xs" />
 											<span

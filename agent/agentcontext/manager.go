@@ -568,10 +568,22 @@ func (m *Manager) SetReady() {
 }
 
 // scanRootsLocked returns the list of ScanRoots to feed the
-// resolver and watcher. The Manager's mutex must be held.
+// resolver and watcher. Roots are ordered by descending skill priority so
+// duplicate skill names honor user-declared source order before built-in and
+// working-directory discovery. The Manager's mutex must be held.
 func (m *Manager) scanRootsLocked() []ScanRoot {
 	builtinRoots := defaultBuiltinRoots()
 	out := make([]ScanRoot, 0, 1+len(builtinRoots)+len(m.sources))
+	for _, s := range m.sources {
+		out = append(out, ScanRoot{Path: s.Path, UserSource: s.Path})
+	}
+	for _, r := range builtinRoots {
+		canonical, err := CanonicalizePath(r)
+		if err != nil {
+			continue
+		}
+		out = append(out, ScanRoot{Path: canonical})
+	}
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
 			// The working directory is a single scan root. The
@@ -583,16 +595,6 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 			// vars.
 			out = append(out, ScanRoot{Path: wd})
 		}
-	}
-	for _, r := range builtinRoots {
-		canonical, err := CanonicalizePath(r)
-		if err != nil {
-			continue
-		}
-		out = append(out, ScanRoot{Path: canonical})
-	}
-	for _, s := range m.sources {
-		out = append(out, ScanRoot{Path: s.Path, UserSource: s.Path})
 	}
 	return out
 }

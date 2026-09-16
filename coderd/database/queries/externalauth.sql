@@ -33,39 +33,34 @@ INSERT INTO external_auth_links (
 ) RETURNING *;
 
 -- name: UpdateExternalAuthLink :one
+-- If a refresh lease is provided, the row is only updated if the lease matches.
 UPDATE external_auth_links SET
-    updated_at = $3,
-    oauth_access_token = $4,
-    oauth_access_token_key_id = $5,
-    oauth_refresh_token = $6,
-    oauth_refresh_token_key_id = $7,
-    oauth_expiry = $8,
-	oauth_extra = $9,
-	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
-	-- Any updates to the external auth link, will be assumed to change the state and clear
-	-- any cached errors.
-	oauth_refresh_failure_reason = ''
-WHERE provider_id = $1 AND user_id = $2 RETURNING *;
+	updated_at = $4,
+	oauth_access_token = $5,
+	oauth_access_token_key_id = $6,
+	oauth_refresh_token = $7,
+	oauth_refresh_token_key_id = $8,
+	oauth_expiry = $9,
+	oauth_extra = $10,
+	oauth_refresh_failure_reason = $11
+WHERE
+	provider_id = $1
+	AND user_id = $2
+	AND (refresh_lease_expires_at = $3 OR $3 IS NULL)
+RETURNING *;
 
--- name: UpdateExternalAuthLinkRefreshToken :exec
--- Optimistic lock: only update the row if the refresh token in the database
--- still matches the one we read before attempting the refresh. This prevents
--- a concurrent caller that lost a token-refresh race from overwriting a valid
--- token stored by the winner.
+-- name: AcquireExternalAuthLinkRefreshLease :one
+-- Set the lease to expire according to the provided timeout.  If there is
+-- already a lease, an exception is raised.
+SELECT * from acquire_external_auth_link_refresh_lease(@provider_id, @user_id, @timeout_ms);
+
+-- name: ReleaseExternalAuthLinkRefreshLease :exec
+-- The lease is only removed if it is the current lease.
 UPDATE
 	external_auth_links
 SET
-	-- oauth_refresh_failure_reason can be set to cache the failure reason
-	-- for subsequent refresh attempts.
-	oauth_refresh_failure_reason = @oauth_refresh_failure_reason,
-	oauth_refresh_token = @oauth_refresh_token,
-	updated_at = @updated_at
+	refresh_lease_expires_at = NULL
 WHERE
-    provider_id = @provider_id
-AND
-    user_id = @user_id
-AND
-    oauth_refresh_token = @old_oauth_refresh_token
-AND
-    -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
-    @oauth_refresh_token_key_id :: text = @oauth_refresh_token_key_id :: text;
+	provider_id = @provider_id
+	AND user_id = @user_id
+	AND refresh_lease_expires_at = @refresh_lease_expires_at;

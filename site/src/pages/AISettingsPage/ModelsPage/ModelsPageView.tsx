@@ -1,7 +1,7 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
-import type { ChatModelConfig } from "#/api/typesGenerated";
+import { type FC, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -15,6 +15,7 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import {
 	Select,
@@ -37,22 +38,33 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import {
 	canManageProviderModels,
 	type ProviderState,
 } from "#/modules/aiModels/providerStates";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { paginateItems } from "#/utils/paginateItems";
 import { ModelRow } from "./components/ModelRow";
+import {
+	organizationAddModelPath,
+	organizationModelPath,
+	selectModelOrganizationPath,
+	useOrganizationModels,
+} from "./organizationModels";
 
 const MODELS_PAGE_SIZE = 10;
 const ALL_PROVIDERS_VALUE = "all";
+const PROVIDER_PARAM = "provider";
+const SEARCH_PARAM = "search";
+const PAGE_PARAM = "page";
 
 const AddModelDropdown: FC<{
 	providerStates: readonly ProviderState[];
 	align?: "start" | "end";
 }> = ({ providerStates, align = "end" }) => {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const { organization } = useOrganizationModels();
 	const manageableProviderStates = providerStates.filter(
 		canManageProviderModels,
 	);
@@ -76,13 +88,11 @@ const AddModelDropdown: FC<{
 					manageableProviderStates.map((providerState) => (
 						<DropdownMenuItem
 							key={providerState.key}
-							onSelect={() =>
-								void navigate(
-									`/ai/settings/models/add?provider=${encodeURIComponent(
-										providerState.key,
-									)}`,
-								)
-							}
+							onSelect={() => {
+								const next = new URLSearchParams(searchParams);
+								next.set("provider", providerState.key);
+								void navigate(organizationAddModelPath(organization, next));
+							}}
 						>
 							<ProviderIcon provider={providerState.provider} />
 							<span>{providerState.label}</span>
@@ -96,29 +106,49 @@ const AddModelDropdown: FC<{
 
 interface ModelsPageViewProps {
 	isLoading: boolean;
-	error: unknown;
-	models: readonly ChatModelConfig[];
+	loadError: unknown;
+	refetchError: unknown;
+	models: readonly ChatModel[];
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
+	canCreateModel: boolean;
 }
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
 	isLoading,
-	error,
+	loadError,
+	refetchError,
 	models,
 	providerStates,
 	providerTypeByID,
+	canCreateModel,
 }) => {
 	const navigate = useNavigate();
-	const [page, setPage] = useState(1);
-	const [searchQuery, setSearchQuery] = useState("");
-	const [providerFilter, setProviderFilter] =
-		useState<string>(ALL_PROVIDERS_VALUE);
+	const [searchParams, setSearchParams] = useSearchParams();
+	const { organization, accessibleOrganizations } = useOrganizationModels();
+
+	// Keep filter state in the URL so it persists across navigation.
+	const providerFilter =
+		searchParams.get(PROVIDER_PARAM) ?? ALL_PROVIDERS_VALUE;
+	const searchQuery = searchParams.get(SEARCH_PARAM) ?? "";
+	const rawPage = Number.parseInt(searchParams.get(PAGE_PARAM) ?? "1", 10);
+	const page = Number.isNaN(rawPage) || rawPage <= 0 ? 1 : rawPage;
+
+	const updateSearchParams = (mutate: (params: URLSearchParams) => void) => {
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				mutate(next);
+				return next;
+			},
+			{ replace: true },
+		);
+	};
 
 	const providerKeyByModelId = useMemo(() => {
 		const map = new Map<string, string>();
 		for (const providerState of providerStates) {
-			for (const providerModel of providerState.modelConfigs) {
+			for (const providerModel of providerState.models) {
 				map.set(providerModel.id, providerState.key);
 			}
 		}
@@ -128,8 +158,28 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	const providerLabelByModelId = useMemo(() => {
 		const map = new Map<string, string>();
 		for (const providerState of providerStates) {
-			for (const providerModel of providerState.modelConfigs) {
+			for (const providerModel of providerState.models) {
 				map.set(providerModel.id, providerState.label);
+			}
+		}
+		return map;
+	}, [providerStates]);
+
+	const hasProviderByModelId = useMemo(() => {
+		const map = new Map<string, boolean>();
+		for (const providerState of providerStates) {
+			for (const providerModel of providerState.models) {
+				map.set(providerModel.id, true);
+			}
+		}
+		return map;
+	}, [providerStates]);
+
+	const providerEnabledByModelId = useMemo(() => {
+		const map = new Map<string, boolean>();
+		for (const providerState of providerStates) {
+			for (const providerModel of providerState.models) {
+				map.set(providerModel.id, providerState.providerDescriptor.enabled);
 			}
 		}
 		return map;
@@ -172,19 +222,45 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		searchQuery.trim().length > 0 || providerFilter !== ALL_PROVIDERS_VALUE;
 
 	const handleSearchChange = (value: string) => {
-		setSearchQuery(value);
-		setPage(1);
+		updateSearchParams((params) => {
+			if (value) {
+				params.set(SEARCH_PARAM, value);
+			} else {
+				params.delete(SEARCH_PARAM);
+			}
+			params.delete(PAGE_PARAM);
+		});
 	};
 
 	const handleProviderChange = (value: string) => {
-		setProviderFilter(value);
-		setPage(1);
+		updateSearchParams((params) => {
+			if (value && value !== ALL_PROVIDERS_VALUE) {
+				params.set(PROVIDER_PARAM, value);
+			} else {
+				params.delete(PROVIDER_PARAM);
+			}
+			params.delete(PAGE_PARAM);
+		});
+	};
+
+	const handlePageChange = (newPage: number) => {
+		updateSearchParams((params) => {
+			if (newPage <= 1) {
+				params.delete(PAGE_PARAM);
+			} else {
+				params.set(PAGE_PARAM, String(newPage));
+			}
+		});
 	};
 
 	return (
 		<div>
 			<SettingsHeader
-				actions={<AddModelDropdown providerStates={providerStates} />}
+				actions={
+					canCreateModel ? (
+						<AddModelDropdown providerStates={providerStates} />
+					) : undefined
+				}
 			>
 				<SettingsHeaderTitle>Models</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
@@ -192,9 +268,9 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 					users to select. You can set a default and adjust context limits.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			{Boolean(error) && (
+			{(loadError ?? refetchError) != null && (
 				<div className="mb-4">
-					<ErrorAlert error={error} />
+					<ErrorAlert error={loadError ?? refetchError} />
 				</div>
 			)}
 			<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -212,9 +288,29 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						/>
 					</InputGroup>
 				</div>
+				{accessibleOrganizations.length > 1 && (
+					<OrganizationField
+						id="models-organization"
+						organization={organization}
+						organizations={accessibleOrganizations}
+						showLabel={false}
+						className="w-full sm:w-60"
+						triggerClassName="w-full sm:w-60"
+						optionsTabbable
+						onChange={(nextOrganization) => {
+							void navigate(
+								selectModelOrganizationPath(
+									"/ai/settings/models",
+									nextOrganization,
+									searchParams,
+								),
+							);
+						}}
+					/>
+				)}
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
-						className="w-full sm:w-60"
+						className="w-full shadow-none sm:w-60"
 						aria-label="Filter by provider"
 					>
 						<SelectValue placeholder="All providers" />
@@ -223,7 +319,10 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						<SelectItem value={ALL_PROVIDERS_VALUE}>All providers</SelectItem>
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
-								{providerState.label}
+								<span className="flex items-center gap-2">
+									<ProviderIcon provider={providerState.provider} />
+									{providerState.label}
+								</span>
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -235,7 +334,6 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/4">Provider</TableHead>
 						<TableHead className="w-1/4">Context limit</TableHead>
-						<TableHead className="w-40">Status</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open model</span>
 						</TableHead>
@@ -244,15 +342,17 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoader />
-					) : !hasModels ? (
+					) : loadError != null ? null : !hasModels ? (
 						<TableEmpty
 							message="No models configured"
 							description="Configured models will appear here."
 							cta={
-								<AddModelDropdown
-									providerStates={providerStates}
-									align="start"
-								/>
+								canCreateModel ? (
+									<AddModelDropdown
+										providerStates={providerStates}
+										align="start"
+									/>
+								) : undefined
 							}
 						/>
 					) : filteredModels.length === 0 ? (
@@ -267,7 +367,15 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
-								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
+								hasProvider={hasProviderByModelId.get(model.id) ?? false}
+								providerEnabled={
+									providerEnabledByModelId.get(model.id) ?? false
+								}
+								onClick={() =>
+									void navigate(
+										organizationModelPath(organization, model.id, searchParams),
+									)
+								}
 							/>
 						))
 					)}
@@ -280,7 +388,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 							currentPage={clampedPage}
 							pageSize={MODELS_PAGE_SIZE}
 							totalRecords={filteredModels.length}
-							onPageChange={setPage}
+							onPageChange={handlePageChange}
 							hasPreviousPage={hasPreviousPage}
 							hasNextPage={hasNextPage}
 						/>

@@ -1,4 +1,8 @@
-Learn how to use Coder Workspaces with IDEs and plugins to run coding agents like Cursor, GitHub Copilot, Windsurf, RooCode, and more.
+---
+title: In the IDE
+---
+
+Learn how to use Coder Workspaces with IDEs and plugins to run coding agents like Cursor, GitHub Copilot, Devin Desktop, RooCode, and more.
 
 ## How it works
 

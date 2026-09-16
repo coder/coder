@@ -2,7 +2,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
 import { ToolCall } from "./ToolCall";
-import { asRecord, asString, type ToolStatus } from "./utils";
+import { asString, parseArgs, type ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
 /**
@@ -32,15 +32,7 @@ export const CreateWorkspaceTool: React.FC<{
 	labelOverride,
 }) => {
 	const isRunning = status === "running";
-	let rec: Record<string, unknown> | null = null;
-	if (resultJson) {
-		try {
-			const parsed = JSON.parse(resultJson);
-			rec = asRecord(parsed);
-		} catch {
-			rec = asRecord(resultJson);
-		}
-	}
+	const rec = parseArgs(resultJson);
 	const ownerName = rec ? asString(rec.owner_name) : "";
 	const wsName = rec ? asString(rec.workspace_name) : workspaceName;
 	const workspaceLink = ownerName && wsName ? `/@${ownerName}/${wsName}` : null;

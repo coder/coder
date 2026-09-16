@@ -136,7 +136,6 @@ func applyEditMessage(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded see
 		MessageID: seeded.initialUserMessageID,
 		CreatedBy: f.User.ID,
 		Content:   content,
-		APIKeyID:  f.apiKeyID(),
 	})
 	return err
 }
@@ -237,6 +236,54 @@ func applyFinishInterruption(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ s
 	return err
 }
 
+func applyRequestCompaction(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.requestCompaction, err = tx.RequestCompaction(chatstate.RequestCompactionInput{})
+	return err
+}
+
+// clearBoundaryMessages mirrors chatd's boundary triplet without
+// importing its builder so the state machine tests stay independent
+// of chatd message construction.
+func clearBoundaryMessages(t *testing.T) []chatstate.Message {
+	t.Helper()
+	callID := "chat_cleared_" + uuid.NewString()
+	messages := []chatstate.Message{
+		{
+			Role:           database.ChatMessageRoleUser,
+			Content:        mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("context cleared")}),
+			Visibility:     database.ChatMessageVisibilityModel,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageToolCall(callID, "chat_cleared", json.RawMessage(`{"source":"manual"}`))}),
+			Visibility:     database.ChatMessageVisibilityUser,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleTool,
+			Content:        mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageToolResult(callID, "chat_cleared", json.RawMessage(`{"source":"manual"}`), false, false)}),
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+	}
+	for i := range messages {
+		messages[i].Compressed = true
+	}
+	return messages
+}
+
+func applyClearContext(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.clearContext, err = tx.ClearContext(chatstate.ClearContextInput{
+		Messages: clearBoundaryMessages(t),
+	})
+	return err
+}
+
 func applyFinishTurn(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var err error
@@ -283,6 +330,10 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applySendMessageQueue
 	case chatstate.TransitionEditMessage:
 		return applyEditMessage
+	case chatstate.TransitionRequestCompaction:
+		return applyRequestCompaction
+	case chatstate.TransitionClearContext:
+		return applyClearContext
 	case chatstate.TransitionDeleteQueuedMessage:
 		return applyDeleteQueuedMessage
 	case chatstate.TransitionPromoteQueuedMessage:
@@ -334,6 +385,8 @@ func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.Nul
 type transitionCaseResult struct {
 	sendMessage             chatstate.SendMessageResult
 	editMessage             chatstate.EditMessageResult
+	requestCompaction       chatstate.RequestCompactionResult
+	clearContext            chatstate.ClearContextResult
 	deleteQueuedMessage     chatstate.DeleteQueuedMessageResult
 	promoteQueuedMessage    chatstate.PromoteQueuedMessageResult
 	interrupt               chatstate.InterruptResult
@@ -779,6 +832,15 @@ func matrixCases() []transitionCaseSpec {
 		editMessageCase(chatstate.StateA0),
 		editMessageCase(chatstate.StateA1),
 
+		// RequestCompaction cases.
+		requestCompactionCase(chatstate.StateW, chatstate.StateR0),
+		requestCompactionCase(chatstate.StateE0, chatstate.StateR0),
+		requestCompactionCase(chatstate.StateE1, chatstate.StateR1),
+
+		// ClearContext cases.
+		clearContextCase(chatstate.StateW),
+		clearContextCase(chatstate.StateE0),
+
 		// DeleteQueuedMessage cases. Empty-tail want collapses the
 		// classified state (E1->E0, R1->R0, I1->I0, A1->A0). The
 		// non-empty-tail cases need a multi-queued seed.
@@ -855,6 +917,7 @@ func matrixCases() []transitionCaseSpec {
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
 		finishErrorCase(chatstate.StateR1, chatstate.StateE1),
+		finishErrorCase(chatstate.StateW, chatstate.StateE0),
 
 		// ReconcileInvalidState cases: Invalid with empty queue
 		// lands in E0; Invalid with non-empty queue lands in E1.
@@ -1416,6 +1479,82 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 		}
 	}
 	return spec
+}
+
+func requestCompactionCase(from, want chatstate.ExecutionState) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionRequestCompaction,
+		from:       from,
+		want:       want,
+		apply:      applyRequestCompaction,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusRunning, after.Status,
+				"RequestCompaction sets status running")
+			require.True(t, after.CompactionRequestedAt.Valid,
+				"RequestCompaction sets compaction_requested_at")
+			require.False(t, after.LastError.Valid,
+				"RequestCompaction clears last_error")
+			require.Greater(t, after.HistoryVersion, base.historyVersion,
+				"RequestCompaction starts a fresh history epoch")
+			require.Equal(t, after.SnapshotVersion, after.HistoryVersion,
+				"RequestCompaction advances history_version to snapshot_version")
+			require.Zero(t, after.GenerationAttempt,
+				"RequestCompaction grants a fresh retry budget")
+			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
+				"RequestCompaction inserts no history messages")
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"RequestCompaction leaves the queue untouched")
+			require.Equal(t, after.ID, result.requestCompaction.Chat.ID,
+				"RequestCompaction returns the updated chat row")
+			require.True(t, result.requestCompaction.Chat.CompactionRequestedAt.Valid,
+				"returned chat row carries the compaction request marker")
+		},
+	}
+}
+
+func clearContextCase(from chatstate.ExecutionState) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionClearContext,
+		from:       from,
+		want:       chatstate.StateW,
+		apply:      applyClearContext,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusWaiting, after.Status,
+				"ClearContext lands in waiting")
+			require.False(t, after.LastError.Valid,
+				"ClearContext clears last_error")
+			require.False(t, after.CompactionRequestedAt.Valid,
+				"ClearContext clears any pending compaction request")
+			require.Equal(t, base.chat.WorkerID, after.WorkerID,
+				"ClearContext leaves worker ownership untouched")
+			require.Equal(t, base.chat.RunnerID, after.RunnerID,
+				"ClearContext leaves runner ownership untouched")
+			require.Greater(t, after.HistoryVersion, base.historyVersion,
+				"inserted boundary rows must advance history_version")
+			require.Equal(t, after.SnapshotVersion, after.HistoryVersion,
+				"insert trigger advances history_version to snapshot_version")
+			require.Zero(t, after.GenerationAttempt,
+				"insert trigger grants a fresh retry budget")
+			// activeHistoryIDs reads the user-visible query, which
+			// excludes the hidden model-only boundary anchor, so only
+			// the tool call/result pair appears.
+			afterHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
+			require.Len(t, afterHistory, len(base.historyIDs)+2,
+				"ClearContext adds the user-visible tool call/result pair")
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"ClearContext leaves the queue untouched")
+			require.Len(t, result.clearContext.InsertedMessages, 3,
+				"result reports the inserted boundary rows")
+			require.Equal(t, after.ID, result.clearContext.Chat.ID,
+				"result returns the updated chat row")
+			require.Equal(t, database.ChatStatusWaiting, result.clearContext.Chat.Status,
+				"returned chat row reflects the waiting status")
+		},
+	}
 }
 
 func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {

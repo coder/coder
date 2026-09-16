@@ -1,4 +1,6 @@
-# Workspace Startup Coordination Examples
+---
+title: Workspace startup coordination examples
+---
 
 ## Script Example
 
@@ -6,7 +8,7 @@ This example shows a complete, production-ready script that starts Claude Code
 only after a repository has been cloned. It includes error handling, graceful
 degradation, and cleanup on exit:
 
-```bash
+```sh
 #!/bin/bash
 set -euo pipefail
 
@@ -81,14 +83,14 @@ We've omitted some details (such as persistent storage) for brevity, but these a
 
 ### Before
 
-```terraform
+```tf
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
+  image = "codercom/example-base:ubuntu"
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   entrypoint = ["sh", "-c", coder_agent.main.init_script]
   env        = [
@@ -139,14 +141,14 @@ Based on the above, we can improve both the startup time and reliability of the 
 
 Here is the updated version of the template:
 
-```terraform
+```tf
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
+  image = "codercom/example-base:ubuntu"
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   entrypoint = ["sh", "-c", coder_agent.main.init_script]
   env        = [
