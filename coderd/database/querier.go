@@ -1305,8 +1305,8 @@ type sqlcQuerier interface {
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
 	// Returns one page of per-user AI spend for @organization_id over the
 	// [period_start, period_end) window, most expensive first, together with the
-	// providers and clients each user spent through and the count and totals over
-	// every matching user. It must keep the same joins and predicates as
+	// providers, clients, and models each user spent through and the count and
+	// totals over every matching user. It must keep the same joins and predicates as
 	// ExportOrganizationAISpend so both report the same token usage.
 	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)

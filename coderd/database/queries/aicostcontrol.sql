@@ -491,8 +491,8 @@ ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, 
 -- name: ListOrganizationAISpendUsers :many
 -- Returns one page of per-user AI spend for @organization_id over the
 -- [period_start, period_end) window, most expensive first, together with the
--- providers and clients each user spent through and the count and totals over
--- every matching user. It must keep the same joins and predicates as
+-- providers, clients, and models each user spent through and the count and
+-- totals over every matching user. It must keep the same joins and predicates as
 -- ExportOrganizationAISpend so both report the same token usage.
 SELECT
 	ai.initiator_id AS user_id,
@@ -504,6 +504,7 @@ SELECT
 	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
 	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
 	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
 	COUNT(*) OVER ()::BIGINT AS count,
 	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
 	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count

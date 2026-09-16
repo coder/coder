@@ -3607,6 +3607,7 @@ SELECT
 	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
 	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
 	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
 	COUNT(*) OVER ()::BIGINT AS count,
 	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
 	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
@@ -3661,6 +3662,7 @@ type ListOrganizationAISpendUsersRow struct {
 	UnpricedUsageCount      int64     `db:"unpriced_usage_count" json:"unpriced_usage_count"`
 	Providers               []string  `db:"providers" json:"providers"`
 	Clients                 []string  `db:"clients" json:"clients"`
+	Models                  []string  `db:"models" json:"models"`
 	Count                   int64     `db:"count" json:"count"`
 	TotalCostMicros         int64     `db:"total_cost_micros" json:"total_cost_micros"`
 	TotalUnpricedUsageCount int64     `db:"total_unpriced_usage_count" json:"total_unpriced_usage_count"`
@@ -3668,8 +3670,8 @@ type ListOrganizationAISpendUsersRow struct {
 
 // Returns one page of per-user AI spend for @organization_id over the
 // [period_start, period_end) window, most expensive first, together with the
-// providers and clients each user spent through and the count and totals over
-// every matching user. It must keep the same joins and predicates as
+// providers, clients, and models each user spent through and the count and
+// totals over every matching user. It must keep the same joins and predicates as
 // ExportOrganizationAISpend so both report the same token usage.
 func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
@@ -3699,6 +3701,7 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 			&i.UnpricedUsageCount,
 			pq.Array(&i.Providers),
 			pq.Array(&i.Clients),
+			pq.Array(&i.Models),
 			&i.Count,
 			&i.TotalCostMicros,
 			&i.TotalUnpricedUsageCount,

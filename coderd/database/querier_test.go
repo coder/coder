@@ -19216,7 +19216,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		// alice: 1500 priced plus one unpriced usage without a recorded client.
 		{user: alice, group: inGroup, at: start, providerName: "anthropic-prod", model: "claude", client: vscode, cost: priced(1000)},
 		{user: alice, group: inGroup, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
-		{user: alice, group: inGroup, at: start.Add(2 * time.Hour), providerName: "openai-prod", model: "gpt-4"},
+		{user: alice, group: inGroup, at: start.Add(2 * time.Hour), providerName: "openai-prod", model: "gpt-4o"},
 		// bob: the most expensive user.
 		{user: bob, group: inGroup, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(3000)},
 		// carol ties with alice on cost and sorts after her by username.
@@ -19244,10 +19244,10 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		})
 	}
 
-	row := func(user database.User, providers, clients []string, cost, unpriced, count, totalCost, totalUnpriced int64) database.ListOrganizationAISpendUsersRow {
+	row := func(user database.User, providers, clients, models []string, cost, unpriced, count, totalCost, totalUnpriced int64) database.ListOrganizationAISpendUsersRow {
 		return database.ListOrganizationAISpendUsersRow{
 			UserID: user.ID, Username: user.Username, Name: user.Name, AvatarURL: user.AvatarURL, OrganizationID: org.ID,
-			CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients,
+			CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients, Models: models,
 			Count: count, TotalCostMicros: totalCost, TotalUnpricedUsageCount: totalUnpriced,
 		}
 	}
@@ -19259,10 +19259,10 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		rows, err := db.ListOrganizationAISpendUsers(ctx, base)
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(bob, []string{"anthropic"}, []string{"cursor"}, 3000, 0, 4, 6100, 1),
-			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, 1500, 1, 4, 6100, 1),
-			row(carol, []string{"anthropic"}, []string{"cursor"}, 1500, 0, 4, 6100, 1),
-			row(dave, []string{"anthropic"}, []string{"Unknown"}, 100, 0, 4, 6100, 1),
+			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
+			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
 		}, rows)
 	})
 
@@ -19275,16 +19275,16 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		require.NoError(t, err)
 		// Count and totals cover every matching user, not only the page.
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(bob, []string{"anthropic"}, []string{"cursor"}, 3000, 0, 4, 6100, 1),
-			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, 1500, 1, 4, 6100, 1),
+			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
 		}, rows)
 
 		params.OffsetOpt = 2
 		rows, err = db.ListOrganizationAISpendUsers(ctx, params)
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(carol, []string{"anthropic"}, []string{"cursor"}, 1500, 0, 4, 6100, 1),
-			row(dave, []string{"anthropic"}, []string{"Unknown"}, 100, 0, 4, 6100, 1),
+			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
 		}, rows)
 
 		params.OffsetOpt = 4
@@ -19303,24 +19303,24 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			{
 				name:   "ProviderName",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.ProviderName = "openai-prod" },
-				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, 500, 1, 1, 500, 1)},
+				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 1, 500, 1)},
 			},
 			{
 				name:   "Model",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Model = "claude" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"cursor"}, 3000, 0, 4, 5600, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, 1500, 0, 4, 5600, 0),
-					row(alice, []string{"anthropic"}, []string{"vscode"}, 1000, 0, 4, 5600, 0),
-					row(dave, []string{"anthropic"}, []string{"Unknown"}, 100, 0, 4, 5600, 0),
+					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 5600, 0),
+					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 5600, 0),
+					row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 4, 5600, 0),
+					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 5600, 0),
 				},
 			},
 			{
 				name:   "Client",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "cursor" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"cursor"}, 3000, 0, 2, 4500, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, 1500, 0, 2, 4500, 0),
+					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 2, 4500, 0),
+					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 2, 4500, 0),
 				},
 			},
 			{
@@ -19328,8 +19328,8 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				name:   "UnknownClient",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "Unknown" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(alice, []string{"openai"}, []string{"Unknown"}, 500, 1, 2, 600, 1),
-					row(dave, []string{"anthropic"}, []string{"Unknown"}, 100, 0, 2, 600, 1),
+					row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 2, 600, 1),
+					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 2, 600, 1),
 				},
 			},
 			{
@@ -19339,7 +19339,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 					p.Model = "claude"
 					p.Client = "vscode"
 				},
-				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic"}, []string{"vscode"}, 1000, 0, 1, 1000, 0)},
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 1, 1000, 0)},
 			},
 			{
 				name:   "NoMatch",
@@ -19370,13 +19370,13 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			{
 				// Only alice's unpriced usage is recorded from two hours in.
 				name: "LaterStart", start: start.Add(2 * time.Hour), end: end,
-				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, 0, 1, 1, 0, 1)},
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4o"}, 0, 1, 1, 0, 1)},
 			},
 			{
 				// The usage one second before the base window is inside a
 				// window that ends where the base window starts.
 				name: "EarlierWindow", start: start.Add(-time.Hour), end: start,
-				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic"}, []string{"Unknown"}, 99_999, 0, 1, 99_999, 0)},
+				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 1, 99_999, 0)},
 			},
 			{
 				// Usage is attributed by when it was recorded, not by when
@@ -19385,8 +19385,8 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				// usage at the base window's exclusive end.
 				name: "TokenUsageCreatedAt", start: end, end: end.Add(2 * time.Hour),
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"Unknown"}, 99_999, 0, 2, 100_699, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, 700, 0, 2, 100_699, 0),
+					row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 2, 100_699, 0),
+					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 700, 0, 2, 100_699, 0),
 				},
 			},
 		}
@@ -19412,7 +19412,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{{
 			UserID: bob.ID, Username: bob.Username, Name: bob.Name, AvatarURL: bob.AvatarURL, OrganizationID: otherOrg.ID,
-			CostMicros: 99_999, Providers: []string{"anthropic"}, Clients: []string{"Unknown"}, Count: 1, TotalCostMicros: 99_999,
+			CostMicros: 99_999, Providers: []string{"anthropic"}, Clients: []string{"Unknown"}, Models: []string{"claude"}, Count: 1, TotalCostMicros: 99_999,
 		}}, rows)
 	})
 }
