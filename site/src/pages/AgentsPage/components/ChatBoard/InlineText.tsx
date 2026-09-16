@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { PencilIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 
 interface InlineInputProps {
@@ -20,10 +20,17 @@ export const InlineInput: FC<InlineInputProps> = ({
 	ariaLabel,
 }) => {
 	const [draft, setDraft] = useState(value);
+	// Escape unmounts the field, which can fire a trailing blur; ignore it.
+	const cancelled = useRef(false);
 	const commit = () => {
+		if (cancelled.current) return;
 		const next = draft.trim();
 		onDone();
 		if (next && next !== value) onSave(next);
+	};
+	const cancel = () => {
+		cancelled.current = true;
+		onDone();
 	};
 
 	return (
@@ -42,7 +49,7 @@ export const InlineInput: FC<InlineInputProps> = ({
 			onPointerDown={(e) => e.stopPropagation()}
 			onKeyDown={(e) => {
 				if (e.key === "Enter") commit();
-				if (e.key === "Escape") onDone();
+				if (e.key === "Escape") cancel();
 			}}
 		/>
 	);
