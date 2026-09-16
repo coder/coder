@@ -1,11 +1,17 @@
 import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { AIBridgeProviderIcon } from "./icons/AIBridgeProviderIcon";
 import { getProviderDisplayName } from "./utils";
 
 /**
  * Names a single provider with its icon, or counts them when there are
- * several. Renders nothing for an empty list.
+ * several and lists them on hover. Renders nothing for an empty list.
  */
 export const ProvidersBadge: FC<{ providers: readonly string[] }> = ({
 	providers,
@@ -14,7 +20,28 @@ export const ProvidersBadge: FC<{ providers: readonly string[] }> = ({
 		return null;
 	}
 	if (providers.length > 1) {
-		return <Badge className="max-w-full">{providers.length} providers</Badge>;
+		return (
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Badge className="max-w-full">{providers.length} providers</Badge>
+					</TooltipTrigger>
+					<TooltipContent side="top" align="start">
+						<ul className="m-0 flex list-none flex-col gap-1 p-0">
+							{providers.map((provider) => (
+								<li key={provider} className="flex items-center gap-1.5">
+									<AIBridgeProviderIcon
+										provider={provider}
+										className="size-icon-xs"
+									/>
+									{getProviderDisplayName(provider)}
+								</li>
+							))}
+						</ul>
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
 	}
 	return (
 		<Badge className="gap-1.5 max-w-full">

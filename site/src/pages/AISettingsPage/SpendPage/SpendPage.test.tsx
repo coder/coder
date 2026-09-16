@@ -194,11 +194,17 @@ it("offers only date presets that start within the retention window", async () =
 });
 
 it("shows each user's providers and clients", async () => {
+	const user = userEvent.setup();
 	renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 	expect(screen.getByText("OpenAI")).toBeInTheDocument();
 	expect(screen.getAllByText("2 providers")).toHaveLength(9);
 	expect(screen.getAllByText("2 clients")).toHaveLength(10);
+
+	await user.hover(screen.getAllByText("2 providers")[0]);
+	const tooltip = await screen.findByRole("tooltip");
+	expect(tooltip).toHaveTextContent("Anthropic");
+	expect(tooltip).toHaveTextContent("OpenAI");
 });
 
 it("applies the provider filter and resets pagination", async () => {
