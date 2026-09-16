@@ -470,6 +470,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const [liveItemKeys, setLiveItemKeys] = useState<
 			ReadonlyMap<string, string>
 		>(new Map());
+		// A live block anchored on the head is re-keyed when paging loads its
+		// turn's prompt. Its oldest member stays in the block, so that member
+		// identifies the re-keyed block and lets it keep its item.
+		const [liveBlockIdentity, setLiveBlockIdentity] = useState<{
+			itemKey: string;
+			firstMemberId: number;
+		} | null>(null);
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
@@ -509,22 +516,41 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			workingBlocks.flatMap((block) => block.rowIndices),
 		);
 		let nextLiveItemKeys = liveItemKeys;
+		let nextLiveBlockIdentity = liveBlockIdentity;
 		for (const block of workingBlocks) {
-			if (nextLiveItemKeys.has(block.key)) {
-				continue;
-			}
-			const itemKey = block.isLive
-				? block.liveKey
-				: nextLiveItemKeys.get(block.liveKey);
+			let itemKey = nextLiveItemKeys.get(block.key);
 			if (itemKey === undefined) {
-				continue;
+				if (
+					nextLiveBlockIdentity &&
+					block.memberIds.includes(nextLiveBlockIdentity.firstMemberId)
+				) {
+					itemKey = nextLiveBlockIdentity.itemKey;
+				} else if (block.isLive) {
+					itemKey = block.liveKey;
+				} else {
+					itemKey = nextLiveItemKeys.get(block.liveKey);
+				}
+				if (itemKey === undefined) {
+					continue;
+				}
+				const next = new Map(nextLiveItemKeys);
+				next.set(block.key, itemKey);
+				nextLiveItemKeys = next;
 			}
-			const next = new Map(nextLiveItemKeys);
-			next.set(block.key, itemKey);
-			nextLiveItemKeys = next;
+			const firstMemberId = block.memberIds[0];
+			if (
+				block.isLive &&
+				firstMemberId !== undefined &&
+				nextLiveBlockIdentity?.itemKey !== itemKey
+			) {
+				nextLiveBlockIdentity = { itemKey, firstMemberId };
+			}
 		}
 		if (nextLiveItemKeys !== liveItemKeys) {
 			setLiveItemKeys(nextLiveItemKeys);
+		}
+		if (nextLiveBlockIdentity !== liveBlockIdentity) {
+			setLiveBlockIdentity(nextLiveBlockIdentity);
 		}
 
 		if (renderRows.length === 0) {
