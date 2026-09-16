@@ -2,43 +2,44 @@ import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "agents.board";
 
-export type ChatPane = Readonly<{
-	tabs: readonly string[];
-	active: string;
+/** A pinned floating chat window, in viewport pixels. */
+export type ChatWindow = Readonly<{
+	chatId: string;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }>;
 
 type BoardStorage = Readonly<{
 	columnOrder: readonly string[];
 	/** Columns the user created that have no cards yet. Labels cannot hold these. */
 	emptyColumns: readonly string[];
-	/** Fraction of the pane height given to the board when a chat is open below. */
-	splitRatio: number;
-	/** Open chat tabs below the board, at most two panes side by side. */
-	panes: readonly ChatPane[];
-	focusedPane: number;
-	/** Chats hidden but kept; a control in the board header restores them. */
-	chatsCollapsed: boolean;
+	/** Pinned chat windows, back to front. */
+	windows: readonly ChatWindow[];
 }>;
 
 const DEFAULT_STORAGE: BoardStorage = {
 	columnOrder: [],
 	emptyColumns: [],
-	splitRatio: 0.4,
-	panes: [],
-	focusedPane: 0,
-	chatsCollapsed: false,
+	windows: [],
 };
 
 const isStringArray = (value: unknown): value is string[] =>
 	Array.isArray(value) && value.every((v) => typeof v === "string");
 
-const isPane = (value: unknown): value is ChatPane => {
+const isFiniteNumber = (value: unknown): value is number =>
+	typeof value === "number" && Number.isFinite(value);
+
+const isWindow = (value: unknown): value is ChatWindow => {
 	if (typeof value !== "object" || value === null) return false;
 	const obj = value as Record<string, unknown>;
 	return (
-		isStringArray(obj.tabs) &&
-		typeof obj.active === "string" &&
-		obj.tabs.includes(obj.active)
+		typeof obj.chatId === "string" &&
+		isFiniteNumber(obj.x) &&
+		isFiniteNumber(obj.y) &&
+		isFiniteNumber(obj.width) &&
+		isFiniteNumber(obj.height)
 	);
 };
 
@@ -49,22 +50,10 @@ const readStorage = (): BoardStorage => {
 		const parsed: unknown = JSON.parse(raw);
 		if (typeof parsed !== "object" || parsed === null) return DEFAULT_STORAGE;
 		const obj = parsed as Record<string, unknown>;
-		const panes = Array.isArray(obj.panes)
-			? obj.panes.filter(isPane).slice(0, 2)
-			: [];
 		return {
 			columnOrder: isStringArray(obj.columnOrder) ? obj.columnOrder : [],
 			emptyColumns: isStringArray(obj.emptyColumns) ? obj.emptyColumns : [],
-			splitRatio:
-				typeof obj.splitRatio === "number" && Number.isFinite(obj.splitRatio)
-					? obj.splitRatio
-					: DEFAULT_STORAGE.splitRatio,
-			panes,
-			focusedPane:
-				typeof obj.focusedPane === "number" && obj.focusedPane < panes.length
-					? obj.focusedPane
-					: 0,
-			chatsCollapsed: obj.chatsCollapsed === true,
+			windows: Array.isArray(obj.windows) ? obj.windows.filter(isWindow) : [],
 		};
 	} catch {
 		return DEFAULT_STORAGE;

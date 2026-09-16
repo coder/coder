@@ -1,4 +1,9 @@
-import { EllipsisIcon, Trash2Icon } from "lucide-react";
+import { cn } from "cn";
+import {
+	EllipsisIcon,
+	EllipsisVerticalIcon,
+	type LucideIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import {
 	DropdownMenu,
@@ -7,36 +12,58 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 
-interface ActionsMenuProps {
+interface MenuAction {
 	readonly label: string;
-	readonly onDelete: { readonly label: string; readonly run: () => void };
+	readonly icon: LucideIcon;
+	readonly onSelect: () => void;
+	readonly destructive?: boolean;
 }
 
-/**
- * Destructive actions only; renaming and coloring happen in place. A hover
- * "..." with a reserved slot, so revealing it never moves the line it sits
- * on. Revealed by the `group/column` hover group.
- */
-export const ActionsMenu: FC<ActionsMenuProps> = ({ label, onDelete }) => (
-	<DropdownMenu>
-		<DropdownMenuTrigger asChild>
-			<button
-				type="button"
-				aria-label={`Actions for ${label}`}
-				className="grid size-4 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/70 opacity-0 hover:bg-content-primary/5 hover:text-content-primary focus-visible:opacity-100 group-hover/column:opacity-100 data-[state=open]:opacity-100"
-				onPointerDown={(e) => e.stopPropagation()}
-			>
-				<EllipsisIcon className="size-3.5" />
-			</button>
-		</DropdownMenuTrigger>
-		<DropdownMenuContent align="end" className="min-w-40 text-xs">
-			<DropdownMenuItem
-				className="text-content-destructive"
-				onSelect={onDelete.run}
-			>
-				<Trash2Icon className="size-3.5" />
-				{onDelete.label}
-			</DropdownMenuItem>
-		</DropdownMenuContent>
-	</DropdownMenu>
-);
+interface ActionsMenuProps {
+	readonly label: string;
+	readonly items: readonly MenuAction[];
+	/**
+	 * Cards show a permanent vertical "⋮" so nothing shifts on hover;
+	 * columns reveal a horizontal "..." from the `group/column` hover group.
+	 */
+	readonly permanent?: boolean;
+}
+
+/** The menu for actions that have no in-place gesture. */
+export const ActionsMenu: FC<ActionsMenuProps> = ({
+	label,
+	items,
+	permanent = false,
+}) => {
+	const Icon = permanent ? EllipsisVerticalIcon : EllipsisIcon;
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					aria-label={`Actions for ${label}`}
+					className={cn(
+						"relative z-[1] grid size-4 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:text-content-primary focus-visible:opacity-100 data-[state=open]:text-content-primary",
+						!permanent &&
+							"opacity-0 group-hover/column:opacity-100 data-[state=open]:opacity-100",
+					)}
+					onPointerDown={(e) => e.stopPropagation()}
+				>
+					<Icon className="size-3.5" />
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="min-w-40 text-xs">
+				{items.map((item) => (
+					<DropdownMenuItem
+						key={item.label}
+						className={cn(item.destructive && "text-content-destructive")}
+						onSelect={item.onSelect}
+					>
+						<item.icon className="size-3.5" />
+						{item.label}
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+};
