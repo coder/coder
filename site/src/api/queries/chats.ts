@@ -3,6 +3,7 @@ import {
 	type InfiniteData,
 	type QueryClient,
 	queryOptions,
+	replaceEqualDeep,
 	type UseInfiniteQueryOptions,
 } from "react-query";
 import {
@@ -1190,6 +1191,44 @@ const MESSAGES_PAGE_SIZE = 50;
 export const chatMessagesKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "messages"] as const;
 
+type ChatMessagesInfiniteData = InfiniteData<
+	TypesGen.ChatMessagesResponse,
+	number | undefined
+>;
+
+const isChatMessagesInfiniteData = (
+	data: unknown,
+): data is ChatMessagesInfiniteData =>
+	typeof data === "object" &&
+	data !== null &&
+	Array.isArray((data as ChatMessagesInfiniteData).pages) &&
+	Array.isArray((data as ChatMessagesInfiniteData).pageParams);
+
+/**
+ * Merges a resolved messages fetch into the cache. When the result only
+ * appends pages to the ones already cached (a fetchNextPage result), the
+ * cached versions of the existing pages are kept: react-query builds that
+ * result from a snapshot of the pages taken when the fetch started, so
+ * messages written into the cache while it was in flight would otherwise
+ * be discarded. Any other shape (initial load, refetch, history
+ * replacement) is taken as-is from the result.
+ */
+export const mergeChatMessagesPages = (prev: unknown, next: unknown) => {
+	if (
+		!isChatMessagesInfiniteData(prev) ||
+		!isChatMessagesInfiniteData(next) ||
+		next.pages.length <= prev.pages.length ||
+		prev.pageParams.length !== prev.pages.length ||
+		prev.pageParams.some((param, i) => next.pageParams[i] !== param)
+	) {
+		return replaceEqualDeep(prev, next);
+	}
+	return replaceEqualDeep(prev, {
+		pages: [...prev.pages, ...next.pages.slice(prev.pages.length)],
+		pageParams: next.pageParams,
+	});
+};
+
 const chatQueueConvergenceKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "queue-convergence"] as const;
 
@@ -1219,6 +1258,7 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+	structuralSharing: mergeChatMessagesPages,
 });
 
 // Cap requested prompts to keep the response small; well under the server-side maximum.
