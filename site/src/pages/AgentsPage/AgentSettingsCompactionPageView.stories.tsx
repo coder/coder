@@ -22,7 +22,7 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 	],
 	providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
 	organizations: [MockDefaultOrganization],
-	compactionModelIDByOrganization: new Map<string, string>(),
+	compactionTriggersByOrganizationID: new Map(),
 	modelsError: undefined,
 	isLoadingModels: false,
 	thresholds: [
