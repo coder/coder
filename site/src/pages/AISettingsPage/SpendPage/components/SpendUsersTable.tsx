@@ -92,7 +92,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 									>
 										<TableHeader>
 											<TableRow>
-												<TableHead>User</TableHead>
+												<TableHead className="w-32 @3xl:w-auto">User</TableHead>
 												<TableHead className={dimensionColumnClassName}>
 													Providers
 												</TableHead>
