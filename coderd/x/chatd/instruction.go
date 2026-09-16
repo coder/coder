@@ -6,11 +6,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// workspaceContextScopeLine tells the model how the listed Source paths
+// relate to each other.
+const workspaceContextScopeLine = "Each Source path scopes its instructions to that directory tree; a nested file refines the files above it for paths beneath it."
+
 // formatSystemInstructions builds the <workspace-context> block from
 // agent metadata and zero or more context-file parts. Non-context-file
-// parts in the slice are silently skipped.
+// parts in the slice are silently skipped. emptyNote is printed in place
+// of the file list when no part has content, so the model learns why no
+// instruction file is listed instead of receiving no block at all.
 func formatSystemInstructions(
-	operatingSystem, directory string,
+	operatingSystem, directory, emptyNote string,
 	parts []codersdk.ChatMessagePart,
 ) string {
 	hasContent := false
@@ -20,7 +26,7 @@ func formatSystemInstructions(
 			break
 		}
 	}
-	if !hasContent && operatingSystem == "" && directory == "" {
+	if !hasContent && emptyNote == "" && operatingSystem == "" && directory == "" {
 		return ""
 	}
 
@@ -36,6 +42,16 @@ func formatSystemInstructions(
 		_, _ = b.WriteString(directory)
 		_, _ = b.WriteString("\n")
 	}
+	if !hasContent {
+		if emptyNote != "" {
+			_, _ = b.WriteString(emptyNote)
+			_, _ = b.WriteString("\n")
+		}
+		_, _ = b.WriteString("</workspace-context>")
+		return b.String()
+	}
+	_, _ = b.WriteString(workspaceContextScopeLine)
+	_, _ = b.WriteString("\n")
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeContextFile || part.ContextFileContent == "" {
 			continue
