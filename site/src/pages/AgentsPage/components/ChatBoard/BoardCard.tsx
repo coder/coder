@@ -1,13 +1,17 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
 import { CopyIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
-import { ActionsMenu } from "./ActionsMenu";
-import type { BoardCard as BoardCardModel, CardColor } from "./boardLabels";
+import {
+	type BoardCard as BoardCardModel,
+	CARD_COLOR_CLASS,
+	CARD_COLORS,
+	type CardColor,
+} from "./boardLabels";
 import { ChatInfoPopover } from "./ChatInfo";
 import { dragHandleListeners } from "./dragHandle";
 import { InlineInput } from "./InlineText";
@@ -25,26 +29,8 @@ const cardDragId = (card: BoardCardModel) => `card:${card.id}`;
 const chatDragId = (chat: Chat) => `chat:${chat.id}`;
 const cardDropId = (card: BoardCardModel) => `drop-card:${card.id}`;
 
-// Accent border from the theme's highlight tokens, which flip between dark
-// and light saturations with the color mode. Decorative only, never status.
-const CARD_ACCENT_CLASS: Record<CardColor, string> = {
-	green: "border-l-highlight-green",
-	orange: "border-l-highlight-orange",
-	sky: "border-l-highlight-sky",
-	red: "border-l-highlight-red",
-	purple: "border-l-highlight-purple",
-	magenta: "border-l-highlight-magenta",
-};
-
-// Faint wash of the accent behind the header of a colored card.
-const CARD_TINT_CLASS: Record<CardColor, string> = {
-	green: "bg-highlight-green/10",
-	orange: "bg-highlight-orange/10",
-	sky: "bg-highlight-sky/10",
-	red: "bg-highlight-red/10",
-	purple: "bg-highlight-purple/10",
-	magenta: "bg-highlight-magenta/10",
-};
+// Chats open in a pane below are marked by their title alone, no chrome.
+const OPEN_TITLE_CLASS = "font-medium text-highlight-purple";
 
 interface BoardCardProps {
 	readonly card: BoardCardModel;
@@ -86,6 +72,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 		setDragRef(node);
 		setDropRef(node);
 	};
+	const [renaming, setRenaming] = useState(false);
+	const [pickingColor, setPickingColor] = useState(false);
 
 	// The moving copy is drawn by DragGhost inside DragOverlay; the source
 	// stays put so column layout does not shift mid-drag.
@@ -93,35 +81,44 @@ export const BoardCard: FC<BoardCardProps> = ({
 	const lead = card.primary;
 	const leadDisplay = getChatDisplayConfig(lead);
 	const LeadIcon = leadDisplay.icon;
-	const [renaming, setRenaming] = useState(false);
+	const colors = card.color ? CARD_COLOR_CLASS[card.color] : undefined;
 	return (
 		<article
 			ref={setRefs}
 			className={cn(
-				"flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]",
-				card.color && cn("border-l-[3px]", CARD_ACCENT_CLASS[card.color]),
+				"relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]",
+				colors && cn("border-l-[3px]", colors.accent),
 				isDragging && "opacity-40",
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
 			)}
 		>
+			{/* The stripe shows the color, so the stripe is where you change it. */}
+			<button
+				type="button"
+				title="Card color"
+				aria-label={`Color of ${card.title}`}
+				aria-expanded={pickingColor}
+				className="absolute inset-y-0 left-0 z-[1] w-2 border-0 bg-transparent p-0 hover:bg-content-primary/10"
+				onClick={() => setPickingColor((on) => !on)}
+			/>
 			{/*
 			  Same anatomy for every card: [icon] title [meta]. A single chat is
 			  its own card, so its title is the chat title and there are no rows;
 			  a group shows a stack icon, the card title, and one row per chat.
-			  The header band is neutral by default and washed with the accent on
-			  colored cards. It is its own hover group so its menu does not light
-			  up from rows below.
+			  Click the title text to rename it; click anywhere else on a single
+			  card's header to open the chat. The band is washed with the accent.
 			*/}
 			<header
 				className={cn(
-					"group/card grid cursor-grab touch-none grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 px-3 pt-[11px] active:cursor-grabbing",
-					single ? "pb-[11px]" : "pb-2",
-					card.color ? CARD_TINT_CLASS[card.color] : "bg-surface-secondary/60",
+					"relative grid cursor-grab touch-none grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 px-3 pt-2.5 active:cursor-grabbing",
+					single ? "pb-2.5" : "pb-1.5",
+					colors?.tint,
 				)}
 				{...dragHandleListeners(listeners)}
 				{...attributes}
 				ref={setActivatorNodeRef}
 			>
+				{single && <OpenChatLink chat={lead} isDragging={isDragging} />}
 				<span className="flex h-[19px] items-center justify-center">
 					{single ? (
 						<LeadIcon
@@ -135,10 +132,14 @@ export const BoardCard: FC<BoardCardProps> = ({
 						/>
 					)}
 				</span>
-				<CardTitle
+				<EditableTitle
 					value={card.title}
-					href={single ? `/agents/board/${lead.id}` : undefined}
 					renaming={renaming}
+					className={cn(
+						"text-[14px] font-medium leading-[19px] tracking-[-0.005em]",
+						single && openChatIds.has(lead.id) && OPEN_TITLE_CLASS,
+					)}
+					onEdit={() => setRenaming(true)}
 					onRenamed={(title) => {
 						setRenaming(false);
 						if (single) onRenameChat(lead, title);
@@ -150,23 +151,24 @@ export const BoardCard: FC<BoardCardProps> = ({
 					{single ? (
 						<>
 							{lead.has_unread && <UnreadDot />}
-							<span className="font-mono text-[11px] tabular-nums text-content-secondary/70">
-								{shortRelativeTime(lead.updated_at)}
-							</span>
+							<Age at={lead.updated_at} />
 							<ChatInfoPopover chat={lead} />
 						</>
 					) : (
-						<span className="font-mono text-[11px] text-content-secondary/70">
+						<span className="text-[11px] text-content-secondary/70">
 							{card.members.length} chats
 						</span>
 					)}
-					<ActionsMenu
-						label={card.title}
-						revealOn="card"
-						onRename={() => setRenaming(true)}
-						color={{ value: card.color, onChange: onSetColor }}
-					/>
 				</div>
+				{pickingColor && (
+					<ColorSwatches
+						value={card.color}
+						onChange={(color) => {
+							setPickingColor(false);
+							onSetColor(color);
+						}}
+					/>
+				)}
 				{single && (
 					<div className="col-start-2 col-end-[-1] mt-0.5">
 						<ChatStatusLine chat={lead} />
@@ -182,7 +184,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 							chat={chat}
 							card={card}
 							draggable={chat.id !== card.id}
-							active={openChatIds.has(chat.id)}
+							open={openChatIds.has(chat.id)}
 							onRename={(title) => onRenameChat(chat, title)}
 						/>
 					))}
@@ -208,19 +210,59 @@ const UnreadDot: FC = () => (
 	/>
 );
 
-interface CardTitleProps {
+const Age: FC<{ readonly at: string }> = ({ at }) => (
+	<span className="text-[11px] tabular-nums text-content-secondary/70">
+		{shortRelativeTime(at)}
+	</span>
+);
+
+interface OpenChatLinkProps {
+	readonly chat: Chat;
+	readonly isDragging: boolean;
+}
+
+/**
+ * Invisible link under a card header or row, so a click that lands on no
+ * control opens the chat. Controls that must keep their own click sit above
+ * it with `relative z-[1]`.
+ */
+const OpenChatLink: FC<OpenChatLinkProps> = ({ chat, isDragging }) => {
+	// A drop that ends where the drag began also fires a click; only a
+	// plain click may navigate.
+	const dragged = useRef(false);
+	useEffect(() => {
+		if (isDragging) dragged.current = true;
+	}, [isDragging]);
+	return (
+		<Link
+			to={`/agents/board/${chat.id}`}
+			aria-label={`Open ${chat.title}`}
+			className="absolute inset-0"
+			onPointerDown={() => {
+				dragged.current = false;
+			}}
+			onClick={(e) => {
+				if (dragged.current) e.preventDefault();
+			}}
+		/>
+	);
+};
+
+interface EditableTitleProps {
 	readonly value: string;
-	readonly href: string | undefined;
 	readonly renaming: boolean;
+	readonly className: string;
+	readonly onEdit: () => void;
 	readonly onRenamed: (title: string) => void;
 	readonly onCancel: () => void;
 }
 
-/** Two-line card title; a link when the card is a single chat. */
-const CardTitle: FC<CardTitleProps> = ({
+/** Two-line title; clicking the text edits it in place. */
+const EditableTitle: FC<EditableTitleProps> = ({
 	value,
-	href,
 	renaming,
+	className,
+	onEdit,
 	onRenamed,
 	onCancel,
 }) => {
@@ -230,21 +272,76 @@ const CardTitle: FC<CardTitleProps> = ({
 				value={value}
 				onSave={onRenamed}
 				onDone={onCancel}
-				ariaLabel="card title"
-				className="min-w-0 text-[14px] font-medium text-content-primary"
+				ariaLabel="title"
+				className={cn("relative z-[1] w-full text-content-primary", className)}
 			/>
 		);
 	}
-	const className =
-		"line-clamp-2 min-w-0 text-[14px] font-medium leading-[19px] tracking-[-0.005em] text-content-primary wrap-anywhere [text-wrap:pretty]";
-	return href ? (
-		<Link to={href} className={cn(className, "no-underline")}>
-			{value}
-		</Link>
-	) : (
-		<span className={className}>{value}</span>
+	return (
+		<button
+			type="button"
+			title="Click to rename"
+			className={cn(
+				"relative z-[1] m-0 min-w-0 cursor-text border-0 bg-transparent p-0 text-left text-content-primary",
+				className,
+			)}
+			onClick={onEdit}
+		>
+			<span className="line-clamp-2 wrap-anywhere [text-wrap:pretty]">
+				{value}
+			</span>
+		</button>
 	);
 };
+
+interface ColorSwatchesProps {
+	readonly value: CardColor | undefined;
+	readonly onChange: (color: CardColor | undefined) => void;
+}
+
+/** Drops in under the title while picking, so the meta slot never moves. */
+const ColorSwatches: FC<ColorSwatchesProps> = ({ value, onChange }) => (
+	<div
+		className="relative z-[1] col-start-2 col-end-[-1] mt-2 flex items-center gap-1.5"
+		onPointerDown={(e) => e.stopPropagation()}
+	>
+		<Swatch
+			label="No color"
+			selected={value === undefined}
+			className="border-border bg-surface-primary"
+			onClick={() => onChange(undefined)}
+		/>
+		{CARD_COLORS.map((name) => (
+			<Swatch
+				key={name}
+				label={name}
+				selected={value === name}
+				className={cn("border-transparent", CARD_COLOR_CLASS[name].swatch)}
+				onClick={() => onChange(name)}
+			/>
+		))}
+	</div>
+);
+
+const Swatch: FC<{
+	readonly label: string;
+	readonly selected: boolean;
+	readonly className: string;
+	readonly onClick: () => void;
+}> = ({ label, selected, className, onClick }) => (
+	<button
+		type="button"
+		aria-label={label}
+		aria-pressed={selected}
+		className={cn(
+			"size-4 rounded-full border p-0 transition-transform hover:scale-110",
+			className,
+			selected &&
+				"ring-2 ring-content-link ring-offset-1 ring-offset-surface-primary",
+		)}
+		onClick={onClick}
+	/>
+);
 
 /** PR chip, line stats, and last turn text; shared by single cards and group rows. */
 const ChatStatusLine: FC<{ readonly chat: Chat }> = ({ chat }) => {
@@ -261,7 +358,7 @@ const ChatStatusLine: FC<{ readonly chat: Chat }> = ({ chat }) => {
 					target="_blank"
 					rel="noreferrer"
 					aria-label={display.prIcon.label}
-					className="inline-flex h-4 shrink-0 items-center gap-1 rounded bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary"
+					className="relative z-[1] inline-flex h-4 shrink-0 items-center gap-1 rounded bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary"
 					onPointerDown={(e) => e.stopPropagation()}
 				>
 					<span
@@ -305,7 +402,7 @@ export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
 				"w-[300px] cursor-grabbing rounded-lg border border-content-link bg-surface-primary px-3 py-2 text-sm shadow-lg",
 				drag.type === "card" &&
 					drag.card.color &&
-					cn("border-l-[3px]", CARD_ACCENT_CLASS[drag.card.color]),
+					cn("border-l-[3px]", CARD_COLOR_CLASS[drag.card.color].accent),
 			)}
 		>
 			<div className="font-medium leading-snug text-content-primary">
@@ -320,7 +417,7 @@ interface ChatRowProps {
 	readonly chat: Chat;
 	readonly card: BoardCardModel;
 	readonly draggable: boolean;
-	readonly active: boolean;
+	readonly open: boolean;
 	readonly onRename: (title: string) => void;
 }
 
@@ -328,7 +425,7 @@ const ChatRow: FC<ChatRowProps> = ({
 	chat,
 	card,
 	draggable,
-	active,
+	open,
 	onRename,
 }) => {
 	const dragData: DragData = { type: "chat", chat, card };
@@ -346,11 +443,11 @@ const ChatRow: FC<ChatRowProps> = ({
 		<li
 			ref={setNodeRef}
 			className={cn(
-				"group/row grid grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 rounded-md px-2 py-1.5 hover:bg-content-link/5",
-				active && "bg-content-link/10 hover:bg-content-link/10",
+				"relative grid grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 rounded-md px-2 py-1.5 hover:bg-content-primary/5",
 				isDragging && "opacity-40",
 			)}
 		>
+			<OpenChatLink chat={chat} isDragging={isDragging} />
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
 				ref={draggable ? setActivatorNodeRef : undefined}
@@ -359,7 +456,8 @@ const ChatRow: FC<ChatRowProps> = ({
 					: {})}
 				className={cn(
 					"flex h-[18px] items-center justify-center",
-					draggable && "cursor-grab touch-none active:cursor-grabbing",
+					draggable &&
+						"relative z-[1] cursor-grab touch-none active:cursor-grabbing",
 				)}
 				title={draggable ? "Drag to move this chat" : undefined}
 			>
@@ -368,38 +466,26 @@ const ChatRow: FC<ChatRowProps> = ({
 					aria-label={display.label}
 				/>
 			</span>
-			<div className="min-w-0">
-				{renaming ? (
-					<InlineInput
-						value={chat.title}
-						onSave={onRename}
-						onDone={() => setRenaming(false)}
-						ariaLabel={`title of ${chat.title}`}
-						className="w-full text-[13px] text-content-primary"
-					/>
-				) : (
-					<Link
-						to={`/agents/board/${chat.id}`}
-						className="line-clamp-2 min-w-0 text-[13px] leading-[18px] text-content-primary no-underline wrap-anywhere"
-					>
-						{chat.title}
-					</Link>
-				)}
-				<div className="mt-0.5">
+			<div className="flex min-w-0 flex-col items-start">
+				<EditableTitle
+					value={chat.title}
+					renaming={renaming}
+					className={cn("text-[13px] leading-[18px]", open && OPEN_TITLE_CLASS)}
+					onEdit={() => setRenaming(true)}
+					onRenamed={(title) => {
+						setRenaming(false);
+						onRename(title);
+					}}
+					onCancel={() => setRenaming(false)}
+				/>
+				<div className="mt-0.5 w-full">
 					<ChatStatusLine chat={chat} />
 				</div>
 			</div>
 			<div className="flex h-[18px] items-center gap-1.5">
 				{chat.has_unread && <UnreadDot />}
-				<span className="font-mono text-[11px] tabular-nums text-content-secondary/70">
-					{shortRelativeTime(chat.updated_at)}
-				</span>
+				<Age at={chat.updated_at} />
 				<ChatInfoPopover chat={chat} />
-				<ActionsMenu
-					label={chat.title}
-					revealOn="row"
-					onRename={() => setRenaming(true)}
-				/>
 			</div>
 		</li>
 	);

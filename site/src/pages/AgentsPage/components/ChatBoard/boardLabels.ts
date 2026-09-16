@@ -16,50 +16,24 @@ const MAX_LABEL_VALUE_BYTES = 256;
 
 export const INBOX_COLUMN = "Inbox";
 
-/** Theme classes for one column color: header square, sidebar tag, card accent. */
+/** Theme classes for one column color: header square and sidebar tag. */
 type ColumnColor = Readonly<{
 	dot: string;
 	tagBg: string;
-	tagFg: string;
 }>;
 
 const COLUMN_PALETTE: readonly ColumnColor[] = [
-	{
-		dot: "bg-highlight-purple",
-		tagBg: "bg-surface-purple",
-		tagFg: "text-highlight-purple",
-	},
-	{
-		dot: "bg-highlight-sky",
-		tagBg: "bg-surface-sky",
-		tagFg: "text-highlight-sky",
-	},
-	{
-		dot: "bg-highlight-green",
-		tagBg: "bg-surface-green",
-		tagFg: "text-highlight-green",
-	},
-	{
-		dot: "bg-highlight-orange",
-		tagBg: "bg-surface-orange",
-		tagFg: "text-highlight-orange",
-	},
-	{
-		dot: "bg-highlight-magenta",
-		tagBg: "bg-surface-magenta",
-		tagFg: "text-highlight-magenta",
-	},
-	{
-		dot: "bg-highlight-red",
-		tagBg: "bg-surface-red",
-		tagFg: "text-highlight-red",
-	},
+	{ dot: "bg-highlight-purple", tagBg: "bg-surface-purple" },
+	{ dot: "bg-highlight-sky", tagBg: "bg-surface-sky" },
+	{ dot: "bg-highlight-green", tagBg: "bg-surface-green" },
+	{ dot: "bg-highlight-orange", tagBg: "bg-surface-orange" },
+	{ dot: "bg-highlight-magenta", tagBg: "bg-surface-magenta" },
+	{ dot: "bg-highlight-red", tagBg: "bg-surface-red" },
 ];
 
 const INBOX_COLOR: ColumnColor = {
 	dot: "bg-content-secondary/40",
 	tagBg: "bg-surface-tertiary",
-	tagFg: "text-content-secondary",
 };
 
 // Hashing the name keeps the board and the sidebar in agreement without
@@ -84,6 +58,46 @@ export const CARD_COLORS = [
 ] as const;
 
 export type CardColor = (typeof CARD_COLORS)[number];
+
+/**
+ * Theme classes per card color. The highlight tokens flip saturation with
+ * the color mode, so one set serves both. Decorative only, never status.
+ */
+export const CARD_COLOR_CLASS: Record<
+	CardColor,
+	Readonly<{ accent: string; tint: string; swatch: string }>
+> = {
+	green: {
+		accent: "border-l-highlight-green",
+		tint: "bg-highlight-green/15",
+		swatch: "bg-highlight-green",
+	},
+	orange: {
+		accent: "border-l-highlight-orange",
+		tint: "bg-highlight-orange/15",
+		swatch: "bg-highlight-orange",
+	},
+	sky: {
+		accent: "border-l-highlight-sky",
+		tint: "bg-highlight-sky/15",
+		swatch: "bg-highlight-sky",
+	},
+	red: {
+		accent: "border-l-highlight-red",
+		tint: "bg-highlight-red/15",
+		swatch: "bg-highlight-red",
+	},
+	purple: {
+		accent: "border-l-highlight-purple",
+		tint: "bg-highlight-purple/15",
+		swatch: "bg-highlight-purple",
+	},
+	magenta: {
+		accent: "border-l-highlight-magenta",
+		tint: "bg-highlight-magenta/15",
+		swatch: "bg-highlight-magenta",
+	},
+};
 
 const isCardColor = (value: string | undefined): value is CardColor =>
 	value !== undefined && (CARD_COLORS as readonly string[]).includes(value);
@@ -121,7 +135,7 @@ export const getTitleLabel = (chat: Chat): string | undefined =>
 	chat.labels[TITLE_KEY];
 
 /** The card color set on a primary chat, if any. */
-export const getColorLabel = (chat: Chat): CardColor | undefined => {
+const getColorLabel = (chat: Chat): CardColor | undefined => {
 	const value = chat.labels[COLOR_KEY];
 	return isCardColor(value) ? value : undefined;
 };

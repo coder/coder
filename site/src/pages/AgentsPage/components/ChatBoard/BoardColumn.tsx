@@ -85,17 +85,25 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 						ariaLabel={`${column.name} column name`}
 						className="flex-1"
 					/>
-				) : (
+				) : isInbox ? (
 					<span className="min-w-0 flex-1 truncate">{column.name}</span>
+				) : (
+					// Same convention as card titles: click the text to rename it.
+					<button
+						type="button"
+						title="Click to rename"
+						className="m-0 min-w-0 flex-1 cursor-text truncate border-0 bg-transparent p-0 text-left text-inherit"
+						onClick={() => setRenaming(true)}
+					>
+						{column.name}
+					</button>
 				)}
-				<span className="font-mono text-[11px] text-content-secondary/70 tabular-nums">
+				<span className="text-[11px] text-content-secondary/70 tabular-nums">
 					{column.cards.length}
 				</span>
 				{!isInbox && (
 					<ActionsMenu
 						label={`${column.name} column`}
-						revealOn="column"
-						onRename={() => setRenaming(true)}
 						onDelete={{ label: "Delete column", run: onDelete }}
 					/>
 				)}
