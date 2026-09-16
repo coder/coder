@@ -870,6 +870,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		UserACL:             database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
 		PinOrder:            1,
 		PlanMode:            database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+		Mode:                database.NullChatMode{ChatMode: database.ChatModeOrchestrator, Valid: true},
 		MCPServerIDs:        []uuid.UUID{uuid.New()},
 		Labels:              database.StringMap{"env": "prod"},
 		DynamicTools: pqtype.NullRawMessage{
