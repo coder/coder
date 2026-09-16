@@ -1429,8 +1429,9 @@ type sqlcQuerier interface {
 	// already holds are never rewritten here. A chat whose additions make its
 	// pinned set equal to the snapshot moves to the new hash and stays clean;
 	// a chat that also has changed or removed rows keeps its old hash so
-	// MarkChatsContextDirtyByAgent still flags it. Changed chats are locked in
-	// ID order like the MCP sync.
+	// MarkChatsContextDirtyByAgent still flags it, which is why only the
+	// statuses that query marks dirty are eligible here. Changed chats are
+	// locked in ID order like the MCP sync.
 	SyncAgentChatsContextAddedResources(ctx context.Context, arg SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error)
 	// MCP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins

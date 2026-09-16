@@ -1736,8 +1736,9 @@ SELECT id FROM locked;
 -- already holds are never rewritten here. A chat whose additions make its
 -- pinned set equal to the snapshot moves to the new hash and stays clean;
 -- a chat that also has changed or removed rows keeps its old hash so
--- MarkChatsContextDirtyByAgent still flags it. Changed chats are locked in
--- ID order like the MCP sync.
+-- MarkChatsContextDirtyByAgent still flags it, which is why only the
+-- statuses that query marks dirty are eligible here. Changed chats are
+-- locked in ID order like the MCP sync.
 WITH agent_prompt AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
@@ -1749,6 +1750,7 @@ changed AS (
     FROM chats
     WHERE chats.agent_id = @agent_id::uuid
         AND chats.archived = false
+        AND chats.status IN ('waiting', 'running', 'requires_action')
         AND chats.context_aggregate_hash IS NOT NULL
         AND chats.context_aggregate_hash IS DISTINCT FROM @aggregate_hash
         AND EXISTS (

@@ -327,6 +327,17 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 		LastModelConfigID: model.ID,
 		Status:            database.ChatStatusWaiting,
 	})
+	// Dirty marking skips errored chats, so the additive pin must too or
+	// such a chat would resume with new rows next to stale ones and no
+	// out-of-date marker.
+	erroredChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusError,
+	})
 
 	rootSource := "/home/coder/AGENTS.md"
 	repoSource := "/home/coder/repo/AGENTS.md"
@@ -357,9 +368,9 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	}
 	//nolint:gocritic // Test reads chat-owned rows as the chatd subject; ctx carries no per-user actor.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	pinnedResources := func() map[string]database.ChatContextResource {
+	pinnedResourcesOf := func(chatID uuid.UUID) map[string]database.ChatContextResource {
 		t.Helper()
-		rows, lerr := db.ListChatContextResourcesByChatID(chatdCtx, chat.ID)
+		rows, lerr := db.ListChatContextResourcesByChatID(chatdCtx, chatID)
 		require.NoError(t, lerr)
 		out := make(map[string]database.ChatContextResource, len(rows))
 		for _, r := range rows {
@@ -367,12 +378,14 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 		}
 		return out
 	}
-	pinnedHash := func() []byte {
+	pinnedResources := func() map[string]database.ChatContextResource { return pinnedResourcesOf(chat.ID) }
+	pinnedHashOf := func(chatID uuid.UUID) []byte {
 		t.Helper()
-		row, gerr := db.GetChatByID(chatdCtx, chat.ID)
+		row, gerr := db.GetChatByID(chatdCtx, chatID)
 		require.NoError(t, gerr)
 		return row.ContextAggregateHash
 	}
+	pinnedHash := func() []byte { return pinnedHashOf(chat.ID) }
 	push := func(version uint64, hash []byte, resources ...*agentproto.ContextResource) {
 		t.Helper()
 		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
@@ -427,6 +440,8 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Equal(t, repoHash, pinned[repoSource].ContentHash)
 	require.Equal(t, rootV1Hash, pinned[rootSource].ContentHash)
 	require.Equal(t, hashV2, pinnedHash(), "a chat level with the snapshot moves to its hash")
+	require.Len(t, pinnedResourcesOf(erroredChat.ID), 1, "an errored chat is left as pinned")
+	require.Equal(t, hashV1, pinnedHashOf(erroredChat.ID))
 
 	// Changing the root file's content marks the chat dirty and leaves the
 	// pinned body alone.

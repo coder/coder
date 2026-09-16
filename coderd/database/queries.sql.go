@@ -11901,6 +11901,7 @@ changed AS (
     FROM chats
     WHERE chats.agent_id = $1::uuid
         AND chats.archived = false
+        AND chats.status IN ('waiting', 'running', 'requires_action')
         AND chats.context_aggregate_hash IS NOT NULL
         AND chats.context_aggregate_hash IS DISTINCT FROM $2
         AND EXISTS (
@@ -11975,8 +11976,9 @@ type SyncAgentChatsContextAddedResourcesParams struct {
 // already holds are never rewritten here. A chat whose additions make its
 // pinned set equal to the snapshot moves to the new hash and stays clean;
 // a chat that also has changed or removed rows keeps its old hash so
-// MarkChatsContextDirtyByAgent still flags it. Changed chats are locked in
-// ID order like the MCP sync.
+// MarkChatsContextDirtyByAgent still flags it, which is why only the
+// statuses that query marks dirty are eligible here. Changed chats are
+// locked in ID order like the MCP sync.
 func (q *sqlQuerier) SyncAgentChatsContextAddedResources(ctx context.Context, arg SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextAddedResources, arg.AgentID, arg.AggregateHash, arg.ContextError)
 	if err != nil {

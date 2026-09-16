@@ -233,9 +233,8 @@ When the connected tool list changes, the agent re-scans and pushes a new snapsh
 
 Editing `.mcp.json` does not require a workspace restart.
 The agent notices edits to the file and reloads its servers automatically.
-The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date, and the dashboard offers **Refresh context** only on chats that are marked out of date.
-New chats and chats that have not pinned a snapshot yet receive the new tool set immediately.
-An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date; refreshing then re-pins the whole snapshot, including the new MCP tools.
+The reload changes the pushed snapshot, and every chat bound to the workspace, open or new, receives the new tool set on that push.
+An MCP-only change never marks a chat out of date, so no refresh is needed for it.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.
