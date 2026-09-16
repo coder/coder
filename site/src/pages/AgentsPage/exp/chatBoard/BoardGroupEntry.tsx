@@ -1,12 +1,8 @@
 import { CopyIcon } from "lucide-react";
 import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
-import {
-	getColumnLabel,
-	getTitleLabel,
-	INBOX_COLUMN,
-} from "../../ChatBoard/boardLabels";
-import { ChatTreeNode } from "./ChatTreeNode";
+import { ChatTreeNode } from "../../components/ChatsSidebar/tree/ChatTreeNode";
+import { getColumnLabel, getTitleLabel, INBOX_COLUMN } from "./boardLabels";
 import { ColumnTag } from "./ColumnTag";
 
 interface BoardGroupEntryProps {
@@ -41,9 +37,9 @@ export const BoardGroupEntry: FC<BoardGroupEntryProps> = ({
 				</span>
 				{column !== INBOX_COLUMN && <ColumnTag name={column} />}
 			</div>
-			<ChatTreeNode chat={chat} showBoardColumn={false} />
+			<ChatTreeNode chat={chat} />
 			{members.map((member) => (
-				<ChatTreeNode key={member.id} chat={member} showBoardColumn={false} />
+				<ChatTreeNode key={member.id} chat={member} />
 			))}
 		</div>
 	);

@@ -119,8 +119,7 @@ import {
 	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
 
-/** Model the user picked last; new chats started elsewhere reuse it. */
-export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 

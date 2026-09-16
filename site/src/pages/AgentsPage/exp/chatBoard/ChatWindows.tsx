@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { AgentChatPageSkeleton } from "../AgentsSkeletons";
+import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import { CARD_COLOR_CLASS, type CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
 
