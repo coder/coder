@@ -17,7 +17,8 @@ import {
 	CARD_COLORS,
 	type CardColor,
 } from "./boardLabels";
-import { ChatInfoButton, ChatInfoPanel } from "./ChatInfo";
+import { ChatInfoPopover } from "./ChatInfo";
+import { dragHandleListeners } from "./dragHandle";
 import { EditableText, InlineInput } from "./InlineText";
 import { NotesSection } from "./NotesSection";
 
@@ -108,8 +109,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 		>
 			{/* Header is its own hover group so its pencil does not light up from rows below. */}
 			<header
-				className="group/card flex cursor-grab touch-none select-none items-start gap-1 px-3 pt-[11px] pb-1.5 active:cursor-grabbing"
-				{...listeners}
+				className="group/card flex cursor-grab touch-none items-start gap-1 px-3 pt-[11px] pb-1.5 active:cursor-grabbing"
+				{...dragHandleListeners(listeners)}
 				{...attributes}
 				ref={setActivatorNodeRef}
 			>
@@ -267,8 +268,6 @@ const ChatRow: FC<ChatRowProps> = ({
 			disabled: !draggable,
 		});
 	const [renaming, setRenaming] = useState(false);
-	// Hover on (i) previews the panel; a click pins it until clicked again.
-	const [info, setInfo] = useState<"closed" | "hover" | "pinned">("closed");
 	const display = getChatDisplayConfig(chat);
 	const StatusIcon = display.icon;
 	const pr = display.diffStatus;
@@ -280,19 +279,18 @@ const ChatRow: FC<ChatRowProps> = ({
 			ref={setNodeRef}
 			className={cn(
 				"group/row grid grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 rounded-md px-2 py-1.5 hover:bg-content-link/5",
-				active && "bg-surface-tertiary/70",
+				active && "bg-content-link/10 hover:bg-content-link/10",
 				isDragging && "opacity-40",
 			)}
-			onPointerLeave={() => {
-				if (info === "hover") setInfo("closed");
-			}}
 		>
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
 				ref={draggable ? setActivatorNodeRef : undefined}
-				{...(draggable ? { ...listeners, ...attributes } : {})}
+				{...(draggable
+					? { ...dragHandleListeners(listeners), ...attributes }
+					: {})}
 				className={cn(
-					"flex h-[18px] select-none items-center justify-center",
+					"flex h-[18px] items-center justify-center",
 					draggable && "cursor-grab touch-none active:cursor-grabbing",
 				)}
 				title={draggable ? "Drag to move this chat" : undefined}
@@ -374,16 +372,8 @@ const ChatRow: FC<ChatRowProps> = ({
 				<span className="font-mono text-[11px] tabular-nums text-content-secondary/70">
 					{shortRelativeTime(chat.updated_at)}
 				</span>
-				<ChatInfoButton
-					chat={chat}
-					open={info !== "closed"}
-					onHover={() => {
-						if (info === "closed") setInfo("hover");
-					}}
-					onToggle={() => setInfo(info === "pinned" ? "closed" : "pinned")}
-				/>
+				<ChatInfoPopover chat={chat} />
 			</div>
-			{info !== "closed" && <ChatInfoPanel chat={chat} />}
 		</li>
 	);
 };

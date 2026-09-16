@@ -3,9 +3,8 @@ import {
 	type DragEndEvent,
 	DragOverlay,
 	type DragStartEvent,
-	MouseSensor,
+	PointerSensor,
 	pointerWithin,
-	TouchSensor,
 	useDraggable,
 	useDroppable,
 	useSensor,
@@ -18,6 +17,10 @@ import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { AgentChatPageSkeleton } from "../AgentsSkeletons";
 import type { ChatPane } from "./boardStorage";
+import {
+	dragHandleListeners,
+	useBlockSelectionWhileDragging,
+} from "./dragHandle";
 
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
@@ -79,11 +82,9 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 }) => {
 	const [dragging, setDragging] = useState<TabDrag | null>(null);
 	const sensors = useSensors(
-		useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-		useSensor(TouchSensor, {
-			activationConstraint: { delay: 150, tolerance: 5 },
-		}),
+		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
 	);
+	useBlockSelectionWhileDragging(dragging !== null);
 
 	const handleDragStart = ({ active }: DragStartEvent) => {
 		setDragging((active.data.current as TabDrag | undefined) ?? null);
@@ -201,7 +202,7 @@ const PaneView: FC<PaneViewProps> = ({
 				ref={setNodeRef}
 				role="tablist"
 				className={cn(
-					"flex h-[34px] shrink-0 select-none items-stretch overflow-x-auto border-b border-border bg-surface-primary pr-1.5",
+					"flex h-[34px] shrink-0 items-stretch overflow-x-auto border-b border-border bg-surface-primary pr-1.5",
 					isOver && "bg-surface-tertiary/60",
 				)}
 			>
@@ -258,13 +259,13 @@ const Tab: FC<TabProps> = ({
 	return (
 		<div
 			ref={setNodeRef}
-			{...listeners}
+			{...dragHandleListeners(listeners)}
 			{...attributes}
 			role="tab"
 			aria-selected={active}
 			tabIndex={active ? 0 : -1}
 			className={cn(
-				"group/tab relative flex max-w-[260px] min-w-0 shrink-0 cursor-default select-none touch-none items-center gap-2 border-r border-border px-3 text-[12.5px] text-content-primary hover:bg-surface-secondary",
+				"group/tab relative flex max-w-[260px] min-w-0 shrink-0 cursor-default touch-none items-center gap-2 border-r border-border px-3 text-[12.5px] text-content-primary hover:bg-surface-secondary",
 				!active && "text-content-secondary",
 				isDragging && "opacity-40",
 			)}
