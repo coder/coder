@@ -246,6 +246,12 @@ message Startup {
 		EXECTRACE = 3;
 	}
 	repeated Subsystem subsystems = 3;
+	// agent_run_id identifies the agent process: a UUID generated once
+	// per process, stable across RPC reconnects, and different after a
+	// process restart. coderd stores it on the agent row so a context
+	// snapshot carrying the same id is known to describe the current
+	// process. Empty from agents that predate the field.
+	string agent_run_id = 4;
 }
 
 message UpdateStartupRequest{
@@ -643,12 +649,43 @@ message MCPTool {
 	google.protobuf.Struct input_schema = 3;
 }
 
+// MCPDiscovery reports how far the agent's workspace MCP discovery has
+// progressed for the process that produced a snapshot. It is
+// completeness only: per-server outcomes travel on the mcp_server and
+// mcp_config ContextResource rows, and it says nothing about whether a
+// later tool invocation will succeed.
+message MCPDiscovery {
+	enum Phase {
+		// PHASE_UNSPECIFIED means the agent gave no completeness
+		// guarantee (legacy agents).
+		PHASE_UNSPECIFIED = 0;
+		// PENDING means the initial MCP reload has not finished; the
+		// mcp_server rows in this snapshot may be incomplete.
+		PENDING = 1;
+		// COMPLETE means the initial reload reached a terminal result
+		// (success, failure, or zero servers) before this snapshot was
+		// resolved. Later reloads update outcomes but never move the
+		// phase back for the rest of the process lifetime.
+		COMPLETE = 2;
+	}
+	Phase phase = 1;
+}
+
 message PushContextStateRequest {
 	uint64 version = 1;
 	bytes aggregate_hash = 2;
 	repeated ContextResource resources = 3;
 	bool initial = 4;
 	string snapshot_error = 6;
+	// agent_run_id is the same per-process UUID the agent reports in
+	// Startup.agent_run_id. A snapshot is current when it equals the
+	// agent row's stored id; coderd ignores a push whose non-empty id
+	// differs from the agent row's non-empty id because it describes a
+	// previous process. Empty from agents that predate the field.
+	string agent_run_id = 7;
+	// mcp_discovery reports MCP discovery completeness for this
+	// snapshot. Absent (PHASE_UNSPECIFIED) from legacy agents.
+	MCPDiscovery mcp_discovery = 8;
 
 	// Reserved tags from the pre-release v2.10 schema. schema_version
 	// was removed before the first release that ships v2.10 because

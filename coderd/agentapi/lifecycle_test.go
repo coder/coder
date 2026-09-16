@@ -676,6 +676,7 @@ func TestUpdateStartup(t *testing.T) {
 				agentproto.Startup_ENVBUILDER,
 				agentproto.Startup_EXECTRACE,
 			},
+			AgentRunId: "run-1",
 		}
 
 		dbM.EXPECT().UpdateWorkspaceAgentStartupByID(gomock.Any(), database.UpdateWorkspaceAgentStartupByIDParams{
@@ -688,6 +689,7 @@ func TestUpdateStartup(t *testing.T) {
 				database.WorkspaceAgentSubsystemExectrace,
 			},
 			APIVersion: "2.0",
+			AgentRunID: "run-1",
 		}).Return(nil)
 
 		ctx := agentapi.WithAPIVersion(context.Background(), "2.0")

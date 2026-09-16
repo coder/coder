@@ -174,6 +174,157 @@ func TestPushContextState(t *testing.T) {
 		require.Equal(t, 0, marker.published)
 	})
 
+	t.Run("MCPDiscovery", func(t *testing.T) {
+		t.Parallel()
+
+		expectWrites := func(dbm *dbmock.MockStore, want database.UpsertWorkspaceAgentContextSnapshotParams) {
+			dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, got database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
+					require.Equal(t, want.AgentRunID, got.AgentRunID)
+					require.Equal(t, want.McpDiscoveryPhase, got.McpDiscoveryPhase)
+					return database.WorkspaceAgentContextSnapshot{}, nil
+				})
+			dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).Return(nil)
+		}
+
+		t.Run("PersistsPhaseAndRunID", func(t *testing.T) {
+			t.Parallel()
+			api, dbm := makeAPI(t)
+			expectInTx(dbm)
+			dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+				Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"}, nil)
+			dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+				Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+			expectWrites(dbm, database.UpsertWorkspaceAgentContextSnapshotParams{
+				AgentRunID:        "run-a",
+				McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhasePending,
+			})
+
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version:      1,
+				Initial:      true,
+				AgentRunId:   "run-a",
+				McpDiscovery: &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_PENDING},
+			})
+			require.NoError(t, err)
+			require.True(t, resp.GetAccepted())
+		})
+
+		t.Run("LegacyRequestStoresUnspecified", func(t *testing.T) {
+			t.Parallel()
+			api, dbm := makeAPI(t)
+			expectInTx(dbm)
+			// An empty run id skips the agent row read entirely.
+			dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+				Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+			expectWrites(dbm, database.UpsertWorkspaceAgentContextSnapshotParams{
+				AgentRunID:        "",
+				McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
+			})
+
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version: 1,
+				Initial: true,
+			})
+			require.NoError(t, err)
+			require.True(t, resp.GetAccepted())
+		})
+
+		t.Run("StaleRunDroppedWithoutWriting", func(t *testing.T) {
+			t.Parallel()
+			api, dbm := makeAPI(t)
+			marker := &fakeDirtyMarker{}
+			api.DirtyMarker = marker
+			expectInTx(dbm)
+			dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+				Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-b"}, nil)
+
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version:      7,
+				AgentRunId:   "run-a",
+				McpDiscovery: &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_COMPLETE},
+			})
+			require.NoError(t, err)
+			require.False(t, resp.GetAccepted())
+			require.Equal(t, 0, marker.called)
+		})
+
+		t.Run("EmptyAgentRowRunIDAccepts", func(t *testing.T) {
+			t.Parallel()
+			api, dbm := makeAPI(t)
+			expectInTx(dbm)
+			dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+				Return(database.WorkspaceAgent{ID: agentID}, nil)
+			dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+				Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+			expectWrites(dbm, database.UpsertWorkspaceAgentContextSnapshotParams{
+				AgentRunID:        "run-a",
+				McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete,
+			})
+
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version:      1,
+				Initial:      true,
+				AgentRunId:   "run-a",
+				McpDiscovery: &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_COMPLETE},
+			})
+			require.NoError(t, err)
+			require.True(t, resp.GetAccepted())
+		})
+
+		t.Run("DiscoveryChangeReportedToDirtyMarker", func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name        string
+				existing    database.WorkspaceAgentContextSnapshot
+				wantChanged bool
+			}{
+				{
+					name:        "SameRunAndPhase",
+					existing:    database.WorkspaceAgentContextSnapshot{Version: 1, AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete},
+					wantChanged: false,
+				},
+				{
+					name:        "PhaseAdvanced",
+					existing:    database.WorkspaceAgentContextSnapshot{Version: 1, AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhasePending},
+					wantChanged: true,
+				},
+				{
+					name:        "NewRun",
+					existing:    database.WorkspaceAgentContextSnapshot{Version: 9, AgentRunID: "run-0", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete},
+					wantChanged: true,
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					api, dbm := makeAPI(t)
+					marker := &fakeDirtyMarker{}
+					api.DirtyMarker = marker
+					expectInTx(dbm)
+					dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+						Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"}, nil)
+					dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+						Return(tc.existing, nil)
+					expectWrites(dbm, database.UpsertWorkspaceAgentContextSnapshotParams{
+						AgentRunID:        "run-a",
+						McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete,
+					})
+
+					resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+						Version:      2,
+						Initial:      tc.existing.AgentRunID != "run-a",
+						AgentRunId:   "run-a",
+						McpDiscovery: &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_COMPLETE},
+					})
+					require.NoError(t, err)
+					require.True(t, resp.GetAccepted())
+					require.Equal(t, 1, marker.called)
+					require.Equal(t, tc.wantChanged, marker.gotDiscoveryChanged)
+				})
+			}
+		})
+	})
+
 	t.Run("RejectsEmptyAndDuplicateSources", func(t *testing.T) {
 		t.Parallel()
 
@@ -694,12 +845,16 @@ type fakeDirtyMarker struct {
 	gotAgent  uuid.UUID
 	gotHash   []byte
 	gotErr    string
+	// gotDiscoveryChanged records the mcpDiscoveryChanged flag of the
+	// most recent call.
+	gotDiscoveryChanged bool
 }
 
-func (f *fakeDirtyMarker) HydrateAndMarkChatsDirty(_ context.Context, _ database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, _ time.Time) (func(), error) {
+func (f *fakeDirtyMarker) HydrateAndMarkChatsDirty(_ context.Context, _ database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, mcpDiscoveryChanged bool, _ time.Time) (func(), error) {
 	f.called++
 	f.gotAgent = agentID
 	f.gotHash = aggregateHash
 	f.gotErr = snapshotError
+	f.gotDiscoveryChanged = mcpDiscoveryChanged
 	return func() { f.published++ }, nil
 }
