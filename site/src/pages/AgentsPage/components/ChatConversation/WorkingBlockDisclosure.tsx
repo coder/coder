@@ -59,28 +59,44 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 };
 
 /**
+ * Whether older history joined the front of a block between two renders.
+ * Member IDs rather than row keys: a merged read_file row keeps its key while
+ * a prepend grows it. A block that only had its live row has no previous
+ * member, so the live row becoming its persisted step is not a prepend.
+ */
+export const didPrependIntoBlock = (
+	previousMemberIds: readonly number[],
+	memberIds: readonly number[],
+): boolean => {
+	const previousFirst = previousMemberIds[0];
+	return (
+		previousFirst !== undefined &&
+		memberIds[0] < previousFirst &&
+		memberIds.includes(previousFirst)
+	);
+};
+
+/**
  * Older pages prepend rows inside an expanded partial block rather than as
  * new scroller items, so the scroller cannot hold the reading position and
  * browsers skip scroll anchoring at the top. Scroll by the growth instead.
- * Only a prepend qualifies: the previous first row must still be a member.
- * When the live row that opened a block is replaced by its persisted step,
- * the first key changes too, but that content changed in place.
  */
-const useKeepReadingPositionAcrossPrepend = (rowKeys: readonly string[]) => {
-	const firstRowKey = rowKeys[0];
+const useKeepReadingPositionAcrossPrepend = (memberIds: readonly number[]) => {
 	const contentRef = useRef<HTMLDivElement>(null);
-	const previousRef = useRef<{ firstRowKey: string; height: number }>(null);
+	const previousRef = useRef<{
+		memberIds: readonly number[];
+		height: number;
+	}>(null);
 	useLayoutEffect(() => {
 		const content = contentRef.current;
 		const previous = previousRef.current;
 		previousRef.current = content
-			? { firstRowKey, height: content.offsetHeight }
+			? { memberIds, height: content.offsetHeight }
 			: null;
 		if (
 			!content ||
 			!previous ||
-			previous.firstRowKey === firstRowKey ||
-			!rowKeys.includes(previous.firstRowKey)
+			!didPrependIntoBlock(previous.memberIds, memberIds)
 		) {
 			return;
 		}
@@ -102,8 +118,6 @@ const useKeepReadingPositionAcrossPrepend = (rowKeys: readonly string[]) => {
 
 type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
-	/** Keys of the block's rows, oldest first; older pages join at the front. */
-	rowKeys: readonly string[];
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
 	children: ReactNode;
@@ -118,13 +132,12 @@ type WorkingBlockDisclosureProps = {
  */
 export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	block,
-	rowKeys,
 	expanded,
 	onExpandedChange,
 	children,
 	now,
 }) => {
-	const contentRef = useKeepReadingPositionAcrossPrepend(rowKeys);
+	const contentRef = useKeepReadingPositionAcrossPrepend(block.memberIds);
 	return (
 		<ToolCall.Root
 			status={block.isLive ? "running" : "completed"}
