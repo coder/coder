@@ -363,18 +363,20 @@ func TestFormatSystemInstructions(t *testing.T) {
 		require.Contains(t, got, "Source: /real/AGENTS.md")
 	})
 
-	t.Run("ScopeLineBetweenHeaderAndFiles", func(t *testing.T) {
+	t.Run("NoteAndScopeLineBetweenHeaderAndFiles", func(t *testing.T) {
 		t.Parallel()
-		got := formatSystemInstructions("linux", "/home/project", "unused note", []codersdk.ChatMessagePart{
+		got := formatSystemInstructions("linux", "/home/project", "one file omitted", []codersdk.ChatMessagePart{
 			{Type: codersdk.ChatMessagePartTypeContextFile, ContextFileContent: "pwd", ContextFilePath: "/home/project/AGENTS.md"},
 		})
 		dirIdx := strings.Index(got, "Working Directory:")
+		noteIdx := strings.Index(got, "one file omitted")
 		scopeIdx := strings.Index(got, workspaceContextScopeLine)
 		sourceIdx := strings.Index(got, "Source: /home/project/AGENTS.md")
+		require.NotEqual(t, -1, noteIdx, "a note is printed next to rendered files too")
 		require.NotEqual(t, -1, scopeIdx)
-		require.Less(t, dirIdx, scopeIdx)
+		require.Less(t, dirIdx, noteIdx)
+		require.Less(t, noteIdx, scopeIdx)
 		require.Less(t, scopeIdx, sourceIdx)
-		require.NotContains(t, got, "unused note")
 	})
 
 	t.Run("NoteReplacesFileList", func(t *testing.T) {

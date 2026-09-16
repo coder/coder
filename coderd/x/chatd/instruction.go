@@ -7,18 +7,17 @@ import (
 )
 
 // workspaceContextScopeLine tells the model how the listed Source paths
-// relate to each other. Files outside the working directory, such as the
-// user's ~/.coder/AGENTS.md, are global by contract and must not be read
-// as scoped to their own directory.
-const workspaceContextScopeLine = "Instruction files inside the working directory apply to their own directory tree, and a nested file refines the ones above it for paths beneath it; instruction files elsewhere, such as under ~/.coder, apply to the whole conversation."
+// relate to each other. The user's ~/.coder files are global by contract,
+// whatever the working directory is, so the exception is unconditional.
+const workspaceContextScopeLine = "Instruction files under ~/.coder apply to the whole conversation; every other Source path applies to its own directory tree, and a nested file refines the ones above it for paths beneath it."
 
 // formatSystemInstructions builds the <workspace-context> block from
 // agent metadata and zero or more context-file parts. Non-context-file
-// parts in the slice are silently skipped. emptyNote is printed in place
-// of the file list when no part has content, so the model learns why no
-// instruction file is listed instead of receiving no block at all.
+// parts in the slice are silently skipped. note, when set, is printed after
+// the header lines: it explains an empty file list, or names pinned files
+// that could not be rendered next to the ones that were.
 func formatSystemInstructions(
-	operatingSystem, directory, emptyNote string,
+	operatingSystem, directory, note string,
 	parts []codersdk.ChatMessagePart,
 ) string {
 	hasContent := false
@@ -28,7 +27,7 @@ func formatSystemInstructions(
 			break
 		}
 	}
-	if !hasContent && emptyNote == "" && operatingSystem == "" && directory == "" {
+	if !hasContent && note == "" && operatingSystem == "" && directory == "" {
 		return ""
 	}
 
@@ -44,11 +43,11 @@ func formatSystemInstructions(
 		_, _ = b.WriteString(directory)
 		_, _ = b.WriteString("\n")
 	}
+	if note != "" {
+		_, _ = b.WriteString(note)
+		_, _ = b.WriteString("\n")
+	}
 	if !hasContent {
-		if emptyNote != "" {
-			_, _ = b.WriteString(emptyNote)
-			_, _ = b.WriteString("\n")
-		}
 		_, _ = b.WriteString("</workspace-context>")
 		return b.String()
 	}
