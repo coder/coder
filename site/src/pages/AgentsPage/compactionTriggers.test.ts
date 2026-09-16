@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	bindingCompactionTrigger,
 	bindingCompactionTriggerPoint,
@@ -10,6 +13,7 @@ import {
 	resolveCompactionThreshold,
 	resolveOrganizationCompactionTrigger,
 } from "./compactionTriggers";
+import { providerInfoByIDFromDescriptors } from "./utils/modelOptions";
 
 describe("compaction triggers", () => {
 	it("enables thresholds from 0 through 99 with a positive context limit", () => {
@@ -124,22 +128,55 @@ describe("compaction triggers", () => {
 		const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
 			{ context: "compaction", model_config_id: model.id },
 		];
+		const providers = providerInfoByIDFromDescriptors([
+			MockChatModelProviderDescriptor,
+		]);
 
-		expect(resolveOrganizationCompactionTrigger(overrides, [model])).toEqual({
+		expect(
+			resolveOrganizationCompactionTrigger(overrides, [model], providers),
+		).toEqual({
 			model,
 			trigger: { thresholdPercent: 50, contextLimit: 40_000 },
 			point: 20_000,
 		});
-		expect(resolveOrganizationCompactionTrigger(overrides, [])).toBeUndefined();
 		expect(
-			resolveOrganizationCompactionTrigger(overrides, [
-				{ ...model, enabled: false },
-			]),
+			resolveOrganizationCompactionTrigger(overrides, [], providers),
 		).toBeUndefined();
 		expect(
-			resolveOrganizationCompactionTrigger(overrides, [
-				{ ...model, compression_threshold: 100 },
-			]),
+			resolveOrganizationCompactionTrigger(
+				overrides,
+				[{ ...model, enabled: false }],
+				providers,
+			),
+		).toBeUndefined();
+		expect(
+			resolveOrganizationCompactionTrigger(
+				overrides,
+				[{ ...model, compression_threshold: 100 }],
+				providers,
+			),
+		).toBeUndefined();
+	});
+
+	it("ignores an organization override model whose provider is disabled", () => {
+		const model: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "compaction-model",
+			context_limit: 40_000,
+			compression_threshold: 50,
+		};
+		const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
+			{ context: "compaction", model_config_id: model.id },
+		];
+
+		expect(
+			resolveOrganizationCompactionTrigger(
+				overrides,
+				[model],
+				providerInfoByIDFromDescriptors([
+					{ ...MockChatModelProviderDescriptor, enabled: false },
+				]),
+			),
 		).toBeUndefined();
 	});
 
