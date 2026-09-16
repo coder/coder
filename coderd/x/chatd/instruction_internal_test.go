@@ -127,6 +127,7 @@ func TestDefaultSystemPromptTaskDiscipline(t *testing.T) {
 		"A timeout or background process identifier is not a successful result",
 		"Preserve unrelated user changes",
 		"run the relevant tests, lint, type checks, or build",
+		"except checks the user explicitly asked you to skip",
 		"Do not claim a check passed, an action succeeded, or work is complete without confirming evidence",
 		"Do not require plan approval for routine implementation that the user has already authorized",
 	} {
