@@ -8,7 +8,9 @@ import {
 	type BoardCard,
 	type CardColor,
 	commentLabels,
+	getTitleLabel,
 	nextCommentIndex,
+	placementKey,
 	removeCommentLabels,
 	setColorLabel,
 	setColumnLabel,
@@ -16,9 +18,15 @@ import {
 	setPositionLabel,
 	setTitleLabel,
 	stripCardLabels,
+	takeCardLabels,
 	updateCommentLabels,
 } from "./boardLabels";
 import { updateChatLabels } from "./updateChatLabels";
+
+// Long enough to notice an accidental drop on a phone and reach the toast.
+const UNDO_MS = 10_000;
+
+type Write = { readonly chat: Chat; readonly labels: Record<string, string> };
 
 /**
  * Every board action is a set of whole-label-map writes on the chats it
@@ -52,6 +60,30 @@ export const useBoardMutations = () => {
 
 	const write = (chat: Chat, labels: Record<string, string>) =>
 		labelsMutation.mutateAsync({ chatId: chat.id, labels });
+
+	// Regrouping is easy to do by accident with a drop, so every such change
+	// offers to put the touched chats' label maps back exactly as they were.
+	const commitUndoable = (writes: readonly Write[], done: string) => {
+		const before = writes.map(({ chat }) => ({ chat, labels: chat.labels }));
+		return reported(
+			Promise.all(writes.map(({ chat, labels }) => write(chat, labels))).then(
+				() => {
+					toast(done, {
+						duration: UNDO_MS,
+						action: {
+							label: "Undo",
+							onClick: () =>
+								void reported(
+									Promise.all(
+										before.map(({ chat, labels }) => write(chat, labels)),
+									),
+								),
+						},
+					});
+				},
+			),
+		);
+	};
 
 	/** Moves a card to a column at a given placement key (see keyBetween). */
 	const moveCard = (card: BoardCard, column: string, placedAt: number) =>
@@ -105,55 +137,122 @@ export const useBoardMutations = () => {
 			write(card.primary, removeCommentLabels(card.primary.labels, index)),
 		);
 
-	// The dropped card's comments follow its members into the target thread
-	// so nothing the user wrote is lost; its title is dropped.
-	const mergeCards = (source: BoardCard, target: BoardCard) => {
-		const targetLabels = { ...target.primary.labels };
-		let index = nextCommentIndex(target.comments);
-		for (const comment of source.comments) {
-			Object.assign(
-				targetLabels,
-				commentLabels(index, comment.text, comment.timestamp),
-			);
-			index += 1;
+	// The side that keeps its primary: an existing group beats a single chat,
+	// then a titled card beats an untitled one, then the drop target. So a
+	// group dropped onto a lone chat absorbs it instead of losing its title.
+	const mergeKeeper = (source: BoardCard, target: BoardCard): BoardCard => {
+		const grouped = (card: BoardCard) => card.members.length > 1;
+		if (grouped(source) !== grouped(target)) {
+			return grouped(source) ? source : target;
 		}
-		const writes = source.members.map((member) =>
-			write(
-				member,
-				setColumnLabel(
-					setGroupLabel(stripCardLabels(member.labels), target.id, member.id),
-					target.column,
-				),
-			),
-		);
-		if (source.comments.length > 0) {
-			writes.push(write(target.primary, targetLabels));
+		const titled = (card: BoardCard) =>
+			getTitleLabel(card.primary) !== undefined;
+		if (titled(source) !== titled(target)) {
+			return titled(source) ? source : target;
 		}
-		return reported(Promise.all(writes));
+		return target;
 	};
 
-	const detachChat = (chat: Chat, column: string, placedAt: number) =>
-		reported(
-			write(
-				chat,
-				setPositionLabel(
-					setColumnLabel(setGroupLabel(chat.labels, chat.id, chat.id), column),
-					placedAt,
-				),
-			),
+	// The kept primary moves into the drop target's slot and absorbs the
+	// other card's notes; a title that would otherwise vanish becomes a note.
+	const mergeCards = (source: BoardCard, target: BoardCard) => {
+		const keep = mergeKeeper(source, target);
+		const join = keep === source ? target : source;
+		let labels = setPositionLabel(
+			setColumnLabel(keep.primary.labels, target.column),
+			placementKey(target.primary),
 		);
-
-	// Only non-primary members are joinable; a primary carries card data that
-	// mergeCards handles instead.
-	const joinCard = (chat: Chat, target: BoardCard) =>
-		reported(
-			write(
-				chat,
-				setColumnLabel(
-					setGroupLabel(chat.labels, target.id, chat.id),
+		if (!keep.color && join.color) labels = setColorLabel(labels, join.color);
+		let index = nextCommentIndex(keep.comments);
+		const carried = join.comments.map((c) => [c.text, c.timestamp] as const);
+		if (getTitleLabel(join.primary) && getTitleLabel(keep.primary)) {
+			carried.push([`Merged card: ${join.title}`, Date.now()]);
+		}
+		for (const [text, timestamp] of carried) {
+			Object.assign(labels, commentLabels(index, text, timestamp));
+			index += 1;
+		}
+		const writes: Write[] = [
+			{ chat: keep.primary, labels },
+			...join.members.map((member) => ({
+				chat: member,
+				labels: setColumnLabel(
+					setGroupLabel(stripCardLabels(member.labels), keep.id, member.id),
 					target.column,
 				),
-			),
+			})),
+			...(keep === target
+				? []
+				: keep.members
+						.filter((member) => member.id !== keep.id)
+						.map((member) => ({
+							chat: member,
+							labels: setColumnLabel(member.labels, target.column),
+						}))),
+		];
+		return commitUndoable(writes, `Merged into "${keep.title}"`);
+	};
+
+	// A primary that leaves hands the card (title, color, position, notes) to
+	// the oldest remaining member and the others follow it. The card keeps
+	// its effective title, so the departure renames nothing.
+	const leaveGroup = (chat: Chat, card: BoardCard): Write[] => {
+		if (chat.id !== card.id || card.members.length < 2) return [];
+		const [next, ...rest] = card.members.filter((m) => m.id !== chat.id);
+		if (!next) return [];
+		return [
+			{
+				chat: next,
+				labels: setTitleLabel(
+					{
+						...setGroupLabel(next.labels, next.id, next.id),
+						...takeCardLabels(card.primary.labels),
+					},
+					card.title,
+				),
+			},
+			...rest.map((member) => ({
+				chat: member,
+				labels: setGroupLabel(member.labels, next.id, member.id),
+			})),
+		];
+	};
+
+	/** Makes the chat its own card in `column` at `placedAt`, whatever its role in `card`. */
+	const detachChat = (
+		chat: Chat,
+		card: BoardCard,
+		column: string,
+		placedAt: number,
+	) =>
+		commitUndoable(
+			[
+				...leaveGroup(chat, card),
+				{
+					chat,
+					labels: setPositionLabel(
+						setColumnLabel(stripCardLabels(chat.labels), column),
+						placedAt,
+					),
+				},
+			],
+			`Removed "${chat.title}" from "${card.title}"`,
+		);
+
+	/** Moves one chat out of `card` into `target`. */
+	const joinCard = (chat: Chat, card: BoardCard, target: BoardCard) =>
+		commitUndoable(
+			[
+				...leaveGroup(chat, card),
+				{
+					chat,
+					labels: setColumnLabel(
+						setGroupLabel(stripCardLabels(chat.labels), target.id, chat.id),
+						target.column,
+					),
+				},
+			],
+			`Added "${chat.title}" to "${target.title}"`,
 		);
 
 	const renameChat = (chat: Chat, title: string) =>

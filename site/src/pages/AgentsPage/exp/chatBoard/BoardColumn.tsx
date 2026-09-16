@@ -42,6 +42,7 @@ interface BoardColumnProps extends ChatOpenHandlers {
 	) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: (card: BoardCardModel) => void;
+	readonly onRemoveFromGroup: (chat: Chat, card: BoardCardModel) => void;
 	readonly onAddNote: (card: BoardCardModel, text: string) => void;
 	readonly onEditNote: (
 		card: BoardCardModel,
@@ -61,6 +62,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	onSetCardColor,
 	onRenameChat,
 	onAssistant,
+	onRemoveFromGroup,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -175,6 +177,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 							onSetColor={(color) => onSetCardColor(card, color)}
 							onRenameChat={onRenameChat}
 							onAssistant={() => onAssistant(card)}
+							onRemoveFromGroup={(chat) => onRemoveFromGroup(chat, card)}
 							onOpen={onOpen}
 							onPreview={onPreview}
 							onPreviewEnd={onPreviewEnd}

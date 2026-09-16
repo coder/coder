@@ -377,7 +377,7 @@ const ChatBoardPage: FC = () => {
 			if (drag.type === "card") {
 				void mutations.mergeCards(drag.card, target.card);
 			} else if (drag.card.id !== target.card.id) {
-				void mutations.joinCard(drag.chat, target.card);
+				void mutations.joinCard(drag.chat, drag.card, target.card);
 			}
 			return;
 		}
@@ -402,10 +402,20 @@ const ChatBoardPage: FC = () => {
 		}
 		void mutations.detachChat(
 			drag.chat,
+			drag.card,
 			target.column,
 			keyForSlot(target.column, target.beforeCardId, drag.chat.id),
 		);
 	};
+
+	// From the row menu: the chat becomes its own card right under the one it left.
+	const removeFromGroup = (chat: Chat, card: BoardCardModel) =>
+		void mutations.detachChat(
+			chat,
+			card,
+			card.column,
+			placementKey(card.primary) - 1,
+		);
 
 	const addColumn = (name: string) => {
 		if (columns.some((column) => column.name === name)) return;
@@ -527,6 +537,7 @@ const ChatBoardPage: FC = () => {
 								void mutations.renameChat(chat, title)
 							}
 							onAssistant={(card) => void openAssistant(card)}
+							onRemoveFromGroup={removeFromGroup}
 							onOpen={openChat}
 							onPreview={previewChat}
 							onPreviewEnd={endPreview}
