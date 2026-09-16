@@ -1,11 +1,5 @@
 import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useCallback,
-	useLayoutEffect,
-	useRef,
-} from "react";
+import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import {
@@ -96,7 +90,7 @@ const useKeepReadingPositionAcrossPrepend = (memberIds: readonly number[]) => {
 	// Nested rows expand and collapse on their own state, which resizes the
 	// content without rendering this component. Keep the cached height current
 	// so the next prepend is measured against the size just before it.
-	const observeContent = useCallback((content: HTMLDivElement | null) => {
+	const observeContent = (content: HTMLDivElement | null) => {
 		contentRef.current = content;
 		if (!content) {
 			return;
@@ -112,7 +106,7 @@ const useKeepReadingPositionAcrossPrepend = (memberIds: readonly number[]) => {
 			observer.disconnect();
 			contentRef.current = null;
 		};
-	}, []);
+	};
 	useLayoutEffect(() => {
 		const content = contentRef.current;
 		const previous = previousRef.current;
@@ -169,7 +163,6 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 			status={block.isLive ? "running" : "completed"}
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
-			data-testid="working-block"
 		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>
