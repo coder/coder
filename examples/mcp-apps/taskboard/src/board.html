@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Task board</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 12px;
+    font: 14px system-ui, sans-serif;
+    background: var(--color-background-primary, #fff);
+    color: var(--color-text-primary, #111);
+  }
+  body.dark { background: var(--color-background-primary, #111); color: var(--color-text-primary, #eee); }
+  form { display: flex; gap: 6px; margin-bottom: 10px; }
+  input[type="text"] { flex: 1; padding: 4px 6px; }
+  button { cursor: pointer; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  li span { flex: 1; }
+  li.done span { text-decoration: line-through; opacity: 0.6; }
+  #error { color: #c00; min-height: 1.2em; margin-top: 8px; }
+  #status { opacity: 0.6; margin-top: 8px; }
+</style>
+</head>
+<body>
+<form id="add-form">
+  <input id="title" type="text" placeholder="New task" aria-label="New task title" />
+  <button type="submit">Add</button>
+  <button type="button" id="refresh">Refresh</button>
+</form>
+<ul id="list" aria-label="Tasks"></ul>
+<div id="status">Connecting to host...</div>
+<div id="error" role="alert"></div>
+<script>
+  var PROTOCOL_VERSION = "2026-01-26";
+  var nextId = 1;
+  var pending = {}; // JSON-RPC id -> {resolve, reject}
+  var tasks = [];
+
+  function post(msg) { window.parent.postMessage(msg, "*"); }
+
+  function request(method, params) {
+    var id = nextId++;
+    return new Promise(function (resolve, reject) {
+      pending[id] = { resolve: resolve, reject: reject };
+      post({ jsonrpc: "2.0", id: id, method: method, params: params });
+    });
+  }
+
+  function notify(method, params) {
+    post({ jsonrpc: "2.0", method: method, params: params });
+  }
+
+  function setError(text) { document.getElementById("error").textContent = text || ""; }
+  function setStatus(text) { document.getElementById("status").textContent = text || ""; }
+
+  function applyTheme(theme) {
+    if (!theme) return;
+    document.body.classList.toggle("dark", theme === "dark");
+  }
+
+  function summary() {
+    if (tasks.length === 0) return "Task board now has 0 tasks.";
+    var parts = tasks.map(function (t) {
+      return "#" + t.id + " " + t.title + (t.done ? " (done)" : "");
+    });
+    return "Task board now has " + tasks.length + " tasks: " + parts.join(", ");
+  }
+
+  function render(next) {
+    if (Array.isArray(next)) tasks = next;
+    var list = document.getElementById("list");
+    list.textContent = "";
+    tasks.forEach(function (t) {
+      var li = document.createElement("li");
+      if (t.done) li.className = "done";
+
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = t.done;
+      box.disabled = t.done;
+      box.setAttribute("aria-label", "Complete " + t.title);
+      box.addEventListener("change", function () {
+        if (box.checked) callTool("complete_task", { id: t.id });
+      });
+
+      var label = document.createElement("span");
+      label.textContent = t.title;
+
+      var del = document.createElement("button");
+      del.type = "button";
+      del.textContent = "Delete";
+      del.setAttribute("aria-label", "Delete " + t.title);
+      del.addEventListener("click", function () { callTool("delete_task", { id: t.id }); });
+
+      li.appendChild(box);
+      li.appendChild(label);
+      li.appendChild(del);
+      list.appendChild(li);
+    });
+    setStatus(tasks.length + " task" + (tasks.length === 1 ? "" : "s"));
+  }
+
+  function callTool(name, args) {
+    setError("");
+    return request("tools/call", { name: name, arguments: args })
+      .then(function (result) {
+        if (result && result.isError) {
+          var msg = (result.content || []).map(function (c) { return c.text || ""; }).join(" ");
+          setError(msg || "Tool call failed");
+        }
+        if (result && result.structuredContent && Array.isArray(result.structuredContent.tasks)) {
+          render(result.structuredContent.tasks);
+          return request("ui/update-model-context", {
+            content: [{ type: "text", text: summary() }],
+            structuredContent: { tasks: tasks }
+          });
+        }
+      })
+      .catch(function (err) { setError(String(err && err.message || err)); });
+  }
+
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.jsonrpc !== "2.0") return;
+
+    if (data.id !== undefined && data.method === undefined) {
+      var p = pending[data.id];
+      if (!p) return;
+      delete pending[data.id];
+      if (data.error) p.reject(new Error(data.error.message || JSON.stringify(data.error)));
+      else p.resolve(data.result);
+      return;
+    }
+
+    if (data.method === "ui/notifications/tool-result") {
+      var sc = data.params && data.params.structuredContent;
+      if (sc && Array.isArray(sc.tasks)) render(sc.tasks);
+    } else if (data.method === "ui/notifications/host-context-changed") {
+      applyTheme(data.params && data.params.theme);
+    }
+    // ui/notifications/tool-input and other notifications are ignored.
+  });
+
+  document.getElementById("add-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = document.getElementById("title");
+    var title = input.value.trim();
+    if (!title) return;
+    input.value = "";
+    callTool("add_task", { title: title });
+  });
+  document.getElementById("refresh").addEventListener("click", function () {
+    callTool("list_tasks", {});
+  });
+
+  request("ui/initialize", {
+    appInfo: { name: "taskboard", version: "0.1.0" },
+    appCapabilities: {},
+    protocolVersion: PROTOCOL_VERSION
+  }).then(function (result) {
+    notify("ui/notifications/initialized", {});
+    applyTheme(result && result.hostContext && result.hostContext.theme);
+    setStatus("Ready");
+  }).catch(function (err) {
+    setError("Initialize failed: " + String(err && err.message || err));
+  });
+</script>
+</body>
+</html>
