@@ -91,6 +91,7 @@ import {
 	mcpServerConfigACLKey,
 	mcpServerConfigKey,
 	mcpServerConfigsKey,
+	mergeChatMessagesPages,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	openChat,
@@ -4355,13 +4356,77 @@ describe("chatMessagesForInfiniteScroll", () => {
 			has_more: false,
 		});
 		await fetching;
-		unsubscribe();
 
-		const pages = observer.getCurrentResult().data?.pages ?? [];
-		expect(pages.map((page) => page.messages.map((m) => m.id))).toEqual([
+		const data = observer.getCurrentResult().data;
+		expect(data?.pages.map((page) => page.messages.map((m) => m.id))).toEqual([
 			[12, 11, 10],
 			[9, 8],
 		]);
+		expect(data?.pageParams).toEqual([undefined, 10]);
+		unsubscribe();
+	});
+
+	describe("mergeChatMessagesPages", () => {
+		const page = (
+			ids: number[],
+			has_more: boolean,
+		): TypesGen.ChatMessagesResponse => ({
+			messages: ids.map(mockChatMessage),
+			queued_messages: [],
+			has_more,
+		});
+
+		it("keeps cached pages and appends the new page for an appending result", () => {
+			const prev = {
+				pages: [page([12, 11, 10], true)],
+				pageParams: [undefined],
+			};
+			const next = {
+				pages: [page([11, 10], true), page([9, 8], false)],
+				pageParams: [undefined, 10],
+			};
+			const result = mergeChatMessagesPages(prev, next) as typeof next;
+			expect(result.pages[0]).toBe(prev.pages[0]);
+			expect(result.pages[1]).toBe(next.pages[1]);
+			expect(result.pageParams).toEqual([undefined, 10]);
+		});
+
+		it("takes the result when the page count does not grow", () => {
+			const prev = {
+				pages: [page([12, 11, 10], true)],
+				pageParams: [undefined],
+			};
+			const next = { pages: [page([11, 10], true)], pageParams: [undefined] };
+			expect(mergeChatMessagesPages(prev, next)).toEqual(next);
+			const collapsed = { pages: [page([3], false)], pageParams: [undefined] };
+			const twoPages = {
+				pages: [page([11, 10], true), page([9, 8], false)],
+				pageParams: [undefined, 10],
+			};
+			expect(mergeChatMessagesPages(twoPages, collapsed)).toEqual(collapsed);
+		});
+
+		it("takes the result when the page params diverge or the cache is empty", () => {
+			const prev = {
+				pages: [page([11, 10], true), page([9, 8], true)],
+				pageParams: [undefined, 10],
+			};
+			const next = {
+				pages: [page([11, 10], true), page([9], true), page([7], false)],
+				pageParams: [undefined, 11, 9],
+			};
+			expect(mergeChatMessagesPages(prev, next)).toEqual(next);
+			expect(mergeChatMessagesPages(undefined, next)).toBe(next);
+		});
+
+		it("keeps a cache whose last page has no more history", () => {
+			const prev = { pages: [page([3, 2, 1], false)], pageParams: [undefined] };
+			const next = {
+				pages: [page([11, 10], true), page([9, 8], false)],
+				pageParams: [undefined, 10],
+			};
+			expect(mergeChatMessagesPages(prev, next)).toBe(prev);
+		});
 	});
 });
 

@@ -1205,13 +1205,12 @@ const isChatMessagesInfiniteData = (
 	Array.isArray((data as ChatMessagesInfiniteData).pageParams);
 
 /**
- * Merges a resolved messages fetch into the cache. When the result only
- * appends pages to the ones already cached (a fetchNextPage result), the
- * cached versions of the existing pages are kept: react-query builds that
- * result from a snapshot of the pages taken when the fetch started, so
- * messages written into the cache while it was in flight would otherwise
- * be discarded. Any other shape (initial load, refetch, history
- * replacement) is taken as-is from the result.
+ * Structural-sharing step for every write to the messages query,
+ * including setQueryData patches. A result that appends pages under the
+ * cached page params keeps the cached copies of the shared pages, since
+ * those pages in `next` predate any cache write made during the fetch.
+ * A cache whose last page has no more history accepts no appended pages.
+ * Every other shape is taken from `next`.
  */
 export const mergeChatMessagesPages = (prev: unknown, next: unknown) => {
 	if (
@@ -1222,6 +1221,9 @@ export const mergeChatMessagesPages = (prev: unknown, next: unknown) => {
 		prev.pageParams.some((param, i) => next.pageParams[i] !== param)
 	) {
 		return replaceEqualDeep(prev, next);
+	}
+	if (!prev.pages[prev.pages.length - 1]?.has_more) {
+		return prev;
 	}
 	return replaceEqualDeep(prev, {
 		pages: [...prev.pages, ...next.pages.slice(prev.pages.length)],
