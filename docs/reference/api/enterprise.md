@@ -5307,7 +5307,7 @@ token_type_hint: string
 
 | Status | Meaning                                                          | Description                                                                                                                    | Schema                                                 |
 |--------|------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | Token successfully revoked. RFC 7009 also answers 200 for a token that is unknown or belongs to another client                 |                                                        |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client                            |                                                        |
 | 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 | 401    | [Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)  | invalid_client: the client is unknown, or a confidential client did not present a valid secret                                 | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 

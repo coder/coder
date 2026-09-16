@@ -379,11 +379,10 @@ curl -X POST \
 ```
 
 A public client sends `client_id` alone. Revoking a refresh token also ends the
-access token issued with it. The endpoint answers HTTP 200 whether or not the
-token existed or belonged to the client, as RFC 7009 requires, so a client
-cannot use it to probe for other clients' tokens. A confidential client that
-fails to authenticate receives HTTP 401 with `error=invalid_client` and nothing
-is revoked.
+access token issued with it. A successful revocation returns HTTP 200, but that
+response does not confirm that the token existed or belonged to your client. A
+confidential client that fails to authenticate receives HTTP 401 with
+`error=invalid_client` and nothing is revoked.
 
 ### Revoke Access
 

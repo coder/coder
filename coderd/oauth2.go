@@ -192,7 +192,7 @@ func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 // @Param client_secret formData string false "Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret."
 // @Param token formData string true "The token to revoke"
 // @Param token_type_hint formData string false "Hint about token type (access_token or refresh_token)"
-// @Success 200 "Token successfully revoked. RFC 7009 also answers 200 for a token that is unknown or belongs to another client"
+// @Success 200 "Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client"
 // @Failure 400 {object} codersdk.OAuth2Error "invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token"
 // @Failure 401 {object} codersdk.OAuth2Error "invalid_client: the client is unknown, or a confidential client did not present a valid secret"
 // @Router /oauth2/revoke [post]

@@ -16928,7 +16928,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Token successfully revoked. RFC 7009 also answers 200 for a token that is unknown or belongs to another client"
+                        "description": "Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client"
                     },
                     "400": {
                         "description": "invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token",
