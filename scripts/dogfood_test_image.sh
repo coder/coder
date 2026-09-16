@@ -6,7 +6,7 @@
 # Usage: ./scripts/dogfood_test_image.sh <image>
 #
 # Arguments:
-#   image   Docker image to test, e.g. dogfood-test:22.04 or
+#   image   Docker image to test, e.g. dogfood-test:26.04 or
 #           ghcr.io/coder/dogfood:latest
 #
 # Environment:
