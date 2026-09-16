@@ -402,6 +402,16 @@ type workspaceTargetFlags struct {
 	allowEmpty       bool
 }
 
+// newWorkspaceTargetFlags constructs workspaceTargetFlags with the shard-index
+// "unset" sentinel established. shardIndex must default to -1 (not the int64
+// zero value, which is a valid shard) so getTargetedWorkspaces can distinguish
+// an unset --shard-index from --shard-index=0. Every command must build the
+// struct through this constructor rather than a bare literal so the sentinel
+// cannot silently diverge and trip shard mode by accident.
+func newWorkspaceTargetFlags() *workspaceTargetFlags {
+	return &workspaceTargetFlags{shardIndex: -1}
+}
+
 // attach adds the workspace target flags to the given options set.
 func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(*opts,
@@ -448,15 +458,16 @@ func (f *workspaceTargetFlags) attachSharding(opts *serpent.OptionSet) {
 			Flag:        "shard-count",
 			Env:         "CODER_SCALETEST_SHARD_COUNT",
 			Default:     "0",
-			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each running workspace is assigned to exactly one shard by a stable hash of its ID, so shards are disjoint and roughly even. Requires --shard-index and is mutually exclusive with --target-workspaces.",
+			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each running workspace is assigned to exactly one shard by a stable hash of its ID, so shards are disjoint and roughly even. Each replica fetches the full running workspace list and keeps only its shard, so per-replica startup cost scales with the total workspace count, not the shard size. Requires --shard-index and is mutually exclusive with --target-workspaces.",
 			Value:       serpent.Int64Of(&f.shardCount),
 		},
 	)
 }
 
-// getTargetedWorkspaces retrieves the workspaces based on the template filter and target range. warnWriter is where to
-// write a warning message if any workspaces were skipped due to ownership mismatch. In shard mode
-// (--shard-index/--shard-count) it instead returns this replica's hash-assigned slice of the running workspaces.
+// getTargetedWorkspaces retrieves the workspaces based on the template filter and target range. warnWriter receives
+// human-readable diagnostics (ownership-skew warning and the per-shard summary) and must not be stdout when
+// --output json is in play, or the diagnostic corrupts the JSON stream; callers pass inv.Stderr. In shard mode
+// (--shard-index/--shard-count) it returns this replica's hash-assigned slice of the running workspaces.
 func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, warnWriter io.Writer) ([]codersdk.Workspace, error) {
 	// Validate template if provided
 	if f.template != "" {
@@ -1573,7 +1584,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		app               string
 		workspaceProxyURL string
 
-		targetFlags     = &workspaceTargetFlags{}
+		targetFlags     = newWorkspaceTargetFlags()
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
@@ -1608,7 +1619,9 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
 			defer prometheusSrvClose()
 
-			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stdout)
+			// Diagnostics go to stderr so the --output json result on stdout stays
+			// machine-parseable for the sharded Indexed-Job automation.
+			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stderr)
 			if err != nil {
 				return err
 			}
