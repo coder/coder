@@ -932,6 +932,9 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 		if part.MCPServerConfigID.Valid {
 			result.part.MCPServerConfigID = part.MCPServerConfigID
 		}
+		if part.MCPAppResourceURI != "" {
+			result.part.MCPAppResourceURI = part.MCPAppResourceURI
+		}
 		if part.CreatedAt != nil {
 			result.part.CreatedAt = part.CreatedAt
 		}
@@ -1080,6 +1083,7 @@ func (s *partialMessageConversionState) appendSyntheticInterruptionResults() err
 		}
 		part := codersdk.ChatMessageToolResult(call.part.ToolCallID, call.part.ToolName, result, true, false)
 		part.MCPServerConfigID = call.part.MCPServerConfigID
+		part.MCPAppResourceURI = call.part.MCPAppResourceURI
 		if !s.input.interruptedAt.IsZero() {
 			part.CreatedAt = &s.input.interruptedAt
 		}

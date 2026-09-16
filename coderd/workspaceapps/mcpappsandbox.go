@@ -49,6 +49,10 @@ var (
 	// mcpAppSandboxHostLabelRegex is the character set permitted in a
 	// lowercased hostname label of a CSP domain entry.
 	mcpAppSandboxHostLabelRegex = regexp.MustCompile(`^[a-z0-9-]+$`)
+	// mcpAppSandboxNumericLabelRegex matches a final hostname label that is
+	// decimal or hexadecimal, which makes the whole host a numeric IPv4 form
+	// such as "2130706433", "0x7f000001" or "127.1".
+	mcpAppSandboxNumericLabelRegex = regexp.MustCompile(`^([0-9]+|0x[0-9a-f]+)$`)
 
 	// mcpAppSandboxParentDomainWarnOnce limits the misconfiguration warning
 	// for a wildcard suffix that is a parent domain of the dashboard host to a
@@ -125,6 +129,7 @@ func (s *Server) serveMCPAppSandbox(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	dashboardHost := strings.ToLower(s.DashboardURL.Hostname())
+	accessHost := strings.ToLower(s.AccessURL.Hostname())
 	wildcardSuffix := mcpAppSandboxWildcardSuffix(s.Hostname)
 	if strings.HasSuffix(dashboardHost, "."+wildcardSuffix) {
 		mcpAppSandboxParentDomainWarnOnce.Do(func() {
@@ -151,7 +156,7 @@ func (s *Server) serveMCPAppSandbox(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := s.validateMCPAppSandboxCSP(csp, dashboardHost, wildcardSuffix); err != nil {
+	if err := s.validateMCPAppSandboxCSP(csp, []string{dashboardHost, accessHost}, wildcardSuffix); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid csp query parameter.",
 			Detail:  err.Error(),
@@ -195,7 +200,7 @@ func (s *Server) serveMCPAppSandbox(rw http.ResponseWriter, r *http.Request) {
 // validateMCPAppSandboxCSP validates every domain list in csp. Each list is
 // capped at mcpAppSandboxMaxDomainsPerList entries and every entry must pass
 // validateCSPDomain and validateCSPDomainWildcardPattern.
-func (s *Server) validateMCPAppSandboxCSP(csp mcpAppSandboxCSP, dashboardHost, wildcardSuffix string) error {
+func (s *Server) validateMCPAppSandboxCSP(csp mcpAppSandboxCSP, protectedHosts []string, wildcardSuffix string) error {
 	lists := []struct {
 		name    string
 		entries []string
@@ -210,7 +215,7 @@ func (s *Server) validateMCPAppSandboxCSP(csp mcpAppSandboxCSP, dashboardHost, w
 			return xerrors.Errorf("%s has %d entries, the maximum is %d", list.name, len(list.entries), mcpAppSandboxMaxDomainsPerList)
 		}
 		for _, entry := range list.entries {
-			if err := validateCSPDomain(entry, dashboardHost, wildcardSuffix); err != nil {
+			if err := validateCSPDomain(entry, protectedHosts, wildcardSuffix); err != nil {
 				return xerrors.Errorf("%s entry %q: %w", list.name, entry, err)
 			}
 			if err := validateCSPDomainWildcardPattern(entry, s.HostnameRegex, s.Hostname); err != nil {
@@ -259,9 +264,10 @@ func validateCSPDomainWildcardPattern(entry string, hostnameRegex *regexp.Regexp
 
 // validateCSPDomain checks that entry is an https or wss origin suitable for
 // inclusion as a single CSP source expression. The entry must not point at an
-// IP address, localhost, the dashboard host, or any host under the wildcard
-// app suffix. dashboardHost and wildcardSuffix must be lowercase.
-func validateCSPDomain(entry, dashboardHost, wildcardSuffix string) error {
+// IP address, localhost, any of protectedHosts (the dashboard and access URL
+// hosts), or any host under the wildcard app suffix. protectedHosts and
+// wildcardSuffix must be lowercase.
+func validateCSPDomain(entry string, protectedHosts []string, wildcardSuffix string) error {
 	if entry == "" {
 		return xerrors.New("entry is empty")
 	}
@@ -322,21 +328,30 @@ func validateCSPDomain(entry, dashboardHost, wildcardSuffix string) error {
 	if strings.Contains(bareHost, "*") {
 		return xerrors.New("only a single leading \"*.\" wildcard label is allowed")
 	}
-	for _, label := range strings.Split(bareHost, ".") {
+	labels := strings.Split(bareHost, ".")
+	for _, label := range labels {
 		if !mcpAppSandboxHostLabelRegex.MatchString(label) {
 			return xerrors.Errorf("hostname label %q is invalid", label)
 		}
+	}
+	if mcpAppSandboxNumericLabelRegex.MatchString(labels[len(labels)-1]) {
+		return xerrors.New("IP address literals are not allowed")
 	}
 
 	if bareHost == "localhost" || strings.HasSuffix(bareHost, ".localhost") {
 		return xerrors.New("localhost is not allowed")
 	}
 
-	if bareHost == dashboardHost {
-		return xerrors.New("the access URL host is not allowed")
-	}
-	if wildcard && strings.HasSuffix(dashboardHost, "."+bareHost) {
-		return xerrors.New("wildcard covers the access URL host")
+	for _, protectedHost := range protectedHosts {
+		if protectedHost == "" {
+			continue
+		}
+		if bareHost == protectedHost {
+			return xerrors.New("the access URL host is not allowed")
+		}
+		if wildcard && strings.HasSuffix(protectedHost, "."+bareHost) {
+			return xerrors.New("wildcard covers the access URL host")
+		}
 	}
 	if bareHost == wildcardSuffix || strings.HasSuffix(bareHost, "."+wildcardSuffix) {
 		return xerrors.New("hosts under the wildcard access URL are not allowed")

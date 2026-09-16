@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -1181,10 +1182,22 @@ func (s *taskStarter) beginGenerationAttempt(
 	if err := s.opts.MessagePartBuffer.CreateEpisode(key); err != nil && ctx.Err() == nil {
 		return generationAttempt{}, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
 	}
+	// Once the episode buffer is full every later part is dropped;
+	// log the first drop only.
+	var episodeFullOnce sync.Once
 	return generationAttempt{
 		number: attempt,
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
+			err := s.opts.MessagePartBuffer.AddPart(key, role, part)
+			if err != nil && xerrors.Is(err, messagepartbuffer.ErrEpisodeFull) {
+				episodeFullOnce.Do(func() {
+					s.opts.Logger.Warn(ctx, "message part episode is full; dropping streamed parts",
+						slog.F("chat_id", input.ChatID),
+						slog.F("part_type", part.Type),
+						slog.F("tool_name", part.ToolName),
+					)
+				})
+			}
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)

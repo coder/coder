@@ -37,8 +37,6 @@
         var ALLOWED_SANDBOX_TOKENS = {
           "allow-scripts": true,
           "allow-same-origin": true,
-          "allow-forms": true,
-          "allow-popups": true,
         };
 
         if (window.self === window.top) {
@@ -150,7 +148,7 @@
               return;
             }
             if (inner.contentWindow) {
-              inner.contentWindow.postMessage(data, "*");
+              inner.contentWindow.postMessage(data, OWN_ORIGIN);
             }
             return;
           }

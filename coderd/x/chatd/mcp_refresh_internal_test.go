@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/safedial"
 )
 
@@ -274,8 +276,8 @@ func TestRefreshExpiredMCPTokensSkipsFailedTokens(t *testing.T) {
 }
 
 // TestRefreshMCPTokenConcurrentCallersShareOneRefresh verifies that
-// simultaneous refreshes of the same token perform a single provider
-// round trip and one persistence write.
+// callers refreshing the same token while a refresh is in flight join
+// it instead of performing their own provider round trip.
 func TestRefreshMCPTokenConcurrentCallersShareOneRefresh(t *testing.T) {
 	t.Parallel()
 
@@ -309,30 +311,38 @@ func TestRefreshMCPTokenConcurrentCallersShareOneRefresh(t *testing.T) {
 		Times(1)
 
 	server := loopbackMCPServer(db)
-	const callers = 4
+	logger := slogtest.Make(t, nil)
+	const followers = 3
+	results := make(chan database.MCPServerUserToken, followers+1)
+	refresh := func() {
+		result, err := server.refreshMCPTokenIfNeeded(context.Background(), logger, cfg, tok)
+		assert.NoError(t, err)
+		results <- result
+	}
+
+	// The leader reaches the provider and blocks there; the followers
+	// start only once that request is in flight, so each one finds the
+	// shared call already running and waits on it.
+	go refresh()
+	require.Eventually(t, func() bool { return hits.Load() == 1 }, testutil.WaitShort, testutil.IntervalFast)
 	var started sync.WaitGroup
-	started.Add(callers)
-	results := make(chan database.MCPServerUserToken, callers)
-	for range callers {
+	started.Add(followers)
+	for range followers {
 		go func() {
 			started.Done()
-			result, err := server.refreshMCPTokenIfNeeded(context.Background(), slogtest.Make(t, nil), cfg, tok)
-			require.NoError(t, err)
-			results <- result
+			refresh()
 		}()
 	}
-	// The provider call is held open until every caller has entered
-	// the refresh, so all of them join the single in-flight request.
 	started.Wait()
-	require.Eventually(t, func() bool { return hits.Load() == 1 }, time.Second, 10*time.Millisecond)
 	close(release)
-	for range callers {
+
+	for range followers + 1 {
 		select {
 		case result := <-results:
 			require.Equal(t, "fresh", result.AccessToken)
-		case <-time.After(5 * time.Second):
+		case <-time.After(testutil.WaitShort):
 			t.Fatal("caller did not return")
 		}
 	}
-	require.Equal(t, int64(1), hits.Load())
+	require.Equal(t, int64(1), hits.Load(), "followers must not start their own provider request")
 }

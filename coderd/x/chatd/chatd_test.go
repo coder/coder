@@ -14623,6 +14623,7 @@ func TestMCPAppToolStreamsAndPersistsAttribution(t *testing.T) {
 		streamMu      sync.Mutex
 		streamedCall  *codersdk.ChatMessagePart
 		streamedTool  *codersdk.ChatMessagePart
+		liveToolPart  bool
 		collectorDone = make(chan struct{})
 	)
 	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
@@ -14641,9 +14642,11 @@ func TestMCPAppToolStreamsAndPersistsAttribution(t *testing.T) {
 				// message_part or, once its step commits, inside the
 				// committed message; both carry the same fields.
 				var parts []codersdk.ChatMessagePart
+				live := false
 				switch {
 				case event.Type == codersdk.ChatStreamEventTypeMessagePart && event.MessagePart != nil:
 					parts = []codersdk.ChatMessagePart{event.MessagePart.Part}
+					live = true
 				case event.Type == codersdk.ChatStreamEventTypeMessage && event.Message != nil:
 					parts = event.Message.Content
 				default:
@@ -14658,9 +14661,10 @@ func TestMCPAppToolStreamsAndPersistsAttribution(t *testing.T) {
 					case part.Type == codersdk.ChatMessagePartTypeToolCall && streamedCall == nil:
 						p := part
 						streamedCall = &p
-					case part.Type == codersdk.ChatMessagePartTypeToolResult && len(part.Result) > 0 && streamedTool == nil:
+					case part.Type == codersdk.ChatMessagePartTypeToolResult && len(part.Result) > 0 && (streamedTool == nil || (live && !liveToolPart)):
 						p := part
 						streamedTool = &p
+						liveToolPart = live
 					}
 				}
 				streamMu.Unlock()
@@ -14701,6 +14705,7 @@ func TestMCPAppToolStreamsAndPersistsAttribution(t *testing.T) {
 	streamMu.Lock()
 	defer streamMu.Unlock()
 	require.NotNil(t, streamedCall, "streamed tool-call part")
+	require.True(t, liveToolPart, "tool-result must be observed as a live message_part, not only as a committed message")
 	require.Equal(t, "ui://board/main", streamedCall.MCPAppResourceURI)
 	require.Equal(t, uuid.NullUUID{UUID: mcpConfig.ID, Valid: true}, streamedCall.MCPServerConfigID)
 	require.NotNil(t, streamedTool, "streamed tool-result part")

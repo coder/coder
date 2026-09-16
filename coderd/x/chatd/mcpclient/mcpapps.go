@@ -30,7 +30,28 @@ const (
 	// tool-result message part. Results above this size are omitted
 	// from the part and flagged as truncated.
 	MaxAppResultBytes = 64 << 10
+	// MaxUIResourceURILen bounds a ui:// resource URI accepted from
+	// clients and servers.
+	MaxUIResourceURILen = 512
 )
+
+// IsValidUIResourceURI reports whether uri is a ui:// URI of bounded
+// length made only of characters that need no escaping in a URI or an
+// attribute value.
+func IsValidUIResourceURI(uri string) bool {
+	if !strings.HasPrefix(uri, UIResourceScheme) || len(uri) > MaxUIResourceURILen {
+		return false
+	}
+	for _, r := range uri {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case strings.ContainsRune("-._~:/?#[]@!$&'()*+,;=%", r):
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 // Tool visibility values from the extension's McpUiToolMeta.
 const (
@@ -86,7 +107,7 @@ func ParseToolUIMeta(meta map[string]any) ToolUIMeta {
 			out.ResourceURI = uri
 		}
 	}
-	if out.ResourceURI != "" && !strings.HasPrefix(out.ResourceURI, UIResourceScheme) {
+	if out.ResourceURI != "" && !IsValidUIResourceURI(out.ResourceURI) {
 		out.ResourceURI = ""
 	}
 	return out
@@ -133,9 +154,9 @@ type AppResult struct {
 	Truncated bool `json:"truncated,omitempty"`
 }
 
-// appResultMetadata is the JSON envelope stored in
-// fantasy.ToolResponse.Metadata. Other metadata consumers decode the
-// same string and ignore this key.
+// appResultMetadata is the JSON object envelope stored in
+// fantasy.ToolResponse.Metadata. Unrelated keys such as "attachments"
+// may coexist in the same object.
 type appResultMetadata struct {
 	MCPApp *AppResult `json:"mcp_app,omitempty"`
 }
@@ -148,8 +169,8 @@ func AppResultFromMetadata(metadata string) (result AppResult, ok bool, err erro
 		return AppResult{}, false, nil
 	}
 	var decoded appResultMetadata
-	if err := json.Unmarshal([]byte(metadata), &decoded); err != nil {
-		return AppResult{}, false, xerrors.Errorf("unmarshal mcp app metadata: %w", err)
+	if unmarshalErr := json.Unmarshal([]byte(metadata), &decoded); unmarshalErr != nil {
+		return AppResult{}, false, xerrors.Errorf("unmarshal mcp app metadata: %w", unmarshalErr)
 	}
 	if decoded.MCPApp == nil || decoded.MCPApp.ResourceURI == "" {
 		return AppResult{}, false, nil
@@ -225,8 +246,13 @@ func (s *Session) ReadResource(ctx context.Context, uri string) (*mcp.ReadResour
 	return result, nil
 }
 
-// ListResources lists the resources the connected server declares.
-// Servers without the resources capability yield an empty list.
+// maxListedResources bounds how many resources ListResources follows
+// across pagination cursors.
+const maxListedResources = 1000
+
+// ListResources lists the resources the connected server declares,
+// following pagination cursors up to maxListedResources entries. A
+// list error from the server is returned to the caller.
 func (s *Session) ListResources(ctx context.Context) ([]*mcp.Resource, error) {
 	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
 	defer cancel()
@@ -238,7 +264,7 @@ func (s *Session) ListResources(ctx context.Context) ([]*mcp.Resource, error) {
 			return nil, xerrors.Errorf("list resources: %w", err)
 		}
 		out = append(out, result.Resources...)
-		if result.NextCursor == "" || len(out) > 1000 {
+		if result.NextCursor == "" || len(out) >= maxListedResources {
 			return out, nil
 		}
 		cursor = result.NextCursor

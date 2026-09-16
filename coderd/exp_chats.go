@@ -2603,6 +2603,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	normalizedMCPServerIDs, status, mcpResp := api.normalizeRequestedChatMCPServerIDs(ctx, chat, req.MCPServerIDs)
+	if mcpResp != nil {
+		httpapi.Write(ctx, rw, status, *mcpResp)
+		return
+	}
+	req.MCPServerIDs = normalizedMCPServerIDs
+
+	// Context parts may reference servers attached by this request, so
+	// validate them against the normalized list.
 	allowedAppServerIDs := chat.MCPServerIDs
 	if req.MCPServerIDs != nil {
 		allowedAppServerIDs = append(slices.Clone(allowedAppServerIDs), *req.MCPServerIDs...)
@@ -2617,13 +2626,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	normalizedMCPServerIDs, status, mcpResp := api.normalizeRequestedChatMCPServerIDs(ctx, chat, req.MCPServerIDs)
-	if mcpResp != nil {
-		httpapi.Write(ctx, rw, status, *mcpResp)
-		return
-	}
-	req.MCPServerIDs = normalizedMCPServerIDs
 
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
@@ -2815,17 +2817,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content", chatInputOptions{
-		mcpAppContextServerIDs: mcpAppContextServerIDs(api.Experiments, chat.MCPServerIDs),
-	})
-	if inputError != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: inputError.Message,
-			Detail:  inputError.Detail,
-		})
-		return
-	}
-
 	editModelConfigID := uuid.Nil
 	if req.ModelConfigID != nil {
 		editModelConfigID = *req.ModelConfigID
@@ -2844,6 +2835,21 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	editMCPServerIDs, status, mcpResp := api.normalizeRequestedChatMCPServerIDs(ctx, chat, req.MCPServerIDs)
 	if mcpResp != nil {
 		httpapi.Write(ctx, rw, status, *mcpResp)
+		return
+	}
+
+	allowedAppServerIDs := chat.MCPServerIDs
+	if editMCPServerIDs != nil {
+		allowedAppServerIDs = append(slices.Clone(allowedAppServerIDs), *editMCPServerIDs...)
+	}
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content", chatInputOptions{
+		mcpAppContextServerIDs: mcpAppContextServerIDs(api.Experiments, allowedAppServerIDs),
+	})
+	if inputError != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: inputError.Message,
+			Detail:  inputError.Detail,
+		})
 		return
 	}
 
@@ -6531,10 +6537,6 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, experime
 	return content, titleSource, nil
 }
 
-// createChatInputFromParts validates input parts and converts them to
-// message content. The returned map holds pasted-text blob references
-// by file ID; the create path derives a title from it, message send
-// and edit discard it without copying blob data.
 // chatInputOptions adjusts which input part types a request may carry.
 type chatInputOptions struct {
 	// mcpAppContextServerIDs lists the MCP servers whose apps may attach
@@ -6542,6 +6544,10 @@ type chatInputOptions struct {
 	mcpAppContextServerIDs []uuid.UUID
 }
 
+// createChatInputFromParts validates input parts and converts them to
+// message content. The returned map holds pasted-text blob references
+// by file ID; the create path derives a title from it, message send
+// and edit discard it without copying blob data.
 func createChatInputFromParts(
 	ctx context.Context,
 	db database.Store,
@@ -6625,10 +6631,10 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].mcp_server_config_id must reference an MCP server attached to the chat.", fieldName, i),
 				}
 			}
-			if !strings.HasPrefix(part.MCPAppResourceURI, mcpclient.UIResourceScheme) {
+			if !mcpclient.IsValidUIResourceURI(part.MCPAppResourceURI) {
 				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
-					Detail:  fmt.Sprintf("%s[%d].mcp_app_resource_uri must be a ui:// resource.", fieldName, i),
+					Detail:  fmt.Sprintf("%s[%d].mcp_app_resource_uri must be a ui:// resource of at most %d URI-safe characters.", fieldName, i, mcpclient.MaxUIResourceURILen),
 				}
 			}
 			text := strings.TrimSpace(part.Text)
@@ -8408,7 +8414,7 @@ func (api *API) postChatMCPAppToolCall(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	result, err := api.chatDaemon.CallMCPAppTool(ctx, chat, cfg, req.Name, req.Arguments)
-	if !writeChatMCPAppError(ctx, rw, err) {
+	if !api.writeChatMCPAppError(ctx, rw, err) {
 		return
 	}
 	rw.Header().Set("Cache-Control", "no-store")
@@ -8439,7 +8445,7 @@ func (api *API) postChatMCPAppResourceRead(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	result, err := api.chatDaemon.ReadMCPAppResource(ctx, chat, cfg, req.URI)
-	if !writeChatMCPAppError(ctx, rw, err) {
+	if !api.writeChatMCPAppError(ctx, rw, err) {
 		return
 	}
 	rw.Header().Set("Cache-Control", "no-store")
@@ -8510,8 +8516,9 @@ func (api *API) authorizeChatMCPAppRequest(rw http.ResponseWriter, r *http.Reque
 
 // writeChatMCPAppError writes err and reports whether the caller may
 // continue. Request-level failures map to 400 with the daemon's
-// message; anything else is a 500 with the message hidden.
-func writeChatMCPAppError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+// message; anything else is logged and returned as a 500 without the
+// underlying error text.
+func (api *API) writeChatMCPAppError(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	if err == nil {
 		return true
 	}
@@ -8521,9 +8528,9 @@ func writeChatMCPAppError(ctx context.Context, rw http.ResponseWriter, err error
 		})
 		return false
 	}
+	api.Logger.Warn(ctx, "mcp app proxy request failed", slog.Error(err))
 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 		Message: "Failed to reach the MCP server.",
-		Detail:  err.Error(),
 	})
 	return false
 }

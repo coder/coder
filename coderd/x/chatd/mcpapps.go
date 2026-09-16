@@ -76,7 +76,7 @@ func (p *Server) CallMCPAppTool(
 
 	result, err := session.CallTool(ctx, tool.Name, arguments)
 	if err != nil {
-		return nil, &MCPAppRequestError{Message: "The MCP server rejected the tool call: " + err.Error()}
+		return nil, &MCPAppRequestError{Message: "The MCP server rejected the tool call: " + mcpclient.RedactErrorURL(err)}
 	}
 	return marshalMCPAppResult(result)
 }
@@ -113,7 +113,7 @@ func (p *Server) ReadMCPAppResource(
 
 	result, err := session.ReadResource(ctx, uri)
 	if err != nil {
-		return nil, &MCPAppRequestError{Message: "The MCP server rejected the resource read: " + err.Error()}
+		return nil, &MCPAppRequestError{Message: "The MCP server rejected the resource read: " + mcpclient.RedactErrorURL(err)}
 	}
 	return marshalMCPAppResult(result)
 }

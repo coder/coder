@@ -23,6 +23,20 @@ func (api *API) chatFilesRateLimitMW() func(http.Handler) http.Handler {
 	return api.chatFilesRateLimit
 }
 
+// chatMCPAppRateLimitPerMinute bounds app-initiated MCP requests per
+// user. Each click in a rendered app may issue a call, so the budget is
+// sized for interactive use rather than uploads.
+const chatMCPAppRateLimitPerMinute = 120
+
+// chatMCPAppRateLimitMW returns the middleware limiting MCP app proxy
+// requests. Both API prefixes mount the same instance.
+func (api *API) chatMCPAppRateLimitMW() func(http.Handler) http.Handler {
+	api.chatMCPAppRateLimitOnce.Do(func() {
+		api.chatMCPAppRateLimit = httpmw.RateLimitByAPICompatibilityEndpoint(chatMCPAppRateLimitPerMinute, time.Minute)
+	})
+	return api.chatMCPAppRateLimit
+}
+
 // chatAPIPrefix identifies which API prefix a chat route mount serves.
 type chatAPIPrefix int
 
@@ -175,7 +189,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 				r.Route("/mcp-servers/{mcpserverconfig}", func(r chi.Router) {
 					r.Use(
 						httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatMCPApps),
-						api.chatFilesRateLimitMW(),
+						api.chatMCPAppRateLimitMW(),
 					)
 					r.Post("/tools/call", api.postChatMCPAppToolCall)
 					r.Post("/resources/read", api.postChatMCPAppResourceRead)

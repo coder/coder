@@ -2180,6 +2180,10 @@ type API struct {
 	// FilesRateLimit budget.
 	chatFilesRateLimitOnce sync.Once
 	chatFilesRateLimit     func(http.Handler) http.Handler
+	// chatMCPAppRateLimit is shared by both API prefixes for the MCP app
+	// proxy routes.
+	chatMCPAppRateLimitOnce sync.Once
+	chatMCPAppRateLimit     func(http.Handler) http.Handler
 
 	// DeploymentID is loaded from the database on startup.
 	DeploymentID string

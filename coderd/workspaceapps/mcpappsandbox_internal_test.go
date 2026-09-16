@@ -14,8 +14,10 @@ func Test_validateCSPDomain(t *testing.T) {
 
 	const (
 		dashboardHost  = "coder.example.com"
+		accessHost     = "proxy.example.org"
 		wildcardSuffix = "apps.example.com"
 	)
+	protectedHosts := []string{dashboardHost, accessHost}
 
 	cases := []struct {
 		name  string
@@ -37,6 +39,10 @@ func Test_validateCSPDomain(t *testing.T) {
 		{name: "SiblingOfWildcard", entry: "https://apps2.example.com"},
 		{name: "SuffixLookalike", entry: "https://notapps.example.com"},
 		{name: "DashboardLookalike", entry: "https://notcoder.example.com"},
+		{name: "AccessHostLookalike", entry: "https://notproxy.example.org"},
+		{name: "NumericMiddleLabel", entry: "https://123.other.com"},
+		{name: "HexMiddleLabel", entry: "https://0x7f.other.com"},
+		{name: "DigitsInLastLabel", entry: "https://other.c0m"},
 
 		// Rejected entries.
 		{name: "Empty", entry: "", wantErr: "empty"},
@@ -72,6 +78,14 @@ func Test_validateCSPDomain(t *testing.T) {
 		{name: "IPv4Port", entry: "https://1.2.3.4:443", wantErr: "IP address"},
 		{name: "IPv6", entry: "https://[::1]", wantErr: "characters"},
 		{name: "IPv6Port", entry: "https://[2001:db8::1]:443", wantErr: "characters"},
+		{name: "IPv4Decimal", entry: "https://2130706433", wantErr: "IP address"},
+		{name: "IPv4Hex", entry: "https://0x7f000001", wantErr: "IP address"},
+		{name: "IPv4HexUppercase", entry: "https://0X7F000001", wantErr: "IP address"},
+		{name: "IPv4Short", entry: "https://127.1", wantErr: "IP address"},
+		{name: "IPv4ShortPort", entry: "https://127.1:443", wantErr: "IP address"},
+		{name: "IPv4MixedHex", entry: "https://127.0.0.0x1", wantErr: "IP address"},
+		{name: "IPv4Octal", entry: "https://0177.0.0.1", wantErr: "IP address"},
+		{name: "WildcardNumeric", entry: "https://*.1", wantErr: "IP address"},
 		{name: "Localhost", entry: "https://localhost", wantErr: "localhost"},
 		{name: "LocalhostPort", entry: "https://localhost:3000", wantErr: "localhost"},
 		{name: "LocalhostUppercase", entry: "https://LOCALHOST", wantErr: "localhost"},
@@ -81,6 +95,9 @@ func Test_validateCSPDomain(t *testing.T) {
 		{name: "DashboardHostUppercase", entry: "https://CODER.example.com", wantErr: "access URL"},
 		{name: "DashboardHostPort", entry: "wss://coder.example.com:443", wantErr: "access URL"},
 		{name: "WildcardCoveringDashboard", entry: "https://*.example.com", wantErr: "access URL"},
+		{name: "AccessHost", entry: "https://proxy.example.org", wantErr: "access URL"},
+		{name: "AccessHostUppercase", entry: "wss://PROXY.example.org:443", wantErr: "access URL"},
+		{name: "WildcardCoveringAccessHost", entry: "https://*.example.org", wantErr: "access URL"},
 		{name: "WildcardSuffix", entry: "https://apps.example.com", wantErr: "wildcard access URL"},
 		{name: "UnderWildcardSuffix", entry: "https://foo.apps.example.com", wantErr: "wildcard access URL"},
 		{name: "WildcardUnderWildcardSuffix", entry: "https://*.apps.example.com", wantErr: "wildcard access URL"},
@@ -90,7 +107,7 @@ func Test_validateCSPDomain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateCSPDomain(tc.entry, dashboardHost, wildcardSuffix)
+			err := validateCSPDomain(tc.entry, protectedHosts, wildcardSuffix)
 			if tc.wantErr == "" {
 				require.NoError(t, err)
 				return

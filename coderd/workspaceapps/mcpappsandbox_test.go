@@ -293,6 +293,40 @@ func TestServeMCPAppSandbox(t *testing.T) {
 		}
 	})
 
+	t.Run("AccessURLDiffersFromDashboard", func(t *testing.T) {
+		t.Parallel()
+
+		hostnameRegex, err := appurl.CompileHostnamePattern(hostnamePattern)
+		require.NoError(t, err)
+		dashboard, err := url.Parse(dashboardURL)
+		require.NoError(t, err)
+		access, err := url.Parse("https://proxy.test.coder.org")
+		require.NoError(t, err)
+		srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
+			Logger:              testutil.Logger(t),
+			DashboardURL:        dashboard,
+			AccessURL:           access,
+			Hostname:            hostnamePattern,
+			HostnameRegex:       hostnameRegex,
+			SignedTokenProvider: &fakeSignedTokenProvider{},
+		})
+
+		for _, entry := range []string{"https://proxy.test.coder.org", "wss://*.test.coder.org"} {
+			csp := fmt.Sprintf(`{"connectDomains":[%q]}`, entry)
+			rec, nextCalled := doMCPAppSandboxRequest(t, srv, http.MethodGet, mcpAppSandboxTestHost, "/?csp="+url.QueryEscape(csp))
+			require.False(t, nextCalled, entry)
+			require.Equal(t, http.StatusBadRequest, rec.Code, entry)
+			resp := decodeResponse(t, rec)
+			require.Contains(t, resp.Detail, fmt.Sprintf("connectDomains entry %q", entry))
+		}
+
+		// The meta tag and frame-ancestors still come from the dashboard URL.
+		rec, _ := doMCPAppSandboxRequest(t, srv, http.MethodGet, mcpAppSandboxTestHost, "/")
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Contains(t, rec.Header().Get("Content-Security-Policy"), "frame-ancestors https://dashboard.test.coder.com")
+		require.Contains(t, rec.Body.String(), `content="https://dashboard.test.coder.com"`)
+	})
+
 	t.Run("ValidCSP", func(t *testing.T) {
 		t.Parallel()
 

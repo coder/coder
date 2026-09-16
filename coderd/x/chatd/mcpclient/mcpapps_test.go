@@ -263,7 +263,10 @@ func TestConnectAll_MCPAppsAdvertisesExtension(t *testing.T) {
 	// initialize params or in the request _meta of the first call.
 	ts := newHTTPTestServer(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			rw.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		var msg struct {
 			ID     json.RawMessage `json:"id"`

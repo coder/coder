@@ -192,6 +192,34 @@ func TestChatMCPAppProxy(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "does not list")
 	})
 
+	t.Run("DisabledServerNotFound", func(t *testing.T) {
+		t.Parallel()
+		disabled, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Disabled",
+			Slug:          "disabled",
+			Transport:     "streamable_http",
+			URL:           mcpTS.URL,
+			AuthType:      "none",
+			Availability:  "default_off",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		disabledChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			MCPServerIDs:   []uuid.UUID{disabled.ID},
+		})
+		require.NoError(t, err)
+		enabled := false
+		_, err = client.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID, codersdk.UpdateMCPServerConfigRequest{Enabled: &enabled})
+		require.NoError(t, err)
+
+		_, err = client.CallChatMCPAppTool(ctx, disabledChat.ID, disabled.ID, codersdk.ChatMCPAppToolCallRequest{Name: "list_tasks"})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
 	t.Run("NonOwnerForbidden", func(t *testing.T) {
 		t.Parallel()
 		otherRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)

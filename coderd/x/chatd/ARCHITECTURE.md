@@ -466,6 +466,8 @@ Other execution-state classes are not supported for archive/unarchive.
 
 ### `POST /api/experimental/chats/{chat}/messages`
 
+<!-- TODO(mcp-apps): document the `mcp-app-context` input part (experiment `chat-mcp-apps`): accepted only for MCP servers attached to the chat (or attached by the same request), capped at 16 KiB, stored as an `mcp-app-context` message part on the user message and sent to the model as a labelled block. The same applies to `POST /api/experimental/chats` and `PATCH .../messages/{message}`. -->
+
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`
@@ -567,8 +569,6 @@ This endpoint uses `CompleteRequiresAction(results)`:
 
 No other input states are supported.
 
-<!-- TODO(mcp-apps): document `POST /api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call` and `.../resources/read` (experiment `chat-mcp-apps`). They proxy app-initiated MCP requests through a short-lived session on behalf of the chat owner and do not touch chat state or the transcript. -->
-
 ### `POST /api/experimental/chats/{chat}/compact`
 
 This endpoint uses `RequestCompaction`:
@@ -587,6 +587,10 @@ This endpoint uses `ClearContext`:
 - `E0 -> ClearContext -> W`
 
 No other input states are supported: generating chats and chats with queued messages get a conflict error, and archived chats are rejected. Unlike `/compact`, there is no worker round-trip and no model call: the endpoint builds the boundary triplet itself and commits it synchronously inside the API transaction. The transcript is preserved; only future prompts stop seeing pre-clear history. Clearing from an error state clears `last_error`, so a context-overflowed chat gets an instant recovery path that discards the oversized history instead of summarizing it. The prompt-assembly query needs no changes because the clear boundary reuses the compressed model-only anchor shape produced by compaction. Boundary detection (`latestContextBoundaryIndex`) recognizes both `chat_summarized` and `chat_cleared` boundaries, so clear and compaction never reach across each other's boundary. If no active model-visible non-system message follows the latest boundary, the transaction rolls back with a "nothing to clear" conflict, so an empty or already-cleared chat never gains a duplicate boundary. The endpoint is owner-only for symmetry with `/compact`. The web UI surfaces it as the `/clear` slash command.
+
+### `POST /api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call` and `.../resources/read`
+
+<!-- TODO(mcp-apps): document these endpoints (experiment `chat-mcp-apps`). They proxy app-initiated MCP requests through a short-lived session on behalf of the chat owner, use no state transition, and do not touch the transcript. -->
 
 ## Pubsub
 
@@ -1054,7 +1058,7 @@ The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint.
 The following chat stream events, delivered to the client over WebSocket, are supported:
 
 - `message_part`: a streaming message part emitted by the chat worker. Each carries the `history_version` and `generation_attempt` of the episode it belongs to, so a client knows which episode a message part comes from.
-    <!-- TODO(mcp-apps): note that tool-call and tool-result parts are stamped with `mcp_server_config_id` and `mcp_app_resource_uri` at publish time as well as at persist time, and that tool-result parts for UI tools carry `mcp_result` (capped at 64 KiB, `mcp_result_truncated` otherwise). Also document the `mcp-app-context` user message part produced from the `mcp-app-context` input part. -->
+    <!-- TODO(mcp-apps): note that tool-call and tool-result parts are stamped with `mcp_server_config_id` and `mcp_app_resource_uri` at publish time as well as at persist time, and that tool-result parts for UI tools carry `mcp_result` (capped at 64 KiB, `mcp_result_truncated` otherwise). -->
 - `message`: a committed chat message present in the database.
 - `status`: the chat's status.
 - `error`: the chat's persisted error payload.
