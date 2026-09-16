@@ -1,6 +1,12 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
-import { BotIcon, CopyIcon, MessageSquareIcon, PencilIcon } from "lucide-react";
+import {
+	BotIcon,
+	CopyIcon,
+	MessageSquareIcon,
+	PencilIcon,
+	UngroupIcon,
+} from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { shortRelativeTime } from "#/utils/time";
@@ -48,6 +54,7 @@ interface BoardCardProps extends ChatOpenHandlers {
 	readonly onSetColor: (color: CardColor | undefined) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: () => void;
+	readonly onRemoveFromGroup: (chat: Chat) => void;
 	readonly onAddNote: (text: string) => void;
 	readonly onEditNote: (index: number, text: string) => void;
 	readonly onRemoveNote: (index: number) => void;
@@ -61,6 +68,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 	onSetColor,
 	onRenameChat,
 	onAssistant,
+	onRemoveFromGroup,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -222,9 +230,9 @@ export const BoardCard: FC<BoardCardProps> = ({
 							key={chat.id}
 							chat={chat}
 							card={card}
-							draggable={chat.id !== card.id}
 							open={openChatIds.has(chat.id)}
 							onRename={(title) => onRenameChat(chat, title)}
+							onRemove={() => onRemoveFromGroup(chat)}
 							onOpen={onOpen}
 							onPreview={onPreview}
 							onPreviewEnd={onPreviewEnd}
@@ -499,17 +507,19 @@ export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
 interface ChatRowProps extends ChatOpenHandlers {
 	readonly chat: Chat;
 	readonly card: BoardCardModel;
-	readonly draggable: boolean;
 	readonly open: boolean;
 	readonly onRename: (title: string) => void;
+	readonly onRemove: () => void;
 }
 
+// Any member can leave, the primary included: the mutation hands the card
+// to the next member, so nothing here needs to know who is primary.
 const ChatRow: FC<ChatRowProps> = ({
 	chat,
 	card,
-	draggable,
 	open,
 	onRename,
+	onRemove,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -519,7 +529,6 @@ const ChatRow: FC<ChatRowProps> = ({
 		useDraggable({
 			id: chatDragId(chat),
 			data: dragData,
-			disabled: !draggable,
 		});
 	const [renaming, setRenaming] = useState(false);
 	const display = getChatDisplayConfig(chat);
@@ -536,16 +545,11 @@ const ChatRow: FC<ChatRowProps> = ({
 			<OpenChatSurface chat={chat} isDragging={isDragging} onOpen={onOpen} />
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
-				ref={draggable ? setActivatorNodeRef : undefined}
-				{...(draggable
-					? { ...dragHandleListeners(listeners), ...attributes }
-					: {})}
-				className={cn(
-					"flex h-[18px] items-center justify-center",
-					draggable &&
-						"relative z-[1] cursor-grab touch-none active:cursor-grabbing",
-				)}
-				title={draggable ? "Drag to move this chat" : undefined}
+				ref={setActivatorNodeRef}
+				{...dragHandleListeners(listeners)}
+				{...attributes}
+				className="relative z-[1] flex h-[18px] cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+				title="Drag to move this chat"
 			>
 				<StatusIcon
 					className={cn("size-[13px]", display.className)}
@@ -577,6 +581,22 @@ const ChatRow: FC<ChatRowProps> = ({
 					onOpen={onOpen}
 					onPreview={onPreview}
 					onPreviewEnd={onPreviewEnd}
+				/>
+				<ActionsMenu
+					label={chat.title}
+					permanent
+					items={[
+						{
+							label: "Remove from group",
+							icon: UngroupIcon,
+							onSelect: onRemove,
+						},
+						{
+							label: "Rename",
+							icon: PencilIcon,
+							onSelect: () => setRenaming(true),
+						},
+					]}
 				/>
 			</div>
 		</li>

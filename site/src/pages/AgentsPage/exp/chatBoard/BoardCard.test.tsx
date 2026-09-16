@@ -23,6 +23,7 @@ const renderCard = (chats: readonly Chat[]) => {
 		onSetColor: vi.fn(),
 		onRenameChat: vi.fn(),
 		onAssistant: vi.fn(),
+		onRemoveFromGroup: vi.fn(),
 		onOpen: vi.fn(),
 		onPreview: vi.fn(),
 		onPreviewEnd: vi.fn(),
