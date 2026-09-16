@@ -5,9 +5,8 @@ import type { ComponentProps } from "react";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage, UserPreferenceSettings } from "#/api/typesGenerated";
+import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -20,6 +19,7 @@ import {
 import {
 	buildStreamRenderState,
 	buildWorkingConversation,
+	MockCollapsedStepsPreferences,
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
 } from "./storyFixtures";
@@ -28,11 +28,6 @@ import type { StreamState } from "./types";
 
 const time = workingFixtureTime;
 const MockWorkingMessages = buildWorkingConversation();
-const MockPreferences: UserPreferenceSettings = {
-	...MockUserPreferenceSettings,
-	shell_tool_display_mode: "always_collapsed",
-	collapse_assistant_steps: true,
-};
 const MockFailedMessages: ChatMessage[] = MockWorkingMessages.map((message) =>
 	message.id === 5
 		? {
@@ -161,7 +156,10 @@ function renderTimeline(initial: TimelineStage = {}) {
 	queryClient.setQueryDefaults(preferenceSettingsKey, {
 		staleTime: Number.POSITIVE_INFINITY,
 	});
-	queryClient.setQueryData(preferenceSettingsKey, MockPreferences);
+	queryClient.setQueryData(
+		preferenceSettingsKey,
+		MockCollapsedStepsPreferences,
+	);
 	const renderStage = ({
 		messages = MockWorkingMessages,
 		pendingToolCallIDs,
@@ -260,11 +258,14 @@ describe("ConversationTimeline working blocks", () => {
 		});
 		await user.click(summary);
 		queryClient.setQueryData(preferenceSettingsKey, {
-			...MockPreferences,
+			...MockCollapsedStepsPreferences,
 			collapse_assistant_steps: false,
 		});
 		await waitForElementToBeRemoved(summary);
-		queryClient.setQueryData(preferenceSettingsKey, MockPreferences);
+		queryClient.setQueryData(
+			preferenceSettingsKey,
+			MockCollapsedStepsPreferences,
+		);
 		const restored = await screen.findByRole("button", {
 			name: "Worked for 12s (2 steps)",
 		});
