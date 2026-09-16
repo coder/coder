@@ -1,10 +1,12 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { API } from "#/api/api";
+import { infiniteChats } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { addCommentLabels, buildCards } from "./boardLabels";
 import { useBoardMutations } from "./useBoardMutations";
 
@@ -25,7 +27,10 @@ const renderMutations = () => {
 	const wrapper = ({ children }: PropsWithChildren) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
-	return renderHook(() => useBoardMutations(), { wrapper }).result;
+	return {
+		queryClient,
+		result: renderHook(() => useBoardMutations(), { wrapper }).result,
+	};
 };
 
 /** The label maps written, keyed by chat id, from the spied API calls. */
@@ -49,7 +54,7 @@ describe("useBoardMutations", () => {
 		]);
 		if (!card) throw new Error("card missing");
 
-		await renderMutations().current.moveCard(card, "Doing", 4200);
+		await renderMutations().result.current.moveCard(card, "Doing", 4200);
 
 		expect(written(spy)).toEqual({
 			p: { "board/column": "Doing", "board/pos": "4200" },
@@ -77,7 +82,7 @@ describe("useBoardMutations", () => {
 		]);
 		if (!target || !source) throw new Error("cards missing");
 
-		await renderMutations().current.mergeCards(source, target);
+		await renderMutations().result.current.mergeCards(source, target);
 
 		expect(written(spy)).toEqual({
 			s: { "board/group": "t", "board/column": "Done" },
@@ -98,7 +103,7 @@ describe("useBoardMutations", () => {
 			.spyOn(API.experimental, "updateChat")
 			.mockResolvedValue(undefined);
 
-		await renderMutations().current.detachChat(
+		await renderMutations().result.current.detachChat(
 			chat("m", { "board/group": "p" }),
 			"Later",
 			7,
@@ -117,7 +122,7 @@ describe("useBoardMutations", () => {
 		const [card] = buildCards([chat("p", addCommentLabels({}, "first", 1))]);
 		if (!card) throw new Error("card missing");
 
-		await renderMutations().current.addComment(card, "second");
+		await renderMutations().result.current.addComment(card, "second");
 
 		expect(written(spy).p).toEqual({
 			"board/comment.0.timestamp": "1",
@@ -136,8 +141,37 @@ describe("useBoardMutations", () => {
 		if (!card) throw new Error("card missing");
 
 		await expect(
-			renderMutations().current.setCardTitle(card, "New"),
+			renderMutations().result.current.setCardTitle(card, "New"),
 		).resolves.toBeUndefined();
 		expect(toast.error).toHaveBeenCalledWith("boom");
+	});
+
+	it("patches the cached chat list before the request settles, then invalidates it", async () => {
+		const request = createDeferred<void>();
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
+		const primary = chat("p", { "board/column": "Inbox" });
+		const [card] = buildCards([primary]);
+		if (!card) throw new Error("card missing");
+		const { queryClient, result } = renderMutations();
+		const listKey = infiniteChats({}).queryKey;
+		queryClient.setQueryData(listKey, { pages: [[primary]], pageParams: [0] });
+		const cachedLabels = () =>
+			queryClient.getQueryData<{ pages: Chat[][] }>(listKey)?.pages[0]?.[0]
+				?.labels;
+
+		const pending = result.current.moveCard(card, "Doing", 4200);
+
+		await waitFor(() =>
+			expect(cachedLabels()).toEqual({
+				"board/column": "Doing",
+				"board/pos": "4200",
+			}),
+		);
+		expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(false);
+
+		request.resolve();
+		await pending;
+
+		expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
 	});
 });
