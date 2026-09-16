@@ -88,6 +88,29 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("emits unmatched typed text without selecting a filter", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[
+					{
+						...ownerCategory,
+						getOptions: async (query) =>
+							query === "missing" ? [] : ownerCategory.getOptions(query),
+					},
+				]}
+				onChange={onChange}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox", { name: "Search and filter" });
+		await user.click(input);
+		await user.type(input, "missing");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("missing"));
+	});
+
 	it("replaces the selected Workspace attribute", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();

@@ -17,7 +17,7 @@ import {
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
 import { FilterCombobox } from "./FilterCombobox";
-import type { FilterCategory, FilterOption, SearchResult } from "./types";
+import type { FilterCategory, FilterOption } from "./types";
 
 const meta: Meta<typeof FilterCombobox> = {
 	title: "components/Filter/FilterCombobox",
@@ -134,15 +134,9 @@ const chip = (token: string) => (_: string, element: Element | null) =>
 
 const FilterComboboxHarness = ({
 	initialQuery = "owner:me",
-	getSearchResults,
-	onSearchResultSelect,
-	searchResultsLabel,
 	categories: categoriesProp = categories,
 }: {
 	initialQuery?: string;
-	getSearchResults?: (query: string) => Promise<SearchResult[]>;
-	onSearchResultSelect?: (result: SearchResult) => void;
-	searchResultsLabel?: string;
 	categories?: readonly FilterCategory[];
 }) => {
 	const [query, setQuery] = useState(initialQuery);
@@ -154,9 +148,6 @@ const FilterComboboxHarness = ({
 			categories={categoriesProp}
 			placeholder="Search and filter…"
 			className="max-w-lg"
-			getSearchResults={getSearchResults}
-			onSearchResultSelect={onSearchResultSelect}
-			searchResultsLabel={searchResultsLabel}
 		/>
 	);
 };
@@ -408,6 +399,31 @@ export const TypeaheadMatchingCategories: Story = {
 	},
 };
 
+// Typed text filters filter items only. With no matching filter items, the
+// popup does not render a dropdown.
+export const NoFilterMatches: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					getOptions: async (query) => filterOptions(ownerOptions, query),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "missing");
+	},
+};
+
 export const TabCompletesTopCategory: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
@@ -453,94 +469,6 @@ export const EnterCommitsHighlightedCategory: Story = {
 		await userEvent.keyboard("{Enter}");
 		await expect(canvas.getByText("template:")).toBeVisible();
 		await expect(canvas.queryByText("status:")).not.toBeInTheDocument();
-	},
-};
-
-export const LiveResourcePreviews: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			searchResultsLabel="Workspaces"
-			getSearchResults={async (query) => {
-				await new Promise((resolve) => {
-					window.setTimeout(resolve, 50);
-				});
-				if (!query.toLowerCase().includes("dev")) {
-					return [];
-				}
-				return [
-					{
-						value: "ws-1",
-						label: "devbox",
-						href: "/@alice/devbox",
-					},
-				];
-			}}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter…",
-		});
-		await userEvent.click(input);
-		await userEvent.type(input, "dev");
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /devbox/i })).toBeVisible(),
-		);
-		await expect(body.getByText("Workspaces")).toBeVisible();
-	},
-};
-
-export const HidesStaleResourcePreviews: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			searchResultsLabel="Workspaces"
-			getSearchResults={async (query) => {
-				if (query === "dev") {
-					return [
-						{
-							value: "ws-dev",
-							label: "devbox",
-							href: "/@alice/devbox",
-						},
-					];
-				}
-				if (query === "prod") {
-					return [
-						{
-							value: "ws-prod",
-							label: "prodbox",
-							href: "/@bob/prodbox",
-						},
-					];
-				}
-				return [];
-			}}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter…",
-		});
-		await userEvent.click(input);
-		await userEvent.type(input, "dev");
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /devbox/i })).toBeVisible(),
-		);
-		await userEvent.clear(input);
-		await userEvent.type(input, "p");
-		await expect(
-			body.queryByRole("option", { name: /devbox/i }),
-		).not.toBeInTheDocument();
-		await userEvent.type(input, "rod");
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /prodbox/i })).toBeVisible(),
-		);
 	},
 };
 
@@ -800,44 +728,6 @@ export const TypeaheadErrorRetry: Story = {
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /alice/i })).toBeVisible(),
 		);
-	},
-};
-
-// A failed workspace-preview lookup names the preview source, not suggestions,
-// while the loaded suggestion rows stay visible.
-export const PreviewErrorNamesPreview: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			searchResultsLabel="Jump to workspace"
-			categories={[
-				{
-					key: "owner",
-					label: "Owner",
-					icon: <UserIcon />,
-					getOptions: async (query) =>
-						filterOptions([{ label: "alice", value: "alice" }], query),
-				},
-			]}
-			getSearchResults={async () => {
-				throw new Error("boom");
-			}}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter…",
-		});
-		await userEvent.click(input);
-		await userEvent.type(input, "alice");
-		await expect(
-			await body.findByText(/Couldn.t load workspace previews/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("option", { name: /alice/i })).toBeVisible();
 	},
 };
 

@@ -18,8 +18,8 @@ import {
 	parseTypedCategoryPrefix,
 	queryToChips,
 } from "./filterQuery";
-import { filterComboboxOptions, filterComboboxSearchResults } from "./queries";
-import type { FilterCategory, FilterOption, SearchResult } from "./types";
+import { filterComboboxOptions } from "./queries";
+import type { FilterCategory, FilterOption } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -144,7 +144,6 @@ type StatusMessageInput = {
 	activeOptionsError: boolean;
 	activeOptionsEmpty: boolean;
 	typeaheadError: boolean;
-	typeaheadErrorLabel: string;
 	typeaheadEmpty: boolean;
 };
 
@@ -157,7 +156,6 @@ const deriveStatusMessage = ({
 	activeOptionsError,
 	activeOptionsEmpty,
 	typeaheadError,
-	typeaheadErrorLabel,
 	typeaheadEmpty,
 }: StatusMessageInput): string => {
 	if (activeCategoryLabel !== undefined) {
@@ -173,7 +171,7 @@ const deriveStatusMessage = ({
 		return `Filtering by ${activeCategoryLabel}`;
 	}
 	if (typeaheadError) {
-		return typeaheadErrorLabel;
+		return "Couldn't load suggestions.";
 	}
 	if (typeaheadEmpty) {
 		return "No filters found";
@@ -185,14 +183,12 @@ type UseFilterComboboxOptions = {
 	value: string;
 	onChange: (query: string) => void;
 	categories: readonly FilterCategory[];
-	getSearchResults?: (query: string) => Promise<SearchResult[]>;
-	onSearchResultSelect?: (result: SearchResult) => void;
 };
 
 /**
  * Drives the unified workspace filter combobox: a `mode` state machine for the
  * popup, debounced query emission back to the caller, and the react-query
- * lookups for category options, cross-category suggestions, and search results.
+ * lookups for category options and cross-category suggestions.
  * Local state is reconciled against the caller-owned `value` so an external
  * update wins over any in-flight local edit.
  */
@@ -200,8 +196,6 @@ export const useFilterCombobox = ({
 	value,
 	onChange,
 	categories,
-	getSearchResults,
-	onSearchResultSelect,
 }: UseFilterComboboxOptions) => {
 	const chipKeys = useMemo(
 		() => categories.flatMap((category) => category.chipKeys ?? [category.key]),
@@ -227,7 +221,6 @@ export const useFilterCombobox = ({
 	const prevChipKeysRef = useRef(chipKeys);
 	const highlightedItemRef = useRef<string | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
-	const hasSearchResultsLoader = Boolean(getSearchResults);
 
 	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
 		(query: string) => {
@@ -457,42 +450,14 @@ export const useFilterCombobox = ({
 		!suggestionsError &&
 		suggestionOptions.isFetching;
 
-	const searchResultsQuery = useQuery(
-		filterComboboxSearchResults(
-			getSearchResults,
-			debouncedTypeaheadQuery,
-			hasSearchResultsLoader &&
-				debouncedTypeaheadQuery.length > 0 &&
-				activeCategoryKey === null &&
-				isBrowsing,
-		),
-	);
-
-	const searchResults = typeaheadQueryPending
-		? []
-		: (searchResultsQuery.data ?? []);
-	const searchResultsLoading =
-		(hasSearchResultsLoader && typeaheadQueryPending) ||
-		(searchResultsQuery.isFetching && !searchResultsQuery.isError);
-	const previewError =
-		activeCategoryKey === null &&
-		isBrowsing &&
-		hasSearchResultsLoader &&
-		searchResultsQuery.isError;
-	const typeaheadError = suggestionsError || previewError;
+	const typeaheadError = suggestionsError;
 
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
-	const showSearchResults = hasTypeaheadQuery && searchResults.length > 0;
-	// Spin while either source is still fetching without rows for its own
-	// section, so an in-flight query never leaves an empty gap. The other
-	// section's rows keep rendering above the spinner.
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
-		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
-			(hasSearchResultsLoader &&
-				searchResultsLoading &&
-				searchResults.length === 0));
+		valueSuggestionsLoading &&
+		valueSuggestions.length === 0;
 
 	const typeaheadEmpty =
 		hasTypeaheadQuery &&
@@ -500,19 +465,7 @@ export const useFilterCombobox = ({
 		!typeaheadError &&
 		listedCategories.length === 0 &&
 		inlineOptions.length === 0 &&
-		valueSuggestions.length === 0 &&
-		searchResults.length === 0;
-
-	// Name the failing source so the copy points at the right endpoint instead
-	// of blaming suggestions for a preview outage.
-	const typeaheadErrorLabel =
-		suggestionsError && previewError
-			? "Couldn't load results."
-			: previewError
-				? "Couldn't load workspace previews."
-				: suggestionsError
-					? "Couldn't load suggestions."
-					: "";
+		valueSuggestions.length === 0;
 
 	const activeOptionsEmpty =
 		activeCategoryKey !== null &&
@@ -529,15 +482,11 @@ export const useFilterCombobox = ({
 		activeOptionsError,
 		activeOptionsEmpty,
 		typeaheadError,
-		typeaheadErrorLabel,
 		typeaheadEmpty,
 	});
 
-	// Refetch both typeahead sources so one retry covers a failed suggestion
-	// lookup and a failed workspace preview.
 	const retryTypeahead = () => {
 		suggestionOptions.refetch();
-		void searchResultsQuery.refetch();
 	};
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
@@ -610,11 +559,6 @@ export const useFilterCombobox = ({
 		if (!browseAll) {
 			dispatch({ type: "typeFreeText", value: "" });
 		}
-	};
-
-	const selectSearchResult = (result: SearchResult) => {
-		onSearchResultSelect?.(result);
-		dispatch({ type: "close", input: "keep" });
 	};
 
 	const leaveCategory = () => {
@@ -816,9 +760,7 @@ export const useFilterCombobox = ({
 			}
 		}
 
-		// Tab completes the highlighted filter only. A highlighted resource
-		// preview has no chip token, so Tab falls through to the default focus
-		// move rather than navigating.
+		// Tab completes a highlighted filter and otherwise moves focus.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
 		if (!isTabComplete || mode !== "browsing") {
 			return;
@@ -858,7 +800,6 @@ export const useFilterCombobox = ({
 		listedCategories,
 		browseCategoryOptions: previewOptions.optionsByKey,
 		valueSuggestions,
-		searchResults,
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
@@ -868,8 +809,6 @@ export const useFilterCombobox = ({
 			active: typeaheadActive,
 			loading: typeaheadLoading,
 			error: typeaheadError,
-			errorLabel: typeaheadErrorLabel,
-			showSearchResults,
 		},
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
@@ -886,7 +825,6 @@ export const useFilterCombobox = ({
 			selectCategoryOption,
 			toggleInlineOption,
 			selectValueSuggestion,
-			selectSearchResult,
 			onInputFocus: handleInputFocus,
 			onInputKeyDown: handleInputKeyDown,
 			onInputValueChange: handleInputValueChange,

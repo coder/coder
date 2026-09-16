@@ -13,7 +13,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
@@ -40,13 +39,13 @@ import {
 	FilterComboboxRoot,
 	FilterComboboxStatus,
 } from "./primitives";
-import type { FilterCategory, FilterOption, SearchResult } from "./types";
+import type { FilterCategory, FilterOption } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
 /**
  * Unified workspace filter input: renders committed chips plus a cmdk-driven
- * popup that browses categories, surfaces cross-category value suggestions, and
- * (optionally) previews matching resources. State lives in `useFilterCombobox`.
+ * popup that browses categories and surfaces cross-category value suggestions.
+ * State lives in `useFilterCombobox`.
  */
 type HoveredCategory = {
 	key: string;
@@ -80,10 +79,6 @@ type FilterComboboxProps = Readonly<{
 	 * query). When set, the input is marked invalid and linked to the message.
 	 */
 	errorMessage?: string;
-	/** Debounced free-text resource previews (e.g. matching workspaces). */
-	getSearchResults?: (query: string) => Promise<SearchResult[]>;
-	onSearchResultSelect?: (result: SearchResult) => void;
-	searchResultsLabel?: string;
 }>;
 
 export function FilterCombobox({
@@ -93,9 +88,6 @@ export function FilterCombobox({
 	placeholder = "Search and filter…",
 	className,
 	errorMessage,
-	getSearchResults,
-	onSearchResultSelect,
-	searchResultsLabel = "Results",
 }: FilterComboboxProps) {
 	const {
 		open,
@@ -112,7 +104,6 @@ export function FilterCombobox({
 		valueSuggestions,
 		inlineOptions,
 		mainInlineOptions,
-		searchResults,
 		chipValues,
 		typeahead,
 		actions,
@@ -120,8 +111,6 @@ export function FilterCombobox({
 		value,
 		onChange,
 		categories,
-		getSearchResults,
-		onSearchResultSelect,
 	});
 	const { setInputRef } = actions;
 
@@ -380,18 +369,13 @@ export function FilterCombobox({
 									listedCategories={listedCategories}
 									valueSuggestions={valueSuggestions}
 									inlineOptions={inlineOptions}
-									searchResults={searchResults}
-									searchResultsLabel={searchResultsLabel}
-									showSearchSection={typeahead.showSearchResults}
 									typeaheadError={typeahead.error}
-									typeaheadErrorLabel={typeahead.errorLabel}
 									onSelectCategory={actions.selectCategory}
 									isCoarsePointer={isCoarsePointer}
 									isMobile
 									onHoverCategory={updateHoveredCategory}
 									onToggleInlineOption={actions.toggleInlineOption}
 									onSelectSuggestion={actions.selectValueSuggestion}
-									onSelectSearchResult={actions.selectSearchResult}
 									onRetry={actions.retryTypeahead}
 								/>
 							) : (
@@ -423,18 +407,13 @@ export function FilterCombobox({
 								listedCategories={listedCategories}
 								valueSuggestions={valueSuggestions}
 								inlineOptions={inlineOptions}
-								searchResults={searchResults}
-								searchResultsLabel={searchResultsLabel}
-								showSearchSection={typeahead.showSearchResults}
 								typeaheadError={typeahead.error}
-								typeaheadErrorLabel={typeahead.errorLabel}
 								onSelectCategory={actions.selectCategory}
 								isCoarsePointer={isCoarsePointer}
 								isMobile={isMobile}
 								onHoverCategory={updateHoveredCategory}
 								onToggleInlineOption={actions.toggleInlineOption}
 								onSelectSuggestion={actions.selectValueSuggestion}
-								onSelectSearchResult={actions.selectSearchResult}
 								onRetry={actions.retryTypeahead}
 							/>
 							{!isMobile &&
@@ -526,20 +505,6 @@ function ChipLabel({
 	);
 }
 
-function ResultIcon({ result }: { result: SearchResult }): ReactNode {
-	if (result.startIcon) {
-		return <OptionIcon>{result.startIcon}</OptionIcon>;
-	}
-	if (result.imageUrl !== undefined) {
-		return (
-			<OptionIcon>
-				<Avatar src={result.imageUrl} fallback={result.label} size="sm" />
-			</OptionIcon>
-		);
-	}
-	return null;
-}
-
 type InlineOption = {
 	categoryKey: string;
 	categoryLabel: string;
@@ -577,11 +542,7 @@ type TypeaheadListProps = Readonly<{
 	onSelectCategory: (categoryKey: string) => void;
 	valueSuggestions: readonly ValueSuggestion[];
 	inlineOptions: readonly InlineOption[];
-	searchResults: readonly SearchResult[];
-	searchResultsLabel: string;
-	showSearchSection: boolean;
 	typeaheadError: boolean;
-	typeaheadErrorLabel: string;
 	embedded?: boolean;
 	onHoverCategory: (
 		category: HoveredCategory | null,
@@ -589,7 +550,6 @@ type TypeaheadListProps = Readonly<{
 	) => void;
 	onToggleInlineOption: (token: string) => void;
 	onSelectSuggestion: (token: string) => void;
-	onSelectSearchResult: (result: SearchResult) => void;
 	onRetry: () => void;
 }>;
 
@@ -600,16 +560,11 @@ function TypeaheadList({
 	onSelectCategory,
 	valueSuggestions,
 	inlineOptions,
-	searchResults,
-	searchResultsLabel,
-	showSearchSection,
 	typeaheadError,
-	typeaheadErrorLabel,
 	embedded = false,
 	onHoverCategory,
 	onToggleInlineOption,
 	onSelectSuggestion,
-	onSelectSearchResult,
 	onRetry,
 }: TypeaheadListProps) {
 	const valueSuggestionsByCategory = new Map<string, ValueSuggestion[]>();
@@ -628,7 +583,6 @@ function TypeaheadList({
 		listedCategories.length === 0 &&
 		valueSuggestions.length === 0 &&
 		inlineOptions.length === 0 &&
-		!showSearchSection &&
 		!typeaheadError;
 
 	if (isEmpty) {
@@ -739,25 +693,9 @@ function TypeaheadList({
 					</FilterComboboxGroup>
 				),
 			)}
-			{showSearchSection && (
-				<FilterComboboxGroup>
-					<FilterComboboxLabel>{searchResultsLabel}</FilterComboboxLabel>
-					{searchResults.map((result) => (
-						<FilterComboboxItem
-							className={OPTION_ITEM_CLASS}
-							key={result.value}
-							value={result.value}
-							onSelect={() => onSelectSearchResult(result)}
-						>
-							<ResultIcon result={result} />
-							<span className="truncate">{result.label}</span>
-						</FilterComboboxItem>
-					))}
-				</FilterComboboxGroup>
-			)}
 			{typeaheadError && (
 				<div className="flex flex-col items-center gap-2 px-2 py-2.5 text-center text-sm text-content-secondary">
-					<span>{typeaheadErrorLabel}</span>
+					<span>Couldn&rsquo;t load suggestions.</span>
 					<Button size="sm" variant="outline" onClick={onRetry}>
 						Retry
 					</Button>
