@@ -213,7 +213,7 @@ export const FilteredEmpty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			await canvas.findByText("No results matched your search."),
+			await canvas.findByText("No templates match your search"),
 		).toBeVisible();
 	},
 };

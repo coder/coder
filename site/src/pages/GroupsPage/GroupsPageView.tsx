@@ -15,10 +15,10 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -179,6 +179,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 									canCreateGroup={canCreateGroup}
 									showAIBudget={showAIBudget}
 									filterUsed={filterProps.filter.used}
+									onClearFilters={() => filterProps.filter.update("")}
 								/>
 							</TableBody>
 						</Table>
@@ -194,6 +195,7 @@ interface GroupsTableBodyProps {
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
 	filterUsed: boolean;
+	onClearFilters: () => void;
 }
 
 const GroupsTableBody: FC<GroupsTableBodyProps> = ({
@@ -201,6 +203,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	canCreateGroup,
 	showAIBudget,
 	filterUsed,
+	onClearFilters,
 }) => {
 	if (groups === undefined) {
 		return <TableLoader showAIBudget={showAIBudget} />;
@@ -210,14 +213,10 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 		// first group; the org may already have groups that simply don't match.
 		if (filterUsed) {
 			return (
-				<TableRow>
-					<TableCell colSpan={999}>
-						<EmptyState
-							message="No groups match your search"
-							description="Try a different search term."
-						/>
-					</TableCell>
-				</TableRow>
+				<TableSearchEmpty
+					message="No groups match your search"
+					onClearFilters={onClearFilters}
+				/>
 			);
 		}
 		return (

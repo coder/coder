@@ -5,6 +5,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Link } from "#/components/Link/Link";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -154,6 +155,13 @@ export const OrganizationProvisionersPageView: FC<
 											defaultIsOpen={filter.ids.includes(provisioner.id)}
 										/>
 									))
+								) : filter.ids ? (
+									<TableSearchEmpty
+										message="No provisioners match your search"
+										onClearFilters={() =>
+											onFilterChange({ ids: "", offline: false })
+										}
+									/>
 								) : (
 									<TableEmpty
 										message="No provisioners found"

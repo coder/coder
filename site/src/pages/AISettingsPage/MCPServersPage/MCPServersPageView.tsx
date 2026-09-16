@@ -10,6 +10,7 @@ import {
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -163,9 +164,9 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							}
 						/>
 					) : servers.length > 0 && filteredServers.length === 0 ? (
-						<TableEmpty
+						<TableSearchEmpty
 							message="No servers match your search"
-							description="Try a different search term."
+							onClearFilters={() => setSearchQuery("")}
 						/>
 					) : (
 						filteredServers.map((server) => (

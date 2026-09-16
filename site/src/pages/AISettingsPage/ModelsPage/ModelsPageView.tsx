@@ -17,6 +17,7 @@ import {
 } from "#/components/InputGroup/InputGroup";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	Select,
 	SelectContent,
@@ -253,6 +254,14 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		});
 	};
 
+	const handleClearFilters = () => {
+		updateSearchParams((params) => {
+			params.delete(SEARCH_PARAM);
+			params.delete(PROVIDER_PARAM);
+			params.delete(PAGE_PARAM);
+		});
+	};
+
 	return (
 		<div>
 			<SettingsHeader
@@ -356,9 +365,9 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 							}
 						/>
 					) : filteredModels.length === 0 ? (
-						<TableEmpty
-							message="No models match your filters"
-							description="Try a different search term or provider."
+						<TableSearchEmpty
+							message="No models match your search"
+							onClearFilters={handleClearFilters}
 						/>
 					) : (
 						pagedItems.map((model) => (
