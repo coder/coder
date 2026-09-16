@@ -14,9 +14,7 @@ import {
 import { ArrowLeftIcon, PlusIcon, SearchIcon, XIcon } from "lucide-react";
 import {
 	type FC,
-	lazy,
 	type PointerEvent as ReactPointerEvent,
-	Suspense,
 	useEffect,
 	useRef,
 	useState,
@@ -28,15 +26,15 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
-import { AgentChatPageSkeleton } from "../AgentsSkeletons";
 import { buildChatSearchQuery } from "../ChatsSidebar/dialogs/searchQuery";
 import { type DragData, DragGhost, type DropData } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import { buildCards, buildColumns, INBOX_COLUMN } from "./boardLabels";
-import { useBoardStorage } from "./boardStorage";
+import { type ChatPane, useBoardStorage } from "./boardStorage";
+import { ChatPanes, closeTab, openTab } from "./ChatPanes";
 import { useBoardMutations } from "./useBoardMutations";
 
-const AgentChatPage = lazy(() => import("../../AgentChatPage"));
+const hasOpenChats = (panes: readonly ChatPane[]) => panes.length > 0;
 
 // Cards nest inside columns, so a plain pointerWithin would return both.
 // A card under the pointer wins so drops merge; otherwise the column wins.
@@ -70,21 +68,39 @@ const ChatBoardPage: FC = () => {
 	const [addingColumn, setAddingColumn] = useState(false);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
 	const splitRef = useRef<HTMLDivElement>(null);
+	const { panes, focusedPane } = storage;
+	const setPanes = (next: readonly ChatPane[], focused: number) =>
+		updateStorage({
+			panes: next,
+			focusedPane: Math.max(0, Math.min(focused, next.length - 1)),
+		});
 
-	// Escape closes the chat pane; the board itself stays.
+	// The route param is an "open this chat" request: it becomes a tab in the
+	// focused pane and is then cleared so the same link works again later.
 	useEffect(() => {
 		if (!agentId) return;
+		updateStorage((prev) => ({
+			panes: openTab(prev.panes, prev.focusedPane, agentId),
+		}));
+		void navigate("/agents/board", { replace: true });
+	}, [agentId, navigate, updateStorage]);
+
+	// Escape closes the focused pane's active tab; the board itself stays.
+	useEffect(() => {
+		if (panes.length === 0) return;
 		const onKey = (e: KeyboardEvent) => {
 			const target = e.target as HTMLElement | null;
 			const typing =
 				target?.tagName === "INPUT" ||
 				target?.tagName === "TEXTAREA" ||
 				target?.isContentEditable;
-			if (e.key === "Escape" && !typing) void navigate("/agents/board");
+			if (e.key !== "Escape" || typing) return;
+			const active = panes[focusedPane]?.active;
+			if (active) setPanes(closeTab(panes, active), focusedPane);
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [agentId, navigate]);
+	}, [panes, focusedPane]);
 
 	// Same query the sidebar uses, so both views share one cache.
 	const chatsQuery = useInfiniteQuery(infiniteChats({}));
@@ -115,6 +131,8 @@ const ChatBoardPage: FC = () => {
 			: undefined;
 
 	const chats = chatsQuery.data?.pages.flat() ?? [];
+	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
+	const openChatIds = new Set(panes.flatMap((pane) => pane.tabs));
 	const allCards = buildCards(chats);
 	const cards = matchingIds
 		? allCards.filter((card) =>
@@ -204,7 +222,11 @@ const ChatBoardPage: FC = () => {
 			<title>{pageTitle("Board", "Agents")}</title>
 			<div
 				className="flex min-h-0 flex-col"
-				style={{ flex: agentId ? `0 0 ${storage.splitRatio * 100}%` : "1 1 0" }}
+				style={{
+					flex: hasOpenChats(panes)
+						? `0 0 ${storage.splitRatio * 100}%`
+						: "1 1 0",
+				}}
 			>
 				<div className="flex items-center gap-2 border-b border-border px-3 py-2">
 					<Button
@@ -212,9 +234,10 @@ const ChatBoardPage: FC = () => {
 						size="icon"
 						aria-label="Exit board"
 						// Leaving lands on the chat being read, or the agents home.
-						onClick={() =>
-							void navigate(agentId ? `/agents/${agentId}` : "/agents")
-						}
+						onClick={() => {
+							const reading = panes[focusedPane]?.active;
+							void navigate(reading ? `/agents/${reading}` : "/agents");
+						}}
 					>
 						<ArrowLeftIcon />
 					</Button>
@@ -249,7 +272,7 @@ const ChatBoardPage: FC = () => {
 							<BoardColumn
 								key={column.name}
 								column={column}
-								activeChatId={agentId}
+								openChatIds={openChatIds}
 								onRename={(to) => renameColumn(column.name, to)}
 								onDelete={() => deleteColumn(column.name)}
 								onSetCardTitle={(card, title) =>
@@ -296,30 +319,33 @@ const ChatBoardPage: FC = () => {
 					</DragOverlay>
 				</DndContext>
 			</div>
-			{agentId && (
+			{hasOpenChats(panes) && (
 				<>
-					{/* Divider: drag to resize, X or Escape to close the chat. */}
+					{/* Divider: drag to resize, X closes every open chat. */}
 					<div
 						className="flex h-7 shrink-0 cursor-row-resize touch-none select-none items-center justify-between border-y border-border bg-surface-secondary/60 px-3"
 						onPointerDown={startResize}
 					>
-						<span className="text-xs text-content-secondary">Chat</span>
+						<span className="text-xs text-content-secondary">
+							{openChatIds.size === 1 ? "1 chat" : `${openChatIds.size} chats`}
+						</span>
 						<Button
 							variant="subtle"
 							size="icon"
-							aria-label="Close chat"
+							aria-label="Close all chats"
 							className="size-6"
 							onPointerDown={(e) => e.stopPropagation()}
-							onClick={() => void navigate("/agents/board")}
+							onClick={() => setPanes([], 0)}
 						>
 							<XIcon className="size-3.5" />
 						</Button>
 					</div>
-					<div className="flex min-h-0 flex-1 flex-col">
-						<Suspense fallback={<AgentChatPageSkeleton />}>
-							<AgentChatPage />
-						</Suspense>
-					</div>
+					<ChatPanes
+						panes={panes}
+						focusedPane={focusedPane}
+						chatsById={chatsById}
+						onChange={setPanes}
+					/>
 				</>
 			)}
 		</div>

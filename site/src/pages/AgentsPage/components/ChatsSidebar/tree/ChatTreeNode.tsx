@@ -197,7 +197,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		<div
 			className={cn(
 				"flex min-w-0 flex-col gap-0.5",
-				isBoardGroupMember(chat) && "border-l-2 border-content-link/40 ml-1",
+				// A board group is one unit in the list: a box around the primary
+				// and its members, who sit at the same indent as the primary.
+				hasBoardMembers &&
+					"my-0.5 rounded-md border border-content-link/40 bg-surface-secondary/50 p-0.5",
 			)}
 		>
 			<ContextMenu>
@@ -439,7 +442,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 							<ChatTreeNode
 								key={childChat.id}
 								chat={childChat}
-								depth={depth + 1}
+								depth={isBoardGroupMember(childChat) ? depth : depth + 1}
 							/>
 						);
 					})}

@@ -1,5 +1,5 @@
 import { InfoIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { chatCost, chat as chatQuery } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -20,6 +20,18 @@ interface ChatInfoPopoverProps {
 /** The chat's Summary tab, rendered in a popover without opening the chat. */
 export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 	const [open, setOpen] = useState(false);
+	// Opens on hover with a short delay and closes when the pointer leaves
+	// both trigger and content; a click pins it open until dismissed.
+	const [pinned, setPinned] = useState(false);
+	const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const hoverIn = () => {
+		if (hoverTimer.current) clearTimeout(hoverTimer.current);
+		hoverTimer.current = setTimeout(() => setOpen(true), 250);
+	};
+	const hoverOut = () => {
+		if (hoverTimer.current) clearTimeout(hoverTimer.current);
+		if (!pinned) hoverTimer.current = setTimeout(() => setOpen(false), 150);
+	};
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	// Both requests are per chat, so they only run once the popover opens.
 	const detailQuery = useQuery({ ...chatQuery(chat.id), enabled: open });
@@ -30,7 +42,13 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 	});
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover
+			open={open}
+			onOpenChange={(next) => {
+				setOpen(next);
+				if (!next) setPinned(false);
+			}}
+		>
 			<PopoverTrigger asChild>
 				<Button
 					variant="subtle"
@@ -38,6 +56,12 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 					aria-label={`Details for ${chat.title}`}
 					className="size-6 shrink-0 text-content-secondary"
 					onPointerDown={(e) => e.stopPropagation()}
+					onPointerEnter={hoverIn}
+					onPointerLeave={hoverOut}
+					onClick={() => {
+						setPinned(true);
+						setOpen(true);
+					}}
 				>
 					<InfoIcon className="size-3.5" />
 				</Button>
@@ -46,6 +70,12 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 				align="end"
 				className="max-h-[70vh] w-96 overflow-y-auto p-4 text-sm"
 				onPointerDown={(e) => e.stopPropagation()}
+				onPointerEnter={hoverIn}
+				onPointerLeave={hoverOut}
+				// Hover-opened content must not steal focus from what the user is doing.
+				onOpenAutoFocus={(e) => {
+					if (!pinned) e.preventDefault();
+				}}
 			>
 				<div className="mb-3 font-medium text-content-primary">
 					{chat.title}

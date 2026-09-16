@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { PencilIcon, Trash2Icon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Markdown } from "#/components/Markdown/Markdown";
 import {
@@ -67,7 +67,6 @@ const Note: FC<NoteProps> = ({ note, onEdit, onRemove }) => {
 		return (
 			<NoteEditor
 				initial={note.text}
-				submitLabel="Save"
 				onSubmit={(text) => {
 					setEditing(false);
 					if (text !== note.text) onEdit(text);
@@ -161,7 +160,6 @@ const NoteComposer: FC<NoteComposerProps> = ({ cardTitle, onSubmit }) => {
 	return (
 		<NoteEditor
 			initial=""
-			submitLabel="Add note"
 			onSubmit={(text) => {
 				onSubmit(text);
 				setExpanded(false);
@@ -173,58 +171,49 @@ const NoteComposer: FC<NoteComposerProps> = ({ cardTitle, onSubmit }) => {
 
 interface NoteEditorProps {
 	readonly initial: string;
-	readonly submitLabel: string;
 	readonly onSubmit: (text: string) => void;
 	readonly onCancel: () => void;
 }
 
-const NoteEditor: FC<NoteEditorProps> = ({
-	initial,
-	submitLabel,
-	onSubmit,
-	onCancel,
-}) => {
+// Same keys as every other inline edit on the board: Enter saves, Escape
+// cancels, leaving the field saves. Shift+Enter inserts a newline.
+const NoteEditor: FC<NoteEditorProps> = ({ initial, onSubmit, onCancel }) => {
 	const [draft, setDraft] = useState(initial);
-	const trimmed = draft.trim();
-	const submit = () => {
-		if (trimmed) onSubmit(trimmed);
+	// Escape unmounts the field, which can fire a trailing blur; ignore it.
+	const cancelled = useRef(false);
+	const commit = () => {
+		if (cancelled.current) return;
+		const text = draft.trim();
+		if (text) onSubmit(text);
+		else onCancel();
+	};
+	const cancel = () => {
+		cancelled.current = true;
+		onCancel();
 	};
 	// Grows with explicit lines; capped so a long note does not take over the column.
-	const rows = Math.min(10, Math.max(2, draft.split("\n").length));
+	const rows = Math.min(10, Math.max(1, draft.split("\n").length));
 
 	return (
-		<div className="flex flex-col gap-1.5">
-			<textarea
-				// biome-ignore lint/a11y/noAutofocus: the editor replaces the control the user just clicked.
-				autoFocus
-				aria-label="Note text"
-				placeholder="Status, links, what changed..."
-				value={draft}
-				rows={rows}
-				className={cn(
-					"w-full resize-none rounded-md border border-border bg-surface-primary px-2 py-1.5 text-[13px] leading-5 text-content-primary outline-none",
-					"placeholder:text-content-secondary focus:border-content-link",
-				)}
-				onChange={(e) => setDraft(e.target.value)}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-						e.preventDefault();
-						submit();
-					}
-					if (e.key === "Escape") onCancel();
-				}}
-			/>
-			<div className="flex items-center gap-2">
-				<Button size="sm" disabled={!trimmed} onClick={submit}>
-					{submitLabel}
-				</Button>
-				<Button size="sm" variant="subtle" onClick={onCancel}>
-					Cancel
-				</Button>
-				<span className="ml-auto text-xs text-content-secondary">
-					Markdown · ⌘/Ctrl+Enter
-				</span>
-			</div>
-		</div>
+		<textarea
+			// biome-ignore lint/a11y/noAutofocus: the editor replaces the control the user just clicked.
+			autoFocus
+			aria-label="Note text"
+			value={draft}
+			rows={rows}
+			className={cn(
+				"w-full resize-none rounded-md border border-border bg-surface-primary px-2 py-1 text-[13px] leading-5 text-content-primary outline-none",
+				"focus:border-content-link",
+			)}
+			onChange={(e) => setDraft(e.target.value)}
+			onBlur={commit}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" && !e.shiftKey) {
+					e.preventDefault();
+					commit();
+				}
+				if (e.key === "Escape") cancel();
+			}}
+		/>
 	);
 };
