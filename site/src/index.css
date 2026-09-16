@@ -766,13 +766,7 @@
 		}
 	}
 
-	/* The agents layout scrolls inside its own containers, so it opts out
-	of the reserved gutter and keeps <html> and <body> from ever growing a
-	scrollbar. It has to override the `overflow-y: scroll !important` above
-	from inside the same cascade layer: for !important declarations,
-	layered rules beat unlayered ones, so an unlayered override (for
-	example a runtime-injected <style>) silently loses and the page shifts
-	by a scrollbar width whenever a Radix menu opens. */
+	/* Must stay in this layer: a layered !important beats an unlayered one. */
 	html[data-agents-layout] {
 		overflow: hidden;
 		scrollbar-gutter: auto;

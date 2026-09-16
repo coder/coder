@@ -179,19 +179,8 @@ const AgentsPageLayout: FC = () => {
 	);
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
-	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
-	// layout shift on pages that toggle scrollbars. The agents page
-	// uses its own internal scroll containers so the reserved gutter
-	// space is unnecessary and wastes horizontal room.
-	//
-	// The `html[data-agents-layout]` rules in index.css hide overflow on
-	// <html> and <body> and reset scrollbar-gutter, so
-	// react-remove-scroll-bar measures a gap of 0 when a Radix menu
-	// opens and injects no compensation. Those rules live in the global
-	// stylesheet on purpose: the `overflow-y: scroll !important` applied
-	// to body[data-scroll-locked] sits inside a cascade layer, and a
-	// layered !important declaration beats any unlayered override such
-	// as an inline style or a runtime-injected <style>.
+	// Opts out of the global scrollbar gutter; see html[data-agents-layout]
+	// in index.css.
 	useEffect(() => {
 		const html = document.documentElement;
 		html.dataset.agentsLayout = "";
