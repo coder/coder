@@ -304,6 +304,41 @@ describe("ConversationTimeline working blocks", () => {
 		});
 		expect(copyCommand).toHaveFocus();
 	});
+
+	it("keeps an open live-only block mounted when its prompt page arrives", async () => {
+		const user = userEvent.setup();
+		const assistantNote: ChatMessage = {
+			...MockChatMessage,
+			id: 2,
+			role: "assistant",
+			created_at: time(1),
+			content: [{ type: "text", text: "Looking around first." }],
+		};
+		const stream = buildStreamRenderState([
+			{
+				type: "reasoning",
+				text: "Planning the inspection",
+				created_at: time(2),
+			},
+		]);
+		const { rerenderStage } = renderTimeline({
+			messages: [assistantNote],
+			hasMoreMessages: true,
+			chatStatus: "running",
+			...stream,
+		});
+		const summary = screen.getByRole("button", { name: /^Working/ });
+		await user.click(summary);
+		expect(summary).toHaveFocus();
+
+		rerenderStage({
+			messages: [MockWorkingMessages[0], assistantNote],
+			hasMoreMessages: true,
+			chatStatus: "running",
+			...stream,
+		});
+		expect(summary).toHaveFocus();
+	});
 });
 
 const streamingStep = (
