@@ -1,5 +1,9 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
-import { screen, waitForElementToBeRemoved } from "@testing-library/react";
+import {
+	screen,
+	waitForElementToBeRemoved,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { QueryClientProvider } from "react-query";
@@ -12,6 +16,7 @@ import {
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { ConversationTimeline } from "./ConversationTimeline";
+
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
@@ -20,6 +25,7 @@ import {
 	buildStreamRenderState,
 	buildWorkingConversation,
 	MockCollapsedStepsPreferences,
+	MockLongTurnPages,
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
 } from "./storyFixtures";
@@ -88,53 +94,6 @@ const MockQuestionMessages: ChatMessage[] = [
 			},
 		],
 	},
-];
-
-const longTurnStep = (index: number): ChatMessage[] => [
-	{
-		...MockChatMessage,
-		id: 100 + index * 2,
-		role: "assistant",
-		created_at: time(index),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: `step-${index}`,
-				tool_name: "execute",
-				args: { command: `echo step-${index}` },
-				created_at: time(index),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 101 + index * 2,
-		role: "tool",
-		created_at: time(index),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: `step-${index}`,
-				tool_name: "execute",
-				result: { output: `step-${index}`, exit_code: "0" },
-				created_at: time(index),
-			},
-		],
-	},
-];
-const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
-	longTurnStep(index),
-).flat();
-const MockLongTurnPrompt: ChatMessage = {
-	...MockChatMessage,
-	id: 99,
-	created_at: time(-1),
-	content: [{ type: "text", text: "Run every step" }],
-};
-const longTurnPages = [
-	MockLongTurn.slice(60),
-	MockLongTurn.slice(30),
-	[MockLongTurnPrompt, ...MockLongTurn],
 ];
 
 type TimelineStage = {
@@ -238,15 +197,15 @@ describe("ConversationTimeline working blocks", () => {
 	it("preserves an existing step node when older rows are prepended", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline({
-			messages: longTurnPages[0],
+			messages: MockLongTurnPages[0],
 			hasMoreMessages: true,
 		});
 		await user.click(
 			screen.getByRole("button", { name: /Worked for at least/ }),
 		);
-		rerenderStage({ messages: longTurnPages[1], hasMoreMessages: true });
+		rerenderStage({ messages: MockLongTurnPages[1], hasMoreMessages: true });
 		const step = screen.getByText(/echo step-15$/);
-		rerenderStage({ messages: longTurnPages[2] });
+		rerenderStage({ messages: MockLongTurnPages[2] });
 		expect(screen.getByText(/echo step-15$/)).toBe(step);
 	});
 
@@ -292,6 +251,29 @@ describe("ConversationTimeline working blocks", () => {
 		renderTimeline({ messages });
 		const summary = screen.getByRole("button", { name });
 		expect(summary.getAttribute("aria-expanded")).toBe("false");
+	});
+
+	it("keeps focus inside an open block across the live-to-durable handoff", async () => {
+		const user = userEvent.setup();
+		const messages = MockWorkingMessages.slice(0, 4);
+		const { rerenderStage } = renderTimeline({
+			messages,
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+			chatStatus: "running",
+			liveStatus: { phase: "idle", hasAccumulatedOutput: false },
+		});
+		await user.click(screen.getByRole("button", { name: "Working for 12s" }));
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
+
+		rerenderStage({
+			messages: MockWorkingMessages,
+			chatStatus: "waiting",
+			liveStatus: { phase: "idle", hasAccumulatedOutput: false },
+		});
+		expect(copyCommand).toHaveFocus();
 	});
 });
 
