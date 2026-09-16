@@ -6,6 +6,9 @@ That target requires measurement on the configured Linux host; unit and simulate
 
 ## One-host setup
 
+For a prepared test VM, use the [experimental Azure host recipe](experimental/azure-host/README.md).
+See [validation evidence and limitations](experimental/VALIDATION.md) for measured results and prototype boundaries.
+
 Use a dedicated Linux/amd64 host with at least four available vCPUs and 8 GiB of memory for four concurrent 1 vCPU/2 GiB sandboxes, plus capacity for the host and Coder services.
 Run the provisioner directly on the host with permission to use containerd, create network namespaces, and execute CNI plugins.
 All four workers must share the same persistent state directory.

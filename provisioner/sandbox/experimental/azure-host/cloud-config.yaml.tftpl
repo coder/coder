@@ -1,0 +1,74 @@
+#cloud-config
+hostname: ${hostname}
+users:
+  - name: coder
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo
+    shell: /bin/bash
+write_files:
+  - path: /opt/coder-agent/init.sh
+    permissions: "0700"
+    owner: coder:coder
+    defer: true
+    encoding: b64
+    content: ${agent_init_base64}
+  - path: /etc/coder-agent.env
+    permissions: "0600"
+    encoding: b64
+    content: ${agent_env_base64}
+  - path: /usr/local/sbin/coder-sandbox-prepare-state
+    permissions: "0700"
+    encoding: b64
+    content: ${state_setup_base64}
+  - path: /var/log/coder-sandbox-state-setup.log
+    permissions: "0600"
+    content: ""
+  - path: /var/log/coder-agent.log
+    permissions: "0600"
+    content: ""
+  - path: /etc/systemd/system/coder-sandbox-state.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Mount persistent native sandbox state
+      After=local-fs.target
+      Before=coder-agent.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/coder-sandbox-prepare-state
+      TimeoutStartSec=660
+      RemainAfterExit=yes
+      StandardOutput=append:/var/log/coder-sandbox-state-setup.log
+      StandardError=inherit
+  - path: /etc/systemd/system/coder-agent.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Outer Coder workspace agent
+      Requires=coder-sandbox-state.service
+      After=coder-sandbox-state.service network-online.target
+      Wants=network-online.target
+      StartLimitIntervalSec=0
+
+      [Service]
+      Type=simple
+      User=coder
+      Group=coder
+      WorkingDirectory=/home/coder
+      Environment=HOME=/home/coder
+      EnvironmentFile=/etc/coder-agent.env
+      ExecStart=/bin/sh /opt/coder-agent/init.sh
+      Restart=always
+      RestartSec=5
+      StandardOutput=append:/var/log/coder-agent.log
+      StandardError=inherit
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable coder-agent.service
+  # The agent's dependency keeps it offline until the bounded state-disk setup
+  # succeeds, without blocking Azure provisioning on the long bootstrap.
+  - systemctl start --no-block coder-agent.service
