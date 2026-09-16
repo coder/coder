@@ -90,6 +90,7 @@ interface DateRangePickerProps {
 	 * before it are hidden.
 	 */
 	minDate?: Date;
+	disabled?: boolean;
 }
 
 /**
@@ -130,6 +131,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	size = "sm",
 	maxDays,
 	minDate,
+	disabled,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
@@ -184,9 +186,9 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 			selection.to.getTime() !== committed.to?.getTime());
 
 	return (
-		<Popover open={open} onOpenChange={handleOpenChange}>
+		<Popover open={open && !disabled} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size}>
+				<Button variant="outline" size={size} disabled={disabled}>
 					<CalendarIcon className="size-4 text-content-secondary" />
 					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />

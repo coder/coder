@@ -112,6 +112,10 @@ export const Loading: Story = {
 	},
 };
 
+export const LoadingExplicitRange: Story = {
+	args: { usersQuery: mockUsersQuery({ isLoading: true }) },
+};
+
 export const Empty: Story = {
 	args: {
 		usersQuery: mockUsersQuery({

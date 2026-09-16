@@ -111,6 +111,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 						now={now}
 						dateRange={dateRange && toInclusiveDateRange(dateRange)}
 						minDate={minDate}
+						isReportLoading={usersQuery.isLoading}
 						onDateRangeChange={onDateRangeChange}
 					/>
 					{requestedOrganizationDenied && (

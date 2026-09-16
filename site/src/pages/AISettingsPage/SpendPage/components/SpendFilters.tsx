@@ -57,6 +57,8 @@ interface SpendFiltersProps {
 	now?: Date;
 	dateRange: DateRangeValue | undefined;
 	minDate: Date | undefined;
+	// The retention bound comes from the report, so the picker waits for it.
+	isReportLoading: boolean;
 	onDateRangeChange: (value: DateRangeValue) => void;
 }
 
@@ -68,6 +70,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 	now,
 	dateRange,
 	minDate,
+	isReportLoading,
 	onDateRangeChange,
 }) => {
 	return (
@@ -99,6 +102,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					onChange={(value) => onDateRangeChange(clampSpendPeriod(value))}
 					maxDays={MAX_SPEND_PERIOD_DAYS}
 					minDate={minDate}
+					disabled={isReportLoading}
 					size="lg"
 				/>
 			) : (

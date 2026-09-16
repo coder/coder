@@ -180,6 +180,49 @@ it("applies a date preset and resets pagination", async () => {
 	expect(searchParam(router, "page")).toBeNull();
 });
 
+it("holds the date picker until the filtered report brings its retention bound", async () => {
+	const user = userEvent.setup();
+	const { spendSpy } = renderSpend(initialSearch, {
+		retention_start: fixedNow.subtract(10, "day").toISOString(),
+	});
+	await screen.findByRole("table", { name: "Spend by user" });
+	const picker = screen.getByRole("button", {
+		name: /Feb 10, 2026.*Mar 11, 2026/,
+	});
+
+	const loadedReport = await spendSpy.mock.results[0].value;
+	let deliverReport = () => {};
+	spendSpy.mockImplementationOnce(
+		() =>
+			new Promise((resolve) => {
+				deliverReport = () => resolve(loadedReport);
+			}),
+	);
+	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({ provider_name: "openai" }),
+		),
+	);
+	expect(picker).toBeDisabled();
+
+	deliverReport();
+	await waitFor(() => expect(picker).toBeEnabled());
+	await user.click(picker);
+	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({
+				provider_name: "openai",
+				period_start: fixedNow.subtract(6, "day").startOf("day").toISOString(),
+			}),
+		),
+	);
+});
+
 it("opens the count badge lists from the pointer and the keyboard", async () => {
 	const user = userEvent.setup();
 	renderSpend();
