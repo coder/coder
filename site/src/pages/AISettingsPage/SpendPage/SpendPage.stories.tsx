@@ -27,6 +27,7 @@ const users: OrganizationAISpendUser[] = Array.from({ length: 12 }, (_, i) => ({
 	cost_micros: (12 - i) * 1_000_000,
 	providers: i % 3 === 0 ? ["anthropic", "openai"] : ["anthropic"],
 	clients: i % 2 === 0 ? ["Claude Code"] : ["Claude Code", "Cursor"],
+	models: i % 3 === 0 ? ["claude-opus-4-6", "gpt-5.4"] : ["claude-opus-4-6"],
 }));
 
 const meta = {

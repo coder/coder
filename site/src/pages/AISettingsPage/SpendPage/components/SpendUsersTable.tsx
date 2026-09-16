@@ -15,6 +15,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { ClientsBadge } from "#/pages/AIBridgePage/ClientsBadge";
+import { ModelsBadge } from "#/pages/AIBridgePage/ModelsBadge";
 import { ProvidersBadge } from "#/pages/AIBridgePage/ProvidersBadge";
 import { formatCostMicros } from "#/utils/currency";
 import type { SpendUsersQuery } from "../SpendPageView";
@@ -85,6 +86,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 												<TableHead>User</TableHead>
 												<TableHead>Providers</TableHead>
 												<TableHead>Clients</TableHead>
+												<TableHead>Models</TableHead>
 												<TableHead className="text-right">Cost</TableHead>
 											</TableRow>
 										</TableHeader>
@@ -105,6 +107,9 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 													</TableCell>
 													<TableCell className="w-40 max-w-40">
 														<ClientsBadge clients={user.clients} />
+													</TableCell>
+													<TableCell className="w-40 max-w-40">
+														<ModelsBadge models={user.models} />
 													</TableCell>
 													<CostCell
 														costMicros={user.cost_micros}

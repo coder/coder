@@ -5582,6 +5582,7 @@ export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
 	unpriced_usage_count: 0,
 	providers: ["anthropic", "openai"],
 	clients: ["Claude Code", "Cursor"],
+	models: ["claude-opus-4-6", "gpt-5.4"],
 };
 
 export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
@@ -5602,6 +5603,7 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 				unpriced_usage_count: 0,
 				providers: ["anthropic"],
 				clients: ["Unknown"],
+				models: ["claude-opus-4-6"],
 			},
 		],
 	};

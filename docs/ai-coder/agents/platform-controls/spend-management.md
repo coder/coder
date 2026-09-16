@@ -56,7 +56,7 @@ Both appear only when the deployment has the AI Gateway entitlement.
 Organization spend is shown under **Admin settings** > **AI** > **Spend**.
 Spend is also shown where it is actionable:
 
-- **Admin settings** > **AI** > **Spend**: AI Gateway spend for one organization at a time, as a total and per user with the providers and clients each user spent through, over a date range of up to 31&nbsp;days within the retention period.
+- **Admin settings** > **AI** > **Spend**: AI Gateway spend for one organization at a time, as a total and per user with the providers, clients, and models each user spent through, over a date range of up to 31&nbsp;days within the retention period.
   Spend is attributed through each user's budget group, so it matches the CSV export and daily budget accounting.
   Visible to users who can view AI sessions, and requires the AI Gateway entitlement.
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
