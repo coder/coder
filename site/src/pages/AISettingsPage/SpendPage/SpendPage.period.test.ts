@@ -51,6 +51,19 @@ it("treats a retention cutoff at UTC midnight as a cutoff", () => {
 	expectFirstLocalMidnightAfter(startDate, cutoff);
 });
 
+it("keeps a budget start whose local midnight precedes the cutoff inside retention", () => {
+	const cutoff = new Date("2026-01-31T23:30:00Z");
+	const { startDate } = appliedWindowToDateRange(
+		{
+			period_start: "2026-02-01T00:00:00Z",
+			period_end: "2026-03-01T00:00:00Z",
+			retention_start: cutoff.toISOString(),
+		},
+		now,
+	);
+	expectFirstLocalMidnightAfter(startDate, cutoff);
+});
+
 it("starts today when retention is shorter than a day", () => {
 	const cutoff = new Date(now.getTime() - 60 * 60 * 1000);
 	const { startDate } = appliedWindowToDateRange(

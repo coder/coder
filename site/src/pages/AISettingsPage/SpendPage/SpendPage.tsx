@@ -70,10 +70,11 @@ export const firstDayWithinRetention = (cutoff: Date, now: Date): Date => {
 
 /**
  * Represents the server-applied UTC window as the local calendar days the
- * picker edits. A start at or before the reported retention cutoff is that
- * moving cutoff; the range then starts at the first selectable day at or
- * after it, so re-committing the range never asks for a start before
- * retention.
+ * picker edits. When the first local day would begin before the reported
+ * retention cutoff (the start is the cutoff itself, or a budget boundary
+ * whose local midnight falls earlier), the range starts at the first
+ * selectable day at or after the cutoff instead, so re-committing the range
+ * never asks for a start before retention.
  */
 export const appliedWindowToDateRange = (
 	window: Pick<
@@ -89,9 +90,9 @@ export const appliedWindowToDateRange = (
 	let firstDay = localDayOf(start);
 	if (
 		window.retention_start !== undefined &&
-		start.getTime() <= Date.parse(window.retention_start)
+		firstDay.getTime() < Date.parse(window.retention_start)
 	) {
-		firstDay = firstDayWithinRetention(start, now);
+		firstDay = firstDayWithinRetention(new Date(window.retention_start), now);
 		if (firstDay > lastDay) {
 			firstDay = lastDay;
 		}
