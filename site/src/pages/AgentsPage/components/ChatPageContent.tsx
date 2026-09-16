@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
 	chatPromptsQuery,
+	organizationChatModelOverrides,
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
@@ -13,6 +14,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
+import {
+	resolveCompactionThreshold,
+	resolveOrganizationCompactionTrigger,
+} from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -25,10 +30,7 @@ import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
 } from "../utils/chatAttachments";
-import {
-	getProviderForModelOption,
-	resolveCompactionThreshold,
-} from "../utils/modelOptions";
+import { getProviderForModelOption } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
@@ -399,11 +401,22 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		currentUser.id,
 	);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const compressionThreshold = resolveCompactionThreshold(
-		chat.last_model_config_id,
-		thresholdsQuery.data?.thresholds,
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(organizationId),
+	);
+	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
+		modelOverridesQuery.data?.overrides,
 		models,
 	);
+	const compactionThreshold =
+		modelOverridesQuery.data !== undefined
+			? resolveCompactionThreshold(
+					chat.last_model_config_id,
+					thresholdsQuery.data?.thresholds,
+					models,
+					organizationCompactionTrigger,
+				)
+			: undefined;
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
@@ -436,7 +449,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		rawUsage || chatContext
 			? {
 					...(rawUsage ?? {}),
-					compressionThreshold,
+					compactionThreshold,
 					context: chatContext,
 				}
 			: rawUsage;

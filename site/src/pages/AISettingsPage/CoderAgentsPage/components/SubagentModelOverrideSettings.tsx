@@ -43,6 +43,7 @@ type SubagentModelOverrideSettingsProps = {
 	saveErrorMessage: string;
 	unsetPlaceholder?: string;
 	unavailableModelWarning?: string;
+	renderSelectedModelAlert?: (modelID: string) => React.ReactNode;
 	disabled?: boolean;
 };
 
@@ -62,6 +63,7 @@ export const SubagentModelOverrideSettings: React.FC<
 	saveErrorMessage,
 	unsetPlaceholder = "Use chat default",
 	unavailableModelWarning = "The saved model is no longer enabled and will be ignored until you choose a new override.",
+	renderSelectedModelAlert,
 	disabled = false,
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
@@ -163,7 +165,9 @@ export const SubagentModelOverrideSettings: React.FC<
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage={unavailableModelWarning}
 					modelsError={modelsError}
-				/>
+				>
+					{renderSelectedModelAlert?.(form.values.model_config_id)}
+				</ModelOverrideAlerts>
 			</div>
 			<Button
 				size="lg"
