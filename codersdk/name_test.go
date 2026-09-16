@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -307,10 +308,10 @@ func TestOAuth2AppNameValid(t *testing.T) {
 		{" leading", false},
 		{"trailing ", false},
 		{" ", false},
-		{strings.Repeat("a", 64), true},
-		{strings.Repeat("a", 65), false},
-		{strings.Repeat("é", 32), true},
-		{strings.Repeat("é", 33), false},
+		{strings.Repeat("a", codersdk.OAuth2AppNameMaxBytes), true},
+		{strings.Repeat("a", codersdk.OAuth2AppNameMaxBytes+1), false},
+		{strings.Repeat("é", codersdk.OAuth2AppNameMaxBytes/2), true},
+		{strings.Repeat("é", codersdk.OAuth2AppNameMaxBytes/2+1), false},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
@@ -319,8 +320,8 @@ func TestOAuth2AppNameValid(t *testing.T) {
 			assert.Equal(t, testCase.Valid, err == nil,
 				"Test case %q failed: expected valid=%t but got error: %v",
 				testCase.Name, testCase.Valid, err)
-			if len(testCase.Name) > 64 {
-				assert.EqualError(t, err, "must be <= 64 bytes")
+			if len(testCase.Name) > codersdk.OAuth2AppNameMaxBytes {
+				assert.EqualError(t, err, fmt.Sprintf("must be <= %d bytes", codersdk.OAuth2AppNameMaxBytes))
 			}
 		})
 	}

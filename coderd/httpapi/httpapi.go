@@ -69,9 +69,9 @@ func init() {
 		panic(err)
 	}
 
-	// oauth2_callback_url checks for a safe redirect URI scheme and requires a
-	// host for HTTP(S) callback URLs. Custom native-app schemes such as vscode://
-	// may be opaque. It does not apply the full DCR redirect URI policy.
+	// oauth2_callback_url validates the common callback target shape for OAuth2
+	// app administration. Public clients receive the additional DCR redirect URI
+	// policy in the handler after their stored client type is available.
 	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
 		str, ok := fl.Field().Interface().(string)
 		if !ok {
@@ -84,7 +84,13 @@ func init() {
 		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
 			return false
 		}
+		if u.Scheme == "urn" {
+			return true
+		}
 		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
+			return false
+		}
+		if u.Opaque != "" || (u.Host == "" && u.Path == "") {
 			return false
 		}
 		return true

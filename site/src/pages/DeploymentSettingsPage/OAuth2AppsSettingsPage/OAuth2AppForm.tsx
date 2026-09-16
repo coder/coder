@@ -4,6 +4,7 @@ import { type FC, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { OAuth2AppNameMaxBytes } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -38,7 +39,10 @@ const BACK_HREF = "/deployment/oauth2-provider/apps";
 // oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
 const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
 
-const isValidCallbackURL = (value: string | undefined): boolean => {
+const isValidCallbackURL = (
+	value: string | undefined,
+	isPublicClient: boolean,
+): boolean => {
 	if (!value) {
 		return false;
 	}
@@ -49,6 +53,24 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 		}
 		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol)) {
 			return false;
+		}
+		const target = value.slice(value.indexOf(":") + 1);
+		if (!target.startsWith("/") || (!url.host && !url.pathname)) {
+			return false;
+		}
+		if (isPublicClient) {
+			if (
+				value.includes("#") ||
+				["mailto:", "tel:", "sms:"].includes(url.protocol)
+			) {
+				return false;
+			}
+			if (
+				url.protocol === "http:" &&
+				!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+			) {
+				return false;
+			}
 		}
 		if (
 			(url.protocol === "http:" || url.protocol === "https:") &&
@@ -62,26 +84,27 @@ const isValidCallbackURL = (value: string | undefined): boolean => {
 	}
 };
 
-// Keep the UTF-8 byte limit aligned with codersdk.OAuth2AppNameValid.
-const MAX_NAME_BYTES = 64;
-
-const validationSchema = Yup.object({
-	name: Yup.string()
-		.trim()
-		.required("Please enter a name.")
-		.test(
-			"name-byte-length",
-			`Name cannot be longer than ${MAX_NAME_BYTES} UTF-8 bytes.`,
-			(value) => new TextEncoder().encode(value).length <= MAX_NAME_BYTES,
-		),
-	callback_url: Yup.string()
-		.trim()
-		.required("Please enter a callback URL.")
-		.test("valid-callback-url", "Please enter a valid callback URL.", (value) =>
-			isValidCallbackURL(value),
-		),
-	icon: iconValidator,
-});
+const validationSchema = (isPublicClient: boolean) =>
+	Yup.object({
+		name: Yup.string()
+			.trim()
+			.required("Please enter a name.")
+			.test(
+				"name-byte-length",
+				`Name cannot be longer than ${OAuth2AppNameMaxBytes} UTF-8 bytes.`,
+				(value) =>
+					new TextEncoder().encode(value).length <= OAuth2AppNameMaxBytes,
+			),
+		callback_url: Yup.string()
+			.trim()
+			.required("Please enter a callback URL.")
+			.test(
+				"valid-callback-url",
+				"Please enter a valid callback URL.",
+				(value) => isValidCallbackURL(value, isPublicClient),
+			),
+		icon: iconValidator,
+	});
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	app,
@@ -99,7 +122,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
 			icon: app?.icon ?? defaultValues?.icon ?? "",
 		},
-		validationSchema,
+		validationSchema: validationSchema(app?.client_type === "public"),
 		validateOnMount: true,
 		onSubmit: async (values) => {
 			didSubmit.current = true;

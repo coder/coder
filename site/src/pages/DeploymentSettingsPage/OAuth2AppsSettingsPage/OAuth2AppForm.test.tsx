@@ -1,6 +1,9 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MockOAuth2ProviderApps } from "#/testHelpers/entities";
+import {
+	MockOAuth2ProviderAppPublic,
+	MockOAuth2ProviderApps,
+} from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
@@ -81,6 +84,13 @@ describe("OAuth2AppForm", () => {
 		"http:foo",
 		"https:/example.com",
 		"http:///example.com",
+		"localhost:3000",
+		"vscode:",
+		"a:",
+		"vscode://",
+		"mailto:a@b",
+		"tel:+1234",
+		"sms:+1234",
 	])("does not submit invalid callback %j", async (callback) => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
@@ -105,7 +115,8 @@ describe("OAuth2AppForm", () => {
 		"vscode://coder.coder-remote/oauth/callback ",
 		" vscode://coder.coder-remote/oauth/callback ",
 		"URN:ietf:wg:oauth:2.0:oob",
-		"localhost:3000",
+		"com.example.app:/oauth2redirect",
+		"cursor://anysphere.cursor-mcp/oauth/callback",
 	])("submits trimmed callback %j", async (callback) => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
@@ -159,4 +170,56 @@ describe("OAuth2AppForm", () => {
 			expect(onSubmit).not.toHaveBeenCalled();
 		}
 	});
+
+	it.each([
+		{ callback: "mailto:a@b", valid: false },
+		{ callback: "mailto://a@b", valid: false },
+		{ callback: "tel:+1234", valid: false },
+		{ callback: "tel:/1234", valid: false },
+		{ callback: "sms:+1234", valid: false },
+		{ callback: "sms:/1234", valid: false },
+		{ callback: "http://example.com/callback", valid: false },
+		{ callback: "https://example.com/callback#fragment", valid: false },
+		{ callback: "http://localhost:3000/callback", valid: true },
+		{ callback: "http://127.0.0.1:3000/callback", valid: true },
+		{ callback: "http://[::1]:3000/callback", valid: true },
+		{ callback: "https://example.com/callback", valid: true },
+		{ callback: "vscode://coder.coder-remote/oauth/callback", valid: true },
+		{ callback: "com.example.app:/oauth2redirect", valid: true },
+	])(
+		"validates public client callback $callback",
+		async ({ callback, valid }) => {
+			const user = userEvent.setup();
+			const onSubmit = vi.fn();
+			render(
+				<OAuth2AppForm
+					app={MockOAuth2ProviderAppPublic}
+					onSubmit={onSubmit}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+			await user.clear(screen.getByLabelText(/callback url/i));
+			await user.type(
+				screen.getByLabelText(/callback url/i),
+				callback.replaceAll("[", "[["),
+			);
+			await user.type(screen.getByLabelText(/^name/i), " updated");
+			await user.click(
+				screen.getByRole("button", { name: /update application/i }),
+			);
+			await act(async () => {});
+			if (valid) {
+				await waitFor(() =>
+					expect(onSubmit).toHaveBeenCalledWith({
+						name: `${MockOAuth2ProviderAppPublic.name} updated`,
+						callback_url: callback,
+						icon: MockOAuth2ProviderAppPublic.icon,
+					}),
+				);
+			} else {
+				expect(onSubmit).not.toHaveBeenCalled();
+			}
+		},
+	);
 });
