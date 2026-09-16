@@ -13,7 +13,7 @@ import {
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
-import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
+import { getChatCostTreeID } from "../../components/ChatConversation/chatHelpers";
 import { COMPACT_MARKDOWN_CLASS } from "./NotesSection";
 
 interface ChatInfoPopoverProps {

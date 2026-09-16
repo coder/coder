@@ -31,29 +31,21 @@ import {
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
-import { getColumnLabel, INBOX_COLUMN } from "../../ChatBoard/boardLabels";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
-import { ColumnTag } from "./ColumnTag";
-import { getParentChatID, isBoardGroupMember } from "./chatTree";
+import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
 import { getChatDisplayConfig } from "./statusConfig";
 
 type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
-	/** Off inside a board group box, whose header already names the column. */
-	readonly showBoardColumn?: boolean;
 };
 
 const CHILD_INDENT_PX = 26;
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
-	chat,
-	depth = 0,
-	showBoardColumn: allowBoardColumn = true,
-}) => {
+export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {
@@ -76,6 +68,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
+		renderTrailing,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -156,17 +149,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
-	const boardColumn = getColumnLabel(chat);
-	const showBoardColumn =
-		allowBoardColumn &&
-		boardColumn !== INBOX_COLUMN &&
-		!isBoardGroupMember(chat);
 
 	const canManage = canManageChat(chat, currentUserId);
 	const hasMenuActions = chatHasMenuActions(chat, {
 		canManage,
 		hasSubagentsToggle: hasChildren,
 	});
+	const trailing = renderTrailing?.(chat);
 
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
@@ -312,14 +301,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 								</div>
 							)}
 						</NavLink>
-						{/* Age on the title line; the board column, when shown, sits under it on the status line. */}
 						<div
 							className={cn(
-								"relative my-1 flex shrink-0 flex-col items-end self-stretch",
-								showBoardColumn ? "min-w-7" : "w-7",
+								"relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch",
+								// Slot content can be wider than the age, so let the column grow.
+								trailing && "w-auto min-w-7",
 							)}
 						>
-							<div className="flex h-6 w-full min-w-7 shrink-0 items-center justify-end">
+							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
@@ -359,7 +348,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 									</span>
 								)}
 							</div>
-							{showBoardColumn && <ColumnTag name={boardColumn} />}
+							{trailing}
 							{isSharedChat && (
 								<UsersIcon
 									className="mt-auto size-3.5 text-content-secondary"
@@ -373,7 +362,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 											size="icon"
 											variant="subtle"
 											className={cn(
-												"absolute top-0 right-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												// inset-0 pins both edges; in a wider column the fixed
+												// width wins from the left, so release that edge.
+												trailing && "left-auto",
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
