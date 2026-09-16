@@ -21,7 +21,7 @@ on:
   #   apply step and SHA/title gathering are gated on main.
   #
   #   Pushes to main: `build_image` retags rolling tags on
-  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`) and
+  #   `codercom/oss-dogfood` (`:latest`, `:26.04`) and
   #   `codercom/oss-dogfood-vscode-coder` (`:latest`), plus a
   #   per-branch tag on each. The image-tooling validation runs as
   #   above before any push, so a broken image never reaches Docker
