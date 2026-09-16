@@ -28029,19 +28029,46 @@ const docTemplate = `{
                 "ServerSentEventTypeError"
             ]
         },
+        "codersdk.SessionCountApp": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "description": "DisplayName is the name to show, falling back to the app name itself for\nan app this version does not recognize.",
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon is a bundled icon path relative to the server root, empty if the app\nhas none.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.SessionCountDeploymentStats": {
             "type": "object",
             "properties": {
+                "apps": {
+                    "description": "Apps holds one entry per app name agents reported.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.SessionCountApp"
+                    }
+                },
                 "jetbrains": {
+                    "description": "Deprecated: use Apps. JetBrains totals the JetBrains family.",
                     "type": "integer"
                 },
                 "reconnecting_pty": {
+                    "description": "Deprecated: use Apps. ReconnectingPTY totals web terminals.",
                     "type": "integer"
                 },
                 "ssh": {
+                    "description": "Deprecated: use Apps. SSH totals the SSH family.",
                     "type": "integer"
                 },
                 "vscode": {
+                    "description": "Deprecated: use Apps. VSCode totals the VS Code family.",
                     "type": "integer"
                 }
             }

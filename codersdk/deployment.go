@@ -5462,9 +5462,15 @@ type WorkspaceDeploymentStats struct {
 }
 
 type SessionCountDeploymentStats struct {
-	VSCode          int64 `json:"vscode"`
-	SSH             int64 `json:"ssh"`
-	JetBrains       int64 `json:"jetbrains"`
+	// Apps holds one entry per app name agents reported.
+	Apps map[string]SessionCountApp `json:"apps"`
+	// Deprecated: use Apps. VSCode totals the VS Code family.
+	VSCode int64 `json:"vscode"`
+	// Deprecated: use Apps. SSH totals the SSH family.
+	SSH int64 `json:"ssh"`
+	// Deprecated: use Apps. JetBrains totals the JetBrains family.
+	JetBrains int64 `json:"jetbrains"`
+	// Deprecated: use Apps. ReconnectingPTY totals web terminals.
 	ReconnectingPTY int64 `json:"reconnecting_pty"`
 }
 

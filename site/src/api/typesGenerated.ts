@@ -8744,11 +8744,45 @@ export interface ServiceBannerConfig {
 	readonly background_color?: string;
 }
 
+// From codersdk/appname.go
+/**
+ * SessionCountApp is one app's live session count and how to present it.
+ */
+export interface SessionCountApp {
+	readonly count: number;
+	/**
+	 * DisplayName is the name to show, falling back to the app name itself for
+	 * an app this version does not recognize.
+	 */
+	readonly display_name: string;
+	/**
+	 * Icon is a bundled icon path relative to the server root, empty if the app
+	 * has none.
+	 */
+	readonly icon?: string;
+}
+
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
+	/**
+	 * Apps holds one entry per app name agents reported.
+	 */
+	readonly apps: Record<string, SessionCountApp>;
+	/**
+	 * @deprecated use Apps. VSCode totals the VS Code family.
+	 */
 	readonly vscode: number;
+	/**
+	 * @deprecated use Apps. SSH totals the SSH family.
+	 */
 	readonly ssh: number;
+	/**
+	 * @deprecated use Apps. JetBrains totals the JetBrains family.
+	 */
 	readonly jetbrains: number;
+	/**
+	 * @deprecated use Apps. ReconnectingPTY totals web terminals.
+	 */
 	readonly reconnecting_pty: number;
 }
 

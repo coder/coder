@@ -23,6 +23,9 @@ As a rule, we **do not collect** the following types of information:
 For example, we do not collect parameters, environment variables, or user email
 addresses. We do collect the administrator email.
 
+Workspace agent statistics include session counts keyed by normalized application identifiers.
+These identifiers can include custom IDE or application identifiers reported by workspace agents.
+
 ## Why we collect
 
 Telemetry helps us understand which features are most valuable, what use cases

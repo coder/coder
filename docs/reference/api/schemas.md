@@ -7842,6 +7842,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "count": 0,
+        "display_name": "string",
+        "icon": "string"
+      },
+      "property2": {
+        "count": 0,
+        "display_name": "string",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
     "ssh": 0,
@@ -13543,10 +13555,40 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------------------------|
 | `data`, `error`, `ping` |
 
+## codersdk.SessionCountApp
+
+```json
+{
+  "count": 0,
+  "display_name": "string",
+  "icon": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                       |
+|----------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `count`        | integer | false    |              |                                                                                                                   |
+| `display_name` | string  | false    |              | Display name is the name to show, falling back to the app name itself for an app this version does not recognize. |
+| `icon`         | string  | false    |              | Icon is a bundled icon path relative to the server root, empty if the app has none.                               |
+
 ## codersdk.SessionCountDeploymentStats
 
 ```json
 {
+  "apps": {
+    "property1": {
+      "count": 0,
+      "display_name": "string",
+      "icon": "string"
+    },
+    "property2": {
+      "count": 0,
+      "display_name": "string",
+      "icon": "string"
+    }
+  },
   "jetbrains": 0,
   "reconnecting_pty": 0,
   "ssh": 0,
@@ -13556,12 +13598,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `jetbrains`        | integer | false    |              |             |
-| `reconnecting_pty` | integer | false    |              |             |
-| `ssh`              | integer | false    |              |             |
-| `vscode`           | integer | false    |              |             |
+| Name               | Type                                                 | Required | Restrictions | Description                                                  |
+|--------------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------|
+| `apps`             | object                                               | false    |              | Apps holds one entry per app name agents reported.           |
+| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                              |
+| `jetbrains`        | integer                                              | false    |              | Deprecated: use Apps. JetBrains totals the JetBrains family. |
+| `reconnecting_pty` | integer                                              | false    |              | Deprecated: use Apps. ReconnectingPTY totals web terminals.  |
+| `ssh`              | integer                                              | false    |              | Deprecated: use Apps. SSH totals the SSH family.             |
+| `vscode`           | integer                                              | false    |              | Deprecated: use Apps. VSCode totals the VS Code family.      |
 
 ## codersdk.SessionLifetime
 
