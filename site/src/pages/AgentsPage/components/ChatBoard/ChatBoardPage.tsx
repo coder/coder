@@ -13,6 +13,7 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ChevronUpIcon,
@@ -395,7 +396,13 @@ const ChatBoardPage: FC = () => {
 						setDropTarget(null);
 					}}
 				>
-					<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
+					{/* No text selection while something is being dragged across cards. */}
+					<div
+						className={cn(
+							"flex min-h-0 flex-1 gap-3 overflow-x-auto p-3",
+							activeDrag && "select-none",
+						)}
+					>
 						{columns.map((column) => (
 							<BoardColumn
 								key={column.name}

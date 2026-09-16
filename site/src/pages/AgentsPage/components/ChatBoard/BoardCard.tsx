@@ -108,7 +108,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 		>
 			{/* Header is its own hover group so its pencil does not light up from rows below. */}
 			<header
-				className="group/card flex cursor-grab items-start gap-1 px-3 py-2 active:cursor-grabbing"
+				className="group/card flex cursor-grab touch-none select-none items-start gap-1 px-3 py-2 active:cursor-grabbing"
 				{...listeners}
 				{...attributes}
 				ref={setActivatorNodeRef}
@@ -285,8 +285,8 @@ const ChatRow: FC<ChatRowProps> = ({
 				ref={draggable ? setActivatorNodeRef : undefined}
 				{...(draggable ? { ...listeners, ...attributes } : {})}
 				className={cn(
-					"mt-0.5 flex size-4 shrink-0 items-center justify-center",
-					draggable && "cursor-grab active:cursor-grabbing",
+					"mt-0.5 flex size-4 shrink-0 select-none items-center justify-center",
+					draggable && "cursor-grab touch-none active:cursor-grabbing",
 				)}
 				title={draggable ? "Drag to move this chat" : undefined}
 			>
