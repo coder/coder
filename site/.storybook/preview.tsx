@@ -3,6 +3,7 @@ import "../src/theme/globalFonts";
 import { isPixel } from "@coder/pixel-storybook/storyapi";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import type { Decorator, Parameters } from "@storybook/react-vite";
+import { createStore, Provider } from "jotai";
 import { MotionConfig, MotionGlobalConfig } from "motion/react";
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -94,6 +95,16 @@ export const parameters: Parameters = {
 	},
 };
 
+const withJotai: Decorator = (Story) => {
+	const store = createStore();
+
+	return (
+		<Provider store={store}>
+			<Story />
+		</Provider>
+	);
+};
+
 const withQuery: Decorator = (Story, { parameters }) => {
 	const queryClient = new QueryClient({
 		defaultOptions: {
@@ -153,6 +164,7 @@ const withSkipAnimations: Decorator = (Story) => (
 
 export const decorators: Decorator[] = [
 	withRouter,
+	withJotai,
 	withQuery,
 	withTheme,
 	withSkipAnimations,

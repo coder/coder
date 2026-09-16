@@ -1,4 +1,5 @@
-import { act, renderHook } from "@testing-library/react";
+import { createStore } from "jotai";
+import { RESET } from "jotai/utils";
 import {
 	afterEach,
 	beforeEach,
@@ -9,7 +10,6 @@ import {
 	vi,
 } from "vitest";
 import { array, string } from "yup";
-import { useStorage } from "#/hooks/useStorage";
 import {
 	booleanCodec,
 	defineEntityStorageKey,
@@ -20,6 +20,11 @@ import {
 	stringLiteralCodec,
 	yupCodec,
 } from "./index";
+
+let store = createStore();
+beforeEach(() => {
+	store = createStore();
+});
 
 const stringArraySchema = array(string().defined()).defined();
 
@@ -152,7 +157,7 @@ describe("storage core", () => {
 	it("rejects writes whose encoding cannot decode back", () => {
 		numberKey.set(7);
 		const listener = vi.fn();
-		const unsubscribe = numberKey.subscribe(listener);
+		const unsubscribe = store.sub(numberKey, listener);
 
 		expect(numberKey.set(Number.NaN)).toEqual({ ok: false, reason: "invalid" });
 		expect(numberKey.set(479.5)).toEqual({ ok: false, reason: "invalid" });
@@ -193,7 +198,7 @@ describe("storage core", () => {
 	it("keeps reads on persisted bytes when persistence fails", () => {
 		boolKey.set(true);
 		const listener = vi.fn();
-		const unsubscribe = boolKey.subscribe(listener);
+		const unsubscribe = store.sub(boolKey, listener);
 		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
 			throw new DOMException("full", "QuotaExceededError");
 		});
@@ -217,26 +222,36 @@ describe("storage core", () => {
 
 	it("returns referentially stable snapshots until the bytes change", () => {
 		listKey.set(["x"]);
-		const first = listKey.getSnapshot();
-		expect(listKey.getSnapshot()).toBe(first);
+		const unsub = store.sub(listKey, () => {});
+		const first = store.get(listKey);
+		expect(store.get(listKey)).toBe(first);
 
 		localStorage.setItem("test.list", JSON.stringify(["x", "y"]));
-		const second = listKey.getSnapshot();
+		dispatchEvent(
+			new StorageEvent("storage", {
+				key: "test.list",
+				storageArea: localStorage,
+			}),
+		);
+		const second = store.get(listKey);
 		expect(second).not.toBe(first);
-		expect(listKey.getSnapshot()).toBe(second);
+		expect(store.get(listKey)).toBe(second);
+		unsub();
 	});
 
 	it("returns a stable decoded snapshot after set", () => {
 		const value = ["x"];
 		listKey.set(value);
-		const first = listKey.getSnapshot();
+		const unsub = store.sub(listKey, () => {});
+		const first = store.get(listKey);
 		expect(first).toEqual(["x"]);
-		expect(listKey.getSnapshot()).toBe(first);
+		expect(store.get(listKey)).toBe(first);
 
 		// Mutating the caller's reference cannot change snapshots or
 		// desync them from the stored bytes.
 		value.push("y");
-		expect(listKey.getSnapshot()).toEqual(["x"]);
+		expect(store.get(listKey)).toEqual(["x"]);
+		unsub();
 	});
 
 	it("normalizes composite values to their persisted form", () => {
@@ -255,7 +270,7 @@ describe("storage core", () => {
 		expect(Object.is(numbersKey.get()?.[0], 0)).toBe(true);
 	});
 
-	it("scopes snapshot caches to each handle on a shared key", () => {
+	it("decodes a shared key independently with each handle codec", () => {
 		const asBool = defineStorageKey<boolean>({
 			key: "test.shared",
 			codec: booleanCodec,
@@ -283,7 +298,7 @@ describe("storage core", () => {
 
 	it("notifies subscribers on set and remove", () => {
 		const listener = vi.fn();
-		const unsubscribe = boolKey.subscribe(listener);
+		const unsubscribe = store.sub(boolKey, listener);
 		boolKey.set(true);
 		expect(listener).toHaveBeenCalledTimes(1);
 		boolKey.remove();
@@ -297,9 +312,9 @@ describe("storage core", () => {
 		boolKey.set(false);
 		expect(boolKey.get()).toBe(false);
 		// Another tab writes the key: no set() runs here, only the event.
-		localStorage.setItem("test.bool", "true");
 		const listener = vi.fn();
-		const unsubscribe = boolKey.subscribe(listener);
+		const unsubscribe = store.sub(boolKey, listener);
+		localStorage.setItem("test.bool", "true");
 		dispatchEvent(
 			new StorageEvent("storage", {
 				key: "test.bool",
@@ -315,9 +330,9 @@ describe("storage core", () => {
 		sessionKey.set("stale");
 		// A same-origin iframe writes the shared session area: no set()
 		// runs in this document, only the event.
-		sessionStorage.setItem("test.session", "fresh");
 		const listener = vi.fn();
-		const unsubscribe = sessionKey.subscribe(listener);
+		const unsubscribe = store.sub(sessionKey, listener);
+		sessionStorage.setItem("test.session", "fresh");
 		dispatchEvent(
 			new StorageEvent("storage", {
 				key: "test.session",
@@ -332,7 +347,7 @@ describe("storage core", () => {
 	it("notifies every local key on a cross-tab clear", () => {
 		boolKey.set(true);
 		const listener = vi.fn();
-		const unsubscribe = boolKey.subscribe(listener);
+		const unsubscribe = store.sub(boolKey, listener);
 		localStorage.clear();
 		dispatchEvent(
 			new StorageEvent("storage", { key: null, storageArea: localStorage }),
@@ -410,7 +425,7 @@ describe("entity-scoped keys", () => {
 		const handle = chatNote.forId("chat-1");
 		handle.set("draft");
 		const listener = vi.fn();
-		const unsubscribe = handle.subscribe(listener);
+		const unsubscribe = store.sub(handle, listener);
 		chatNote.clear("chat-1");
 		expect(listener).toHaveBeenCalledTimes(1);
 		expect(handle.get()).toBeNull();
@@ -426,7 +441,7 @@ describe("entity-scoped keys", () => {
 	it("reports cleanup failures and keeps unremoved keys unnotified", () => {
 		chatNote.forId("chat-1").set("note");
 		const listener = vi.fn();
-		const unsubscribe = chatNote.forId("chat-1").subscribe(listener);
+		const unsubscribe = store.sub(chatNote.forId("chat-1"), listener);
 		vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
 			throw new Error("denied");
 		});
@@ -463,85 +478,114 @@ describe("entity-scoped keys", () => {
 	});
 });
 
-describe("useStorage", () => {
+describe("Jotai persistence", () => {
 	beforeEach(() => {
 		localStorage.clear();
+		sessionStorage.clear();
 	});
-
-	it("reads the stored value and never writes the default on mount", () => {
-		const { result } = renderHook(() => useStorage(boolKey));
-		expect(result.current[0]).toBe(false);
+	it("hydrates each store lazily without writing defaults", () => {
+		expect(store.get(boolKey)).toBe(false);
+		expect(localStorage.getItem("test.bool")).toBeNull();
+		localStorage.setItem("test.bool", "true");
+		expect(createStore().get(boolKey)).toBe(true);
+	});
+	it("composes functional updates against fresh storage", () => {
+		store.set(numberKey, (prev) => (prev ?? 0) + 1);
+		localStorage.setItem("test.number", "4");
+		store.set(numberKey, (prev) => (prev ?? 0) + 1);
+		expect(store.get(numberKey)).toBe(5);
+		expect(localStorage.getItem("test.number")).toBe("5");
+	});
+	it("resets through the atom setter", () => {
+		store.set(boolKey, true);
+		expect(store.set(boolKey, RESET)).toEqual({ ok: true });
+		expect(store.get(boolKey)).toBe(false);
 		expect(localStorage.getItem("test.bool")).toBeNull();
 	});
-
-	it("updates every hook on the same key in the same tab", () => {
-		const first = renderHook(() => useStorage(boolKey));
-		const second = renderHook(() => useStorage(boolKey));
-
-		act(() => {
-			first.result.current[1](true);
+	it("does not publish failed writes or removals", () => {
+		store.set(boolKey, true);
+		const listener = vi.fn();
+		const unsub = store.sub(boolKey, listener);
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("full", "QuotaExceededError");
 		});
-
-		expect(first.result.current[0]).toBe(true);
-		expect(second.result.current[0]).toBe(true);
+		expect(store.set(boolKey, false)).toEqual({ ok: false, reason: "quota" });
+		expect(store.get(boolKey)).toBe(true);
 		expect(localStorage.getItem("test.bool")).toBe("true");
-	});
-
-	it("updates on cross-tab storage events", () => {
-		const { result } = renderHook(() => useStorage(boolKey));
-		expect(result.current[0]).toBe(false);
-
-		act(() => {
-			localStorage.setItem("test.bool", "true");
-			dispatchEvent(
-				new StorageEvent("storage", {
-					key: "test.bool",
-					storageArea: localStorage,
-				}),
-			);
+		vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+			throw new Error("denied");
 		});
-
-		expect(result.current[0]).toBe(true);
-	});
-
-	it("removes the value through the remove callback", () => {
-		boolKey.set(true);
-		const { result } = renderHook(() => useStorage(boolKey));
-		expect(result.current[0]).toBe(true);
-
-		act(() => {
-			result.current[2]();
+		expect(store.set(boolKey, RESET)).toEqual({
+			ok: false,
+			reason: "unavailable",
 		});
-
-		expect(result.current[0]).toBe(false);
-		expect(localStorage.getItem("test.bool")).toBeNull();
+		expect(store.get(boolKey)).toBe(true);
+		expect(listener).not.toHaveBeenCalled();
+		unsub();
 	});
-
-	it("works with entity-scoped handles", () => {
-		const { result } = renderHook(() => useStorage(chatNote.forId("chat-9")));
-
-		act(() => {
-			result.current[1]("draft");
-		});
-
-		expect(result.current[0]).toBe("draft");
-		expect(chatNote.forId("chat-9").get()).toBe("draft");
+	it("publishes object bytes once and keeps equal snapshots stable", () => {
+		const listener = vi.fn();
+		const unsub = store.sub(listKey, listener);
+		try {
+			store.set(listKey, ["one"]);
+			expect(listener).toHaveBeenCalledTimes(1);
+			const snapshot = store.get(listKey);
+			listKey.set(["one"]);
+			expect(store.get(listKey)).toBe(snapshot);
+			expect(listener).toHaveBeenCalledTimes(1);
+		} finally {
+			unsub();
+		}
 	});
-
-	it("evaluates updaters against the storage snapshot", () => {
-		const { result } = renderHook(() => useStorage(numberKey));
-		expectTypeOf(result.current[1])
-			.parameter(0)
-			.toEqualTypeOf<number | ((prev: number | null) => number)>();
-
-		// Two updater calls before a render commits compose instead of
-		// both reading the same stale render closure.
-		act(() => {
-			result.current[1]((prev) => (prev ?? 0) + 1);
-			result.current[1]((prev) => (prev ?? 0) + 1);
+	it("refreshes other mounted stores after atom and imperative writes", () => {
+		const other = createStore();
+		const unsub = store.sub(boolKey, () => {});
+		const unsubOther = other.sub(boolKey, () => {});
+		store.set(boolKey, true);
+		expect(other.get(boolKey)).toBe(true);
+		boolKey.remove();
+		expect(other.get(boolKey)).toBe(false);
+		expect(store.get(boolKey)).toBe(false);
+		unsub();
+		unsubOther();
+	});
+	it("validates cross-tab events and ignores other storage areas", () => {
+		store.set(listKey, ["valid"]);
+		const unsub = store.sub(listKey, () => {});
+		localStorage.setItem("test.list", "123");
+		dispatchEvent(
+			new StorageEvent("storage", {
+				key: "test.list",
+				storageArea: sessionStorage,
+			}),
+		);
+		expect(store.get(listKey)).toEqual(["valid"]);
+		dispatchEvent(
+			new StorageEvent("storage", {
+				key: "test.list",
+				newValue: "123",
+				storageArea: localStorage,
+			}),
+		);
+		expect(store.get(listKey)).toBeNull();
+		unsub();
+	});
+	it("survives a blocked storage getter during creation and mount", () => {
+		vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+			throw new DOMException("denied", "SecurityError");
 		});
-
-		expect(result.current[0]).toBe(2);
-		expect(localStorage.getItem("test.number")).toBe("2");
+		const preference = defineStorageKey({
+			key: "blocked",
+			codec: booleanCodec,
+			defaultValue: false,
+		});
+		const unsub = store.sub(preference, () => {});
+		expect(store.get(preference)).toBe(false);
+		expect(store.set(preference, true)).toEqual({
+			ok: false,
+			reason: "unavailable",
+		});
+		expect(store.get(preference)).toBe(false);
+		unsub();
 	});
 });
