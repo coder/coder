@@ -1,5 +1,4 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import { GripVerticalIcon, PencilIcon, XIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -49,7 +48,6 @@ export const BoardCard: FC<BoardCardProps> = ({
 		setActivatorNodeRef,
 		listeners,
 		attributes,
-		transform,
 		isDragging,
 	} = useDraggable({ id: cardDragId(card), data: dragData });
 	const {
@@ -63,13 +61,14 @@ export const BoardCard: FC<BoardCardProps> = ({
 	};
 	const isMergeTarget = isOver && active?.id !== cardDragId(card);
 
+	// The moving copy is drawn by DragGhost inside DragOverlay; the source
+	// stays put so column layout does not shift mid-drag.
 	return (
 		<article
 			ref={setRefs}
-			style={{ transform: CSS.Translate.toString(transform) }}
 			className={cn(
 				"flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary p-2 text-sm",
-				isDragging && "z-10 opacity-80 shadow-lg",
+				isDragging && "opacity-40",
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
 			)}
 		>
@@ -109,6 +108,25 @@ export const BoardCard: FC<BoardCardProps> = ({
 	);
 };
 
+interface DragGhostProps {
+	readonly drag: DragData;
+}
+
+/** Compact stand-in rendered in the DragOverlay while a card or chat moves. */
+export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
+	const title = drag.type === "card" ? drag.card.title : drag.chat.title;
+	const detail =
+		drag.type === "card" && drag.card.members.length > 1
+			? `${drag.card.members.length} chats`
+			: undefined;
+	return (
+		<div className="w-80 cursor-grabbing rounded-lg border border-content-link bg-surface-secondary p-2 text-sm shadow-lg">
+			<div className="truncate font-medium text-content-primary">{title}</div>
+			{detail && <div className="text-xs text-content-secondary">{detail}</div>}
+		</div>
+	);
+};
+
 interface ChatRowProps {
 	readonly chat: Chat;
 	readonly card: BoardCardModel;
@@ -125,18 +143,12 @@ const ChatRow: FC<ChatRowProps> = ({
 	onRename,
 }) => {
 	const dragData: DragData = { type: "chat", chat, card };
-	const {
-		setNodeRef,
-		setActivatorNodeRef,
-		listeners,
-		attributes,
-		transform,
-		isDragging,
-	} = useDraggable({
-		id: chatDragId(chat),
-		data: dragData,
-		disabled: !draggable,
-	});
+	const { setNodeRef, setActivatorNodeRef, listeners, attributes, isDragging } =
+		useDraggable({
+			id: chatDragId(chat),
+			data: dragData,
+			disabled: !draggable,
+		});
 	const [renaming, setRenaming] = useState(false);
 	const display = getChatDisplayConfig(chat);
 	const StatusIcon = display.icon;
@@ -145,11 +157,10 @@ const ChatRow: FC<ChatRowProps> = ({
 	return (
 		<li
 			ref={setNodeRef}
-			style={{ transform: CSS.Translate.toString(transform) }}
 			className={cn(
 				"group flex items-center gap-1.5 rounded px-1 py-0.5",
 				active && "bg-surface-tertiary",
-				isDragging && "z-10 bg-surface-primary shadow",
+				isDragging && "opacity-40",
 			)}
 		>
 			{draggable ? (
