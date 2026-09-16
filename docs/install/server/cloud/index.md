@@ -42,7 +42,7 @@ existing GKE cluster.
 
 ## Other
 
-Is your cloud missing? Check [unofficial](../unofficial.md) install methods or
+Is your cloud missing? Check [community](../community.md) install methods or
 install the [standalone binary](../../cli.md).
 
 </div>
