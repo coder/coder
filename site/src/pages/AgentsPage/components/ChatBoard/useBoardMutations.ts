@@ -13,6 +13,7 @@ import {
 	setColorLabel,
 	setColumnLabel,
 	setGroupLabel,
+	setPositionLabel,
 	setTitleLabel,
 	stripCardLabels,
 	updateCommentLabels,
@@ -44,12 +45,24 @@ export const useBoardMutations = () => {
 	const moveCard = (card: BoardCard, column: string) =>
 		Promise.all(
 			card.members.map((member) =>
-				write(member, setColumnLabel(member.labels, column)),
+				write(
+					member,
+					member.id === card.id
+						? setPositionLabel(setColumnLabel(member.labels, column))
+						: setColumnLabel(member.labels, column),
+				),
 			),
 		);
 
+	// Renames keep every card where it was; only the column name changes.
 	const renameColumn = (cards: readonly BoardCard[], to: string) =>
-		Promise.all(cards.map((card) => moveCard(card, to)));
+		Promise.all(
+			cards.flatMap((card) =>
+				card.members.map((member) =>
+					write(member, setColumnLabel(member.labels, to)),
+				),
+			),
+		);
 
 	const setCardTitle = (card: BoardCard, title: string) =>
 		write(card.primary, setTitleLabel(card.primary.labels, title));
@@ -96,7 +109,9 @@ export const useBoardMutations = () => {
 	const detachChat = (chat: Chat, column: string) =>
 		write(
 			chat,
-			setColumnLabel(setGroupLabel(chat.labels, chat.id, chat.id), column),
+			setPositionLabel(
+				setColumnLabel(setGroupLabel(chat.labels, chat.id, chat.id), column),
+			),
 		);
 
 	// Only non-primary members are joinable; a primary carries card data that

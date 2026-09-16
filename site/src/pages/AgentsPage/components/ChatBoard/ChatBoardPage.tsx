@@ -29,6 +29,7 @@ import { Input } from "#/components/Input/Input";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
 import { AgentChatPageSkeleton } from "../AgentsSkeletons";
+import { buildChatSearchQuery } from "../ChatsSidebar/dialogs/searchQuery";
 import { type DragData, DragGhost, type DropData } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import { buildCards, buildColumns, INBOX_COLUMN } from "./boardLabels";
@@ -93,8 +94,12 @@ const ChatBoardPage: FC = () => {
 		if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+	// Free text has to travel as a search:"..." token; the backend rejects
+	// bare words. Same builder the search dialog uses.
 	const searchQuery = useQuery({
-		...chatSearch({ q: `${debouncedSearch} archived:false` }),
+		...chatSearch({
+			q: `${buildChatSearchQuery([], debouncedSearch) ?? ""} archived:false`,
+		}),
 		enabled: debouncedSearch.length > 0,
 	});
 	const sensors = useSensors(
