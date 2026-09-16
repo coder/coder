@@ -1728,6 +1728,87 @@ upserted AS (
 )
 SELECT id FROM locked;
 
+-- name: SyncAgentChatsContextAddedResources :many
+-- Adds newly published prompt resources (instruction files and skills whose
+-- source the chat has never pinned) to hydrated chats whose pinned hash
+-- drifted from the agent's latest snapshot, so an open chat sees a
+-- repository cloned during the conversation on its next step. Rows the chat
+-- already holds are never rewritten here. A chat whose additions make its
+-- pinned set equal to the snapshot moves to the new hash and stays clean;
+-- a chat that also has changed or removed rows keeps its old hash so
+-- MarkChatsContextDirtyByAgent still flags it. Changed chats are locked in
+-- ID order like the MCP sync.
+WITH agent_prompt AS (
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    FROM workspace_agent_context_resources
+    WHERE workspace_agent_id = @agent_id::uuid
+        AND body_kind NOT IN ('mcp_config', 'mcp_server')
+),
+changed AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.agent_id = @agent_id::uuid
+        AND chats.archived = false
+        AND chats.context_aggregate_hash IS NOT NULL
+        AND chats.context_aggregate_hash IS DISTINCT FROM @aggregate_hash
+        AND EXISTS (
+            SELECT 1 FROM agent_prompt p
+            WHERE NOT EXISTS (
+                SELECT 1 FROM chat_context_resources ccr
+                WHERE ccr.chat_id = chats.id
+                    AND ccr.source = p.source
+            )
+        )
+),
+locked AS (
+    SELECT id FROM chats
+    WHERE id IN (SELECT id FROM changed)
+    ORDER BY id
+    FOR UPDATE
+),
+added AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        locked.id, p.source, p.body_kind, p.body, p.content_hash,
+        p.size_bytes, p.status, p.error, p.source_path
+    FROM locked
+    CROSS JOIN agent_prompt p
+    WHERE NOT EXISTS (
+        SELECT 1 FROM chat_context_resources ccr
+        WHERE ccr.chat_id = locked.id
+            AND ccr.source = p.source
+    )
+    ON CONFLICT (chat_id, source) DO NOTHING
+),
+divergent AS (
+    SELECT locked.id
+    FROM locked
+    WHERE EXISTS (
+        SELECT 1 FROM chat_context_resources ccr
+        WHERE ccr.chat_id = locked.id
+            AND ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+            AND NOT EXISTS (
+                SELECT 1 FROM agent_prompt p
+                WHERE p.source = ccr.source
+                    AND p.body_kind = ccr.body_kind
+                    AND p.content_hash = ccr.content_hash
+                    AND p.status = ccr.status
+            )
+    )
+),
+settled AS (
+    UPDATE chats
+    SET
+        context_aggregate_hash = @aggregate_hash,
+        context_error = @context_error,
+        context_dirty_since = NULL
+    WHERE id IN (SELECT id FROM locked)
+        AND id NOT IN (SELECT id FROM divergent)
+)
+SELECT id FROM locked;
+
 -- name: InsertAgentContextResourcesIntoChat :exec
 -- Copies an agent's current context resources onto a single chat. Pair
 -- with DeleteChatContextResourcesByChatID (clear-then-copy, in a

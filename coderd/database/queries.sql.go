@@ -11889,6 +11889,117 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 	return err
 }
 
+const syncAgentChatsContextAddedResources = `-- name: SyncAgentChatsContextAddedResources :many
+WITH agent_prompt AS (
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    FROM workspace_agent_context_resources
+    WHERE workspace_agent_id = $1::uuid
+        AND body_kind NOT IN ('mcp_config', 'mcp_server')
+),
+changed AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.agent_id = $1::uuid
+        AND chats.archived = false
+        AND chats.context_aggregate_hash IS NOT NULL
+        AND chats.context_aggregate_hash IS DISTINCT FROM $2
+        AND EXISTS (
+            SELECT 1 FROM agent_prompt p
+            WHERE NOT EXISTS (
+                SELECT 1 FROM chat_context_resources ccr
+                WHERE ccr.chat_id = chats.id
+                    AND ccr.source = p.source
+            )
+        )
+),
+locked AS (
+    SELECT id FROM chats
+    WHERE id IN (SELECT id FROM changed)
+    ORDER BY id
+    FOR UPDATE
+),
+added AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        locked.id, p.source, p.body_kind, p.body, p.content_hash,
+        p.size_bytes, p.status, p.error, p.source_path
+    FROM locked
+    CROSS JOIN agent_prompt p
+    WHERE NOT EXISTS (
+        SELECT 1 FROM chat_context_resources ccr
+        WHERE ccr.chat_id = locked.id
+            AND ccr.source = p.source
+    )
+    ON CONFLICT (chat_id, source) DO NOTHING
+),
+divergent AS (
+    SELECT locked.id
+    FROM locked
+    WHERE EXISTS (
+        SELECT 1 FROM chat_context_resources ccr
+        WHERE ccr.chat_id = locked.id
+            AND ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+            AND NOT EXISTS (
+                SELECT 1 FROM agent_prompt p
+                WHERE p.source = ccr.source
+                    AND p.body_kind = ccr.body_kind
+                    AND p.content_hash = ccr.content_hash
+                    AND p.status = ccr.status
+            )
+    )
+),
+settled AS (
+    UPDATE chats
+    SET
+        context_aggregate_hash = $2,
+        context_error = $3,
+        context_dirty_since = NULL
+    WHERE id IN (SELECT id FROM locked)
+        AND id NOT IN (SELECT id FROM divergent)
+)
+SELECT id FROM locked
+`
+
+type SyncAgentChatsContextAddedResourcesParams struct {
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
+	ContextError  string    `db:"context_error" json:"context_error"`
+}
+
+// Adds newly published prompt resources (instruction files and skills whose
+// source the chat has never pinned) to hydrated chats whose pinned hash
+// drifted from the agent's latest snapshot, so an open chat sees a
+// repository cloned during the conversation on its next step. Rows the chat
+// already holds are never rewritten here. A chat whose additions make its
+// pinned set equal to the snapshot moves to the new hash and stays clean;
+// a chat that also has changed or removed rows keeps its old hash so
+// MarkChatsContextDirtyByAgent still flags it. Changed chats are locked in
+// ID order like the MCP sync.
+func (q *sqlQuerier) SyncAgentChatsContextAddedResources(ctx context.Context, arg SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextAddedResources, arg.AgentID, arg.AggregateHash, arg.ContextError)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const syncAgentChatsContextMCPResources = `-- name: SyncAgentChatsContextMCPResources :many
 WITH agent_mcp AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path

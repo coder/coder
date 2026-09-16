@@ -1422,6 +1422,16 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// Adds newly published prompt resources (instruction files and skills whose
+	// source the chat has never pinned) to hydrated chats whose pinned hash
+	// drifted from the agent's latest snapshot, so an open chat sees a
+	// repository cloned during the conversation on its next step. Rows the chat
+	// already holds are never rewritten here. A chat whose additions make its
+	// pinned set equal to the snapshot moves to the new hash and stays clean;
+	// a chat that also has changed or removed rows keeps its old hash so
+	// MarkChatsContextDirtyByAgent still flags it. Changed chats are locked in
+	// ID order like the MCP sync.
+	SyncAgentChatsContextAddedResources(ctx context.Context, arg SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error)
 	// MCP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
