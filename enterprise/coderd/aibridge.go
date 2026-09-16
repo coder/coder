@@ -1343,8 +1343,8 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 	org := httpmw.OrganizationParam(r)
 	logger := api.Logger.With(slog.F("organization_id", org.ID))
 
-	// The report aggregates the whole organization, so require organization-wide
-	// read rather than letting the per-row filter narrow it to the caller.
+	// dbauthz enforces the same organization-wide read; checking here first
+	// answers with 403 instead of an internal error.
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceGroupMember.InOrg(org.ID)) {
 		httpapi.Forbidden(rw)
 		return
@@ -1414,8 +1414,10 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 	}
 	if len(totals) > 0 {
 		report.Count = totals[0].Count
-		report.TotalCostMicros = totals[0].TotalCostMicros
-		report.TotalUnpricedUsageCount = totals[0].TotalUnpricedUsageCount
+		report.Totals = codersdk.OrganizationAISpendTotals{
+			CostMicros:         totals[0].TotalCostMicros,
+			UnpricedUsageCount: totals[0].TotalUnpricedUsageCount,
+		}
 	}
 	for _, row := range rows {
 		report.Users = append(report.Users, db2sdk.OrganizationAISpendUser(row))

@@ -11304,8 +11304,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
   "retention_start": "2019-08-24T14:15:22Z",
-  "total_cost_micros": 0,
-  "total_unpriced_usage_count": 0,
+  "totals": {
+    "cost_micros": 0,
+    "unpriced_usage_count": 0
+  },
   "users": [
     {
       "avatar_url": "string",
@@ -11327,15 +11329,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
-|------------------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `count`                      | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
-| `period_end`                 | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
-| `period_start`               | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
-| `retention_start`            | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
-| `total_cost_micros`          | integer                                                                       | false    |              | Total cost micros is the priced spend of every matching user.                                                                                                                           |
-| `total_unpriced_usage_count` | integer                                                                       | false    |              | Total unpriced usage count is the number of token usage records without a cost across every matching user.                                                                              |
-| `users`                      | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+| Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
+|-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
+| `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
+| `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+
+## codersdk.OrganizationAISpendTotals
+
+```json
+{
+  "cost_micros": 0,
+  "unpriced_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                          |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
+| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
+| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
 
 ## codersdk.OrganizationAISpendUser
 

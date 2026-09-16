@@ -5104,12 +5104,11 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			report, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.Pagination{})
 			require.NoError(t, err)
 			require.Equal(t, codersdk.OrganizationAISpendReport{
-				AISpendPeriodWindow:     window,
-				RetentionStart:          &defaultRetentionStart,
-				Count:                   2,
-				TotalCostMicros:         4500,
-				TotalUnpricedUsageCount: 1,
-				Users:                   []codersdk.OrganizationAISpendUser{other, target},
+				AISpendPeriodWindow: window,
+				RetentionStart:      &defaultRetentionStart,
+				Count:               2,
+				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, UnpricedUsageCount: 1},
+				Users:               []codersdk.OrganizationAISpendUser{other, target},
 			}, report)
 		})
 
@@ -5121,25 +5120,24 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, []codersdk.OrganizationAISpendUser{other}, first.Users)
 			require.EqualValues(t, 2, first.Count)
-			require.EqualValues(t, 4500, first.TotalCostMicros)
+			require.EqualValues(t, 4500, first.Totals.CostMicros)
 
 			second, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.Pagination{Limit: 1, Offset: 1})
 			require.NoError(t, err)
 			require.Equal(t, []codersdk.OrganizationAISpendUser{target}, second.Users)
 			require.EqualValues(t, 2, second.Count)
-			require.EqualValues(t, 4500, second.TotalCostMicros)
+			require.EqualValues(t, 4500, second.Totals.CostMicros)
 
 			// Past the last user nothing is returned but the totals still
 			// describe the whole window.
 			empty, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.Pagination{Limit: 1, Offset: 2})
 			require.NoError(t, err)
 			require.Equal(t, codersdk.OrganizationAISpendReport{
-				AISpendPeriodWindow:     window,
-				RetentionStart:          &defaultRetentionStart,
-				Count:                   2,
-				TotalCostMicros:         4500,
-				TotalUnpricedUsageCount: 1,
-				Users:                   []codersdk.OrganizationAISpendUser{},
+				AISpendPeriodWindow: window,
+				RetentionStart:      &defaultRetentionStart,
+				Count:               2,
+				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, UnpricedUsageCount: 1},
+				Users:               []codersdk.OrganizationAISpendUser{},
 			}, empty)
 		})
 
@@ -5154,7 +5152,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "ProviderName",
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, TotalCostMicros: 500, TotalUnpricedUsageCount: 1,
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
 						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, 500, 1)},
 					},
 				},
@@ -5162,7 +5160,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "Model",
 					filter: codersdk.OrganizationAISpendFilter{Model: "claude-4"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, TotalCostMicros: 4000,
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
 						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic"}, []string{"vscode"}, 1000, 0)},
 					},
 				},
@@ -5170,7 +5168,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "Client",
 					filter: codersdk.OrganizationAISpendFilter{Client: "cursor"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, TotalCostMicros: 3000,
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 3000},
 						Users: []codersdk.OrganizationAISpendUser{other},
 					},
 				},
@@ -5178,7 +5176,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "UnknownClient",
 					filter: codersdk.OrganizationAISpendFilter{Client: "Unknown"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, TotalCostMicros: 500, TotalUnpricedUsageCount: 1,
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
 						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, 500, 1)},
 					},
 				},
@@ -5228,7 +5226,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				jsonCost[u.UserID.String()] = u.CostMicros
 			}
 			require.Equal(t, csvCost, jsonCost)
-			require.Equal(t, csvTotal, report.TotalCostMicros)
+			require.Equal(t, csvTotal, report.Totals.CostMicros)
 		})
 	})
 

@@ -25811,13 +25811,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "total_cost_micros": {
-                    "description": "TotalCostMicros is the priced spend of every matching user.",
-                    "type": "integer"
-                },
-                "total_unpriced_usage_count": {
-                    "description": "TotalUnpricedUsageCount is the number of token usage records without a\ncost across every matching user.",
-                    "type": "integer"
+                "totals": {
+                    "$ref": "#/definitions/codersdk.OrganizationAISpendTotals"
                 },
                 "users": {
                     "description": "Users is the requested page, most expensive first.",
@@ -25825,6 +25820,19 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.OrganizationAISpendUser"
                     }
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendTotals": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend of every matching user.",
+                    "type": "integer"
+                },
+                "unpriced_usage_count": {
+                    "description": "UnpricedUsageCount is the number of token usage records without a cost\nacross every matching user.",
+                    "type": "integer"
                 }
             }
         },

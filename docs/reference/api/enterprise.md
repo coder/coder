@@ -2038,8 +2038,10 @@ Requires organization-level administrator permissions.
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
   "retention_start": "2019-08-24T14:15:22Z",
-  "total_cost_micros": 0,
-  "total_unpriced_usage_count": 0,
+  "totals": {
+    "cost_micros": 0,
+    "unpriced_usage_count": 0
+  },
   "users": [
     {
       "avatar_url": "string",
