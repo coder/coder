@@ -5,7 +5,6 @@ import {
 	lazy,
 	type PointerEvent as ReactPointerEvent,
 	Suspense,
-	useEffect,
 	useRef,
 } from "react";
 import type { Chat } from "#/api/typesGenerated";
@@ -17,10 +16,15 @@ import type { ChatWindow } from "./boardStorage";
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
 const DEFAULT_SIZE = { width: 520, height: 640 };
+const MIN_SIZE = { width: 320, height: 240 };
 const MARGIN = 12;
 
 /** A window beside `anchor`, to its right when there is room, kept on screen. */
-export const windowBeside = (chatId: string, anchor: DOMRect): ChatWindow => {
+export const windowBeside = (
+	chatId: string,
+	anchor: DOMRect,
+	pinned: boolean,
+): ChatWindow => {
 	const { width, height } = DEFAULT_SIZE;
 	const vw = window.innerWidth;
 	const vh = window.innerHeight;
@@ -32,10 +36,11 @@ export const windowBeside = (chatId: string, anchor: DOMRect): ChatWindow => {
 		y: anchor.top,
 		width: Math.min(width, vw - 2 * MARGIN),
 		height: Math.min(height, vh - 2 * MARGIN),
+		pinned,
 	});
 };
 
-/** A window in the middle of the viewport, for chats opened without a card in view. */
+/** A pinned window in the middle of the viewport, for chats opened without a card in view. */
 export const windowCentered = (chatId: string): ChatWindow => {
 	const width = Math.min(DEFAULT_SIZE.width, window.innerWidth - 2 * MARGIN);
 	const height = Math.min(DEFAULT_SIZE.height, window.innerHeight - 2 * MARGIN);
@@ -45,6 +50,7 @@ export const windowCentered = (chatId: string): ChatWindow => {
 		y: (window.innerHeight - height) / 2,
 		width,
 		height,
+		pinned: true,
 	};
 };
 
@@ -58,86 +64,73 @@ interface FloatingChatProps {
 	readonly window: ChatWindow;
 	readonly chat: Chat | undefined;
 	readonly color: CardColor | undefined;
-	/** A hover preview: not yet pinned, closes when the pointer leaves. */
-	readonly preview: boolean;
+	/** New geometry after a drag or resize gesture ends. */
 	readonly onChange: (next: ChatWindow) => void;
 	readonly onClose: () => void;
 	/** Any pointer or key interaction inside; pins a preview, raises a window. */
 	readonly onInteract: () => void;
-	readonly onPointerEnter: () => void;
-	readonly onPointerLeave: () => void;
+	/** Preview only: the pointer entering keeps it, leaving lets it close. */
+	readonly onPreviewEnter: () => void;
+	readonly onPreviewLeave: () => void;
 }
 
 /**
  * One chat floating over the board. The title bar drags it, the corner
- * handle resizes it (native CSS resize), and geometry is committed to
- * storage when the gesture ends so the board does not re-render per pixel.
+ * handle resizes it, and geometry is committed when the gesture ends so
+ * the board does not re-render per pixel. Gestures write to the DOM
+ * directly meanwhile, so a preview that gets pinned mid-drag keeps going.
  */
 export const FloatingChat: FC<FloatingChatProps> = ({
 	window: win,
 	chat,
 	color,
-	preview,
 	onChange,
 	onClose,
 	onInteract,
-	onPointerEnter,
-	onPointerLeave,
+	onPreviewEnter,
+	onPreviewLeave,
 }) => {
 	const frame = useRef<HTMLDivElement>(null);
 	const colors = color ? CARD_COLOR_CLASS[color] : undefined;
 
-	// The native resize handle gives no end event, so observe size changes
-	// and commit them once the pointer is released.
-	useEffect(() => {
-		const el = frame.current;
-		if (!el) return;
-		let size: { width: number; height: number } | null = null;
-		const observer = new ResizeObserver(([entry]) => {
-			if (!entry) return;
-			const { width, height } = entry.target.getBoundingClientRect();
-			if (width !== win.width || height !== win.height)
-				size = { width, height };
-		});
-		observer.observe(el);
-		const commit = () => {
-			if (size) onChange(clampWindow({ ...win, ...size }));
-			size = null;
-		};
-		document.addEventListener("pointerup", commit);
-		return () => {
-			observer.disconnect();
-			document.removeEventListener("pointerup", commit);
-		};
-	}, [win, onChange]);
-
-	// Pointer capture keeps the drag alive when the cursor outruns the bar.
-	const startDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+	// Pointer capture keeps a gesture alive when the cursor outruns the
+	// element; preventDefault stops text selection from starting under it.
+	const gesture = (
+		e: ReactPointerEvent<HTMLElement>,
+		apply: (dx: number, dy: number) => ChatWindow,
+	) => {
 		if (e.button !== 0) return;
 		const el = frame.current;
 		if (!el) return;
-		const bar = e.currentTarget;
-		bar.setPointerCapture(e.pointerId);
-		const startX = e.clientX - win.x;
-		const startY = e.clientY - win.y;
+		e.preventDefault();
+		const handle = e.currentTarget;
+		handle.setPointerCapture(e.pointerId);
+		const startX = e.clientX;
+		const startY = e.clientY;
 		let last = win;
 		const onMove = (ev: PointerEvent) => {
-			last = clampWindow({
-				...win,
-				x: ev.clientX - startX,
-				y: ev.clientY - startY,
-			});
+			last = clampWindow(apply(ev.clientX - startX, ev.clientY - startY));
 			el.style.left = `${last.x}px`;
 			el.style.top = `${last.y}px`;
+			el.style.width = `${last.width}px`;
+			el.style.height = `${last.height}px`;
 		};
 		const onUp = () => {
-			bar.removeEventListener("pointermove", onMove);
-			bar.removeEventListener("pointerup", onUp);
+			handle.removeEventListener("pointermove", onMove);
+			handle.removeEventListener("pointerup", onUp);
 			if (last !== win) onChange(last);
 		};
-		bar.addEventListener("pointermove", onMove);
-		bar.addEventListener("pointerup", onUp);
+		handle.addEventListener("pointermove", onMove);
+		handle.addEventListener("pointerup", onUp);
 	};
+	const startDrag = (e: ReactPointerEvent<HTMLElement>) =>
+		gesture(e, (dx, dy) => ({ ...win, x: win.x + dx, y: win.y + dy }));
+	const startResize = (e: ReactPointerEvent<HTMLElement>) =>
+		gesture(e, (dx, dy) => ({
+			...win,
+			width: Math.max(MIN_SIZE.width, win.width + dx),
+			height: Math.max(MIN_SIZE.height, win.height + dy),
+		}));
 
 	return (
 		<div
@@ -145,8 +138,8 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 			role="dialog"
 			aria-label={chat?.title ?? "Chat"}
 			className={cn(
-				"fixed z-40 flex min-h-60 min-w-80 flex-col overflow-hidden rounded-lg border border-border bg-surface-primary shadow-[0_12px_40px_rgba(0,0,0,0.18)] [resize:both]",
-				preview && "border-content-link/50",
+				"fixed z-40 flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary shadow-[0_12px_40px_rgba(0,0,0,0.18)]",
+				!win.pinned && "border-content-link/50",
 			)}
 			style={{
 				left: win.x,
@@ -156,11 +149,11 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 			}}
 			onPointerDownCapture={onInteract}
 			onKeyDownCapture={onInteract}
-			onPointerEnter={onPointerEnter}
-			onPointerLeave={onPointerLeave}
+			onPointerEnter={win.pinned ? undefined : onPreviewEnter}
+			onPointerLeave={win.pinned ? undefined : onPreviewLeave}
 		>
 			<div
-				className="flex h-8 shrink-0 cursor-grab touch-none items-center gap-2 border-b border-border bg-surface-secondary/60 pr-1 pl-3 text-[12.5px] font-medium text-content-primary active:cursor-grabbing"
+				className="flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-2 border-b border-border bg-surface-secondary/60 pr-1 pl-3 text-[12.5px] font-medium text-content-primary active:cursor-grabbing"
 				onPointerDown={startDrag}
 			>
 				<span
@@ -170,9 +163,9 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 					)}
 				/>
 				<span className="min-w-0 flex-1 truncate">{chat?.title ?? "Chat"}</span>
-				{preview && (
+				{!win.pinned && (
 					<span className="text-[11px] font-normal text-content-secondary">
-						click to keep
+						click or drag to keep
 					</span>
 				)}
 				<Button
@@ -191,6 +184,13 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 					<AgentChatPage chatId={win.chatId} />
 				</Suspense>
 			</div>
+			{/* Above the chat's own footer, which otherwise takes the pointer. */}
+			<div
+				role="presentation"
+				aria-hidden="true"
+				className="absolute right-0 bottom-0 z-10 size-4 cursor-nwse-resize touch-none [background:linear-gradient(135deg,transparent_50%,var(--color-border)_50%,var(--color-border)_60%,transparent_60%,transparent_75%,var(--color-border)_75%,var(--color-border)_85%,transparent_85%)]"
+				onPointerDown={startResize}
+			/>
 		</div>
 	);
 };

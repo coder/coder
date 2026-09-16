@@ -2,20 +2,25 @@ import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "agents.board";
 
-/** A pinned floating chat window, in viewport pixels. */
+/**
+ * A floating chat window, in viewport pixels. Unpinned windows are hover
+ * previews; they live in the same list so pinning does not remount them,
+ * but they do not survive a reload.
+ */
 export type ChatWindow = Readonly<{
 	chatId: string;
 	x: number;
 	y: number;
 	width: number;
 	height: number;
+	pinned: boolean;
 }>;
 
 type BoardStorage = Readonly<{
 	columnOrder: readonly string[];
 	/** Columns the user created that have no cards yet. Labels cannot hold these. */
 	emptyColumns: readonly string[];
-	/** Pinned chat windows, back to front. */
+	/** Chat windows, back to front. */
 	windows: readonly ChatWindow[];
 }>;
 
@@ -39,7 +44,8 @@ const isWindow = (value: unknown): value is ChatWindow => {
 		isFiniteNumber(obj.x) &&
 		isFiniteNumber(obj.y) &&
 		isFiniteNumber(obj.width) &&
-		isFiniteNumber(obj.height)
+		isFiniteNumber(obj.height) &&
+		typeof obj.pinned === "boolean"
 	);
 };
 
@@ -53,7 +59,9 @@ const readStorage = (): BoardStorage => {
 		return {
 			columnOrder: isStringArray(obj.columnOrder) ? obj.columnOrder : [],
 			emptyColumns: isStringArray(obj.emptyColumns) ? obj.emptyColumns : [],
-			windows: Array.isArray(obj.windows) ? obj.windows.filter(isWindow) : [],
+			windows: Array.isArray(obj.windows)
+				? obj.windows.filter(isWindow).filter((w) => w.pinned)
+				: [],
 		};
 	} catch {
 		return DEFAULT_STORAGE;
