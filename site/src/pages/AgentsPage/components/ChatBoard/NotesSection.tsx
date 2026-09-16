@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { PencilIcon, Trash2Icon } from "lucide-react";
+import { ArrowUpIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Markdown } from "#/components/Markdown/Markdown";
@@ -33,34 +33,39 @@ export const NotesSection: FC<NotesSectionProps> = ({
 	// Oldest first, so the composer line below continues the log.
 	const ordered = [...notes].sort((a, b) => a.timestamp - b.timestamp);
 	return (
+		// Always present, so the divider above is stable and edge to edge.
 		// Typing and selecting text must not start a card drag.
-		<div className="flex flex-col" onPointerDown={(e) => e.stopPropagation()}>
-			{ordered.length > 0 && (
-				<div className="mx-3 flex flex-col border-t border-border pt-1.5 pb-0.5">
-					{ordered.map((note) => (
-						<Note
-							key={note.index}
-							note={note}
-							onEdit={(text) => onEdit(note.index, text)}
-							onRemove={() => onRemove(note.index)}
-						/>
-					))}
-				</div>
-			)}
+		<div
+			className="flex flex-col border-t border-border px-3 py-1"
+			onPointerDown={(e) => e.stopPropagation()}
+		>
+			{ordered.map((note) => (
+				<Note
+					key={note.index}
+					note={note}
+					onEdit={(text) => onEdit(note.index, text)}
+					onRemove={() => onRemove(note.index)}
+				/>
+			))}
 			<NoteEditor
 				key={notes.length}
 				initial=""
 				placeholder="Add a note..."
 				ariaLabel={`Add a note to ${cardTitle}`}
-				className="px-3 pt-[7px] pb-2.5"
 				onSubmit={onAdd}
 			/>
 		</div>
 	);
 };
 
-const NOTE_MARKDOWN_CLASS =
-	"text-xs leading-[17px] text-content-primary/80 wrap-anywhere [text-wrap:pretty] [&_p]:m-0 [&_p+p]:mt-1 [&_ul]:my-0 [&_ol]:my-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_pre]:my-1 [&_pre]:overflow-x-auto [&_pre]:text-[11px]";
+/** Tightens Markdown block spacing for small text inside a card or popover. */
+export const COMPACT_MARKDOWN_CLASS =
+	"wrap-anywhere [text-wrap:pretty] [&_p]:mt-0 [&_p]:mb-0 [&_p+p]:mt-1 [&_ul]:my-1 [&_ol]:my-1 [&_ul]:gap-0.5 [&_ol]:gap-0.5 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4 [&_li>ul]:mt-0.5 [&_li>ol]:mt-0.5 [&_code]:text-[length:inherit] [&_pre]:my-1 [&_pre]:overflow-x-auto [&_pre]:text-[11px]";
+
+const NOTE_MARKDOWN_CLASS = cn(
+	"text-xs leading-[17px] text-content-primary/80",
+	COMPACT_MARKDOWN_CLASS,
+);
 
 interface NoteProps {
 	readonly note: BoardNote;
@@ -76,7 +81,6 @@ const Note: FC<NoteProps> = ({ note, onEdit, onRemove }) => {
 			<NoteEditor
 				initial={note.text}
 				ariaLabel="Note text"
-				className="py-0.5"
 				onSubmit={(text) => {
 					setEditing(false);
 					if (text !== note.text) onEdit(text);
@@ -93,7 +97,7 @@ const Note: FC<NoteProps> = ({ note, onEdit, onRemove }) => {
 				{note.text}
 			</Markdown>
 			<span className="relative h-[17px] w-10 shrink-0">
-				<span className="absolute inset-0 flex items-center justify-end font-mono text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-has-[[data-state=open]]/note:hidden">
+				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-has-[[data-state=open]]/note:hidden">
 					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
 				</span>
 				<span className="-mr-1 absolute inset-0 hidden items-center justify-end gap-0.5 group-hover/note:flex group-has-[[data-state=open]]/note:flex has-[:focus-visible]:flex">
@@ -153,19 +157,18 @@ interface NoteEditorProps {
 	readonly initial: string;
 	readonly ariaLabel: string;
 	readonly placeholder?: string;
-	readonly className?: string;
 	readonly onSubmit: (text: string) => void;
 	/** Absent for the composer, which just clears on Escape. */
 	readonly onCancel?: () => void;
 }
 
 // Same keys as every other inline edit on the board: Enter saves, Escape
-// cancels, leaving the field saves. Shift+Enter inserts a newline.
+// cancels, leaving the field saves. Shift+Enter inserts a newline. Editing
+// looks exactly like composing: the text stays in place, no box appears.
 const NoteEditor: FC<NoteEditorProps> = ({
 	initial,
 	ariaLabel,
 	placeholder,
-	className,
 	onSubmit,
 	onCancel,
 }) => {
@@ -189,19 +192,19 @@ const NoteEditor: FC<NoteEditorProps> = ({
 	// Grows with explicit lines; capped so a long note does not take over the column.
 	const rows = Math.min(10, Math.max(1, draft.split("\n").length));
 
+	const composer = onCancel === undefined;
 	return (
-		<div className={className}>
+		<div className="-mx-1 flex items-center gap-1.5">
 			<textarea
 				// biome-ignore lint/a11y/noAutofocus: an existing note's editor replaces the text the user chose to edit.
-				autoFocus={onCancel !== undefined}
+				autoFocus={!composer}
 				aria-label={ariaLabel}
 				placeholder={placeholder}
 				value={draft}
 				rows={rows}
 				className={cn(
-					"block w-full resize-none border-0 bg-transparent p-0 text-xs leading-[17px] text-content-primary outline-none placeholder:text-content-secondary/60",
-					onCancel &&
-						"rounded-md border border-border bg-surface-secondary px-2 py-1 focus:border-content-link",
+					"block min-w-0 flex-1 resize-none border-0 bg-transparent px-1 text-xs leading-[17px] text-content-primary outline-none placeholder:text-content-secondary/60",
+					composer ? "py-1.5" : "py-[3px]",
 				)}
 				onChange={(e) => setDraft(e.target.value)}
 				onBlur={commit}
@@ -213,6 +216,16 @@ const NoteEditor: FC<NoteEditorProps> = ({
 					if (e.key === "Escape") cancel();
 				}}
 			/>
+			<button
+				type="button"
+				aria-label="Save note"
+				className="grid size-5 shrink-0 place-items-center rounded-[5px] border-0 bg-transparent p-0 text-content-secondary/40 hover:bg-content-primary hover:text-surface-primary"
+				// Keep focus in the textarea, or its blur would commit first.
+				onPointerDown={(e) => e.preventDefault()}
+				onClick={commit}
+			>
+				<ArrowUpIcon className="size-3" strokeWidth={2.4} />
+			</button>
 		</div>
 	);
 };

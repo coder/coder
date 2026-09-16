@@ -270,7 +270,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{showBoardColumn && <ColumnTag name={boardColumn} />}
 										{PRIcon && prIcon && (
 											<PRIcon
 												role="img"
@@ -306,8 +305,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 								</div>
 							)}
 						</NavLink>
-						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
-							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+						{/* Age on the title line; the board column, when shown, sits under it on the status line. */}
+						<div
+							className={cn(
+								"relative my-1 flex shrink-0 flex-col items-end self-stretch",
+								showBoardColumn ? "min-w-7" : "w-7",
+							)}
+						>
+							<div className="flex h-6 w-full min-w-7 shrink-0 items-center justify-end">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
@@ -347,6 +352,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 									</span>
 								)}
 							</div>
+							{showBoardColumn && <ColumnTag name={boardColumn} />}
 							{isSharedChat && (
 								<UsersIcon
 									className="mt-auto size-3.5 text-content-secondary"
@@ -360,7 +366,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 											size="icon"
 											variant="subtle"
 											className={cn(
-												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												"absolute top-0 right-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
