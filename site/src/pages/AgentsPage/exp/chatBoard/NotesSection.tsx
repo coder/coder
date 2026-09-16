@@ -79,7 +79,7 @@ export const NotesSection: FC<NotesSectionProps> = ({
 
 /** Tightens Markdown block spacing for small text inside a card or popover. */
 export const COMPACT_MARKDOWN_CLASS =
-	"wrap-anywhere [text-wrap:pretty] [&_p]:mt-0 [&_p]:mb-0 [&_p+p]:mt-1 [&_ul]:my-1 [&_ol]:my-1 [&_ul]:gap-0.5 [&_ol]:gap-0.5 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4 [&_li>ul]:mt-0.5 [&_li>ol]:mt-0.5 [&_code]:text-[length:inherit] [&_pre]:my-1 [&_pre]:overflow-x-auto [&_pre]:text-[11px]";
+	"wrap-anywhere [&_p]:mt-0 [&_p]:mb-0 [&_p+p]:mt-1 [&_ul]:my-1 [&_ol]:my-1 [&_ul]:gap-0.5 [&_ol]:gap-0.5 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4 [&_li>ul]:mt-0.5 [&_li>ol]:mt-0.5 [&_code]:text-[length:inherit] [&_pre]:my-1 [&_pre]:overflow-x-auto [&_pre]:text-[11px]";
 
 const NOTE_MARKDOWN_CLASS = cn(
 	"text-xs leading-[17px] text-content-primary/80",
@@ -145,11 +145,11 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 			<Markdown className={cn("min-w-0 flex-1", NOTE_MARKDOWN_CLASS)}>
 				{note.text}
 			</Markdown>
-			<span className="relative h-[17px] w-14 shrink-0">
+			<span className="relative h-[17px] w-12 shrink-0">
 				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-has-[[data-state=open]]/note:hidden">
 					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
 				</span>
-				<span className="-mr-1 absolute inset-0 hidden items-center justify-end gap-0.5 group-hover/note:flex group-has-[[data-state=open]]/note:flex has-[:focus-visible]:flex">
+				<span className="-mr-1 absolute inset-0 hidden items-center justify-end group-hover/note:flex group-has-[[data-state=open]]/note:flex has-[:focus-visible]:flex">
 					<button
 						type="button"
 						ref={setActivatorNodeRef}
@@ -157,7 +157,7 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 						{...attributes}
 						aria-label="Drag note"
 						title="Drag to reorder or move to another card"
-						className="grid size-[18px] cursor-grab touch-none place-items-center rounded border-0 bg-transparent p-0 text-content-secondary active:cursor-grabbing"
+						className="grid size-4 cursor-grab touch-none place-items-center rounded border-0 bg-transparent p-0 text-content-secondary active:cursor-grabbing"
 					>
 						<GripVerticalIcon className="size-3" />
 					</button>
@@ -165,7 +165,7 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 						variant="subtle"
 						size="icon"
 						aria-label="Edit note"
-						className="size-[18px] text-content-secondary"
+						className="size-4 text-content-secondary"
 						onClick={() => setEditing(true)}
 					>
 						<PencilIcon className="size-3" />
@@ -188,7 +188,7 @@ const DeleteNoteButton: FC<{ readonly onConfirm: () => void }> = ({
 					variant="subtle"
 					size="icon"
 					aria-label="Delete note"
-					className="size-[18px] text-content-secondary hover:bg-surface-destructive hover:text-content-destructive"
+					className="size-4 text-content-secondary hover:bg-surface-destructive hover:text-content-destructive"
 				>
 					<Trash2Icon className="size-3" />
 				</Button>
