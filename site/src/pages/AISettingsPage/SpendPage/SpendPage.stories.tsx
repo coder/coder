@@ -71,7 +71,6 @@ const meta = {
 						params.offset ?? 0,
 						(params.offset ?? 0) + (params.limit ?? 10),
 					)
-					// A provider filter leaves every user with that one provider.
 					.map((user) =>
 						params.provider_name
 							? { ...user, providers: [params.provider_name] }
