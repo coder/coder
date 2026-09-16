@@ -597,6 +597,11 @@ func hasUncompressedMessageAfter(messages []database.ChatMessage, index int) boo
 }
 
 func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, contextLimit int64) bool {
+	// Zero means "always compact." Excluding it from this check prevents a
+	// terminal over-limit error after every compaction.
+	if thresholdPercent <= 0 {
+		return false
+	}
 	return shouldCompactPromptUsage(usageFromMessage(msg), contextLimit, thresholdPercent)
 }
 

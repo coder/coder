@@ -1,10 +1,17 @@
 import { cn } from "cn";
-import { RotateCcwIcon } from "lucide-react";
+import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Input } from "#/components/Input/Input";
 import {
 	getOrganizationLabel,
@@ -33,20 +40,23 @@ import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
 import {
-	compactionTriggerTokens,
-	resolveCompactionContextLimit,
-} from "../utils/modelOptions";
+	bindingCompactionTrigger,
+	bindingCompactionTriggerPoint,
+	type CompactionTrigger,
+	compactionPointAsPercent,
+	type OrganizationCompactionTrigger,
+} from "../compactionTriggers";
 
 interface UserCompactionThresholdSettingsProps {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
-	/**
-	 * Organization ID to the model config the organization routes compaction
-	 * through. Missing entries mean the chat model summarizes itself.
-	 */
-	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
+	compactionTriggersByOrganizationID: ReadonlyMap<
+		string,
+		OrganizationCompactionTrigger
+	>;
 	modelsError?: unknown;
+	compactionTriggersError?: unknown;
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
@@ -57,8 +67,6 @@ interface UserCompactionThresholdSettingsProps {
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
 }
-
-const noCompactionOverrides: ReadonlyMap<string, string> = new Map();
 
 const parseThresholdDraft = (value: string): number | null => {
 	const trimmedValue = value.trim();
@@ -74,17 +82,296 @@ const parseThresholdDraft = (value: string): number | null => {
 	return parsedValue;
 };
 
-const ContextCompactionHeader: FC = () => (
+interface ContextCompactionHeaderProps {
+	hasOrganizationCompactionOverride: boolean;
+}
+
+const ContextCompactionHeader: FC<ContextCompactionHeaderProps> = ({
+	hasOrganizationCompactionOverride,
+}) => (
 	<div className="flex flex-col gap-2">
 		<h3 className="m-0 text-sm font-semibold text-content-primary">
 			Context compaction
 		</h3>
 		<p className="mt-0.5! m-0 text-xs text-content-secondary">
 			Control when conversation context is automatically summarized for each
-			model. Setting 100% means the conversation will never auto-compact.
+			model. Setting 100% disables that model&apos;s compaction trigger.
+			{hasOrganizationCompactionOverride &&
+				" An organization override may still trigger compaction."}
 		</p>
 	</div>
 );
+
+interface CompactionContextCellProps {
+	contextLimit: number;
+	chatTrigger: CompactionTrigger | undefined;
+	organizationTrigger: OrganizationCompactionTrigger | undefined;
+}
+
+const CompactionContextCell: FC<CompactionContextCellProps> = ({
+	contextLimit,
+	chatTrigger,
+	organizationTrigger,
+}) => {
+	const compactionPoint =
+		chatTrigger &&
+		bindingCompactionTriggerPoint(chatTrigger, organizationTrigger);
+
+	return (
+		<TableCell className="w-0 whitespace-nowrap tabular-nums">
+			<div className="flex flex-col">
+				{contextLimit > 0 ? (
+					<span>{formatContextLimit(contextLimit)} tokens</span>
+				) : (
+					<span className="text-content-secondary">Unknown</span>
+				)}
+				{compactionPoint !== undefined && (
+					<span className="text-2xs text-content-secondary">
+						Compacts at ~{formatContextLimit(compactionPoint)}
+					</span>
+				)}
+			</div>
+		</TableCell>
+	);
+};
+
+interface EffectiveCompactionThresholdProps {
+	modelConfig: TypesGen.ChatModel;
+	chatTrigger: CompactionTrigger | undefined;
+	organizationTrigger: OrganizationCompactionTrigger | undefined;
+}
+
+const EffectiveCompactionThreshold: FC<EffectiveCompactionThresholdProps> = ({
+	modelConfig,
+	chatTrigger,
+	organizationTrigger,
+}) => {
+	const modelName = modelConfig.display_name || modelConfig.model;
+	const organizationTriggerPercent = organizationTrigger
+		? compactionPointAsPercent(
+				organizationTrigger.point,
+				modelConfig.context_limit,
+			)
+		: undefined;
+	const organizationTriggerPercentLabel =
+		organizationTriggerPercent?.toLocaleString("en-US", {
+			maximumFractionDigits: 1,
+		});
+	// Setting 100% disables only the chat model
+	// trigger, not the organization override.
+	const isOrganizationTriggerEarlier =
+		chatTrigger !== undefined &&
+		organizationTrigger !== undefined &&
+		organizationTriggerPercent !== undefined &&
+		bindingCompactionTrigger(chatTrigger, organizationTrigger.trigger) ===
+			"organization";
+
+	return (
+		<TableCell className="w-0 whitespace-nowrap tabular-nums">
+			{isOrganizationTriggerEarlier && organizationTrigger ? (
+				<div className="flex items-center gap-1">
+					<span>{organizationTriggerPercentLabel}%</span>
+					<HelpPopover>
+						<HelpPopoverIconTrigger
+							size="small"
+							hoverEffect={false}
+							aria-label={`Organization override for ${modelName}`}
+							className="text-content-warning"
+						>
+							<TriangleAlertIcon />
+						</HelpPopoverIconTrigger>
+						<HelpPopoverContent>
+							<HelpPopoverTitle>Organization override</HelpPopoverTitle>
+							<HelpPopoverText>
+								{organizationTrigger.model.display_name.trim() ||
+									organizationTrigger.model.model}{" "}
+								compacts at {organizationTrigger.model.compression_threshold}%
+								of its{" "}
+								{organizationTrigger.model.context_limit.toLocaleString(
+									"en-US",
+								)}
+								-token window, about {organizationTriggerPercentLabel}% of this
+								model&apos;s window.
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
+				</div>
+			) : chatTrigger === undefined ? null : chatTrigger.thresholdPercent >=
+				100 ? (
+				<span className="text-content-secondary">Off</span>
+			) : (
+				`${chatTrigger.thresholdPercent}%`
+			)}
+		</TableCell>
+	);
+};
+
+interface CompactionThresholdRowProps {
+	modelConfig: TypesGen.ChatModel;
+	existingOverride: number | undefined;
+	draft: string | undefined;
+	isThisModelMutating: boolean;
+	rowError: string | undefined;
+	provider: string;
+	organizationName: string;
+	organizationTrigger: OrganizationCompactionTrigger | undefined;
+	onDraftChange: (value: string) => void;
+	onReset: () => void;
+}
+
+const CompactionThresholdRow: FC<CompactionThresholdRowProps> = ({
+	modelConfig,
+	existingOverride,
+	draft,
+	isThisModelMutating,
+	rowError,
+	provider,
+	organizationName,
+	organizationTrigger,
+	onDraftChange,
+	onReset,
+}) => {
+	const hasOverride = existingOverride !== undefined;
+	const draftValue =
+		draft ?? (existingOverride !== undefined ? String(existingOverride) : "");
+	const parsedDraftValue = parseThresholdDraft(draftValue);
+	const isInvalid = draftValue.length > 0 && parsedDraftValue === null;
+	const isDraftDisablingCompaction =
+		draftValue === "100" && draft !== undefined;
+	const modelName = modelConfig.display_name || modelConfig.model;
+	const providerLabel = formatProviderLabel(provider);
+	const effectiveThresholdPercent =
+		parsedDraftValue ??
+		(draftValue.length === 0 ? modelConfig.compression_threshold : undefined);
+	const chatTrigger =
+		effectiveThresholdPercent === undefined
+			? undefined
+			: {
+					thresholdPercent: effectiveThresholdPercent,
+					contextLimit: modelConfig.context_limit,
+				};
+
+	return (
+		<TableRow>
+			<TableCell className="text-sm font-medium text-content-primary">
+				<Badge
+					size="md"
+					variant="default"
+					className="w-fit"
+					aria-label={`${providerLabel} ${modelName} in ${organizationName}`}
+				>
+					<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-surface-secondary">
+						<ProviderIcon
+							provider={provider}
+							className="size-3/5 text-content-secondary"
+						/>
+					</span>
+					{modelName}
+				</Badge>
+				{rowError && (
+					<p
+						aria-live="polite"
+						className="m-0 mt-0.5 text-2xs font-normal text-content-destructive"
+					>
+						{rowError}
+					</p>
+				)}
+			</TableCell>
+			<CompactionContextCell
+				contextLimit={modelConfig.context_limit}
+				chatTrigger={chatTrigger}
+				organizationTrigger={organizationTrigger}
+			/>
+			<TableCell className="w-0 whitespace-nowrap tabular-nums">
+				{modelConfig.compression_threshold}%
+			</TableCell>
+			<TableCell className="w-0 whitespace-nowrap">
+				<div className="flex items-center gap-1.5">
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<div className="relative">
+								<Input
+									aria-label={`${modelName} compaction threshold for ${organizationName}`}
+									aria-invalid={isInvalid || undefined}
+									type="text"
+									min={0}
+									max={100}
+									maxLength={3}
+									inputMode="numeric"
+									className={cn(
+										"h-7 w-16 px-2 pr-5 text-xs tabular-nums",
+										isInvalid &&
+											"border-content-destructive focus:ring-content-destructive/30",
+									)}
+									value={draftValue}
+									placeholder={String(modelConfig.compression_threshold)}
+									onChange={(event) => onDraftChange(event.target.value)}
+									disabled={isThisModelMutating}
+								/>
+								<span
+									aria-hidden="true"
+									className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-content-secondary"
+								>
+									%
+								</span>
+							</div>
+						</TooltipTrigger>
+						{(isInvalid || isDraftDisablingCompaction) && (
+							<TooltipContent>
+								{isInvalid
+									? "Enter a whole number between 0 and 100."
+									: organizationTrigger
+										? "Setting 100% disables this model's compaction trigger. The organization override may still trigger compaction."
+										: "Setting 100% disables this model's compaction trigger."}
+							</TooltipContent>
+						)}
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className={cn(
+									"size-7",
+									hasOverride ? "opacity-100" : "pointer-events-none opacity-0",
+								)}
+								aria-label={`Reset ${modelName} for ${organizationName} to default`}
+								aria-hidden={!hasOverride}
+								tabIndex={hasOverride ? 0 : -1}
+								disabled={isThisModelMutating || !hasOverride}
+								onClick={onReset}
+							>
+								<RotateCcwIcon className="size-3.5" />
+							</Button>
+						</TooltipTrigger>
+						{hasOverride && (
+							<TooltipContent>
+								Reset to default ({modelConfig.compression_threshold}%)
+							</TooltipContent>
+						)}
+					</Tooltip>
+				</div>
+				{isInvalid && (
+					<span className="sr-only" aria-live="polite">
+						Enter a whole number between 0 and 100.
+					</span>
+				)}
+				{isDraftDisablingCompaction && (
+					<span className="sr-only" aria-live="polite">
+						Setting 100% disables this model&apos;s compaction trigger.
+						{organizationTrigger &&
+							" The organization override may still trigger compaction."}
+					</span>
+				)}
+			</TableCell>
+			<EffectiveCompactionThreshold
+				modelConfig={modelConfig}
+				chatTrigger={chatTrigger}
+				organizationTrigger={organizationTrigger}
+			/>
+		</TableRow>
+	);
+};
 
 export const UserCompactionThresholdSettings: FC<
 	UserCompactionThresholdSettingsProps
@@ -92,8 +379,9 @@ export const UserCompactionThresholdSettings: FC<
 	models,
 	providerTypeByID,
 	organizations,
-	compactionModelIDByOrganization = noCompactionOverrides,
+	compactionTriggersByOrganizationID,
 	modelsError,
+	compactionTriggersError,
 	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
@@ -108,6 +396,8 @@ export const UserCompactionThresholdSettings: FC<
 		string | null
 	>(null);
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
+	const hasOrganizationCompactionOverride =
+		compactionTriggersByOrganizationID.size > 0;
 
 	const enabledModels = models.filter((config) => config.enabled);
 	const organizationNameByID = new Map(
@@ -269,7 +559,9 @@ export const UserCompactionThresholdSettings: FC<
 	if (isThresholdsLoading) {
 		return (
 			<div className="flex flex-col gap-2">
-				<ContextCompactionHeader />
+				<ContextCompactionHeader
+					hasOrganizationCompactionOverride={hasOrganizationCompactionOverride}
+				/>
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="size-4" />
 					Loading thresholds...
@@ -281,7 +573,9 @@ export const UserCompactionThresholdSettings: FC<
 	if (thresholdsError != null) {
 		return (
 			<div className="flex flex-col gap-2">
-				<ContextCompactionHeader />
+				<ContextCompactionHeader
+					hasOrganizationCompactionOverride={hasOrganizationCompactionOverride}
+				/>
 				<p className="m-0 text-xs text-content-destructive">
 					{getErrorMessage(
 						thresholdsError,
@@ -294,7 +588,9 @@ export const UserCompactionThresholdSettings: FC<
 
 	return (
 		<div className="flex flex-col gap-3">
-			<ContextCompactionHeader />
+			<ContextCompactionHeader
+				hasOrganizationCompactionOverride={hasOrganizationCompactionOverride}
+			/>
 			{isLoadingModels ? (
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="size-4" />
@@ -317,6 +613,12 @@ export const UserCompactionThresholdSettings: FC<
 								modelsError,
 								"Some organization models could not be loaded.",
 							)}
+						</p>
+					)}
+					{compactionTriggersError != null && (
+						<p className="m-0 text-xs text-content-destructive">
+							Failed to load organization compaction settings. Effective values
+							may not account for the organization override.
 						</p>
 					)}
 					{organizationOptions.length > 1 && activeOrganization && (
@@ -348,186 +650,44 @@ export const UserCompactionThresholdSettings: FC<
 								<TableHead className="w-0 whitespace-nowrap">
 									Threshold
 								</TableHead>
+								<TableHead className="w-0 whitespace-nowrap">
+									Effective
+								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{visibleModels.map((modelConfig) => {
-								const existingOverride = overridesByModelID.get(modelConfig.id);
-								const hasOverride = overridesByModelID.has(modelConfig.id);
-								const draftValue =
-									drafts[modelConfig.id] ??
-									(existingOverride !== undefined
-										? String(existingOverride)
-										: "");
-								const parsedDraftValue = parseThresholdDraft(draftValue);
-								const isThisModelMutating = pendingModels.has(modelConfig.id);
-								const isInvalid =
-									draftValue.length > 0 && parsedDraftValue === null;
-								// Only warn when user-typed, not when loaded from
-								// the server.
-								const isDraftDisablingCompaction =
-									draftValue === "100" && drafts[modelConfig.id] !== undefined;
-								const rowError = rowErrors[modelConfig.id];
-								const modelName = modelConfig.display_name || modelConfig.model;
-								const provider =
-									providerTypeByID.get(modelConfig.ai_provider_id) ?? "";
-								const providerLabel = formatProviderLabel(provider);
-								const organizationName =
-									organizationNameByID.get(modelConfig.organization_id) ??
-									modelConfig.organization_id;
-								// Prefer the typed draft so the trigger point tracks
-								// what the user is about to save.
-								const effectiveThreshold =
-									parsedDraftValue ??
-									existingOverride ??
-									modelConfig.compression_threshold;
-								const contextLimit = resolveCompactionContextLimit(
-									modelConfig,
-									models,
-									compactionModelIDByOrganization,
-								);
-								const triggerTokens = compactionTriggerTokens(
-									contextLimit,
-									effectiveThreshold,
-								);
-
-								return (
-									<TableRow key={modelConfig.id}>
-										<TableCell className="text-sm font-medium text-content-primary">
-											<Badge
-												size="md"
-												variant="default"
-												className="w-fit"
-												aria-label={`${providerLabel} ${modelName} in ${organizationName}`}
-											>
-												<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-surface-secondary">
-													<ProviderIcon
-														provider={provider}
-														className="size-3/5 text-content-secondary"
-													/>
-												</span>
-												{modelName}
-											</Badge>
-											{rowError && (
-												<p
-													aria-live="polite"
-													className="m-0 mt-0.5 text-2xs font-normal text-content-destructive"
-												>
-													{rowError}
-												</p>
-											)}
-										</TableCell>
-										<TableCell className="w-0 whitespace-nowrap tabular-nums">
-											{contextLimit > 0 ? (
-												<div className="flex flex-col">
-													<span>{formatContextLimit(contextLimit)} tokens</span>
-													{triggerTokens !== undefined && (
-														<span className="text-2xs text-content-secondary">
-															Compacts at ~{formatContextLimit(triggerTokens)}
-														</span>
-													)}
-												</div>
-											) : (
-												<span className="text-content-secondary">Unknown</span>
-											)}
-										</TableCell>
-										<TableCell className="w-0 whitespace-nowrap tabular-nums">
-											{modelConfig.compression_threshold}%
-										</TableCell>
-										<TableCell className="w-0 whitespace-nowrap">
-											<div className="flex items-center gap-1.5">
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<div className="relative">
-															<Input
-																aria-label={`${modelName} compaction threshold for ${organizationName}`}
-																aria-invalid={isInvalid || undefined}
-																type="text"
-																min={0}
-																max={100}
-																maxLength={3}
-																inputMode="numeric"
-																className={cn(
-																	"h-7 w-16 px-2 pr-5 text-xs tabular-nums",
-																	isInvalid &&
-																		"border-content-destructive focus:ring-content-destructive/30",
-																)}
-																value={draftValue}
-																placeholder={String(
-																	modelConfig.compression_threshold,
-																)}
-																onChange={(event) => {
-																	setDrafts((currentDrafts) => ({
-																		...currentDrafts,
-																		[modelConfig.id]: event.target.value,
-																	}));
-																	clearRowError(modelConfig.id);
-																}}
-																disabled={isThisModelMutating}
-															/>
-															<span
-																aria-hidden="true"
-																className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-content-secondary"
-															>
-																%
-															</span>
-														</div>
-													</TooltipTrigger>
-													{(isInvalid || isDraftDisablingCompaction) && (
-														<TooltipContent>
-															{isInvalid
-																? "Enter a whole number between 0 and 100."
-																: "Setting 100% will disable auto-compaction for this model."}
-														</TooltipContent>
-													)}
-												</Tooltip>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Button
-															size="icon"
-															variant="subtle"
-															className={cn(
-																"size-7",
-																hasOverride
-																	? "opacity-100"
-																	: "pointer-events-none opacity-0",
-															)}
-															aria-label={`Reset ${modelName} for ${organizationName} to default`}
-															aria-hidden={!hasOverride}
-															tabIndex={hasOverride ? 0 : -1}
-															disabled={isThisModelMutating || !hasOverride}
-															onClick={() => handleReset(modelConfig.id)}
-														>
-															<RotateCcwIcon className="size-3.5" />
-														</Button>
-													</TooltipTrigger>
-													{hasOverride && (
-														<TooltipContent>
-															Reset to default (
-															{modelConfig.compression_threshold}%)
-														</TooltipContent>
-													)}
-												</Tooltip>
-											</div>
-											{isInvalid && (
-												<span className="sr-only" aria-live="polite">
-													Enter a whole number between 0 and 100.
-												</span>
-											)}
-											{isDraftDisablingCompaction && (
-												<span className="sr-only" aria-live="polite">
-													Setting 100% will disable auto-compaction for this
-													model.
-												</span>
-											)}
-										</TableCell>
-									</TableRow>
-								);
-							})}
+							{visibleModels.map((modelConfig) => (
+								<CompactionThresholdRow
+									key={modelConfig.id}
+									modelConfig={modelConfig}
+									existingOverride={overridesByModelID.get(modelConfig.id)}
+									draft={drafts[modelConfig.id]}
+									isThisModelMutating={pendingModels.has(modelConfig.id)}
+									rowError={rowErrors[modelConfig.id]}
+									provider={
+										providerTypeByID.get(modelConfig.ai_provider_id) ?? ""
+									}
+									organizationName={
+										organizationNameByID.get(modelConfig.organization_id) ??
+										modelConfig.organization_id
+									}
+									organizationTrigger={compactionTriggersByOrganizationID.get(
+										modelConfig.organization_id,
+									)}
+									onDraftChange={(value) => {
+										setDrafts((currentDrafts) => ({
+											...currentDrafts,
+											[modelConfig.id]: value,
+										}));
+										clearRowError(modelConfig.id);
+									}}
+									onReset={() => handleReset(modelConfig.id)}
+								/>
+							))}
 						</TableBody>
 						<TableFooter className="bg-transparent">
 							<TableRow className="border-0">
-								<TableCell colSpan={4} className="border-0 p-0">
+								<TableCell colSpan={5} className="border-0 p-0">
 									<div className="mt-2 flex h-6 items-center justify-end gap-2 px-3">
 										{isSavedVisible ? (
 											<TemporarySavedState />

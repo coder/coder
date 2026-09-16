@@ -713,31 +713,34 @@ func (server *Server) prepareGeneration(
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
-	// The compaction trigger uses the stricter of the chat and override
-	// models' context limits: the history must also fit the summarizer's
-	// window.
-	compactionContextLimit := modelConfig.ContextLimit
+	chatTrigger := compactionTrigger{
+		thresholdPercent: effectiveThreshold,
+		contextLimit:     modelConfig.ContextLimit,
+	}
 	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
 	}
+	// Each threshold applies to its model's window. The earliest enabled
+	// trigger binds so history also fits the compaction model.
+	binding := chatTrigger
 	if compactionOverride != nil {
-		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
-			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
-			compactionContextLimit = overrideLimit
-		}
+		binding = bindingCompactionTrigger(chatTrigger, compactionTrigger{
+			thresholdPercent: compactionOverride.Config.CompressionThreshold,
+			contextLimit:     compactionOverride.Config.ContextLimit,
+		})
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
 		Messages:             compactionPromptMessages,
-		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         compactionContextLimit,
-		ContextLimitFallback: compactionContextLimit,
+		ThresholdPercent:     binding.thresholdPercent,
+		ContextLimit:         binding.contextLimit,
+		ContextLimitFallback: binding.contextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,
@@ -799,6 +802,34 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 		}
 	}
 	return fantasy.Usage{}
+}
+
+type compactionTrigger struct {
+	thresholdPercent int32
+	contextLimit     int64
+}
+
+func (t compactionTrigger) enabled() bool {
+	return t.thresholdPercent >= 0 && t.thresholdPercent < 100 && t.contextLimit > 0
+}
+
+func (t compactionTrigger) point() float64 {
+	return float64(t.contextLimit) * float64(t.thresholdPercent) / 100
+}
+
+// When both triggers are enabled, the lower token point binds because they
+// evaluate the same prompt usage.
+func bindingCompactionTrigger(chat, override compactionTrigger) compactionTrigger {
+	switch {
+	case !override.enabled():
+		return chat
+	case !chat.enabled():
+		return override
+	case override.point() < chat.point():
+		return override
+	default:
+		return chat
+	}
 }
 
 func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {

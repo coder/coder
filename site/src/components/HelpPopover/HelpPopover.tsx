@@ -51,9 +51,9 @@ export const HelpPopoverIconTrigger: React.FC<HelpPopoverIconTriggerProps> = ({
 	return (
 		<HelpPopoverTrigger asChild>
 			<button
+				aria-label="More info"
 				{...buttonProps}
 				type="button"
-				aria-label="More info"
 				className={cn(
 					"flex items-center justify-center px-0 py-1",
 					"border-0 border-none bg-transparent cursor-pointer text-inherit",

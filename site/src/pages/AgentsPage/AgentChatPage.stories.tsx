@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { hashKey } from "react-query";
+import { hashKey, useQuery } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -17,6 +17,7 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelOverrides,
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -25,6 +26,7 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey, workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	MockChat,
 	MockChatMessage,
@@ -964,6 +966,85 @@ type Story = StoryObj<typeof AgentChatPageLayout>;
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+const mockContextUsageMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	role: "assistant",
+	usage: { input_tokens: 50_000, context_limit: 200_000 },
+};
+
+export const CompactionHintSurvivesOverrideRefetchError: Story = {
+	render: function CompactionHintRefetchStory() {
+		const { refetch, isFetching } = useQuery(
+			organizationChatModelOverrides(MockChat.organization_id),
+		);
+		return (
+			<>
+				<AgentChatPageLayout />
+				<Button
+					className="absolute right-4 top-4"
+					disabled={isFetching}
+					onClick={() => void refetch()}
+				>
+					Refetch compaction settings
+				</Button>
+			</>
+		);
+	},
+	parameters: {
+		queries: buildQueries(MockChat, {
+			messages: [mockContextUsageMessage],
+			queued_messages: [],
+			has_more: false,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to load model overrides"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const refetchButton = canvas.getByRole("button", {
+			name: "Refetch compaction settings",
+		});
+		await waitFor(() => expect(refetchButton).toBeEnabled());
+		const gauge = await canvas.findByRole("button", {
+			name: /Context usage 25%/,
+		});
+		await userEvent.hover(gauge);
+		await waitFor(() => {
+			expect(body.getByText("25% - 50K / 200K context used")).toBeVisible();
+		});
+		expect(body.queryByText(/Compacts at/)).not.toBeInTheDocument();
+		await userEvent.unhover(gauge);
+
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({ overrides: [] });
+		await userEvent.click(refetchButton);
+		await waitFor(() => expect(refetchButton).toBeEnabled());
+		await userEvent.hover(gauge);
+		await waitFor(() => {
+			expect(body.getByText("Compacts at 70%")).toBeVisible();
+		});
+		await userEvent.unhover(gauge);
+
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to refresh model overrides"));
+		await userEvent.click(refetchButton);
+		await waitFor(() => expect(refetchButton).toBeEnabled());
+		await userEvent.hover(gauge);
+		await waitFor(() => {
+			expect(body.getByText("Compacts at 70%")).toBeVisible();
+		});
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,

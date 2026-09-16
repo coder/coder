@@ -30,6 +30,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
+import type { ResolvedCompactionThreshold } from "../compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -42,8 +43,7 @@ export interface AgentContextUsage {
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
 	readonly reasoningTokens?: number;
-	// Percentage (0-100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
+	readonly compactionThreshold?: ResolvedCompactionThreshold;
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
@@ -275,6 +275,18 @@ export const ContextUsageIndicator: FC<{
 	].some(hasFiniteTokenValue);
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+	// An organization trigger carries its absolute token point; convert it
+	// against the same limit the gauge displays, which may be a
+	// runtime-reported window that differs from the configured one.
+	const compaction = usage?.compactionThreshold;
+	const compactionPercent =
+		compaction === undefined
+			? undefined
+			: compaction.pointTokens !== undefined &&
+					contextLimitTokens !== undefined &&
+					contextLimitTokens > 0
+				? (compaction.pointTokens / contextLimitTokens) * 100
+				: compaction.percent;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;
@@ -411,13 +423,11 @@ export const ContextUsageIndicator: FC<{
 					and tools. Replaced by measured usage after the next response.
 				</div>
 			)}
-			{hasPercent &&
-				usage?.compressionThreshold !== undefined &&
-				usage.compressionThreshold > 0 && (
-					<div className="mt-1 text-content-secondary">
-						{`Compacts at ${usage.compressionThreshold}%`}
-					</div>
-				)}
+			{hasPercent && compactionPercent !== undefined && (
+				<div className="mt-1 text-content-secondary">
+					{`Compacts at ${compactionPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${usage?.compactionThreshold?.source === "organization" ? " (organization override)" : ""}`}
+				</div>
+			)}
 			{hasContextList && (
 				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
 					{fileItems.length > 0 && (

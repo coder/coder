@@ -11,6 +11,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import type { OrganizationCompactionTrigger } from "../compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -23,6 +24,23 @@ const organizationWithEmptyDisplayName = {
 	id: MockChatModel.organization_id,
 	display_name: "",
 };
+
+const mockCompactionModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "compaction-model",
+	model: "compact-mini",
+	display_name: "Compact Mini",
+	context_limit: 32_000,
+	compression_threshold: 50,
+};
+const mockCompactionTrigger: OrganizationCompactionTrigger = {
+	model: mockCompactionModel,
+	trigger: { thresholdPercent: 50, contextLimit: 32_000 },
+	point: 16_000,
+};
+const mockCompactionTriggersByOrganizationID = new Map([
+	[MockChatModel.organization_id, mockCompactionTrigger],
+]);
 
 const mockModels: TypesGen.ChatModel[] = [
 	{
@@ -69,6 +87,7 @@ const meta = {
 			["provider-anthropic", "anthropic"],
 		]),
 		organizations: [modelsOrganization],
+		compactionTriggersByOrganizationID: new Map(),
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -104,17 +123,6 @@ export const ContextWindowTracksDraft: Story = {
 
 		// 128K window: default 80% compacts at ~102K, the draft moves it to ~64K.
 		await userEvent.type(gpt4oInput, "50");
-	},
-};
-
-export const CompactionOverrideShrinksWindow: Story = {
-	name: "Compaction Override Shrinks Window",
-	args: {
-		// The organization summarizes with the 16K model, so both enabled
-		// models show a 16K compaction window instead of their own.
-		compactionModelIDByOrganization: new Map([
-			[MockChatModel.organization_id, "model-3"],
-		]),
 	},
 };
 
@@ -225,6 +233,67 @@ export const DisableCompactionWarning: Story = {
 		});
 
 		await userEvent.type(gpt4oInput, "100");
+	},
+};
+
+export const OrganizationCompactionTriggerWarning: Story = {
+	args: {
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
+		const row = within(gpt4oRow);
+
+		await userEvent.click(
+			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
+		);
+		await userEvent.keyboard("{Escape}");
+
+		await userEvent.type(
+			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
+			"10",
+		);
+		await waitFor(() => {
+			expect(
+				row.queryByRole("button", { name: /Organization override/i }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
+	args: {
+		compactionTriggersByOrganizationID: new Map([
+			[
+				MockChatModel.organization_id,
+				{
+					model: { ...mockCompactionModel, context_limit: 256_000 },
+					trigger: { thresholdPercent: 50, contextLimit: 256_000 },
+					point: 128_000,
+				},
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
+		const row = within(gpt4oRow);
+
+		await userEvent.type(
+			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
+			"100",
+		);
+		expect(
+			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
+		).toBeInTheDocument();
+	},
+};
+
+export const NoOrganizationCompactionOverride: Story = {};
+export const CompactionTriggersLoadError: Story = {
+	args: {
+		compactionTriggersError: new Error("Network Error"),
 	},
 };
 
