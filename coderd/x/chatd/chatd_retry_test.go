@@ -136,15 +136,15 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 	t.Run("silent stream generation retry recovers", func(t *testing.T) {
 		t.Parallel()
 
-		// Use a non-default silence guard so the test proves the task budget
-		// is derived from the configured value.
+		// Longer than the 15m task watchdog. If the watchdog did not pause
+		// while the stream is open, it would fire first and the runner would
+		// retry the task instead of the chat retry path.
 		const streamSilenceTimeout = 20 * time.Minute
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, ps := dbtestutil.NewDB(t)
 		reg := prometheus.NewRegistry()
 		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
-		taskTimeoutTrap := clock.Trap().AfterFunc("chatworker", "task-timeout-generation")
 		streamGuardTrap := clock.Trap().AfterFunc("streamSilenceGuard")
 		defer streamGuardTrap.Close()
 		retryTrap := clock.Trap().NewTimer("chatworker", "generation-retry")
@@ -174,13 +174,9 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		})
 
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
-		taskTimeout := taskTimeoutTrap.MustWait(ctx)
-		taskTimeout.MustRelease(ctx)
-		taskTimeoutTrap.Close()
 		firstGuard := streamGuardTrap.MustWait(ctx)
 		firstGuard.MustRelease(ctx)
 		require.Equal(t, streamSilenceTimeout, firstGuard.Duration)
-		require.Equal(t, streamSilenceTimeout+5*time.Minute, taskTimeout.Duration)
 		waitUntilProviderCall(ctx, t, &calls, 1)
 		advanceMockClockBy(ctx, t, clock, firstGuard.Duration)
 		retryTimer := retryTrap.MustWait(ctx)

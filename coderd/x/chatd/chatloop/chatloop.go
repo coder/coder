@@ -751,6 +751,20 @@ func classifyStreamSilenceTimeout(
 	})
 }
 
+type streamWatchdogKey struct{}
+
+type streamWatchdog struct {
+	pause, resume func()
+}
+
+// WithStreamWatchdog returns a context whose guarded streams call pause
+// when they open and resume when they release. The silence guard bounds
+// the stream for that window, so a caller's wall-clock timeout would only
+// cancel legitimately long streams.
+func WithStreamWatchdog(ctx context.Context, pause, resume func()) context.Context {
+	return context.WithValue(ctx, streamWatchdogKey{}, streamWatchdog{pause: pause, resume: resume})
+}
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -761,9 +775,16 @@ func guardedStream(
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
+	watchdog, _ := parent.Value(streamWatchdogKey{}).(streamWatchdog)
+	if watchdog.pause != nil {
+		watchdog.pause()
+	}
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
+			if watchdog.resume != nil {
+				watchdog.resume()
+			}
 			guard.Disarm()
 			cancelAttempt(nil)
 		})

@@ -231,6 +231,45 @@ func TestGenerateAssistant_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *te
 	}
 }
 
+func TestGuardedStream_PausesStreamWatchdog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("open stream", func(t *testing.T) {
+		t.Parallel()
+
+		var events []string
+		ctx := WithStreamWatchdog(context.Background(),
+			func() { events = append(events, "pause") },
+			func() { events = append(events, "resume") },
+		)
+		attempt, err := guardedStream(ctx, "openai", "test-model", quartz.NewReal(), time.Hour,
+			func(context.Context) (fantasy.StreamResponse, error) {
+				return streamFromParts(nil), nil
+			}, NopMetrics())
+		require.NoError(t, err)
+		require.Equal(t, []string{"pause"}, events)
+		attempt.release()
+		attempt.release()
+		require.Equal(t, []string{"pause", "resume"}, events)
+	})
+
+	t.Run("open stream fails", func(t *testing.T) {
+		t.Parallel()
+
+		var events []string
+		ctx := WithStreamWatchdog(context.Background(),
+			func() { events = append(events, "pause") },
+			func() { events = append(events, "resume") },
+		)
+		_, err := guardedStream(ctx, "openai", "test-model", quartz.NewReal(), time.Hour,
+			func(context.Context) (fantasy.StreamResponse, error) {
+				return nil, xerrors.New("open failed")
+			}, NopMetrics())
+		require.Error(t, err)
+		require.Equal(t, []string{"pause", "resume"}, events)
+	})
+}
+
 func TestGenerateAssistant_StreamSilenceTimeoutRetryClassification(t *testing.T) {
 	t.Parallel()
 

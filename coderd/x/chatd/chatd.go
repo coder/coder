@@ -3155,7 +3155,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,
 		HeartbeatStaleSeconds: int32(inFlightChatStaleAfter.Seconds()),
-		TaskTimeout:           streamSilenceTimeout + taskTimeoutMargin,
 		NotificationsEnqueuer: notificationsEnqueuer,
 		Auditor:               cfg.Auditor,
 		AutoArchiveRecords:    chatAutoArchiveRecords,
