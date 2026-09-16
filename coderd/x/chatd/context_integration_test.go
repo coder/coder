@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -214,15 +215,20 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Empty(t, got.Context.Error, "dirty marking leaves the pinned hash and error unchanged")
 	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
-	// While dirty the GET still reports the pinned (hashA) resources.
-	require.Len(t, got.Context.Resources, 1, "resources stay pinned while dirty")
-	require.Equal(t, agentsSource, got.Context.Resources[0].Source)
+	// While dirty the GET reports the pinned (hashA) instruction file plus
+	// the skill the push added: new sources land on open chats, changed
+	// ones wait for a refresh.
+	dirtyResources := resourcesBySource(got.Context.Resources)
+	require.Len(t, dirtyResources, 2, "the added skill joins the pinned file while dirty")
+	require.Contains(t, dirtyResources, agentsSource)
+	require.Contains(t, dirtyResources, skillSource)
 
-	// The dirty fan-out must NOT re-copy resources: the chat keeps the bodies
-	// from its pinned (hashA) snapshot until it is refreshed.
+	// The dirty fan-out must NOT rewrite the changed instruction file: the
+	// chat keeps the body from its pinned (hashA) snapshot until refreshed.
 	pinned = pinnedResources(chat.ID)
-	require.Len(t, pinned, 1, "dirty marking does not re-copy resources")
-	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash, "chat keeps the pinned snapshot's resources while dirty")
+	require.Len(t, pinned, 2, "dirty marking adds the new skill without re-copying the changed file")
+	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash, "chat keeps the pinned snapshot's instruction file while dirty")
+	require.Equal(t, skillHash, pinned[skillSource].ContentHash)
 
 	// Refreshing re-pins the latest snapshot (hash and error) and clears the
 	// dirty marker.
@@ -275,6 +281,186 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
 	require.False(t, got.Context.Dirty, "re-push of the pinned hash stays clean")
+}
+
+// TestChatContextAddedResourcesAutoPin covers the additive pin: prompt
+// resources whose source a hydrated chat has never pinned are added to the
+// chat on the agent push that publishes them, while changed resources still
+// mark the chat out of date until it is refreshed.
+func TestChatContextAddedResourcesAutoPin(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	ws, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, ws.LatestBuild.Resources, 1)
+	require.Len(t, ws.LatestBuild.Resources[0].Agents, 1)
+	agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
+	rootSource := "/home/coder/AGENTS.md"
+	repoSource := "/home/coder/repo/AGENTS.md"
+	skillSource := "/home/coder/.coder/skills/deploy"
+	rootV1Hash := []byte{0x11}
+	rootV2Hash := []byte{0x12}
+	repoHash := []byte{0x21}
+	skillHash := []byte{0x31}
+	instructionResource := func(source, content string, hash []byte) *agentproto.ContextResource {
+		return &agentproto.ContextResource{
+			Source:      source,
+			ContentHash: hash,
+			SizeBytes:   uint64(len(content)),
+			Status:      agentproto.ContextResource_OK,
+			Body: &agentproto.ContextResource_InstructionFile{
+				InstructionFile: &agentproto.InstructionFileBody{Content: []byte(content)},
+			},
+		}
+	}
+	skillResource := &agentproto.ContextResource{
+		Source:      skillSource,
+		ContentHash: skillHash,
+		SizeBytes:   16,
+		Status:      agentproto.ContextResource_OK,
+		Body: &agentproto.ContextResource_Skill{
+			Skill: &agentproto.SkillMetaBody{Meta: []byte("# deploy"), Name: "deploy", Description: "Deploy the app"},
+		},
+	}
+	//nolint:gocritic // Test reads chat-owned rows as the chatd subject; ctx carries no per-user actor.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	pinnedResources := func() map[string]database.ChatContextResource {
+		t.Helper()
+		rows, lerr := db.ListChatContextResourcesByChatID(chatdCtx, chat.ID)
+		require.NoError(t, lerr)
+		out := make(map[string]database.ChatContextResource, len(rows))
+		for _, r := range rows {
+			out[r.Source] = r
+		}
+		return out
+	}
+	pinnedHash := func() []byte {
+		t.Helper()
+		row, gerr := db.GetChatByID(chatdCtx, chat.ID)
+		require.NoError(t, gerr)
+		return row.ContextAggregateHash
+	}
+	push := func(version uint64, hash []byte, resources ...*agentproto.ContextResource) {
+		t.Helper()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
+		aAPI, _, cerr := agentClient.ConnectRPC210(ctx)
+		require.NoError(t, cerr)
+		defer func() { _ = aAPI.DRPCConn().Close() }()
+		resp, perr := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+			Version:       version,
+			Initial:       version == 1,
+			AggregateHash: hash,
+			Resources:     resources,
+		})
+		require.NoError(t, perr)
+		require.True(t, resp.GetAccepted())
+	}
+
+	hashV1 := []byte{0x01}
+	push(1, hashV1, instructionResource(rootSource, "root-v1", rootV1Hash))
+	got, err := expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Context)
+	require.False(t, got.Context.Dirty)
+	require.Len(t, pinnedResources(), 1)
+
+	// Watch for the context event the additive pin publishes so the UI
+	// refetches the chat's inventory.
+	events := make(chan codersdk.ChatWatchEvent, 16)
+	cancelSub, err := api.Pubsub.SubscribeWithErr(
+		coderdpubsub.ChatWatchEventChannel(user.UserID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+			if err == nil && payload.Chat.ID == chat.ID {
+				events <- payload
+			}
+		}),
+	)
+	require.NoError(t, err)
+	defer cancelSub()
+
+	// A repository cloned during the chat publishes a new instruction file
+	// alongside the unchanged root file: the chat gains the row, moves to
+	// the new hash, and stays clean.
+	hashV2 := []byte{0x02}
+	push(2, hashV2, instructionResource(rootSource, "root-v1", rootV1Hash), instructionResource(repoSource, "repo rules", repoHash))
+	event := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
+
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, got.Context.Dirty, "an added file alone does not dirty the chat")
+	pinned := pinnedResources()
+	require.Len(t, pinned, 2, "the added file is pinned onto the open chat")
+	require.Equal(t, repoHash, pinned[repoSource].ContentHash)
+	require.Equal(t, rootV1Hash, pinned[rootSource].ContentHash)
+	require.Equal(t, hashV2, pinnedHash(), "a chat level with the snapshot moves to its hash")
+
+	// Changing the root file's content marks the chat dirty and leaves the
+	// pinned body alone.
+	hashV3 := []byte{0x03}
+	push(3, hashV3, instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash))
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, got.Context.Dirty, "a changed file dirties the chat")
+	pinned = pinnedResources()
+	require.Len(t, pinned, 2)
+	require.Equal(t, rootV1Hash, pinned[rootSource].ContentHash, "the changed file keeps its pinned body")
+	require.Equal(t, hashV2, pinnedHash(), "a divergent chat keeps its pinned hash")
+
+	// A skill added while the chat is dirty is still pinned; the hash and
+	// dirty marker stay as they were because the root file still differs.
+	hashV4 := []byte{0x04}
+	push(4, hashV4, instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), skillResource)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, got.Context.Dirty, "additions do not clear an existing dirty marker")
+	pinned = pinnedResources()
+	require.Len(t, pinned, 3, "the added skill is pinned onto the dirty chat")
+	require.Equal(t, skillHash, pinned[skillSource].ContentHash)
+	require.Equal(t, rootV1Hash, pinned[rootSource].ContentHash)
+	require.Equal(t, hashV2, pinnedHash())
+
+	// Refresh re-pins everything to the latest snapshot and clears the marker.
+	refreshed, err := expClient.RefreshChatContext(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, refreshed.Context.Dirty)
+	pinned = pinnedResources()
+	require.Len(t, pinned, 3)
+	require.Equal(t, rootV2Hash, pinned[rootSource].ContentHash, "refresh adopts the changed file")
+	require.Equal(t, hashV4, pinnedHash())
 }
 
 // TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP

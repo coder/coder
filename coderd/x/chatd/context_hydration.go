@@ -29,7 +29,8 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 	}
 }
 
-// HydrateAndMarkChatsDirty pins context for unpinned chats, marks drifted chats
+// HydrateAndMarkChatsDirty pins context for unpinned chats, adds newly
+// published prompt resources to already-pinned chats, marks drifted chats
 // dirty, and live-syncs MCP resources. Its post-commit callback publishes one
 // context event per affected chat without changing dirty chats' pinned hash.
 func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
@@ -47,6 +48,20 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return nil, xerrors.Errorf("hydrate agent chats context: %w", err)
 	}
 
+	// Sources the chat has never pinned (a repository cloned mid-chat, a new
+	// skill) are safe to add without rewriting anything the model already
+	// saw, so they land on the next step instead of waiting for a refresh.
+	// Chats whose additions bring them level with the snapshot move to its
+	// hash here, so the dirty marking below skips them.
+	added, err := tx.SyncAgentChatsContextAddedResources(ctx, database.SyncAgentChatsContextAddedResourcesParams{
+		AgentID:       agentID,
+		AggregateHash: aggregateHash,
+		ContextError:  snapshotError,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("sync agent chats added context resources: %w", err)
+	}
+
 	dirtied, err := tx.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
@@ -61,9 +76,10 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return nil, xerrors.Errorf("sync agent chats mcp context resources: %w", err)
 	}
 
-	// A dirtied chat can also be MCP-synced, so publish it only once.
-	seen := make(map[uuid.UUID]struct{}, len(hydrated)+len(dirtied)+len(synced))
-	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied)+len(synced))
+	// A dirtied chat can also gain rows or be MCP-synced, so publish it only
+	// once.
+	seen := make(map[uuid.UUID]struct{}, len(hydrated)+len(added)+len(dirtied)+len(synced))
+	touched := make([]uuid.UUID, 0, len(hydrated)+len(added)+len(dirtied)+len(synced))
 	appendTouched := func(id uuid.UUID) {
 		if _, ok := seen[id]; ok {
 			return
@@ -72,6 +88,9 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		touched = append(touched, id)
 	}
 	for _, id := range hydrated {
+		appendTouched(id)
+	}
+	for _, id := range added {
 		appendTouched(id)
 	}
 	for _, d := range dirtied {

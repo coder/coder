@@ -21,11 +21,13 @@ The lifecycle of an edit looks like this:
 1. You add a skill, edit `.mcp.json`, or change an instruction file in the workspace.
 1. A file watcher notices the change, and the agent re-scans after a short period and then pushes a new snapshot.
 1. Chats that have not pinned a snapshot yet pin the new one immediately.
-1. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
+1. Chats that already pinned an older snapshot receive any new instruction files and skills right away, because nothing they have already read changes.
+1. Changed or removed instruction files and skills mark the chat out of date instead of being switched over.
 1. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
 
-This is why an in-flight chat can keep using an older snapshot: a push never rewrites a chat's pinned context.
-The pin only moves when the chat is first hydrated or when you refresh it.
+This is why an in-flight chat can keep using an older version of a file it already read: a push adds to a chat's pinned context but never rewrites it.
+The pinned copy of an existing file only changes when you refresh the chat or when the chat is rebound to a different agent, for example after a workspace rebuild.
+MCP servers are the exception: their tool lists follow the workspace on every push without marking the chat out of date.
 
 The agent publishes nothing until the workspace is ready.
 Until startup scripts finish, the agent holds an empty snapshot, so a chat opened during workspace startup can show no skills and no MCP tools until the first real push lands.
