@@ -418,23 +418,37 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 			Value:       serpent.StringOf(&f.targetWorkspaces),
 		},
 		serpent.Option{
+			Flag:        "use-host-login",
+			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
+			Default:     "false",
+			Description: "Connect as the currently logged in user.",
+			Value:       serpent.BoolOf(&f.useHostLogin),
+		},
+	)
+}
+
+// attachSharding adds the workspace-sharding flags. It is intentionally
+// separate from attach so the flags are only published on commands that
+// actually shard workspaces (workspace-traffic), rather than every command
+// that targets workspaces (e.g. exp scaletest chat).
+//
+// The serpent int64 zero value cannot distinguish "shard 0" from "unset", so
+// shard-index defaults to the -1 unset sentinel; shard-count uses 0.
+func (f *workspaceTargetFlags) attachSharding(opts *serpent.OptionSet) {
+	*opts = append(*opts,
+		serpent.Option{
 			Flag:        "shard-index",
 			Env:         "CODER_SCALETEST_SHARD_INDEX",
+			Default:     "-1",
 			Description: "Zero-based index of this shard when partitioning workspaces across multiple load generator replicas. Requires --shard-count and is mutually exclusive with --target-workspaces.",
 			Value:       serpent.Int64Of(&f.shardIndex),
 		},
 		serpent.Option{
 			Flag:        "shard-count",
 			Env:         "CODER_SCALETEST_SHARD_COUNT",
-			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each shard targets a disjoint, evenly-sized slice of the running workspaces. Mutually exclusive with --target-workspaces.",
+			Default:     "0",
+			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each shard targets a disjoint, evenly-sized slice of the running workspaces. Requires --shard-index and is mutually exclusive with --target-workspaces.",
 			Value:       serpent.Int64Of(&f.shardCount),
-		},
-		serpent.Option{
-			Flag:        "use-host-login",
-			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
-			Default:     "false",
-			Description: "Connect as the currently logged in user.",
-			Value:       serpent.BoolOf(&f.useHostLogin),
 		},
 	)
 }
@@ -450,16 +464,34 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 		}
 	}
 
-	// --target-workspaces and the sharding flags are two mutually exclusive ways
-	// of selecting a subset of workspaces.
-	if f.targetWorkspaces != "" && (f.shardCount > 0 || f.shardIndex > 0) {
+	// Sharding and --target-workspaces are mutually exclusive subset selectors.
+	// shard-count == 0 and shard-index == -1 are the "unset" sentinels (the
+	// serpent int64 zero value cannot distinguish shard 0 from unset). Gate on
+	// set-ness rather than value so a negative count or a lone --shard-index
+	// cannot silently fall through to targeting every workspace.
+	countSet := f.shardCount != 0
+	indexSet := f.shardIndex != -1
+	shardingRequested := countSet || indexSet
+
+	if f.targetWorkspaces != "" && shardingRequested {
 		return nil, xerrors.New("--target-workspaces cannot be used with --shard-index/--shard-count")
 	}
-	if f.shardIndex > 0 && f.shardCount == 0 {
-		return nil, xerrors.New("--shard-index requires --shard-count")
-	}
-	if f.shardCount > 0 && (f.shardIndex < 0 || f.shardIndex >= f.shardCount) {
-		return nil, xerrors.Errorf("shard-index %d is out of range for shard-count %d (must be in [0, %d))", f.shardIndex, f.shardCount, f.shardCount)
+	if shardingRequested {
+		if !countSet {
+			return nil, xerrors.New("--shard-index requires --shard-count")
+		}
+		if f.shardCount < 1 {
+			return nil, xerrors.Errorf("--shard-count must be a positive integer, got %d", f.shardCount)
+		}
+		if !indexSet {
+			return nil, xerrors.New("--shard-count requires --shard-index")
+		}
+		if f.shardIndex < 0 {
+			return nil, xerrors.Errorf("--shard-index must be >= 0, got %d", f.shardIndex)
+		}
+		if f.shardIndex >= f.shardCount {
+			return nil, xerrors.Errorf("--shard-index %d is out of range for --shard-count %d (must be in [0, %d))", f.shardIndex, f.shardCount, f.shardCount)
+		}
 	}
 
 	// Parse target range
@@ -484,12 +516,14 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	}
 
 	// Sharding mode: each replica targets a disjoint, evenly-sized slice of the
-	// running workspaces. We only consider running workspaces so the load is
-	// balanced across shards even if some workspaces failed to start; every
-	// shard computes the same ordered set (the workspaces query is
-	// deterministically ordered) and derives its own bounds, so the union of
-	// shards covers all running workspaces without overlap.
-	if f.shardCount > 0 {
+	// running workspaces. Only running workspaces are considered so load is
+	// balanced even if some workspaces failed to start. This slice is disjoint
+	// and complete across replicas only when every replica observes the same
+	// running set; the traffic jobs guarantee that by starting after workspace
+	// creation has settled (a churning running set produces load-measurement
+	// skew, not per-pod memory growth, since each pod still bounds its own slice
+	// width to ~n/count).
+	if shardingRequested {
 		running := make([]codersdk.Workspace, 0, len(workspaces))
 		for _, ws := range workspaces {
 			if ws.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
@@ -503,6 +537,11 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 			return nil, xerrors.New("no running scaletest workspaces exist")
 		}
 		start, end := shardBounds(len(running), int(f.shardIndex), int(f.shardCount))
+		// Emit a per-shard diagnostic so an empty or unexpectedly small slice is
+		// visible instead of a silent no-op: a pod that targets zero workspaces
+		// (e.g. running count dropped below shard-count) still exits 0.
+		_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces (indices [%d, %d))\n",
+			f.shardIndex, f.shardCount, end-start, len(running), start, end)
 		return running[start:end], nil
 	}
 
@@ -1741,6 +1780,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 	}
 
 	targetFlags.attach(&cmd.Options)
+	targetFlags.attachSharding(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)

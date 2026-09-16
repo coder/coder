@@ -27,7 +27,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		turnStartDelay          time.Duration
 		llmMockURL              string
 		providerPropagationWait time.Duration
-		targetFlags             = &workspaceTargetFlags{allowEmpty: true}
+		targetFlags             = &workspaceTargetFlags{allowEmpty: true, shardIndex: -1}
 		tracingFlags            = &scaletestTracingFlags{}
 		prometheusFlags         = &scaletestPrometheusFlags{}
 		timeoutStrategy         = &timeoutFlags{}
