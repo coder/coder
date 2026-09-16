@@ -330,13 +330,15 @@ func hasGitMarker(dir string) bool {
 	return err == nil
 }
 
-// childProjectDirs lists the immediate children of root worth watching,
-// capped at maxChildProjects. Children with an instruction file come
-// first, in the resolver's order, so every child the resolver publishes is
-// watched; children with only a .git marker (a fresh clone before its files
-// are checked out) fill the remaining slots. Fixed names are probed instead
-// of listing each child, so a large non-project child such as node_modules
-// costs a few stats rather than a directory read.
+// childProjectDirs lists the immediate children of root worth watching.
+// Children with an instruction file come first, in the resolver's order and
+// under its cap, so every child the resolver publishes is watched. Children
+// with only a .git marker (a fresh clone before its files are checked out)
+// that sort before the last published child are watched under a cap of
+// their own: one of them gaining an instruction file changes the published
+// set, so its event must fire even when the published slots are full. Fixed
+// names are probed instead of listing each child, so a large non-project
+// child such as node_modules costs a few stats rather than a directory read.
 func childProjectDirs(root string) []string {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -358,14 +360,10 @@ func childProjectDirs(root string) []string {
 			break
 		}
 	}
-	dirs := withInstructions
-	for _, child := range gitOnly {
-		if len(dirs) == maxChildProjects {
-			break
-		}
-		dirs = append(dirs, child)
+	if len(gitOnly) > maxChildProjects {
+		gitOnly = gitOnly[:maxChildProjects]
 	}
-	return dirs
+	return append(withInstructions, gitOnly...)
 }
 
 // collectDirs returns the set of directories to watch. Discovery
