@@ -271,4 +271,33 @@ describe("ConversationTimeline working blocks", () => {
 		});
 		expect(copyCommand).toHaveFocus();
 	});
+
+	it("keeps focus inside an open live block when its prompt page arrives", async () => {
+		const user = userEvent.setup();
+		const messages = MockWorkingMessages.slice(1, 4);
+		const pendingToolCallIDs = getPendingToolCallIDs(messages, "running");
+		const { rerenderStage } = renderTimeline({
+			messages,
+			pendingToolCallIDs,
+			hasMoreMessages: true,
+			chatStatus: "running",
+			liveStatus: { phase: "idle", hasAccumulatedOutput: false },
+		});
+		await user.click(
+			screen.getByRole("button", { name: "Working for at least 12s" }),
+		);
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
+
+		rerenderStage({
+			messages: MockWorkingMessages.slice(0, 4),
+			pendingToolCallIDs,
+			hasMoreMessages: true,
+			chatStatus: "running",
+			liveStatus: { phase: "idle", hasAccumulatedOutput: false },
+		});
+		expect(copyCommand).toHaveFocus();
+	});
 });
