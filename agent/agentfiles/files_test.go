@@ -523,8 +523,8 @@ func TestEditFiles(t *testing.T) {
 				{
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -538,8 +538,8 @@ func TestEditFiles(t *testing.T) {
 					Path: "./relative",
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -554,8 +554,8 @@ func TestEditFiles(t *testing.T) {
 					Path: "also-relative",
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -580,8 +580,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "does-not-exist"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -596,8 +596,8 @@ func TestEditFiles(t *testing.T) {
 					Path: dirPath,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -612,8 +612,8 @@ func TestEditFiles(t *testing.T) {
 					Path: noPermsFilePath,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -629,8 +629,8 @@ func TestEditFiles(t *testing.T) {
 					Path: failRenameFilePath,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -648,8 +648,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "edit1"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 					},
 				},
@@ -666,12 +666,12 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "edit-edit"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 						{
-							Search:  "bar",
-							Replace: "qux",
+							OldText: "bar",
+							NewText: "qux",
 						},
 					},
 				},
@@ -691,12 +691,12 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "edit-edit-ra"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "bar",
+							OldText: "foo",
+							NewText: "bar",
 						},
 						{
-							Search:     "bar",
-							Replace:    "qux",
+							OldText:    "bar",
+							NewText:    "qux",
 							ReplaceAll: true,
 						},
 					},
@@ -712,8 +712,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "multiline"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "bar\nbaz",
-							Replace: "frob",
+							OldText: "bar\nbaz",
+							NewText: "frob",
 						},
 					},
 				},
@@ -732,8 +732,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "file1"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "file",
-							Replace: "edited1",
+							OldText: "file",
+							NewText: "edited1",
 						},
 					},
 				},
@@ -741,8 +741,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "file2"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "file",
-							Replace: "edited2",
+							OldText: "file",
+							NewText: "edited2",
 						},
 					},
 				},
@@ -750,8 +750,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "file3"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "file",
-							Replace: "edited3",
+							OldText: "file",
+							NewText: "edited3",
 						},
 					},
 				},
@@ -770,8 +770,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "trailing-ws"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo\nbar\nbaz",
-							Replace: "replaced",
+							OldText: "foo\nbar\nbaz",
+							NewText: "replaced",
 						},
 					},
 				},
@@ -795,8 +795,8 @@ func TestEditFiles(t *testing.T) {
 					Edits: []workspacesdk.FileEdit{
 						{
 							// Search uses spaces but file uses tabs.
-							Search:  "    if true {\n        foo()\n    }",
-							Replace: "\tif true {\n\t\tbar()\n\t}",
+							OldText: "    if true {\n        foo()\n    }",
+							NewText: "\tif true {\n\t\tbar()\n\t}",
 						},
 					},
 				},
@@ -812,8 +812,8 @@ func TestEditFiles(t *testing.T) {
 					Edits: []workspacesdk.FileEdit{
 						{
 							// Search has wrong indent depth (1 tab instead of 3).
-							Search:  "\tdeep()\n\tnested()",
-							Replace: "\t\t\tdeep()\n\t\t\tchanged()",
+							OldText: "\tdeep()\n\tnested()",
+							NewText: "\t\t\tdeep()\n\t\t\tchanged()",
 						},
 					},
 				},
@@ -828,8 +828,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "exact-preferred"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "hello world",
-							Replace: "goodbye world",
+							OldText: "hello world",
+							NewText: "goodbye world",
 						},
 					},
 				},
@@ -844,8 +844,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "no-match"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "this does not exist in the file",
-							Replace: "whatever",
+							OldText: "this does not exist in the file",
+							NewText: "whatever",
 						},
 					},
 				},
@@ -863,8 +863,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "ambig-exact"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo",
-							Replace: "qux",
+							OldText: "foo",
+							NewText: "qux",
 						},
 					},
 				},
@@ -881,8 +881,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "ra-exact"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:     "foo",
-							Replace:    "qux",
+							OldText:    "foo",
+							NewText:    "qux",
 							ReplaceAll: true,
 						},
 					},
@@ -899,8 +899,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "ra-fuzzy-trail"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:     "hello\n",
-							Replace:    "bye\n",
+							OldText:    "hello\n",
+							NewText:    "bye\n",
 							ReplaceAll: true,
 						},
 					},
@@ -922,8 +922,8 @@ func TestEditFiles(t *testing.T) {
 					Edits: []workspacesdk.FileEdit{
 						{
 							// Search uses different indentation (spaces instead of tabs).
-							Search:     "    alpha\n",
-							Replace:    "\t\tREPLACED\n",
+							OldText:    "    alpha\n",
+							NewText:    "\t\tREPLACED\n",
 							ReplaceAll: true,
 						},
 					},
@@ -940,8 +940,8 @@ func TestEditFiles(t *testing.T) {
 					Edits: []workspacesdk.FileEdit{
 						{
 							// Search uses spaces, file uses tabs.
-							Search:  "  result := compute()\n  fmt.Println(result)\n",
-							Replace: "\tresult := compute()\n\tlog.Println(result)\n",
+							OldText: "  result := compute()\n  fmt.Println(result)\n",
+							NewText: "\tresult := compute()\n\tlog.Println(result)\n",
 						},
 					},
 				},
@@ -958,8 +958,8 @@ func TestEditFiles(t *testing.T) {
 					Path: noPermsFilePath,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "file",
-							Replace: "edited7",
+							OldText: "file",
+							NewText: "edited7",
 						},
 					},
 				},
@@ -967,8 +967,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "file8"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "file",
-							Replace: "edited8",
+							OldText: "file",
+							NewText: "edited8",
 						},
 					},
 				},
@@ -976,8 +976,8 @@ func TestEditFiles(t *testing.T) {
 					Path: filepath.Join(tmpdir, "file9"),
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "file",
-							Replace: "edited9",
+							OldText: "file",
+							NewText: "edited9",
 						},
 					},
 				},
@@ -1008,19 +1008,19 @@ func TestEditFiles(t *testing.T) {
 				{
 					Path: filepath.Join(tmpdir, "atomic-a"),
 					Edits: []workspacesdk.FileEdit{
-						{Search: "aaa", Replace: "AAA"},
+						{OldText: "aaa", NewText: "AAA"},
 					},
 				},
 				{
 					Path: filepath.Join(tmpdir, "atomic-b"),
 					Edits: []workspacesdk.FileEdit{
-						{Search: "NOTFOUND", Replace: "XXX"},
+						{OldText: "NOTFOUND", NewText: "XXX"},
 					},
 				},
 				{
 					Path: filepath.Join(tmpdir, "atomic-c"),
 					Edits: []workspacesdk.FileEdit{
-						{Search: "ccc", Replace: "CCC"},
+						{OldText: "ccc", NewText: "CCC"},
 					},
 				},
 			},
@@ -1105,8 +1105,8 @@ func TestEditFiles_PreservesPermissions(t *testing.T) {
 				Path: path,
 				Edits: []workspacesdk.FileEdit{
 					{
-						Search:  "hello",
-						Replace: "world",
+						OldText: "hello",
+						NewText: "world",
 					},
 				},
 			},
@@ -1240,7 +1240,7 @@ func TestHandleEditFiles_ChatHeaders_UpdatesPathStore(t *testing.T) {
 			{
 				Path: testPath,
 				Edits: []workspacesdk.FileEdit{
-					{Search: "hello", Replace: "world"},
+					{OldText: "hello", NewText: "world"},
 				},
 			},
 		},
@@ -1277,7 +1277,7 @@ func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
 			{
 				Path: "/nonexistent/file.txt",
 				Edits: []workspacesdk.FileEdit{
-					{Search: "hello", Replace: "world"},
+					{OldText: "hello", NewText: "world"},
 				},
 			},
 		},
@@ -1557,8 +1557,8 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 				Path: linkPath,
 				Edits: []workspacesdk.FileEdit{
 					{
-						Search:  "hello",
-						Replace: "goodbye",
+						OldText: "hello",
+						NewText: "goodbye",
 					},
 				},
 			},
@@ -1606,7 +1606,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 				{
 					Path: path,
 					Edits: []workspacesdk.FileEdit{
-						{Search: "hello", Replace: "HELLO"},
+						{OldText: "hello", NewText: "HELLO"},
 					},
 				},
 			},
@@ -1635,7 +1635,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 					Path: path,
 					Edits: []workspacesdk.FileEdit{
 						// Replace with identical text (no-op).
-						{Search: "same", Replace: "same"},
+						{OldText: "same", NewText: "same"},
 					},
 				},
 			},
@@ -1659,7 +1659,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 				{
 					Path: path,
 					Edits: []workspacesdk.FileEdit{
-						{Search: "hello", Replace: "HELLO"},
+						{OldText: "hello", NewText: "HELLO"},
 					},
 				},
 			},
@@ -1682,9 +1682,9 @@ func TestEditFiles_FileResults(t *testing.T) {
 		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
 			IncludeDiff: true,
 			Files: []workspacesdk.FileEdits{
-				{Path: pathA, Edits: []workspacesdk.FileEdit{{Search: "A", Replace: "a"}}},
-				{Path: pathB, Edits: []workspacesdk.FileEdit{{Search: "B", Replace: "b"}}},
-				{Path: pathC, Edits: []workspacesdk.FileEdit{{Search: "C", Replace: "c"}}},
+				{Path: pathA, Edits: []workspacesdk.FileEdit{{OldText: "A", NewText: "a"}}},
+				{Path: pathB, Edits: []workspacesdk.FileEdit{{OldText: "B", NewText: "b"}}},
+				{Path: pathC, Edits: []workspacesdk.FileEdit{{OldText: "C", NewText: "c"}}},
 			},
 		})
 		require.Len(t, resp.Files, 3)
@@ -1718,8 +1718,8 @@ func TestEditFiles_FileResults(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: path,
 				Edits: []workspacesdk.FileEdit{
-					{Search: "one", Replace: "ONE"},
-					{Search: "three", Replace: "THREE"},
+					{OldText: "one", NewText: "ONE"},
+					{OldText: "three", NewText: "THREE"},
 				},
 			}},
 		})
@@ -1755,7 +1755,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 				{
 					Path: linkPath,
 					Edits: []workspacesdk.FileEdit{
-						{Search: "hello", Replace: "HELLO"},
+						{OldText: "hello", NewText: "HELLO"},
 					},
 				},
 			},
@@ -2043,8 +2043,8 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
 			for _, e := range tt.edits {
 				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
-					Search:     e.search,
-					Replace:    e.replace,
+					OldText:    e.search,
+					NewText:    e.replace,
 					ReplaceAll: e.replaceAll,
 				})
 			}
@@ -2197,8 +2197,8 @@ func TestFuzzyReplace_EndingNormalization(t *testing.T) {
 			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
 			for _, e := range tt.edits {
 				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
-					Search:     e.search,
-					Replace:    e.replace,
+					OldText:    e.search,
+					NewText:    e.replace,
 					ReplaceAll: e.replaceAll,
 				})
 			}
@@ -2300,8 +2300,8 @@ func TestFuzzyReplace_FuzzyCollapse_PreservesNextLine(t *testing.T) {
 			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
 			for _, e := range tt.edits {
 				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
-					Search:  e.search,
-					Replace: e.replace,
+					OldText: e.search,
+					NewText: e.replace,
 				})
 			}
 			req := workspacesdk.FileEditRequest{
@@ -2450,8 +2450,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 				Files: []workspacesdk.FileEdits{{
 					Path: path,
 					Edits: []workspacesdk.FileEdit{{
-						Search:     ct.search,
-						Replace:    ct.replace,
+						OldText:    ct.search,
+						NewText:    ct.replace,
 						ReplaceAll: ct.replaceAll,
 					}},
 				}},
@@ -2590,8 +2590,8 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
 			for _, e := range tt.edits {
 				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
-					Search:     e.search,
-					Replace:    e.replace,
+					OldText:    e.search,
+					NewText:    e.replace,
 					ReplaceAll: e.replaceAll,
 				})
 			}
@@ -2640,8 +2640,8 @@ func TestEditFiles_DuplicatePath_Merges(t *testing.T) {
 	// are applied in the order they appear across entries.
 	req := workspacesdk.FileEditRequest{
 		Files: []workspacesdk.FileEdits{
-			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "CHANGED"}}},
-			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "CHANGED", Replace: "FINAL"}}},
+			{Path: path, Edits: []workspacesdk.FileEdit{{OldText: "one", NewText: "CHANGED"}}},
+			{Path: path, Edits: []workspacesdk.FileEdit{{OldText: "CHANGED", NewText: "FINAL"}}},
 		},
 	}
 
@@ -2678,8 +2678,8 @@ func TestEditFiles_DuplicatePath_NonCanonicalMerges(t *testing.T) {
 
 	req := workspacesdk.FileEditRequest{
 		Files: []workspacesdk.FileEdits{
-			{Path: canonical, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "ONE"}}},
-			{Path: nonCanonical, Edits: []workspacesdk.FileEdit{{Search: "three", Replace: "THREE"}}},
+			{Path: canonical, Edits: []workspacesdk.FileEdit{{OldText: "one", NewText: "ONE"}}},
+			{Path: nonCanonical, Edits: []workspacesdk.FileEdit{{OldText: "three", NewText: "THREE"}}},
 		},
 	}
 
@@ -2725,8 +2725,8 @@ func TestEditFiles_DuplicatePath_SymlinkAliasRejects(t *testing.T) {
 
 	req := workspacesdk.FileEditRequest{
 		Files: []workspacesdk.FileEdits{
-			{Path: realPath, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "ONE"}}},
-			{Path: linkPath, Edits: []workspacesdk.FileEdit{{Search: "three", Replace: "THREE"}}},
+			{Path: realPath, Edits: []workspacesdk.FileEdit{{OldText: "one", NewText: "ONE"}}},
+			{Path: linkPath, Edits: []workspacesdk.FileEdit{{OldText: "three", NewText: "THREE"}}},
 		},
 	}
 
@@ -2793,10 +2793,10 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 		Files: []workspacesdk.FileEdits{{
 			Path: path,
 			Edits: []workspacesdk.FileEdit{{
-				Search: "    if err != nil {\n" +
+				OldText: "    if err != nil {\n" +
 					"        return err\n" +
 					"    }\n",
-				Replace: "    if err != nil {\n" +
+				NewText: "    if err != nil {\n" +
 					"        return fmt.Errorf(\"wrap: %w\", err)\n" +
 					"    }\n",
 				ReplaceAll: true,
@@ -3139,8 +3139,8 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 			}
 			for _, e := range tt.edits {
 				req.Files[0].Edits = append(req.Files[0].Edits, workspacesdk.FileEdit{
-					Search:     e.search,
-					Replace:    e.replace,
+					OldText:    e.search,
+					NewText:    e.replace,
 					ReplaceAll: e.replaceAll,
 				})
 			}
@@ -3181,13 +3181,13 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 		Files: []workspacesdk.FileEdits{{
 			Path: path,
 			Edits: []workspacesdk.FileEdit{{
-				Search: "        f := fl.Field().Interface()\n" +
+				OldText: "        f := fl.Field().Interface()\n" +
 					"        str, ok := f.(string)\n" +
 					"        if !ok {\n" +
 					"            return false\n" +
 					"        }\n" +
 					"        valid := codersdk.NameValid(str)",
-				Replace: "        f := fl.Field().Interface()\n" +
+				NewText: "        f := fl.Field().Interface()\n" +
 					"        str, ok := f.(string)\n" +
 					"        if !ok {\n" +
 					"            log.Println(\"type assertion failed\")\n" +
@@ -3588,8 +3588,8 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 				Files: []workspacesdk.FileEdits{{
 					Path: path,
 					Edits: []workspacesdk.FileEdit{{
-						Search:  tt.edit.search,
-						Replace: tt.edit.replace,
+						OldText: tt.edit.search,
+						NewText: tt.edit.replace,
 					}},
 				}},
 			}

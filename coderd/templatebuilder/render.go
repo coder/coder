@@ -3,9 +3,10 @@ package templatebuilder
 import (
 	"bytes"
 	"io/fs"
-	"regexp"
 	"text/template"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"golang.org/x/xerrors"
 )
 
@@ -15,11 +16,21 @@ type ImageOption struct {
 	Value string
 }
 
+// DefaultRegistryBase is the module registry host used in rendered module source
+// paths when a ComposeRequest does not carry the deployment's configured
+// registry (CODER_TEMPLATE_BUILDER_REGISTRY_URL). It mirrors the default of the
+// codersdk template-builder registry option.
+const DefaultRegistryBase = "registry.coder.com"
+
 // BaseRenderContext is the data passed to base template .tf.tmpl files.
 type BaseRenderContext struct {
 	ContainerImage string
 	ImageOptions   []ImageOption
-	Variables      map[string]string
+	// RegistryBase is the module registry host used in rendered module source
+	// paths, mirroring ModuleRenderContext.RegistryBase so a base-embedded
+	// module honors CODER_TEMPLATE_BUILDER_REGISTRY_URL like a wizard module.
+	RegistryBase string
+	Variables    map[string]string
 }
 
 // ModuleRenderContext is the data passed to module .tf.tmpl files.
@@ -99,40 +110,101 @@ func renderTemplate(fsys fs.FS, templatePath string, data any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// agentResourcePattern matches `resource "coder_agent" "<name>"` in HCL.
-var agentResourcePattern = regexp.MustCompile(`resource\s+"coder_agent"\s+"(\w+)"`)
+// parseRenderedHCL parses rendered Terraform into an hclsyntax body. The input
+// is expected to be rendered output from our own curated base templates, so a
+// parse error indicates a bug in a template rather than untrusted user input.
+func parseRenderedHCL(rendered []byte) (*hclsyntax.Body, error) {
+	file, diags := hclsyntax.ParseConfig(rendered, "rendered.tf", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, xerrors.Errorf("parse rendered template HCL: %s", diags.Error())
+	}
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, xerrors.New("unexpected HCL body type")
+	}
+	return body, nil
+}
 
-// agentCountPattern detects whether a coder_agent block uses count or
-// for_each, which means references to it require an index (e.g. [0]).
-var agentCountPattern = regexp.MustCompile(
-	`resource\s+"coder_agent"\s+"\w+"\s*\{[^}]*\b(?:count|for_each)\s*=`,
-)
+// ExtractedAgent describes a coder_agent resource found in rendered HCL.
+type ExtractedAgent struct {
+	// Name is the Terraform resource name (the second block label).
+	Name string
+	// Reference is the form to use in module templates: Name, suffixed with
+	// [0] when the agent uses count or for_each and therefore requires an
+	// index (e.g. coder_agent.dev[0].id).
+	Reference string
+}
+
+// ExtractAgentResourceNames returns every coder_agent resource declared in
+// rendered HCL, in declaration order. Unlike the singular helper it does not
+// error on multiple agents: enumerating them all lets a base declare more than
+// one agent. Reading count/for_each from each block body is robust to nested
+// blocks (env {}, metadata {}). The input is expected to be rendered output
+// from our own curated base templates, not arbitrary user HCL.
+func ExtractAgentResourceNames(rendered []byte) ([]ExtractedAgent, error) {
+	body, err := parseRenderedHCL(rendered)
+	if err != nil {
+		return nil, err
+	}
+	var agents []ExtractedAgent
+	for _, block := range body.Blocks {
+		if block.Type != "resource" || len(block.Labels) < 2 || block.Labels[0] != "coder_agent" {
+			continue
+		}
+		ref := block.Labels[1]
+		if _, ok := block.Body.Attributes["count"]; ok {
+			ref += "[0]"
+		} else if _, ok := block.Body.Attributes["for_each"]; ok {
+			ref += "[0]"
+		}
+		agents = append(agents, ExtractedAgent{Name: block.Labels[1], Reference: ref})
+	}
+	return agents, nil
+}
 
 // ExtractAgentResourceName finds the coder_agent resource declaration in
 // rendered HCL and returns the reference form to use in module templates.
 // When the agent uses count or for_each, the returned name includes an
 // index suffix (e.g. "dev[0]") so that module templates can reference it
 // as coder_agent.<name>.id. Returns an error unless exactly one
-// coder_agent resource is found; the builder only supports single-agent
-// templates. The input is expected to be rendered output from our own
-// curated base templates, not arbitrary user HCL.
-func ExtractAgentResourceName(hcl []byte) (string, error) {
-	matches := agentResourcePattern.FindAllSubmatch(hcl, -1)
-	switch len(matches) {
+// coder_agent resource is found; callers that support multiple agents
+// should use ExtractAgentResourceNames instead. The input is expected to be
+// rendered output from our own curated base templates, not arbitrary user HCL.
+func ExtractAgentResourceName(rendered []byte) (string, error) {
+	agents, err := ExtractAgentResourceNames(rendered)
+	if err != nil {
+		return "", err
+	}
+	switch len(agents) {
 	case 0:
 		return "", xerrors.New("no coder_agent resource found in rendered template")
 	case 1:
-		name := string(matches[0][1])
-		if agentCountPattern.Match(hcl) {
-			name += "[0]"
-		}
-		return name, nil
+		return agents[0].Reference, nil
 	default:
-		names := make([]string, 0, len(matches))
-		for _, m := range matches {
-			names = append(names, string(m[1]))
+		names := make([]string, 0, len(agents))
+		for _, a := range agents {
+			names = append(names, a.Name)
 		}
 		return "", xerrors.Errorf("expected exactly one coder_agent resource, found %d: %v",
-			len(matches), names)
+			len(agents), names)
 	}
+}
+
+// ExtractModuleNames returns the labels of every module block declared in
+// rendered HCL, in declaration order. Because it walks parsed blocks,
+// commented-out references and module strings inside heredocs are naturally
+// ignored. The input is expected to be rendered output from our own curated
+// base templates, not arbitrary user HCL; unparsable input yields no names.
+func ExtractModuleNames(rendered []byte) []string {
+	body, err := parseRenderedHCL(rendered)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, block := range body.Blocks {
+		if block.Type == "module" && len(block.Labels) >= 1 {
+			names = append(names, block.Labels[0])
+		}
+	}
+	return names
 }

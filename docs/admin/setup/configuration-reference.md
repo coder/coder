@@ -73,6 +73,14 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server.md#--disable-path-apps)
 - YAML key: `disablePathApps`
 
+### Disable user secret file path
+
+Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.
+
+- Environment variable: `CODER_DISABLE_USER_SECRET_FILE_PATH`
+- CLI flag: [`--disable-user-secret-file-path`](../../reference/cli/server.md#--disable-user-secret-file-path)
+- YAML key: `disableUserSecretFilePath`
+
 ### Disable workspace agent context sync
 
 Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
@@ -304,86 +312,6 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 - CLI flag: [`--ai-gateway-structured-logging`](../../reference/cli/server.md#--ai-gateway-structured-logging)
 - YAML key: `ai_gateway.structured_logging`
 - Default value: `false`
-
-### Anthropic base URL
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the Anthropic API.
-
-- Environment variable: `CODER_AI_GATEWAY_ANTHROPIC_BASE_URL`
-- CLI flag: [`--ai-gateway-anthropic-base-url`](../../reference/cli/server.md#--ai-gateway-anthropic-base-url)
-- YAML key: `ai_gateway.anthropic_base_url`
-- Default value: `https://api.anthropic.com/`
-
-### Anthropic key
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the Anthropic API.
-
-- Environment variable: `CODER_AI_GATEWAY_ANTHROPIC_KEY`
-- CLI flag: [`--ai-gateway-anthropic-key`](../../reference/cli/server.md#--ai-gateway-anthropic-key)
-
-### Bedrock access key
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key to authenticate against the AWS Bedrock API.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY`
-- CLI flag: [`--ai-gateway-bedrock-access-key`](../../reference/cli/server.md#--ai-gateway-bedrock-access-key)
-
-### Bedrock access key secret
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key secret to use with the access key to authenticate against the AWS Bedrock API.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET`
-- CLI flag: [`--ai-gateway-bedrock-access-key-secret`](../../reference/cli/server.md#--ai-gateway-bedrock-access-key-secret)
-
-### Bedrock base URL
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_BASE_URL`
-- CLI flag: [`--ai-gateway-bedrock-base-url`](../../reference/cli/server.md#--ai-gateway-bedrock-base-url)
-- YAML key: `ai_gateway.bedrock_base_url`
-
-### Bedrock model
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The model to use when making requests to the AWS Bedrock API.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_MODEL`
-- CLI flag: [`--ai-gateway-bedrock-model`](../../reference/cli/server.md#--ai-gateway-bedrock-model)
-- YAML key: `ai_gateway.bedrock_model`
-- Default value: `global.anthropic.claude-sonnet-4-5-20250929-v1:0`
-
-### Bedrock region
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_REGION`
-- CLI flag: [`--ai-gateway-bedrock-region`](../../reference/cli/server.md#--ai-gateway-bedrock-region)
-- YAML key: `ai_gateway.bedrock_region`
-
-### Bedrock small fast model
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL`
-- CLI flag: [`--ai-gateway-bedrock-small-fastmodel`](../../reference/cli/server.md#--ai-gateway-bedrock-small-fastmodel)
-- YAML key: `ai_gateway.bedrock_small_fast_model`
-- Default value: `global.anthropic.claude-haiku-4-5-20251001-v1:0`
-
-### OpenAI base URL
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the OpenAI API.
-
-- Environment variable: `CODER_AI_GATEWAY_OPENAI_BASE_URL`
-- CLI flag: [`--ai-gateway-openai-base-url`](../../reference/cli/server.md#--ai-gateway-openai-base-url)
-- YAML key: `ai_gateway.openai_base_url`
-- Default value: `https://api.openai.com/v1/`
-
-### OpenAI key
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the OpenAI API.
-
-- Environment variable: `CODER_AI_GATEWAY_OPENAI_KEY`
-- CLI flag: [`--ai-gateway-openai-key`](../../reference/cli/server.md#--ai-gateway-openai-key)
 
 ## AI Gateway Proxy
 
@@ -839,6 +767,16 @@ Serve pprof metrics on the address defined by pprof address.
 - Environment variable: `CODER_PPROF_ENABLE`
 - CLI flag: [`--pprof-enable`](../../reference/cli/server.md#--pprof-enable)
 - YAML key: `introspection.pprof.enable`
+
+## MCP
+
+### Allowed private CIDRs
+
+MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.
+
+- Environment variable: `CODER_MCP_ALLOWED_PRIVATE_CIDRS`
+- CLI flag: [`--mcp-allowed-private-cidrs`](../../reference/cli/server.md#--mcp-allowed-private-cidrs)
+- YAML key: `mcp.allowed_private_cidrs`
 
 ## Networking
 
@@ -1370,7 +1308,7 @@ The endpoint to which to send webhooks.
 
 ## OAuth2
 
-Configure login and user-provisioning with GitHub via oAuth2.
+Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 authorization server.
 
 ### GitHub
 
@@ -1446,6 +1384,17 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 - Environment variable: `CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL`
 - CLI flag: [`--oauth2-github-enterprise-base-url`](../../reference/cli/server.md#--oauth2-github-enterprise-base-url)
 - YAML key: `oauth2.github.enterpriseBaseURL`
+
+### Provider
+
+#### Enable
+
+Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+
+- Environment variable: `CODER_OAUTH2_PROVIDER_ENABLE`
+- CLI flag: [`--oauth2-provider-enable`](../../reference/cli/server.md#--oauth2-provider-enable)
+- YAML key: `oauth2.provider.enable`
+- Default value: `false`
 
 ## OIDC
 
@@ -1680,6 +1629,15 @@ OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the
 
 Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.
 
+### Disable Terraform module cache
+
+Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.
+
+- Environment variable: `CODER_PROVISIONER_DISABLE_MODULE_CACHE`
+- CLI flag: [`--provisioner-disable-module-cache`](../../reference/cli/server.md#--provisioner-disable-module-cache)
+- YAML key: `provisioning.disableModuleCache`
+- Default value: `false`
+
 ### Force cancel interval
 
 Time to force cancel provisioning tasks that are stuck.
@@ -1797,7 +1755,7 @@ Disable the template builder feature for guided template creation. When disabled
 
 ### Registry URL
 
-The base URL of the module registry used by the template builder for module source paths.
+The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
 
 - Environment variable: `CODER_TEMPLATE_BUILDER_REGISTRY_URL`
 - CLI flag: [`--template-builder-registry-url`](../../reference/cli/server.md#--template-builder-registry-url)

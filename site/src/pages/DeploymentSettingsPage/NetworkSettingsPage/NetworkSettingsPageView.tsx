@@ -1,10 +1,7 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import {
-	Badges,
-	DisabledBadge,
-	EnabledBadge,
-} from "#/components/Badges/Badges";
+import { BadgeGroup } from "#/components/Badge/Badge";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -60,14 +57,14 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<Badges>
+			<BadgeGroup>
 				{useDeploymentOptions(options, "Wildcard Access URL")[0].value !==
 				"" ? (
 					<EnabledBadge />
 				) : (
 					<DisabledBadge />
 				)}
-			</Badges>
+			</BadgeGroup>
 		</div>
 	</div>
 );

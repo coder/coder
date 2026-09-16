@@ -207,6 +207,18 @@ export const NoUpdatePermission: Story = {
 			permissionsQuery({ canUpdateGroup: false }),
 		],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("link", { name: "Back to groups" }),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${MockDefaultOrganization.name}/groups`,
+		);
+		expect(
+			canvas.queryByRole("button", { name: "Add users" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 /**
@@ -244,6 +256,15 @@ export const SettingsWithoutUpdatePermission: Story = {
 		).toBeInTheDocument();
 		// The editable budget/name form is never rendered.
 		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("link", {
+				name: "Back to groups",
+				hidden: true,
+			}),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${MockDefaultOrganization.name}/groups`,
+		);
 		expect(
 			canvas.queryByRole("button", { name: "Save" }),
 		).not.toBeInTheDocument();

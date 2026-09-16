@@ -36,8 +36,7 @@ type buildCommitStepMessagesInput struct {
 }
 
 type stepMessagesForCommit struct {
-	Messages       []chatstate.Message
-	VisibleIndexes []int
+	Messages []chatstate.Message
 	// ConsumeCompactionRequest clears the manual compaction marker
 	// atomically with the commit. Set on compaction commits.
 	ConsumeCompactionRequest bool
@@ -87,8 +86,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	return stepMessagesForCommit{
-		Messages:       messages,
-		VisibleIndexes: visibleMessageIndexes(messages),
+		Messages: messages,
 	}, nil
 }
 
@@ -283,16 +281,6 @@ func batchUsageMessage(
 	return msg, true, nil
 }
 
-func visibleMessageIndexes(messages []chatstate.Message) []int {
-	indexes := make([]int, 0, len(messages))
-	for i, msg := range messages {
-		if msg.Visibility == database.ChatMessageVisibilityBoth || msg.Visibility == database.ChatMessageVisibilityUser {
-			indexes = append(indexes, i)
-		}
-	}
-	return indexes
-}
-
 func textFromParts(parts []codersdk.ChatMessagePart) string {
 	var builder strings.Builder
 	for _, part := range parts {
@@ -304,16 +292,16 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 }
 
 type buildCompactionMessagesInput struct {
-	modelConfigID  uuid.UUID
-	toolCallID     string
-	toolName       string
-	compaction     compactionOutcome
-	contentVersion int16
+	modelConfigID       uuid.UUID
+	toolCallID          string
+	toolName            string
+	compaction          compactionOutcome
+	contentVersion      int16
+	pendingUserMessages []database.ChatMessage
 }
 
 type compactionMessagesForCommit struct {
-	Messages    []chatstate.Message
-	HiddenCount int
+	Messages []chatstate.Message
 }
 
 func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMessagesForCommit, error) {
@@ -348,12 +336,13 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool call: %w", err)
 	}
 	summaryResult, err := json.Marshal(map[string]any{
-		"summary":              input.compaction.SummaryReport,
-		"source":               source,
-		"threshold_percent":    input.compaction.ThresholdPercent,
-		"usage_percent":        input.compaction.UsagePercent,
-		"context_tokens":       input.compaction.ContextTokens,
-		"context_limit_tokens": input.compaction.ContextLimit,
+		"summary":                  input.compaction.SummaryReport,
+		"source":                   source,
+		"threshold_percent":        input.compaction.ThresholdPercent,
+		"usage_percent":            input.compaction.UsagePercent,
+		"context_tokens":           input.compaction.ContextTokens,
+		"context_limit_tokens":     input.compaction.ContextLimit,
+		"estimated_context_tokens": input.compaction.EstimatedContextTokens,
 	})
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction result: %w", err)
@@ -381,7 +370,90 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	for i := range messages {
 		messages[i].Compressed = true
 	}
-	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
+	for _, row := range input.pendingUserMessages {
+		messages = append(messages, chatstate.Message{
+			Role:           database.ChatMessageRoleUser,
+			Content:        row.Content,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
+			ContentVersion: row.ContentVersion,
+		})
+	}
+	return compactionMessagesForCommit{Messages: messages}, nil
+}
+
+type buildClearMessagesInput struct {
+	modelConfigID  uuid.UUID
+	toolCallID     string
+	contentVersion int16
+}
+
+// buildClearMessages produces the manual context-clear boundary
+// triplet, mirroring the compaction triplet shape: a hidden
+// model-only user-role row (the boundary anchor the prompt query keys
+// on), a user-visible synthetic chat_cleared tool call, and its tool
+// result. The hidden row carries a short sentinel rather than empty
+// content so the next prompt never sends an empty user message.
+func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, error) {
+	contentVersion := input.contentVersion
+	if contentVersion == 0 {
+		contentVersion = chatprompt.CurrentContentVersion
+	}
+
+	sentinelContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("Previous conversation context was cleared by the user."),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear sentinel: %w", err)
+	}
+	payload := json.RawMessage(`{"source":"manual"}`)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall(input.toolCallID, "chat_cleared", payload),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool call: %w", err)
+	}
+	toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult(input.toolCallID, "chat_cleared", payload, false, false),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool result: %w", err)
+	}
+
+	messages := []chatstate.Message{
+		{
+			Role:           database.ChatMessageRoleUser,
+			Content:        sentinelContent,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
+			ContentVersion: contentVersion,
+		},
+		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
+		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
+	}
+	for i := range messages {
+		messages[i].Compressed = true
+	}
+	return messages, nil
+}
+
+// hasClearableMessageAfter reports whether any active, uncompressed
+// model-visible conversation message follows the boundary index.
+// System prompts and user-only rows do not make a chat clearable.
+func hasClearableMessageAfter(messages []database.ChatMessage, index int) bool {
+	for i := index + 1; i < len(messages); i++ {
+		msg := messages[i]
+		if msg.Deleted || msg.Compressed {
+			continue
+		}
+		if msg.Role == database.ChatMessageRoleSystem {
+			continue
+		}
+		if msg.Visibility == database.ChatMessageVisibilityModel || msg.Visibility == database.ChatMessageVisibilityBoth {
+			return true
+		}
+	}
+	return false
 }
 
 // Hook model-context messages use the user role but must not reset
@@ -429,7 +501,7 @@ func compactionStatusFromHistory(
 	thresholdPercent int32,
 	contextLimit int64,
 ) compactionStatus {
-	boundaryIndex := latestCompactionBoundaryIndex(messages)
+	boundaryIndex := latestContextBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
 		if boundaryIndex == -1 {
 			return compactionStatusNeeded
@@ -454,16 +526,19 @@ func compactionStatusFromHistory(
 	return compactionStatusNotNeeded
 }
 
-func latestCompactionBoundaryIndex(messages []database.ChatMessage) int {
+// latestContextBoundaryIndex finds the latest compressed
+// chat_summarized or chat_cleared boundary. Compaction and clear
+// eligibility both stop here so neither reaches across the other.
+func latestContextBoundaryIndex(messages []database.ChatMessage) int {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if isCompactionBoundaryMessage(messages[i]) {
+		if isContextBoundaryMessage(messages[i]) {
 			return i
 		}
 	}
 	return -1
 }
 
-func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
+func isContextBoundaryMessage(msg database.ChatMessage) bool {
 	if msg.Deleted || !msg.Compressed {
 		return false
 	}
@@ -472,12 +547,30 @@ func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
 		return false
 	}
 	for _, part := range parts {
-		if part.ToolName == "chat_summarized" &&
+		if (part.ToolName == "chat_summarized" || part.ToolName == "chat_cleared") &&
 			(part.Type == codersdk.ChatMessagePartTypeToolCall || part.Type == codersdk.ChatMessagePartTypeToolResult) {
 			return true
 		}
 	}
 	return false
+}
+
+// pendingUserSegmentStart returns the index of the first row of the trailing run of unanswered user-role rows (len(promptRows) when there is none or when no assistant row precedes it); scanning persisted rows means assistant rows terminate the run even when prompt conversion or sanitization drops them.
+func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
+	start := len(promptRows)
+	for start > 0 {
+		row := promptRows[start-1]
+		if row.Deleted || row.Compressed || row.Role != database.ChatMessageRoleUser {
+			break
+		}
+		start--
+	}
+	for _, row := range promptRows[:start] {
+		if !row.Deleted && row.Role == database.ChatMessageRoleAssistant {
+			return start
+		}
+	}
+	return len(promptRows)
 }
 
 func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {

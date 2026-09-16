@@ -597,10 +597,24 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), labelValues...)
 					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, labelValues...)
 
-					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), labelValues...)
-					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), labelValues...)
-					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), labelValues...)
-					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), labelValues...)
+					// The query sums sessions per app name, so a session reported
+					// under a name this version does not know about is counted
+					// here rather than dropped. A malformed sum leaves the other
+					// gauges for this agent intact.
+					sessionCounts, err := codersdk.SessionCountsByFamilyJSON(agentStat.SessionCounts)
+					if err != nil {
+						logger.Error(ctx, "can't group agent session counts by app family",
+							slog.F("agent_name", agentStat.AgentName),
+							slog.F("workspace_name", agentStat.WorkspaceName),
+							slog.Error(err),
+						)
+						continue
+					}
+
+					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyJetBrains]), labelValues...)
+					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyReconnectingPTY]), labelValues...)
+					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilySSH]), labelValues...)
+					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyVSCode]), labelValues...)
 				}
 
 				if len(stats) > 0 {

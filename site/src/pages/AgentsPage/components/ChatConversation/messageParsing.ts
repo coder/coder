@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	getProvidedSubagentTitle,
@@ -273,7 +274,7 @@ export const parseMessageContent = (
 						!lastBlock.sources.some((s) => s.url === part.url)
 					) {
 						lastBlock.sources.push(source);
-					} else if (!lastBlock || lastBlock.type !== "sources") {
+					} else if (lastBlock?.type !== "sources") {
 						parsed.blocks.push({
 							type: "sources",
 							sources: [source],
@@ -308,12 +309,7 @@ export const parseMessageContent = (
 };
 
 const isEditableAttachmentMediaType = (mediaType: string): boolean =>
-	mediaType.startsWith("image/") ||
-	mediaType === "text/plain" ||
-	mediaType === "text/markdown" ||
-	mediaType === "text/csv" ||
-	mediaType === "application/json" ||
-	mediaType === "application/pdf";
+	ChatAttachmentMediaTypes.some((allowed) => allowed === mediaType);
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,

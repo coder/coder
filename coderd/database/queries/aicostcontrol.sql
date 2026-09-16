@@ -182,8 +182,8 @@ WHERE user_id = @user_id
 -- belong to @organization_id, on or after period_start until NOW.
 -- spend_limit_micros is the per-member limit, null when the group has no budget.
 -- total_spend_limit_micros is the combined budget of the members attributed to
--- the group, with each member's override replacing their share. It is null when
--- the group has no budget.
+-- the group, with each member's override replacing their share. System users
+-- are excluded. It is null when the group has no budget.
 -- The period_start parameter is normalized to its UTC calendar day.
 -- TODO(AIGOV-527): unify effective group resolution in a single place.
 WITH queried_groups AS (
@@ -199,6 +199,7 @@ candidate_users AS (
 	SELECT DISTINCT member.user_id
 	FROM group_members_expanded member
 	WHERE member.group_id IN (SELECT id FROM queried_groups)
+		AND member.user_is_system = false
 ),
 user_highest_group AS (
 	-- Per user, the highest-limit group they belong to. Uses
@@ -383,16 +384,20 @@ ORDER BY effective.user_id;
 
 -- name: GetOverBudgetUsersPerGroup :many
 -- Returns, per effective group, the number of users at or over their spend
--- limit since period_start. Only users with an enforceable limit (override or
--- budgeted group) count, and the unlimited Everyone fallback does not.
+-- limit since period_start. Only non-system users with an enforceable limit
+-- (override or budgeted group) count, and the unlimited Everyone fallback does not.
 -- TODO(AIGOV-527): unify effective group resolution in a single place.
 WITH budgeted_users AS (
-	-- Users with an override or membership in a budgeted group.
-	SELECT user_id FROM user_ai_budget_overrides
+	-- Non-system users with an override or membership in a budgeted group.
+	SELECT override.user_id
+	FROM user_ai_budget_overrides override
+	JOIN users ON users.id = override.user_id
+	WHERE users.is_system = false
 	UNION
 	SELECT DISTINCT member.user_id
 	FROM group_ai_budgets budget
 	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	WHERE member.user_is_system = false
 ),
 user_highest_group AS (
 	-- Per user, their highest-limit group ("highest" budget policy).
@@ -482,3 +487,33 @@ GROUP BY
 	ai.provider,
 	ai.provider_name
 ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model;
+
+-- name: GetUnpricedAIModelsSince :many
+-- Returns the models used since the given time that hold no price, most used
+-- first. openai-compat providers cannot be priced, so their models are excluded.
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
+FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= @since::timestamptz
+	AND token_usages.cost_micros IS NULL
+	AND providers.type::text = ANY(@priceable_providers::text[])
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY token_count DESC, provider_type ASC, model ASC;

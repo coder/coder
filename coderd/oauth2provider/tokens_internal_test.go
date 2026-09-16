@@ -1,20 +1,338 @@
 package oauth2provider
 
 import (
+	"bytes"
+	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // parseScopes parses a space-delimited scope string into a slice of scopes
 // per RFC 6749.
 func parseScopes(scope string) []string {
 	return strings.Fields(strings.TrimSpace(scope))
+}
+
+// Named so call sites state the client type they mean rather than leaning on
+// the zero value. IsPublic itself is pinned in TestOAuth2ProviderAppIsPublic.
+var (
+	confidentialApp = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypeConfidential}
+	publicApp       = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypePublic}
+)
+
+func TestScopeStringToAPIKeyScopes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EveryNameKept", func(t *testing.T) {
+		t.Parallel()
+
+		scopes, err := scopeStringToAPIKeyScopes("workspace:ssh template:read")
+		require.NoError(t, err)
+		require.Equal(t, database.APIKeyScopes{
+			database.ApiKeyScopeWorkspaceSsh,
+			database.ApiKeyScopeTemplateRead,
+		}, scopes)
+	})
+
+	// The catalog and the api_key_scope enum are maintained separately. A name
+	// negotiable at authorization but unmintable at exchange leaves the client
+	// holding a code it can never redeem.
+	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
+		t.Parallel()
+
+		// ExternalScopeNames omits the aliases IsExternalScope accepts, and the
+		// catalog cannot enumerate them, so a new alias has to be added here.
+		names := append(rbac.ExternalScopeNames(), "all", "application_connect")
+		require.NotEmpty(t, names)
+		for _, name := range names {
+			require.Truef(t, rbac.IsExternalScope(rbac.ScopeName(name)),
+				"scope %q is not negotiable, so this loop is not driving the catalog", name)
+
+			canonical := string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
+			scopes, err := scopeStringToAPIKeyScopes(canonical)
+			require.NoErrorf(t, err, "scope %q can be negotiated but not minted", name)
+			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(canonical)}, scopes)
+		}
+	})
+
+	t.Run("UnknownNameRejectsTheWholeList", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
+		require.ErrorIs(t, err, errUnmintableScope)
+		require.Contains(t, err.Error(), "not_a_real_scope")
+	})
+
+	// Unreachable through the NOT NULL column, but pinned: apikey.Generate reads
+	// an empty list as unrestricted, so anything but an error widens the grant.
+	// CHECK (scope <> '') admits every value here but the first.
+	t.Run("EmptyRejected", func(t *testing.T) {
+		t.Parallel()
+
+		var first string
+		for _, scope := range []string{"", "   ", "\t", "\n", " \t\r\n "} {
+			_, err := scopeStringToAPIKeyScopes(scope)
+			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
+			if first == "" {
+				first = err.Error()
+			}
+			assert.Equal(t, first, err.Error(),
+				"a scope naming nothing has nothing to echo, so the message cannot vary with it")
+		}
+	})
+}
+
+var (
+	ReasonUnmintableScope = errUnmintableScope.Error()
+	ReasonStaleScope      = errStaleScope.Error()
+	ReasonScopeNotGranted = errScopeNotGranted.Error()
+)
+
+const (
+	inCatalog     = "coder:workspaces.access"
+	alsoInCatalog = "coder:templates.build"
+)
+
+func TestCheckScopeStillCovered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		granted     string
+		appScope    sql.NullString
+		wantErr     error
+		wantBareErr bool
+	}{
+		{
+			name:     "NoAllowlistConstrainsNothing",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{},
+		},
+		{
+			name:     "EmptyAllowlistConstrainsNothing",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: "", Valid: true},
+		},
+		{
+			name:     "UnchangedAllowlistStillCovers",
+			granted:  inCatalog,
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			name:     "CompositeStillCoversItsParts",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			name:     "WidenedAllowlistStillCovers",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog + " " + alsoInCatalog, Valid: true},
+		},
+		{
+			name:     "AllowlistNarrowedAwayRejected",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: alsoInCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "PartiallyCoveredRejectedWhole",
+			granted:  "workspace:ssh file:create",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "UnrestrictedGrantNarrowedRejected",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:        "AllowlistFilteredToEmptyRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "openid profile", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
+		},
+		{
+			name:        "WhitespaceOnlyAllowlistRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "   ", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
+		},
+		{
+			name:     "LegacyAliasAllowlistCoversCanonicalGrant",
+			granted:  "coder:all",
+			appScope: sql.NullString{String: "all", Valid: true},
+		},
+		{
+			// The mirror image, and the only row that exercises canonicalizing
+			// the granted side: `all` is not expandable, so a code stored
+			// before canonicalization landed would refuse without it.
+			name:     "LegacyAliasGrantCoveredByCanonicalAllowlist",
+			granted:  "all",
+			appScope: sql.NullString{String: "coder:all", Valid: true},
+		},
+		{
+			name:     "GrantOutsideTheCatalogUndecidable",
+			granted:  "some_removed_scope",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errCoverageUndecidable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := database.OAuth2ProviderApp{ID: uuid.New(), Scope: test.appScope}
+			err := checkScopeStillCovered(t.Context(), slogtest.Make(t, nil), app, test.granted)
+			if test.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, test.wantErr)
+			assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+				"the rejection reason must appear once, not doubled by the wrap")
+			if test.wantBareErr {
+				assert.Equal(t, test.wantErr.Error(), err.Error(),
+					"the rejection must not name the app's unvalidated registered scope")
+			}
+		})
+	}
+}
+
+func TestNarrowAccessScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		granted   string
+		requested []string
+		want      string
+		wantErr   error
+	}{
+		{
+			name:      "OmittedRequestKeepsTheGrant",
+			granted:   inCatalog + " " + alsoInCatalog,
+			requested: nil,
+			want:      inCatalog + " " + alsoInCatalog,
+		},
+		{
+			name:      "GenuineSubsetAccepted",
+			granted:   inCatalog + " " + alsoInCatalog,
+			requested: []string{inCatalog},
+			want:      inCatalog,
+		},
+		{
+			name:      "ConstituentOfCompositeAccepted",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh"},
+			want:      "workspace:ssh",
+		},
+		{
+			// coder:all is a member of no other set, so membership would leave
+			// an unrestricted grant unnarrowable.
+			name:      "UnrestrictedGrantNarrowed",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"workspace:read"},
+			want:      "workspace:read",
+		},
+		{
+			name:      "ExpansionRejected",
+			granted:   inCatalog,
+			requested: []string{alsoInCatalog},
+			wantErr:   errScopeNotGranted,
+		},
+		{
+			name:      "PartiallyCoveredRequestRejectedWhole",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh", alsoInCatalog},
+			wantErr:   errScopeNotGranted,
+		},
+		{
+			name:      "UnknownRequestedScopeRejectedAsUnknown",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"not_a_real_scope"},
+			wantErr:   errUnknownScope,
+		},
+		{
+			// RBAC expands debug_info:read; only the catalog keeps it internal.
+			name:      "InternalOnlyScopeRejected",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"debug_info:read"},
+			wantErr:   errUnknownScope,
+		},
+		{
+			// The catalog check runs before canonicalization, so
+			// IsExternalScope has to admit both bare aliases.
+			name:      "LegacyAliasCanonicalized",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"all"},
+			want:      "coder:all",
+		},
+		{
+			name:      "LegacyApplicationConnectAliasCanonicalized",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"application_connect"},
+			want:      "coder:application_connect",
+		},
+		{
+			name:      "DuplicateRequestedScopesDeduplicated",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh", "workspace:ssh"},
+			want:      "workspace:ssh",
+		},
+		{
+			// Same error as a request naming no scope.
+			name:      "GrantOutsideTheCatalogUnmintable",
+			granted:   "some_removed_scope",
+			requested: []string{"workspace:ssh"},
+			wantErr:   errUnmintableScope,
+		},
+		{
+			name:      "GrantOutsideTheCatalogUnmintableWhenOmitted",
+			granted:   "some_removed_scope",
+			requested: nil,
+			wantErr:   errUnmintableScope,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := narrowAccessScope(t.Context(), slogtest.Make(t, nil), phaseRefresh, uuid.New(), test.granted, test.requested)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				assert.Empty(t, got, "a rejected refresh must not return a persistable scope")
+				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+					"the rejection reason must appear once, not doubled by the wrap")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+			requirePersistableScope(t, got)
+		})
+	}
 }
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
@@ -110,10 +428,9 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			form.Set("client_id", "test-client")
 			form.Set("client_secret", "test-secret")
 			form.Set("code", "test-code")
-			// This test only exercises scope parsing, but code_verifier is
-			// validated unconditionally for this grant type, so use a value
-			// that satisfies the RFC 7636 §4.1 length floor.
-			form.Set("code_verifier", strings.Repeat("a", 43))
+			// Validated unconditionally for this grant type, so it has to satisfy
+			// the RFC 7636 §4.1 length floor even here.
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 			if tc.scopeParam != "" {
 				form.Set("scope", tc.scopeParam)
 			}
@@ -127,7 +444,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 			// Verify no errors occurred
 			require.NoError(t, err, "extractTokenRequest should not return error for: %s", tc.description)
@@ -190,7 +507,7 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 			// Verify no errors
 			require.NoError(t, err)
@@ -220,7 +537,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				return form
 			},
 			expectedScopes: []string{},
@@ -234,7 +551,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				form.Set("scope", "   ")
 				return form
 			},
@@ -250,7 +567,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				form.Set("scope", longScope)
 				return form
 			},
@@ -273,7 +590,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				Form:     form,
 			}
 
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 			require.NoError(t, err, "extractTokenRequest should not error for: %s", tc.description)
 			require.Empty(t, validationErrs)
@@ -317,9 +634,6 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			// Build query parameters for GET request
 			query := url.Values{}
 			query.Set("response_type", "code")
@@ -343,10 +657,9 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 
-			require.NoError(t, err)
-			require.Empty(t, validationErrs)
+			require.Nil(t, failure)
 			require.Equal(t, tc.expectedScopes, params.scope)
 		})
 	}
@@ -390,9 +703,6 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			query := url.Values{}
 			query.Set("response_type", "code")
 			query.Set("client_id", "test-client")
@@ -407,45 +717,304 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 				URL:    reqURL,
 			}
 
-			_, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			_, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 			if tc.expectValid {
-				require.NoError(t, err)
-				require.Empty(t, validationErrs)
+				require.Nil(t, failure)
 			} else {
-				require.Error(t, err)
-				require.Len(t, validationErrs, 1)
-				require.Equal(t, "code_challenge", validationErrs[0].Field)
+				require.NotNil(t, failure)
+				require.Len(t, failure.validationErrors, 1)
+				require.Equal(t, "code_challenge", failure.validationErrors[0].Field)
 			}
 		})
 	}
 }
 
-// TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE ensures
-// response_type=token is parsed without requiring PKCE fields so callers can
-// return unsupported_response_type instead of invalid_request.
-func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T) {
+// TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE ensures a
+// response type other than code is parsed without requiring PKCE fields so
+// callers can answer unsupported_response_type instead of invalid_request.
+func TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE(t *testing.T) {
+	t.Parallel()
+
+	// id_token has no SDK constant, so it also pins that the value is read as
+	// plain text.
+	for _, responseType := range []string{string(codersdk.OAuth2ProviderResponseTypeToken), "id_token"} {
+		t.Run(responseType, func(t *testing.T) {
+			t.Parallel()
+
+			query := url.Values{}
+			query.Set("response_type", responseType)
+			query.Set("client_id", "test-client")
+			query.Set("redirect_uri", "http://localhost:3000/callback")
+
+			reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
+			require.NoError(t, err)
+
+			req := &http.Request{
+				Method: http.MethodGet,
+				URL:    reqURL,
+			}
+
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
+			require.Nil(t, failure)
+			require.Equal(t, responseType, params.responseType)
+		})
+	}
+}
+
+func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		app  database.OAuth2ProviderApp
+		// Omitted from the form when empty, rather than sent as empty strings.
+		clientID       string
+		clientSecret   string
+		wantErrorField string // Empty means no validation error is expected.
+	}{
+		{
+			name:           "ConfidentialClientMissingSecretIsRejected",
+			app:            confidentialApp,
+			clientID:       "test-client",
+			wantErrorField: "client_secret",
+		},
+		{
+			name:         "ConfidentialClientWithSecretIsAccepted",
+			app:          confidentialApp,
+			clientID:     "test-client",
+			clientSecret: "test-secret",
+		},
+		{
+			name:     "PublicClientMissingSecretIsAccepted",
+			app:      publicApp,
+			clientID: "test-client",
+		},
+		{
+			// No secret to check, so one sent anyway is ignored, not rejected
+			// (RFC 7591 §2, OAuth 2.1 §2.1).
+			name:         "PublicClientWithSecretIsAccepted",
+			app:          publicApp,
+			clientID:     "test-client",
+			clientSecret: "unnecessary-secret",
+		},
+		{
+			name:           "PublicClientMissingClientIDIsRejected",
+			app:            publicApp,
+			wantErrorField: "client_id",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			callbackURL, err := url.Parse("http://localhost:3000/callback")
+			require.NoError(t, err)
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("code", "test-code")
+			// Validated unconditionally for this grant type, so it has to satisfy
+			// the RFC 7636 §4.1 length floor even here.
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
+			if tc.clientID != "" {
+				form.Set("client_id", tc.clientID)
+			}
+			if tc.clientSecret != "" {
+				form.Set("client_secret", tc.clientSecret)
+			}
+
+			req := &http.Request{
+				Method:   http.MethodPost,
+				PostForm: form,
+				Form:     form,
+			}
+
+			_, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, tc.app)
+
+			if tc.wantErrorField == "" {
+				require.NoError(t, err)
+				require.Empty(t, validationErrs)
+				return
+			}
+
+			require.Error(t, err)
+			require.True(t, slices.ContainsFunc(validationErrs, func(v codersdk.ValidationError) bool {
+				return v.Field == tc.wantErrorField
+			}), "expected a validation error for field %q, got: %+v", tc.wantErrorField, validationErrs)
+		})
+	}
+}
+
+// The parameters most likely to arrive unrecognized here are credentials
+// (client_assertion, DPoP proofs), so the log carries names only. It also
+// fires when the request fails on a parameter the endpoint does read, so one
+// log stream shows both facts.
+func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 	t.Parallel()
 
 	callbackURL, err := url.Parse("http://localhost:3000/callback")
 	require.NoError(t, err)
 
-	query := url.Values{}
-	query.Set("response_type", string(codersdk.OAuth2ProviderResponseTypeToken))
-	query.Set("client_id", "test-client")
-	query.Set("redirect_uri", "http://localhost:3000/callback")
-
-	reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
-	require.NoError(t, err)
-
-	req := &http.Request{
-		Method: http.MethodGet,
-		URL:    reqURL,
+	cases := []struct {
+		name        string
+		missingCode bool
+	}{
+		{name: "ValidRequest"},
+		{name: "MissingCode", missingCode: true},
 	}
 
-	params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("client_id", "test-client")
+			form.Set("client_secret", "test-secret")
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
+			if !tc.missingCode {
+				form.Set("code", "test-code")
+			}
+			form.Set("nonce", "nonce-value")
+			form.Set("audience", "audience-value")
+			// A double quote in the name would break the line if the sink
+			// trusted the raw string; Unmarshal below would then fail.
+			form.Set(`we"ird`, "1")
+
+			req := &http.Request{
+				Method:   http.MethodPost,
+				PostForm: form,
+				Form:     form,
+			}
+
+			var logs bytes.Buffer
+			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+			_, validationErrs, err := extractTokenRequest(req, logger, callbackURL, nil, confidentialApp)
+			if tc.missingCode {
+				require.Error(t, err)
+				require.True(t, slices.ContainsFunc(validationErrs, func(v codersdk.ValidationError) bool {
+					return v.Field == "code"
+				}), "expected a validation error for code, got: %+v", validationErrs)
+			} else {
+				require.NoError(t, err)
+				require.Empty(t, validationErrs)
+			}
+
+			// Unmarshal fails on more than one line, which pins the count.
+			var entry struct {
+				Msg    string `json:"msg"`
+				Fields struct {
+					Params []string `json:"params"`
+				} `json:"fields"`
+			}
+			require.NoError(t, json.Unmarshal(logs.Bytes(), &entry), logs.String())
+			require.Equal(t, "ignoring unrecognized token parameters", entry.Msg)
+			require.Equal(t, []string{"audience", "nonce", `we"ird`}, entry.Fields.Params)
+			require.NotContains(t, logs.String(), "nonce-value")
+			require.NotContains(t, logs.String(), "audience-value")
+		})
+	}
+}
+
+// Every failure is errBadSecret so the caller cannot tell a malformed secret
+// from a valid one for the wrong app (RFC 6749 §5.2). The OtherAppsSecret row
+// covers the belongs-to-app check, the step a retyped copy of the check would
+// be most likely to lose.
+func TestAuthenticateClient(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	seed := func() (database.OAuth2ProviderApp, database.OAuth2ProviderAppSecret, string) {
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		secret, err := GenerateSecret()
+		require.NoError(t, err)
+		dbSecret := dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{
+			AppID:        app.ID,
+			SecretPrefix: []byte(secret.Prefix),
+			HashedSecret: secret.Hashed,
+		})
+		return app, dbSecret, secret.Formatted
+	}
+	app, dbSecret, formatted := seed()
+	_, _, otherFormatted := seed()
+
+	unknown, err := GenerateSecret()
 	require.NoError(t, err)
-	require.Empty(t, validationErrs)
-	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
+	parsed, err := ParseFormattedSecret(formatted)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		secret string
+		want   error
+	}{
+		{name: "Empty", secret: "", want: errBadSecret},
+		{name: "Malformed", secret: "not-a-secret", want: errBadSecret},
+		{name: "UnknownPrefix", secret: unknown.Formatted, want: errBadSecret},
+		{name: "WrongHash", secret: SecretIdentifier + "_" + parsed.Prefix + "_" + unknown.Secret, want: errBadSecret},
+		{name: "OtherAppsSecret", secret: otherFormatted, want: errBadSecret},
+		{name: "OwnSecret", secret: formatted},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			got, err := authenticateClient(ctx, db, app, test.secret)
+			if test.want != nil {
+				require.ErrorIs(t, err, test.want)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, dbSecret.ID, got.ID)
+		})
+	}
+}
+
+func TestMergeBasicClientAuth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		basicUser  string
+		basicPass  string
+		bodyID     string
+		bodySecret string
+		wantID     string
+		wantSecret string
+		wantErr    error
+	}{
+		{name: "NoHeader", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		{name: "HeaderOnly", basicUser: "id", basicPass: "s", wantID: "id", wantSecret: "s"},
+		{name: "HeaderAndMatchingBody", basicUser: "id", basicPass: "s", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		// A header with an empty username is treated as no header at all.
+		{name: "HeaderEmptyUser", basicPass: "pass", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		// An empty Basic password is still a presented password, so a body
+		// secret beside it is a conflict rather than a fallback.
+		{name: "HeaderEmptyPasswordBodySecret", basicUser: "id", bodySecret: "s", wantErr: errConflictingClientAuth},
+		{name: "ConflictingID", basicUser: "id", basicPass: "s", bodyID: "other", wantErr: errConflictingClientAuth},
+		{name: "ConflictingSecret", basicUser: "id", basicPass: "s", bodySecret: "other", wantErr: errConflictingClientAuth},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &http.Request{Header: http.Header{}}
+			if test.basicUser != "" || test.basicPass != "" {
+				r.SetBasicAuth(test.basicUser, test.basicPass)
+			}
+			id, secret, err := mergeBasicClientAuth(r, test.bodyID, test.bodySecret)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantID, id)
+			require.Equal(t, test.wantSecret, secret)
+		})
+	}
 }
 
 // TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh
@@ -468,7 +1037,7 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 		Form:     form,
 	}
 
-	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+	tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)

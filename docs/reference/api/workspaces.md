@@ -91,7 +91,6 @@ of the template will be used.
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -249,10 +248,7 @@ of the template will be used.
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -331,10 +327,6 @@ of the template will be used.
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -474,7 +466,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -632,10 +623,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -714,10 +702,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -824,7 +808,6 @@ of the template will be used.
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -982,10 +965,7 @@ of the template will be used.
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -1064,10 +1044,6 @@ of the template will be used.
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1104,11 +1080,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                    |
-|----------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items). |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                                                                                                                                                                                                     |
-| `offset` | query | integer | false    | Page offset                                                                                                                                                                                                                                                                                                                    |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                       |
+|----------|-------|---------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items). |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                                                                                                                                                                                        |
+| `offset` | query | integer | false    | Page offset                                                                                                                                                                                                                                                                                                       |
 
 ### Example responses
 
@@ -1152,7 +1128,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
-        "has_ai_task": true,
         "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1282,10 +1257,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 ],
                 "name": "string",
                 "operating_system": "string",
-                "parent_id": {
-                  "uuid": "string",
-                  "valid": true
-                },
+                "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "scripts": [
@@ -1364,10 +1336,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           ]
         }
       ],
-      "task_id": {
-        "uuid": "string",
-        "valid": true
-      },
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -1450,7 +1418,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1608,10 +1575,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -1690,10 +1654,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -2086,7 +2046,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -2244,10 +2203,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -2326,10 +2282,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",

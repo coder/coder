@@ -68,13 +68,24 @@ import (
 const (
 	chatStreamBatchSize = 256
 
-	chatContextLimitModelConfigKey                = "context_limit"
-	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
-	defaultChatContextCompressionThreshold        = int32(70)
-	minChatContextCompressionThreshold            = int32(0)
-	maxChatContextCompressionThreshold            = int32(100)
-	maxSystemPromptLenBytes                       = 131072 // 128 KiB
+	defaultChatContextCompressionThreshold = int32(70)
+	// Large-context models (1M) compact earlier; 70% of a 1M window
+	// carries too much stale context.
+	largeContextDefaultCompressionThreshold = int32(30)
+	largeContextLimitTokens                 = int64(500_000)
+	minChatContextCompressionThreshold      = int32(0)
+	maxChatContextCompressionThreshold      = int32(100)
+	maxSystemPromptLenBytes                 = 131072 // 128 KiB
 )
+
+// defaultCompressionThresholdForContextLimit returns the compaction
+// threshold used when compression_threshold is omitted at creation.
+func defaultCompressionThresholdForContextLimit(contextLimit int64) int32 {
+	if contextLimit >= largeContextLimitTokens {
+		return largeContextDefaultCompressionThreshold
+	}
+	return defaultChatContextCompressionThreshold
+}
 
 var allowedReasoningEffortValues = strings.Join(codersdk.ChatModelReasoningEffortValues(), ", ")
 
@@ -3011,7 +3022,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
-		CreatedBy:       apiKey.UserID,
 		QueuedMessageID: queuedMessageID,
 	})
 
@@ -3331,6 +3341,75 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 			logger.Error(ctx, "failed to compact chat", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to compact chat.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+}
+
+// @Summary Clear chat context
+// @ID clear-chat-context
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Produce json
+// @Success 200 {object} codersdk.Chat
+// @Router /api/v2/chats/{chat}/clear [post]
+// @x-apidocgen {"skip": true}
+// @Description Resets the model context of an idle or errored chat,
+// @Description clearing any stored error. The reset commits
+// @Description synchronously with no model call: the transcript is
+// @Description preserved and the next prompt starts from a fresh
+// @Description context.
+func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+	logger := api.Logger.Named("chat_clear").With(slog.F("chat_id", chatID))
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may clear the context, matching the
+	// compaction endpoint so the two context operations share
+	// authorization semantics.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may clear the chat context.",
+		})
+		return
+	}
+
+	updated, err := api.chatDaemon.ClearChat(ctx, chat)
+	if err != nil {
+		if writeCommonChatMutationError(ctx, rw, err, "Cannot clear an archived chat.") {
+			return
+		}
+		switch {
+		case errors.Is(err, chatd.ErrNothingToClear):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Nothing to clear.",
+				Detail:  "The chat has no conversation to clear after the latest context boundary.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot clear the chat in its current state.",
+				Detail:  "Clearing is not available while the chat is generating or has queued messages.",
+			})
+		default:
+			logger.Error(ctx, "failed to clear chat context", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to clear chat context.",
 				Detail:  err.Error(),
 			})
 		}
@@ -4556,7 +4635,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		aReq.New.PlanModeInstructions = sanitizedInstructions
 		noChange = aReq.New.PlanModeInstructions == aReq.Old.PlanModeInstructions
 		return nil
-	}, nil)
+	}, database.DefaultTXOptions().WithID("chat_plan_mode_instructions_write"))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating plan mode instructions.",
@@ -6086,7 +6165,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
@@ -6314,7 +6393,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
@@ -6364,7 +6443,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
 // @Router /api/v2/chats/files/{file} [get]
@@ -6547,7 +6626,7 @@ func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) 
 	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment limit reached.",
-			Detail:  fmt.Sprintf("A chat can reference at most %d attachments. Remove some attachments or start a new chat.", codersdk.MaxChatFileIDs),
+			Detail:  fmt.Sprintf("A message can include at most %d attachments. Remove some attachments and retry.", codersdk.MaxChatFileIDs),
 		})
 	case errors.Is(err, chatstate.ErrChatFileUnavailable):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -6898,32 +6977,6 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	writeLegacyChatProviderGone(rw, r)
 }
 
-func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
-	apiKey := httpmw.APIKey(r)
-
-	if !chatModelConfigReadScope(apiKey.Scopes) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat model configs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resp := make([]codersdk.ChatModel, 0, len(configs))
-	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
 // @Summary List AI models and provider descriptors in an organization
 // @ID list-ai-models-and-provider-descriptors-in-an-organization
 // @Security CoderSessionToken
@@ -6932,7 +6985,6 @@ func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, 
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.OrganizationChatModelsResponse
 // @Router /api/v2/organizations/{organization}/chats/models [get]
-// @x-apidocgen {"skip": true}
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -7017,8 +7069,7 @@ func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {
 // read gate; providers are deployment-scoped and an org admin cannot read
 // them directly, so the fetch runs under a narrow AsChatd context scoped to
 // exactly these two reads and the result is projected to the fixed redacted
-// fields (no key material, base URLs, or headers). Disclosure matches what
-// /api/experimental/chats/models already shows any authenticated caller.
+// fields, which exclude key material, base URLs, and headers.
 func (api *API) chatModelProviderDescriptors(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -7196,7 +7247,6 @@ func (api *API) auditChatModelConfigTransitions(
 // @Param request body codersdk.CreateChatModelRequest true "Model"
 // @Success 201 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models [post]
-// @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -7261,7 +7311,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	compressionThreshold, thresholdErr := normalizeChatCompressionThreshold(
 		req.CompressionThreshold,
-		defaultChatContextCompressionThreshold,
+		defaultCompressionThresholdForContextLimit(contextLimit),
 	)
 	if thresholdErr != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -8043,7 +8093,7 @@ func ChatProviderAPIKeysFromDeploymentValues(
 	_ *codersdk.DeploymentValues,
 ) chatprovider.ProviderAPIKeys {
 	// AI bridge deployment config is intentionally not reused for chat
-	// provider credentials. Bridge keys serve the AI task subsystem and
+	// provider credentials. Bridge keys serve AI Bridge interception and
 	// should not silently broaden into chat execution paths.
 	return chatprovider.ProviderAPIKeys{}
 }
@@ -8110,17 +8160,11 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// invalid-state response for chats that are not in a valid
 	// execution state at all.
 
-	var dynamicTools json.RawMessage
-	if chat.DynamicTools.Valid {
-		dynamicTools = chat.DynamicTools.RawMessage
-	}
-
 	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        apiKey.UserID,
 		ModelConfigID: chat.LastModelConfigID,
 		Results:       req.Results,
-		DynamicTools:  dynamicTools,
 	})
 	if err != nil {
 		if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {

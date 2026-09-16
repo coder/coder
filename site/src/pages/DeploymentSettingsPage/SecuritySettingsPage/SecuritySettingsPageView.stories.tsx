@@ -49,6 +49,7 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
 				hidden: false,
 			},
 		],
+		isBrowserOnlyEntitled: true,
 		featureBrowserOnlyEnabled: true,
 	},
 };
@@ -66,6 +67,50 @@ export const Page: Story = {
 			"href",
 			docs("/admin/networking#browser-only-connections"),
 		);
+		await expect(
+			canvas.getByRole("heading", {
+				name: /Browser-Only Connections Enabled/,
+			}),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: /Start trial for free/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const EntitledAndTurnedOff: Story = {
+	args: {
+		isBrowserOnlyEntitled: true,
+		featureBrowserOnlyEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", {
+				name: /Browser-Only Connections Disabled/,
+			}),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: /Start trial for free/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const NotEntitled: Story = {
+	args: {
+		isBrowserOnlyEntitled: false,
+		featureBrowserOnlyEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", {
+				name: /Browser-Only Connections Disabled/,
+			}),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /Start trial for free/ }),
+		).toBeInTheDocument();
 	},
 };
 

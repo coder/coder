@@ -3024,6 +3024,37 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
+	t.Run("Upsert/RejectsSystemUser", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The system user prebuilds is an implicit member of the default organization's Everyone group.
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, database.PrebuildsSystemUserID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          owner.OrganizationID,
+			SpendLimitMicros: 500_000_000,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, "Cannot set an AI budget override for a system user.", sdkErr.Detail)
+
+		_, err = adminClient.UserAIBudgetOverride(ctx, database.PrebuildsSystemUserID)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
 	t.Run("Get/AbsentReturns404", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,4 +1,6 @@
-# JetBrains IDEs in an air-gapped environment
+---
+title: JetBrains IDEs in an air-gapped environment
+---
 
 In networks that restrict access to the internet, you will need to leverage the
 JetBrains Client Installer to download and save the IDE clients locally. Please
@@ -156,9 +158,8 @@ that the URL must explicitly reference the archive file:
 
 ![Offline Gateway](../../../images/gateway/offline-gateway.png)
 
-Click `Download IDE and Connect`. Gateway should now download the backend and
-clients from the server into your remote workspace and local machine,
-respectively.
+Select **Download IDE and Connect**.
+Gateway should now download the backend and clients from the server into your remote workspace and local machine, respectively.
 
 ## Next steps
 

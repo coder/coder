@@ -1,4 +1,6 @@
-# Scale Testing
+---
+title: Scale Testing
+---
 
 Scaling Coder involves planning and testing to ensure it can handle more load
 without compromising service. This process encompasses infrastructure setup,

@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import { createContext, type PropsWithChildren, useContext } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { cn } from "#/utils/cn";
 import type { StepId } from "./steps";
 
 type Variant = "complete" | "current" | "upcoming" | null | undefined;
@@ -168,7 +168,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 				aria-label={`Go to ${label}`}
 				className={cn(
 					"flex items-center gap-2 w-full text-left text-content-primary p-0 bg-transparent border-0 cursor-pointer rounded-sm",
-					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
 				)}
 			>
 				<div className={stepCircleVariants({ variant })}>{step}</div>
@@ -237,7 +237,7 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 					className={cn(
 						"flex items-center gap-2 w-full text-left p-1 rounded-sm bg-transparent border-0 cursor-pointer",
 						"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
 					)}
 				>
 					<Avatar src={template.iconUrl} size="sm" variant="icon" />
@@ -245,7 +245,7 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 				</button>
 			) : (
 				<div className="flex items-start p-1">
-					<div className="h-[1lh] content-center">
+					<div className="h-lh content-center">
 						<Avatar src={template.iconUrl} size="sm" variant="icon" />
 					</div>
 					<span className="ml-2 text-content-secondary">{template.name}</span>
@@ -275,10 +275,10 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 					className={cn(
 						"flex items-start w-full text-left p-1 mb-1 rounded-sm bg-transparent border-0 cursor-pointer",
 						"text-sm text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
 					)}
 				>
-					<div className="h-[1lh] content-center">
+					<div className="h-lh content-center">
 						<Avatar src={module.iconUrl} size="sm" variant="icon" />
 					</div>
 					<span className="flex-1 ml-2">{module.name}</span>

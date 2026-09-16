@@ -341,24 +341,24 @@ func (s *failNextAcquireLockStore) AcquireLock(ctx context.Context, id int64) er
 	return s.Store.AcquireLock(ctx, id)
 }
 
-// failNextChatInstructionTransactionStore lets a test force transaction setup
-// to fail before the callback runs.
-type failNextChatInstructionTransactionStore struct {
+type failNextTxStore struct {
 	database.Store
 
+	txID                string
 	failNextTransaction *atomic.Bool
 }
 
-func newFailNextChatInstructionTransactionStore(store database.Store) *failNextChatInstructionTransactionStore {
-	return &failNextChatInstructionTransactionStore{
+func newFailNextTxStore(store database.Store, txID string) *failNextTxStore {
+	return &failNextTxStore{
 		Store:               store,
+		txID:                txID,
 		failNextTransaction: &atomic.Bool{},
 	}
 }
 
-func (s *failNextChatInstructionTransactionStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	if s.failNextTransaction.CompareAndSwap(true, false) {
-		return stderrors.New("forced chat instruction transaction failure")
+func (s *failNextTxStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	if txOpts != nil && txOpts.TxIdentifier == s.txID && s.failNextTransaction.CompareAndSwap(true, false) {
+		return stderrors.New("forced transaction failure for " + s.txID)
 	}
 	return s.Store.InTx(function, txOpts)
 }
@@ -3582,34 +3582,6 @@ func TestListChatProviders(t *testing.T) {
 		require.True(t, openAIProvider.HasAPIKey)
 	})
 
-	t.Run("IgnoresDeploymentKeyWhenCentralKeyDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
-		})
-		require.NoError(t, err)
-		require.False(t, provider.HasAPIKey)
-
-		providers, err := client.ListChatProviders(ctx)
-		require.NoError(t, err)
-		for _, listed := range providers {
-			if listed.Provider == "openai" {
-				require.False(t, listed.HasAPIKey)
-				return
-			}
-		}
-		t.Fatal("openai provider not found")
-	})
-
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -3831,22 +3803,6 @@ func TestCreateChatProvider(t *testing.T) {
 		require.False(t, provider.HasAPIKey)
 	})
 
-	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider: "openai",
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
-	})
-
 	t.Run("RejectsInvalidPolicyTuple", func(t *testing.T) {
 		t.Parallel()
 
@@ -4062,29 +4018,6 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.False(t, updated.HasAPIKey)
 	})
 
-	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
-		})
-		require.NoError(t, err)
-
-		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled: ptr.Ref(true),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
-	})
-
 	t.Run("RejectsClearingLastCentralKey", func(t *testing.T) {
 		t.Parallel()
 
@@ -4226,13 +4159,10 @@ func TestDeleteChatProvider(t *testing.T) {
 func TestChatProviderAPIKeysFromDeploymentValues(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DoesNotReuseBridgeConfig", func(t *testing.T) {
+	t.Run("NonNilDeploymentValues", func(t *testing.T) {
 		t.Parallel()
 
 		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		values.AI.BridgeConfig.LegacyAnthropic.Key = serpent.String("deployment-anthropic-key")
-		values.AI.BridgeConfig.LegacyOpenAI.BaseURL = serpent.String("https://custom-openai.example.com")
 
 		keys := coderd.ChatProviderAPIKeysFromDeploymentValues(values)
 		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
@@ -4435,9 +4365,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
+		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
@@ -4717,49 +4645,6 @@ func TestListChatModelConfigs(t *testing.T) {
 			}
 		}
 		require.True(t, found)
-	})
-
-	t.Run("CompatibilityCollectionRoutesUseDefaultOrganization", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		res, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		var configs []codersdk.ChatModel
-		require.NoError(t, codersdk.ReadBodyAsJSON(res, &configs))
-		require.Contains(t, configs, modelConfig)
-
-		collectionRes, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
-		require.NoError(t, err)
-		defer collectionRes.Body.Close()
-		require.Equal(t, http.StatusOK, collectionRes.StatusCode)
-		var collection codersdk.OrganizationChatModelsResponse
-		require.NoError(t, codersdk.ReadBodyAsJSON(collectionRes, &collection))
-		require.Contains(t, collection.Models, modelConfig)
-
-		contextLimit := int64(8192)
-		createdRes, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", codersdk.CreateChatModelRequest{
-			AIProviderID: &modelConfig.AIProviderID,
-			Model:        "compatibility-model",
-			ContextLimit: &contextLimit,
-		})
-		require.NoError(t, err)
-		defer createdRes.Body.Close()
-		require.Equal(t, http.StatusCreated, createdRes.StatusCode)
-		var created codersdk.ChatModel
-		require.NoError(t, codersdk.ReadBodyAsJSON(createdRes, &created))
-
-		got, err := client.ChatModel(ctx, created.OrganizationID, created.ID)
-		require.NoError(t, err)
-		require.Equal(t, created.ID, got.ID)
-
-		require.NoError(t, client.DeleteChatModel(ctx, created.OrganizationID, created.ID))
 	})
 
 	t.Run("CollectionIncludesDisabledModelConfigs", func(t *testing.T) {
@@ -6612,7 +6497,7 @@ func TestGetChat(t *testing.T) {
 		require.Equal(t, "text/markdown", f.MimeType)
 
 		// Fill up to the cap by inserting more files via the
-		// chatd DB path, then verify the cap is enforced.
+		// chatd DB path, then verify the oldest file is evicted.
 		for i := 1; i < codersdk.MaxChatFileIDs; i++ {
 			extra, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 				OwnerID:        firstUser.UserID,
@@ -6635,7 +6520,7 @@ func TestGetChat(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
 
-		// Attempt to add one more file — should be rejected (0 rows).
+		// Adding one more file evicts the oldest one.
 		overflow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 			OwnerID:        firstUser.UserID,
 			OrganizationID: firstUser.OrganizationID,
@@ -6650,18 +6535,20 @@ func TestGetChat(t *testing.T) {
 			FileIds:      []uuid.UUID{overflow.ID},
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(1), rejected, "cap should reject the 21st file")
+		require.Equal(t, int32(0), rejected, "linking past the cap should evict, not reject")
+		chatResult, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+		require.NotEqual(t, fileRow.ID, chatResult.Files[0].ID, "the oldest file should be evicted")
+		require.Equal(t, overflow.ID, chatResult.Files[len(chatResult.Files)-1].ID)
 
-		// Re-appending an already-linked ID at cap should succeed
-		// (dedup means no array growth).
+		// Re-appending an already-linked ID at cap is a no-op.
 		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
 			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-			FileIds:      []uuid.UUID{fileRow.ID},
+			FileIds:      []uuid.UUID{overflow.ID},
 		})
 		require.NoError(t, err)
-		// ON CONFLICT DO NOTHING returns 0 rows when the link
-		// already exists, which is fine — the file is still linked.
 		require.Equal(t, int32(0), rejected, "dedup of existing ID should be a no-op")
 
 		// Count should still be exactly MaxChatFileIDs.
@@ -9857,7 +9744,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, uploadResp.ID, chatResult.Files[0].ID)
 	})
 
-	t.Run("FileCapExceeded", func(t *testing.T) {
+	t.Run("FileCapEvictsOldest", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -9896,45 +9783,30 @@ func TestChatMessageWithFiles(t *testing.T) {
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extraResp.ID},
 			},
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "attachment limit")
+		require.NoError(t, err, "linking past the cap should evict the oldest file")
 
-		// getChatMessages reads history before queued messages, so a promotion
-		// can make one response miss the message in both places. Wait for the
-		// queue to empty, then read history again because promotion inserts a
-		// history row.
-		require.Eventually(t, func() bool {
-			m, err := client.GetChatMessages(ctx, chat.ID, nil)
-			return err == nil && len(m.QueuedMessages) == 0
-		}, testutil.WaitLong, testutil.IntervalMedium)
-
-		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		for _, msg := range messages.Messages {
-			for _, part := range msg.Content {
-				require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
+		chatFileIDs := func() []uuid.UUID {
+			chatResult, err := client.GetChat(ctx, chat.ID)
+			require.NoError(t, err)
+			ids := make([]uuid.UUID, 0, len(chatResult.Files))
+			for _, f := range chatResult.Files {
+				ids = append(ids, f.ID)
 			}
+			return ids
 		}
-		for _, queued := range messages.QueuedMessages {
-			for _, part := range queued.Content {
-				require.NotContains(t, part.Text, "one too many", "rejected send should not queue a message")
-			}
-		}
-		chatResult, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
-			"file count should not exceed the cap")
+		linked := chatFileIDs()
+		require.Len(t, linked, codersdk.MaxChatFileIDs, "file count should not exceed the cap")
+		require.Contains(t, linked, extraResp.ID)
+		require.NotContains(t, linked, fileIDs[0], "the oldest file should be evicted")
 
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
-				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[0]},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[1]},
 			},
 		})
 		require.NoError(t, err, "re-referencing an already-linked file must not count against the cap")
+		require.Equal(t, linked, chatFileIDs(), "re-referencing an already-linked file must not evict anything")
 	})
 
 	t.Run("FileCapOnCreate", func(t *testing.T) {
@@ -10581,7 +10453,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.Equal(t, "image/png", f.MimeType)
 	})
 
-	t.Run("CapExceededOnEdit", func(t *testing.T) {
+	t.Run("CapEvictsOldestOnEdit", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -10594,9 +10466,11 @@ func TestPatchChatMessage(t *testing.T) {
 			{Type: codersdk.ChatInputPartTypeText, Text: "fill to cap"},
 		}
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
 		for i := range codersdk.MaxChatFileIDs {
 			up, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("cap-%d.png", i), bytes.NewReader(pngData))
 			require.NoError(t, err)
+			fileIDs = append(fileIDs, up.ID)
 			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: up.ID})
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
@@ -10615,7 +10489,7 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		require.NotZero(t, userMessageID)
 
-		// Upload one more file and try to link via edit.
+		// Upload one more file and link it via edit.
 		extra, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
@@ -10624,26 +10498,18 @@ func TestPatchChatMessage(t *testing.T) {
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extra.ID},
 			},
 		})
-		require.Error(t, err, "edit over the cap should fail")
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "attachment limit")
+		require.NoError(t, err, "edit past the cap should evict the oldest file")
 
-		messagesResult, err = client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		var found bool
-		for _, msg := range messagesResult.Messages {
-			if msg.ID == userMessageID {
-				found = true
-				break
-			}
-		}
-		require.True(t, found, "original user message should survive a rejected edit")
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
 			"file count should not exceed the cap")
+		linked := make([]uuid.UUID, 0, len(chatResult.Files))
+		for _, f := range chatResult.Files {
+			linked = append(linked, f.ID)
+		}
+		require.Contains(t, linked, extra.ID)
+		require.NotContains(t, linked, fileIDs[0], "the oldest file should be evicted")
 	})
 
 	t.Run("ArchivedChat", func(t *testing.T) {
@@ -11242,6 +11108,267 @@ func TestCompactChat(t *testing.T) {
 		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
 
 		_, err := client.CompactChat(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+}
+
+func TestClearChat(t *testing.T) {
+	t.Parallel()
+
+	messageText := func(t *testing.T, msg database.ChatMessage) string {
+		t.Helper()
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		var builder strings.Builder
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText {
+				_, _ = builder.WriteString(part.Text)
+			}
+		}
+		return builder.String()
+	}
+
+	// seedClearableChat inserts an idle chat with one user and one
+	// assistant message so a manual clear has conversation to cut off.
+	seedClearableChat := func(t *testing.T, db database.Store, orgID, ownerID, modelConfigID uuid.UUID) database.Chat {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    orgID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "clear route test",
+		})
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("question"),
+		})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: ownerID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Content:       userContent,
+		})
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("answer"),
+		})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       assistantContent,
+		})
+		return chat
+	}
+
+	t.Run("ClearsContext", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		// The clear commits synchronously, so the chat stays idle and
+		// persisted state can be asserted without racing a worker.
+		cleared, err := client.ClearChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, cleared.ID)
+		require.Equal(t, codersdk.ChatStatusWaiting, cleared.Status)
+
+		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, persisted.Status)
+
+		prompt, err := db.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		for _, msg := range prompt {
+			text := messageText(t, msg)
+			require.NotContains(t, text, "question",
+				"pre-clear conversation must not survive in the prompt")
+			require.NotContains(t, text, "answer",
+				"pre-clear conversation must not survive in the prompt")
+		}
+
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Nothing to clear")
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr = requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Nothing to compact")
+	})
+
+	t.Run("NothingToClear", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "clear empty test",
+		})
+
+		_, err := client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Nothing to clear")
+
+		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, persisted.Status)
+	})
+
+	t.Run("FromErrorState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusError,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"context overflow"}`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+
+		cleared, err := client.ClearChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, cleared.ID)
+		require.Equal(t, codersdk.ChatStatusWaiting, cleared.Status)
+		require.Nil(t, cleared.LastError,
+			"clearing from the error state clears last_error")
+	})
+
+	t.Run("Busy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		})
+		require.NoError(t, err)
+
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Cannot clear the chat in its current state")
+	})
+
+	t.Run("ErrorWithQueue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusError,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"boom"}`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued follow-up"),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatQueuedMessageWithCreator(dbauthz.AsSystemRestricted(ctx), database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:    chat.ID,
+			Content:   queuedContent.RawMessage,
+			CreatedBy: user.UserID,
+		})
+		require.NoError(t, err)
+
+		// No waiting-with-queue state exists, so a synchronous clear
+		// from E1 is rejected; the user deletes or promotes the queue
+		// first.
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Cannot clear the chat in its current state")
+	})
+
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "archived")
+	})
+
+	t.Run("ChatNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.ClearChat(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// Even the owner needs RBAC update permission on the chat.
+	t.Run("UpdateDenied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Authorizer: &coderdtest.FakeAuthorizer{
+				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
+					// dbgen seeds rows with a synthetic "owner" subject;
+					// message inserts need chat update, so let them pass.
+					if subject.ID == "owner" {
+						return nil
+					}
+					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
+						return xerrors.New("denied")
+					}
+					return nil
+				},
+			},
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		db := api.Database
+		client := codersdk.NewExperimentalClient(clientRaw)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := client.ClearChat(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
@@ -12524,14 +12651,29 @@ This arrived as octet-stream.
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
-	t.Run("SVGBlocked", func(t *testing.T) {
+	t.Run("Success/SVG", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte("<svg></svg>")))
-		requireSDKError(t, err, http.StatusBadRequest)
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`)))
+		require.NoError(t, err)
+	})
+
+	t.Run("Success/SVGPastedAsText", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		// Large pastes arrive as text/plain; SVG bytes are stored as image/svg+xml.
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "pasted-text-2026-01-01-00-00-00.txt", bytes.NewReader([]byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`)))
+		require.NoError(t, err)
+
+		_, contentType, err := client.GetChatFile(ctx, uploaded.ID)
+		require.NoError(t, err)
+		require.Equal(t, "image/svg+xml", contentType)
 	})
 
 	t.Run("ContentSniffingRejectsPNGAsText", func(t *testing.T) {
@@ -12737,6 +12879,29 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "attachment", disposition)
 		require.Equal(t, "report.pdf", params["filename"])
+	})
+
+	t.Run("SVGServedAsAttachment", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "icon.svg", bytes.NewReader([]byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`)))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "image/svg+xml", res.Header.Get("Content-Type"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
+
+		disposition, params, err := mime.ParseMediaType(res.Header.Get("Content-Disposition"))
+		require.NoError(t, err)
+		require.Equal(t, "attachment", disposition)
+		require.Equal(t, "icon.svg", params["filename"])
 	})
 
 	t.Run("AgentArtifactZipServedAsAttachment", func(t *testing.T) {
@@ -15090,7 +15255,7 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatInstructionTransactionStore(rawDB)
+		store := newFailNextTxStore(rawDB, "chat_plan_mode_instructions_write")
 		mAudit := audit.NewMock()
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,

@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -67,7 +68,6 @@ const (
 	// chat is considered stale and should be recovered.
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
-	homeInstructionLookupTimeout = 5 * time.Second
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
@@ -83,6 +83,12 @@ const (
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
+
+	// slowPrepareThreshold is the generation-preparation duration
+	// above which a warning is logged. Preparation runs before
+	// every generation step, so sustained slowness (workspace
+	// dials, MCP connects) taxes the whole turn.
+	slowPrepareThreshold = 30 * time.Second
 
 	// maxConcurrentRecordingUploads caps the number of recording
 	// stop-and-store operations that can run concurrently. Each
@@ -115,6 +121,7 @@ const (
 
 var (
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
 	errChatAgentDisconnected   = xerrors.New(
 		"workspace agent has been disconnected for at least 90 seconds " +
 			"and cannot execute tools. To recover, call stop_workspace " +
@@ -163,7 +170,6 @@ type Server struct {
 	inflightClosed atomic.Bool
 
 	db                 database.Store
-	workerID           uuid.UUID
 	logger             slog.Logger
 	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
 
@@ -172,7 +178,6 @@ type Server struct {
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
 	dialTimeout                    time.Duration
-	instructionLookupTimeout       time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
@@ -182,6 +187,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
+	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -203,10 +209,7 @@ type Server struct {
 	experiments              codersdk.Experiments
 
 	// Configuration
-	pendingChatAcquireInterval time.Duration
-	maxChatsPerAcquire         int32
-	inFlightChatStaleAfter     time.Duration
-	chatHeartbeatInterval      time.Duration
+	inFlightChatStaleAfter time.Duration
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
@@ -434,13 +437,8 @@ func (p *Server) resolveWorkspaceMCPTools(
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
-// context snapshot (chat_context_resources). Each tool still proxies its calls
-// back through the workspace agent connection; the snapshot carries tool
-// definitions, not a way to execute them, so execution requires a reachable
-// agent. There is no per-chat cache to invalidate: a server removed or renamed
-// in the workspace surfaces as a dirty chat on the agent's next push, and the
-// user refreshes to re-pin, so a nil invalidate callback (a 404 no-op) is
-// correct here.
+// definitions. Calls still proxy through the agent connection, and agent pushes
+// live-sync definitions, so no invalidation callback is needed.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
@@ -451,7 +449,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
+	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
 }
 
 type turnWorkspaceContext struct {
@@ -627,7 +625,26 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+		}
+
+		// A soft-deleted workspace keeps its agent rows, so the bound agent
+		// would otherwise be dialed and fail as merely unreachable.
+		ws, err := c.server.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
+				"load workspace: %w. %s", err, chattool.WorkspaceUnavailableHint,
+			)
+		}
+		if ws.Deleted {
+			// A concurrent create_workspace may have rebound the chat
+			// while the row was read; resolve the replacement instead.
+			latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+			if !workspaceMatches {
+				chatSnapshot = latestChat
+				continue
+			}
+			return chatSnapshot, database.WorkspaceAgent{}, errChatWorkspaceDeleted
 		}
 
 		if chatSnapshot.AgentID.Valid {
@@ -981,8 +998,8 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			}
 			// Surface the dial timeout sentinel only when the
 			// parent context is still alive. If the parent was
-			// canceled (e.g. ErrInterrupted), its error must
-			// propagate unchanged so the chatloop can detect it.
+			// canceled, its error must propagate unchanged so
+			// the runner can recognize cancellation.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
 				return nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
@@ -1102,6 +1119,10 @@ var (
 	// no uncompressed conversation after the latest compaction
 	// boundary, so running a compaction would produce nothing.
 	ErrNothingToCompact = xerrors.New("nothing to compact")
+	// ErrNothingToClear indicates a manual context clear found no
+	// model-visible conversation after the latest context boundary,
+	// so a clear would be a no-op.
+	ErrNothingToClear = xerrors.New("nothing to clear")
 )
 
 // CreateOptions controls chat creation in the shared chat mutation path.
@@ -1197,7 +1218,6 @@ type EditMessageResult struct {
 // PromoteQueuedOptions controls queued-message promotion.
 type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
-	CreatedBy       uuid.UUID
 	QueuedMessageID int64
 }
 
@@ -2183,7 +2203,6 @@ type SubmitToolResultsOptions struct {
 	UserID        uuid.UUID
 	ModelConfigID uuid.UUID
 	Results       []codersdk.ToolResult
-	DynamicTools  json.RawMessage
 }
 
 // ToolResultValidationError indicates the submitted tool results
@@ -2430,9 +2449,72 @@ func (p *Server) CompactChat(
 		if err != nil {
 			return xerrors.Errorf("load chat messages: %w", err)
 		}
-		boundary := latestCompactionBoundaryIndex(messages)
+		boundary := latestContextBoundaryIndex(messages)
 		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
 			return ErrNothingToCompact
+		}
+		refreshed = result.Chat
+		return nil
+	})
+	if err != nil {
+		return chat, err
+	}
+
+	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	return refreshed, nil
+}
+
+// ClearChat commits a manual context reset through the
+// chatstate.ClearContext transition. Unlike CompactChat it is fully
+// synchronous: the boundary rows commit in this transaction with no
+// model call, the transcript is preserved, and any stored error is
+// cleared. Archived chats return ErrChatArchived, busy chats return a
+// chatstate.ErrTransitionNotAllowed wrapper, and chats with nothing
+// after the latest context boundary return ErrNothingToClear.
+func (p *Server) ClearChat(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	if chat.ID == uuid.Nil {
+		return chat, xerrors.New("chat_id is required")
+	}
+
+	var refreshed database.Chat
+	machine := p.newChatMachine(chat.ID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		// Read the pre-clear history before the transition inserts the
+		// boundary rows; eligibility is evaluated afterwards so busy
+		// chats surface the state conflict first.
+		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load chat messages: %w", err)
+		}
+		clearMessages, err := buildClearMessages(buildClearMessagesInput{
+			modelConfigID: lockedChat.LastModelConfigID,
+			toolCallID:    "chat_cleared_" + uuid.NewString(),
+		})
+		if err != nil {
+			return xerrors.Errorf("build clear messages: %w", err)
+		}
+		result, err := tx.ClearContext(chatstate.ClearContextInput{Messages: clearMessages})
+		if err != nil {
+			return err
+		}
+		// Reject no-op clears inside the same transaction so an empty
+		// or already-cleared chat never gains a duplicate boundary.
+		boundary := latestContextBoundaryIndex(messages)
+		if !hasClearableMessageAfter(messages, boundary) {
+			return ErrNothingToClear
 		}
 		refreshed = result.Chat
 		return nil
@@ -2718,7 +2800,6 @@ func chatdebugRunContext(run database.ChatDebugRun) chatdebug.RunContext {
 	runContext := chatdebug.RunContext{
 		RunID:  run.ID,
 		ChatID: run.ChatID,
-		Kind:   chatdebug.RunKind(run.Kind),
 	}
 	if run.RootChatID.Valid {
 		runContext.RootChatID = run.RootChatID.UUID
@@ -2877,88 +2958,6 @@ func mergeManualTitleMessages(
 	return merged
 }
 
-type chatMessage struct {
-	role                database.ChatMessageRole
-	content             pqtype.NullRawMessage
-	visibility          database.ChatMessageVisibility
-	modelConfigID       uuid.UUID
-	createdBy           uuid.UUID
-	contentVersion      int16
-	compressed          bool
-	inputTokens         int64
-	outputTokens        int64
-	totalTokens         int64
-	reasoningTokens     int64
-	cacheCreationTokens int64
-	cacheReadTokens     int64
-	contextLimit        int64
-	runtimeMs           int64
-}
-
-func newChatMessage(
-	role database.ChatMessageRole,
-	content pqtype.NullRawMessage,
-	visibility database.ChatMessageVisibility,
-	modelConfigID uuid.UUID,
-	contentVersion int16,
-) chatMessage {
-	return chatMessage{
-		role:           role,
-		content:        content,
-		visibility:     visibility,
-		modelConfigID:  modelConfigID,
-		contentVersion: contentVersion,
-	}
-}
-
-func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
-	m.createdBy = id
-	return m
-}
-
-func appendMessageFields(
-	params *database.InsertChatMessagesParams,
-	msg chatMessage,
-) {
-	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
-	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
-	params.ReasoningEffort = append(params.ReasoningEffort, "")
-	params.Role = append(params.Role, msg.role)
-	params.Content = append(params.Content, string(msg.content.RawMessage))
-	params.ContentVersion = append(params.ContentVersion, msg.contentVersion)
-	params.Visibility = append(params.Visibility, msg.visibility)
-	params.InputTokens = append(params.InputTokens, msg.inputTokens)
-	params.OutputTokens = append(params.OutputTokens, msg.outputTokens)
-	params.TotalTokens = append(params.TotalTokens, msg.totalTokens)
-	params.ReasoningTokens = append(params.ReasoningTokens, msg.reasoningTokens)
-	params.CacheCreationTokens = append(params.CacheCreationTokens, msg.cacheCreationTokens)
-	params.CacheReadTokens = append(params.CacheReadTokens, msg.cacheReadTokens)
-	params.ContextLimit = append(params.ContextLimit, msg.contextLimit)
-	params.Compressed = append(params.Compressed, msg.compressed)
-	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
-}
-
-// BuildSingleChatMessageInsertParams builds insert parameters for one chat message.
-func BuildSingleChatMessageInsertParams(
-	chatID uuid.UUID,
-	role database.ChatMessageRole,
-	content pqtype.NullRawMessage,
-	visibility database.ChatMessageVisibility,
-	modelConfigID uuid.UUID,
-	contentVersion int16,
-	createdBy uuid.UUID,
-) database.InsertChatMessagesParams {
-	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendMessageFields.
-		ChatID: chatID,
-	}
-	msg := newChatMessage(role, content, visibility, modelConfigID, contentVersion)
-	if createdBy != uuid.Nil {
-		msg = msg.withCreatedBy(createdBy)
-	}
-	appendMessageFields(&params, msg)
-	return params
-}
-
 // Config configures a chat processor.
 type Config struct {
 	Logger    slog.Logger
@@ -2973,7 +2972,6 @@ type Config struct {
 	ChatHeartbeatInterval          time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
-	InstructionLookupTimeout       time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
@@ -2996,6 +2994,7 @@ type Config struct {
 	// May be nil if the deployment has no OIDC provider; servers
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
+	MCPHTTPClient   *http.Client
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -3037,9 +3036,9 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		notificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
-	instructionLookupTimeout := cfg.InstructionLookupTimeout
-	if instructionLookupTimeout == 0 {
-		instructionLookupTimeout = homeInstructionLookupTimeout
+	mcpHTTPClient := cfg.MCPHTTPClient
+	if mcpHTTPClient == nil {
+		mcpHTTPClient = mcpclient.NewHTTPClient(nil)
 	}
 
 	workerID := cfg.ReplicaID
@@ -3060,17 +3059,15 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		hookDispatcher = nil
 	}
 	p := &Server{
-		cancel:   cancel,
-		db:       cfg.Database,
-		workerID: workerID,
-		logger:   cfg.Logger.Named("processor"),
+		cancel: cancel,
+		db:     cfg.Database,
+		logger: cfg.Logger.Named("processor"),
 		modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
 			return callerModelConfigContext(ctx, cfg.Database, ownerID)
 		},
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
-		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		stopWorkspaceFn:                cfg.StopWorkspace,
@@ -3080,6 +3077,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
+		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
@@ -3094,15 +3092,12 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 			debugSvc.SetStaleAfter(inFlightChatStaleAfter * 3)
 			return debugSvc
 		},
-		aibridgeTransportFactory:   cfg.AIBridgeTransportFactory,
-		experiments:                cfg.Experiments,
-		pendingChatAcquireInterval: pendingChatAcquireInterval,
-		maxChatsPerAcquire:         maxChatsPerAcquire,
-		inFlightChatStaleAfter:     inFlightChatStaleAfter,
-		chatHeartbeatInterval:      chatHeartbeatInterval,
-		usageTracker:               cfg.UsageTracker,
-		clock:                      clk,
-		recordingSem:               make(chan struct{}, maxConcurrentRecordingUploads),
+		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
+		experiments:              cfg.Experiments,
+		inFlightChatStaleAfter:   inFlightChatStaleAfter,
+		usageTracker:             cfg.UsageTracker,
+		clock:                    clk,
+		recordingSem:             make(chan struct{}, maxConcurrentRecordingUploads),
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
@@ -3337,7 +3332,7 @@ func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
-				strings.HasPrefix(f.Mimetype, "image/") &&
+				chatfiles.IsRasterImageMediaType(f.Mimetype) &&
 				len(f.Data) >= imageCap {
 				err := xerrors.Errorf(
 					"image attachment %q is %d bytes; %s inline image limit is %d bytes",
@@ -3696,34 +3691,6 @@ func buildSystemPrompt(
 		}
 	}
 	return prompt
-}
-
-func removeSkillIndexMessages(prompt []fantasy.Message) []fantasy.Message {
-	out := make([]fantasy.Message, 0, len(prompt))
-	removed := false
-	for _, message := range prompt {
-		if isSkillIndexMessage(message) {
-			removed = true
-			continue
-		}
-		out = append(out, message)
-	}
-	if !removed {
-		return prompt
-	}
-	return out
-}
-
-func isSkillIndexMessage(message fantasy.Message) bool {
-	if message.Role != fantasy.MessageRoleSystem || len(message.Content) != 1 {
-		return false
-	}
-	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
-	if !ok {
-		return false
-	}
-	text := strings.TrimSpace(textPart.Text)
-	return strings.HasPrefix(text, chattool.AvailableSkillsOpenTag+"\n") && strings.HasSuffix(text, chattool.AvailableSkillsCloseTag)
 }
 
 type rootChatToolsOptions struct {
@@ -4714,7 +4681,7 @@ const (
 	// Subagent summaries reuse the final report instead of generating
 	// text, so their work timeout only covers two database round trips.
 	subagentReportSummaryTimeout = 15 * time.Second
-	// Bound the extracted report snippet near the 1-3 sentence
+	// Bound the extracted report snippet near the headline of the
 	// generated summaries that root chats get, so subagent and parent
 	// summary panels read the same.
 	subagentReportSummaryMaxRunes     = 300
@@ -4974,7 +4941,7 @@ func (p *Server) dispatchPush(
 
 // Close stops the processor and waits for it to finish.
 func (p *Server) Close() error {
-	p.closeInflightAdmission()
+	p.inflightClosed.Store(true)
 	if unsub := p.configCacheUnsubscribe; unsub != nil {
 		p.configCacheUnsubscribe = nil
 		unsub()
@@ -5031,10 +4998,6 @@ func (p *Server) goInflight(f func()) error {
 	}
 	p.inflight.Go(f)
 	return nil
-}
-
-func (p *Server) closeInflightAdmission() {
-	p.inflightClosed.Store(true)
 }
 
 // drainInflight waits for already-admitted in-flight operations to complete.
@@ -5111,7 +5074,7 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (database.MCPServerUserToken, error) {
-	result, err := mcpclient.RefreshOAuth2Token(ctx, cfg, tok)
+	result, err := mcpclient.RefreshOAuth2Token(ctx, p.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		if mcpclient.IsPermanentRefreshError(err) {
 			return p.markMCPTokenRefreshFailure(ctx, logger, cfg, tok, err), nil

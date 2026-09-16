@@ -1,18 +1,10 @@
 package mcpclient
 
 import (
-	"flag"
-	"net"
 	"net/http"
-	"time"
-)
 
-// dialTimeout bounds TCP connection establishment to an MCP
-// server. Without it, a server that silently drops SYNs (for
-// example an edge mitigation black-holing this deployment's
-// egress IPs) blocks the dial until the kernel gives up
-// retransmitting, roughly two minutes on Linux.
-const dialTimeout = 5 * time.Second
+	"github.com/coder/safedial"
+)
 
 // responseHeaderTimeout bounds how long a server may take to send
 // response headers once a request is written. It matches
@@ -25,42 +17,45 @@ const dialTimeout = 5 * time.Second
 // unset because it would cap the stream body too.
 const responseHeaderTimeout = toolCallTimeout
 
-// mcpSharedTransport is the transport for all production MCP
-// connections. MCP traffic must not use http.DefaultTransport
-// directly: the default has no dial or response-header bounds, so
-// a black-holed server would hold connections for minutes.
-var mcpSharedTransport = newMCPTransport()
-
-// newMCPTransport clones http.DefaultTransport when possible,
-// preserving proxy and connection-pool settings, and tightens its
-// failure timeouts so an unresponsive MCP server fails in seconds.
-func newMCPTransport() *http.Transport {
-	tr, ok := http.DefaultTransport.(*http.Transport)
-	if ok {
-		tr = tr.Clone()
-	} else {
-		tr = &http.Transport{Proxy: http.ProxyFromEnvironment}
+// NewHTTPClient builds the SSRF-guarded, timeout-bounded HTTP
+// client for MCP traffic. MCP destinations are configured by org
+// admins rather than the deployment operator, so every connection
+// goes through safedial's address policy. The guarded transport
+// keeps the base client's settings but always bounds response
+// headers: without a bound, a server that accepts a request and
+// never answers holds the connection until the enclosing context
+// expires. Dial establishment is bounded by the guarded dialer.
+func NewHTTPClient(base *http.Client, opts ...safedial.Option) *http.Client {
+	if base == nil {
+		// Not safedial's nil default: that carries a whole-client
+		// timeout, which would cap SSE stream bodies that must stay
+		// open for the life of a session.
+		base = &http.Client{}
 	}
-	tr.DialContext = (&net.Dialer{
-		Timeout:   dialTimeout,
-		KeepAlive: 30 * time.Second,
-	}).DialContext
-	tr.ResponseHeaderTimeout = responseHeaderTimeout
-	return tr
+	client := safedial.NewHTTPClient(base, opts...)
+	if tr, ok := client.Transport.(*http.Transport); ok {
+		// The guarded transport is a private clone, so setting the
+		// bound here cannot race with or mutate the caller's base.
+		tr.ResponseHeaderTimeout = responseHeaderTimeout
+	}
+	return client
 }
 
-func httpClientWithHeaders(headers map[string]string) *http.Client {
-	var base http.RoundTripper = mcpSharedTransport
-	if isolated := mcpHTTPClient(); isolated != nil {
-		base = isolated.Transport
+func httpClientWithHeaders(base *http.Client, headers map[string]string) *http.Client {
+	if base == nil || base.Transport == nil {
+		base = NewHTTPClient(base)
 	}
+	client := *base
+	client.CheckRedirect = safedial.CheckSameOriginRedirect
 	if len(headers) == 0 {
-		return &http.Client{Transport: base}
+		return &client
 	}
-	return &http.Client{Transport: &headerRoundTripper{
-		base:    base,
+	transport := base.Transport
+	client.Transport = &headerRoundTripper{
+		base:    transport,
 		headers: headers,
-	}}
+	}
+	return &client
 }
 
 type headerRoundTripper struct {
@@ -74,16 +69,4 @@ func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		clone.Header.Set(k, v)
 	}
 	return h.base.RoundTrip(clone)
-}
-
-// mcpHTTPClient returns an isolated *http.Client when running
-// inside tests, or nil for production. During tests each client
-// gets a fresh transport so closed httptest servers cannot leave
-// stale pooled connections behind for later tests that reuse the
-// same address.
-func mcpHTTPClient() *http.Client {
-	if flag.Lookup("test.v") == nil {
-		return nil
-	}
-	return &http.Client{Transport: newMCPTransport()}
 }

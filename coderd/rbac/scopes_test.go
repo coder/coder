@@ -62,6 +62,94 @@ func TestExpandScope(t *testing.T) {
 	})
 }
 
+func TestFirstScopeNotCovered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		allowed   []rbac.ScopeName
+		requested []rbac.ScopeName
+		want      rbac.ScopeName
+		// wantErrContains names the side that could not be expanded, as in
+		// TestScopesCover.
+		wantErrContains string
+	}{
+		{
+			name:      "EmptyRequestIsCovered",
+			allowed:   []rbac.ScopeName{"workspace:read"},
+			requested: nil,
+		},
+		{
+			name:      "EveryRequestedScopeCovered",
+			allowed:   []rbac.ScopeName{"coder:workspaces.access"},
+			requested: []rbac.ScopeName{"workspace:read", "workspace:ssh"},
+		},
+		{
+			// The answer names which scope failed, not merely that one did.
+			name:      "NamesTheFirstUncovered",
+			allowed:   []rbac.ScopeName{"coder:workspaces.access"},
+			requested: []rbac.ScopeName{"workspace:read", "workspace:delete", "user_secret:delete"},
+			want:      "workspace:delete",
+		},
+		{
+			name:            "UnexpandableRequestedScopeNamed",
+			allowed:         []rbac.ScopeName{"coder:workspaces.access"},
+			requested:       []rbac.ScopeName{"workspace:read", "not_a_real_scope"},
+			want:            "not_a_real_scope",
+			wantErrContains: "expand requested scope",
+		},
+		{
+			name:            "UnexpandableAllowedScopeNamed",
+			allowed:         []rbac.ScopeName{"not_a_real_scope"},
+			requested:       []rbac.ScopeName{"workspace:read"},
+			want:            "not_a_real_scope",
+			wantErrContains: "expand allowed scope",
+		},
+		{
+			// The alias validates but is not an expandable name, so callers
+			// must canonicalize first. Pinned because the allowed side is
+			// expanded once now, outside the per-scope loop.
+			name:            "LegacyAliasIsNotExpandable",
+			allowed:         []rbac.ScopeName{"all"},
+			requested:       []rbac.ScopeName{"workspace:read"},
+			want:            "all",
+			wantErrContains: "expand allowed scope",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := rbac.FirstScopeNotCovered(test.allowed, test.requested)
+			if test.wantErrContains != "" {
+				require.ErrorContains(t, err, test.wantErrContains)
+				require.Equal(t, test.want, got, "an undecidable comparison must name the scope it could not decide")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+// The two answer the same question, so a row that disagrees means one of them
+// changed alone.
+func TestFirstScopeNotCoveredAgreesWithScopesCover(t *testing.T) {
+	t.Parallel()
+
+	allowed := []rbac.ScopeName{"coder:workspaces.access", "coder:templates.build"}
+	for _, name := range rbac.ExternalScopeNames() {
+		canonical := rbac.CanonicalScopeName(rbac.ScopeName(name))
+		covered, err := rbac.ScopesCover(allowed, canonical)
+		require.NoError(t, err, "scope %q", name)
+
+		outside, err := rbac.FirstScopeNotCovered(allowed, []rbac.ScopeName{canonical})
+		require.NoError(t, err, "scope %q", name)
+		require.Equal(t, covered, outside == "", "scope %q", name)
+	}
+}
+
 func TestScopesCover(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +251,13 @@ func TestScopesCover(t *testing.T) {
 		{
 			name:            "UnknownAllowedScopeErrors",
 			allowed:         []rbac.ScopeName{"not_a_real_scope"},
+			requested:       "workspace:read",
+			wantErrContains: "expand allowed scope",
+		},
+		{
+			// An implementation answering on the first match never reaches it.
+			name:            "UnknownAllowedScopeErrorsBesideCoveringScope",
+			allowed:         []rbac.ScopeName{rbac.ScopeAll, "not_a_real_scope"},
 			requested:       "workspace:read",
 			wantErrContains: "expand allowed scope",
 		},

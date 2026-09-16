@@ -1,4 +1,6 @@
-# Quotas
+---
+title: Quotas
+---
 
 Quotas are a mechanism for controlling spend by associating costs with workspace
 templates and assigning budgets to users. Users that exceed their budget will be

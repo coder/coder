@@ -36,6 +36,7 @@ export const withDashboardProvider = (
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
 		canViewOrganizationSettings = false,
+		buildInfo = {},
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -63,6 +64,7 @@ export const withDashboardProvider = (
 				buildInfo: {
 					...MockBuildInfo,
 					version: "v0.0.0-test",
+					...buildInfo,
 				},
 				organizations,
 				showOrganizations,
@@ -160,7 +162,10 @@ export const withDesktopViewport = (Story: FC) => (
 	</div>
 );
 
-export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
+export const withAuthProvider = function WithAuthProvider(
+	Story: FC,
+	{ parameters }: StoryContext,
+) {
 	if (!parameters.user) {
 		throw new Error("You forgot to add `parameters.user` to your story");
 	}

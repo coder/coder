@@ -1130,8 +1130,28 @@
 						},
 						{
 							"title": "Tasks to Chats API Migration",
-							"description": "Migrate your integrations from the deprecated Coder Tasks API to the Coder Agents Chats API.",
+							"description": "Migrate your integrations from the removed Coder Tasks API to the Coder Agents Chats API.",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
+						}
+					]
+				},
+				{
+					"title": "Agent Relay",
+					"description": "Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.",
+					"path": "./ai-coder/agent-relay/index.md",
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "Agent Relay for Cursor",
+							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
+							"path": "./ai-coder/agent-relay/cursor.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Agent Relay for Claude Code",
+							"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
+							"path": "./ai-coder/agent-relay/claude-code.md",
+							"state": ["early access"]
 						}
 					]
 				},
@@ -1312,7 +1332,7 @@
 								},
 								{
 									"title": "Provider Configuration",
-									"description": "Learn how AI Gateway stores, seeds, and reloads LLM provider configuration for your deployment.",
+									"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
 									"path": "./ai-coder/ai-gateway/providers.md",
 									"state": ["premium"]
 								},
@@ -1566,8 +1586,7 @@
 						{
 							"title": "Chats",
 							"description": "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
-							"path": "./reference/api/chats.md",
-							"state": ["early access"]
+							"path": "./reference/api/chats.md"
 						},
 						{
 							"title": "Debug",

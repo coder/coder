@@ -1,4 +1,6 @@
-# JetBrains IDEs
+---
+title: JetBrains
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is
@@ -18,7 +20,7 @@ JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via th
 1. **Choose Provider**: Choose **OpenAI-compatible**.
 1. **URL**: `https://coder.example.com/api/v2/ai-gateway/openai/v1`
 1. **API Key**: Paste your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
-1. **Apply**: Click **Apply** and **OK**.
+1. **Apply**: Select **Apply** and **OK**.
 
 ![JetBrains AI Assistant Settings](../../../images/aibridge/clients/jetbrains-ai-settings.png)
 

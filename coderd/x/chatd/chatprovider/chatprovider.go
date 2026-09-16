@@ -119,6 +119,10 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
 		baseType = parsed
 	}
+	// No provider accepts SVG as a native part; it is inlined as text.
+	if baseType == string(codersdk.ChatAttachmentMediaTypeImageSVG) {
+		return false
+	}
 	isImage := strings.HasPrefix(baseType, "image/")
 	isText := strings.HasPrefix(baseType, "text/")
 	// Audio types are included for matrix completeness but are not
@@ -296,39 +300,6 @@ func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	if merged.Anthropic != "" {
 		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
 	}
-	return merged
-}
-
-// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
-func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
-	merged := mergedFromFallback(fallback)
-
-	for _, provider := range providers {
-		normalizedProvider := NormalizeProvider(provider.Provider)
-		if normalizedProvider == "" {
-			continue
-		}
-
-		if key := strings.TrimSpace(provider.APIKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-		if url := strings.TrimSpace(provider.BaseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-		merged.setRegion(normalizedProvider, provider.Region)
-
-		switch normalizedProvider {
-		case fantasyopenai.Name:
-			if key := strings.TrimSpace(provider.APIKey); key != "" {
-				merged.OpenAI = key
-			}
-		case fantasyanthropic.Name:
-			if key := strings.TrimSpace(provider.APIKey); key != "" {
-				merged.Anthropic = key
-			}
-		}
-	}
-
 	return merged
 }
 
@@ -795,16 +766,14 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
+		// Resolved once here so a later mutation of the config cannot move
+		// the client off the transport NewModel records.
+		useResponses := chatopenai.UsesResponsesAPI(modelID, openAIResponsesAPIOverride(openAIConfig))
 		options := []fantasyopenai.Option{
 			fantasyopenai.WithAPIKey(apiKey),
 			fantasyopenai.WithUseResponsesAPI(),
+			fantasyopenai.WithResponsesAPIFunc(func(string) bool { return useResponses }),
 			fantasyopenai.WithUserAgent(userAgent),
-		}
-		if override := openAIResponsesAPIOverride(openAIConfig); override != nil {
-			forced := *override
-			options = append(options, fantasyopenai.WithResponsesAPIFunc(func(string) bool {
-				return forced
-			}))
 		}
 		if len(extraHeaders) > 0 {
 			options = append(options, fantasyopenai.WithHeaders(extraHeaders))
@@ -863,7 +832,7 @@ func ModelFromConfig(
 		return Model{}, xerrors.Errorf("unsupported model provider %q", provider)
 	}
 	if err != nil {
-		return Model{}, providerCreationError(provider, err)
+		return Model{}, xerrors.Errorf("create %s provider: %w", provider, err)
 	}
 
 	model, err := providerClient.LanguageModel(context.Background(), modelID)
@@ -871,10 +840,6 @@ func ModelFromConfig(
 		return Model{}, xerrors.Errorf("load %s model: %w", provider, err)
 	}
 	return NewModel(model, openAIConfig), nil
-}
-
-func providerCreationError(provider string, err error) error {
-	return xerrors.Errorf("create %s provider: %w", provider, err)
 }
 
 // Providers that allow ambient credentials, such as Bedrock, bypass

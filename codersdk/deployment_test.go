@@ -87,20 +87,6 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
-		// We don't want these to be configurable via YAML because they are secrets.
-		// However, we do want to allow them to be shown in documentation.
-		"AI Gateway OpenAI Key": {
-			yaml: true,
-		},
-		"AI Gateway Anthropic Key": {
-			yaml: true,
-		},
-		"AI Gateway Bedrock Access Key": {
-			yaml: true,
-		},
-		"AI Gateway Bedrock Access Key Secret": {
-			yaml: true,
-		},
 	}
 
 	set := (&codersdk.DeploymentValues{}).Options()
@@ -621,7 +607,7 @@ func TestAIGatewayCompatibilityAliases(t *testing.T) {
 		aliases = append(aliases, alias{old: opt, new: newOpt})
 	}
 	// Update this count when adding or removing aibridge alias options.
-	require.Len(t, aliases, 34, "unexpected number of aibridge alias options")
+	require.Len(t, aliases, 24, "unexpected number of aibridge alias options")
 
 	sampleVal := func(opt serpent.Option) any {
 		switch opt.Value.Type() {
@@ -1426,6 +1412,46 @@ func TestRetentionConfigParsing(t *testing.T) {
 			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
 		})
 	}
+}
+
+func TestDisableUserSecretFilePath(t *testing.T) {
+	t.Parallel()
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.False(t, dv.DisableUserSecretFilePath.Value(), "must default to false")
+
+	var opt serpent.Option
+	for _, o := range opts {
+		if o.Value == &dv.DisableUserSecretFilePath {
+			opt = o
+			break
+		}
+	}
+	require.NotEmpty(t, opt.Flag, "option must be registered")
+	assert.Equal(t, "disable-user-secret-file-path", opt.Flag)
+	assert.Equal(t, "CODER_DISABLE_USER_SECRET_FILE_PATH", opt.Env)
+	assert.Equal(t, "disableUserSecretFilePath", opt.YAML)
+
+	require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+		{Name: "CODER_DISABLE_USER_SECRET_FILE_PATH", Value: "true"},
+	}))
+	require.True(t, dv.DisableUserSecretFilePath.Value(), "env must set the value")
+
+	yamlDV := codersdk.DeploymentValues{}
+	yamlOpts := yamlDV.Options()
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("disableUserSecretFilePath: true\n"), &node))
+	require.NoError(t, node.Decode(&yamlOpts))
+	require.True(t, yamlDV.DisableUserSecretFilePath.Value(), "yaml must set the value")
+
+	// The option is not a secret, so telemetry and the config endpoint
+	// must keep reporting it after sanitization.
+	full := codersdk.DeploymentValues{DisableUserSecretFilePath: true}
+	sanitized, err := full.WithoutSecrets()
+	require.NoError(t, err)
+	require.True(t, sanitized.DisableUserSecretFilePath.Value())
 }
 
 func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {

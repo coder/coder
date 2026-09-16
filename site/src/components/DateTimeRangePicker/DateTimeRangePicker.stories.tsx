@@ -199,6 +199,9 @@ export const ApplyCustomRange: Story = {
 			screen.getByRole("combobox", { name: "To AM or PM" }),
 		);
 		await userEvent.click(await screen.findByRole("option", { name: "AM" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "AM" })).toBeNull();
+		});
 
 		await waitFor(() => {
 			expect(applyButton).toBeEnabled();

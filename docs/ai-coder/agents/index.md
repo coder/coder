@@ -1,4 +1,6 @@
-# Coder Agents
+---
+title: Coder Agents
+---
 
 Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles selecting a template, provisioning a workspace, and executing the task.
 
@@ -130,8 +132,8 @@ direction.
 ### File attachments
 
 Users can attach files to chat messages by pasting from the clipboard, dragging files into the input area, or using the attachment button.
-Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, JSON, and PDF files.
-Each upload can be up to 10&nbsp;MiB, and a single conversation can reference at most 50 attachments.
+Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, JSON, SVG, and PDF files.
+Each upload can be up to 10&nbsp;MiB. A conversation keeps its 50 most recent attachments, and older attachments are removed automatically.
 Attachments are sent to the model as multimodal content alongside the text prompt.
 
 This is useful for sharing screenshots of errors, UI mockups, terminal output, logs, or other context that helps the agent understand the task.
@@ -287,10 +289,9 @@ Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents recei
 
 Plan mode lets you ask the agent to investigate first and present a plan before
 implementation. Open the chat input menu and choose **Plan first** to enable it
-for the current chat. After you enable it, later turns in that chat stay in
-plan mode until you turn it off or click **Implement plan** after a proposed
-plan. Because the mode is stored on the chat, reloading the page preserves the
-current setting.
+for the current chat.
+After you enable it, later turns in that chat stay in plan mode until you turn it off or select **Implement plan** after a proposed plan.
+Because the mode is stored on the chat, reloading the page preserves the current setting.
 
 While plan mode is active:
 
@@ -303,6 +304,5 @@ While plan mode is active:
 - Dynamic tools, provider-native tools, and computer-use tools are not available.
 - Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 
-This keeps planning turns focused on analysis and plan authoring rather than
-implementation. Once you click **Implement plan**, the next turn runs in normal
-mode again.
+This keeps planning turns focused on analysis and plan authoring rather than implementation.
+Once you select **Implement plan**, the next turn runs in normal mode again.

@@ -40,6 +40,10 @@ export const AISettingsIndexRedirect = () => {
 		return <Navigate to="/ai/settings/mcp-servers/add" replace />;
 	}
 
+	if (permissions.updateAnyTemplate) {
+		return <Navigate to="/ai/settings/templates" replace />;
+	}
+
 	if (accessibleOrgsQuery.isLoading) {
 		return <Loader fullscreen />;
 	}

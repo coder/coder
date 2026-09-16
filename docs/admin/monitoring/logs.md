@@ -1,4 +1,6 @@
-# Logs
+---
+title: Logs
+---
 
 All Coder services log to standard output, which can be critical for identifying
 errors and monitoring Coder's deployment health. Like any service, logs can be

@@ -1,4 +1,6 @@
-# Dev Containers
+---
+title: Dev Containers
+---
 
 [Dev containers](https://containers.dev/) define your development environment
 as code using a `devcontainer.json` file. Coder's Dev Containers integration

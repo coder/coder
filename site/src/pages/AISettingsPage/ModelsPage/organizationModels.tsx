@@ -42,6 +42,7 @@ export const useAccessibleModelOrganizations = (
 
 	return {
 		organizations: accessibleOrganizations,
+		permissionsByOrganization: permissionsQuery.data,
 		isLoading:
 			queries.some((query) => query.isLoading) || permissionsQuery.isLoading,
 		error: hasData ? null : (requestError ?? null),
@@ -96,7 +97,11 @@ export const splitModelQueryErrors = (
 
 type OrganizationModelsContextValue = {
 	organization: Organization;
+	accessibleOrganizations: readonly Organization[];
 	permissions: OrganizationPermissions | undefined;
+	permissionsByOrganization?: Readonly<
+		Record<string, OrganizationPermissions | undefined>
+	>;
 	requestedOrganizationDenied: boolean;
 };
 
@@ -113,6 +118,27 @@ export const useOrganizationModels = (): OrganizationModelsContextValue => {
 	return context;
 };
 
+export const selectModelOrganizationPath = (
+	pathname: string,
+	organization: Organization,
+	searchParams?: URLSearchParams,
+): string => {
+	const next = new URLSearchParams(searchParams);
+	next.set(modelOrganizationSearchParam, organization.name);
+	return `${pathname}?${next.toString()}`;
+};
+
+export const creatableModelOrganizations = (
+	organizations: readonly Organization[],
+	permissionsByOrganization?: Readonly<
+		Record<string, OrganizationPermissions | undefined>
+	>,
+): readonly Organization[] =>
+	organizations.filter(
+		(organization) =>
+			permissionsByOrganization?.[organization.id]?.createChatModelConfigs,
+	);
+
 const organizationModelSettingsPath = (
 	organization: Organization,
 	suffix: string,
@@ -122,6 +148,11 @@ const organizationModelSettingsPath = (
 	next.set(modelOrganizationSearchParam, organization.name);
 	return `/ai/settings/models${suffix}?${next.toString()}`;
 };
+
+export const organizationModelsPath = (
+	organization: Organization,
+	searchParams?: URLSearchParams,
+): string => organizationModelSettingsPath(organization, "", searchParams);
 
 export const organizationAddModelPath = (
 	organization: Organization,
@@ -142,5 +173,5 @@ export const organizationModelPath = (
 export const useOrganizationModelsPath = (): string => {
 	const { organization } = useOrganizationModels();
 	const [searchParams] = useSearchParams();
-	return organizationModelSettingsPath(organization, "", searchParams);
+	return organizationModelsPath(organization, searchParams);
 };

@@ -1,7 +1,7 @@
+import { cn } from "cn";
 import { PauseIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
-import { Shimmer } from "../ChatElements";
+import { Shimmer } from "../ChatElements/Shimmer";
 import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";

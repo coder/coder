@@ -1,4 +1,6 @@
-# Groups and Roles (Premium)
+---
+title: Groups and roles (Premium)
+---
 
 Groups and roles can be manually assigned in Coder. For production deployments,
 these can also be [managed and synced by the identity provider](./idp-sync.md).
@@ -72,8 +74,7 @@ Custom roles can also be applied to
 
 ### Creating custom roles
 
-Clicking "Create custom role" opens a UI to select the desired permissions for a
-given persona.
+Selecting "Create custom role" opens a UI to select the desired permissions for a given persona.
 
 ![Creating a custom role](../../images/admin/users/roles/creating-custom-role.PNG)
 

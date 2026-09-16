@@ -1,4 +1,6 @@
-# Add an Envbuilder template
+---
+title: Add an Envbuilder template
+---
 
 A Coder administrator adds an Envbuilder-compatible template to Coder. This
 allows the template to prompt the developer for their dev container repository's

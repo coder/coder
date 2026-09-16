@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // TestTemplatesListSingleAuthorizePrepare guards against reintroducing the
@@ -1843,6 +1844,33 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.False(t, updated.DisableModuleCache, "expected false")
 	})
 
+	t.Run("DisableModuleCacheDeploymentWide", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Provisioner.DisableModuleCache = serpent.Bool(true)
+		client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.True(t, template.ModuleCacheDisabledByDeployment, "the deployment disables the module cache")
+		require.False(t, template.DisableModuleCache, "the template itself does not opt out")
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The per-template toggle is read-only while the deployment disables the
+		// cache, so this request does not change anything.
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			DisableModuleCache: new(true),
+		})
+		require.NoError(t, err)
+
+		updated, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.False(t, updated.DisableModuleCache, "expected the stored value to be untouched")
+		assert.True(t, updated.ModuleCacheDisabledByDeployment, "expected true")
+	})
+
 	t.Run("AllowWorkspaceRenames", func(t *testing.T) {
 		t.Parallel()
 
@@ -2410,69 +2438,6 @@ func TestTemplateNotifications(t *testing.T) {
 			}
 		})
 	})
-}
-
-func TestTemplateFilterHasAITask(t *testing.T) {
-	t.Parallel()
-
-	db, pubsub := dbtestutil.NewDB(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database:                 db,
-		Pubsub:                   pubsub,
-		IncludeProvisionerDaemon: true,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-
-	jobWithAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		OrganizationID: user.OrganizationID,
-		InitiatorID:    user.UserID,
-		Tags:           database.StringMap{},
-		Type:           database.ProvisionerJobTypeTemplateVersionImport,
-	})
-	jobWithoutAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		OrganizationID: user.OrganizationID,
-		InitiatorID:    user.UserID,
-		Tags:           database.StringMap{},
-		Type:           database.ProvisionerJobTypeTemplateVersionImport,
-	})
-	versionWithAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-		HasAITask:      sql.NullBool{Bool: true, Valid: true},
-		JobID:          jobWithAITask.ID,
-	})
-	versionWithoutAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-		HasAITask:      sql.NullBool{Bool: false, Valid: true},
-		JobID:          jobWithoutAITask.ID,
-	})
-	templateWithAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithAITask.ID)
-	templateWithoutAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithoutAITask.ID)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Test filtering
-	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "has-ai-task:true",
-	})
-	require.NoError(t, err)
-	require.Len(t, templates, 1)
-	require.Equal(t, templateWithAITask.ID, templates[0].ID)
-
-	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "has-ai-task:false",
-	})
-	require.NoError(t, err)
-	require.Len(t, templates, 1)
-	require.Equal(t, templateWithoutAITask.ID, templates[0].ID)
-
-	templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
-	require.NoError(t, err)
-	require.Len(t, templates, 2)
-	require.Contains(t, templates, templateWithAITask)
-	require.Contains(t, templates, templateWithoutAITask)
 }
 
 func TestTemplateFilterHasExternalAgent(t *testing.T) {

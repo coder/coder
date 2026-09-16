@@ -271,4 +271,88 @@ func TestParseBasesFromFS(t *testing.T) {
 		require.Equal(t, "windows", bases["winbox"].Manifest.OS)
 		require.Equal(t, BaseOSWindows, validBaseOS[bases["winbox"].Manifest.OS])
 	})
+
+	t.Run("ParsesAgents", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/multi/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "multi", "os": "linux", "agents": [{"name": "main"}, {"name": "gpu", "default": true}]}`),
+			},
+			"bases/multi/main.tf.tmpl": &fstest.MapFile{
+				Data: []byte(`resource "coder_agent" "main" {}
+resource "coder_agent" "gpu" {}`),
+			},
+			"bases/multi/README.md": &fstest.MapFile{
+				Data: []byte("# Multi\n"),
+			},
+		}
+
+		bases, err := parseBasesFromFS(fsys)
+		require.NoError(t, err)
+		agents := bases["multi"].Manifest.Agents
+		require.Equal(t, []BaseAgent{{Name: "main"}, {Name: "gpu", Default: true}}, agents)
+	})
+
+	t.Run("RejectsEmptyAgentName", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": ""}]}`),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "empty name")
+	})
+
+	t.Run("RejectsDuplicateAgentName", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "main"}, {"name": "main"}]}`),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "duplicate agent name")
+	})
+
+	t.Run("RejectsMultipleDefaultAgents", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "a", "default": true}, {"name": "b", "default": true}]}`),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "exactly one required")
+	})
+
+	t.Run("RejectsMultiAgentWithoutDefault", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "a"}, {"name": "b"}]}`),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "exactly one required")
+	})
+}
+
+func TestDefaultAgentName(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "", defaultAgentName(nil))
+	require.Equal(t, "main", defaultAgentName([]BaseAgent{{Name: "main"}, {Name: "gpu"}}),
+		"first agent is the default when none is marked")
+	require.Equal(t, "gpu", defaultAgentName([]BaseAgent{{Name: "main"}, {Name: "gpu", Default: true}}),
+		"the marked agent is the default")
 }

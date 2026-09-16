@@ -1,4 +1,6 @@
-# Architecture
+---
+title: Architecture
+---
 
 Coder's AI agent interacts with workspaces over the same
 connection path as a developer's IDE, web terminal, and SSH session already
@@ -96,6 +98,11 @@ You can also trigger a compaction on demand by sending `/compact` while the
 agent is idle or in an error state, which clears the error. Manual compaction
 runs the same summarization regardless of current token usage and is labeled
 as manual in the conversation.
+
+To start over without a summary, send `/clear` while the agent is idle or in
+an error state. The transcript stays visible, but the next message runs with
+a fresh context, as if the conversation were new. A "Context cleared" marker
+shows where the reset happened.
 
 ### Message queuing
 

@@ -19,6 +19,8 @@ import {
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatModelACL,
+	MockChatModelACLAvailable,
 	MockMCPServerConfigACL,
 	MockMCPServerConfigACLAvailable,
 } from "#/testHelpers/entities";
@@ -51,6 +53,8 @@ import {
 	chatMessagesKey,
 	chatModel,
 	chatModelACL,
+	chatModelACLAvailable,
+	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
 	chatPromptsKey,
@@ -88,6 +92,7 @@ import {
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
+	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -136,6 +141,7 @@ vi.mock("#/api/api", () => ({
 			updateChatACL: vi.fn(),
 			getChatModel: vi.fn(),
 			getChatModelACL: vi.fn(),
+			getChatModelACLAvailable: vi.fn(),
 			updateChatModelACL: vi.fn(),
 			getMCPServerConfigACL: vi.fn(),
 			getMCPServerConfigACLAvailable: vi.fn(),
@@ -262,15 +268,45 @@ describe("chat model query factories", () => {
 		);
 	});
 
+	it("scopes model ACL candidates by organization, model, and options", async () => {
+		const options = { q: "alice@example.com", limit: 25 };
+		const otherOptions = { q: "bob@example.com", limit: 25 };
+		vi.mocked(API.experimental.getChatModelACLAvailable).mockResolvedValue(
+			MockChatModelACLAvailable,
+		);
+
+		const query = chatModelACLAvailable(organizationId, modelId, options);
+
+		expect(query.queryKey).toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(otherOrganizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, "other-model", options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, otherOptions),
+		);
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACLAvailable);
+		expect(API.experimental.getChatModelACLAvailable).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+			options,
+		);
+	});
+
 	it("gets and sparsely updates an organization-scoped model ACL", async () => {
-		const acl = { user_roles: {}, group_roles: {} };
 		const req = { user_roles: { "user-1": "read" as const } };
-		vi.mocked(API.experimental.getChatModelACL).mockResolvedValue(acl);
+		vi.mocked(API.experimental.getChatModelACL).mockResolvedValue(
+			MockChatModelACL,
+		);
 		vi.mocked(API.experimental.updateChatModelACL).mockResolvedValue();
 
 		const query = chatModelACL(organizationId, modelId);
 		expect(query.queryKey).toEqual(chatModelACLKey(organizationId, modelId));
-		await expect(query.queryFn()).resolves.toEqual(acl);
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACL);
 		expect(API.experimental.getChatModelACL).toHaveBeenCalledWith(
 			organizationId,
 			modelId,
@@ -569,7 +605,30 @@ describe("invalidateChatListQueries", () => {
 	});
 });
 
-describe("updateChatPlanMode optimistic update", () => {
+describe("planModeFieldsForCreateMessage", () => {
+	it("only sends the clear wire value when requested", () => {
+		expect(planModeFieldsForCreateMessage(true)).toEqual({ plan_mode: "" });
+		expect(planModeFieldsForCreateMessage(false)).toEqual({});
+	});
+});
+
+describe("updateChatPlanMode", () => {
+	it("sends plan to enable and an empty string to clear", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const mutation = updateChatPlanMode(queryClient);
+
+		await mutation.mutationFn({ chatId: "chat-1", planMode: "plan" });
+		await mutation.mutationFn({ chatId: "chat-1", planMode: undefined });
+
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
+			plan_mode: "plan",
+		});
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
+			plan_mode: "",
+		});
+	});
+
 	it("invalidates the chat list on error without a detail cache", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -3106,6 +3165,83 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it.each([
+		{ field: "base_branch", to: "release" },
+		{ field: "head_branch", to: "feature-renamed" },
+		{ field: "reviewer_count", to: 2 },
+	])("adopts diff status when only $field changes", ({ field, to }) => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			base_branch: "main",
+			head_branch: "feature",
+			reviewer_count: 1,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			...cachedDiffStatus,
+			[field]: to,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_status: cachedDiffStatus,
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: watchedDiffStatus,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+		});
+
+		expect(merged.diff_status).toBe(watchedDiffStatus);
+	});
+
+	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			base_branch: "main",
+			head_branch: "feature",
+			reviewer_count: 1,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			...cachedDiffStatus,
+			refreshed_at: "2025-01-01T00:05:00.000Z",
+			stale_at: "2025-01-01T01:05:00.000Z",
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_status: cachedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "diff_status_change",
+			}),
+		).toBe(cachedChat);
+	});
+
 	it("marks other chats unread on fresh status updates", () => {
 		const cachedChat = makeChat("chat-1", {
 			has_unread: false,
@@ -4487,25 +4623,25 @@ describe("archive mutation entity retention", () => {
 	it.each([
 		{ name: "archiveChat", factory: archiveChat, archived: true },
 		{ name: "unarchiveChat", factory: unarchiveChat, archived: false },
-	])("$name onSuccess never removes the entity family", ({
-		factory,
-		archived,
-	}) => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { archived: !archived }),
-		);
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+	])(
+		"$name onSuccess never removes the entity family",
+		({ factory, archived }) => {
+			const queryClient = createTestQueryClient();
+			const chatId = "chat-1";
+			queryClient.setQueryData(
+				chatEntityKey(chatId),
+				makeChat(chatId, { archived: !archived }),
+			);
+			queryClient.setQueryData(chatMessagesKey(chatId), []);
 
-		const mutation = factory(queryClient);
-		mutation.onSuccess(undefined, chatId);
-		mutation.onSettled(undefined, undefined, chatId);
+			const mutation = factory(queryClient);
+			mutation.onSuccess(undefined, chatId);
+			mutation.onSettled(undefined, undefined, chatId);
 
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
-		).toMatchObject({ archived });
-		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
-	});
+			expect(
+				queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+			).toMatchObject({ archived });
+			expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
+		},
+	);
 });

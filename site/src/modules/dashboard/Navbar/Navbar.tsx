@@ -10,7 +10,6 @@ import {
 	canViewDeploymentSettings,
 } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
-import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
@@ -22,8 +21,6 @@ export const Navbar: React.FC = () => {
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
-	const accessibleModelOrgsQuery =
-		useAccessibleModelOrganizations(organizations);
 	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
@@ -43,6 +40,7 @@ export const Navbar: React.FC = () => {
 		permissions.createAnyMCPServerConfig ||
 		permissions.updateAnyMCPServerConfig ||
 		permissions.deleteAnyMCPServerConfig ||
+		permissions.updateAnyTemplate ||
 		canAccessAnyModel;
 	const organizationMCPSharing = useCanShareOrganizationMCPServers(
 		organizations,
@@ -50,8 +48,6 @@ export const Navbar: React.FC = () => {
 	);
 	const canViewAISettings =
 		canViewSiteWideAISettings || organizationMCPSharing.canShare;
-	const canViewModels =
-		!canViewAISettings && accessibleModelOrgsQuery.organizations.length > 0;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
@@ -65,6 +61,7 @@ export const Navbar: React.FC = () => {
 			user={me}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
+			codernautsEnabled={appearance.codernauts_enabled}
 			onSignOut={signOut}
 			adminPermissions={{
 				canViewDeployment,
@@ -75,8 +72,8 @@ export const Navbar: React.FC = () => {
 				canViewAIBridge,
 				canViewHealth,
 			}}
-			canViewModels={canViewModels}
 			canCreateChat={canCreateChat}
+			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

@@ -356,6 +356,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "docs_url": "string",
   "logo_url": "string",
   "service_banner": {
@@ -408,6 +409,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -437,6 +439,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -1515,6 +1518,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 [
   {
     "callback_url": "string",
+    "client_type": "confidential",
     "endpoints": {
       "authorization": "string",
       "device_authorization": "string",
@@ -1542,6 +1546,7 @@ Status Code **200**
 |---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
 | `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» client_type`           | [codersdk.OAuth2ClientType](schemas.md#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
 | `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
@@ -1550,6 +1555,12 @@ Status Code **200**
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+
+#### Enumerated Values
+
+| Property      | Value(s)                 |
+|---------------|--------------------------|
+| `client_type` | `confidential`, `public` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1590,6 +1601,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -1636,6 +1648,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -1694,6 +1707,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -1826,9 +1840,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                          |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2ProviderAppSecretFull](schemas.md#codersdkoauth2providerappsecretfull) |
+| Status | Meaning                                                          | Description                        | Schema                                                                                          |
+|--------|------------------------------------------------------------------|------------------------------------|-------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                 | array of [codersdk.OAuth2ProviderAppSecretFull](schemas.md#codersdkoauth2providerappsecretfull) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Public clients cannot have secrets | [codersdk.Response](schemas.md#codersdkresponse)                                                |
 
 <h3 id="create-oauth2-application-secret.-responseschema">Response Schema</h3>
 
@@ -4877,7 +4892,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_type=code&code_challenge=string \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4885,25 +4900,32 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
+| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
+| `code_challenge_method` | query | string | false    | PKCE challenge method. S256 only; omitting it means S256                                                                                                                                                                                                           |
+| `resource`              | query | string | false    | RFC 8707 resource indicator: an absolute URI without a fragment                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
-| Parameter       | Value(s)        |
-|-----------------|-----------------|
-| `response_type` | `code`, `token` |
+| Parameter               | Value(s) |
+|-------------------------|----------|
+| `response_type`         | `code`   |
+| `code_challenge_method` | `S256`   |
 
 ### Responses
 
-| Status | Meaning                                                 | Description                     | Schema |
-|--------|---------------------------------------------------------|---------------------------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Returns HTML authorization page |        |
+| Status | Meaning                                                                    | Description                                                                                                   | Schema |
+|--------|----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | Returns HTML authorization page                                                                               |        |
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)                        |        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback |        |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | HTML error page. The app's registered callback URL is not usable                                              |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4913,7 +4935,8 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response_type=code&code_challenge=string \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4921,25 +4944,43 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
+| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
+| `code_challenge_method` | query | string | false    | PKCE challenge method. S256 only; omitting it means S256                                                                                                                                                                                                           |
+| `resource`              | query | string | false    | RFC 8707 resource indicator: an absolute URI without a fragment                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
-| Parameter       | Value(s)        |
-|-----------------|-----------------|
-| `response_type` | `code`, `token` |
+| Parameter               | Value(s) |
+|-------------------------|----------|
+| `response_type`         | `code`   |
+| `code_challenge_method` | `S256`   |
+
+### Example responses
+
+> 400 Response
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "string",
+  "error_uri": "string"
+}
+```
 
 ### Responses
 
-| Status | Meaning                                                    | Description                              | Schema |
-|--------|------------------------------------------------------------|------------------------------------------|--------|
-| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Returns redirect with authorization code |        |
+| Status | Meaning                                                                    | Description                                                                                                            | Schema                                                 |
+|--------|----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1) |                                                        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback                           | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | The app's registered callback URL is not usable                                                                        | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -5223,7 +5264,8 @@ curl -X POST http://coder-server:8080/oauth2/register \
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/revoke \
-
+  -H 'Accept: application/json' \
+  -H 'Authorization: Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ='
 ```
 
 `POST /oauth2/revoke`
@@ -5232,6 +5274,7 @@ curl -X POST http://coder-server:8080/oauth2/revoke \
 
 ```yaml
 client_id: string
+client_secret: string
 token: string
 token_type_hint: string
 
@@ -5239,18 +5282,34 @@ token_type_hint: string
 
 ### Parameters
 
-| Name                | In   | Type   | Required | Description                                           |
-|---------------------|------|--------|----------|-------------------------------------------------------|
-| `body`              | body | object | true     |                                                       |
-| `» client_id`       | body | string | true     | Client ID for authentication                          |
-| `» token`           | body | string | true     | The token to revoke                                   |
-| `» token_type_hint` | body | string | false    | Hint about token type (access_token or refresh_token) |
+| Name                | In     | Type   | Required | Description                                                                                                                                                        |
+|---------------------|--------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Authorization`     | header | string | false    | HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. |
+| `body`              | body   | object | false    |                                                                                                                                                                    |
+| `» client_id`       | body   | string | false    | Client ID, required unless sent as the HTTP Basic username                                                                                                         |
+| `» client_secret`   | body   | string | false    | Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.         |
+| `» token`           | body   | string | true     | The token to revoke                                                                                                                                                |
+| `» token_type_hint` | body   | string | false    | Hint about token type (access_token or refresh_token)                                                                                                              |
+
+### Example responses
+
+> 400 Response
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "string",
+  "error_uri": "string"
+}
+```
 
 ### Responses
 
-| Status | Meaning                                                 | Description                | Schema |
-|--------|---------------------------------------------------------|----------------------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Token successfully revoked |        |
+| Status | Meaning                                                          | Description                                                                                                                    | Schema                                                 |
+|--------|------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client                            |                                                        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 401    | [Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)  | invalid_client: the client is unknown, or a confidential client did not present a valid secret                                 | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## OAuth2 token exchange
 
@@ -5270,6 +5329,7 @@ curl -X POST http://coder-server:8080/oauth2/tokens \
 client_id: string
 client_secret: string
 code: string
+code_verifier: string
 refresh_token: string
 grant_type: authorization_code
 
@@ -5277,14 +5337,15 @@ grant_type: authorization_code
 
 ### Parameters
 
-| Name              | In   | Type   | Required | Description                                                   |
-|-------------------|------|--------|----------|---------------------------------------------------------------|
-| `body`            | body | object | false    |                                                               |
-| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code          |
-| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code      |
-| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code |
-| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token           |
-| `» grant_type`    | body | string | true     | Grant type                                                    |
+| Name              | In   | Type   | Required | Description                                                                                                                                               |
+|-------------------|------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body`            | body | object | false    |                                                                                                                                                           |
+| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code                                                                                                      |
+| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret. |
+| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code                                                                                             |
+| `» code_verifier` | body | string | false    | PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.                                                            |
+| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token                                                                                                       |
+| `» grant_type`    | body | string | true     | Grant type                                                                                                                                                |
 
 #### Enumerated Values
 
@@ -5300,17 +5361,18 @@ grant_type: authorization_code
 {
   "access_token": "string",
   "expires_in": 0,
-  "expiry": "string",
+  "expiry": "2019-08-24T14:15:22Z",
   "refresh_token": "string",
-  "token_type": "string"
+  "scope": "string",
+  "token_type": "Bearer"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                 |
-|--------|---------------------------------------------------------|-------------|----------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [oauth2.Token](schemas.md#oauth2token) |
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
 
 ## Delete OAuth2 application tokens
 

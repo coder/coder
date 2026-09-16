@@ -26,7 +26,7 @@ func TestClientChatModelACL(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
 		require.Equal(t, "/api/v2/organizations/"+organizationID.String()+"/chats/models/"+modelID.String()+"/acl", r.URL.Path)
-		http.Error(rw, `{"user_roles":{"`+userID.String()+`":"read"},"group_roles":{"`+groupID.String()+`":"read"}}`, http.StatusOK)
+		http.Error(rw, `{"users":[{"id":"`+userID.String()+`","username":"alice","name":"Alice","role":"read"}],"groups":[{"id":"`+groupID.String()+`","organization_id":"`+organizationID.String()+`","name":"developers","display_name":"Developers","members":[],"total_member_count":2,"role":"read"}]}`, http.StatusOK)
 	}))
 	defer server.Close()
 
@@ -36,8 +36,17 @@ func TestClientChatModelACL(t *testing.T) {
 
 	modelACL, err := client.ChatModelACL(context.Background(), organizationID, modelID)
 	require.NoError(t, err)
-	require.Equal(t, map[string]codersdk.ChatRole{userID.String(): codersdk.ChatRoleRead}, modelACL.UserRoles)
-	require.Equal(t, map[string]codersdk.ChatRole{groupID.String(): codersdk.ChatRoleRead}, modelACL.GroupRoles)
+	require.Equal(t, []codersdk.ChatUser{{
+		MinimalUser: codersdk.MinimalUser{ID: userID, Username: "alice", Name: "Alice"},
+		Role:        codersdk.ChatRoleRead,
+	}}, modelACL.Users)
+	require.Equal(t, groupID, modelACL.Groups[0].ID)
+	require.Equal(t, organizationID, modelACL.Groups[0].OrganizationID)
+	require.Equal(t, "developers", modelACL.Groups[0].Name)
+	require.Equal(t, "Developers", modelACL.Groups[0].DisplayName)
+	require.Equal(t, 2, modelACL.Groups[0].TotalMemberCount)
+	require.Empty(t, modelACL.Groups[0].Members)
+	require.Equal(t, codersdk.ChatRoleRead, modelACL.Groups[0].Role)
 }
 
 func TestClientUpdateChatModelACL(t *testing.T) {

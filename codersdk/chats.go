@@ -27,10 +27,9 @@ import (
 // threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
-// MaxChatFileIDs is the maximum number of file IDs that can be
-// associated with a single chat. This limit prevents unbounded
-// growth in the chat_file_links table. It is easier to raise
-// this limit than to lower it.
+// MaxChatFileIDs is the number of most recent attachments a chat
+// keeps. Linking a new file past this cap deletes the oldest files
+// on the chat. A single batch larger than the cap is rejected.
 const MaxChatFileIDs = 50
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
@@ -54,6 +53,7 @@ const (
 	ChatAttachmentMediaTypeImageGIF        ChatAttachmentMediaType = "image/gif"
 	ChatAttachmentMediaTypeImageJPEG       ChatAttachmentMediaType = "image/jpeg"
 	ChatAttachmentMediaTypeImagePNG        ChatAttachmentMediaType = "image/png"
+	ChatAttachmentMediaTypeImageSVG        ChatAttachmentMediaType = "image/svg+xml"
 	ChatAttachmentMediaTypeImageWEBP       ChatAttachmentMediaType = "image/webp"
 	ChatAttachmentMediaTypeTextCSV         ChatAttachmentMediaType = "text/csv"
 	ChatAttachmentMediaTypeTextMarkdown    ChatAttachmentMediaType = "text/markdown"
@@ -70,6 +70,7 @@ var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
 	ChatAttachmentMediaTypeImageGIF,
 	ChatAttachmentMediaTypeImageJPEG,
 	ChatAttachmentMediaTypeImagePNG,
+	ChatAttachmentMediaTypeImageSVG,
 	ChatAttachmentMediaTypeImageWEBP,
 	ChatAttachmentMediaTypeTextCSV,
 	ChatAttachmentMediaTypeTextMarkdown,
@@ -1316,10 +1317,11 @@ type ChatModel struct {
 }
 
 // ChatModelACL is the access control list for an organization-scoped chat
-// model. Each principal is mapped to its effective model role.
+// model. Each principal includes the identity details needed to display and
+// manage the ACL without separate directory lookups.
 type ChatModelACL struct {
-	UserRoles  map[string]ChatRole `json:"user_roles"`
-	GroupRoles map[string]ChatRole `json:"group_roles"`
+	Users  []ChatUser  `json:"users"`
+	Groups []ChatGroup `json:"groups"`
 }
 
 // UpdateChatModelACLRequest is a sparse update of a chat model ACL. Only the
@@ -1548,8 +1550,9 @@ func (c *ChatModelCallConfig) UnmarshalStrict(data []byte) error {
 // ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
 // Enabled defaults to true. IsDefault defaults to false when the organization
 // already has a default model. The first model created in an organization is
-// automatically promoted to default. CompressionThreshold defaults to 70. An
-// omitted ModelConfig uses the provider defaults.
+// automatically promoted to default. CompressionThreshold defaults to 70, or
+// 30 when ContextLimit is at least 500k tokens. An omitted ModelConfig uses the
+// provider defaults.
 type CreateChatModelRequest struct {
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
@@ -2245,6 +2248,31 @@ func (c *Client) ChatModelACL(ctx context.Context, organizationID, modelID uuid.
 	return modelACL, ReadBodyAsJSON(res, &modelACL)
 }
 
+// ChatModelACLAvailable returns available users and groups that can be assigned
+// chat model permissions. The optional request applies q/limit/offset/after_id
+// to users. Groups reuse the user search query and q/limit semantics. Pass
+// codersdk.UsersRequest{} when no filtering is desired.
+func (c *Client) ChatModelACLAvailable(ctx context.Context, organizationID, modelID uuid.UUID, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s/acl/available", organizationID, modelID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return ACLAvailable{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ACLAvailable{}, ReadBodyAsError(res)
+	}
+
+	var acl ACLAvailable
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
 // UpdateChatModelACL applies a sparse access control list update to a chat
 // model in an organization.
 func (c *Client) UpdateChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelACLRequest) error {
@@ -2275,8 +2303,8 @@ func (c *Client) DeleteChatModel(ctx context.Context, organizationID, modelID uu
 // ChatModelProviderDescriptor is the redacted view of an AI provider carried
 // on the org model collection response. It carries only the capability
 // metadata the Models UI needs; key material, base URLs, and headers are
-// never exposed. The fields mirror what /api/experimental/chats/models
-// already discloses to any authenticated caller.
+// never exposed. The fields mirror the provider descriptors returned by the
+// organization-scoped chat models collection.
 type ChatModelProviderDescriptor struct {
 	ID                 uuid.UUID                          `json:"id" format:"uuid"`
 	Type               string                             `json:"type"`
@@ -3151,6 +3179,23 @@ func (c *Client) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, err
 // usage threshold.
 func (c *Client) CompactChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/compact", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, ReadBodyAsJSON(res, &chat)
+}
+
+// ClearChat resets the model context of an idle or errored chat,
+// clearing any stored error. The reset commits synchronously with no
+// model call: the transcript is preserved and the next prompt starts
+// from a fresh context.
+func (c *Client) ClearChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/clear", chatID), nil)
 	if err != nil {
 		return Chat{}, err
 	}

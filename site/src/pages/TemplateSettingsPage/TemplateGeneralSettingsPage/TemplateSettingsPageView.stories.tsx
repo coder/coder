@@ -30,6 +30,15 @@ export const AgentsNotAllowed: Story = {
 	},
 };
 
+export const ModuleCacheDisabledByDeployment: Story = {
+	args: {
+		template: {
+			...MockTemplate,
+			module_cache_disabled_by_deployment: true,
+		},
+	},
+};
+
 export const SaveTemplateSettingsError: Story = {
 	args: {
 		submitError: mockApiError({

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ArrowUpIcon,
@@ -21,16 +22,14 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import type {
-	AgentChatSendShortcut,
-	ChatQueuedMessage,
-} from "#/api/typesGenerated";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -57,7 +56,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/modules/aiModels/ModelSelector";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -65,7 +68,7 @@ import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
-	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	getAgentChatSendShortcut,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 import {
@@ -79,7 +82,6 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -102,9 +104,9 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
-	sendShortcut?: AgentChatSendShortcut;
 	placeholder?: string;
 	isDisabled: boolean;
+	isReadOnly?: boolean;
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
@@ -210,6 +212,12 @@ export interface AttachedWorkspaceInfo {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 }
+// Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
+// it), grow expands into free row space, and max-w-max caps at the
+// label's natural width. Below the floor the +N overflow takes over.
+const pillSizingClasses =
+	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
+
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
@@ -233,7 +241,7 @@ const BadgeDismissButton: FC<{
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
-			<XIcon className="!size-2.5" />
+			<XIcon className="size-2.5!" />
 		</span>
 	</button>
 );
@@ -245,6 +253,8 @@ const ToolBadge: FC<{
 	onRemovePlanning?: () => void;
 	isDisabled?: boolean;
 	className?: string;
+	// The overflow popover auto-focuses badges; suppress the tooltip there.
+	disableTooltip?: boolean;
 }> = ({
 	badge,
 	onRemoveWorkspace,
@@ -252,6 +262,7 @@ const ToolBadge: FC<{
 	onRemovePlanning,
 	isDisabled,
 	className,
+	disableTooltip,
 }) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
@@ -301,7 +312,12 @@ const ToolBadge: FC<{
 						)}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent>{badge.statusLabel}</TooltipContent>
+				{/* Hidden below md: touch focus would stick the tooltip open. */}
+				{!disableTooltip && (
+					<TooltipContent className="hidden md:block">
+						{badge.statusLabel}
+					</TooltipContent>
+				)}
 			</Tooltip>
 		);
 	}
@@ -346,9 +362,9 @@ const ToolBadge: FC<{
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
-	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	placeholder = "Type a message...",
 	isDisabled,
+	isReadOnly = false,
 	isLoading,
 	inputRef,
 	initialValue,
@@ -407,7 +423,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const preferencesQuery = useQuery(preferenceSettings());
+	const sendShortcut = getAgentChatSendShortcut(
+		preferencesQuery.data?.agent_chat_send_shortcut,
+		preferencesQuery.isLoading,
+	);
 	const [chatFullWidth] = useChatFullWidth();
+	const { organizations } = useDashboard();
+	const chatOrganization = organizations.find(
+		(organization) => organization.id === chatOrganizationId,
+	);
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup
@@ -585,9 +610,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
 
-	// When workspace data is available the badge renders as the
-	// interactive WorkspacePill; its overflow-popover fallback uses the
-	// richer attachedWorkspace data when present.
 	let workspacePillBadge: ToolBadgeData | undefined;
 	if (workspace && workspaceAgent && chatId) {
 		workspacePillBadge = attachedWorkspace
@@ -830,9 +852,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const attachable = Array.from(e.dataTransfer.files).filter(
-			isChatAttachmentFile,
-		);
+		const dropped = Array.from(e.dataTransfer.files);
+		const attachable = dropped.filter(isChatAttachmentFile);
+		const rejected = dropped.filter((file) => !isChatAttachmentFile(file));
+		if (rejected.length > 0) {
+			toast.error(
+				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
+			);
+		}
 		if (attachable.length === 0) return;
 		resetPromptCycle();
 		onAttach(attachable);
@@ -892,6 +919,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
+		!isReadOnly &&
 		!isLoading &&
 		hasModelOptions &&
 		hasSendableContent &&
@@ -906,6 +934,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!hasUploadedAttachments &&
 			!hasFileReferences &&
 			!isDisabled &&
+			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
@@ -918,6 +947,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (
 			(!text && !hasUploadedAttachments && !hasFileReferences) ||
 			isDisabled ||
+			isReadOnly ||
 			isLoading ||
 			hasActiveUploads ||
 			!hasModelOptions
@@ -985,7 +1015,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isDisabled || isLoading;
+			isEditingHistoryMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1075,7 +1105,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			{showAgentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">
+				<div className="relative z-0 -mb-10">
 					{(aiGatewayDisabled ||
 						(providerCount !== undefined && modelCount !== undefined)) &&
 					canConfigureAgentSetup ? (
@@ -1083,6 +1113,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin
 							providerCount={providerCount ?? 0}
 							modelCount={modelCount ?? 0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
@@ -1091,6 +1122,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
@@ -1101,7 +1133,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
@@ -1158,7 +1190,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					sendShortcut={sendShortcut}
-					disabled={isDisabled || isLoading}
+					disabled={isReadOnly || isLoading}
 					hasWorkspace={hasSkillsWorkspace}
 					workspaceSkills={workspaceSkills}
 					autoFocus
@@ -1197,7 +1229,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					/>
 				)}
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-					<div className="flex min-w-0 items-center gap-1">
+					{/* flex-1 routes free row space to the growing pills. */}
+					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
 						<Popover
 							modal={false}
@@ -1213,7 +1246,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1426,7 +1459,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="md:h-auto md:w-auto md:shrink"
+								className={cn(pillSizingClasses, "md:h-auto")}
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1450,12 +1483,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}
-						{/* Badge row; all badges and the pill always
-						 * render so the DOM structure never changes.
-						 * Overflow badges use invisible + order-1 to
-						 * hide and reorder via CSS. The pill is invisible
-						 * when there's no overflow but still occupies
-						 * layout space, preventing measurement flicker. */}
+						{/* Badges and the +N pill stay mounted for measurement:
+						 * overflowed badges are display:none, the pill merely
+						 * invisible so its width stays readable. */}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
@@ -1472,8 +1502,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										<span
 											key="workspace-pill"
 											className={cn(
-												"flex min-w-[calc(8ch_+_3.125rem)] text-xs",
-												isOverflow && "invisible order-1",
+												"flex min-w-0 text-xs",
+												pillSizingClasses,
+												isOverflow && "hidden",
 											)}
 										>
 											<WorkspacePill
@@ -1497,14 +1528,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											onPlanModeToggle ? handleDisablePlanMode : undefined
 										}
 										isDisabled={isDisabled}
-										className={isOverflow ? "invisible order-1" : undefined}
+										className={isOverflow ? "hidden" : undefined}
 									/>
 								);
 							})}
-							{/* Pill; always in the DOM so it permanently
-							 * reserves layout space. Invisible when nothing
-							 * overflows. CSS order keeps it before order-1
-							 * (overflow) badges. */}
 							<Popover
 								open={overflowPopoverOpen && overflowCount > 0}
 								onOpenChange={setOverflowPopoverOpen}
@@ -1522,27 +1549,72 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
+								{/* Anchored above the +N pill; hugs the toolbar row. */}
 								<PopoverContent
 									side="top"
 									align="start"
-									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									onInteractOutside={(event) => {
+										// The workspace pill portals its menu outside
+										// this popover; dismissing would unmount the
+										// open menu. Ignore focus shifts and pointer
+										// presses inside the menu.
+										if (event.detail.originalEvent.type !== "pointerdown") {
+											event.preventDefault();
+											return;
+										}
+										if (
+											event.target instanceof Element &&
+											event.target.closest('[role="menu"]')
+										) {
+											event.preventDefault();
+										}
+									}}
 								>
-									{overflowBadges.map((badge) => (
-										<ToolBadge
-											key={
-												badge.kind === "mcp"
-													? badge.server.id
-													: `${badge.kind}-overflow`
-											}
-											badge={badge}
-											onRemoveWorkspace={removeWorkspaceHandler}
-											onRemoveMcp={handleRemoveMcp}
-											onRemovePlanning={
-												onPlanModeToggle ? handleDisablePlanMode : undefined
-											}
-											isDisabled={isDisabled}
-										/>
-									))}
+									{overflowBadges.map((badge, i) => {
+										if (
+											badge === workspacePillBadge &&
+											workspace &&
+											workspaceAgent &&
+											chatId
+										) {
+											return (
+												<span
+													key="workspace-pill-overflow"
+													className="flex min-w-0 text-xs"
+												>
+													<WorkspacePill
+														workspace={workspace}
+														agent={workspaceAgent}
+														chatId={chatId}
+														sshCommand={sshCommand}
+														folder={folder}
+														onRemoveWorkspace={removeWorkspaceHandler}
+														inOverflowPopover
+													/>
+												</span>
+											);
+										}
+										return (
+											<ToolBadge
+												// Non-MCP badges can share a kind, so keys
+												// are position-qualified.
+												key={
+													badge.kind === "mcp"
+														? badge.server.id
+														: `${badge.kind}-overflow-${visibleCount + i}`
+												}
+												badge={badge}
+												onRemoveWorkspace={removeWorkspaceHandler}
+												onRemoveMcp={handleRemoveMcp}
+												onRemovePlanning={
+													onPlanModeToggle ? handleDisablePlanMode : undefined
+												}
+												isDisabled={isDisabled}
+												disableTooltip
+											/>
+										);
+									})}
 								</PopoverContent>
 							</Popover>
 						</div>
@@ -1554,7 +1626,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									onClick={
 										speech.isRecording
 											? handleCancelRecording
@@ -1565,7 +1637,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										speech.isRecording ? "Cancel voice input" : "Voice input"
 									}
 								>
-									{speech.isRecording ? <XIcon /> : <MicIcon />}
+									{speech.isRecording ? (
+										<XIcon />
+									) : (
+										<MicIcon strokeWidth={1.5} />
+									)}
 								</Button>
 								{speech.error && !speech.isRecording && (
 									<span
@@ -1580,11 +1656,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator
-								usage={contextUsage}
-								onRefreshContext={onRefreshContext}
-								isRefreshingContext={isRefreshingContext}
-							/>
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported &&
+										!isStreaming &&
+										!speech.error &&
+										"-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+								/>
+							</div>
 						)}
 						{isStreaming && onInterrupt && (
 							<Tooltip>
@@ -1592,7 +1678,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-3! [&>svg]:p-0"
 										onClick={onInterrupt}
 										disabled={isInterruptPending}
 									>
@@ -1619,7 +1705,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
 										onClick={
 											speech.isRecording ? handleAcceptRecording : handleSubmit
 										}

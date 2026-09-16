@@ -1,6 +1,5 @@
 import {
 	type FC,
-	type ReactNode,
 	useCallback,
 	useEffect,
 	useReducer,
@@ -135,7 +134,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	// Reset scroll whenever the active step changes, including on browser
 	// back/forward (popstate) where button click handlers would not fire.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll must reset when step changes
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentStep.id]);
@@ -152,6 +150,19 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		modulesQuery.data,
 		moduleVarMap,
 	);
+
+	const [showContinueError, setShowContinueError] = useState(false);
+	const [errorStepId, setErrorStepId] = useState(currentStep.id);
+
+	// Hide the validation message once the step's requirements are satisfied
+	// or the user moves to a different step. Both are render-time state
+	// adjustments rather than effects.
+	if (errorStepId !== currentStep.id) {
+		setErrorStepId(currentStep.id);
+		setShowContinueError(false);
+	} else if (showContinueError && canContinue) {
+		setShowContinueError(false);
+	}
 
 	// Pushes a history entry so browser back/forward walks the steps.
 	const navigateToStep = useCallback(
@@ -172,6 +183,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	const handleNext = () => {
+		if (!canContinue) {
+			setShowContinueError(true);
+			return;
+		}
 		navigateToStep(nextIndex);
 	};
 
@@ -264,7 +279,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	// Runs after the scroll-reset effect above (declared earlier, so it fires
 	// first). Scrolls the requested module into view once module-settings
 	// has rendered.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run on step change
 	useEffect(() => {
 		if (currentStep.id !== "module-settings") {
 			return;
@@ -303,17 +317,18 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
 					<div className="p-6 border border-solid rounded-lg overflow-x-auto">
-						{renderStepContent(
-							currentStep.id,
-							state,
-							dispatch,
-							moduleVarMap,
-							createError,
-							handleProvisionerStatusChange,
-							handleDeselectModule,
-							registerModuleRef,
-							handleCreate,
-						)}
+						<StepContent
+							stepId={currentStep.id}
+							state={state}
+							dispatch={dispatch}
+							moduleVarMap={moduleVarMap}
+							createError={createError}
+							onProvisionerStatusChange={handleProvisionerStatusChange}
+							onRemoveModule={handleDeselectModule}
+							registerModuleRef={registerModuleRef}
+							onCreate={handleCreate}
+							showValidationErrors={showContinueError}
+						/>
 					</div>
 
 					{/* Navigation controls */}
@@ -334,11 +349,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Create Template
 							</Button>
 						) : (
-							<Button onClick={handleNext} disabled={!canContinue}>
-								Continue
-							</Button>
+							<Button onClick={handleNext}>Continue</Button>
 						)}
 					</div>
+
+					{showContinueError && !canContinue && (
+						<p className="flex justify-end mt-2 mb-0 text-xs text-content-destructive">
+							{getContinueErrorMessage(currentStep.id)}
+						</p>
+					)}
 
 					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
@@ -370,17 +389,31 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 };
 
-function renderStepContent(
-	stepId: StepId,
-	state: TemplateBuilderWizardState,
-	dispatch: (action: WizardAction) => void,
-	moduleVarMap: Record<string, Record<string, string>>,
-	createError: Error | null,
-	onProvisionerStatusChange: (value: boolean | undefined) => void,
-	onRemoveModule: (moduleId: string) => void,
-	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
-	onCreate: (values: CustomizationsFormValues) => void,
-): ReactNode {
+interface StepContentProps {
+	stepId: StepId;
+	state: TemplateBuilderWizardState;
+	dispatch: (action: WizardAction) => void;
+	moduleVarMap: Record<string, Record<string, string>>;
+	createError: Error | null;
+	onProvisionerStatusChange: (value: boolean | undefined) => void;
+	onRemoveModule: (moduleId: string) => void;
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
+	onCreate: (values: CustomizationsFormValues) => void;
+	showValidationErrors: boolean;
+}
+
+const StepContent: FC<StepContentProps> = ({
+	stepId,
+	state,
+	dispatch,
+	moduleVarMap,
+	createError,
+	onProvisionerStatusChange,
+	onRemoveModule,
+	registerModuleRef,
+	onCreate,
+	showValidationErrors,
+}) => {
 	switch (stepId) {
 		case "base-infra":
 			return (
@@ -398,6 +431,7 @@ function renderStepContent(
 					onChangeValues={(values) =>
 						dispatch({ type: "SET_BASE_VARIABLES", values })
 					}
+					showErrors={showValidationErrors}
 				/>
 			);
 		case "module-select":
@@ -427,6 +461,7 @@ function renderStepContent(
 					}
 					onRemoveModule={onRemoveModule}
 					registerModuleRef={registerModuleRef}
+					showErrors={showValidationErrors}
 				/>
 			);
 		case "customizations":
@@ -442,6 +477,23 @@ function renderStepContent(
 			);
 		default:
 			return null;
+	}
+};
+
+/**
+ * Human-readable reason a step's requirements are not yet met, shown in red
+ * when the user clicks Continue on an incomplete step.
+ */
+function getContinueErrorMessage(stepId: StepId): string {
+	switch (stepId) {
+		case "base-infra":
+			return "Select a base template to continue.";
+		case "base-parameters":
+			return "Fill in all required parameters to continue.";
+		case "module-settings":
+			return "Fill in all required module settings to continue.";
+		default:
+			return "Complete this step to continue.";
 	}
 }
 

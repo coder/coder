@@ -15,10 +15,12 @@ const (
 	LockIDReconcilePrebuilds
 	LockIDReconcileSystemRoles
 	LockIDBoundaryUsageStats
+	// Deprecated: Reserved to prevent reuse. Do not use at runtime.
 	LockIDAIProvidersEnvSeed
 	// Deprecated: Reserved to prevent reuse. Do not use at runtime.
 	LockIDChatModelConfigWrites
 	LockIDChatCapacityAdmission
+	LockIDNotifyUnpricedAIModels
 )
 
 // Per-setting advisory lock IDs for the chat instruction settings. These

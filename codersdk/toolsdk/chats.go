@@ -80,7 +80,7 @@ type CreateChatArgs struct {
 	Prompt         string            `json:"prompt"`
 	OrganizationID string            `json:"organization_id"`
 	ModelConfigID  string            `json:"model_config_id"`
-	Labels         map[string]string `json:"labels"`
+	Labels         map[string]string `json:"labels,omitempty"`
 }
 
 var CreateChat = Tool[CreateChatArgs, ChatToolStatus]{
@@ -97,11 +97,11 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently updated chat. If the user has never created a chat, defaults only when they belong to one organization.",
+					"description": "Organization UUID.",
 				},
 				"model_config_id": map[string]any{
 					"type":        "string",
-					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Defaults to the organization's default model.",
+					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Must belong to the chat's organization. When omitted, the server uses an applicable personal override or the organization's default model.",
 				},
 				"labels": map[string]any{
 					"type":                 "object",
@@ -117,19 +117,9 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 		if args.Prompt == "" {
 			return ChatToolStatus{}, xerrors.New("prompt is required")
 		}
-		var orgID uuid.UUID
-		if args.OrganizationID != "" {
-			var err error
-			orgID, err = uuid.Parse(args.OrganizationID)
-			if err != nil {
-				return ChatToolStatus{}, xerrors.New("organization_id must be a valid UUID")
-			}
-		} else {
-			var err error
-			orgID, err = defaultCreateChatOrganization(ctx, deps)
-			if err != nil {
-				return ChatToolStatus{}, err
-			}
+		orgID, err := resolveOrganization(ctx, deps, args.OrganizationID)
+		if err != nil {
+			return ChatToolStatus{}, err
 		}
 		var modelConfigID *uuid.UUID
 		if args.ModelConfigID != "" {
@@ -153,44 +143,6 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 		}
 		return chatToolStatus(deps, chat), nil
 	},
-}
-
-func defaultCreateChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) {
-	me, err := deps.coderClient.User(ctx, codersdk.Me)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	// Admins can remove a user's only organization membership.
-	if len(me.OrganizationIDs) == 0 {
-		return uuid.Nil, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
-	}
-	if len(me.OrganizationIDs) == 1 {
-		return me.OrganizationIDs[0], nil
-	}
-
-	expClient := codersdk.NewExperimentalClient(deps.coderClient)
-	chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
-		Source: codersdk.ChatListSourceCreatedByMe,
-		Pagination: codersdk.Pagination{
-			Limit: 100,
-		},
-	})
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
-	}
-	// Pinned chats sort before recently updated chats. If the user has 100
-	// pinned chats, this batch may not contain their latest chat, which is an
-	// acceptable tradeoff for keeping organization selection to one request.
-	var latest *codersdk.Chat
-	for i := range chats {
-		if latest == nil || chats[i].UpdatedAt.After(latest.UpdatedAt) {
-			latest = &chats[i]
-		}
-	}
-	if latest != nil {
-		return latest.OrganizationID, nil
-	}
-	return uuid.Nil, xerrors.New("organization_id is required because the authenticated user belongs to multiple organizations and has not created a chat yet")
 }
 
 type GetChatArgs struct {
@@ -494,7 +446,7 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 }
 
 type ListChatsArgs struct {
-	Labels map[string]string `json:"labels"`
+	Labels map[string]string `json:"labels,omitempty"`
 	Query  string            `json:"query"`
 	Limit  int               `json:"limit"`
 }
@@ -749,7 +701,7 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 type SendChatMessageArgs struct {
 	ChatID       string                    `json:"chat_id"`
 	Text         string                    `json:"text"`
-	BusyBehavior codersdk.ChatBusyBehavior `json:"busy_behavior"`
+	BusyBehavior codersdk.ChatBusyBehavior `json:"busy_behavior,omitempty"`
 }
 
 type SendChatMessageResponse struct {
@@ -898,7 +850,8 @@ type ListChatModelConfigsArgs struct {
 }
 
 type ListChatModelConfigsResponse struct {
-	ModelConfigs []ChatModelConfigSummary `json:"model_configs"`
+	OrganizationID string                   `json:"organization_id"`
+	ModelConfigs   []ChatModelConfigSummary `json:"model_configs"`
 }
 
 var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsResponse]{
@@ -906,12 +859,14 @@ var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsRe
 		Name: ToolNameListChatModelConfigs,
 		Description: `List the enabled chat models available for Coder Agents chats. Use a model config ID with coder_create_chat to pick a model.
 
+Model configs are organization-scoped. The response includes the organization_id the models belong to; pass it as coder_create_chat's organization_id together with the chosen model config ID.
+
 Per-user provider credentials are validated when creating a chat, so coder_create_chat can still reject a listed model with an explanatory error.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the authenticated user's first organization.",
+					"description": "Organization UUID.",
 				},
 			},
 			Required: []string{},
@@ -919,22 +874,9 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 	},
 	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args ListChatModelConfigsArgs) (ListChatModelConfigsResponse, error) {
-		var organizationID uuid.UUID
-		if args.OrganizationID != "" {
-			var err error
-			organizationID, err = uuid.Parse(args.OrganizationID)
-			if err != nil {
-				return ListChatModelConfigsResponse{}, xerrors.New("organization_id must be a valid UUID")
-			}
-		} else {
-			me, err := deps.coderClient.User(ctx, codersdk.Me)
-			if err != nil {
-				return ListChatModelConfigsResponse{}, xerrors.Errorf("get authenticated user: %w", err)
-			}
-			if len(me.OrganizationIDs) == 0 {
-				return ListChatModelConfigsResponse{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
-			}
-			organizationID = me.OrganizationIDs[0]
+		organizationID, err := resolveOrganization(ctx, deps, args.OrganizationID)
+		if err != nil {
+			return ListChatModelConfigsResponse{}, err
 		}
 
 		response, err := codersdk.NewExperimentalClient(deps.coderClient).ChatModels(ctx, organizationID)
@@ -957,6 +899,9 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 				IsDefault:   config.IsDefault,
 			})
 		}
-		return ListChatModelConfigsResponse{ModelConfigs: summaries}, nil
+		return ListChatModelConfigsResponse{
+			OrganizationID: organizationID.String(),
+			ModelConfigs:   summaries,
+		}, nil
 	},
 }

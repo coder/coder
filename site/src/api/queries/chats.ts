@@ -484,8 +484,8 @@ type MergeWatchedChatOptions = {
 	readonly activeChatId?: string;
 };
 
-// Shallow-compare two ChatDiffStatus objects by their meaningful
-// fields, ignoring refreshed_at/stale_at which change on every poll.
+// Do not compare refreshed_at and stale_at: they change on every
+// poll. If they were compared, the cache would update every time.
 const diffStatusEqual = (
 	a: TypesGen.ChatDiffStatus | undefined,
 	b: TypesGen.ChatDiffStatus | undefined,
@@ -505,9 +505,12 @@ const diffStatusEqual = (
 		a.additions === b.additions &&
 		a.deletions === b.deletions &&
 		a.changed_files === b.changed_files &&
+		a.base_branch === b.base_branch &&
+		a.head_branch === b.head_branch &&
 		a.pr_number === b.pr_number &&
 		a.approved === b.approved &&
-		a.commits === b.commits
+		a.commits === b.commits &&
+		a.reviewer_count === b.reviewer_count
 	);
 };
 
@@ -1059,6 +1062,11 @@ const toChatPlanModePayload = (
 	// The API expects an empty string on the wire to clear plan mode.
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
+
+export const planModeFieldsForCreateMessage = (
+	clearPlanMode: boolean,
+): { readonly plan_mode?: ChatPlanModeOrClear } =>
+	clearPlanMode ? { plan_mode: toChatPlanModePayload(undefined) } : {};
 
 export const CHAT_SOURCE_ORDER = [
 	...ChatListSources,
@@ -1813,6 +1821,17 @@ export const compactChat = (queryClient: QueryClient, chatId: string) => ({
 	},
 });
 
+export const clearChat = (queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.clearChat(chatId),
+	onSuccess: () => {
+		void invalidateChatEntity(queryClient, chatId);
+		// The clear commits its boundary rows synchronously with no
+		// worker turn, so the transcript must be refetched here rather
+		// than relying on streamed message events.
+		void invalidateChatMessages(queryClient, chatId);
+	},
+});
+
 /**
  * Re-pins the chat to its agent's latest context snapshot, clearing the
  * dirty marker. On success the returned chat (carrying the freshly pinned
@@ -2145,7 +2164,7 @@ export const updateUserChatPersonalModelOverride = (
 	},
 });
 
-const userCompactionThresholdsKey = [
+export const userCompactionThresholdsKey = [
 	...chatConfigKey,
 	"compaction-thresholds",
 	"me",
@@ -2325,6 +2344,24 @@ export const chatModelACL = (organizationId: string, modelId: string) => ({
 	queryKey: chatModelACLKey(organizationId, modelId),
 	queryFn: (): Promise<TypesGen.ChatModelACL> =>
 		API.experimental.getChatModelACL(organizationId, modelId),
+	enabled: organizationId !== "" && modelId !== "",
+});
+
+export const chatModelACLAvailableKey = (
+	organizationId: string,
+	modelId: string,
+	options: TypesGen.UsersRequest,
+) =>
+	[...chatModelACLKey(organizationId, modelId), "available", options] as const;
+
+export const chatModelACLAvailable = (
+	organizationId: string,
+	modelId: string,
+	options: TypesGen.UsersRequest,
+) => ({
+	queryKey: chatModelACLAvailableKey(organizationId, modelId, options),
+	queryFn: (): Promise<TypesGen.ACLAvailable> =>
+		API.experimental.getChatModelACLAvailable(organizationId, modelId, options),
 	enabled: organizationId !== "" && modelId !== "",
 });
 

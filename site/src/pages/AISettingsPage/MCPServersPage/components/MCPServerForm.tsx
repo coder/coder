@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
@@ -22,6 +22,7 @@ type MCPServerFormCreateProps = {
 	isSaving: boolean;
 	isDeleting?: false;
 	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
 	canShareServer?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
@@ -38,6 +39,7 @@ type MCPServerFormEditProps = {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
 	canShareServer?: boolean;
 	onCreateServer?: undefined;
 	onUpdateServer?: (
@@ -57,6 +59,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	isSaving,
 	isDeleting = false,
 	canSelectUserOIDC,
+	organizationPicker,
 	canShareServer = false,
 	onCreateServer,
 	onUpdateServer,
@@ -95,7 +98,10 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const isDisabled = isSaving || isDeleting;
 	const areFieldsDisabled =
 		isDisabled || (isEditing && onUpdateServer === undefined);
-	const canSubmit = canSubmitMCPServerForm(form.values, areFieldsDisabled);
+	// Editing requires a change before submitting, matching the provider form.
+	const canSubmit =
+		canSubmitMCPServerForm(form.values, areFieldsDisabled) &&
+		(!isEditing || form.dirty);
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);
@@ -126,6 +132,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					canSubmit={canSubmit}
 					isEditing={isEditing}
 					canSelectUserOIDC={canSelectUserOIDC}
+					organizationPicker={organizationPicker}
 					onCancel={onCancel}
 					showDetails={showDetails}
 					setShowDetails={setShowDetails}

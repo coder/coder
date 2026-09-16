@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	AlertTriangleIcon,
 	DownloadIcon,
@@ -5,13 +6,13 @@ import {
 	FileTextIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
+import { MaxChatFileIDs } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
 	type AttachmentFailure,
@@ -19,6 +20,7 @@ import {
 	getChatFileURL,
 	handleAttachmentDownloadClick,
 	isAbortError,
+	isRasterImageMediaType,
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
 import {
@@ -128,7 +130,7 @@ const getAttachmentDisplayName = (
 	if (name) {
 		return name;
 	}
-	if (block.media_type.startsWith("image/")) {
+	if (isRasterImageMediaType(block.media_type)) {
 		return "Attached image";
 	}
 	if (isTextPreviewAttachmentMediaType(block.media_type)) {
@@ -179,7 +181,7 @@ const DownloadOverlay: FC<{
 				});
 			}}
 			aria-label={`Download ${displayName}`}
-			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 		>
 			<DownloadIcon aria-hidden="true" className="size-3.5" />
 		</a>
@@ -220,10 +222,12 @@ const imageAttachmentFailureLabels: AttachmentFailureLabels = {
 	failed: "Image failed to load",
 };
 
-const textAttachmentFailureLabels: AttachmentFailureLabels = {
+const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 	expired: "Attachment expired",
 	failed: "Attachment failed to load",
 };
+
+const expiredAttachmentExplanation = `A chat keeps its ${MaxChatFileIDs} most recent attachments, and older attachments are removed. Attachments that no chat references are deleted after this deployment's retention window.`;
 
 const AttachmentFallbackTile: FC<{
 	state: AttachmentFailure;
@@ -250,14 +254,12 @@ const AttachmentFallbackTile: FC<{
 	);
 
 	// Only surface a tooltip when we have something to add:
-	// - "expired" explains the retention policy.
+	// - "expired" explains why the file is gone.
 	// - "failed" with a detail surfaces the API error or network reason.
 	// A bare "failed" (e.g. an inline base64 decode failure, where the
 	// browser exposes nothing useful) stays a plain tile.
 	const tooltipBody =
-		state.kind === "expired"
-			? "Attachments are kept while any chat references them. After all references are removed, they are deleted once they are older than this deployment's retention window."
-			: state.detail;
+		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -287,7 +289,7 @@ const InlineTextAttachmentButton: FC<{
 					? `View ${fileName}`
 					: "View text attachment"
 			}
-			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			onClick={(event) => {
 				event.stopPropagation();
 				void onPreview?.({ content, fileName });
@@ -341,7 +343,7 @@ const RemoteTextAttachmentButton: FC<{
 		return (
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
-				labels={textAttachmentFailureLabels}
+				labels={fileAttachmentFailureLabels}
 				className="h-16 w-28"
 			/>
 		);
@@ -350,7 +352,7 @@ const RemoteTextAttachmentButton: FC<{
 		return (
 			<AttachmentFallbackTile
 				state={failureState}
-				labels={textAttachmentFailureLabels}
+				labels={fileAttachmentFailureLabels}
 				className="h-16 w-28"
 			/>
 		);
@@ -558,9 +560,20 @@ const FileCard: FC<{
 	block: FileAttachmentBlock;
 	href: string;
 }> = ({ block, href }) => {
+	const { hasExpired } = useFileProbes();
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
+
+	if (block.file_id !== undefined && hasExpired(block.file_id)) {
+		return (
+			<AttachmentFallbackTile
+				state={{ kind: "expired" }}
+				labels={fileAttachmentFailureLabels}
+				className="h-16 w-28"
+			/>
+		);
+	}
 
 	return (
 		<a
@@ -668,7 +681,7 @@ export const AttachmentBlock: FC<{
 		);
 	}
 
-	if (block.media_type.startsWith("image/")) {
+	if (isRasterImageMediaType(block.media_type)) {
 		if (!href) {
 			return null;
 		}

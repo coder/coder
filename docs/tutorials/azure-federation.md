@@ -1,4 +1,6 @@
-# Federating Coder's control plane to Azure
+---
+title: Federate Coder's control plane to Azure
+---
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">

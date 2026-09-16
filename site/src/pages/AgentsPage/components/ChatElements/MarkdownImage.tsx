@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { ImageIcon } from "lucide-react";
 import { useState } from "react";
-import { cn } from "#/utils/cn";
 import {
 	externalImageHost,
 	isExternalImageSource,

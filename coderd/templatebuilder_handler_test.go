@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -43,6 +47,14 @@ func TestTemplateBuilderBases(t *testing.T) {
 		}
 
 		specs := []baseSpec{
+			{
+				// Quickstart exposes no builder variables today: its base.json
+				// declares none. Locking that here flags drift if it changes,
+				// e.g. if it later exposes a container_image selector.
+				id:           "quickstart",
+				expectedOS:   "linux",
+				hasVariables: false,
+			},
 			{
 				id:           "docker",
 				expectedOS:   "linux",
@@ -94,7 +106,25 @@ func TestTemplateBuilderBases(t *testing.T) {
 			} else {
 				require.Empty(t, b.Variables, "base %q should have no variables", spec.id)
 			}
+
+			// Every base declares at least one agent, exactly one default.
+			require.NotEmpty(t, b.Agents, "base %q should declare agents", spec.id)
+			defaults := 0
+			for _, a := range b.Agents {
+				if a.Default {
+					defaults++
+				}
+			}
+			require.Equal(t, 1, defaults, "base %q should mark exactly one default agent", spec.id)
 		}
+
+		// aws-linux names its agent "dev"; the rest use "main".
+		require.Equal(t,
+			[]codersdk.TemplateBuilderBaseAgent{{Name: "dev", Default: true}},
+			basesByID["aws-linux"].Agents)
+		require.Equal(t,
+			[]codersdk.TemplateBuilderBaseAgent{{Name: "main", Default: true}},
+			basesByID["docker"].Agents)
 	})
 
 	t.Run("Sorted", func(t *testing.T) {
@@ -107,10 +137,13 @@ func TestTemplateBuilderBases(t *testing.T) {
 
 		resp, err := client.TemplateBuilderBases(ctx)
 		require.NoError(t, err)
+		require.NotEmpty(t, resp.Bases)
 
+		// Bases are returned sorted by display name (with ID as a deterministic
+		// tiebreak), so the whole list is in non-decreasing name order.
 		for i := 1; i < len(resp.Bases); i++ {
 			require.LessOrEqual(t, resp.Bases[i-1].Name, resp.Bases[i].Name,
-				"bases should be sorted by name")
+				"bases should be sorted by display name")
 		}
 	})
 
@@ -174,6 +207,39 @@ func TestTemplateBuilderModules(t *testing.T) {
 					"module %q should be compatible with linux when filtered by docker base", m.ID)
 			}
 		}
+	})
+
+	t.Run("BaseExcludesIncludedModules", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// The quickstart base bundles the git-clone module, so the module
+		// list for that base must omit git-clone to avoid a collision. The
+		// docker base does not bundle it, so it stays available there.
+		quickstartResp, err := client.TemplateBuilderModules(ctx, "quickstart")
+		require.NoError(t, err)
+		require.NotEmpty(t, quickstartResp.Modules,
+			"quickstart should still offer modules other than the ones it bundles")
+		for _, m := range quickstartResp.Modules {
+			require.NotEqual(t, "git-clone", m.ID,
+				"git-clone should be excluded for the quickstart base")
+		}
+
+		dockerResp, err := client.TemplateBuilderModules(ctx, "docker")
+		require.NoError(t, err)
+		var dockerHasGitClone bool
+		for _, m := range dockerResp.Modules {
+			if m.ID == "git-clone" {
+				dockerHasGitClone = true
+				break
+			}
+		}
+		require.True(t, dockerHasGitClone,
+			"git-clone should remain available for bases that do not bundle it")
 	})
 
 	t.Run("ComputedVariablesExcluded", func(t *testing.T) {
@@ -355,4 +421,118 @@ func TestTemplateBuilderSession(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+}
+
+func TestTemplateBuilderCreateTemplateFailureTelemetry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ComposeInvalid", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reporter := newFakeTelemetryReporter(ctx, t, 100)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: reporter,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		sessionID := uuid.New()
+		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			SessionID:      sessionID,
+			BaseTemplateID: "nonexistent",
+			Modules: []codersdk.TemplateBuilderComposeModule{
+				{ID: "code-server"},
+			},
+			OrganizationID: user.OrganizationID,
+			Name:           "compose-invalid",
+		})
+		require.Error(t, err)
+
+		event := receiveTemplateBuilderSession(ctx, t, reporter)
+		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
+		require.Equal(t, telemetry.TemplateBuilderFailureComposeInvalid, event.FailureReason)
+		// The session ID doubles as the event ID so the failure joins to the
+		// wizard_entry event of the same visit.
+		require.Equal(t, sessionID, event.ID)
+		require.Equal(t, user.UserID, event.UserID)
+		require.Equal(t, "nonexistent", event.BaseTemplateID)
+		require.Equal(t, []string{"code-server"}, event.ModuleIDs)
+		require.False(t, event.Success)
+	})
+
+	t.Run("MissingBaseTemplateID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reporter := newFakeTelemetryReporter(ctx, t, 100)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: reporter,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		sessionID := uuid.New()
+		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			SessionID:      sessionID,
+			OrganizationID: user.OrganizationID,
+			Name:           "missing-base",
+		})
+		require.Error(t, err)
+
+		event := receiveTemplateBuilderSession(ctx, t, reporter)
+		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
+		require.Equal(t, telemetry.TemplateBuilderFailureInvalidRequest, event.FailureReason)
+		require.Equal(t, sessionID, event.ID)
+	})
+
+	t.Run("NameConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reporter := newFakeTelemetryReporter(ctx, t, 100)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:          db,
+			Pubsub:            ps,
+			TelemetryReporter: reporter,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		existing := dbgen.Template(t, db, database.Template{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+			Name:           "taken-name",
+		})
+
+		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			SessionID:      uuid.New(),
+			BaseTemplateID: "docker",
+			OrganizationID: user.OrganizationID,
+			Name:           existing.Name,
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+
+		event := receiveTemplateBuilderSession(ctx, t, reporter)
+		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
+		require.Equal(t, telemetry.TemplateBuilderFailureNameConflict, event.FailureReason)
+		require.Equal(t, "docker", event.BaseTemplateID)
+	})
+}
+
+// receiveTemplateBuilderSession drains snapshots until one carries a template
+// builder session event. Unrelated snapshots, such as those reported while
+// creating the first user, arrive on the same channel.
+func receiveTemplateBuilderSession(ctx context.Context, t *testing.T, reporter *fakeTelemetryReporter) telemetry.TemplateBuilderSession {
+	t.Helper()
+	for {
+		snapshot := testutil.TryReceive(ctx, t, reporter.snapshots)
+		if len(snapshot.TemplateBuilderSessions) == 0 {
+			continue
+		}
+		require.Len(t, snapshot.TemplateBuilderSessions, 1)
+		return snapshot.TemplateBuilderSessions[0]
+	}
 }

@@ -3,8 +3,11 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/modules/aiModels/ModelSelector";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
 
@@ -272,7 +275,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					}
 					triggerAriaLabel={`${title} behavior`}
 					emptyMessage="No matching models found."
-					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]"
+					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]"
 					contentClassName="min-w-[18rem]"
 					reasoningEffort={selectedReasoningEffort}
 					onReasoningEffortChange={(value) =>

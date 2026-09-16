@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	EyeIcon,
@@ -45,7 +46,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
 interface DynamicParameterProps {

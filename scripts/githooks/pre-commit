@@ -5,6 +5,12 @@
 # targets. Falls back to the full `make pre-commit` when the
 # Makefile changed or CODER_HOOK_RUN_ALL=1 is set.
 #
+# Opt in/out without modifying this file:
+#
+#   git config coder.pre-commit true    # opt in
+#   git config coder.pre-commit false   # opt out (overrides allowlist)
+#   git config --unset coder.pre-commit # default (allowlist decides)
+#
 # Installation (worktree-compatible):
 #
 #   git config core.hooksPath scripts/githooks
@@ -12,6 +18,13 @@
 # Bypass: git commit --no-verify
 
 set -euo pipefail
+
+# Allowlist of developers who opt in to pre-commit checks by default.
+# Matched against CODER_WORKSPACE_OWNER_NAME.
+ALLOWLIST=(
+	mafredri
+	johnstcn
+)
 
 cd "$(git rev-parse --show-toplevel)"
 
@@ -27,6 +40,32 @@ done < <(git rev-parse --local-env-vars)
 # In linked worktrees, set worktree-scoped hooksPath to override shared config.
 if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
 	git config --worktree core.hooksPath scripts/githooks
+fi
+
+# Explicit opt-in/opt-out via git config (overrides allowlist).
+run=false
+opt_in=$(git config --type=bool coder.pre-commit 2>/dev/null || true)
+if [[ $opt_in == true ]]; then
+	run=true
+elif [[ $opt_in == false ]]; then
+	# Explicit opt-out, skip everything including hint.
+	exit 0
+fi
+
+# Check allowlist.
+if ! $run; then
+	owner=${CODER_WORKSPACE_OWNER_NAME:-}
+	for allowed in "${ALLOWLIST[@]}"; do
+		if [[ $owner == "$allowed" ]]; then
+			run=true
+			break
+		fi
+	done
+fi
+
+if ! $run; then
+	echo "pre-commit: checks disabled, opt in with: git config coder.pre-commit true"
+	exit 0
 fi
 
 if [[ ${CODER_HOOK_RUN_ALL:-} == 1 ]]; then

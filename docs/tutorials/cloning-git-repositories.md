@@ -1,4 +1,6 @@
-# Cloning Git Repositories
+---
+title: Cloning Git Repositories
+---
 
 <div style="padding: 0px; margin: 0px;">
   <span style="vertical-align:middle;">Author: </span>

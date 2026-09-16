@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikErrors, useFormik } from "formik";
 import {
 	type ChangeEvent,
@@ -21,7 +22,6 @@ import {
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { formatKiB } from "#/utils/fileSize";
 import {
 	buildPersonalSkillMarkdown,
@@ -259,7 +259,7 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 								disabled={isSubmitting}
 								minRows={4}
 								maxRows={10}
-								className="w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50"
+								className="w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50"
 							/>
 							{importStatus && (
 								<Alert severity={importStatus.kind}>
@@ -363,7 +363,7 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 								aria-invalid={Boolean(bodyError)}
 								aria-describedby={bodyError ? bodyErrorId : undefined}
 								className={cn(
-									"w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50",
+									"w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50",
 									bodyError && "border-border-destructive",
 								)}
 							/>

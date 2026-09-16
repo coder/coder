@@ -1358,93 +1358,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateTaskWorking",
-			id:   notifications.TemplateTaskWorking,
-			payload: types.MessagePayload{
-				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
-				UserUsername: "bobby",
-				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
-				},
-				Data: map[string]any{},
-			},
-		},
-		{
-			name: "TemplateTaskIdle",
-			id:   notifications.TemplateTaskIdle,
-			payload: types.MessagePayload{
-				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
-				UserUsername: "bobby",
-				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
-				},
-				Data: map[string]any{},
-			},
-		},
-		{
-			name: "TemplateTaskCompleted",
-			id:   notifications.TemplateTaskCompleted,
-			payload: types.MessagePayload{
-				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
-				UserUsername: "bobby",
-				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
-				},
-				Data: map[string]any{},
-			},
-		},
-		{
-			name: "TemplateTaskFailed",
-			id:   notifications.TemplateTaskFailed,
-			payload: types.MessagePayload{
-				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
-				UserUsername: "bobby",
-				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
-				},
-				Data: map[string]any{},
-			},
-		},
-		{
-			name: "TemplateTaskPaused",
-			id:   notifications.TemplateTaskPaused,
-			payload: types.MessagePayload{
-				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
-				UserUsername: "bobby",
-				Labels: map[string]string{
-					"task":         "my-task",
-					"task_id":      "00000000-0000-0000-0000-000000000000",
-					"workspace":    "my-workspace",
-					"pause_reason": "idle timeout",
-				},
-				Data: map[string]any{},
-			},
-		},
-		{
-			name: "TemplateTaskResumed",
-			id:   notifications.TemplateTaskResumed,
-			payload: types.MessagePayload{
-				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
-				UserUsername: "bobby",
-				Labels: map[string]string{
-					"task":      "my-task",
-					"task_id":   "00000000-0000-0000-0000-000000000001",
-					"workspace": "my-workspace",
-				},
-				Data: map[string]any{},
-			},
-		},
-		{
 			name: "TemplateChatShared",
 			id:   notifications.TemplateChatShared,
 			payload: types.MessagePayload{
@@ -1617,6 +1530,27 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"period_end":           "August 1, 2026",
 				},
 				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateAIModelsUnpricedReport",
+			id:   notifications.TemplateAIModelsUnpricedReport,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
+				Data: map[string]any{
+					"report_frequency": "week",
+					"models": []map[string]any{
+						{"provider": "anthropic", "model": "claude-opus-4-8"},
+						{"provider": "openai", "model": "gpt-5.7"},
+						{"provider": "openrouter", "model": "z-ai/glm-5.4"},
+					},
+					"total_count": 15.0,
+					"truncated":   true,
+				},
 			},
 		},
 	}

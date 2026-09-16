@@ -265,7 +265,7 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 				if _, err := cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Apply?",
 					IsConfirm: true,
-					Default:   cliui.ConfirmNo,
+					Default:   cliui.ConfirmYes,
 				}); err != nil {
 					return err
 				}

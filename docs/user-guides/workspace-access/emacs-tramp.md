@@ -1,4 +1,6 @@
-# Emacs TRAMP
+---
+title: Emacs TRAMP
+---
 
 [Emacs TRAMP](https://www.emacswiki.org/emacs/TrampMode) is a method of running
 editing operations on a remote server.

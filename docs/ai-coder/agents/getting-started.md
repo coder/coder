@@ -1,4 +1,6 @@
-# Getting Started
+---
+title: Getting Started
+---
 
 This guide walks platform teams and administrators through setting up Coder
 Agents, preparing your deployment, and running your first Coder Agent.

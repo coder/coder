@@ -10,19 +10,19 @@
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
-import { cn } from "#/utils/cn";
 
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
 	{
 		variants: {
 			size: {
-				lg: "size-[--avatar-lg] rounded-[6px] text-sm font-medium",
-				md: "size-[--avatar-default] text-2xs",
-				sm: "size-[--avatar-sm] text-[8px]",
+				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
+				md: "size-(--avatar-default) text-2xs",
+				sm: "size-(--avatar-sm) text-[8px]",
 			},
 			variant: {
 				default: null,
@@ -73,13 +73,29 @@ export const Avatar: React.FC<AvatarProps> = ({
 	fallback,
 	alt = "",
 	children,
+	style,
 	...props
 }) => {
 	const { externalImages } = useAppearance();
 
+	const isEmoji = src?.startsWith("/emojis/");
+	const avatarSizeToken = size === "lg" || size === "sm" ? size : "default";
+
 	return (
 		<AvatarPrimitive.Root
-			className={cn(avatarVariants({ size, variant, className }))}
+			className={cn(
+				avatarVariants({
+					size,
+					variant: isEmoji ? "default" : variant,
+					className,
+				}),
+			)}
+			style={{
+				...style,
+				padding: isEmoji
+					? `calc(var(--avatar-${avatarSizeToken}) * 0.2)`
+					: style?.padding,
+			}}
 			{...props}
 		>
 			<AvatarPrimitive.Image

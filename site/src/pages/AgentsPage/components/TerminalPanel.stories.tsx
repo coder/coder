@@ -6,6 +6,7 @@ import {
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
 import { withProxyProvider, withWebSocket } from "#/testHelpers/storybook";
+import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { TerminalPanel } from "./TerminalPanel";
 
 const terminalQueries = [
@@ -43,9 +44,11 @@ const meta = {
 	decorators: [
 		withProxyProvider(),
 		(Story) => (
-			<div style={{ width: 480, height: 600 }}>
-				<Story />
-			</div>
+			<TerminalClientSessionContext value="0123456789abcdef0123456789abcdef">
+				<div style={{ width: 480, height: 600 }}>
+					<Story />
+				</div>
+			</TerminalClientSessionContext>
 		),
 	],
 } satisfies Meta<typeof TerminalPanel>;

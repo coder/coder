@@ -1,4 +1,6 @@
-# Web IDEs
+---
+title: Web IDEs in templates
+---
 
 In Coder, web IDEs are defined as
 [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)

@@ -1,4 +1,6 @@
-# JetBrains IDEs
+---
+title: JetBrains IDEs
+---
 
 Coder supports JetBrains IDEs using [Toolbox](https://www.jetbrains.com/toolbox/) and [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following
 IDEs are supported for remote development:

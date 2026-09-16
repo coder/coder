@@ -31,7 +31,6 @@ func TestChatRoutesCompatibility(t *testing.T) {
 	for _, route := range []string{
 		"/api/experimental/chats",
 		"/api/experimental/chats/config/system-prompt",
-		"/api/experimental/chats/models",
 		"/api/v2/chats",
 		"/api/v2/chats/config/system-prompt",
 	} {
@@ -45,7 +44,9 @@ func TestChatRoutesCompatibility(t *testing.T) {
 		method string
 		path   string
 	}{
-		{http.MethodGet, "/api/v2/chats/models"},
+		{http.MethodGet, "/api/experimental/chats/models"},
+		{http.MethodGet, "/api/experimental/chats/model-configs"},
+		{http.MethodPost, "/api/experimental/chats/model-configs"},
 		{http.MethodGet, "/api/v2/chats/model-configs"},
 		{http.MethodPost, "/api/v2/chats/model-configs"},
 		{http.MethodGet, "/api/v2/chats/providers"},

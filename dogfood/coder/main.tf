@@ -223,7 +223,8 @@ provider "docker" {
 provider "coder" {}
 
 data "coder_external_auth" "github" {
-  id = "github"
+  id       = "github"
+  optional = true
 }
 
 data "coder_workspace" "me" {}
@@ -335,7 +336,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.5.0"
+  version              = "2.0.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -379,12 +380,19 @@ module "jetbrains" {
   tooltip       = "You need to [install JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) to use this app."
 }
 
-module "filebrowser" {
-  count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.5"
-  agent_id   = coder_agent.dev.id
-  agent_name = "dev"
+module "copyparty" {
+  count          = data.coder_workspace.me.start_count
+  source         = "dev.registry.coder.com/djarbz/copyparty/coder"
+  version        = "1.0.2"
+  agent_id       = coder_agent.dev.id
+  subdomain      = true
+  pinned_version = "v1.20.23"
+  arguments = [
+    # copyparty listens on all interfaces by default; the agent proxies localhost.
+    "-i", "127.0.0.1",
+    # Serve the home directory at the web root with all permissions.
+    "-v", "/home/coder:/:A",
+  ]
 }
 
 module "coder-login" {
@@ -456,9 +464,9 @@ resource "coder_agent" "dev" {
       MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
     {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
+      ANTHROPIC_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
+      OPENAI_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     }
   )
@@ -666,7 +674,7 @@ resource "coder_script" "install-deps" {
     # writes this file when it's absent.
     [settings]
     trusted_config_paths = [
-      "/home/coder/coder",
+      "${local.repo_dir}",
       "/etc/mise",
     ]
     TRUST
@@ -728,7 +736,7 @@ resource "coder_devcontainer" "coder" {
   workspace_folder = local.repo_dir
 }
 
-# Add a cost so we get some quota usage in dev.coder.com
+# Add a cost so we get some quota usage in dogfood.cdr.dev
 resource "coder_metadata" "home_volume" {
   resource_id = docker_volume.home_volume.id
   daily_cost  = 1
@@ -969,7 +977,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
-  version           = "5.4.0"
+  version           = "5.4.1"
   enable_ai_gateway = true
   anthropic_api_key = ""
   agent_id          = coder_agent.dev.id
@@ -1002,7 +1010,7 @@ resource "coder_app" "claude" {
 
 module "codex" {
   source            = "dev.registry.coder.com/coder-labs/codex/coder"
-  version           = "5.3.0"
+  version           = "5.4.0"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   enable_ai_gateway = true

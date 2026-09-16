@@ -1,4 +1,6 @@
-# Contributing
+---
+title: Contributing
+---
 
 ## Requirements
 
@@ -84,6 +86,10 @@ Install the git hooks to run these automatically:
 ```sh
 git config core.hooksPath scripts/githooks
 ```
+
+Hook checks are opt-in. Enable them with `git config coder.pre-commit true`
+and `git config coder.pre-push true`; developers allowlisted in the hook
+scripts run them by default.
 
 The hooks classify staged/changed files and select the appropriate target.
 Commits that only touch docs, shell, terraform, or other lightweight files
@@ -194,10 +200,8 @@ The following information has been borrowed from [Go's review philosophy](https:
 
 Coder values thorough reviews. For each review comment that you receive, please
 "close" it by implementing the suggestion or providing an explanation on why the
-suggestion isn't the best option. Be sure to do this for each comment; you can
-click **Done** to indicate that you've implemented the suggestion, or you can
-add a comment explaining why you aren't implementing the suggestion (or what you
-chose to implement instead).
+suggestion isn't the best option.
+Be sure to do this for each comment; you can select **Done** to indicate that you've implemented the suggestion, or you can add a comment explaining why you aren't implementing the suggestion (or what you chose to implement instead).
 
 It is perfectly normal for changes to go through several rounds of reviews, with
 one or more reviewers making new comments every time, then waiting for an
@@ -239,7 +243,7 @@ main:  --*--*--*--*--*--*--*--*--*--
 ```
 
 1. **RC:** Go to [Actions > Release](https://github.com/coder/coder/actions/workflows/release.yaml),
-   click "Run workflow", select `main` (or a release branch) from the "Use
+   select "Run workflow", select `main` (or a release branch) from the "Use
    workflow from" dropdown, choose `rc`, and optionally provide a commit SHA
    (defaults to HEAD). The workflow calculates the next RC version
    automatically.

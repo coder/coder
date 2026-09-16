@@ -2,20 +2,18 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { chatModelACL, updateChatModelACL } from "#/api/queries/chats";
-import { groupsByOrganization } from "#/api/queries/groups";
-import { organizationMembers } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
-import {
-	UserOrGroupAutocomplete,
-	type UserOrGroupAutocompleteValue,
-} from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 import {
 	ResourceSharingDialog,
 	type SharingDialogData,
 	type SharingPrincipal,
 	type SharingPrincipalSelection,
 } from "../../components/ResourceSharingDialog";
+import {
+	ChatModelPrincipalAutocomplete,
+	type ChatModelPrincipalAutocompleteValue,
+} from "./ChatModelPrincipalAutocomplete";
 
 type ChatModelSharingDialogProps = {
 	open: boolean;
@@ -25,7 +23,7 @@ type ChatModelSharingDialogProps = {
 	modelName: string;
 };
 
-type ChatModelPrincipal = Exclude<UserOrGroupAutocompleteValue, null>;
+type ChatModelPrincipal = Exclude<ChatModelPrincipalAutocompleteValue, null>;
 
 const groupPrincipal = (group: TypesGen.Group): SharingPrincipal => ({
 	id: group.id,
@@ -34,46 +32,30 @@ const groupPrincipal = (group: TypesGen.Group): SharingPrincipal => ({
 	avatarUrl: group.avatar_url,
 });
 
-const memberPrincipal = (
-	member: TypesGen.OrganizationMemberWithUserData,
-): SharingPrincipal => ({
-	id: member.user_id,
-	name: member.username,
-	subtitle: member.name || member.email || "User",
-	avatarUrl: member.avatar_url,
+const userPrincipal = (user: TypesGen.MinimalUser): SharingPrincipal => ({
+	id: user.id,
+	name: user.username,
+	subtitle: user.name || "User",
+	avatarUrl: user.avatar_url,
 });
 
 const sharingDialogData = (
 	acl: TypesGen.ChatModelACL,
-	members: readonly TypesGen.OrganizationMemberWithUserData[],
-	groups: readonly TypesGen.Group[],
 ): SharingDialogData<TypesGen.ChatRole> => ({
 	acl: {
-		user_roles: { ...acl.user_roles },
-		group_roles: { ...acl.group_roles },
+		user_roles: Object.fromEntries(
+			acl.users.map((user) => [user.id, user.role]),
+		),
+		group_roles: Object.fromEntries(
+			acl.groups.map((group) => [group.id, group.role]),
+		),
 	},
 	principals: {
 		users: Object.fromEntries(
-			Object.keys(acl.user_roles).map((userId) => {
-				const member = members.find((item) => item.user_id === userId);
-				return [
-					userId,
-					member
-						? memberPrincipal(member)
-						: { id: userId, name: userId, subtitle: "User" },
-				];
-			}),
+			acl.users.map((user) => [user.id, userPrincipal(user)]),
 		),
 		groups: Object.fromEntries(
-			Object.keys(acl.group_roles).map((groupId) => {
-				const group = groups.find((item) => item.id === groupId);
-				return [
-					groupId,
-					group
-						? groupPrincipal(group)
-						: { id: groupId, name: groupId, subtitle: "Group" },
-				];
-			}),
+			acl.groups.map((group) => [group.id, groupPrincipal(group)]),
 		),
 	},
 });
@@ -83,7 +65,7 @@ const selectedPrincipal = (
 ): SharingPrincipalSelection =>
 	isGroup(option)
 		? { kind: "group", principal: groupPrincipal(option) }
-		: { kind: "user", principal: memberPrincipal(option) };
+		: { kind: "user", principal: userPrincipal(option) };
 
 type OpenChatModelSharingDialogProps = Omit<
 	ChatModelSharingDialogProps,
@@ -98,42 +80,13 @@ const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const aclOptions = chatModelACL(organizationId, modelId);
-	const membersOptions = organizationMembers(organizationId, { limit: 0 });
-	const groupsOptions = groupsByOrganization(organizationId);
 	const aclQuery = useQuery({ ...aclOptions, refetchOnMount: "always" });
-	const membersQuery = useQuery({
-		...membersOptions,
-		refetchOnMount: "always",
-	});
-	const groupsQuery = useQuery({ ...groupsOptions, refetchOnMount: "always" });
 	const updateMutation = useMutation(updateChatModelACL(queryClient));
-
-	const members = membersQuery.data?.members;
-	const groups = groupsQuery.data;
-	const data =
-		aclQuery.data && members && groups
-			? sharingDialogData(aclQuery.data, members, groups)
-			: undefined;
-	const loadError = data
-		? null
-		: (aclQuery.error ??
-			(members === undefined ? membersQuery.error : null) ??
-			(groups === undefined ? groupsQuery.error : null));
-	const refetchError = data
-		? (aclQuery.error ?? membersQuery.error ?? groupsQuery.error)
-		: null;
+	const data = aclQuery.data ? sharingDialogData(aclQuery.data) : undefined;
 
 	const close = () => {
 		onOpenChange(false);
 		queryClient.removeQueries({ queryKey: aclOptions.queryKey, exact: true });
-		queryClient.removeQueries({
-			queryKey: membersOptions.queryKey,
-			exact: true,
-		});
-		queryClient.removeQueries({
-			queryKey: groupsOptions.queryKey,
-			exact: true,
-		});
 	};
 
 	return (
@@ -148,18 +101,19 @@ const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
 			roleLabel="Use"
 			confirmText="Save permissions"
 			data={data}
-			loadError={loadError}
-			refetchError={refetchError}
+			loadError={data ? null : aclQuery.error}
+			refetchError={data ? aclQuery.error : null}
 			saveError={updateMutation.error}
 			isSaving={updateMutation.isPending}
 			readRole="read"
 			deletedRole=""
 			renderAutocomplete={({ value, onChange, excludedPrincipalIds }) => (
-				<UserOrGroupAutocomplete
+				<ChatModelPrincipalAutocomplete
 					organizationId={organizationId}
 					value={value}
 					onChange={onChange}
-					exclude={excludedPrincipalIds.map((id) => ({ id }))}
+					modelId={modelId}
+					excludedPrincipalIds={excludedPrincipalIds}
 					className="w-full"
 				/>
 			)}

@@ -19,6 +19,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -39,11 +40,36 @@ func NewBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
+	return buildBlockingInterceptor(id, req, cfg, cred, nil, clientHeaders, tracer)
+}
+
+func NewBedrockBlockingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingInterception {
+	return buildBlockingInterceptor(id, req, cfg, cred, bedrockMantle, clientHeaders, tracer)
+}
+
+func buildBlockingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
 		id:            id,
 		req:           req,
 		cfg:           cfg,
 		cred:          cred,
+		bedrockMantle: bedrockMantle,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}
@@ -125,7 +151,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		lastUsage := completion.Usage
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
-		i.recordTokenUsage(ctx, completion.ID, lastUsage)
+		i.recordTokenUsage(ctx, completion.ID, lastUsage, string(completion.ServiceTier))
 
 		// Check if we have tool calls to process.
 		var pendingToolCalls []openai.ChatCompletionMessageToolCallUnion

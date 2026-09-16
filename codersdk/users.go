@@ -108,6 +108,14 @@ type GetUsersResponse struct {
 	Count int    `json:"count"`
 }
 
+// Trial request source origination reported to the licensor.
+const (
+	// LicensorTrialSourceNewUser is the first user setup flow.
+	LicensorTrialSourceNewUser = "NewUser"
+	// LicensorTrialSourceProduct is a request from within the product in-app trial request
+	LicensorTrialSourceProduct = "Product"
+)
+
 // @typescript-ignore LicensorTrialRequest
 type LicensorTrialRequest struct {
 	DeploymentID string `json:"deployment_id"`
@@ -230,6 +238,13 @@ type UpdateUserProfileRequest struct {
 	AvatarURL string `json:"avatar_url" format:"uri"`
 }
 
+// UpdateUserEmailRequest changes a user's email by matching their current
+// email address. This API is experimental and may change without notice.
+type UpdateUserEmailRequest struct {
+	OldEmail string `json:"old_email" validate:"required,email" format:"email"`
+	NewEmail string `json:"new_email" validate:"required,email" format:"email"`
+}
+
 type ValidateUserPasswordRequest struct {
 	Password string `json:"password" validate:"required"`
 }
@@ -307,19 +322,17 @@ type UpdateUserAppearanceSettingsRequest struct {
 }
 
 type UserPreferenceSettings struct {
-	TaskNotificationAlertDismissed bool                  `json:"task_notification_alert_dismissed"`
-	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode"`
-	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode"`
-	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode"`
-	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
+	ThinkingDisplayMode   ThinkingDisplayMode   `json:"thinking_display_mode"`
+	ShellToolDisplayMode  AgentDisplayMode      `json:"shell_tool_display_mode"`
+	CodeDiffDisplayMode   AgentDisplayMode      `json:"code_diff_display_mode"`
+	AgentChatSendShortcut AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed *bool                 `json:"task_notification_alert_dismissed,omitempty"`
-	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
-	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
-	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
-	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
+	ThinkingDisplayMode   ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
+	ShellToolDisplayMode  AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
+	CodeDiffDisplayMode   AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
+	AgentChatSendShortcut AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
 }
 
 type AgentChatSendShortcut string
@@ -600,6 +613,20 @@ func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateU
 	}
 	var resp User
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateUserEmail changes a user's email address. This API is experimental and
+// may change without notice.
+func (c *Client) UpdateUserEmail(ctx context.Context, req UpdateUserEmailRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/users/email", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ValidateUserPassword validates the complexity of a user password and that it is secured enough.

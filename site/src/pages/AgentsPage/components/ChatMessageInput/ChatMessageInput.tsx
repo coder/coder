@@ -6,6 +6,7 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { mergeRegister } from "@lexical/utils";
+import { cn } from "cn";
 import {
 	$createParagraphNode,
 	$createTextNode,
@@ -35,7 +36,6 @@ import {
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
 import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
@@ -942,7 +942,7 @@ const ChatMessageInput = ({
 			<div
 				ref={setContainerElement}
 				className={cn(
-					"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-none whitespace-pre-wrap break-words [&>*]:col-start-1 [&>*]:row-start-1",
+					"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-hidden whitespace-pre-wrap wrap-break-word *:col-start-1 *:row-start-1",
 					disabled && "cursor-not-allowed opacity-50",
 					className,
 				)}
@@ -952,7 +952,7 @@ const ChatMessageInput = ({
 				<RichTextPlugin
 					contentEditable={
 						<ContentEditable
-							className="outline-none w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
+							className="outline-hidden w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
 							data-testid="chat-message-input"
 							style={{ minHeight: "inherit" }}
 							aria-label={ariaLabel}

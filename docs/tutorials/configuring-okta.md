@@ -1,4 +1,6 @@
-# Configuring Custom Claims/Scopes with Okta for group/role
+---
+title: Configure custom claims/scopes with Okta for group/role
+---
 
 <div style="pad: 0px; margin: 0px;">
   <span style="vertical-align:middle;">Author: </span>
@@ -123,7 +125,7 @@ Authorization servers also give more refined controls over things such as token/
 ![Okta API view](../images/guides/okta/api_view.png)
 
 To get custom claims working, map them to a custom scope.
-Click the authorization server you wish to use (likely just using the default).
+Select the authorization server you wish to use (likely just using the default).
 
 Go to **Scopes**, and **Add Scope**.
 Feel free to create one for roles, groups, or both:

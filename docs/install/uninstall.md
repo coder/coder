@@ -1,6 +1,8 @@
-<!-- markdownlint-disable MD024 -->
-# Uninstall
+---
+title: Uninstall
+---
 
+<!-- markdownlint-disable MD024 -->
 This article walks you through how to uninstall your Coder server.
 
 To uninstall your Coder server, delete the following directories.

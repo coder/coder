@@ -1,4 +1,6 @@
-# Working with Dev Containers
+---
+title: Work with Dev Containers
+---
 
 The dev container integration appears in your Coder dashboard, providing a
 visual representation of the running environment:
@@ -154,4 +156,4 @@ next to the dev container.
 
 ![Dev container showing Outdated status with rebuild option](../../images/user-guides/devcontainers/devcontainer-outdated.png)_The Outdated indicator appears when changes to devcontainer.json are detected_
 
-Click **Rebuild** to recreate your dev container with the updated configuration.
+Select **Rebuild** to recreate your dev container with the updated configuration.

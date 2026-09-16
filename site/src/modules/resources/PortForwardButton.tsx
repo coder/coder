@@ -593,7 +593,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									>
 										<SelectTrigger
 											aria-label={`Protocol for port ${share.port}`}
-											className="h-8 min-w-[5.625rem] w-auto border-0 shadow-none focus:ring-0"
+											className="h-8 min-w-22.5 w-auto border-0 shadow-none focus:ring-0"
 										>
 											<SelectValue />
 										</SelectTrigger>
@@ -620,7 +620,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										>
 											<SelectTrigger
 												aria-label={`Sharing level for port ${share.port}`}
-												className="h-8 min-w-[8.75rem] w-auto border-0 shadow-none focus:ring-0"
+												className="h-8 min-w-35 w-auto border-0 shadow-none focus:ring-0"
 											>
 												<SelectValue />
 											</SelectTrigger>

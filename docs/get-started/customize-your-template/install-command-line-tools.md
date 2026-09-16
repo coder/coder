@@ -1,4 +1,6 @@
-# Install your own command-line tools
+---
+title: Install your own command-line tools
+---
 
 Now that you [launched your first workspace](../index.md), you can add your favorite command-line tools to every workspace.
 

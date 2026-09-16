@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
@@ -23,7 +24,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -67,13 +67,10 @@ export const CreateOrganizationPageView: FC<
 			icon: "",
 		},
 		validationSchema,
-		onSubmit: (values) => {
-			createOrganizationMutation.mutate(values, {
-				onSuccess: () => {
-					toast.success(`Organization "${values.name}" created successfully.`);
-					void navigate(`/organizations/${values.name}`);
-				},
-			});
+		onSubmit: async (values) => {
+			await createOrganizationMutation.mutateAsync(values);
+			toast.success(`Organization "${values.name}" created successfully.`);
+			void navigate(`/organizations/${values.name}`);
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);

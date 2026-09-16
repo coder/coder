@@ -104,6 +104,8 @@ const MCPServersPage: FC = () => {
 					)}
 					{organization && (
 						<MCPServersPageView
+							// Reset view-local state (search) when the organization changes.
+							key={organization.id}
 							isLoading={serversQuery.isLoading}
 							error={serversQuery.error}
 							servers={servers}

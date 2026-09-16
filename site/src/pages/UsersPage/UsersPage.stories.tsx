@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import { spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { deploymentConfigQueryKey } from "#/api/queries/deployment";
 import { groupsQueryKey } from "#/api/queries/groups";
@@ -8,13 +8,13 @@ import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
 import { MockGroups } from "#/pages/UsersPage/storybookData/groups";
 import { MockRoles } from "#/pages/UsersPage/storybookData/roles";
-import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import { MockAuthMethodsAll, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
+import { MockUsers } from "#/testHelpers/users";
 import UsersPage from "./UsersPage";
 
 const parameters = {
@@ -82,10 +82,8 @@ export const Loaded: Story = {};
 export const SuspendUserSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 
 		// Return the updated user in the suspended response and ensure the users
 		// query will return updated data.
@@ -96,42 +94,36 @@ export const SuspendUserSuccess: Story = {
 			count: 60,
 		});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const suspendButton = await within(document.body).findByText("Suspend…");
-		await user.click(suspendButton);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Suspend…" }));
 
-		const dialog = await within(document.body).findByRole("dialog");
+		const dialog = await body.findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Suspend" }));
-		await within(document.body).findByText(/suspended successfully/);
+		await body.findByText(/suspended successfully/);
 	},
 };
 
 export const SuspendUserError: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 		spyOn(API, "suspendUser").mockRejectedValue(undefined);
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const suspendButton = await within(document.body).findByText("Suspend…");
-		await user.click(suspendButton);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Suspend…" }));
 
-		const dialog = await within(document.body).findByRole("dialog");
+		const dialog = await body.findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Suspend" }));
-		await within(document.body).findByText(/Error suspending user/);
+		await body.findByText(/Error suspending user/);
 	},
 };
 
 export const DeleteUserSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 
 		// The delete user operation does not return a value. However, we need to
 		// ensure that the updated list of users, excluding the deleted one, is
@@ -142,36 +134,36 @@ export const DeleteUserSuccess: Story = {
 			count: 59,
 		});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const deleteButton = await within(document.body).findByText("Delete…");
-		await user.click(deleteButton);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Delete…" }));
 
-		const dialog = await within(document.body).findByRole("dialog");
-		const input = within(dialog).getByLabelText("Name of the user to delete");
-		await user.type(input, MockUsers[0].username);
+		const dialog = await body.findByRole("dialog");
+		await user.type(
+			within(dialog).getByLabelText("Name of the user to delete"),
+			MockUsers[0].username,
+		);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-		await within(document.body).findByText(/deleted successfully/);
+		await body.findByText(/deleted successfully/);
 	},
 };
 
 export const DeleteUserError: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 		spyOn(API, "deleteUser").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const deleteButton = await within(document.body).findByText("Delete…");
-		await user.click(deleteButton);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Delete…" }));
 
-		const dialog = await within(document.body).findByRole("dialog");
-		const input = within(dialog).getByLabelText("Name of the user to delete");
-		await user.type(input, MockUsers[0].username);
+		const dialog = await body.findByRole("dialog");
+		await user.type(
+			within(dialog).getByLabelText("Name of the user to delete"),
+			MockUsers[0].username,
+		);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-		await within(document.body).findByText(/Error deleting user/);
+		await body.findByText(/Error deleting user/);
 	},
 };
 
@@ -195,10 +187,8 @@ export const ActivateUserSuccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 
 		// Return the updated user in the activate response and ensure the users
 		// query will return updated data.
@@ -209,13 +199,12 @@ export const ActivateUserSuccess: Story = {
 			count: 60,
 		});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const activateButton = await within(document.body).findByText("Activate…");
-		await user.click(activateButton);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Activate…" }));
 
-		const dialog = await within(document.body).findByRole("dialog");
+		const dialog = await body.findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await within(document.body).findByText(/activated successfully/);
+		await body.findByText(/activated successfully/);
 	},
 };
 
@@ -223,19 +212,16 @@ export const ActivateUserError: Story = {
 	parameters: ActivateUserSuccess.parameters,
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 		spyOn(API, "activateUser").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const activateButton = await within(document.body).findByText("Activate…");
-		await user.click(activateButton);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Activate…" }));
 
-		const dialog = await within(document.body).findByRole("dialog");
+		const dialog = await body.findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await within(document.body).findByText(/Error activating user/);
+		await body.findByText(/Error activating user/);
 	},
 };
 
@@ -258,23 +244,20 @@ export const ResetUserPasswordSuccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 		spyOn(API, "updateUserPassword").mockResolvedValue();
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const resetPasswordButton = await within(document.body).findByText(
-			"Reset password…",
+		await openUserMenu(canvas, user);
+		await user.click(
+			await body.findByRole("menuitem", { name: "Reset password…" }),
 		);
-		await user.click(resetPasswordButton);
 
-		const dialog = await within(document.body).findByRole("dialog");
+		const dialog = await body.findByRole("dialog");
 		await user.click(
 			within(dialog).getByRole("button", { name: "Reset password" }),
 		);
-		await within(document.body).findByText(/password .* updated successfully/i);
+		await body.findByText(/password .* updated successfully/i);
 	},
 };
 
@@ -282,23 +265,20 @@ export const ResetUserPasswordError: Story = {
 	parameters: ResetUserPasswordSuccess.parameters,
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 		spyOn(API, "updateUserPassword").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		const resetPasswordButton = await within(document.body).findByText(
-			"Reset password…",
+		await openUserMenu(canvas, user);
+		await user.click(
+			await body.findByRole("menuitem", { name: "Reset password…" }),
 		);
-		await user.click(resetPasswordButton);
 
-		const dialog = await within(document.body).findByRole("dialog");
+		const dialog = await body.findByRole("dialog");
 		await user.click(
 			within(dialog).getByRole("button", { name: "Reset password" }),
 		);
-		await within(document.body).findByText(/Error resetting password/i);
+		await body.findByText(/Error resetting password/i);
 	},
 };
 
@@ -325,13 +305,11 @@ export const UpdateUserRoleSuccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 
-		// Return the updated user in the update roles response and ensure the users
-		// query will return updated data.
+		// Return the updated user in the update roles response and ensure the
+		// users query will return updated data.
 		const updatedUser: User = {
 			...MockUsers[0],
 			roles: [
@@ -346,11 +324,14 @@ export const UpdateUserRoleSuccess: Story = {
 			count: 60,
 		});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		await user.click(screen.getByText("Edit roles"));
-		await user.click(screen.getByLabelText("Auditor", { exact: false }));
-		await user.click(screen.getByText("Confirm"));
-		await screen.findByText(/roles updated successfully/);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Edit roles" }));
+		const dialog = await body.findByRole("dialog");
+		await user.click(
+			within(dialog).getByLabelText("Auditor", { exact: false }),
+		);
+		await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
+		await body.findByText(/roles updated successfully/);
 	},
 };
 
@@ -358,19 +339,31 @@ export const UpdateUserRoleError: Story = {
 	parameters: UpdateUserRoleSuccess.parameters,
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
-		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
-		if (!userRow) {
-			throw new Error("No user row found");
-		}
+		const canvas = within(canvasElement);
+		const body = within(document.body);
 		spyOn(API, "updateUserRoles").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("Open menu"));
-		await user.click(screen.getByText("Edit roles"));
-		await user.click(screen.getByLabelText("Auditor", { exact: false }));
-		await user.click(screen.getByText("Confirm"));
-		await screen.findByText(/Error updating user roles/);
+		await openUserMenu(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: "Edit roles" }));
+		const dialog = await body.findByRole("dialog");
+		await user.click(
+			within(dialog).getByLabelText("Auditor", { exact: false }),
+		);
+		await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
+		await body.findByText(/Error updating user roles/);
 	},
 };
+
+async function openUserMenu(
+	canvas: ReturnType<typeof within>,
+	user: ReturnType<typeof userEvent.setup>,
+) {
+	const row = canvas.getByRole("row", {
+		name: (accessibleName: string) =>
+			accessibleName.includes(MockUsers[0].email),
+	});
+	await user.click(within(row).getByRole("button", { name: /open menu/i }));
+}
 
 function replaceUser(users: User[], index: number, user: User) {
 	return users.map((u, i) => (i === index ? { ...u, ...user } : u));

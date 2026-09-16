@@ -1,4 +1,6 @@
-# Notifications
+---
+title: Notifications
+---
 
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
@@ -13,13 +15,6 @@ Notifications are sent in response to internal events, to alert the affected
 user(s) of the event.
 
 Coder supports the following list of events:
-
-### Task Events
-
-These notifications are sent to the owner of the workspace where the task is running:
-
-- Task Idle
-- Task Working
 
 ### Template Events
 

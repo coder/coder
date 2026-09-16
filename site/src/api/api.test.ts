@@ -1,4 +1,5 @@
 import {
+	MockChatModelACL,
 	MockMCPServerConfigACL,
 	MockMCPServerConfigACLAvailable,
 	MockProvisionerJob,
@@ -147,9 +148,12 @@ describe("api.ts", () => {
 				{ q: "owner:me" },
 				"/api/v2/workspaces?q=owner%3Ame",
 			],
-		])("Workspaces - getURLWithSearchParams(%p, %p) returns %p", (basePath, filter, expected) => {
-			expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
-		});
+		])(
+			"Workspaces - getURLWithSearchParams(%p, %p) returns %p",
+			(basePath, filter, expected) => {
+				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+			},
+		);
 	});
 
 	describe("getURLWithSearchParams - users", () => {
@@ -161,9 +165,12 @@ describe("api.ts", () => {
 				"/api/v2/users?q=status%3Aactive",
 			],
 			["/api/v2/users", { q: "" }, "/api/v2/users"],
-		])("Users - getURLWithSearchParams(%p, %p) returns %p", (basePath, filter, expected) => {
-			expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
-		});
+		])(
+			"Users - getURLWithSearchParams(%p, %p) returns %p",
+			(basePath, filter, expected) => {
+				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+			},
+		);
 	});
 
 	describe("AI spend requests", () => {
@@ -513,21 +520,26 @@ describe("api.ts", () => {
 
 		it("uses organization-nested chat model ACL paths", async () => {
 			const modelId = "model/id";
-			const acl = { user_roles: {}, group_roles: {} };
-			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({ data: acl });
+			const update: TypesGen.UpdateChatModelACLRequest = {
+				user_roles: { "user-1": "read" },
+				group_roles: { "group-1": "" },
+			};
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: MockChatModelACL,
+			});
 			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
 
 			await expect(
 				API.experimental.getChatModelACL(organizationId, modelId),
-			).resolves.toStrictEqual(acl);
+			).resolves.toStrictEqual(MockChatModelACL);
 			await expect(
-				API.experimental.updateChatModelACL(organizationId, modelId, acl),
+				API.experimental.updateChatModelACL(organizationId, modelId, update),
 			).resolves.toBeUndefined();
 
 			const aclPath =
 				"/api/v2/organizations/organization%2Fid/chats/models/model%2Fid/acl";
 			expect(axiosInstance.get).toHaveBeenCalledWith(aclPath);
-			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, acl);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, update);
 		});
 
 		it("uses organization-nested MCP server ACL paths", async () => {

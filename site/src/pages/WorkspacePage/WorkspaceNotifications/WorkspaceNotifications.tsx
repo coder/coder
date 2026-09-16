@@ -19,8 +19,8 @@ import { useQuery } from "react-query";
 import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
+	type Notification,
 	NotificationActionButton,
-	type NotificationItem,
 	Notifications,
 } from "./Notifications";
 
@@ -43,7 +43,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	onUpdateWorkspace,
 	onActivateWorkspace,
 }) => {
-	const notifications: NotificationItem[] = [];
+	const notifications: Notification[] = [];
 
 	// Outdated
 	const canAutostartQuery = useQuery(workspaceResolveAutostart(workspace.id));
@@ -183,7 +183,6 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	// figure out if this effect really should run every render (possibly meaning
 	// no dependency array at all), or how to get the array stabilized (ideal)
 	const now = dayjs();
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
 	useEffect(() => {
 		if (
 			workspace.latest_build.status !== "pending" ||

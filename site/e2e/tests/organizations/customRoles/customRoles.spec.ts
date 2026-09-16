@@ -45,7 +45,7 @@ test.describe("CustomRolesPage", () => {
 			`/organizations/${org.name}/roles/${customRole.name}`,
 		);
 
-		const cancelButton = page.getByRole("button", { name: "Cancel" }).first();
+		const cancelButton = page.getByRole("link", { name: "Cancel" });
 		await expect(cancelButton).toBeVisible();
 		await cancelButton.click();
 
@@ -73,7 +73,7 @@ test.describe("CustomRolesPage", () => {
 		await page.goto(`/organizations/${org.name}/roles/${customRole.name}`);
 
 		const displayNameInput = page.getByRole("textbox", {
-			name: "Display name",
+			name: /^Display name/,
 		});
 		await displayNameInput.fill("Custom Role Test 2 Edited");
 
@@ -87,7 +87,7 @@ test.describe("CustomRolesPage", () => {
 		await expect(organizationMemberCheckbox).toBeVisible();
 		await organizationMemberCheckbox.click();
 
-		const saveButton = page.getByRole("button", { name: /save/i }).first();
+		const saveButton = page.getByRole("button", { name: "Save" });
 		await expect(saveButton).toBeVisible();
 		await saveButton.click();
 
@@ -140,19 +140,17 @@ test.describe("CustomRolesPage", () => {
 
 		const customRoleName = "custom-role-test";
 		const roleNameInput = page.getByRole("textbox", {
-			exact: true,
-			name: "Name",
+			name: /^Name/,
 		});
 		await roleNameInput.fill(customRoleName);
 
 		const customRoleDisplayName = "Custom Role Test";
 		const displayNameInput = page.getByRole("textbox", {
-			exact: true,
-			name: "Display Name",
+			name: /^Display name/,
 		});
 		await displayNameInput.fill(customRoleDisplayName);
 
-		await page.getByRole("button", { name: "Create Role" }).first().click();
+		await page.getByRole("button", { name: "Create custom role" }).click();
 
 		await expect(page).toHaveURL(`/organizations/${org.name}/roles`);
 

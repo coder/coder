@@ -1,4 +1,6 @@
-# Licensing
+---
+title: Licensing
+---
 
 Some features are only accessible with a Premium license, including
 [AI Governance](../../ai-coder/ai-governance.md). See our

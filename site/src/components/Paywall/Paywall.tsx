@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
-import { cn } from "#/utils/cn";
 
 export const PREMIUM_FEATURES = [
 	"High availability & workspace proxies",
@@ -157,33 +157,9 @@ export const PaywallFeature: FC<React.ComponentProps<"li">> = ({
 }) => {
 	return (
 		<li className={cn("flex items-center gap-2 p-[3px]", className)} {...props}>
-			<FeatureIcon className="flex-shrink-0" />
+			<FeatureIcon className="shrink-0" />
 			<span className="flex-1">{children}</span>
 		</li>
-	);
-};
-
-export const PaywallCTA: FC<React.ComponentProps<"a">> = ({
-	children,
-	className,
-	href,
-	target = "_blank",
-	rel = "noreferrer",
-	...props
-}) => {
-	return (
-		<Button asChild>
-			<a
-				href={href}
-				target={target}
-				rel={rel}
-				className={cn("mx-7", className)}
-				{...props}
-			>
-				<ArrowRightIcon aria-hidden="true" />
-				{children}
-			</a>
-		</Button>
 	);
 };
 

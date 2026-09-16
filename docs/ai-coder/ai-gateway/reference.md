@@ -1,4 +1,6 @@
-# Reference
+---
+title: Reference
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
@@ -110,12 +112,7 @@ The Anthropic provider also serves the AWS Bedrock provider type.
 
 #### Passthrough
 
-- `/models(/*)`
-- `/agents/*`
-- `/mcp/*`
-- `/.well-known/*`
-
-Any route that is not listed above returns `404`.
+All Copilot routes other than the intercepted routes listed above pass through to the configured upstream provider.
 
 ## Troubleshooting
 

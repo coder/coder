@@ -15,11 +15,13 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -34,6 +36,11 @@ type interceptionBase struct {
 	cfg  intercept.Config
 	cred intercept.Credential
 
+	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
+	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
+	// using a key pool or BYOK secret.
+	bedrockMantle *bedrocksig.MantleConfig
+
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
 
@@ -47,15 +54,28 @@ type interceptionBase struct {
 // newCompletionsService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.ChatCompletionService {
 	var opts []option.RequestOption
-	// Only BYOK sets its credential here. Centralized keys are injected
-	// per-attempt in the failover loop.
-	if byok, ok := intercept.AsBYOK(i.cred); ok {
-		i.logger.Debug(ctx, "using byok auth",
-			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
-		)
-		opts = append(opts, option.WithAPIKey(byok.Secret))
+	if i.bedrockMantle != nil {
+		base, err := bedrocksig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
+		if err != nil {
+			// Fail the request loudly: a malformed base URL is a provider
+			// misconfiguration, not a retryable upstream error.
+			opts = append(opts, option.WithMiddleware(func(_ *http.Request, _ option.MiddlewareNext) (*http.Response, error) {
+				return nil, xerrors.Errorf("bedrock mantle base URL: %w", err)
+			}))
+			return openai.NewChatCompletionService(opts...)
+		}
+		opts = append(opts, option.WithBaseURL(base))
+	} else {
+		// Only BYOK sets its credential here. Centralized keys are injected
+		// per-attempt in the failover loop.
+		if byok, ok := intercept.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth",
+				slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+			)
+			opts = append(opts, option.WithAPIKey(byok.Secret))
+		}
+		opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 	}
-	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
@@ -70,6 +90,14 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	// Add API dump middleware if configured
 	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
+	}
+
+	// Bedrock mantle: install the SigV4 signing middleware last so it runs
+	// innermost (right before the HTTP send) and signs the request after all
+	// other headers are set.
+	if i.bedrockMantle != nil {
+		//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
+		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
 	}
 
 	return openai.NewChatCompletionService(opts...)
@@ -227,14 +255,21 @@ func (i *interceptionBase) hasInjectableTools() bool {
 }
 
 // recordTokenUsage records the token usage for a single completion, accounting
-// for cached tokens included in the prompt token count.
-func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage) {
+// for cache read and write tokens included in the prompt token count.
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage, serviceTier string) {
+	var metadata recorder.Metadata
+	if serviceTier != "" {
+		metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: serviceTier}
+	}
+
 	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-		InterceptionID:       i.ID().String(),
-		MsgID:                msgID,
-		Input:                calculateActualInputTokenUsage(usage),
-		Output:               usage.CompletionTokens,
-		CacheReadInputTokens: usage.PromptTokensDetails.CachedTokens,
+		InterceptionID:        i.ID().String(),
+		MsgID:                 msgID,
+		Input:                 calculateActualInputTokenUsage(usage),
+		Output:                usage.CompletionTokens,
+		CacheReadInputTokens:  usage.PromptTokensDetails.CachedTokens,
+		CacheWriteInputTokens: usage.PromptTokensDetails.CacheWriteTokens,
+		Metadata:              metadata,
 		ExtraTokenTypes: map[string]int64{
 			"prompt_audio":                   usage.PromptTokensDetails.AudioTokens,
 			"completion_accepted_prediction": usage.CompletionTokensDetails.AcceptedPredictionTokens,
@@ -245,7 +280,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 	})
 }
 
-func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
+func sumUsage(ref openai.CompletionUsage, in openai.CompletionUsage) openai.CompletionUsage {
 	return openai.CompletionUsage{
 		CompletionTokens: ref.CompletionTokens + in.CompletionTokens,
 		PromptTokens:     ref.PromptTokens + in.PromptTokens,
@@ -257,17 +292,18 @@ func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
 			RejectedPredictionTokens: ref.CompletionTokensDetails.RejectedPredictionTokens + in.CompletionTokensDetails.RejectedPredictionTokens,
 		},
 		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
-			AudioTokens:  ref.PromptTokensDetails.AudioTokens + in.PromptTokensDetails.AudioTokens,
-			CachedTokens: ref.PromptTokensDetails.CachedTokens + in.PromptTokensDetails.CachedTokens,
+			AudioTokens:      ref.PromptTokensDetails.AudioTokens + in.PromptTokensDetails.AudioTokens,
+			CachedTokens:     ref.PromptTokensDetails.CachedTokens + in.PromptTokensDetails.CachedTokens,
+			CacheWriteTokens: ref.PromptTokensDetails.CacheWriteTokens + in.PromptTokensDetails.CacheWriteTokens,
 		},
 	}
 }
 
-// calculateActualInputTokenUsage accounts for cached tokens which are included in [openai.CompletionUsage].PromptTokens.
+// calculateActualInputTokenUsage calculates ordinary input tokens.
+// in.PromptTokens contains sum of all prompt tokens including
+// cache read and write tokens which are priced differently.
 func calculateActualInputTokenUsage(in openai.CompletionUsage) int64 {
-	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	// The original value can be reconstructed by adding CachedTokens back to Input.
-	// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
-	return max(0, in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
-		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */)
+	return max(0, in.PromptTokens-
+		in.PromptTokensDetails.CachedTokens-
+		in.PromptTokensDetails.CacheWriteTokens)
 }

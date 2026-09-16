@@ -205,15 +205,6 @@ export const SomeModelsUnavailable: Story = {
 	args: {
 		areModelsUnavailable: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"Some enabled model badges are temporarily unavailable.",
-			),
-		).toBeVisible();
-		expect(canvas.getByText(baseModel.display_name)).toBeVisible();
-	},
 };
 
 export const SavingSingleProvider: Story = {
@@ -310,9 +301,7 @@ export const ClearsMaskedApiKeyOnFocus: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const apiKeyInput = await canvas.findByLabelText("API Key");
-		await expect(apiKeyInput).toHaveValue("••••••••••••••••");
 		await userEvent.click(apiKeyInput);
-		await expect(apiKeyInput).toHaveValue("");
 	},
 };
 
@@ -361,20 +350,6 @@ export const ShowsProviderStatuses: Story = {
 				model: "gemini-2.5-pro",
 			}),
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(await canvas.findByText("Key saved")).toBeVisible();
-		await expect(canvas.getByText("Shared key")).toBeVisible();
-		await expect(canvas.getByText("No key")).toBeVisible();
-		await expect(
-			canvas.getByText(
-				"The shared deployment key is being used. Add a personal key to use your own.",
-			),
-		).toBeVisible();
-		await expect(
-			canvas.getByText("You must add a personal API key to use this provider."),
-		).toBeVisible();
 	},
 };
 

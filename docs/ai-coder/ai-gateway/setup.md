@@ -1,16 +1,15 @@
-# Setup
+---
+title: Setup
+---
 
 By default, AI Gateway runs inside the Coder control plane (`coderd`) and requires no separate compute.
 In embedded mode, `coderd` runs the gateway in memory and brokers traffic to your configured AI providers on behalf of authenticated users.
 
 If AI traffic needs dedicated compute, independent scaling, or a separate network endpoint, you can [deploy AI Gateway as a standalone service](./standalone.md).
 
-> [!NOTE]
-> Since v2.34, provider environment variables and flags are deprecated.
-> Provider configuration is now stored in the database, and any
-> environment variables set on startup are used to seed it once. See
-> [Database management of providers](./providers.md#database-management-of-providers)
-> for details.
+Provider records are managed through the dashboard or API and stored in the database.
+Provider environment variables, flags, and YAML options no longer seed the database.
+Refer to [Database management of providers](./providers.md#database-management-of-providers) for details.
 
 ## Activation
 
@@ -42,7 +41,7 @@ without restarting `coderd`.
 
 1. Navigate to **Admin settings** > **AI**
 1. Select **Providers**
-1. Click **Add provider**
+1. Select **Add provider**
 1. Select the provider type
 1. Enter a unique lowercase name, the upstream endpoint, and the credentials
 1. Save the provider
