@@ -209,6 +209,55 @@ export const buildReconnectState = (
 	...overrides,
 });
 
+// A 60-step turn split into three history pages, newest first, so the
+// prompt row only arrives with the final page.
+const longTurnStep = (index: number): TypesGen.ChatMessage[] => [
+	{
+		...MockChatMessage,
+		id: 100 + index * 2,
+		role: "assistant",
+		created_at: workingFixtureTime(index),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: `step-${index}`,
+				tool_name: "execute",
+				args: { command: `echo step-${index}` },
+				created_at: workingFixtureTime(index),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 101 + index * 2,
+		role: "tool",
+		created_at: workingFixtureTime(index),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: `step-${index}`,
+				tool_name: "execute",
+				result: { output: `step-${index}`, exit_code: "0" },
+				created_at: workingFixtureTime(index),
+			},
+		],
+	},
+];
+const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
+	longTurnStep(index),
+).flat();
+const MockLongTurnPrompt: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 99,
+	created_at: workingFixtureTime(-1),
+	content: [{ type: "text", text: "Run every step" }],
+};
+export const MockLongTurnPages = [
+	MockLongTurn.slice(60),
+	MockLongTurn.slice(30),
+	[MockLongTurnPrompt, ...MockLongTurn],
+];
+
 export const buildRetryState = (
 	overrides: Partial<RetryState> = {},
 ): RetryState => ({
