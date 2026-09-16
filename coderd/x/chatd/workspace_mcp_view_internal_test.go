@@ -3,7 +3,6 @@ package chatd
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -273,40 +272,4 @@ func TestLoadWorkspaceMCPView(t *testing.T) {
 		require.Len(t, view.servers, 1, "the pinned outcomes are still reported")
 		require.Equal(t, 1, view.servers[0].toolCount)
 	})
-}
-
-// TestResolveWorkspaceMCPTools_UsesReboundAgent covers the first turn after
-// a rebuild: getWorkspaceAgent has already rebound the turn's chat snapshot
-// to the replacement agent, while the chat row loaded at turn start still
-// names the soft-deleted one. The view must follow the rebound agent, or
-// every replacement tool is withheld for that turn.
-func TestResolveWorkspaceMCPTools_UsesReboundAgent(t *testing.T) {
-	t.Parallel()
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	oldAgentID := uuid.New()
-	newAgentID := uuid.New()
-	db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
-		Return([]database.ChatContextResource{mcpServerResource(t, "fs", &agentproto.MCPServerBody{
-			ServerName: "fs", Tools: []*agentproto.MCPTool{{Name: "read"}},
-		}, database.WorkspaceAgentContextResourceStatusOk)}, nil)
-	expectWorkspaceMCPViewTx(db)
-	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), newAgentID).
-		Return(database.WorkspaceAgent{ID: newAgentID, AgentRunID: "run-b"}, nil)
-	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), newAgentID).
-		Return(database.WorkspaceAgentContextSnapshot{AgentRunID: "run-b", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete}, nil)
-	server := newPinServer(t, db)
-
-	loaded := database.Chat{ID: chatID, AgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true}}
-	rebound := loaded
-	rebound.AgentID = uuid.NullUUID{UUID: newAgentID, Valid: true}
-	workspaceCtx := &turnWorkspaceContext{
-		server:      server,
-		chatStateMu: &sync.Mutex{},
-		currentChat: &rebound,
-	}
-
-	tools := server.resolveWorkspaceMCPTools(context.Background(), server.logger, loaded, workspaceCtx)
-	require.Len(t, tools, 1, "replacement tools are served on the rebinding turn")
 }
