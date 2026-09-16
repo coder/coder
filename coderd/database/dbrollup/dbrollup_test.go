@@ -3,6 +3,7 @@ package dbrollup_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -43,9 +44,9 @@ func (w *wrapUpsertDB) InTx(fn func(database.Store) error, opts *database.TxOpti
 	}, opts)
 }
 
-func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context) error {
+func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
 	<-w.resume
-	return w.Store.UpsertTemplateUsageStats(ctx)
+	return w.Store.UpsertTemplateUsageStats(ctx, appFamilies)
 }
 
 func TestRollup_TwoInstancesUseLocking(t *testing.T) {

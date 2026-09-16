@@ -387,16 +387,6 @@ export interface RunningAgentAuthToken {
   token: string;
 }
 
-export interface AITaskSidebarApp {
-  id: string;
-}
-
-export interface AITask {
-  id: string;
-  sidebarApp?: AITaskSidebarApp | undefined;
-  appId: string;
-}
-
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
   coderUrl: string;
@@ -421,8 +411,6 @@ export interface Metadata {
   /** Indicates that a prebuilt workspace is being built. */
   prebuiltWorkspaceBuildStage: PrebuiltWorkspaceBuildStage;
   runningAgentAuthTokens: RunningAgentAuthToken[];
-  taskId: string;
-  taskPrompt: string;
   templateVersionId: string;
   templateVersionModulesFile: string;
 }
@@ -495,7 +483,6 @@ export interface PlanComplete {
   plan: Uint8Array;
   dailyCost: number;
   resourceReplacements: ResourceReplacement[];
-  aiTaskCount: number;
 }
 
 /**
@@ -525,12 +512,6 @@ export interface GraphComplete {
   parameters: RichParameter[];
   externalAuthProviders: ExternalAuthProviderResource[];
   presets: Preset[];
-  /**
-   * Whether actual `coder_ai_task` resource instances exist.
-   * Resources defined with count = 0 do not set this flag.
-   */
-  hasAiTasks: boolean;
-  aiTasks: AITask[];
   hasExternalAgents: boolean;
 }
 
@@ -1284,30 +1265,6 @@ export const RunningAgentAuthToken = {
   },
 };
 
-export const AITaskSidebarApp = {
-  encode(message: AITaskSidebarApp, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.id !== "") {
-      writer.uint32(10).string(message.id);
-    }
-    return writer;
-  },
-};
-
-export const AITask = {
-  encode(message: AITask, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.id !== "") {
-      writer.uint32(10).string(message.id);
-    }
-    if (message.sidebarApp !== undefined) {
-      AITaskSidebarApp.encode(message.sidebarApp, writer.uint32(18).fork()).ldelim();
-    }
-    if (message.appId !== "") {
-      writer.uint32(26).string(message.appId);
-    }
-    return writer;
-  },
-};
-
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -1372,12 +1329,6 @@ export const Metadata = {
     }
     for (const v of message.runningAgentAuthTokens) {
       RunningAgentAuthToken.encode(v!, writer.uint32(170).fork()).ldelim();
-    }
-    if (message.taskId !== "") {
-      writer.uint32(178).string(message.taskId);
-    }
-    if (message.taskPrompt !== "") {
-      writer.uint32(186).string(message.taskPrompt);
     }
     if (message.templateVersionId !== "") {
       writer.uint32(194).string(message.templateVersionId);
@@ -1517,9 +1468,6 @@ export const PlanComplete = {
     for (const v of message.resourceReplacements) {
       ResourceReplacement.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    if (message.aiTaskCount !== 0) {
-      writer.uint32(48).int32(message.aiTaskCount);
-    }
     return writer;
   },
 };
@@ -1579,12 +1527,6 @@ export const GraphComplete = {
     }
     for (const v of message.presets) {
       Preset.encode(v!, writer.uint32(50).fork()).ldelim();
-    }
-    if (message.hasAiTasks !== false) {
-      writer.uint32(56).bool(message.hasAiTasks);
-    }
-    for (const v of message.aiTasks) {
-      AITask.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     if (message.hasExternalAgents !== false) {
       writer.uint32(72).bool(message.hasExternalAgents);

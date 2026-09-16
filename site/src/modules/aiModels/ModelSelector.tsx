@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, InfoIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -125,6 +125,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	// With an unset option the selector stays usable even when no model
 	// options exist, so a saved override can still be switched back.
 	const isDisabled = disabled || (options.length === 0 && !unsetLabel);
+	const listboxId = useId();
 	const query = search.trim().toLowerCase();
 	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
@@ -158,6 +159,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					}
 					aria-expanded={open}
 					aria-haspopup="listbox"
+					aria-controls={open ? listboxId : undefined}
 					disabled={isDisabled}
 					role="combobox"
 					type="button"
@@ -218,6 +220,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						className="h-auto py-0 text-xs font-normal leading-[18px] text-content-primary placeholder:text-content-disabled"
 					/>
 					<CommandList
+						id={listboxId}
 						role="listbox"
 						className={cn(
 							"max-h-80 border-t-0",

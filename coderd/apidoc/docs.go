@@ -246,6 +246,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/users/email": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user email",
+                "operationId": "update-user-email-experimental",
+                "parameters": [
+                    {
+                        "description": "Update email request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -2191,6 +2227,7 @@ const docTemplate = `{
                     "image/jpeg",
                     "image/gif",
                     "image/webp",
+                    "image/svg+xml",
                     "text/plain",
                     "text/markdown",
                     "text/csv",
@@ -2263,6 +2300,7 @@ const docTemplate = `{
                     "image/jpeg",
                     "image/gif",
                     "image/webp",
+                    "image/svg+xml",
                     "text/plain",
                     "text/markdown",
                     "text/csv",
@@ -2303,6 +2341,7 @@ const docTemplate = `{
                     "image/jpeg",
                     "image/gif",
                     "image/webp",
+                    "image/svg+xml",
                     "text/plain",
                     "text/markdown",
                     "text/csv",
@@ -15564,7 +15603,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
                         "name": "q",
                         "in": "query"
                     },
@@ -16784,6 +16823,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             },
@@ -16839,6 +16884,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationResponse"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             }
@@ -16848,6 +16899,9 @@ const docTemplate = `{
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -16856,10 +16910,22 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID for authentication",
+                        "example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
+                        "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client ID, required unless sent as the HTTP Basic username",
                         "name": "client_id",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.",
+                        "name": "client_secret",
+                        "in": "formData"
                     },
                     {
                         "type": "string",
@@ -16877,7 +16943,25 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Token successfully revoked"
+                        "description": "Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client"
+                    },
+                    "400": {
+                        "description": "invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "401": {
+                        "description": "invalid_client: the client is unknown, or a confidential client did not present a valid secret",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             }
@@ -16943,6 +17027,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
                     }
                 }
@@ -17414,65 +17504,15 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeAnthropicConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeBedrockConfig": {
-            "type": "object",
-            "properties": {
-                "access_key": {
-                    "type": "string"
-                },
-                "access_key_secret": {
-                    "type": "string"
-                },
-                "base_url": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "region": {
-                    "type": "string"
-                },
-                "small_fast_model": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
                 "allow_byok": {
                     "type": "boolean"
                 },
-                "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
-                        }
-                    ]
-                },
                 "api_dump_dir": {
                     "description": "APIDumpDir is the base directory under which each provider's\nrequest/response dumps are written, in a subdirectory named after\nthe provider. Empty disables dumping.",
                     "type": "string"
-                },
-                "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
-                        }
-                    ]
                 },
                 "budget_period": {
                     "type": "string"
@@ -17507,21 +17547,6 @@ const docTemplate = `{
                 "max_concurrency": {
                     "type": "integer"
                 },
-                "openai": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
-                        }
-                    ]
-                },
-                "providers": {
-                    "description": "Providers holds provider instances populated from ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e` + "`" + `\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIProviderConfig"
-                    }
-                },
                 "rate_limit": {
                     "type": "integer"
                 },
@@ -17554,17 +17579,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeOpenAIConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "type": "string"
-                },
-                "key": {
                     "type": "string"
                 }
             }
@@ -18088,32 +18102,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL of the upstream provider API.",
-                    "type": "string"
-                },
-                "bedrock_model": {
-                    "type": "string"
-                },
-                "bedrock_region": {
-                    "type": "string"
-                },
-                "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIProviderKey": {
             "type": "object",
             "properties": {
@@ -18475,11 +18463,6 @@ const docTemplate = `{
                 "tailnet_coordinator:delete",
                 "tailnet_coordinator:read",
                 "tailnet_coordinator:update",
-                "task:*",
-                "task:create",
-                "task:delete",
-                "task:read",
-                "task:update",
                 "template:*",
                 "template:create",
                 "template:delete",
@@ -18727,11 +18710,6 @@ const docTemplate = `{
                 "APIKeyScopeTailnetCoordinatorDelete",
                 "APIKeyScopeTailnetCoordinatorRead",
                 "APIKeyScopeTailnetCoordinatorUpdate",
-                "APIKeyScopeTaskAll",
-                "APIKeyScopeTaskCreate",
-                "APIKeyScopeTaskDelete",
-                "APIKeyScopeTaskRead",
-                "APIKeyScopeTaskUpdate",
                 "APIKeyScopeTemplateAll",
                 "APIKeyScopeTemplateCreate",
                 "APIKeyScopeTemplateDelete",
@@ -19365,6 +19343,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "oauth2_provider": {
+                    "description": "OAuth2Provider reports whether the OAuth 2.1 authorization server is\nenabled. The dashboard uses it to show or hide OAuth2 navigation.",
+                    "type": "boolean"
+                },
                 "provisioner_api_version": {
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
@@ -19401,10 +19383,7 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_auto_pause",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -19415,10 +19394,7 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection",
-                "BuildReasonTaskAutoPause",
-                "BuildReasonTaskManualPause",
-                "BuildReasonTaskResume"
+                "BuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -20614,6 +20590,9 @@ const docTemplate = `{
         "codersdk.ChatModelOpenAIConfig": {
             "type": "object",
             "properties": {
+                "reasoning_model": {
+                    "type": "boolean"
+                },
                 "use_responses_api": {
                     "type": "boolean"
                 }
@@ -22541,18 +22520,14 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
                 "CreateWorkspaceBuildReasonCLI",
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
-                "CreateWorkspaceBuildReasonJetbrainsConnection",
-                "CreateWorkspaceBuildReasonTaskManualPause",
-                "CreateWorkspaceBuildReasonTaskResume"
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -22594,8 +22569,7 @@ const docTemplate = `{
                         "cli",
                         "ssh_connection",
                         "vscode_connection",
-                        "jetbrains_connection",
-                        "task_manual_pause"
+                        "jetbrains_connection"
                     ],
                     "allOf": [
                         {
@@ -23055,9 +23029,6 @@ const docTemplate = `{
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
-                "enable_ai_tasks": {
-                    "type": "boolean"
-                },
                 "enable_authz_recording": {
                     "type": "boolean"
                 },
@@ -23443,7 +23414,6 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "oauth2",
                 "mcp-server-http",
                 "mcp-tool-search",
                 "workspace-build-updates",
@@ -23465,7 +23435,6 @@ const docTemplate = `{
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
-                "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -23475,7 +23444,6 @@ const docTemplate = `{
                 "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
-                "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
                 "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -23491,7 +23459,6 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
                 "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
@@ -25268,11 +25235,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2ClientType": {
+            "type": "string",
+            "enum": [
+                "confidential",
+                "public"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ClientTypeConfidential",
+                "OAuth2ClientTypePublic"
+            ]
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
                 "github": {
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.OAuth2ProviderConfig"
                 }
             }
         },
@@ -25402,6 +25383,14 @@ const docTemplate = `{
                 "callback_url": {
                     "type": "string"
                 },
+                "client_type": {
+                    "description": "ClientType is \"confidential\" or \"public\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.OAuth2ClientType"
+                        }
+                    ]
+                },
                 "endpoints": {
                     "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
                     "allOf": [
@@ -25446,6 +25435,14 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
                 }
             }
         },
@@ -26646,6 +26643,10 @@ const docTemplate = `{
                     "description": "Daemons is the number of built-in terraform provisioners.",
                     "type": "integer"
                 },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the reuse of Terraform modules cached at\ntemplate import for every template in the deployment. Templates cannot\nopt back in.",
+                    "type": "boolean"
+                },
                 "force_cancel_interval": {
                     "type": "integer"
                 }
@@ -27225,7 +27226,6 @@ const docTemplate = `{
                 "replicas",
                 "system",
                 "tailnet_coordinator",
-                "task",
                 "template",
                 "usage_event",
                 "user",
@@ -27280,7 +27280,6 @@ const docTemplate = `{
                 "ResourceReplicas",
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",
-                "ResourceTask",
                 "ResourceTemplate",
                 "ResourceUsageEvent",
                 "ResourceUser",
@@ -28024,7 +28023,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning.",
+                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning for this template. It is read-only while\nModuleCacheDisabledByDeployment is true.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -28043,6 +28042,10 @@ const docTemplate = `{
                 },
                 "max_port_share_level": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
+                "module_cache_disabled_by_deployment": {
+                    "description": "ModuleCacheDisabledByDeployment reports that the deployment disables the\nTerraform module cache for every template. Templates cannot opt back in,\nso the effective state is disabled regardless of DisableModuleCache.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -28362,6 +28365,11 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "session_id": {
+                    "description": "SessionID is the wizard session this request belongs to, as reported to\nPOST /api/v2/templatebuilder/sessions. It is optional and used only to\nattribute a build failure to the session that produced it.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -29677,7 +29685,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is recommended not to disable this.",
+                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is ignored while the deployment disables the module\ncache for all templates. It is recommended not to disable this.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -29806,6 +29814,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserEmailRequest": {
+            "type": "object",
+            "required": [
+                "new_email",
+                "old_email"
+            ],
+            "properties": {
+                "new_email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "old_email": {
+                    "type": "string",
+                    "format": "email"
+                }
+            }
+        },
         "codersdk.UpdateUserNotificationPreferences": {
             "type": "object",
             "properties": {
@@ -29842,9 +29867,6 @@ const docTemplate = `{
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
-                },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
                 },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
@@ -30532,9 +30554,6 @@ const docTemplate = `{
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
-                },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
@@ -30867,10 +30886,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.SharedWorkspaceActor"
                     }
-                },
-                "task_id": {
-                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
-                    "type": "string"
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -31825,10 +31840,6 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "has_ai_task": {
-                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
-                    "type": "boolean"
                 },
                 "has_external_agent": {
                     "type": "boolean"

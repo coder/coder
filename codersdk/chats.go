@@ -27,10 +27,9 @@ import (
 // threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
-// MaxChatFileIDs is the maximum number of file IDs that can be
-// associated with a single chat. This limit prevents unbounded
-// growth in the chat_file_links table. It is easier to raise
-// this limit than to lower it.
+// MaxChatFileIDs is the number of most recent attachments a chat
+// keeps. Linking a new file past this cap deletes the oldest files
+// on the chat. A single batch larger than the cap is rejected.
 const MaxChatFileIDs = 50
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
@@ -54,6 +53,7 @@ const (
 	ChatAttachmentMediaTypeImageGIF        ChatAttachmentMediaType = "image/gif"
 	ChatAttachmentMediaTypeImageJPEG       ChatAttachmentMediaType = "image/jpeg"
 	ChatAttachmentMediaTypeImagePNG        ChatAttachmentMediaType = "image/png"
+	ChatAttachmentMediaTypeImageSVG        ChatAttachmentMediaType = "image/svg+xml"
 	ChatAttachmentMediaTypeImageWEBP       ChatAttachmentMediaType = "image/webp"
 	ChatAttachmentMediaTypeTextCSV         ChatAttachmentMediaType = "text/csv"
 	ChatAttachmentMediaTypeTextMarkdown    ChatAttachmentMediaType = "text/markdown"
@@ -70,6 +70,7 @@ var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
 	ChatAttachmentMediaTypeImageGIF,
 	ChatAttachmentMediaTypeImageJPEG,
 	ChatAttachmentMediaTypeImagePNG,
+	ChatAttachmentMediaTypeImageSVG,
 	ChatAttachmentMediaTypeImageWEBP,
 	ChatAttachmentMediaTypeTextCSV,
 	ChatAttachmentMediaTypeTextMarkdown,
@@ -1512,9 +1513,10 @@ type ChatModelCallConfig struct {
 }
 
 // ChatModelOpenAIConfig holds settings applied once when the OpenAI client
-// is built, not per request.
+// is built, not per request, including OpenAI-format models on Bedrock.
 type ChatModelOpenAIConfig struct {
 	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" description:"Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
+	ReasoningModel  *bool `json:"reasoning_model,omitempty" label:"Reasoning Model" providers:"openai,bedrock" description:"Override whether this OpenAI-format model is treated as a reasoning model (reasoning effort and summary are sent, temperature and top_p are dropped). Leave unset to decide from the model name, true for models newer than the provider SDK knows, false to force plain sampling. Ignored for Anthropic models on Bedrock."`
 }
 
 // UnmarshalStrict rejects unknown fields except for removed pricing fields,

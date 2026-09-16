@@ -23,41 +23,8 @@ export interface AIBridgeAgenticAction {
 }
 
 // From codersdk/deployment.go
-export interface AIBridgeAnthropicConfig {
-	readonly base_url: string;
-	readonly key: string;
-}
-
-// From codersdk/deployment.go
-export interface AIBridgeBedrockConfig {
-	readonly base_url: string;
-	readonly region: string;
-	readonly access_key: string;
-	readonly access_key_secret: string;
-	readonly model: string;
-	readonly small_fast_model: string;
-}
-
-// From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
-	/**
-	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	 */
-	readonly openai: AIBridgeOpenAIConfig;
-	/**
-	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	 */
-	readonly anthropic: AIBridgeAnthropicConfig;
-	/**
-	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	 */
-	readonly bedrock: AIBridgeBedrockConfig;
-	/**
-	 * Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
-	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
-	 */
-	readonly providers?: readonly AIProviderConfig[];
 	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -103,12 +70,6 @@ export interface AIBridgeListSessionsResponse {
  */
 export interface AIBridgeModelThought {
 	readonly text: string;
-}
-
-// From codersdk/deployment.go
-export interface AIBridgeOpenAIConfig {
-	readonly base_url: string;
-	readonly key: string;
 }
 
 // From codersdk/deployment.go
@@ -482,6 +443,14 @@ export interface AIProviderBedrockSettings {
 	 * behavior.
 	 */
 	readonly protocol?: AIProviderBedrockProtocol;
+	/**
+	 * ResolvedModel and ResolvedSmallFastModel are the model IDs behind the
+	 * configured identifiers, which differ from them only for application
+	 * inference profile ARNs. The server resolves those through AWS when the
+	 * provider is written and owns the values; a client cannot set them.
+	 */
+	readonly resolved_model?: string;
+	readonly resolved_small_fast_model?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -490,34 +459,6 @@ export interface AIProviderBedrockSettings {
  * AIProviderBedrockSettings.
  */
 export const AIProviderBedrockSettingsVersion = 1;
-
-// From codersdk/deployment.go
-/**
- * AIProviderConfig represents a single AI provider instance,
- * parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
- * CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
- * This follows the same indexed pattern as ExternalAuthConfig.
- */
-export interface AIProviderConfig {
-	/**
-	 * Type is the provider type. Valid values are: "openai",
-	 * "anthropic", "azure", "bedrock", "google", "openai-compat",
-	 * "openrouter", "vercel", "copilot".
-	 */
-	readonly type: string;
-	/**
-	 * Name is the unique instance identifier used for routing.
-	 * Defaults to Type if not provided.
-	 */
-	readonly name: string;
-	/**
-	 * BaseURL is the base URL of the upstream provider API.
-	 */
-	readonly base_url: string;
-	readonly bedrock_region?: string;
-	readonly bedrock_model?: string;
-	readonly bedrock_small_fast_model?: string;
-}
 
 // From codersdk/aiproviders.go
 /**
@@ -839,11 +780,6 @@ export type APIKeyScope =
 	| "tailnet_coordinator:delete"
 	| "tailnet_coordinator:read"
 	| "tailnet_coordinator:update"
-	| "task:*"
-	| "task:create"
-	| "task:delete"
-	| "task:read"
-	| "task:update"
 	| "template:*"
 	| "template:create"
 	| "template:delete"
@@ -1091,11 +1027,6 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"tailnet_coordinator:delete",
 	"tailnet_coordinator:read",
 	"tailnet_coordinator:update",
-	"task:*",
-	"task:create",
-	"task:delete",
-	"task:read",
-	"task:update",
 	"template:*",
 	"template:create",
 	"template:delete",
@@ -1851,6 +1782,11 @@ export interface BuildInfoResponse {
 	 * Telemetry is a boolean that indicates whether telemetry is enabled.
 	 */
 	readonly telemetry: boolean;
+	/**
+	 * OAuth2Provider reports whether the OAuth 2.1 authorization server is
+	 * enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	 */
+	readonly oauth2_provider: boolean;
 	readonly workspace_proxy: boolean;
 	/**
 	 * AgentAPIVersion is the current version of the Agent API (back versions
@@ -1886,9 +1822,6 @@ export type BuildReason =
 	| "initiator"
 	| "jetbrains_connection"
 	| "ssh_connection"
-	| "task_auto_pause"
-	| "task_manual_pause"
-	| "task_resume"
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
@@ -1900,9 +1833,6 @@ export const BuildReasons: BuildReason[] = [
 	"initiator",
 	"jetbrains_connection",
 	"ssh_connection",
-	"task_auto_pause",
-	"task_manual_pause",
-	"task_resume",
 	"vscode_connection",
 ];
 
@@ -2040,6 +1970,7 @@ export type ChatAttachmentMediaType =
 	| "image/gif"
 	| "image/jpeg"
 	| "image/png"
+	| "image/svg+xml"
 	| "image/webp"
 	| "text/csv"
 	| "text/markdown"
@@ -2051,6 +1982,7 @@ export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
 	"image/gif",
 	"image/jpeg",
 	"image/png",
+	"image/svg+xml",
 	"image/webp",
 	"text/csv",
 	"text/markdown",
@@ -2945,10 +2877,11 @@ export interface ChatModelOpenAICompatProviderOptions {
 // From codersdk/chats.go
 /**
  * ChatModelOpenAIConfig holds settings applied once when the OpenAI client
- * is built, not per request.
+ * is built, not per request, including OpenAI-format models on Bedrock.
  */
 export interface ChatModelOpenAIConfig {
 	readonly use_responses_api?: boolean;
+	readonly reasoning_model?: boolean;
 }
 
 // From codersdk/chats.go
@@ -3574,7 +3507,7 @@ export interface ChatToolResultPart {
 	readonly tool_call_id?: string;
 	readonly tool_name?: string;
 	readonly mcp_server_config_id?: string;
-	readonly result?: Record<string, string>;
+	readonly result?: unknown;
 	readonly result_delta?: string;
 	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
@@ -4063,18 +3996,6 @@ export interface CreateProvisionerKeyResponse {
 	readonly key: string;
 }
 
-// From codersdk/aitasks.go
-/**
- * CreateTaskRequest represents the request to create a new task.
- */
-export interface CreateTaskRequest {
-	readonly template_version_id: string;
-	readonly template_version_preset_id?: string;
-	readonly input: string;
-	readonly name?: string;
-	readonly display_name?: string;
-}
-
 // From codersdk/organizations.go
 /**
  * CreateTemplateRequest provides options when creating a template.
@@ -4404,8 +4325,6 @@ export type CreateWorkspaceBuildReason =
 	| "dashboard"
 	| "jetbrains_connection"
 	| "ssh_connection"
-	| "task_manual_pause"
-	| "task_resume"
 	| "vscode_connection";
 
 export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
@@ -4413,8 +4332,6 @@ export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
 	"dashboard",
 	"jetbrains_connection",
 	"ssh_connection",
-	"task_manual_pause",
-	"task_resume",
 	"vscode_connection",
 ];
 
@@ -4858,7 +4775,6 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
-	readonly enable_ai_tasks?: boolean;
 	readonly mcp_allowed_private_cidrs?: string;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
@@ -5098,7 +5014,6 @@ export type Experiment =
 	| "mcp-tool-search"
 	| "nats_pubsub"
 	| "notifications"
-	| "oauth2"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5114,7 +5029,6 @@ export const Experiments: Experiment[] = [
 	"mcp-tool-search",
 	"nats_pubsub",
 	"notifications",
-	"oauth2",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
@@ -5368,7 +5282,6 @@ export type FeatureName =
 	| "multiple_organizations"
 	| "scim"
 	| "service_accounts"
-	| "task_batch_actions"
 	| "template_rbac"
 	| "user_limit"
 	| "user_role_management"
@@ -5398,7 +5311,6 @@ export const FeatureNames: FeatureName[] = [
 	"multiple_organizations",
 	"scim",
 	"service_accounts",
-	"task_batch_actions",
 	"template_rbac",
 	"user_limit",
 	"user_role_management",
@@ -6187,10 +6099,9 @@ export const MaxAISpendLimitMicros = 1000000000000;
 
 // From codersdk/chats.go
 /**
- * MaxChatFileIDs is the maximum number of file IDs that can be
- * associated with a single chat. This limit prevents unbounded
- * growth in the chat_file_links table. It is easier to raise
- * this limit than to lower it.
+ * MaxChatFileIDs is the number of most recent attachments a chat
+ * keeps. Linking a new file past this cap deletes the oldest files
+ * on the chat. A single batch larger than the cap is rejected.
  */
 export const MaxChatFileIDs = 50;
 
@@ -6574,6 +6485,13 @@ export interface OAuth2AppEndpoints {
 	readonly device_authorization: string;
 }
 
+// From codersdk/name.go
+/**
+ * OAuth2AppNameMaxBytes is the maximum UTF-8 byte length of an OAuth2
+ * application name.
+ */
+export const OAuth2AppNameMaxBytes = 64;
+
 // From codersdk/oauth2.go
 /**
  * OAuth2AuthorizationServerMetadata represents RFC 8414 OAuth 2.0 Authorization Server Metadata.
@@ -6677,6 +6595,7 @@ export const OAuth2ClientTypes: OAuth2ClientType[] = ["confidential", "public"];
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
+	readonly provider: OAuth2ProviderConfig;
 }
 
 // From codersdk/oauth2.go
@@ -6771,6 +6690,10 @@ export interface OAuth2ProviderApp {
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
+	 * ClientType is "confidential" or "public".
+	 */
+	readonly client_type: OAuth2ClientType;
+	/**
 	 * Endpoints are included in the app response for easier discovery. The OAuth2
 	 * spec does not have a defined place to find these (for comparison, OIDC has
 	 * a '/.well-known/openid-configuration' endpoint).
@@ -6794,6 +6717,18 @@ export interface OAuth2ProviderAppSecret {
 export interface OAuth2ProviderAppSecretFull {
 	readonly id: string;
 	readonly client_secret_full: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * OAuth2ProviderConfig configures Coder's own OAuth 2.1 authorization server.
+ * This is separate from the GitHub login integration. It is also distinct
+ * from OAuth2ProviderSettings: this struct decides whether the server is on
+ * at all, while OAuth2ProviderSettings holds runtime behavior such as
+ * dynamic client registration that admins change while it runs.
+ */
+export interface OAuth2ProviderConfig {
+	readonly enable: boolean;
 }
 
 // From codersdk/oauth2.go
@@ -7364,14 +7299,6 @@ export interface PatchWorkspaceProxy {
  */
 export const PathAppSessionTokenCookie = "coder_path_app_session_token";
 
-// From codersdk/aitasks.go
-/**
- * PauseTaskResponse represents the response from pausing a task.
- */
-export interface PauseTaskResponse {
-	readonly workspace_build: WorkspaceBuild | null;
-}
-
 // From codersdk/roles.go
 /**
  * Permission is the format passed into the rego.
@@ -7626,6 +7553,12 @@ export interface ProvisionerConfig {
 	readonly daemon_poll_jitter: number;
 	readonly force_cancel_interval: number;
 	readonly daemon_psk: string;
+	/**
+	 * DisableModuleCache disables the reuse of Terraform modules cached at
+	 * template import for every template in the deployment. Templates cannot
+	 * opt back in.
+	 */
+	readonly disable_module_cache: boolean;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -7983,7 +7916,6 @@ export type RBACResource =
 	| "replicas"
 	| "system"
 	| "tailnet_coordinator"
-	| "task"
 	| "template"
 	| "usage_event"
 	| "user"
@@ -8038,7 +7970,6 @@ export const RBACResources: RBACResource[] = [
 	"replicas",
 	"system",
 	"tailnet_coordinator",
-	"task",
 	"template",
 	"usage_event",
 	"user",
@@ -8270,14 +8201,6 @@ export interface Response {
 	 * context if there is a set of errors in the primary 'Message'.
 	 */
 	readonly validations?: readonly ValidationError[];
-}
-
-// From codersdk/aitasks.go
-/**
- * ResumeTaskResponse represents the response from resuming a task.
- */
-export interface ResumeTaskResponse {
-	readonly workspace_build: WorkspaceBuild | null;
 }
 
 // From codersdk/deployment.go
@@ -8959,145 +8882,6 @@ export interface TailDERPRegion {
 	readonly Nodes: readonly TailDERPNode[];
 }
 
-// From codersdk/aitasks.go
-/**
- * Task represents a task.
- */
-export interface Task {
-	readonly id: string;
-	readonly organization_id: string;
-	readonly owner_id: string;
-	readonly owner_name: string;
-	readonly owner_avatar_url?: string;
-	readonly name: string;
-	readonly display_name: string;
-	readonly template_id: string;
-	readonly template_version_id: string;
-	readonly template_name: string;
-	readonly template_display_name: string;
-	readonly template_icon: string;
-	readonly workspace_id: string | null;
-	readonly workspace_name: string;
-	readonly workspace_status?: WorkspaceStatus;
-	readonly workspace_build_number?: number;
-	readonly workspace_agent_id: string | null;
-	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
-	readonly workspace_agent_health: WorkspaceAgentHealth | null;
-	readonly workspace_app_id: string | null;
-	readonly initial_prompt: string;
-	readonly status: TaskStatus;
-	readonly current_state: TaskStateEntry | null;
-	readonly created_at: string;
-	readonly updated_at: string;
-}
-
-// From codersdk/aitasks.go
-/**
- * TaskLogEntry represents a single log entry for a task.
- */
-export interface TaskLogEntry {
-	readonly id: number;
-	readonly content: string;
-	readonly type: TaskLogType;
-	readonly time: string;
-}
-
-// From codersdk/aitasks.go
-export type TaskLogType = "input" | "output";
-
-export const TaskLogTypes: TaskLogType[] = ["input", "output"];
-
-// From codersdk/aitasks.go
-/**
- * TaskLogsResponse contains task logs and metadata. When snapshot is false,
- * logs are fetched live from the task app. When snapshot is true, logs are
- * fetched from a stored snapshot captured during pause.
- */
-export interface TaskLogsResponse {
-	readonly logs: readonly TaskLogEntry[];
-	readonly snapshot?: boolean;
-	readonly snapshot_at?: string;
-}
-
-// From codersdk/aitasks.go
-/**
- * TaskSendRequest is used to send task input to the tasks sidebar app.
- */
-export interface TaskSendRequest {
-	readonly input: string;
-}
-
-// From codersdk/aitasks.go
-export type TaskState = "complete" | "failed" | "idle" | "working";
-
-// From codersdk/aitasks.go
-/**
- * TaskStateEntry represents a single entry in the task's state history.
- */
-export interface TaskStateEntry {
-	readonly timestamp: string;
-	readonly state: TaskState;
-	readonly message: string;
-	readonly uri: string;
-}
-
-export const TaskStates: TaskState[] = [
-	"complete",
-	"failed",
-	"idle",
-	"working",
-];
-
-// From codersdk/aitasks.go
-export type TaskStatus =
-	| "active"
-	| "error"
-	| "initializing"
-	| "paused"
-	| "pending"
-	| "unknown";
-
-export const TaskStatuses: TaskStatus[] = [
-	"active",
-	"error",
-	"initializing",
-	"paused",
-	"pending",
-	"unknown",
-];
-
-// From codersdk/aitasks.go
-/**
- * TasksFilter filters the list of tasks.
- */
-export interface TasksFilter {
-	/**
-	 * Owner can be a username, UUID, or "me".
-	 */
-	readonly owner?: string;
-	/**
-	 * Organization can be an organization name or UUID.
-	 */
-	readonly organization?: string;
-	/**
-	 * Status filters the tasks by their task status.
-	 */
-	readonly status?: TaskStatus;
-	/**
-	 * FilterQuery allows specifying a raw filter query.
-	 */
-	readonly filter_query?: string;
-}
-
-// From codersdk/aitasks.go
-/**
- * TaskListResponse is the response shape for tasks list.
- */
-export interface TasksListResponse {
-	readonly tasks: readonly Task[];
-	readonly count: number;
-}
-
 // From codersdk/deployment.go
 export interface TelemetryConfig {
 	readonly enable: boolean;
@@ -9176,9 +8960,16 @@ export interface Template {
 	readonly agents_allowed: boolean;
 	/**
 	 * DisableModuleCache disables the use of cached Terraform modules during
-	 * provisioning.
+	 * provisioning for this template. It is read-only while
+	 * ModuleCacheDisabledByDeployment is true.
 	 */
 	readonly disable_module_cache: boolean;
+	/**
+	 * ModuleCacheDisabledByDeployment reports that the deployment disables the
+	 * Terraform module cache for every template. Templates cannot opt back in,
+	 * so the effective state is disabled regardless of DisableModuleCache.
+	 */
+	readonly module_cache_disabled_by_deployment: boolean;
 	/**
 	 * AllowWorkspaceRenames permits users to rename workspaces built from this
 	 * template. Renaming can be destructive for templates whose Terraform
@@ -9334,6 +9125,12 @@ export interface TemplateBuilderCreateTemplateRequest {
 	readonly description?: string;
 	readonly icon?: string;
 	readonly provisioner_tags?: Record<string, string>;
+	/**
+	 * SessionID is the wizard session this request belongs to, as reported to
+	 * POST /api/v2/templatebuilder/sessions. It is optional and used only to
+	 * attribute a build failure to the session that produced it.
+	 */
+	readonly session_id?: string;
 }
 
 // From codersdk/templatebuilder.go
@@ -10079,14 +9876,6 @@ export interface UpdateRoles {
 	readonly roles: readonly string[];
 }
 
-// From codersdk/aitasks.go
-/**
- * UpdateTaskInputRequest is used to update a task's input.
- */
-export interface UpdateTaskInputRequest {
-	readonly input: string;
-}
-
 // From codersdk/templates.go
 export interface UpdateTemplateACL {
 	/**
@@ -10187,7 +9976,8 @@ export interface UpdateTemplateMeta {
 	readonly use_classic_parameter_flow?: boolean;
 	/**
 	 * DisableModuleCache disables the using of cached Terraform modules during
-	 * provisioning. It is recommended not to disable this.
+	 * provisioning. It is ignored while the deployment disables the module
+	 * cache for all templates. It is recommended not to disable this.
 	 */
 	readonly disable_module_cache?: boolean;
 	/**
@@ -10260,6 +10050,16 @@ export interface UpdateUserChatPersonalModelOverrideRequest {
 	readonly reasoning_effort?: string;
 }
 
+// From codersdk/users.go
+/**
+ * UpdateUserEmailRequest changes a user's email by matching their current
+ * email address. This API is experimental and may change without notice.
+ */
+export interface UpdateUserEmailRequest {
+	readonly old_email: string;
+	readonly new_email: string;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -10273,7 +10073,6 @@ export interface UpdateUserPasswordRequest {
 
 // From codersdk/users.go
 export interface UpdateUserPreferenceSettingsRequest {
-	readonly task_notification_alert_dismissed?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
@@ -10767,7 +10566,6 @@ export interface UserParameter {
 
 // From codersdk/users.go
 export interface UserPreferenceSettings {
-	readonly task_notification_alert_dismissed: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
@@ -11063,10 +10861,6 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
-	/**
-	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
-	 */
-	readonly task_id?: string;
 	readonly shared_with?: readonly SharedWorkspaceActor[];
 }
 
@@ -11660,10 +11454,6 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
-	/**
-	 * @deprecated This field has been deprecated in favor of Task WorkspaceID.
-	 */
-	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
 }
 

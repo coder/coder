@@ -1755,35 +1755,54 @@ WHERE chat_id = @chat_id::uuid
 ORDER BY source ASC;
 
 -- name: LinkChatFilesAfterLock :one
--- LinkChatFilesAfterLock requires the chat row lock.
--- The lock serializes cap checks. The result counts rejected new links.
-WITH current AS (
-    SELECT COUNT(*) AS cnt
-    FROM chat_file_links
-    WHERE chat_id = @chat_id::uuid
+-- LinkChatFilesAfterLock requires the chat row lock. When the batch would
+-- exceed the cap, the oldest files on the chat are deleted to make room; the
+-- cascade removes their links. A file links to at most one chat, so no other
+-- chat can lose a file here. The batch is rejected only when the batch itself
+-- exceeds the cap.
+WITH new_links AS (
+    SELECT DISTINCT unnest(@file_ids::uuid[]) AS file_id
 ),
-new_links AS (
-    SELECT DISTINCT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
+fits AS (
+    SELECT (SELECT COUNT(*) FROM new_links) <= @max_file_links::int AS ok
 ),
 genuinely_new AS (
-    SELECT nl.chat_id, nl.file_id
-    FROM new_links nl
+    SELECT nl.file_id FROM new_links nl
     WHERE NOT EXISTS (
         SELECT 1 FROM chat_file_links cfl
-        WHERE cfl.chat_id = nl.chat_id AND cfl.file_id = nl.file_id
+        WHERE cfl.chat_id = @chat_id::uuid AND cfl.file_id = nl.file_id
     )
+),
+needed AS (
+    SELECT GREATEST(
+        (SELECT COUNT(*) FROM chat_file_links WHERE chat_id = @chat_id::uuid)
+        + (SELECT COUNT(*) FROM genuinely_new)
+        - @max_file_links::int, 0)::int AS n
+),
+candidates AS (
+    SELECT cf.id
+    FROM chat_file_links cfl
+    JOIN chat_files cf ON cf.id = cfl.file_id
+    WHERE cfl.chat_id = @chat_id::uuid
+      AND NOT EXISTS (SELECT 1 FROM new_links nl WHERE nl.file_id = cf.id)
+    ORDER BY cf.created_at ASC, cf.id ASC
+    LIMIT (SELECT n FROM needed)
+),
+evicted AS (
+    DELETE FROM chat_files cf
+    USING candidates c
+    WHERE cf.id = c.id AND (SELECT ok FROM fits)
+    RETURNING cf.id
 ),
 inserted AS (
     INSERT INTO chat_file_links (chat_id, file_id)
-    SELECT gn.chat_id, gn.file_id
-    FROM genuinely_new gn, current c
-    WHERE c.cnt + (SELECT COUNT(*) FROM genuinely_new) <= @max_file_links::int
+    SELECT @chat_id::uuid, gn.file_id FROM genuinely_new gn
+    WHERE (SELECT ok FROM fits)
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT
-    (SELECT COUNT(*)::int FROM genuinely_new) -
-    (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
+SELECT (SELECT COUNT(*)::int FROM genuinely_new)
+     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
 
 -- name: UpdateChatStatus :one
 WITH updated_chat AS (

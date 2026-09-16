@@ -9,9 +9,10 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, Fragment, type ReactNode, useState } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -31,6 +32,7 @@ import {
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -40,18 +42,19 @@ interface SidebarPanelState {
 }
 
 type ChatSharingTopBarButtonProps = {
-	renderChatSharingContent: (open: boolean) => ReactNode;
+	chatId: string;
+	organizationId: string;
 };
 
 type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
-	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
 
 const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
-	renderChatSharingContent,
+	chatId,
+	organizationId,
 }) => {
 	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
 	const [contentGeneration, setContentGeneration] = useState(0);
@@ -76,9 +79,12 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 					<Share2Icon className="size-4" />
 				</Button>
 			</PopoverTrigger>
-			<Fragment key={contentGeneration}>
-				{renderChatSharingContent(isChatSharingOpen)}
-			</Fragment>
+			<ChatSharingPopoverContent
+				key={contentGeneration}
+				chatId={chatId}
+				organizationId={organizationId}
+				open={isChatSharingOpen}
+			/>
 		</Popover>
 	);
 };
@@ -87,7 +93,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
-	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
@@ -97,6 +102,24 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		enabled: Boolean(parentChatID),
 	});
 	const parentChat = parentChatQuery.data;
+	const isRootChat = chat !== undefined && parentChatID === undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (chat !== undefined && isRootChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: {
+				resource_type: "chat",
+				owner_id: chat.owner_id,
+				organization_id: chat.organization_id,
+			},
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
+	});
+	const canShareChat =
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -304,9 +327,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && renderChatSharingContent && (
+				{!isEmbedded && canShareChat && chat && (
 					<ChatSharingTopBarButton
-						renderChatSharingContent={renderChatSharingContent}
+						chatId={chat.id}
+						organizationId={chat.organization_id}
 					/>
 				)}
 				{!isEmbedded && (

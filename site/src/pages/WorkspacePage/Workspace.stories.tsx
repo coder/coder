@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import * as Mocks from "#/testHelpers/entities";
 import {
@@ -257,6 +258,51 @@ export const AppIcons: Story = {
 				],
 			},
 		},
+	},
+};
+
+const openResourcesSidebar = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Resources" }),
+	);
+};
+
+export const HiddenResources: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								lifecycle_state: "ready",
+							},
+						],
+					},
+					Mocks.MockWorkspaceResourceHidden,
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openResourcesSidebar(canvasElement);
+	},
+};
+
+export const HiddenResourcesRevealed: Story = {
+	args: HiddenResources.args,
+	play: async ({ canvasElement }) => {
+		await openResourcesSidebar(canvasElement);
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: /show hidden resources/i,
+			}),
+		);
 	},
 };
 

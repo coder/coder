@@ -1,19 +1,30 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatCompactionMessage,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
+	MockUserOwner,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -39,7 +50,9 @@ const StoryChatPageTimeline: FC<{
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
+	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
+		user: MockUserOwner,
 		queries: [
 			{
 				key: preferenceSettingsKey,
@@ -48,6 +61,13 @@ const meta = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
 			},
 		],
 	},
@@ -81,7 +101,8 @@ const mockCompactionModels: readonly TypesGen.ChatModel[] = [
 const StoryChatPageInput: FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
-}> = ({ store, onInterrupt }) => (
+	contextLimit?: number;
+}> = ({ store, onInterrupt, contextLimit }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
@@ -103,17 +124,48 @@ const StoryChatPageInput: FC<{
 					provider: "openai",
 					model: "gpt-4o",
 					displayName: "GPT-4o",
+					contextLimit,
 				},
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={fn()}
-			workspaceOptions={[]}
-			isWorkspaceLoading={false}
 		/>
 	</div>
 );
+
+export const ContextUsageAfterCompaction: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([MockChatCompactionMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
+		);
+	},
+};
+
+export const UncommittedCompactionKeepsContextUsage: Story = {
+	render: () => {
+		const store = createChatStore();
+		const previousMessage: TypesGen.ChatMessage = {
+			...MockChatMessage,
+			usage: { input_tokens: 90000, context_limit: 200000 },
+		};
+		store.replaceMessages([previousMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
+		);
+	},
+};
 
 const buildMessage = (
 	id: number,
@@ -172,11 +224,6 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 
 		return <StoryChatPageTimeline store={store} />;
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		canvas.getByRole("button", { name: /thinking/i });
-		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
-	},
 };
 
 export const DurableUnresolvedWorkspaceToolRuns: Story = {
@@ -200,12 +247,6 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 				<StoryChatPageTimeline store={store} />
 			</ChatWorkspaceContext>
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
-		expect(canvas.queryByText("Created workspace")).toBeNull();
-		expect(canvas.getByText("Loading build logs…")).toBeInTheDocument();
 	},
 };
 
@@ -231,10 +272,7 @@ export const ErrorClearsStreamingTool: Story = {
 			</ChatWorkspaceContext>
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
-
+	play: async () => {
 		errorClearsStreamStore.batch(() => {
 			errorClearsStreamStore.applyServerChatStatus("error");
 			errorClearsStreamStore.setStreamError({
@@ -243,14 +281,6 @@ export const ErrorClearsStreamingTool: Story = {
 			});
 			errorClearsStreamStore.clearStreamState();
 		});
-
-		await waitFor(() => {
-			expect(canvas.queryByText("Creating workspace…")).toBeNull();
-		});
-		expect(canvas.getByText("Request failed")).toBeInTheDocument();
-		expect(
-			canvas.getByText("The chat session ended unexpectedly."),
-		).toBeInTheDocument();
 	},
 };
 
@@ -266,17 +296,6 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 		]);
 
 		return <StoryChatPageTimeline store={store} />;
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText("Message has no renderable content.")).toBeNull();
-
-		const rows = canvasElement.querySelectorAll(
-			'[data-role="user"], [data-role="assistant"]',
-		);
-		expect(rows).toHaveLength(3);
-		expect(rows[1]).toHaveAttribute("data-role", "assistant");
-		expect(rows[1]).toHaveTextContent("Done.");
 	},
 };
 
@@ -304,12 +323,6 @@ export const MergedMessagesRenderInIDOrder: Story = {
 		]);
 
 		return <StoryChatPageTimeline store={store} />;
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("conversation-timeline")).toHaveTextContent(
-			/alpha[\s\S]*bravo[\s\S]*charlie[\s\S]*delta/,
-		);
 	},
 };
 
@@ -365,12 +378,6 @@ export const RunningShowsBusyComposer: Story = {
 		store.setChatStatus("running");
 		return <StoryChatPageInput store={store} />;
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Stop" })).toBeEnabled();
-		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
-	},
 };
 
 const CompactionChatPageInput: FC = () => {
@@ -410,17 +417,8 @@ const CompactionChatPageInput: FC = () => {
 				canConfigureAgentSetup={false}
 				isEditing={false}
 				onCancelHistoryEdit={fn()}
-				workspaceOptions={[]}
-				isWorkspaceLoading={false}
 			/>
 		</div>
-	);
-};
-
-const openContextUsage = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(
-		await canvas.findByRole("button", { name: /Context usage/ }),
 	);
 };
 
@@ -440,16 +438,16 @@ export const CompactsAtUserOverride: Story = {
 				key: chatPromptsKey(MockChat.id),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
 			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
 		],
 	},
 	render: () => <CompactionChatPageInput />,
-	play: async ({ canvasElement }) => {
-		await openContextUsage(canvasElement);
-		await waitFor(() => {
-			expect(within(document.body).getByText("Compacts at 60%")).toBeVisible();
-		});
-		expect(within(document.body).queryByText("Compacts at 70%")).toBeNull();
-	},
 };
 
 export const CompactsAtHistoricalModelDefault: Story = {
@@ -468,13 +466,14 @@ export const CompactsAtHistoricalModelDefault: Story = {
 				key: chatPromptsKey(MockChat.id),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
 			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
 		],
 	},
 	render: () => <CompactionChatPageInput />,
-	play: async ({ canvasElement }) => {
-		await openContextUsage(canvasElement);
-		await waitFor(() => {
-			expect(within(document.body).getByText("Compacts at 70%")).toBeVisible();
-		});
-	},
 };

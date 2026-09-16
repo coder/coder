@@ -78,6 +78,16 @@
 				"required": false,
 				"input_type": "select",
 				"visible_for_providers": ["openai"]
+			},
+			{
+				"json_name": "openai_config.reasoning_model",
+				"go_name": "OpenaiConfig.ReasoningModel",
+				"type": "boolean",
+				"description": "Override whether this OpenAI-format model is treated as a reasoning model (reasoning effort and summary are sent, temperature and top_p are dropped). Leave unset to decide from the model name, true for models newer than the provider SDK knows, false to force plain sampling. Ignored for Anthropic models on Bedrock.",
+				"label": "Reasoning Model",
+				"required": false,
+				"input_type": "select",
+				"visible_for_providers": ["openai", "bedrock"]
 			}
 		]
 	},

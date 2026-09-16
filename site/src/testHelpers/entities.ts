@@ -248,6 +248,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 	webpush_public_key: "fake-public-key",
 	telemetry: true,
+	oauth2_provider: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -506,7 +507,6 @@ export const MockSiteRoles = [
 ];
 
 export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
-	task_notification_alert_dismissed: false,
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
@@ -629,6 +629,18 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		updated_at: "2026-05-03T18:30:00Z",
 	},
 ];
+
+// Legacy file-only secret: not enableable while a deployment blocks file paths.
+export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
+	id: "secret-file-only-disabled",
+	name: "legacy-kubeconfig",
+	description: "Written to a workspace file before file paths were disabled.",
+	env_name: "",
+	file_path: "~/.kube/config",
+	enabled: false,
+	created_at: "2026-04-27T16:30:00Z",
+	updated_at: "2026-05-03T20:30:00Z",
+};
 
 export const MockImportedUserSecret: TypesGen.UserSecret = {
 	id: "imported-database-url",
@@ -965,6 +977,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
 };
 
@@ -1417,10 +1430,11 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
+	agents: [],
 	hide: true,
 };
 
@@ -2724,10 +2738,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	has_license: false,
 	features: withDefaultFeatures({
 		workspace_batch_actions: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-		task_batch_actions: {
 			enabled: true,
 			entitlement: "entitled",
 		},
@@ -4966,6 +4976,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		name: "foo",
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		client_type: "confidential",
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4974,6 +4985,20 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		},
 	},
 ];
+
+export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
+	id: "2",
+	name: "bar (public)",
+	callback_url: "http://127.0.0.1:3002",
+	icon: "/icon/github.svg",
+	client_type: "public",
+	endpoints: {
+		authorization: "http://127.0.0.1:3002/oauth2/authorize",
+		token: "http://127.0.0.1:3002/oauth2/token",
+		device_authorization: "",
+		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
+	},
+};
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,

@@ -1739,8 +1739,9 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	capFileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-	for i := range codersdk.MaxChatFileIDs {
+	// A single batch over the cap is rejected.
+	tooMany := []codersdk.ChatMessagePart{codersdk.ChatMessageText("one too many")}
+	for i := range codersdk.MaxChatFileIDs + 1 {
 		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
@@ -1749,24 +1750,8 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 			Data:           []byte("png-bytes"),
 		})
 		require.NoError(t, err)
-		capFileIDs = append(capFileIDs, row.ID)
+		tooMany = append(tooMany, codersdk.ChatMessageFile(row.ID, "image/png", row.Name))
 	}
-	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-		ChatID:       chat.ID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      capFileIDs,
-	})
-	require.NoError(t, err)
-	require.Zero(t, rejected)
-
-	extra, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-		Name:           "extra.png",
-		Mimetype:       "image/png",
-		Data:           []byte("png-bytes"),
-	})
-	require.NoError(t, err)
 
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     chat.ID,
@@ -1780,11 +1765,8 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("one too many"),
-			codersdk.ChatMessageFile(extra.ID, "image/png", "extra.png"),
-		},
+		ChatID:  chat.ID,
+		Content: tooMany,
 	})
 	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
 
@@ -1796,14 +1778,11 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, files, codersdk.MaxChatFileIDs)
+	require.Empty(t, files, "rejected send must not link files")
 
 	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("re-reference"),
-			codersdk.ChatMessageFile(capFileIDs[0], "image/png", "cap-0.png"),
-		},
+		ChatID:  chat.ID,
+		Content: tooMany[:2],
 	})
 	require.NoError(t, err)
 	require.False(t, sendResult.Queued)
@@ -5495,7 +5474,11 @@ func TestActiveServer_Compaction(t *testing.T) {
 		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
 		require.Equal(t, callPart.ToolCallID, resultPart.ToolCallID)
 		require.Equal(t, "chat_summarized", resultPart.ToolName)
-		require.JSONEq(t, `{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100}`, string(resultPart.Result))
+		require.JSONEq(t, fmt.Sprintf(`{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100,"estimated_context_tokens":%d}`, (len(summaryText)+2)/3), string(resultPart.Result))
+		for _, msg := range []database.ChatMessage{compressed.summaries[0], compressed.calls[0], compressed.results[0]} {
+			require.False(t, msg.InputTokens.Valid)
+			require.False(t, msg.OutputTokens.Valid)
+		}
 		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
 	})
 

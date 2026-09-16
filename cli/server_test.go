@@ -381,7 +381,9 @@ func TestServer(t *testing.T) {
 		out := pty.ReadAll()
 		numLines := countLines(string(out))
 		t.Logf("numLines: %d", numLines)
-		require.Less(t, numLines, 20, "expected less than 20 lines of output (terminal width 80), got %d", numLines)
+		// The OAuth2 provider state line is logged on every start and wraps
+		// to two rows at this width.
+		require.Less(t, numLines, 22, "expected less than 22 lines of output (terminal width 80), got %d", numLines)
 	})
 
 	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {

@@ -575,6 +575,50 @@ func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
 	require.Equal(t, CompactionSourceAutomatic, result.Source)
 }
 
+func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{"P", "Pr", "Pre"} {
+		t.Run(prefix, func(t *testing.T) {
+			t.Parallel()
+			var parts []codersdk.ChatMessagePart
+			result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
+				Model: &chattest.FakeModel{
+					StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+						return compactionStream(
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "界x"},
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+						), nil
+					},
+				},
+				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				SystemSummaryPrefix: prefix,
+				Force:               true,
+				ContextLimit:        1000,
+				StepUsage:           fantasy.Usage{InputTokens: 800},
+				ToolCallID:          "summary",
+				ToolName:            "chat_summarized",
+				PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+					parts = append(parts, part)
+				},
+				Clock: quartz.NewMock(t),
+			})
+			require.NoError(t, err)
+			require.Equal(t, prefix+"\n\n界x", result.SystemSummary)
+			require.Equal(t, int64(3), result.EstimatedContextTokens)
+			require.Equal(t, int64(800), result.ContextTokens)
+			require.Len(t, parts, 2)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[1].Type)
+			require.False(t, parts[1].IsError)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
+			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
+			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
+		})
+	}
+}
+
 // TestGenerateCompaction_RequiresClock verifies a nil clock is
 // rejected instead of silently falling back to a real clock; tests
 // must supply their own.

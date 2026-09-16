@@ -49,18 +49,6 @@ type Service struct {
 // ServiceOption configures optional Service behavior.
 type ServiceOption func(*Service)
 
-// WithStaleThreshold overrides the default stale-row finalization
-// threshold. Callers that already have a configurable in-flight chat
-// timeout (e.g. chatd's InFlightChatStaleAfter) should pass it here
-// so the two sweeps stay in sync.
-func WithStaleThreshold(d time.Duration) ServiceOption {
-	return func(s *Service) {
-		if d > 0 {
-			s.staleAfterNanos.Store(d.Nanoseconds())
-		}
-	}
-}
-
 // WithAlwaysEnable forces debug logging on for every chat regardless
 // of the runtime admin and user opt-in settings. This is used for the
 // deployment-level serpent flag.
@@ -713,9 +701,7 @@ func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
 
 // ClassifyError maps a run error to the appropriate debug status.
 // nil → StatusCompleted, context.Canceled → StatusInterrupted,
-// everything else → StatusError. Callers with additional
-// classification rules (e.g. ErrInterrupted)
-// should handle those before falling back to this helper.
+// everything else → StatusError.
 func ClassifyError(err error) Status {
 	switch {
 	case err == nil:

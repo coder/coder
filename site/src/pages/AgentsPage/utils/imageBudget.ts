@@ -2,6 +2,7 @@ import {
 	AnthropicInlineImageCapBytes,
 	MaxChatFileSizeBytes,
 } from "#/api/typesGenerated";
+import { isRasterImageMediaType } from "./chatAttachments";
 import { formatProviderLabel } from "./modelOptions";
 
 // Budgets sit below the wire limits to leave room for encoder framing
@@ -42,5 +43,5 @@ export function providerBudgetError(
 }
 
 export function imageNeedsResize(file: File, budget: number): boolean {
-	return file.type.startsWith("image/") && file.size > budget;
+	return isRasterImageMediaType(file.type) && file.size > budget;
 }
