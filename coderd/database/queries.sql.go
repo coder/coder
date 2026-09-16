@@ -7956,6 +7956,26 @@ func (q *sqlQuerier) DeleteAllChatQueuedMessagesReturningCount(ctx context.Conte
 	return result.RowsAffected()
 }
 
+const deleteChatContextDiscoveredResource = `-- name: DeleteChatContextDiscoveredResource :exec
+DELETE FROM chat_context_resources
+WHERE chat_id = $1::uuid
+    AND source = $2
+    AND discovered = true
+`
+
+type DeleteChatContextDiscoveredResourceParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Source string    `db:"source" json:"source"`
+}
+
+// Drops a discovered row whose file a later probe of its directory no
+// longer returned. A snapshot row under the same source is left to the
+// agent push that owns it.
+func (q *sqlQuerier) DeleteChatContextDiscoveredResource(ctx context.Context, arg DeleteChatContextDiscoveredResourceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatContextDiscoveredResource, arg.ChatID, arg.Source)
+	return err
+}
+
 const deleteChatContextResourcesByChatID = `-- name: DeleteChatContextResourcesByChatID :exec
 DELETE FROM chat_context_resources
 WHERE chat_id = $1::uuid

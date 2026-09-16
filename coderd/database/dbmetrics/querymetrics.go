@@ -512,6 +512,14 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatContextDiscoveredResource(ctx context.Context, arg database.DeleteChatContextDiscoveredResourceParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatContextDiscoveredResource(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteChatContextDiscoveredResource").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatContextDiscoveredResource").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatContextResourcesByChatID(ctx, chatID)

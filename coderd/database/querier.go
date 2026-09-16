@@ -141,6 +141,10 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Drops a discovered row whose file a later probe of its directory no
+	// longer returned. A snapshot row under the same source is left to the
+	// agent push that owns it.
+	DeleteChatContextDiscoveredResource(ctx context.Context, arg DeleteChatContextDiscoveredResourceParams) error
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.

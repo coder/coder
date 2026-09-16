@@ -1919,6 +1919,15 @@ ON CONFLICT (chat_id, source) DO UPDATE SET
     updated_at = now()
 WHERE chat_context_resources.discovered = true;
 
+-- name: DeleteChatContextDiscoveredResource :exec
+-- Drops a discovered row whose file a later probe of its directory no
+-- longer returned. A snapshot row under the same source is left to the
+-- agent push that owns it.
+DELETE FROM chat_context_resources
+WHERE chat_id = @chat_id::uuid
+    AND source = @source
+    AND discovered = true;
+
 -- name: ListChatContextResourcesByChatID :many
 -- Lists a chat's pinned context resources, ordered deterministically by
 -- source.
