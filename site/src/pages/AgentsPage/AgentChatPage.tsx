@@ -2,6 +2,8 @@ import {
 	MessageScroller,
 	useMessageScroller,
 } from "@shadcn/react/message-scroller";
+import { useAtom, useSetAtom } from "jotai";
+import { RESET } from "jotai/utils";
 import {
 	type FC,
 	useEffect,
@@ -67,7 +69,6 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
-import { useStorage } from "#/hooks/useStorage";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -84,6 +85,7 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import { lastModelConfigIDAtom, rightPanelOpenAtom } from "./atoms";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
@@ -113,11 +115,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
-import {
-	chatDraftInputStorage,
-	lastModelConfigIdStorage,
-	rightPanelOpenStorage,
-} from "./storage";
+import { chatDraftInputStorage } from "./storage";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
@@ -849,9 +847,9 @@ const AgentChatPage: FC = () => {
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [sidebarPanelPreference, setSidebarPanelPreference] = useStorage(
-		rightPanelOpenStorage,
-	);
+	const [sidebarPanelPreference, setSidebarPanelPreference] =
+		useAtom(rightPanelOpenAtom);
+	const setLastModelConfigID = useSetAtom(lastModelConfigIDAtom);
 	// Below the lg breakpoint, chat and the right panel are mutually
 	// exclusive, so a panel left open on a wide window would hide chat
 	// as soon as the window narrows. Suppress the panel while narrow
@@ -1779,7 +1777,7 @@ const AgentChatPage: FC = () => {
 			});
 			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
-				lastModelConfigIdStorage.set(editSelectedModelConfigID);
+				setLastModelConfigID(editSelectedModelConfigID);
 			}
 			return;
 		}
@@ -1884,9 +1882,9 @@ const AgentChatPage: FC = () => {
 			}
 		}
 		if (selectedModelConfigID) {
-			lastModelConfigIdStorage.set(selectedModelConfigID);
+			setLastModelConfigID(selectedModelConfigID);
 		} else {
-			lastModelConfigIdStorage.remove();
+			setLastModelConfigID(RESET);
 		}
 		if (planModeSwitch !== undefined) {
 			setCachedChatPlanMode(

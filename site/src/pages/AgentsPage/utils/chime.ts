@@ -1,10 +1,4 @@
-import { booleanCodec, defineStorageKey } from "#/storage";
-
-export const chimeOnCompletionStorage = defineStorageKey<boolean>({
-	key: "agents.chime-on-completion",
-	codec: booleanCodec,
-	defaultValue: false,
-});
+import { chimeEnabledAtom } from "../atoms";
 
 /**
  * Play the completion chime audio file. The file is a short,
@@ -127,7 +121,7 @@ export function maybePlayChime(
 		return;
 	}
 
-	if (!chimeOnCompletionStorage.get()) {
+	if (!chimeEnabledAtom.get()) {
 		return;
 	}
 

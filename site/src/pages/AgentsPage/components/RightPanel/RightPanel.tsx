@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtom } from "jotai";
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
@@ -6,8 +7,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useStorage } from "#/hooks/useStorage";
-import { rightPanelWidthStorage } from "../../storage";
+import { rightPanelWidthAtom } from "../../atoms";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 const MIN_WIDTH = 360;
@@ -142,8 +142,6 @@ function useResizableDrag({
 			nextSnap = "closed";
 		} else {
 			nextSnap = "normal";
-			// Drag widths are fractional under zoom (getBoundingClientRect);
-			// integerCodec rejects fractional strings on decode.
 			setWidth(Math.round(Math.min(maxWidth, Math.max(MIN_WIDTH, raw))));
 		}
 		setDragSnap(nextSnap);
@@ -202,7 +200,7 @@ export const RightPanel = ({
 	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
-	const [storedWidth, setStoredWidth] = useStorage(rightPanelWidthStorage);
+	const [storedWidth, setStoredWidth] = useAtom(rightPanelWidthAtom);
 	const width = widthFromStored(storedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 
@@ -211,7 +209,7 @@ export const RightPanel = ({
 	useEffect(() => {
 		const handleResize = () => {
 			const max = getSideBySideMaxWidth(panelRef.current);
-			if (widthFromStored(rightPanelWidthStorage.get()) > max) {
+			if (widthFromStored(rightPanelWidthAtom.get()) > max) {
 				setStoredWidth(Math.round(max));
 			}
 		};

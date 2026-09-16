@@ -22,7 +22,6 @@ import {
 } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { defineStorageKey, stringLiteralCodec } from "#/storage";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
@@ -55,12 +54,6 @@ interface DiffViewerProps {
 }
 
 export type DiffStyle = "unified" | "split";
-
-const diffViewStyleStorage = defineStorageKey<DiffStyle>({
-	key: "agents.diff-view-style",
-	codec: stringLiteralCodec<DiffStyle>({ oneOf: ["unified", "split"] }),
-	defaultValue: "unified",
-});
 
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;
@@ -324,14 +317,6 @@ function DiffFileTree({
 			style={fileTreeStyle}
 		/>
 	);
-}
-
-export function loadDiffStyle(): DiffStyle {
-	return diffViewStyleStorage.get();
-}
-
-export function saveDiffStyle(style: DiffStyle): void {
-	diffViewStyleStorage.set(style);
 }
 
 // The loading state mirrors the real diff layout: flat, full-width

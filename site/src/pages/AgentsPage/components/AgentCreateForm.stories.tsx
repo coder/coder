@@ -1,4 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { createStore, Provider } from "jotai";
 import { delay } from "msw";
 import { type ComponentProps, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
@@ -499,6 +500,46 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+	},
+};
+
+export const LastUsedModelRefreshesAfterUnmount: Story = {
+	...LastUsedModelFallbackWithoutRootOverride,
+	render: function RemountableForm(args) {
+		const [store] = useState(createStore);
+		const [visible, setVisible] = useState(true);
+		return (
+			<Provider store={store}>
+				<button type="button" onClick={() => setVisible(!visible)}>
+					{visible ? "Hide form" : "Show form"}
+				</button>
+				{visible && <AgentCreateForm {...args} />}
+			</Provider>
+		);
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "Hide form" }));
+		await expect(
+			canvas.queryByRole("combobox", { name: "Claude Sonnet 4" }),
+		).not.toBeInTheDocument();
+		localStorage.setItem("agents.last-model-config-id", modelID);
+		dispatchEvent(
+			new StorageEvent("storage", {
+				key: "agents.last-model-config-id",
+				storageArea: localStorage,
+			}),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Show form" }));
+		await expect(
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
+		).toBeInTheDocument();
+		await submitMessage(canvasElement, "create with refreshed model");
+		await waitFor(() => expect(args.onCreateChat).toHaveBeenCalled());
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 

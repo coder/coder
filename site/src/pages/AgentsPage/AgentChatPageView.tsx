@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtomValue } from "jotai";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, type ReactNode, type RefObject, useState } from "react";
 import { useQueryClient } from "react-query";
@@ -13,7 +14,6 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useStorage } from "#/hooks/useStorage";
 import {
 	getAgentBrowserApp,
 	isWorkspaceAppEmbeddable,
@@ -24,6 +24,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
+import { chatFullWidthAtom } from "./atoms";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -57,7 +58,6 @@ import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import {
 	chatDefaultTerminalHiddenStorage,
-	chatFullWidthStorage,
 	chatRightPanelTabsStorage,
 	chatSidebarTabStorage,
 } from "./storage";
@@ -1158,7 +1158,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	onToggleSidebarCollapsed,
 	showRightPanel,
 }) => {
-	const [chatFullWidth] = useStorage(chatFullWidthStorage);
+	const chatFullWidth = useAtomValue(chatFullWidthAtom);
 	return (
 		<div
 			className={cn(

@@ -3,12 +3,12 @@ import {
 	useMessageScrollerScrollable,
 } from "@shadcn/react/message-scroller";
 import { cn } from "cn";
+import { useAtomValue } from "jotai";
 import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { useStorage } from "#/hooks/useStorage";
-import { chatFullWidthStorage } from "../storage";
+import { chatFullWidthAtom } from "../atoms";
 import { chatWidthClass } from "../utils/chatWidth";
 
 interface EarlierMessagesProps {
@@ -113,7 +113,7 @@ export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 	children,
 	...earlierMessages
 }) => {
-	const [chatFullWidth] = useStorage(chatFullWidthStorage);
+	const chatFullWidth = useAtomValue(chatFullWidthAtom);
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

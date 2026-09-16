@@ -1,10 +1,10 @@
+import { useAtom } from "jotai";
 import type { FC } from "react";
 import { Switch } from "#/components/Switch/Switch";
-import { useStorage } from "#/hooks/useStorage";
-import { chatFullWidthStorage } from "../storage";
+import { chatFullWidthAtom } from "../atoms";
 
 export const ChatFullWidthSettings: FC = () => {
-	const [enabled, setEnabled] = useStorage(chatFullWidthStorage);
+	const [enabled, setEnabled] = useAtom(chatFullWidthAtom);
 
 	return (
 		<div className="flex flex-col gap-2">

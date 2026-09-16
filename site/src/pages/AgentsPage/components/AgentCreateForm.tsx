@@ -16,10 +16,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { defineStorageKey, stringCodec } from "#/storage";
+import { lastModelConfigIDAtom } from "../atoms";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	emptyInputDraftStorage,
-	lastModelConfigIdStorage,
 	modelConfigReasoningEffortStorage,
 } from "../storage";
 import { parseStoredDraft } from "../utils/draftStorage";
@@ -167,9 +167,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		submitDraft,
 		resetDraft,
 	} = useEmptyStateDraft();
-	const [initialLastModelConfigID] = useState(() => {
-		return lastModelConfigIdStorage.get() ?? "";
-	});
+	const [initialLastModelConfigID] = useState(
+		() => lastModelConfigIDAtom.get() ?? "",
+	);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and

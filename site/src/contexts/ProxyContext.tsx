@@ -1,3 +1,5 @@
+import { useAtom } from "jotai";
+import { RESET } from "jotai/utils";
 import {
 	createContext,
 	type FC,
@@ -13,7 +15,6 @@ import { cachedQuery } from "#/api/queries/util";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import { useStorage } from "#/hooks/useStorage";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { defineStorageKey, yupCodec } from "#/storage";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
@@ -110,9 +111,7 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
-	const [userSavedProxy, setUserSavedProxy, clearUserSavedProxy] = useStorage(
-		userSelectedProxyStorage,
-	);
+	const [userSavedProxy, setUserSavedProxy] = useAtom(userSelectedProxyStorage);
 
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
@@ -204,7 +203,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 				// These functions are exposed to allow the user to select a proxy.
 				setProxy: setUserSavedProxy,
-				clearProxy: clearUserSavedProxy,
+				clearProxy: () => setUserSavedProxy(RESET),
 			}}
 		>
 			{children}

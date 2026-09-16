@@ -55,10 +55,8 @@ import {
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
-	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
-import { rightPanelOpenStorage } from "./storage";
 import { chatDraftAttachmentStorageKey } from "./utils/chatDraftAttachmentStorage";
 
 const defaultModelID = "model-config-1";
@@ -275,7 +273,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 	},
 	args: {},
 	beforeEach: () => {
-		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
+		localStorage.removeItem("agents.left-sidebar-width");
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		spyOn(
@@ -602,7 +600,7 @@ export const ResizableSidebar: Story = {
 			expect(sidebarWidth()).toBe(`${maxWidth}px`);
 		});
 		await waitFor(() => {
-			expect(localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY)).toBe(
+			expect(localStorage.getItem("agents.left-sidebar-width")).toBe(
 				String(maxWidth),
 			);
 		});
@@ -624,7 +622,7 @@ export const PersistedResizableSidebarWidth: Story = {
 	decorators: [
 		(Story) => {
 			localStorage.setItem(
-				LEFT_SIDEBAR_STORAGE_KEY,
+				"agents.left-sidebar-width",
 				String(persistedLeftSidebarWidth),
 			);
 			return <Story />;
@@ -650,6 +648,78 @@ export const PersistedResizableSidebarWidth: Story = {
 	},
 };
 
+export const SidebarResizePreservesPreference: Story = {
+	beforeEach: () => {
+		mockChats([]);
+		localStorage.setItem("agents.left-sidebar-width", "660");
+		spyOn(window, "innerWidth", "get").mockReturnValue(1440);
+	},
+	decorators: [
+		(Story) => {
+			const [visible, setVisible] = useState(true);
+			return (
+				<>
+					<button type="button" onClick={() => setVisible(!visible)}>
+						{visible ? "Hide layout" : "Show layout"}
+					</button>
+					{visible && <Story />}
+				</>
+			);
+		},
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const separator = () =>
+			canvas.getByRole("separator", { name: "Resize agents sidebar" });
+		const hide = async () => {
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Hide layout" }),
+			);
+			await expect(
+				canvas.queryByRole("separator", { name: "Resize agents sidebar" }),
+			).not.toBeInTheDocument();
+		};
+		const show = () =>
+			userEvent.click(canvas.getByRole("button", { name: "Show layout" }));
+		await expect(separator()).toHaveAttribute("aria-valuenow", "660");
+
+		spyOn(window, "innerWidth", "get").mockReturnValue(720);
+		dispatchEvent(new Event("resize"));
+		await waitFor(() =>
+			expect(separator()).toHaveAttribute("aria-valuenow", "360"),
+		);
+		await expect(localStorage.getItem("agents.left-sidebar-width")).toBe("660");
+
+		await hide();
+		spyOn(window, "innerWidth", "get").mockReturnValue(1440);
+		await show();
+		await expect(separator()).toHaveAttribute("aria-valuenow", "660");
+		separator().focus();
+		await userEvent.keyboard("{ArrowLeft}");
+		await expect(separator()).toHaveAttribute("aria-valuenow", "644");
+		await expect(localStorage.getItem("agents.left-sidebar-width")).toBe("644");
+
+		for (const invalid of ["100", "999"]) {
+			await hide();
+			localStorage.setItem("agents.left-sidebar-width", invalid);
+			await show();
+			await expect(separator()).toHaveAttribute("aria-valuenow", "320");
+		}
+
+		await hide();
+		localStorage.setItem("agents.left-sidebar-width", "660");
+		spyOn(window, "innerWidth", "get").mockReturnValue(720);
+		await show();
+		await expect(separator()).toHaveAttribute("aria-valuenow", "360");
+		await expect(separator()).toHaveAttribute("aria-valuemax", "360");
+		await expect(localStorage.getItem("agents.left-sidebar-width")).toBe("660");
+		separator().focus();
+		await userEvent.keyboard("{ArrowLeft}");
+		await expect(separator()).toHaveAttribute("aria-valuenow", "344");
+		await expect(localStorage.getItem("agents.left-sidebar-width")).toBe("344");
+	},
+};
+
 const narrowAgentsLayoutWidth = 720;
 
 export const WideSidebarPreservesChatPaneWidth: Story = {
@@ -661,7 +731,7 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 				updated_at: todayTimestamp,
 			}),
 		]);
-		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "660");
+		localStorage.setItem("agents.left-sidebar-width", "660");
 		return setInnerWidthForStory(narrowAgentsLayoutWidth);
 	},
 	decorators: [
@@ -783,7 +853,7 @@ export const ResizableSidebarKeyboard: Story = {
 			expect(handle).toHaveAttribute("aria-valuenow", String(maxWidth));
 		});
 		await waitFor(() => {
-			expect(localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY)).toBe(
+			expect(localStorage.getItem("agents.left-sidebar-width")).toBe(
 				String(maxWidth),
 			);
 		});
@@ -1083,10 +1153,10 @@ const watchedChatPageParameters = (
 });
 
 const mockAgentChatPageAPIs = () => {
-	localStorage.removeItem(rightPanelOpenStorage.key);
+	localStorage.removeItem("agents.right-panel-open");
 	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 	spyOn(API.experimental, "updateChat").mockResolvedValue();
-	return () => localStorage.removeItem(rightPanelOpenStorage.key);
+	return () => localStorage.removeItem("agents.right-panel-open");
 };
 
 export const ArchiveWatchEventKeepsOpenChatMounted: Story = {

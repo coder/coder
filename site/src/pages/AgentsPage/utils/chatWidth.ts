@@ -1,8 +1,4 @@
-/**
- * Tailwind max-width class for the chat layout based on whether
- * full-width mode is enabled. Shared so every chat surface (input,
- * transcript, skeletons) stays in lockstep.
- */
+/** Returns the Tailwind max-width class for the selected chat layout. */
 export function chatWidthClass(fullWidth: boolean): string {
 	return fullWidth ? "max-w-full" : "max-w-3xl";
 }

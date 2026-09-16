@@ -1,3 +1,4 @@
+import { useAtom } from "jotai";
 import {
 	ArrowLeftIcon,
 	BellIcon,
@@ -29,9 +30,8 @@ import {
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
-import { useStorage } from "#/hooks/useStorage";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { chimeOnCompletionStorage } from "../utils/chime";
+import { chimeEnabledAtom } from "../atoms";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;
@@ -56,9 +56,8 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
 
-	const [internalChimeEnabled, setInternalChimeEnabled] = useStorage(
-		chimeOnCompletionStorage,
-	);
+	const [internalChimeEnabled, setInternalChimeEnabled] =
+		useAtom(chimeEnabledAtom);
 	const internalWebPush = useWebpushNotifications();
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;

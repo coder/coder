@@ -17,37 +17,6 @@ import {
 } from "#/storage";
 import { chatDraftAttachmentsStorage } from "./utils/chatDraftAttachmentStorage";
 
-export const chatFullWidthStorage = defineStorageKey<boolean>({
-	key: "agents.chat-full-width",
-	codec: booleanCodec,
-	defaultValue: false,
-});
-
-export const rightPanelOpenStorage = defineStorageKey<boolean>({
-	key: "agents.right-panel-open",
-	codec: booleanCodec,
-	defaultValue: false,
-});
-
-/**
- * Pre-upgrade builds persisted raw drag widths, which are fractional
- * under browser zoom; accept and round any finite number so upgrading
- * does not reset the panel.
- */
-const legacyToleratedWidthCodec = {
-	decode: (raw: string) => {
-		const parsed = Number(raw);
-		return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
-	},
-	encode: (value: number) => String(value),
-};
-
-export const rightPanelWidthStorage = defineStorageKey<number | null>({
-	key: "agents.right-panel-width",
-	codec: legacyToleratedWidthCodec,
-	defaultValue: null,
-});
-
 /**
  * Draft for the create-chat form. The value is either serialized
  * Lexical editor state or a legacy plain-text draft; parseStoredDraft
@@ -55,12 +24,6 @@ export const rightPanelWidthStorage = defineStorageKey<number | null>({
  */
 export const emptyInputDraftStorage = defineStorageKey<string | null>({
 	key: "agents.empty-input",
-	codec: stringCodec,
-	defaultValue: null,
-});
-
-export const lastModelConfigIdStorage = defineStorageKey<string | null>({
-	key: "agents.last-model-config-id",
 	codec: stringCodec,
 	defaultValue: null,
 });
@@ -118,11 +81,8 @@ export const chatDefaultTerminalHiddenStorage = defineEntityStorageKey<boolean>(
 const chatCleanupListeners = new Set<(chatId: string) => void>();
 
 /**
- * Register extra cleanup to run when a chat's storage is cleared. The
- * draft-upload module registers on load instead of being imported
- * here, which keeps this module (reachable from the eager dashboard
- * bundle through the skeletons) from pulling the chat attachment
- * implementation into the initial chunk.
+ * Register cleanup without importing the draft-upload implementation
+ * into the storage module used by chat queries.
  */
 export function registerChatStorageCleanup(
 	listener: (chatId: string) => void,

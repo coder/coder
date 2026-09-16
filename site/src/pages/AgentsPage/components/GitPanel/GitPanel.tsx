@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtom } from "jotai";
 import {
 	CheckIcon,
 	ChevronDownIcon,
@@ -31,13 +32,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { diffStyleAtom } from "../../atoms";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
-import {
-	type DiffStyle,
-	loadDiffStyle,
-	saveDiffStyle,
-} from "../DiffViewer/DiffViewer";
+import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
@@ -197,12 +195,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		}
 	}, [view, showRemoteTab, localRepos]);
 
-	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
-
-	const handleDiffStyleChange = (style: DiffStyle) => {
-		saveDiffStyle(style);
-		setDiffStyle(style);
-	};
+	const [diffStyle, setDiffStyle] = useAtom(diffStyleAtom);
 
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -339,7 +332,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
 						<button
 							type="button"
-							onClick={() => handleDiffStyleChange("unified")}
+							onClick={() => setDiffStyle("unified")}
 							aria-label="Unified diff"
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
@@ -354,7 +347,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						</button>
 						<button
 							type="button"
-							onClick={() => handleDiffStyleChange("split")}
+							onClick={() => setDiffStyle("split")}
 							aria-label="Split diff"
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}

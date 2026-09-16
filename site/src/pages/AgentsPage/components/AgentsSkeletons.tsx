@@ -1,26 +1,15 @@
 import { cn } from "cn";
-import { type FC, useState } from "react";
+import { useAtomValue } from "jotai";
+import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { useStorage } from "#/hooks/useStorage";
 import {
-	chatFullWidthStorage,
-	rightPanelOpenStorage,
-	rightPanelWidthStorage,
-} from "../storage";
+	chatFullWidthAtom,
+	leftSidebarWidthAtom,
+	rightPanelOpenAtom,
+	rightPanelWidthAtom,
+} from "../atoms";
 import { chatWidthClass } from "../utils/chatWidth";
-import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
-
-const DEFAULT_PANEL_WIDTH = 480;
-const MIN_PANEL_WIDTH = 360;
-
-/** Read persisted right-panel state for use in static skeletons. */
-function getRightPanelState(): { open: boolean; width: number } {
-	const open = rightPanelOpenStorage.get();
-	const stored = rightPanelWidthStorage.get();
-	const width =
-		stored !== null && stored >= MIN_PANEL_WIDTH ? stored : DEFAULT_PANEL_WIDTH;
-	return { open, width };
-}
+import { clampLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 
 /**
  * Skeleton shown while the AgentsPageLayout chunk is loading. Mimics the
@@ -28,7 +17,9 @@ function getRightPanelState(): { open: boolean; width: number } {
  * immediately instead of a fullscreen spinner.
  */
 export const AgentsPageLayoutSkeleton: FC = () => {
-	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
+	const leftSidebarWidth = clampLeftSidebarWidth(
+		useAtomValue(leftSidebarWidthAtom),
+	);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row">
@@ -157,14 +148,21 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  * structure during the brief Suspense fallback.
  */
 export const AgentChatPageSkeleton: FC = () => {
-	const rightPanel = getRightPanelState();
-	const [chatFullWidth] = useStorage(chatFullWidthStorage);
+	const rightPanelOpen = useAtomValue(rightPanelOpenAtom);
+	const storedRightPanelWidth = rightPanelWidthAtom.get();
+	const rightPanelWidth =
+		storedRightPanelWidth !== null &&
+		storedRightPanelWidth >= 360 &&
+		storedRightPanelWidth <= Math.floor(innerWidth * 0.7)
+			? storedRightPanelWidth
+			: 480;
+	const chatFullWidth = useAtomValue(chatFullWidthAtom);
 
 	return (
 		<div
 			className={cn(
 				"relative flex h-full min-h-0 min-w-0 flex-1",
-				rightPanel.open && "flex-row",
+				rightPanelOpen && "flex-row",
 			)}
 		>
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -189,10 +187,10 @@ export const AgentChatPageSkeleton: FC = () => {
 				</div>
 				<ChatInputSkeleton fullWidth={chatFullWidth} />
 			</div>
-			{rightPanel.open && (
+			{rightPanelOpen && (
 				<div
 					style={{
-						"--panel-width": `${rightPanel.width}px`,
+						"--panel-width": `${rightPanelWidth}px`,
 					}}
 					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
 				>

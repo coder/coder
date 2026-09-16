@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { rightPanelWidthStorage } from "./storage";
+import { rightPanelWidthAtom } from "#/pages/AgentsPage/atoms";
 
-describe("rightPanelWidthStorage", () => {
+describe("rightPanelWidthAtom", () => {
 	beforeEach(() => {
 		localStorage.clear();
 	});
 
 	it("decodes fractional widths written by pre-upgrade builds", () => {
 		localStorage.setItem("agents.right-panel-width", "479.5");
-		expect(rightPanelWidthStorage.get()).toBe(480);
+		expect(rightPanelWidthAtom.get()).toBe(480);
 	});
 
 	it("falls back to the default for non-numeric values", () => {
 		localStorage.setItem("agents.right-panel-width", "wide");
-		expect(rightPanelWidthStorage.get()).toBeNull();
+		expect(rightPanelWidthAtom.get()).toBeNull();
 	});
 });

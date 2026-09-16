@@ -1,3 +1,4 @@
+import { useAtom } from "jotai";
 import { Volume2Icon, VolumeOffIcon } from "lucide-react";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
@@ -6,8 +7,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useStorage } from "#/hooks/useStorage";
-import { chimeOnCompletionStorage } from "../utils/chime";
+import { chimeEnabledAtom } from "../atoms";
 
 interface ChimeButtonProps {
 	enabled?: boolean;
@@ -15,18 +15,16 @@ interface ChimeButtonProps {
 }
 
 export const ChimeButton: FC<ChimeButtonProps> = ({ enabled, onToggle }) => {
-	const [storedEnabled, setStoredEnabled] = useStorage(
-		chimeOnCompletionStorage,
-	);
+	const [internalEnabled, setInternalEnabled] = useAtom(chimeEnabledAtom);
 	const isControlled = enabled !== undefined && onToggle !== undefined;
-	const isEnabled = isControlled ? enabled : storedEnabled;
+	const isEnabled = isControlled ? enabled : internalEnabled;
 
 	const handleClick = () => {
 		if (isControlled) {
 			onToggle();
 			return;
 		}
-		setStoredEnabled(!storedEnabled);
+		setInternalEnabled(!internalEnabled);
 	};
 
 	return (

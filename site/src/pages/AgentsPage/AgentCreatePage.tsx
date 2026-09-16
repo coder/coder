@@ -1,3 +1,4 @@
+import { useSetAtom } from "jotai";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
@@ -10,7 +11,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { useStorage } from "#/hooks/useStorage";
+import { lastModelConfigIDAtom } from "./atoms";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -18,9 +19,7 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
-import { lastModelConfigIdStorage } from "./storage";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
-import { chimeOnCompletionStorage } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
 
 const AgentCreatePage: FC = () => {
@@ -33,9 +32,7 @@ const AgentCreatePage: FC = () => {
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
-	const [chimeEnabled, setChimeEnabledState] = useStorage(
-		chimeOnCompletionStorage,
-	);
+	const setLastModelConfigID = useSetAtom(lastModelConfigIDAtom);
 
 	const handleCreateChat = async ({
 		message,
@@ -70,16 +67,12 @@ const AgentCreatePage: FC = () => {
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
 		if (model) {
-			lastModelConfigIdStorage.set(model);
+			setLastModelConfigID(model);
 		}
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
 			search: location.search,
 		});
-	};
-
-	const handleChimeToggle = () => {
-		setChimeEnabledState(!chimeEnabled);
 	};
 
 	const handleNotificationToggle = async () => {
@@ -98,12 +91,10 @@ const AgentCreatePage: FC = () => {
 	return (
 		<>
 			<AgentPageHeader
-				chimeEnabled={chimeEnabled}
-				onToggleChime={handleChimeToggle}
 				webPush={webPush}
 				onToggleNotifications={handleNotificationToggle}
 			>
-				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
+				<ChimeButton />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
 			<AgentCreateForm

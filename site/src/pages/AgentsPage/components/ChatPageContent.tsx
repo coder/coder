@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useAtomValue } from "jotai";
 import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -6,10 +7,9 @@ import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
-import { useStorage } from "#/hooks/useStorage";
+import { chatFullWidthAtom } from "../atoms";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import { chatFullWidthStorage } from "../storage";
 import { getChatFileURL } from "../utils/chatAttachments";
 import { chatWidthClass } from "../utils/chatWidth";
 import { getProviderForModelOption } from "../utils/modelOptions";
@@ -129,7 +129,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	mcpServers,
 	footer,
 }) => {
-	const [chatFullWidth] = useStorage(chatFullWidthStorage);
+	const chatFullWidth = useAtomValue(chatFullWidthAtom);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);

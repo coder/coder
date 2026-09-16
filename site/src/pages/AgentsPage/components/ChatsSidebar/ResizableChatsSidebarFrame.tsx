@@ -8,13 +8,12 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { leftSidebarWidthAtom } from "../../atoms";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
-	loadPersistedLeftSidebarWidth,
-	persistLeftSidebarWidth,
 } from "./sidebarWidth";
 
 interface ResizableChatsSidebarFrameProps {
@@ -26,7 +25,9 @@ export const ResizableChatsSidebarFrame = ({
 	children,
 	className,
 }: ResizableChatsSidebarFrameProps) => {
-	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
+	const [width, setWidth] = useState(() =>
+		clampLeftSidebarWidth(leftSidebarWidthAtom.get()),
+	);
 	const maxWidth = getLeftSidebarMaxWidth();
 	const isDragging = useRef(false);
 	const startX = useRef(0);
@@ -39,8 +40,7 @@ export const ResizableChatsSidebarFrame = ({
 	};
 
 	const setUserWidth = (nextWidth: number) => {
-		const clampedWidth = setVisualWidth(nextWidth);
-		persistLeftSidebarWidth(clampedWidth);
+		leftSidebarWidthAtom.set(setVisualWidth(nextWidth));
 	};
 
 	const handleResize = useEffectEvent(() => {
