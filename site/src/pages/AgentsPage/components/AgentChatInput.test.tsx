@@ -1,8 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, type ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import { createMockFile } from "#/testHelpers/files";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
@@ -57,5 +59,37 @@ describe("AgentChatInput", () => {
 		});
 		await user.keyboard("{Enter}");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("attaches supported dropped files and reports unsupported ones", () => {
+		const onAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const svg = createMockFile("diagram.svg", "image/svg+xml");
+		const zip = createMockFile("archive.zip", "application/zip");
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: { files: [svg, zip] },
+		});
+
+		expect(onAttach).toHaveBeenCalledWith([svg]);
+		expect(toastError).toHaveBeenCalledWith(
+			"Unsupported file type: archive.zip",
+		);
 	});
 });
