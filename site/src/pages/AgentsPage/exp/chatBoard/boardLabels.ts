@@ -330,6 +330,20 @@ export const stripCardLabels = (
 			k === POSITION_KEY,
 	);
 
+/** The card-level data a primary carries (title, color, position, comments), for handing to a new primary. */
+export const takeCardLabels = (
+	labels: Record<string, string>,
+): Record<string, string> =>
+	Object.fromEntries(
+		Object.entries(labels).filter(
+			([k]) =>
+				k === TITLE_KEY ||
+				k === COLOR_KEY ||
+				k === POSITION_KEY ||
+				k.startsWith(COMMENT_PREFIX),
+		),
+	);
+
 const byCreation = (a: Chat, b: Chat) =>
 	a.created_at.localeCompare(b.created_at);
 

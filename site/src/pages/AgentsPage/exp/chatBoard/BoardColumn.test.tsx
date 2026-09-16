@@ -35,6 +35,7 @@ const renderColumn = (name: string) => {
 			onSetCardColor={noop}
 			onRenameChat={noop}
 			onAssistant={noop}
+			onRemoveFromGroup={noop}
 			onOpen={noop}
 			onPreview={noop}
 			onPreviewEnd={noop}
