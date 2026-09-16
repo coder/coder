@@ -24,8 +24,11 @@ const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	protocol: "http",
 };
 
-const Composer: FC<{ onAttach: (files: File[]) => void }> = ({ onAttach }) => {
-	useRegisterComposer({ attach: onAttach });
+const Composer: FC<{
+	onAttach: (files: File[], options?: AttachOptions) => void;
+	onSend?: (message: string) => void;
+}> = ({ onAttach, onSend = () => undefined }) => {
+	useRegisterComposer({ attach: onAttach, send: onSend });
 	return null;
 };
 
@@ -39,10 +42,14 @@ function readFileText(file: File): Promise<string> {
 	});
 }
 
-function renderPanel(onAttach = vi.fn(), readyTimeoutMs?: number) {
+function renderPanel(
+	onAttach = vi.fn(),
+	readyTimeoutMs?: number,
+	onSend = vi.fn(),
+) {
 	const view = renderComponent(
 		<ComposerProvider>
-			<Composer onAttach={onAttach} />
+			<Composer onAttach={onAttach} onSend={onSend} />
 			<PortPreviewPanel
 				workspace={MockWorkspace}
 				agent={MockWorkspaceAgent}
@@ -80,7 +87,7 @@ function renderPanel(onAttach = vi.fn(), readyTimeoutMs?: number) {
 			}),
 		);
 	};
-	return { frame, frameOrigin, receive, onAttach, setAgentWorking };
+	return { frame, frameOrigin, receive, onAttach, onSend, setAgentWorking };
 }
 
 const submission: AnnotatorToHostMessage = {
@@ -238,5 +245,16 @@ describe("PortPreviewPanel annotations", () => {
 			},
 			frameOrigin,
 		);
+	});
+
+	it("sends instant submissions as a message instead of attaching", async () => {
+		const { receive, onAttach, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive({ ...submission, instant: true });
+
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(onSend).toHaveBeenCalledTimes(1);
+		expect(onSend.mock.calls[0][0]).toContain("> Make this red");
 	});
 });

@@ -459,7 +459,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	// Mirror the composer's own gating so tools cannot add to the draft
 	// while the user-visible input is disabled or read-only.
 	useRegisterComposer(
-		isInputDisabled || isReadOnly ? null : { attach: attachFromTool },
+		isInputDisabled || isReadOnly
+			? null
+			: { attach: attachFromTool, send: (message) => onSend(message) },
 	);
 
 	// Edit attachments are scoped to the chat being edited, not the compose

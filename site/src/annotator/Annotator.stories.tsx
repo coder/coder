@@ -143,3 +143,22 @@ export const AgentWorking: Story = {
 export const AgentDone: Story = {
 	args: { highlight: "done" },
 };
+
+export const InstantMode: Story = {
+	args: { picking: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const host = () => document.getElementById(annotatorHostId);
+		const instant = host()?.shadowRoot?.querySelector<HTMLButtonElement>(
+			'[aria-label="Instant mode"]',
+		);
+		if (instant) {
+			await userEvent.click(instant);
+		}
+		await userEvent.click(canvas.getByTestId("save-button"));
+		const textarea = host()?.shadowRoot?.querySelector("textarea");
+		if (textarea) {
+			await userEvent.type(textarea, "Sent the moment I press Enter{enter}");
+		}
+	},
+};

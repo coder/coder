@@ -43,6 +43,9 @@ interface AnnotatedPage {
 export interface AnnotationSubmission {
 	page: AnnotatedPage;
 	annotations: Annotation[];
+	// Set when instant mode sent this the moment the comment was saved; the
+	// dashboard sends it as a message instead of attaching a draft.
+	instant?: boolean;
 }
 
 export type AnnotatorToHostMessage =
@@ -182,6 +185,7 @@ function parseAnnotationSubmission(
 			},
 		},
 		annotations,
+		instant: value.instant === true,
 	};
 }
 

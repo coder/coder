@@ -11,6 +11,7 @@ import {
 	annotatorQueryParam,
 	type HighlightItem,
 } from "#/annotator/protocol";
+import { getErrorMessage } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -71,9 +72,9 @@ export const PortPreviewPanel: FC<{
 		started: boolean;
 	}>();
 
-	// Annotations are attached rather than sent: the frame is a third-party
-	// app that could forge a submission, so the user reviews the draft and
-	// presses send themselves.
+	// Annotations are attached by default so the user reviews the draft and
+	// presses send themselves. Instant mode, toggled in the overlay, sends
+	// each comment straight away instead.
 	const handleSubmit = (submission: AnnotationSubmission) => {
 		if (!composer) {
 			return;
@@ -82,6 +83,17 @@ export const PortPreviewPanel: FC<{
 			id,
 			selector: element.selector,
 		}));
+		if (submission.instant) {
+			void (async () => {
+				try {
+					await composer.send(formatAnnotations(submission));
+					setWorkingOn({ items, started: false });
+				} catch (error) {
+					toast.error(getErrorMessage(error, "Failed to send UI annotation."));
+				}
+			})();
+			return;
+		}
 		composer.attach(
 			[
 				new File([formatAnnotations(submission)], annotationsFileName, {

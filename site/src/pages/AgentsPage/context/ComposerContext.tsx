@@ -16,6 +16,8 @@ export interface AttachOptions {
 interface ComposerHandle {
 	// Attaches files to the draft; the user still reviews and sends.
 	attach: (files: File[], options?: AttachOptions) => void;
+	// Sends a message immediately, as if the user had submitted it.
+	send: (message: string) => Promise<void> | void;
 }
 
 interface ComposerContextValue {
@@ -40,6 +42,7 @@ export const ComposerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 	const [registered, setRegistered] = useState(false);
 	const [stableHandle] = useState<ComposerHandle>(() => ({
 		attach: (files, options) => handleRef.current?.attach(files, options),
+		send: (message) => handleRef.current?.send(message),
 	}));
 
 	const register = (handle: ComposerHandle | null) => {

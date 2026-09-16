@@ -44,6 +44,8 @@ const pointerIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.1 12 6"/><path d="m5.1 8-2.9-.8"/><path d="m6 12-1.9 2"/><path d="M7.2 2.2 8 5.1"/><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/></svg>';
 const paperclipIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.234 20.252 21 12.3"/><path d="m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486"/></svg>';
+const zapIcon =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>';
 const xIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
@@ -127,7 +129,20 @@ export function mountAnnotator(
 		"data-tip": "Clear annotations",
 	});
 	clearButton.innerHTML = xIcon;
-	toolbar.append(pickButton, countBadge, sendButton, clearButton);
+	const instantButton = el(doc, "button", "icon-button", {
+		type: "button",
+		"aria-pressed": "false",
+		"aria-label": "Instant mode",
+		"data-tip": "Instant: send each comment as soon as it is saved",
+	});
+	instantButton.innerHTML = zapIcon;
+	toolbar.append(
+		pickButton,
+		countBadge,
+		sendButton,
+		clearButton,
+		instantButton,
+	);
 
 	const highlight = el(doc, "div", "highlight", { "aria-hidden": "true" });
 	const highlightLabel = el(doc, "span", "highlight-label");
@@ -146,6 +161,7 @@ export function mountAnnotator(
 
 	const annotations: PlacedAnnotation[] = [];
 	let picking = false;
+	let instant = false;
 	let hovered: Element | null = null;
 	let popup: HTMLDivElement | null = null;
 	let frame = 0;
@@ -157,6 +173,20 @@ export function mountAnnotator(
 		clearButton.hidden = annotations.length === 0;
 		options.onStateChange?.({ picking, count: annotations.length });
 	};
+
+	const pageInfo = () => ({
+		url: win.location.href,
+		title: doc.title,
+		viewport: { width: win.innerWidth, height: win.innerHeight },
+	});
+
+	const toAnnotation = (placed: PlacedAnnotation): Annotation => ({
+		id: placed.id,
+		comment: placed.comment,
+		selectedText: placed.selectedText,
+		// Re-measure so positions reflect the page at send time.
+		element: describeElement(placed.target),
+	});
 
 	const isOwnNode = (node: EventTarget | null): boolean =>
 		node instanceof Node && (node === host || host.contains(node));
@@ -259,6 +289,16 @@ export function mountAnnotator(
 			event.stopPropagation();
 			openPopup({ target: placed.target, existing: placed });
 		});
+		if (instant) {
+			// Instant mode: one message per comment, nothing left behind to
+			// batch.
+			options.onSubmit({
+				page: pageInfo(),
+				annotations: [toAnnotation(placed)],
+				instant: true,
+			});
+			return;
+		}
 		pins.append(pin);
 		annotations.push(placed);
 		notify();
@@ -434,21 +474,15 @@ export function mountAnnotator(
 			return;
 		}
 		options.onSubmit({
-			page: {
-				url: win.location.href,
-				title: doc.title,
-				viewport: { width: win.innerWidth, height: win.innerHeight },
-			},
-			annotations: annotations.map((placed) => ({
-				id: placed.id,
-				comment: placed.comment,
-				selectedText: placed.selectedText,
-				// Re-measure so positions reflect the page at send time.
-				element: describeElement(placed.target),
-			})),
+			page: pageInfo(),
+			annotations: annotations.map(toAnnotation),
 		});
 		clear();
 		setPicking(false);
+	});
+	instantButton.addEventListener("click", () => {
+		instant = !instant;
+		instantButton.setAttribute("aria-pressed", String(instant));
 	});
 
 	win.addEventListener("scroll", scheduleLayout, true);
