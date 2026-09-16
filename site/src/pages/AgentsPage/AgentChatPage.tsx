@@ -1000,14 +1000,14 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	const loadingView = (
+	const renderLoadingView = (inputDisabled: boolean) => (
 		<AgentChatPageLoadingView
 			inputRef={editing.chatInputRef}
 			initialValue={editing.editorInitialValue}
 			initialEditorState={editing.initialEditorState}
 			remountKey={editing.remountKey}
 			onContentChange={editing.handleLoadingDraftChange}
-			isInputDisabled={isInputDisabled}
+			isInputDisabled={inputDisabled}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
@@ -1026,7 +1026,7 @@ const AgentChatPage: FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
-				loadingView
+				renderLoadingView(isInputDisabled)
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
@@ -1050,7 +1050,9 @@ const AgentChatPage: FC = () => {
 			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
 				<AgentChatPageNotFoundView />
 			) : preferencesQuery.isLoading ? (
-				loadingView
+				// The loading view drops sends, so keep the composer disabled
+				// until the transcript can mount.
+				renderLoadingView(true)
 			) : (
 				<AgentChatPageView
 					key={agentId}
