@@ -3,7 +3,6 @@ import { OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -13,6 +12,7 @@ import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
@@ -124,6 +124,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					command={command}
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
+					isRunning={isRunning}
 				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
@@ -177,36 +178,28 @@ const ShellTranscriptBody: React.FC<{
 	command: string;
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
-}> = ({ command, transcriptBlocks, isError }) => {
+	isRunning: boolean;
+}> = ({ command, transcriptBlocks, isError, isRunning }) => {
 	return (
-		<ScrollArea
-			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
-			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel="Command output"
-			scrollBarClassName="w-1.5"
+		<TerminalOutput
+			ariaLabel="Command output"
+			command={command}
+			className="col-start-1 col-span-2 mt-2"
+			streaming={isRunning}
 		>
-			<div className="px-3 py-2.5">
-				<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
-					<span aria-hidden className="select-none">
-						$
-					</span>{" "}
-					{command}
+			{transcriptBlocks.map((block) => (
+				<pre
+					key={block.kind}
+					className={cn(
+						"m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+						block.kind === "error" || isError
+							? "text-content-destructive"
+							: "text-content-secondary",
+					)}
+				>
+					{block.text}
 				</pre>
-				{transcriptBlocks.map((block) => (
-					<pre
-						key={block.kind}
-						className={cn(
-							"m-0 mt-4 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
-							block.kind === "error" || isError
-								? "text-content-destructive"
-								: "text-content-secondary",
-						)}
-					>
-						{block.text}
-					</pre>
-				))}
-			</div>
-		</ScrollArea>
+			))}
+		</TerminalOutput>
 	);
 };

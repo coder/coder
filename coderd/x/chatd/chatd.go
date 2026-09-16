@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -120,6 +121,7 @@ const (
 
 var (
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
 	errChatAgentDisconnected   = xerrors.New(
 		"workspace agent has been disconnected for at least 90 seconds " +
 			"and cannot execute tools. To recover, call stop_workspace " +
@@ -447,7 +449,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
+	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
 }
 
 type turnWorkspaceContext struct {
@@ -624,6 +626,25 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 
 		if !chatSnapshot.WorkspaceID.Valid {
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+		}
+
+		// A soft-deleted workspace keeps its agent rows, so the bound agent
+		// would otherwise be dialed and fail as merely unreachable.
+		ws, err := c.server.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
+				"load workspace: %w. %s", err, chattool.WorkspaceUnavailableHint,
+			)
+		}
+		if ws.Deleted {
+			// A concurrent create_workspace may have rebound the chat
+			// while the row was read; resolve the replacement instead.
+			latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+			if !workspaceMatches {
+				chatSnapshot = latestChat
+				continue
+			}
+			return chatSnapshot, database.WorkspaceAgent{}, errChatWorkspaceDeleted
 		}
 
 		if chatSnapshot.AgentID.Valid {
@@ -977,8 +998,8 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			}
 			// Surface the dial timeout sentinel only when the
 			// parent context is still alive. If the parent was
-			// canceled (e.g. ErrInterrupted), its error must
-			// propagate unchanged so the chatloop can detect it.
+			// canceled, its error must propagate unchanged so
+			// the runner can recognize cancellation.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
 				return nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
@@ -3311,7 +3332,7 @@ func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
-				strings.HasPrefix(f.Mimetype, "image/") &&
+				chatfiles.IsRasterImageMediaType(f.Mimetype) &&
 				len(f.Data) >= imageCap {
 				err := xerrors.Errorf(
 					"image attachment %q is %d bytes; %s inline image limit is %d bytes",

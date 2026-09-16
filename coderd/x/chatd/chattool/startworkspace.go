@@ -76,9 +76,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 			ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("load workspace: %w", err).Error(),
-				), nil
+				return workspaceLoadErrorResponse(err), nil
 			}
 			if ws.Deleted {
 				return fantasy.NewTextErrorResponse(

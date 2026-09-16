@@ -88,7 +88,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const resources = [...workspace.latest_build.resources].sort(
 		(a, b) => countAgents(b) - countAgents(a),
 	);
-	const resourcesNav = useResourcesNav(resources);
+	const visibleResources = resources.filter((r) => !r.hide);
+	const resourcesNav = useResourcesNav(visibleResources);
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
