@@ -420,7 +420,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 
 ### Stream silence timeout
 
-Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Must be at least 10m.
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token.
 
 - Environment variable: `CODER_CHAT_STREAM_SILENCE_TIMEOUT`
 - CLI flag: [`--chat-stream-silence-timeout`](../../reference/cli/server.md#--chat-stream-silence-timeout)

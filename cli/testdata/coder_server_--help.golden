@@ -225,7 +225,7 @@ Configure the background chat processing daemon.
       --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
           Maximum time to wait for the next streamed part from the chat model
           before the attempt is canceled and retried. This also bounds the time
-          to first token. Must be at least 10m.
+          to first token.
 
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.

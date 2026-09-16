@@ -4396,7 +4396,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Stream Silence Timeout",
-			Description: "Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Must be at least 10m.",
+			Description: "Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token.",
 			Flag:        "chat-stream-silence-timeout",
 			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
 			Value:       &c.AI.Chat.StreamSilenceTimeout,
@@ -5008,8 +5008,8 @@ func (c *DeploymentValues) Validate() error {
 		}
 	}
 
-	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout < 10*time.Minute {
-		return xerrors.Errorf("chat stream silence timeout (%s) must be at least 10m; set --chat-stream-silence-timeout to a valid duration", timeout)
+	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout <= 0 {
+		return xerrors.Errorf("chat stream silence timeout (%s) must be greater than zero; set --chat-stream-silence-timeout to a valid duration", timeout)
 	}
 
 	// Gated on the builder being enabled and run here rather than as a per-option

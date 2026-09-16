@@ -1799,7 +1799,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 | YAML        | <code>chat.streamSilenceTimeout</code>          |
 | Default     | <code>10m0s</code>                              |
 
-Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Must be at least 10m.
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token.
 
 ### --ai-gateway-enabled
 

@@ -856,8 +856,7 @@ chat:
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
   # Maximum time to wait for the next streamed part from the chat model before the
-  # attempt is canceled and retried. This also bounds the time to first token. Must
-  # be at least 10m.
+  # attempt is canceled and retried. This also bounds the time to first token.
   # (default: 10m0s, type: duration)
   streamSilenceTimeout: 10m0s
 aibridge:

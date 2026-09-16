@@ -956,8 +956,10 @@ func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
 		timeout time.Duration
 		wantErr string
 	}{
-		{name: "BelowMinimum", timeout: 10*time.Minute - time.Second, wantErr: "chat stream silence timeout"},
-		{name: "Minimum", timeout: 10 * time.Minute},
+		{name: "Zero", timeout: 0, wantErr: "chat stream silence timeout"},
+		{name: "Negative", timeout: -time.Second, wantErr: "chat stream silence timeout"},
+		{name: "Lowered", timeout: time.Minute},
+		{name: "Default", timeout: 10 * time.Minute},
 		{name: "Raised", timeout: 30 * time.Minute},
 	}
 
