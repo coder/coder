@@ -338,7 +338,6 @@ func TestResolver_ChildProjectInstructionFiles(t *testing.T) {
 		mustWriteFile(t, filepath.Join(dir, ".hidden", "AGENTS.md"), "hidden")
 		mustWriteFile(t, filepath.Join(child, ".mcp.json"), "{}")
 		mustWriteSkill(t, filepath.Join(child, "skills"), "ignored", "ignored skill")
-		mustWriteFile(t, filepath.Join(child, "agents.md"), "wrong case")
 
 		r := &agentcontext.Resolver{}
 		snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})

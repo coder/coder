@@ -378,23 +378,30 @@ func (r *Resolver) discoverChildProjectInstructionFiles(root ScanRoot, out *[]Re
 			continue
 		}
 		child := filepath.Join(root.Path, e.Name())
-		found := false
-		for _, name := range instructionFileNames {
-			path := filepath.Join(child, name)
-			info, err := os.Lstat(path)
-			if err != nil || info.IsDir() {
-				continue
-			}
-			appendResource(out, seenID, r.readInstructionFile(child, path, info, ""))
-			found = true
-		}
-		if found {
+		if r.readInstructionFilesIn(child, out, seenID) {
 			projects++
 			if projects == maxChildProjects {
 				break
 			}
 		}
 	}
+}
+
+// readInstructionFilesIn appends the recognized instruction files that sit
+// directly in dir, probed by name with dir as the containment root, and
+// reports whether any was found.
+func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID map[string]int) bool {
+	found := false
+	for _, name := range instructionFileNames {
+		path := filepath.Join(dir, name)
+		info, err := os.Lstat(path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		appendResource(out, seenID, r.readInstructionFile(dir, path, info, ""))
+		found = true
+	}
+	return found
 }
 
 // appendResource adds res to out unless an earlier resource already claimed
