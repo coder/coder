@@ -16,6 +16,8 @@ type BoardStorage = Readonly<{
 	/** Open chat tabs below the board, at most two panes side by side. */
 	panes: readonly ChatPane[];
 	focusedPane: number;
+	/** Chats hidden but kept; a control in the board header restores them. */
+	chatsCollapsed: boolean;
 }>;
 
 const DEFAULT_STORAGE: BoardStorage = {
@@ -24,6 +26,7 @@ const DEFAULT_STORAGE: BoardStorage = {
 	splitRatio: 0.4,
 	panes: [],
 	focusedPane: 0,
+	chatsCollapsed: false,
 };
 
 const isStringArray = (value: unknown): value is string[] =>
@@ -61,6 +64,7 @@ const readStorage = (): BoardStorage => {
 				typeof obj.focusedPane === "number" && obj.focusedPane < panes.length
 					? obj.focusedPane
 					: 0,
+			chatsCollapsed: obj.chatsCollapsed === true,
 		};
 	} catch {
 		return DEFAULT_STORAGE;

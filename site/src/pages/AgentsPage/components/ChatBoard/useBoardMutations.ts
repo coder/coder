@@ -42,13 +42,14 @@ export const useBoardMutations = () => {
 	const write = (chat: Chat, labels: Record<string, string>) =>
 		labelsMutation.mutateAsync({ chatId: chat.id, labels });
 
-	const moveCard = (card: BoardCard, column: string) =>
+	/** Moves a card to a column at a given placement key (see keyBetween). */
+	const moveCard = (card: BoardCard, column: string, placedAt: number) =>
 		Promise.all(
 			card.members.map((member) =>
 				write(
 					member,
 					member.id === card.id
-						? setPositionLabel(setColumnLabel(member.labels, column))
+						? setPositionLabel(setColumnLabel(member.labels, column), placedAt)
 						: setColumnLabel(member.labels, column),
 				),
 			),
@@ -106,11 +107,12 @@ export const useBoardMutations = () => {
 		return Promise.all(writes);
 	};
 
-	const detachChat = (chat: Chat, column: string) =>
+	const detachChat = (chat: Chat, column: string, placedAt: number) =>
 		write(
 			chat,
 			setPositionLabel(
 				setColumnLabel(setGroupLabel(chat.labels, chat.id, chat.id), column),
+				placedAt,
 			),
 		);
 
