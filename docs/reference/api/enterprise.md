@@ -2049,6 +2049,9 @@ Requires organization-level administrator permissions.
         "string"
       ],
       "cost_micros": 0,
+      "models": [
+        "string"
+      ],
       "name": "string",
       "providers": [
         "string"

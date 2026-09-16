@@ -1562,6 +1562,7 @@ func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) coder
 		UnpricedUsageCount: row.UnpricedUsageCount,
 		Providers:          row.Providers,
 		Clients:            row.Clients,
+		Models:             row.Models,
 	}
 }
 

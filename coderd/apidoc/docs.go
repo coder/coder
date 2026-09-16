@@ -25853,6 +25853,13 @@ const docTemplate = `{
                     "description": "CostMicros is the user's priced spend over the period.",
                     "type": "integer"
                 },
+                "models": {
+                    "description": "Models are the models the user spent through, sorted.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },

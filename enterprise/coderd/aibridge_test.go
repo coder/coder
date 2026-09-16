@@ -5069,7 +5069,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		}{
 			{user: targetUser, group: groupID, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "vscode", Valid: true}, cost: sql.NullInt64{Int64: 1000, Valid: true}},
 			{user: targetUser, group: groupID, provider: "openai", providerName: "openai-prod", model: "gpt-4", cost: sql.NullInt64{Int64: 500, Valid: true}},
-			{user: targetUser, group: groupID, provider: "openai", providerName: "openai-prod", model: "gpt-4"},
+			{user: targetUser, group: groupID, provider: "openai", providerName: "openai-prod", model: "gpt-4o"},
 			{user: otherUser, group: groupID, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "cursor", Valid: true}, cost: sql.NullInt64{Int64: 3000, Valid: true}},
 			{user: otherUser, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", cost: sql.NullInt64{Int64: 99_999, Valid: true}},
 		} {
@@ -5081,14 +5081,14 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			})
 		}
 
-		user := func(u codersdk.User, providers, clients []string, cost, unpriced int64) codersdk.OrganizationAISpendUser {
+		user := func(u codersdk.User, providers, clients, models []string, cost, unpriced int64) codersdk.OrganizationAISpendUser {
 			return codersdk.OrganizationAISpendUser{
 				UserID: u.ID, Username: u.Username, Name: u.Name, AvatarURL: u.AvatarURL,
-				CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients,
+				CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients, Models: models,
 			}
 		}
-		other := user(otherUser, []string{"anthropic"}, []string{"cursor"}, 3000, 0)
-		target := user(targetUser, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, 1500, 1)
+		other := user(otherUser, []string{"anthropic"}, []string{"cursor"}, []string{"claude-4"}, 3000, 0)
+		target := user(targetUser, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude-4", "gpt-4", "gpt-4o"}, 1500, 1)
 		window := codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}
 
 		t.Run("Default", func(t *testing.T) {
@@ -5146,7 +5146,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, 500, 1)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
 					},
 				},
 				{
@@ -5154,7 +5154,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Model: "claude-4"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
-						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic"}, []string{"vscode"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
 					},
 				},
 				{
@@ -5170,7 +5170,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Client: "Unknown"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, 500, 1)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
 					},
 				},
 				{
@@ -5180,7 +5180,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "anthropic-prod", Model: "claude-4", Client: "vscode"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic"}, []string{"vscode"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
 					},
 				},
 				{

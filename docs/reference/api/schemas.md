@@ -11315,6 +11315,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         "string"
       ],
       "cost_micros": 0,
+      "models": [
+        "string"
+      ],
       "name": "string",
       "providers": [
         "string"
@@ -11363,6 +11366,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "string"
   ],
   "cost_micros": 0,
+  "models": [
+    "string"
+  ],
   "name": "string",
   "providers": [
     "string"
@@ -11380,6 +11386,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `avatar_url`           | string          | false    |              |                                                                                                                                                   |
 | `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
 | `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
+| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
 | `name`                 | string          | false    |              |                                                                                                                                                   |
 | `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
 | `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
