@@ -16,6 +16,7 @@ import { type FC, lazy, type ReactNode, Suspense, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { AgentChatPageSkeleton } from "../AgentsSkeletons";
+import { CARD_COLOR_CLASS, type CardColor } from "./boardLabels";
 import type { ChatPane } from "./boardStorage";
 import {
 	dragHandleListeners,
@@ -68,6 +69,7 @@ interface ChatPanesProps {
 	readonly panes: readonly ChatPane[];
 	readonly focusedPane: number;
 	readonly chatsById: ReadonlyMap<string, Chat>;
+	readonly cardColorByChatId: ReadonlyMap<string, CardColor>;
 	readonly onChange: (panes: readonly ChatPane[], focusedPane: number) => void;
 	readonly onCollapse: () => void;
 }
@@ -77,6 +79,7 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 	panes,
 	focusedPane,
 	chatsById,
+	cardColorByChatId,
 	onChange,
 	onCollapse,
 }) => {
@@ -123,6 +126,7 @@ export const ChatPanes: FC<ChatPanesProps> = ({
 						index={index}
 						focused={index === focusedPane}
 						chatsById={chatsById}
+						cardColorByChatId={cardColorByChatId}
 						onFocus={() => onChange(panes, index)}
 						onActivate={(chatId) =>
 							onChange(
@@ -169,6 +173,7 @@ interface PaneViewProps {
 	readonly index: number;
 	readonly focused: boolean;
 	readonly chatsById: ReadonlyMap<string, Chat>;
+	readonly cardColorByChatId: ReadonlyMap<string, CardColor>;
 	readonly onFocus: () => void;
 	readonly onActivate: (chatId: string) => void;
 	readonly onClose: (chatId: string) => void;
@@ -180,6 +185,7 @@ const PaneView: FC<PaneViewProps> = ({
 	index,
 	focused,
 	chatsById,
+	cardColorByChatId,
 	onFocus,
 	onActivate,
 	onClose,
@@ -213,6 +219,7 @@ const PaneView: FC<PaneViewProps> = ({
 						paneIndex={index}
 						title={chatsById.get(chatId)?.title ?? "Chat"}
 						unread={chatsById.get(chatId)?.has_unread ?? false}
+						color={cardColorByChatId.get(chatId)}
 						active={chatId === pane.active}
 						paneFocused={focused}
 						onActivate={() => onActivate(chatId)}
@@ -235,6 +242,7 @@ interface TabProps {
 	readonly paneIndex: number;
 	readonly title: string;
 	readonly unread: boolean;
+	readonly color: CardColor | undefined;
 	readonly active: boolean;
 	readonly paneFocused: boolean;
 	readonly onActivate: () => void;
@@ -246,6 +254,7 @@ const Tab: FC<TabProps> = ({
 	paneIndex,
 	title,
 	unread,
+	color,
 	active,
 	paneFocused,
 	onActivate,
@@ -256,6 +265,7 @@ const Tab: FC<TabProps> = ({
 		id: `tab:${paneIndex}:${chatId}`,
 		data: dragData,
 	});
+	const colors = color ? CARD_COLOR_CLASS[color] : undefined;
 	return (
 		<div
 			ref={setNodeRef}
@@ -265,8 +275,7 @@ const Tab: FC<TabProps> = ({
 			aria-selected={active}
 			tabIndex={active ? 0 : -1}
 			className={cn(
-				"group/tab relative flex max-w-[260px] min-w-0 shrink-0 cursor-default touch-none items-center gap-2 border-r border-border px-3 text-[12.5px] text-content-primary hover:bg-surface-secondary",
-				!active && "text-content-secondary",
+				"group/tab relative flex max-w-[260px] min-w-0 shrink-0 cursor-default touch-none items-center gap-2 border-r border-border px-3 text-[12.5px] font-medium text-content-primary hover:bg-surface-secondary",
 				isDragging && "opacity-40",
 			)}
 			onClick={onActivate}
@@ -278,14 +287,20 @@ const Tab: FC<TabProps> = ({
 				if (e.button === 1) onClose();
 			}}
 		>
+			{/* The card's color, so the tab and its card read as one thing. */}
 			<span
-				role="img"
-				aria-label={unread ? "Unread" : "Read"}
 				className={cn(
-					"size-1.5 shrink-0 rounded-full",
-					unread ? "bg-content-link" : "bg-content-secondary/30",
+					"size-2 shrink-0 rounded-[2px]",
+					colors ? colors.swatch : "bg-content-secondary/30",
 				)}
 			/>
+			{unread && (
+				<span
+					role="img"
+					aria-label="Unread"
+					className="size-1.5 shrink-0 rounded-full bg-content-link"
+				/>
+			)}
 			<span className="min-w-0 truncate">{title}</span>
 			<Button
 				variant="subtle"
@@ -304,7 +319,11 @@ const Tab: FC<TabProps> = ({
 				<span
 					className={cn(
 						"absolute inset-x-0 -bottom-px h-0.5",
-						paneFocused ? "bg-content-link" : "bg-content-secondary/40",
+						!paneFocused
+							? "bg-content-secondary/40"
+							: colors
+								? colors.swatch
+								: "bg-content-primary",
 					)}
 				/>
 			)}

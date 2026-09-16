@@ -38,6 +38,7 @@ import {
 	type BoardCard as BoardCardModel,
 	buildCards,
 	buildColumns,
+	type CardColor,
 	INBOX_COLUMN,
 	keyBetween,
 	placementKey,
@@ -210,6 +211,15 @@ const ChatBoardPage: FC = () => {
 	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
 	const openChatIds = new Set(panes.flatMap((pane) => pane.tabs));
 	const allCards = buildCards(chats);
+	// A tab wears its card's color, so a tab and its card read as one thing.
+	const cardColorByChatId = new Map<string, CardColor>(
+		allCards.flatMap((card) => {
+			const color = card.color;
+			return color
+				? card.members.map((member) => [member.id, color] as const)
+				: [];
+		}),
+	);
 	const cards = matchingIds
 		? allCards.filter((card) =>
 				card.members.some((member) => matchingIds.has(member.id)),
@@ -368,7 +378,7 @@ const ChatBoardPage: FC = () => {
 					<h1 className="m-0 text-sm font-medium tracking-[-0.01em] text-content-primary">
 						Board
 					</h1>
-					<span className="pl-1 font-mono text-[11px] text-content-secondary/70">
+					<span className="pl-1 text-[11px] text-content-secondary/70">
 						{chats.length} chats · {allCards.length} cards
 					</span>
 					<div className="relative ml-auto flex h-[30px] w-[260px] items-center gap-2 rounded-[7px] border border-border bg-surface-primary px-2.5 focus-within:border-content-link">
@@ -381,7 +391,7 @@ const ChatBoardPage: FC = () => {
 							className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] text-content-primary outline-none placeholder:text-content-secondary/60"
 						/>
 						{matchingIds && (
-							<span className="font-mono text-[11px] text-content-secondary">
+							<span className="text-[11px] text-content-secondary">
 								{cards.length}
 							</span>
 						)}
@@ -468,6 +478,7 @@ const ChatBoardPage: FC = () => {
 						panes={panes}
 						focusedPane={focusedPane}
 						chatsById={chatsById}
+						cardColorByChatId={cardColorByChatId}
 						onChange={setPanes}
 						onCollapse={() => updateStorage({ chatsCollapsed: true })}
 					/>

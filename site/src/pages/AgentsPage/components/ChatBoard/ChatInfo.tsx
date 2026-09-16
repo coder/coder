@@ -4,7 +4,7 @@ import { type FC, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { chatCost, chat as chatQuery } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
-import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
+import { Markdown } from "#/components/Markdown/Markdown";
 import {
 	Popover,
 	PopoverAnchor,
@@ -14,6 +14,7 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
+import { COMPACT_MARKDOWN_CLASS } from "./NotesSection";
 
 interface ChatInfoPopoverProps {
 	readonly chat: Chat;
@@ -53,9 +54,10 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 					type="button"
 					aria-label={`Details for ${chat.title}`}
 					aria-expanded={open}
+					// Above the row's open-chat link, so this click stays its own.
 					className={cn(
-						"grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:bg-content-link/10 hover:text-content-link",
-						state === "pinned" && "bg-content-link/10 text-content-link",
+						"relative z-[1] grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:text-content-primary",
+						state === "pinned" && "text-content-primary",
 					)}
 					onPointerEnter={hoverIn}
 					onPointerLeave={hoverOut}
@@ -73,7 +75,7 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 				align="start"
 				sideOffset={8}
 				collisionPadding={12}
-				className="w-[380px] p-0"
+				className="w-[300px] p-0"
 				onPointerEnter={hoverIn}
 				onPointerLeave={hoverOut}
 				onPointerDown={(e) => e.stopPropagation()}
@@ -103,12 +105,19 @@ const ChatInfoBody: FC<{ readonly chat: Chat }> = ({ chat }) => {
 	const summary = (detail?.summary ?? chat.summary)?.trim();
 
 	return (
-		<div className="max-h-[60vh] overflow-y-auto px-3.5 py-3 text-[13px] leading-[1.45] text-content-primary">
-			<div className="mb-2 font-medium [text-wrap:pretty]">{chat.title}</div>
+		<div className="max-h-[60vh] overflow-y-auto px-3.5 py-3 text-[12.5px] leading-[1.45] text-content-primary">
+			<div className="mb-2 text-[13px] font-medium [text-wrap:pretty]">
+				{chat.title}
+			</div>
 			{summary ? (
-				<InlineMarkdown className="wrap-anywhere [text-wrap:pretty]">
+				<Markdown
+					className={cn(
+						"text-[12.5px] leading-[1.45] text-content-primary/85",
+						COMPACT_MARKDOWN_CLASS,
+					)}
+				>
 					{summary}
-				</InlineMarkdown>
+				</Markdown>
 			) : (
 				<span className="text-content-secondary">
 					{chat.parent_chat_id

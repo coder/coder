@@ -1,28 +1,13 @@
-import { cn } from "cn";
+import { CopyIcon } from "lucide-react";
 import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import {
-	type CardColor,
-	getColorLabel,
 	getColumnLabel,
 	getTitleLabel,
 	INBOX_COLUMN,
 } from "../../ChatBoard/boardLabels";
 import { ChatTreeNode } from "./ChatTreeNode";
-
-// Group box tinted with the card's color; neutral when the card has none.
-const GROUP_BOX_CLASS: Record<CardColor | "none", string> = {
-	none: "border-border bg-surface-secondary/60 text-content-secondary",
-	green: "border-highlight-green/50 bg-surface-green/60 text-highlight-green",
-	orange:
-		"border-highlight-orange/50 bg-surface-orange/60 text-highlight-orange",
-	sky: "border-highlight-sky/50 bg-surface-sky/60 text-highlight-sky",
-	red: "border-highlight-red/50 bg-surface-red/60 text-highlight-red",
-	purple:
-		"border-highlight-purple/50 bg-surface-purple/60 text-highlight-purple",
-	magenta:
-		"border-highlight-magenta/50 bg-surface-magenta/60 text-highlight-magenta",
-};
+import { ColumnTag } from "./ColumnTag";
 
 interface BoardGroupEntryProps {
 	readonly chat: Chat;
@@ -42,24 +27,20 @@ export const BoardGroupEntry: FC<BoardGroupEntryProps> = ({
 	}
 	const column = getColumnLabel(chat);
 	return (
-		<div
-			className={cn(
-				"my-0.5 flex flex-col gap-px rounded-lg border px-[3px] pt-0.5 pb-[3px]",
-				GROUP_BOX_CLASS[getColorLabel(chat) ?? "none"],
-			)}
-		>
-			<div className="flex items-center gap-1.5 px-2 pt-[5px] pb-0.5 text-[11px]">
-				<span className="size-1.5 shrink-0 rounded-[2px] bg-current" />
-				<span className="min-w-0 truncate font-medium">
+		// An inset ring instead of border plus padding keeps rows inside on
+		// the same x as rows outside.
+		<div className="my-0.5 flex flex-col gap-px rounded-lg bg-surface-secondary/60 ring-1 ring-border ring-inset">
+			{/* The column belongs to the card, so it shows once here and never on the rows. */}
+			<div className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-x-2 px-2 pt-1.5 pb-[3px] text-xs">
+				<CopyIcon
+					className="size-[13px] text-content-secondary"
+					aria-label={`Group of ${members.length + 1} chats`}
+				/>
+				<span className="min-w-0 truncate font-medium text-content-primary">
 					{getTitleLabel(chat) ?? chat.title}
 				</span>
-				{column !== INBOX_COLUMN && (
-					<span className="shrink-0 font-mono text-content-secondary/70">
-						· {column}
-					</span>
-				)}
+				{column !== INBOX_COLUMN && <ColumnTag name={column} />}
 			</div>
-			{/* The header already names the column, so the rows do not repeat it. */}
 			<ChatTreeNode chat={chat} showBoardColumn={false} />
 			{members.map((member) => (
 				<ChatTreeNode key={member.id} chat={member} showBoardColumn={false} />
