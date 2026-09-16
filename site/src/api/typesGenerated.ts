@@ -2605,14 +2605,26 @@ export interface ChatInputPart {
 	 * The code content from the diff that was commented on.
 	 */
 	readonly content?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeMCPAppContext. Text carries the app-reported
+	 * state.
+	 */
+	readonly mcp_server_config_id?: string;
+	readonly mcp_app_resource_uri?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "file" | "file-reference" | "text";
+export type ChatInputPartType =
+	| "file"
+	| "file-reference"
+	| "mcp-app-context"
+	| "text";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
+	"mcp-app-context",
 	"text",
 ];
 
@@ -2672,6 +2684,18 @@ export interface ChatMCPAppToolCallResponse {
 }
 
 // From codersdk/chats.go
+export interface ChatMcpAppContextPart {
+	readonly type: "mcp-app-context";
+	readonly text: string;
+	readonly mcp_server_config_id?: string;
+	/**
+	 * MCPAppResourceURI is the ui:// resource declared by an MCP tool
+	 * whose results render as an MCP App. Empty for tools without a UI.
+	 */
+	readonly mcp_app_resource_uri?: string;
+}
+
+// From codersdk/chats.go
 /**
  * ChatMessage represents a single message in a chat.
  */
@@ -2722,7 +2746,8 @@ export type ChatMessagePart =
 	| ChatFileReferencePart
 	| ChatContextFilePart
 	| ChatSkillPart
-	| ChatHookNoticePart;
+	| ChatHookNoticePart
+	| ChatMcpAppContextPart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -2731,6 +2756,7 @@ export type ChatMessagePartType =
 	| "file-reference"
 	| "hook-context"
 	| "hook-notice"
+	| "mcp-app-context"
 	| "reasoning"
 	| "skill"
 	| "source"
@@ -2744,6 +2770,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file-reference",
 	"hook-context",
 	"hook-notice",
+	"mcp-app-context",
 	"reasoning",
 	"skill",
 	"source",
@@ -6178,6 +6205,13 @@ export const MaxChatFileIDs = 50;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/chats.go
+/**
+ * MaxChatMCPAppContextBytes bounds the text of an mcp-app-context input
+ * part.
+ */
+export const MaxChatMCPAppContextBytes = 16384;
 
 // From codersdk/usersecretsimport.go
 /**

@@ -405,6 +405,8 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "mcp_app_resource_uri": "string",
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "start_line": 0,
       "text": "string",
       "type": "text"
@@ -2569,6 +2571,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "mcp_app_resource_uri": "string",
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "start_line": 0,
       "text": "string",
       "type": "text"
@@ -2857,6 +2861,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "mcp_app_resource_uri": "string",
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "start_line": 0,
       "text": "string",
       "type": "text"
@@ -3794,12 +3800,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                |
-|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                   |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                        |
+| Property | Value(s)                                                                                                                                                                                                                                                                                   |
+|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                   |
+| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `mcp-app-context`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
+| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                      |
+| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

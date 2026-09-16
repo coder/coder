@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -1253,7 +1254,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, api.Experiments, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -2602,7 +2603,13 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	allowedAppServerIDs := chat.MCPServerIDs
+	if req.MCPServerIDs != nil {
+		allowedAppServerIDs = append(slices.Clone(allowedAppServerIDs), *req.MCPServerIDs...)
+	}
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content", chatInputOptions{
+		mcpAppContextServerIDs: mcpAppContextServerIDs(api.Experiments, allowedAppServerIDs),
+	})
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -2808,7 +2815,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content", chatInputOptions{
+		mcpAppContextServerIDs: mcpAppContextServerIDs(api.Experiments, chat.MCPServerIDs),
+	})
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -6497,12 +6506,14 @@ func (api *API) serveChatFile(ctx context.Context, rw http.ResponseWriter, chatF
 	}
 }
 
-func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
+func createChatInputFromRequest(ctx context.Context, db database.Store, experiments codersdk.Experiments, req codersdk.CreateChatRequest) (
 	[]codersdk.ChatMessagePart,
 	string,
 	*codersdk.Response,
 ) {
-	content, pasteData, inputError := createChatInputFromParts(ctx, db, req.Content, "content")
+	content, pasteData, inputError := createChatInputFromParts(ctx, db, req.Content, "content", chatInputOptions{
+		mcpAppContextServerIDs: mcpAppContextServerIDs(experiments, req.MCPServerIDs),
+	})
 	if inputError != nil {
 		return nil, "", inputError
 	}
@@ -6524,11 +6535,19 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 // message content. The returned map holds pasted-text blob references
 // by file ID; the create path derives a title from it, message send
 // and edit discard it without copying blob data.
+// chatInputOptions adjusts which input part types a request may carry.
+type chatInputOptions struct {
+	// mcpAppContextServerIDs lists the MCP servers whose apps may attach
+	// mcp-app-context parts. Nil rejects every such part.
+	mcpAppContextServerIDs []uuid.UUID
+}
+
 func createChatInputFromParts(
 	ctx context.Context,
 	db database.Store,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
+	opts chatInputOptions,
 ) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, *codersdk.Response) {
 	if len(parts) == 0 {
 		return nil, nil, &codersdk.Response{
@@ -6599,6 +6618,33 @@ func createChatInputFromParts(
 				}
 			}
 			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
+		case string(codersdk.ChatInputPartTypeMCPAppContext):
+			if !slices.Contains(opts.mcpAppContextServerIDs, part.MCPServerConfigID) || part.MCPServerConfigID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].mcp_server_config_id must reference an MCP server attached to the chat.", fieldName, i),
+				}
+			}
+			if !strings.HasPrefix(part.MCPAppResourceURI, mcpclient.UIResourceScheme) {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].mcp_app_resource_uri must be a ui:// resource.", fieldName, i),
+				}
+			}
+			text := strings.TrimSpace(part.Text)
+			if text == "" {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
+				}
+			}
+			if len(text) > codersdk.MaxChatMCPAppContextBytes {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].text exceeds %d bytes.", fieldName, i, codersdk.MaxChatMCPAppContextBytes),
+				}
+			}
+			content = append(content, codersdk.ChatMessageMCPAppContext(part.MCPServerConfigID, part.MCPAppResourceURI, text))
 		default:
 			return nil, nil, &codersdk.Response{
 				Message: "Invalid input part.",
@@ -6612,13 +6658,25 @@ func createChatInputFromParts(
 		}
 	}
 
-	if len(content) == 0 {
+	if !slices.ContainsFunc(content, func(part codersdk.ChatMessagePart) bool {
+		return part.Type != codersdk.ChatMessagePartTypeMCPAppContext
+	}) {
 		return nil, nil, &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
 	return content, pasteData, nil
+}
+
+// mcpAppContextServerIDs returns the MCP servers whose apps may attach
+// context parts: the given servers when the MCP apps experiment is on,
+// nil otherwise.
+func mcpAppContextServerIDs(experiments codersdk.Experiments, serverIDs []uuid.UUID) []uuid.UUID {
+	if !experiments.Enabled(codersdk.ExperimentChatMCPApps) {
+		return nil
+	}
+	return serverIDs
 }
 
 func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {

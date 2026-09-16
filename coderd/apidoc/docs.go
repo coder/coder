@@ -20130,6 +20130,14 @@ const docTemplate = `{
                     "description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
                     "type": "string"
                 },
+                "mcp_app_resource_uri": {
+                    "type": "string"
+                },
+                "mcp_server_config_id": {
+                    "description": "The following fields are only set when Type is\nChatInputPartTypeMCPAppContext. Text carries the app-reported\nstate.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "start_line": {
                     "type": "integer"
                 },
@@ -20146,12 +20154,14 @@ const docTemplate = `{
             "enum": [
                 "text",
                 "file",
-                "file-reference"
+                "file-reference",
+                "mcp-app-context"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
-                "ChatInputPartTypeFileReference"
+                "ChatInputPartTypeFileReference",
+                "ChatInputPartTypeMCPAppContext"
             ]
         },
         "codersdk.ChatMCPAppResourceReadRequest": {
@@ -20425,7 +20435,8 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "hook-context",
-                "hook-notice"
+                "hook-notice",
+                "mcp-app-context"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -20438,7 +20449,8 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeHookContext",
-                "ChatMessagePartTypeHookNotice"
+                "ChatMessagePartTypeHookNotice",
+                "ChatMessagePartTypeMCPAppContext"
             ]
         },
         "codersdk.ChatMessageRole": {

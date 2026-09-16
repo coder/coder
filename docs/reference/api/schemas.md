@@ -2901,6 +2901,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
+  "mcp_app_resource_uri": "string",
+  "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
   "start_line": 0,
   "text": "string",
   "type": "text"
@@ -2909,15 +2911,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                     | Required | Restrictions | Description                                                                    |
-|--------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
-| `content`    | string                                                   | false    |              | The code content from the diff that was commented on.                          |
-| `end_line`   | integer                                                  | false    |              |                                                                                |
-| `file_id`    | string                                                   | false    |              |                                                                                |
-| `file_name`  | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference. |
-| `start_line` | integer                                                  | false    |              |                                                                                |
-| `text`       | string                                                   | false    |              |                                                                                |
-| `type`       | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                |
+| Name                   | Type                                                     | Required | Restrictions | Description                                                                                                         |
+|------------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `content`              | string                                                   | false    |              | The code content from the diff that was commented on.                                                               |
+| `end_line`             | integer                                                  | false    |              |                                                                                                                     |
+| `file_id`              | string                                                   | false    |              |                                                                                                                     |
+| `file_name`            | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                      |
+| `mcp_app_resource_uri` | string                                                   | false    |              |                                                                                                                     |
+| `mcp_server_config_id` | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeMCPAppContext. Text carries the app-reported state. |
+| `start_line`           | integer                                                  | false    |              |                                                                                                                     |
+| `text`                 | string                                                   | false    |              |                                                                                                                     |
+| `type`                 | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                     |
 
 ## codersdk.ChatInputPartType
 
@@ -2929,9 +2933,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                         |
-|----------------------------------|
-| `file`, `file-reference`, `text` |
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `file`, `file-reference`, `mcp-app-context`, `text` |
 
 ## codersdk.ChatMCPAppResourceReadRequest
 
@@ -3214,9 +3218,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                    |
-|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                                       |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `mcp-app-context`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
 
 ## codersdk.ChatMessageRole
 
@@ -5769,6 +5773,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "mcp_app_resource_uri": "string",
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "start_line": 0,
       "text": "string",
       "type": "text"
@@ -6234,6 +6240,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "mcp_app_resource_uri": "string",
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "start_line": 0,
       "text": "string",
       "type": "text"
@@ -8721,6 +8729,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "mcp_app_resource_uri": "string",
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "start_line": 0,
       "text": "string",
       "type": "text"

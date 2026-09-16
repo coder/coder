@@ -201,3 +201,119 @@ func TestChatMCPAppProxy(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
+
+func TestChatMCPAppContextInputPart(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+
+	newConfig := func(slug string) codersdk.MCPServerConfig {
+		cfg, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   slug,
+			Slug:          slug,
+			Transport:     "streamable_http",
+			URL:           "https://mcp.example.com/" + slug,
+			AuthType:      "none",
+			Availability:  "default_off",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		return cfg
+	}
+	attached := newConfig("board")
+	detached := newConfig("other")
+
+	contextPart := func(serverID uuid.UUID, uri, text string) codersdk.ChatInputPart {
+		return codersdk.ChatInputPart{
+			Type:              codersdk.ChatInputPartTypeMCPAppContext,
+			MCPServerConfigID: serverID,
+			MCPAppResourceURI: uri,
+			Text:              text,
+		}
+	}
+	textPart := codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeText, Text: "what is on the board?"}
+
+	t.Run("AcceptedOnCreateAndSend", func(t *testing.T) {
+		t.Parallel()
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{textPart, contextPart(attached.ID, "ui://board/main", "2 tasks")},
+			MCPServerIDs:   []uuid.UUID{attached.ID},
+		})
+		require.NoError(t, err)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, messages.Messages)
+		var found *codersdk.ChatMessagePart
+		for _, msg := range messages.Messages {
+			for _, part := range msg.Content {
+				if part.Type == codersdk.ChatMessagePartTypeMCPAppContext {
+					p := part
+					found = &p
+				}
+			}
+		}
+		require.NotNil(t, found, "mcp-app-context part is kept in client-facing messages")
+		require.Equal(t, "2 tasks", found.Text)
+		require.Equal(t, uuid.NullUUID{UUID: attached.ID, Valid: true}, found.MCPServerConfigID)
+		require.Equal(t, "ui://board/main", found.MCPAppResourceURI)
+
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{textPart, contextPart(attached.ID, "ui://board/main", "3 tasks")},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("RejectsDetachedServer", func(t *testing.T) {
+		t.Parallel()
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{textPart, contextPart(detached.ID, "ui://board/main", "2 tasks")},
+			MCPServerIDs:   []uuid.UUID{attached.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Detail, "mcp_server_config_id")
+	})
+
+	t.Run("RejectsNonUIResource", func(t *testing.T) {
+		t.Parallel()
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{textPart, contextPart(attached.ID, "https://example.com", "2 tasks")},
+			MCPServerIDs:   []uuid.UUID{attached.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Detail, "ui://")
+	})
+
+	t.Run("RejectsOversized", func(t *testing.T) {
+		t.Parallel()
+		big := make([]byte, codersdk.MaxChatMCPAppContextBytes+1)
+		for i := range big {
+			big[i] = 'x'
+		}
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{textPart, contextPart(attached.ID, "ui://board/main", string(big))},
+			MCPServerIDs:   []uuid.UUID{attached.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Detail, "exceeds")
+	})
+
+	t.Run("RequiresUserContent", func(t *testing.T) {
+		t.Parallel()
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{contextPart(attached.ID, "ui://board/main", "2 tasks")},
+			MCPServerIDs:   []uuid.UUID{attached.ID},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+}

@@ -301,6 +301,12 @@ const (
 	// either attached to a prompt or in its own row. It is excluded from model
 	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
+	// ChatMessagePartTypeMCPAppContext is app-reported state attached to
+	// a user message by an MCP App rendered in the chat. It is sent to
+	// the model as a labeled, untrusted context block and kept in
+	// client-facing conversions so the UI can show that context was
+	// attached.
+	ChatMessagePartTypeMCPAppContext ChatMessagePartType = "mcp-app-context"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -317,6 +323,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeSkill,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
+		ChatMessagePartTypeMCPAppContext,
 	}
 }
 
@@ -345,10 +352,10 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 //     and wastes space in persisted chat_messages rows.
 type ChatMessagePart struct {
 	Type              ChatMessagePartType `json:"type"`
-	Text              string              `json:"text" variants:"text,reasoning,hook-notice"`
+	Text              string              `json:"text" variants:"text,reasoning,hook-notice,mcp-app-context"`
 	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
 	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
-	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
+	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?,mcp-app-context?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
 	// ParsedCommands holds parsed programs from an execute tool call's
@@ -386,7 +393,7 @@ type ChatMessagePart struct {
 	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
 	// MCPAppResourceURI is the ui:// resource declared by an MCP tool
 	// whose results render as an MCP App. Empty for tools without a UI.
-	MCPAppResourceURI string `json:"mcp_app_resource_uri,omitempty" variants:"tool-call?,tool-result?"`
+	MCPAppResourceURI string `json:"mcp_app_resource_uri,omitempty" variants:"tool-call?,tool-result?,mcp-app-context?"`
 	// MCPResult is the raw MCP CallToolResult (content, structuredContent,
 	// isError, _meta) for tools that declare a UI resource. It is what the
 	// rendered app receives; Result remains the model-facing form.
@@ -476,6 +483,17 @@ func ChatMessageText(text string) ChatMessagePart {
 	return ChatMessagePart{Type: ChatMessagePartTypeText, Text: text}
 }
 
+// ChatMessageMCPAppContext builds an mcp-app-context part carrying
+// state reported by an MCP App.
+func ChatMessageMCPAppContext(mcpServerConfigID uuid.UUID, resourceURI, text string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:              ChatMessagePartTypeMCPAppContext,
+		Text:              text,
+		MCPServerConfigID: uuid.NullUUID{UUID: mcpServerConfigID, Valid: true},
+		MCPAppResourceURI: resourceURI,
+	}
+}
+
 // ChatMessageReasoning builds a reasoning chat message part.
 func ChatMessageReasoning(text string) ChatMessagePart {
 	return ChatMessagePart{Type: ChatMessagePartTypeReasoning, Text: text}
@@ -544,6 +562,10 @@ const (
 	ChatInputPartTypeText          ChatInputPartType = "text"
 	ChatInputPartTypeFile          ChatInputPartType = "file"
 	ChatInputPartTypeFileReference ChatInputPartType = "file-reference"
+	// ChatInputPartTypeMCPAppContext carries the latest
+	// ui/update-model-context payload from an MCP App rendered in the
+	// chat. Accepted only for MCP servers attached to the chat.
+	ChatInputPartTypeMCPAppContext ChatInputPartType = "mcp-app-context"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -558,7 +580,16 @@ type ChatInputPart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeMCPAppContext. Text carries the app-reported
+	// state.
+	MCPServerConfigID uuid.UUID `json:"mcp_server_config_id,omitempty" format:"uuid"`
+	MCPAppResourceURI string    `json:"mcp_app_resource_uri,omitempty"`
 }
+
+// MaxChatMCPAppContextBytes bounds the text of an mcp-app-context input
+// part.
+const MaxChatMCPAppContextBytes = 16 << 10
 
 // ChatMCPAppToolCallRequest is the body for
 // POST /chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call. It is
