@@ -11933,6 +11933,15 @@ added AS (
         WHERE ccr.chat_id = locked.id
             AND ccr.source = p.source
     )
+    -- A skill whose name the chat already holds under another source is
+    -- the agent's deduplication winner replacing the pinned one, so it is
+    -- a change left for refresh rather than an addition.
+    AND NOT (p.body_kind = 'skill' AND EXISTS (
+        SELECT 1 FROM chat_context_resources ccr
+        WHERE ccr.chat_id = locked.id
+            AND ccr.body_kind = 'skill'
+            AND ccr.body->>'name' = p.body->>'name'
+    ))
     ON CONFLICT (chat_id, source) DO NOTHING
 ),
 divergent AS (
@@ -11973,7 +11982,8 @@ type SyncAgentChatsContextAddedResourcesParams struct {
 // source the chat has never pinned) to hydrated chats whose pinned hash
 // drifted from the agent's latest snapshot, so an open chat sees a
 // repository cloned during the conversation on its next step. Rows the chat
-// already holds are never rewritten here. A chat whose additions make its
+// already holds are never rewritten here, and a skill that replaces a
+// pinned skill of the same name is not added. A chat whose additions make its
 // pinned set equal to the snapshot moves to the new hash and stays clean;
 // a chat that also has changed or removed rows keeps its old hash so
 // MarkChatsContextDirtyByAgent still flags it, which is why only the

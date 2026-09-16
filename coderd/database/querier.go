@@ -1426,7 +1426,8 @@ type sqlcQuerier interface {
 	// source the chat has never pinned) to hydrated chats whose pinned hash
 	// drifted from the agent's latest snapshot, so an open chat sees a
 	// repository cloned during the conversation on its next step. Rows the chat
-	// already holds are never rewritten here. A chat whose additions make its
+	// already holds are never rewritten here, and a skill that replaces a
+	// pinned skill of the same name is not added. A chat whose additions make its
 	// pinned set equal to the snapshot moves to the new hash and stays clean;
 	// a chat that also has changed or removed rows keeps its old hash so
 	// MarkChatsContextDirtyByAgent still flags it, which is why only the
