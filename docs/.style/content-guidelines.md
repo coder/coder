@@ -138,7 +138,7 @@ Don't conflate them:
 - **Experiments** are the feature flagging system: the `--experiments` flag on `coder server` and the `CODER_EXPERIMENTS` environment variable.
   An experiment is either *safe* (ready for users to try) or *unsafe* (active development, not designed for users at all).
 - **Feature stages** describe how production-ready a feature is: Early Access, Beta, or General Availability.
-  Refer to [Feature stages](../install/releases/feature-stages.md).
+  Refer to [Feature stages](../reference/feature-stages.md).
 
 Practical impact for docs:
 

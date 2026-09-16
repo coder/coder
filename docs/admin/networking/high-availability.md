@@ -35,7 +35,7 @@ connect to the same Postgres endpoint.
 > [!NOTE]
 > When upgrading HA deployments, database migrations may require special
 > handling to avoid lock contention. See
-> [Upgrading Best Practices](../../install/upgrade-best-practices.md) for
+> [Upgrading Best Practices](../../install/operate/upgrade/best-practices.md) for
 > recommended procedures.
 
 HA brings one configuration variable to set in each `coderd` node:
@@ -59,7 +59,7 @@ Here's an example 3-node network configuration setup:
 ## Kubernetes
 
 If you installed Coder via
-[our Helm Chart](../../install/kubernetes.md#4-install-coder-with-helm), just
+[our Helm Chart](../../install/server/kubernetes.md#4-install-coder-with-helm), just
 increase `coder.replicaCount` in `values.yaml`.
 
 If you installed Coder into Kubernetes by some other means, insert the relay URL
@@ -80,4 +80,4 @@ Then, increase the number of pods.
 ## Up next
 
 - [Read more on Coder's networking stack](./index.md)
-- [Install on Kubernetes](../../install/kubernetes.md)
+- [Install on Kubernetes](../../install/server/kubernetes.md)

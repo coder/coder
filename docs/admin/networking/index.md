@@ -118,12 +118,12 @@ If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,
 [Coder uses Google's public STUN server](../../reference/cli/server.md#--derp-server-stun-addresses),
 but this can be disabled or changed for
-[Air-gapped deployments](../../install/airgap.md).
+[Air-gapped deployments](../../install/prepare/airgap.md).
 
 ### Relayed connections
 
 By default, your control plane also runs a built-in DERP relay which can be used
-for both public and [Air-gapped deployments](../../install/airgap.md).
+for both public and [Air-gapped deployments](../../install/prepare/airgap.md).
 
 However, Tailscale maintains a global fleet of [DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers) intended for their product, and has allowed Coder to access and use them.
 You can launch `coder server` with Tailscale's DERPs like so:
@@ -257,7 +257,7 @@ For help troubleshooting connection issues, including latency problems, refer to
 
 ## External Network Access
 
-By default, Coder will access some external network endpoints in order to download dependencies and send usage data. However, all of these features can be disabled. Learn how to configure Coder for [air-gapped environments](../../install/airgap.md).
+By default, Coder will access some external network endpoints in order to download dependencies and send usage data. However, all of these features can be disabled. Learn how to configure Coder for [air-gapped environments](../../install/prepare/airgap.md).
 
 ## Up next
 
