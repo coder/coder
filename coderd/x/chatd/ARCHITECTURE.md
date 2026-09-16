@@ -567,6 +567,8 @@ This endpoint uses `CompleteRequiresAction(results)`:
 
 No other input states are supported.
 
+<!-- TODO(mcp-apps): document `POST /api/experimental/chats/{chat}/mcp-servers/{mcpserverconfig}/tools/call` and `.../resources/read` (experiment `chat-mcp-apps`). They proxy app-initiated MCP requests through a short-lived session on behalf of the chat owner and do not touch chat state or the transcript. -->
+
 ### `POST /api/experimental/chats/{chat}/compact`
 
 This endpoint uses `RequestCompaction`:
@@ -884,6 +886,7 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
+    <!-- TODO(mcp-apps): describe the `chat-mcp-apps` experiment: the client advertises the `io.modelcontextprotocol/ui` extension, app-only tools (`_meta.ui.visibility` without "model") are hidden from the model, and tools that declare `_meta.ui.resourceUri` carry the raw CallToolResult in the tool response metadata envelope alongside attachments. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
@@ -1051,6 +1054,7 @@ The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint.
 The following chat stream events, delivered to the client over WebSocket, are supported:
 
 - `message_part`: a streaming message part emitted by the chat worker. Each carries the `history_version` and `generation_attempt` of the episode it belongs to, so a client knows which episode a message part comes from.
+    <!-- TODO(mcp-apps): note that tool-call and tool-result parts are stamped with `mcp_server_config_id` and `mcp_app_resource_uri` at publish time as well as at persist time, and that tool-result parts for UI tools carry `mcp_result` (capped at 64 KiB, `mcp_result_truncated` otherwise). Also document the `mcp-app-context` user message part produced from the `mcp-app-context` input part. -->
 - `message`: a committed chat message present in the database.
 - `status`: the chat's status.
 - `error`: the chat's persisted error payload.
