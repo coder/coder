@@ -36,7 +36,7 @@ import {
 import { type ChatWindow, useBoardStorage } from "./boardStorage";
 import { FloatingChat, windowBeside, windowCentered } from "./ChatWindows";
 import { useBlockSelectionWhileDragging } from "./dragHandle";
-import { useBoardMutations } from "./useBoardMutations";
+import { type NoteSlot, useBoardMutations } from "./useBoardMutations";
 import { findAssistant, useCardAssistant } from "./useCardAssistant";
 
 // Hover must be deliberate before a full chat mounts; leaving gives the
@@ -58,7 +58,9 @@ const EDGE_ZONE = 0.25;
 export type DropTarget =
 	| { kind: "merge"; card: BoardCardModel }
 	| { kind: "insert"; column: string; beforeCardId: string | null }
-	| { kind: "column"; name: string; side: "before" | "after" };
+	| { kind: "column"; name: string; side: "before" | "after" }
+	| { kind: "note"; card: BoardCardModel; slot: NoteSlot }
+	| { kind: "noteCard"; card: BoardCardModel };
 
 const dropDataOf = (hit: Collision): DropData | undefined =>
 	hit.data?.droppableContainer?.data.current as DropData | undefined;
@@ -72,6 +74,7 @@ const boardCollision: CollisionDetection = (args) => {
 	if (!pointer) return [];
 	const hits = pointerWithin(args);
 	const drag = args.active.data.current as DragData | undefined;
+	if (drag?.type === "note") return noteCollision(args, hits, drag);
 	const columnHit = hits.find((hit) => dropDataOf(hit)?.type === "column");
 	if (!columnHit) return [];
 	const columnData = dropDataOf(columnHit);
@@ -125,6 +128,47 @@ const boardCollision: CollisionDetection = (args) => {
 	}
 	const hit = cardHit ?? columnHit;
 	return [{ id: hit.id, data: { ...hit.data, target } }];
+};
+
+// A note lands before or after the note under the pointer, or at the end
+// of another card's notes when over the card itself. Its own card, away
+// from its notes, is not a target.
+const noteCollision = (
+	args: Parameters<CollisionDetection>[0],
+	hits: readonly Collision[],
+	drag: Extract<DragData, { type: "note" }>,
+): Collision[] => {
+	const pointer = args.pointerCoordinates;
+	if (!pointer) return [];
+	const noteHit = hits.find((hit) => {
+		const data = dropDataOf(hit);
+		return (
+			data?.type === "note" &&
+			!(data.card.id === drag.card.id && data.note.index === drag.note.index)
+		);
+	});
+	if (noteHit) {
+		const data = dropDataOf(noteHit);
+		const rect = args.droppableRects.get(noteHit.id);
+		if (data?.type !== "note" || !rect) return [];
+		const target: DropTarget = {
+			kind: "note",
+			card: data.card,
+			slot: {
+				index: data.note.index,
+				side: pointer.y < rect.top + rect.height / 2 ? "before" : "after",
+			},
+		};
+		return [{ id: noteHit.id, data: { ...noteHit.data, target } }];
+	}
+	const cardHit = hits.find((hit) => {
+		const data = dropDataOf(hit);
+		return data?.type === "card" && data.card.id !== drag.card.id;
+	});
+	const cardData = cardHit && dropDataOf(cardHit);
+	if (!cardHit || cardData?.type !== "card") return [];
+	const target: DropTarget = { kind: "noteCard", card: cardData.card };
+	return [{ id: cardHit.id, data: { ...cardHit.data, target } }];
 };
 
 const cardsInColumn = (
@@ -372,7 +416,18 @@ const ChatBoardPage: FC = () => {
 			if (drag.type === "column") moveColumn(drag.name, target);
 			return;
 		}
-		if (drag.type === "column") return;
+		if (target.kind === "note" || target.kind === "noteCard") {
+			if (drag.type === "note") {
+				void mutations.moveComment(
+					drag.card,
+					drag.note,
+					target.card,
+					target.kind === "note" ? target.slot : null,
+				);
+			}
+			return;
+		}
+		if (drag.type === "column" || drag.type === "note") return;
 		if (target.kind === "merge") {
 			if (drag.type === "card") {
 				void mutations.mergeCards(drag.card, target.card);

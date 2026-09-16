@@ -40,6 +40,7 @@ const renderCard = (chats: readonly Chat[]) => {
 			card={card}
 			openChatIds={new Set()}
 			isMergeTarget={false}
+			noteDrop={undefined}
 			{...handlers}
 		/>,
 	);

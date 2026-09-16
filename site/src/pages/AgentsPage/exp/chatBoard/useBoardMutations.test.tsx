@@ -221,6 +221,53 @@ describe("useBoardMutations", () => {
 		});
 	});
 
+	it("moveComment reorders within a card and moves across cards, renumbering both", async () => {
+		const spy = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		const [a, b] = buildCards([
+			chat("a", {
+				"board/pos": "200",
+				...addCommentLabels(addCommentLabels({}, "one", 1), "two", 2),
+			}),
+			chat("b", { "board/pos": "100", ...addCommentLabels({}, "other", 3) }),
+		]);
+		if (!a || !b) throw new Error("cards missing");
+		const { result } = renderMutations();
+
+		// "two" before "one" within the same card.
+		const two = a.comments[1];
+		if (!two) throw new Error("note missing");
+		await result.current.moveComment(a, two, a, { index: 0, side: "before" });
+		expect(written(spy).a).toEqual({
+			"board/pos": "200",
+			"board/comment.0.timestamp": "2",
+			"board/comment.0.0": "two",
+			"board/comment.1.timestamp": "1",
+			"board/comment.1.0": "one",
+		});
+		spy.mockClear();
+
+		// "one" to the end of the other card.
+		const one = a.comments[0];
+		if (!one) throw new Error("note missing");
+		await result.current.moveComment(a, one, b, null);
+		expect(written(spy)).toEqual({
+			b: {
+				"board/pos": "100",
+				"board/comment.0.timestamp": "3",
+				"board/comment.0.0": "other",
+				"board/comment.1.timestamp": "1",
+				"board/comment.1.0": "one",
+			},
+			a: {
+				"board/pos": "200",
+				"board/comment.0.timestamp": "2",
+				"board/comment.0.0": "two",
+			},
+		});
+	});
+
 	it("addComment appends a note after the existing ones", async () => {
 		const spy = vi
 			.spyOn(API.experimental, "updateChat")

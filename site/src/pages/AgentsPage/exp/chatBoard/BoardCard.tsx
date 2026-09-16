@@ -9,11 +9,17 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import {
 	type BoardCard as BoardCardModel,
+	type BoardNote,
 	CARD_COLOR_CLASS,
 	CARD_COLORS,
 	type CardColor,
@@ -22,15 +28,18 @@ import { ChatInfoPopover } from "./ChatInfo";
 import { dragHandleListeners } from "./dragHandle";
 import { InlineEdit } from "./InlineEdit";
 import { NotesSection } from "./NotesSection";
+import type { NoteSlot } from "./useBoardMutations";
 
 export type DragData =
 	| { type: "card"; card: BoardCardModel }
 	| { type: "chat"; chat: Chat; card: BoardCardModel }
-	| { type: "column"; name: string };
+	| { type: "column"; name: string }
+	| { type: "note"; card: BoardCardModel; note: BoardNote };
 
 export type DropData =
 	| { type: "column"; name: string }
-	| { type: "card"; card: BoardCardModel };
+	| { type: "card"; card: BoardCardModel }
+	| { type: "note"; card: BoardCardModel; note: BoardNote };
 
 const cardDragId = (card: BoardCardModel) => `card:${card.id}`;
 const chatDragId = (chat: Chat) => `chat:${chat.id}`;
@@ -50,6 +59,8 @@ interface BoardCardProps extends ChatOpenHandlers {
 	readonly card: BoardCardModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly isMergeTarget: boolean;
+	/** A dragged note hovering one of this card's notes. */
+	readonly noteDrop: NoteSlot | undefined;
 	readonly onSetTitle: (title: string) => void;
 	readonly onSetColor: (color: CardColor | undefined) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
@@ -64,6 +75,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 	card,
 	openChatIds,
 	isMergeTarget,
+	noteDrop,
 	onSetTitle,
 	onSetColor,
 	onRenameChat,
@@ -117,15 +129,35 @@ export const BoardCard: FC<BoardCardProps> = ({
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
 			)}
 		>
-			{/* The stripe shows the color, so the stripe is where you change it. */}
-			<button
-				type="button"
-				title="Card color"
-				aria-label={`Color of ${card.title}`}
-				aria-expanded={pickingColor}
-				className="absolute inset-y-0 left-0 z-[1] w-2 border-0 bg-transparent p-0 hover:bg-content-primary/10"
-				onClick={() => setPickingColor((on) => !on)}
-			/>
+			{/*
+			  The stripe shows the color, so the stripe is where you change it. The
+			  swatches float beside it rather than reflowing the header.
+			*/}
+			<Popover open={pickingColor} onOpenChange={setPickingColor}>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						title="Card color"
+						aria-label={`Color of ${card.title}`}
+						className="absolute inset-y-0 left-0 z-[1] w-2 border-0 bg-transparent p-0 hover:bg-content-primary/10 data-[state=open]:bg-content-primary/10"
+					/>
+				</PopoverTrigger>
+				<PopoverContent
+					side="right"
+					align="start"
+					sideOffset={6}
+					className="w-auto p-2"
+					onPointerDown={(e) => e.stopPropagation()}
+				>
+					<ColorSwatches
+						value={card.color}
+						onChange={(color) => {
+							setPickingColor(false);
+							onSetColor(color);
+						}}
+					/>
+				</PopoverContent>
+			</Popover>
 			{/*
 			  Same anatomy for every card: [icon] title [meta]. A single chat is
 			  its own card, so its title is the chat title and there are no rows;
@@ -207,15 +239,6 @@ export const BoardCard: FC<BoardCardProps> = ({
 						]}
 					/>
 				</div>
-				{pickingColor && (
-					<ColorSwatches
-						value={card.color}
-						onChange={(color) => {
-							setPickingColor(false);
-							onSetColor(color);
-						}}
-					/>
-				)}
 				{single && (
 					<div className="col-start-2 col-end-[-1] mt-0.5">
 						<ChatStatusLine chat={lead} />
@@ -242,8 +265,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 			)}
 
 			<NotesSection
-				notes={card.comments}
-				cardTitle={card.title}
+				card={card}
+				noteDrop={noteDrop}
 				onAdd={onAddNote}
 				onEdit={onEditNote}
 				onRemove={onRemoveNote}
@@ -383,12 +406,9 @@ interface ColorSwatchesProps {
 	readonly onChange: (color: CardColor | undefined) => void;
 }
 
-/** Drops in under the title while picking, so the meta slot never moves. */
+/** The palette beside the stripe: one swatch per theme accent plus none. */
 const ColorSwatches: FC<ColorSwatchesProps> = ({ value, onChange }) => (
-	<div
-		className="relative z-[1] col-start-2 col-end-[-1] mt-2 flex items-center gap-1.5"
-		onPointerDown={(e) => e.stopPropagation()}
-	>
+	<div className="flex items-center gap-1.5">
 		<Swatch
 			label="No color"
 			selected={value === undefined}
@@ -473,8 +493,15 @@ interface DragGhostProps {
 	readonly drag: DragData;
 }
 
-/** Compact stand-in rendered in the DragOverlay while a card, chat, or column moves. */
+/** Compact stand-in rendered in the DragOverlay while a card, chat, column, or note moves. */
 export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
+	if (drag.type === "note") {
+		return (
+			<div className="w-[276px] cursor-grabbing truncate rounded-md border border-content-link bg-surface-primary px-3 py-1.5 text-xs text-content-primary shadow-lg">
+				{drag.note.text}
+			</div>
+		);
+	}
 	if (drag.type === "column") {
 		return (
 			<div className="w-[300px] cursor-grabbing rounded-md border border-content-link bg-surface-primary px-3 py-1.5 text-[13px] font-medium text-content-primary shadow-lg">

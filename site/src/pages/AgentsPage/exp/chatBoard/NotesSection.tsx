@@ -1,5 +1,11 @@
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
-import { ArrowUpIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import {
+	ArrowUpIcon,
+	GripVerticalIcon,
+	PencilIcon,
+	Trash2Icon,
+} from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Markdown } from "#/components/Markdown/Markdown";
@@ -9,29 +15,38 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { shortRelativeTime } from "#/utils/time";
-import type { BoardNote } from "./boardLabels";
+import type { DragData, DropData } from "./BoardCard";
+import type { BoardCard, BoardNote } from "./boardLabels";
+import { dragHandleListeners } from "./dragHandle";
+import type { NoteSlot } from "./useBoardMutations";
+
+const noteDragId = (card: BoardCard, note: BoardNote) =>
+	`note:${card.id}:${note.index}`;
+const noteDropId = (card: BoardCard, note: BoardNote) =>
+	`drop-note:${card.id}:${note.index}`;
 
 interface NotesSectionProps {
-	readonly notes: readonly BoardNote[];
-	readonly cardTitle: string;
+	readonly card: BoardCard;
+	/** Where a dragged note would land in this card, if it is over one of these notes. */
+	readonly noteDrop: NoteSlot | undefined;
 	readonly onAdd: (text: string) => void;
 	readonly onEdit: (index: number, text: string) => void;
 	readonly onRemove: (index: number) => void;
 }
 
 /**
- * Notes are the operator's status log for a card, oldest first, with a
- * plain composer line at the bottom that appends.
+ * Notes are the operator's status log for a card, in index order, with a
+ * plain composer line at the bottom that appends. Notes drag to reorder
+ * within the card or to move to another card.
  */
 export const NotesSection: FC<NotesSectionProps> = ({
-	notes,
-	cardTitle,
+	card,
+	noteDrop,
 	onAdd,
 	onEdit,
 	onRemove,
 }) => {
-	// Oldest first, so the composer line below continues the log.
-	const ordered = [...notes].sort((a, b) => a.timestamp - b.timestamp);
+	const notes = card.comments;
 	return (
 		// Always present, so the divider above is stable and edge to edge.
 		// Typing and selecting text must not start a card drag.
@@ -39,10 +54,12 @@ export const NotesSection: FC<NotesSectionProps> = ({
 			className="flex flex-col border-t border-border px-3 py-1"
 			onPointerDown={(e) => e.stopPropagation()}
 		>
-			{ordered.map((note) => (
+			{notes.map((note) => (
 				<Note
 					key={note.index}
+					card={card}
 					note={note}
+					dropSide={noteDrop?.index === note.index ? noteDrop.side : undefined}
 					onEdit={(text) => onEdit(note.index, text)}
 					onRemove={() => onRemove(note.index)}
 				/>
@@ -53,7 +70,7 @@ export const NotesSection: FC<NotesSectionProps> = ({
 				key={notes.length}
 				initial=""
 				placeholder="Add a note..."
-				ariaLabel={`Add a note to ${cardTitle}`}
+				ariaLabel={`Add a note to ${card.title}`}
 				onSubmit={onAdd}
 			/>
 		</div>
@@ -70,13 +87,32 @@ const NOTE_MARKDOWN_CLASS = cn(
 );
 
 interface NoteProps {
+	readonly card: BoardCard;
 	readonly note: BoardNote;
+	readonly dropSide: "before" | "after" | undefined;
 	readonly onEdit: (text: string) => void;
 	readonly onRemove: () => void;
 }
 
-const Note: FC<NoteProps> = ({ note, onEdit, onRemove }) => {
+const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 	const [editing, setEditing] = useState(false);
+	const dragData: DragData = { type: "note", card, note };
+	const dropData: DropData = { type: "note", card, note };
+	const {
+		setNodeRef: setDragRef,
+		setActivatorNodeRef,
+		listeners,
+		attributes,
+		isDragging,
+	} = useDraggable({ id: noteDragId(card, note), data: dragData });
+	const { setNodeRef: setDropRef } = useDroppable({
+		id: noteDropId(card, note),
+		data: dropData,
+	});
+	const setRefs = (node: HTMLElement | null) => {
+		setDragRef(node);
+		setDropRef(node);
+	};
 
 	if (editing) {
 		return (
@@ -93,16 +129,38 @@ const Note: FC<NoteProps> = ({ note, onEdit, onRemove }) => {
 	}
 
 	// Age on the right; hover swaps it for the actions without moving text.
+	// The drop indicator is an inset shadow so the list does not shift.
 	return (
-		<div className="group/note flex items-start gap-2.5 py-[3px]">
+		<div
+			ref={setRefs}
+			className={cn(
+				"group/note flex items-start gap-2.5 py-[3px]",
+				isDragging && "opacity-40",
+				dropSide === "before" &&
+					"shadow-[inset_0_2px_0_0_var(--color-content-link)]",
+				dropSide === "after" &&
+					"shadow-[inset_0_-2px_0_0_var(--color-content-link)]",
+			)}
+		>
 			<Markdown className={cn("min-w-0 flex-1", NOTE_MARKDOWN_CLASS)}>
 				{note.text}
 			</Markdown>
-			<span className="relative h-[17px] w-10 shrink-0">
+			<span className="relative h-[17px] w-14 shrink-0">
 				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-has-[[data-state=open]]/note:hidden">
 					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
 				</span>
 				<span className="-mr-1 absolute inset-0 hidden items-center justify-end gap-0.5 group-hover/note:flex group-has-[[data-state=open]]/note:flex has-[:focus-visible]:flex">
+					<button
+						type="button"
+						ref={setActivatorNodeRef}
+						{...dragHandleListeners(listeners)}
+						{...attributes}
+						aria-label="Drag note"
+						title="Drag to reorder or move to another card"
+						className="grid size-[18px] cursor-grab touch-none place-items-center rounded border-0 bg-transparent p-0 text-content-secondary active:cursor-grabbing"
+					>
+						<GripVerticalIcon className="size-3" />
+					</button>
 					<Button
 						variant="subtle"
 						size="icon"
