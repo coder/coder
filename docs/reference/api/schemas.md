@@ -6512,10 +6512,10 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property         | Value(s)            |
-|------------------|---------------------|
-| `provisioner`    | `echo`, `terraform` |
-| `storage_method` | `file`              |
+| Property         | Value(s)                       |
+|------------------|--------------------------------|
+| `provisioner`    | `echo`, `sandbox`, `terraform` |
+| `storage_method` | `file`                         |
 
 ## codersdk.CreateTestAuditLogRequest
 
@@ -13745,9 +13745,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Property      | Value(s)    |
-|---------------|-------------|
-| `provisioner` | `terraform` |
+| Property      | Value(s)               |
+|---------------|------------------------|
+| `provisioner` | `sandbox`, `terraform` |
 
 ## codersdk.TemplateACL
 

@@ -20083,7 +20083,7 @@
 				},
 				"provisioner": {
 					"type": "string",
-					"enum": ["terraform", "echo"]
+					"enum": ["terraform", "echo", "sandbox"]
 				},
 				"storage_method": {
 					"enum": ["file"],
@@ -25754,7 +25754,7 @@
 				},
 				"provisioner": {
 					"type": "string",
-					"enum": ["terraform"]
+					"enum": ["terraform", "sandbox"]
 				},
 				"require_active_version": {
 					"description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",

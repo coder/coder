@@ -21,7 +21,7 @@ import (
 	previewtypes "github.com/coder/preview/types"
 )
 
-// Renderer is able to execute and evaluate terraform with the given inputs.
+// Renderer evaluates template parameters with the given inputs.
 // It may use the database to fetch additional state, such as a user's groups,
 // roles, etc. Therefore, it requires an authenticated `ctx`.
 //
@@ -111,6 +111,10 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 		return ErrTemplateVersionNotReady
 	}
 
+	if r.job.Provisioner == database.ProvisionerTypeSandbox {
+		return nil
+	}
+
 	if r.terraformValues == nil {
 		values, err := db.GetTemplateVersionTerraformValues(ctx, r.templateVersion.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -146,8 +150,8 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 }
 
 // Renderer returns a Renderer that can be used to render the template version's
-// parameters. It automatically determines whether to use a static or dynamic
-// renderer based on the template version's state.
+// parameters. It selects the provisioner backend before deciding whether a
+// Terraform template requires static or dynamic rendering.
 //
 // Static parameter rendering is required to support older template versions that
 // do not have the database state to support dynamic parameters. A constant
@@ -156,6 +160,10 @@ func (r *loader) Renderer(ctx context.Context, db database.Store, cache files.Fi
 	err := r.loadData(ctx, db)
 	if err != nil {
 		return nil, xerrors.Errorf("load data: %w", err)
+	}
+
+	if r.job.Provisioner == database.ProvisionerTypeSandbox {
+		return &sandboxRenderer{}, nil
 	}
 
 	if !ProvisionerVersionSupportsDynamicParameters(r.terraformValues.ProvisionerdVersion) {

@@ -105,6 +105,33 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	})
 }
 
+func TestProvisionerDaemonSandbox(t *testing.T) {
+	t.Parallel()
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		ProvisionerDaemonPSK: "sandbox-provisioner-test",
+		LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{
+			codersdk.FeatureExternalProvisionerDaemons: 1,
+		}},
+	})
+	name := testutil.MustRandString(t, 16)
+	inv, conf := newCLI(t, "provisioner", "start", "--provisioner=sandbox", "--psk=sandbox-provisioner-test", "--name="+name)
+	require.NoError(t, conf.URL().Write(client.URL.String()))
+	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+	defer cancel()
+	inv = inv.WithContext(ctx)
+	clitest.Start(t, inv)
+	var daemons []codersdk.ProvisionerDaemon
+	require.Eventually(t, func() bool {
+		var err error
+		daemons, err = client.ProvisionerDaemons(ctx)
+		return err == nil && len(daemons) == 1
+	}, testutil.WaitLong, testutil.IntervalSlow)
+	require.Equal(t, name, daemons[0].Name)
+	require.Equal(t, []codersdk.ProvisionerType{codersdk.ProvisionerTypeSandbox}, daemons[0].Provisioners)
+	require.Equal(t, "local", daemons[0].Tags["sandbox_host"])
+	require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+}
+
 func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	t.Parallel()
 	t.Run("ScopeUser", func(t *testing.T) {

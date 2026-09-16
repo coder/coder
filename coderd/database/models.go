@@ -3571,6 +3571,7 @@ type ProvisionerType string
 const (
 	ProvisionerTypeEcho      ProvisionerType = "echo"
 	ProvisionerTypeTerraform ProvisionerType = "terraform"
+	ProvisionerTypeSandbox   ProvisionerType = "sandbox"
 )
 
 func (e *ProvisionerType) Scan(src interface{}) error {
@@ -3611,7 +3612,8 @@ func (ns NullProvisionerType) Value() (driver.Value, error) {
 func (e ProvisionerType) Valid() bool {
 	switch e {
 	case ProvisionerTypeEcho,
-		ProvisionerTypeTerraform:
+		ProvisionerTypeTerraform,
+		ProvisionerTypeSandbox:
 		return true
 	}
 	return false
@@ -3621,6 +3623,7 @@ func AllProvisionerTypeValues() []ProvisionerType {
 	return []ProvisionerType{
 		ProvisionerTypeEcho,
 		ProvisionerTypeTerraform,
+		ProvisionerTypeSandbox,
 	}
 }
 

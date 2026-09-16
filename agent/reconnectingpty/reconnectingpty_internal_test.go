@@ -1,11 +1,102 @@
 package reconnectingpty
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"runtime"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestReadConnLoopSkipsEmptyInput(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		requests []workspacesdk.ReconnectingPTYRequest
+		want     []string
+		resizes  [][2]uint16
+	}{
+		{
+			name:     "ResizeOnly",
+			requests: []workspacesdk.ReconnectingPTYRequest{{Height: 40, Width: 100}},
+			want:     []string{"resize"},
+			resizes:  [][2]uint16{{40, 100}},
+		},
+		{
+			name:     "EmptyRequestThenInput",
+			requests: []workspacesdk.ReconnectingPTYRequest{{}, {Data: "input\r"}},
+			want:     []string{"write:input\r"},
+		},
+		{
+			name: "ResizeThenInput",
+			requests: []workspacesdk.ReconnectingPTYRequest{
+				{Height: 40, Width: 100}, {Data: "input\r"},
+			},
+			want:    []string{"resize", "write:input\r"},
+			resizes: [][2]uint16{{40, 100}},
+		},
+		{
+			name: "CombinedInputAndResize",
+			requests: []workspacesdk.ReconnectingPTYRequest{
+				{Data: "input\r", Height: 40, Width: 100}, {Data: "next\r"},
+			},
+			want:    []string{"write:input\r", "resize", "write:next\r"},
+			resizes: [][2]uint16{{40, 100}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var input bytes.Buffer
+			for _, req := range tt.requests {
+				require.NoError(t, json.NewEncoder(&input).Encode(req))
+			}
+			conn := &testutil.ReaderWriterConn{Reader: &input, Writer: io.Discard}
+			ptty := &recordingInputPTY{}
+			metrics := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_pty_errors"}, []string{"kind"})
+			readConnLoop(t.Context(), conn, ptty, metrics, slogtest.Make(t, nil))
+			require.Zero(t, ptty.emptyWrites)
+			require.Equal(t, tt.want, ptty.operations)
+			require.Equal(t, tt.resizes, ptty.resizes)
+		})
+	}
+}
+
+type recordingInputPTY struct {
+	emptyWrites int
+	operations  []string
+	resizes     [][2]uint16
+}
+
+func (*recordingInputPTY) Close() error { return nil }
+
+func (p *recordingInputPTY) InputWriter() io.Writer { return p }
+
+func (*recordingInputPTY) OutputReader() io.Reader { return bytes.NewReader(nil) }
+
+func (p *recordingInputPTY) Resize(height, width uint16) error {
+	p.operations = append(p.operations, "resize")
+	p.resizes = append(p.resizes, [2]uint16{height, width})
+	return nil
+}
+
+func (p *recordingInputPTY) Write(data []byte) (int, error) {
+	if len(data) == 0 {
+		p.emptyWrites++
+		return 0, xerrors.New("empty PTY writes must be skipped")
+	}
+	p.operations = append(p.operations, "write:"+string(data))
+	return len(data), nil
+}
 
 func TestWithTerminalEnv(t *testing.T) {
 	t.Parallel()

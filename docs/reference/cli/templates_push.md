@@ -16,6 +16,15 @@ coder templates push [flags] [template]
 
 ## Options
 
+### --provisioner
+
+|         |                                       |
+|---------|---------------------------------------|
+| Type    | <code>terraform\|sandbox\|echo</code> |
+| Default | <code>terraform</code>                |
+
+Provisioner backend for the template.
+
 ### --variables-file
 
 |      |                     |

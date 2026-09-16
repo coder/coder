@@ -40,6 +40,9 @@ OPTIONS:
           Specify a name for the new template version. It will be automatically
           generated if not provided.
 
+      --provisioner terraform|sandbox|echo (default: terraform)
+          Provisioner backend for the template.
+
       --provisioner-tag string-array
           Specify a set of tags to target provisioner daemons. If you do not
           specify any tags, the tags from the active template version will be

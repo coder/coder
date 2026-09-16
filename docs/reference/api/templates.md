@@ -162,7 +162,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|----------------------------------------------------|
 | `cors_behavior`        | `passthru`, `simple`                               |
 | `max_port_share_level` | `authenticated`, `organization`, `owner`, `public` |
-| `provisioner`          | `terraform`                                        |
+| `provisioner`          | `sandbox`, `terraform`                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -941,7 +941,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|----------------------------------------------------|
 | `cors_behavior`        | `passthru`, `simple`                               |
 | `max_port_share_level` | `authenticated`, `organization`, `owner`, `public` |
-| `provisioner`          | `terraform`                                        |
+| `provisioner`          | `sandbox`, `terraform`                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

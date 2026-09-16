@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/provisioner/sandbox"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/websocket"
@@ -185,6 +186,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			provisionersMap[codersdk.ProvisionerTypeEcho] = struct{}{}
 		case string(codersdk.ProvisionerTypeTerraform):
 			provisionersMap[codersdk.ProvisionerTypeTerraform] = struct{}{}
+		case string(codersdk.ProvisionerTypeSandbox):
+			provisionersMap[codersdk.ProvisionerTypeSandbox] = struct{}{}
 		default:
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Unknown provisioner type %q", provisioner),
@@ -212,6 +215,14 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	tags = authRes.tags
+	if _, nativeSandbox := provisionersMap[codersdk.ProvisionerTypeSandbox]; nativeSandbox {
+		if len(provisionersMap) != 1 || tags[sandbox.HostTag] != sandbox.HostID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Sandbox daemons must serve only the sandbox provisioner with tag sandbox_host=local.",
+			})
+			return
+		}
+	}
 
 	api.Logger.Debug(ctx, "provisioner authorized", slog.F("tags", tags))
 	if err := provisionerdserver.Tags(tags).Valid(); err != nil {
@@ -231,6 +242,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			provisioners = append(provisioners, database.ProvisionerTypeTerraform)
 		case codersdk.ProvisionerTypeEcho:
 			provisioners = append(provisioners, database.ProvisionerTypeEcho)
+		case codersdk.ProvisionerTypeSandbox:
+			provisioners = append(provisioners, database.ProvisionerTypeSandbox)
 		}
 	}
 

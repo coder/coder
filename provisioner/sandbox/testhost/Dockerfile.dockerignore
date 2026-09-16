@@ -1,0 +1,15 @@
+# Repository-root context for this Dockerfile only.
+**
+
+!build
+build/**
+!build/coder-sandbox-agent
+
+!provisioner
+provisioner/**
+!provisioner/sandbox
+provisioner/sandbox/**
+!provisioner/sandbox/testhost
+provisioner/sandbox/testhost/**
+!provisioner/sandbox/testhost/Dockerfile
+!provisioner/sandbox/testhost/smoke.sh

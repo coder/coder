@@ -22151,7 +22151,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "terraform",
-                        "echo"
+                        "echo",
+                        "sandbox"
                     ]
                 },
                 "storage_method": {
@@ -28040,7 +28041,8 @@ const docTemplate = `{
                 "provisioner": {
                     "type": "string",
                     "enum": [
-                        "terraform"
+                        "terraform",
+                        "sandbox"
                     ]
                 },
                 "require_active_version": {

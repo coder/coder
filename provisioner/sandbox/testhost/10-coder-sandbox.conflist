@@ -1,0 +1,18 @@
+{
+  "cniVersion": "1.0.0",
+  "name": "coder-sandbox",
+  "plugins": [
+    {
+      "type": "bridge",
+      "bridge": "coder-sbx0",
+      "isGateway": true,
+      "ipMasq": true,
+      "dns": { "nameservers": ["1.1.1.1"] },
+      "ipam": {
+        "type": "host-local",
+        "ranges": [[{ "subnet": "10.88.0.0/16" }]],
+        "routes": [{ "dst": "0.0.0.0/0" }]
+      }
+    }
+  ]
+}

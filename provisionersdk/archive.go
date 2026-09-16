@@ -42,10 +42,6 @@ func DirHasLockfile(dir string) (bool, error) {
 
 // Tar archives a Terraform directory.
 func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
-	// The total bytes written must be under the limit, so use -1
-	w = xio.NewLimitWriter(w, limit-1)
-	tarWriter := tar.NewWriter(w)
-
 	tfExts := []string{".tf", ".tf.json"}
 	hasTf, err := dirHasExt(directory, tfExts...)
 	if err != nil {
@@ -64,8 +60,18 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 			absPath, tfExts,
 		)
 	}
+	return TarDirectory(w, logger, directory, limit)
+}
 
-	err = filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
+// TarDirectory archives template files without requiring Terraform source.
+// Callers must validate the archive for their selected provisioner. It retains
+// Tar's size limit and exclusions for hidden files, state, and variable files.
+func TarDirectory(w io.Writer, logger slog.Logger, directory string, limit int64) error {
+	// The total bytes written must be under the limit, so use -1.
+	w = xio.NewLimitWriter(w, limit-1)
+	tarWriter := tar.NewWriter(w)
+
+	err := filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

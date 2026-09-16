@@ -43,6 +43,8 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		icon                 string
 		orgContext           = NewOrganizationContext()
 	)
+	provisionerValue := serpent.EnumOf(&provisioner,
+		string(codersdk.ProvisionerTypeTerraform), string(codersdk.ProvisionerTypeSandbox), string(codersdk.ProvisionerTypeEcho))
 	cmd := &serpent.Command{
 		Use:   "push [template]",
 		Short: "Create or update a template from the current directory or as specified by flag",
@@ -149,7 +151,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				cliui.Info(inv.Stderr, "Provisioner tags: "+cliui.Code(tagStr))
 			}
 
-			err = uploadFlags.checkForLockfile(inv)
+			err = uploadFlags.checkForLockfile(inv, codersdk.ProvisionerType(provisioner))
 			if err != nil {
 				return xerrors.Errorf("check for lockfile: %w", err)
 			}
@@ -157,7 +159,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			message := uploadFlags.templateMessage(inv)
 
 			var varsFiles []string
-			if !uploadFlags.stdin(inv) {
+			if !uploadFlags.stdin(inv) && provisioner != string(codersdk.ProvisionerTypeSandbox) {
 				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
 					return err
@@ -168,7 +170,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 			}
 
-			resp, err := uploadFlags.upload(inv, client)
+			resp, err := uploadFlags.upload(inv, client, codersdk.ProvisionerType(provisioner))
 			if err != nil {
 				return err
 			}
@@ -269,10 +271,15 @@ func (r *RootCmd) templatePush() *serpent.Command {
 
 	cmd.Options = serpent.OptionSet{
 		{
+			Flag:        "provisioner",
+			Description: "Provisioner backend for the template.",
+			Default:     string(codersdk.ProvisionerTypeTerraform),
+			Value:       provisionerValue,
+		},
+		{
 			Flag:        "test.provisioner",
 			Description: "Customize the provisioner backend.",
-			Default:     "terraform",
-			Value:       serpent.StringOf(&provisioner),
+			Value:       provisionerValue,
 			// This is for testing!
 			Hidden: true,
 		},
@@ -385,7 +392,7 @@ func (pf *templateUploadFlags) stdin(inv *serpent.Invocation) (out bool) {
 	return pf.directory == "-" || (!isTTYIn(inv) && !inv.ParsedFlags().Lookup("directory").Changed)
 }
 
-func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.Client, provisioner codersdk.ProvisionerType) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin(inv) {
 		content = inv.Stdin
@@ -402,7 +409,7 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 
 		pipeReader, pipeWriter := io.Pipe()
 		go func() {
-			err := provisionersdk.Tar(pipeWriter, inv.Logger, pf.directory, provisionersdk.TemplateArchiveLimit)
+			err := archiveTemplateDirectory(pipeWriter, inv.Logger, pf.directory, provisioner)
 			_ = pipeWriter.CloseWithError(err)
 		}()
 		defer pipeReader.Close()
@@ -422,7 +429,10 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 	return &resp, nil
 }
 
-func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation) error {
+func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation, provisioner codersdk.ProvisionerType) error {
+	if provisioner == codersdk.ProvisionerTypeSandbox {
+		return nil
+	}
 	if pf.stdin(inv) || pf.ignoreLockfile {
 		// Just assume there's a lockfile if reading from stdin.
 		return nil

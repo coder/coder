@@ -24,9 +24,9 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/provisioner/sandbox"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
@@ -48,6 +48,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		pollJitter     time.Duration
 		preSharedKey   string
 		provisionerKey string
+		provisioner    string
 		verbose        bool
 		experiments    []string
 
@@ -118,6 +119,19 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					displayedTags[key] = val
 				}
 			}
+			if provisioner == string(codersdk.ProvisionerTypeSandbox) {
+				if provisionerKey != "" {
+					if displayedTags[sandbox.HostTag] != sandbox.HostID {
+						return xerrors.Errorf("sandbox provisioner key must have tag %s=%s", sandbox.HostTag, sandbox.HostID)
+					}
+				} else {
+					if host, ok := tags[sandbox.HostTag]; ok && host != sandbox.HostID {
+						return xerrors.Errorf("sandbox provisioner requires tag %s=%s", sandbox.HostTag, sandbox.HostID)
+					}
+					tags[sandbox.HostTag] = sandbox.HostID
+					displayedTags[sandbox.HostTag] = sandbox.HostID
+				}
+			}
 
 			if name == "" {
 				name = cliutil.Hostname()
@@ -172,26 +186,35 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				return err
 			}
 
-			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
+			provisionerClient, provisionerServer := drpcsdk.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
-				_ = terraformClient.Close()
-				_ = terraformServer.Close()
+				_ = provisionerClient.Close()
+				_ = provisionerServer.Close()
 			}()
 
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()
 
-				err := terraform.Serve(ctx, &terraform.ServeOptions{
-					ServeOptions: &provisionersdk.ServeOptions{
-						Listener:      terraformServer,
-						Logger:        logger.Named("terraform"),
-						WorkDirectory: tempDir,
-						Experiments:   coderd.ReadExperiments(logger, experiments),
-					},
-					CachePath: cacheDir,
-				})
+				serveOptions := &provisionersdk.ServeOptions{
+					Listener:      provisionerServer,
+					Logger:        logger.Named(provisioner),
+					WorkDirectory: tempDir,
+					Experiments:   coderd.ReadExperiments(logger, experiments),
+				}
+				var err error
+				switch codersdk.ProvisionerType(provisioner) {
+				case codersdk.ProvisionerTypeSandbox:
+					err = sandbox.Serve(ctx, &sandbox.ServeOptions{ServeOptions: serveOptions})
+				case codersdk.ProvisionerTypeTerraform:
+					err = terraform.Serve(ctx, &terraform.ServeOptions{
+						ServeOptions: serveOptions,
+						CachePath:    cacheDir,
+					})
+				default:
+					err = xerrors.Errorf("unknown provisioner type %q", provisioner)
+				}
 				if err != nil && !xerrors.Is(err, context.Canceled) {
 					select {
 					case errCh <- err:
@@ -221,13 +244,13 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", displayedTags), slog.F("name", name))
 
 			connector := provisionerd.LocalProvisioners{
-				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
+				provisioner: proto.NewDRPCProvisionerClient(provisionerClient),
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 					Name: name,
 					Provisioners: []codersdk.ProvisionerType{
-						codersdk.ProvisionerTypeTerraform,
+						codersdk.ProvisionerType(provisioner),
 					},
 					Tags:           tags,
 					PreSharedKey:   preSharedKey,
@@ -288,6 +311,13 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		Value:       serpent.StringOf(&provisionerKey),
 	}
 	cmd.Options = serpent.OptionSet{
+		{
+			Flag:        "provisioner",
+			Env:         "CODER_PROVISIONER_TYPE",
+			Description: "Provisioner backend to run.",
+			Default:     string(codersdk.ProvisionerTypeTerraform),
+			Value:       serpent.EnumOf(&provisioner, string(codersdk.ProvisionerTypeTerraform), string(codersdk.ProvisionerTypeSandbox)),
+		},
 		{
 			Flag:          "cache-dir",
 			FlagShorthand: "c",
