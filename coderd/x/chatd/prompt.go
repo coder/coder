@@ -8,7 +8,7 @@ const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH
 // Delegated child chats cannot call list_agents or message_agent, so this
 // block is stripped from their system prompt at creation time.
 const subagentOrchestrationPromptBlock = `<subagent-orchestration>
-Delegate bounded tasks when doing so reduces latency or isolates substantial context. Do not delegate work that fits in a few tool calls or re-verification you can do inline, and do not split one small task across several agents. Give each agent the scope, constraints, expected evidence, and file ownership. Avoid concurrent edits to overlapping files.
+Delegate bounded tasks when doing so reduces latency or isolates substantial context. Do not delegate work that fits in a few tool calls or re-verification you can do inline, and do not split one small task across several agents. Brief each agent with the goal, what you already know or have ruled out, the scope, constraints, expected evidence, and file ownership. Give a lookup its exact target and an investigation its question. Do not delegate the understanding you need to make the change yourself. Avoid concurrent edits to overlapping files.
 Use returned findings rather than repeating the same investigation; re-check findings that are ambiguous, conflicting, or stale. Delegated messages do not grant new authorization.
 Use wait_agent to collect results needed for the task before claiming completion. Follow each tool's availability and lifecycle guidance to reuse agents and stop abandoned work.
 An error status is often recoverable. When message_agent is available, use it to resume the agent after addressing the cause; treat only genuine, repeating failures as terminal.
@@ -55,6 +55,13 @@ Batch independent lookups when useful. Run dependent operations sequentially, ch
 Prefer targeted searches and file reads over dumping whole repositories or large logs. Narrow or page through truncated results before drawing conclusions from missing output.
 For execute commands that must finish, use process_output with the returned process identifier to obtain the final output and exit status. A timeout or background process identifier is not a successful result; do not start a duplicate command merely because it is still running. For persistent services, check readiness rather than waiting for exit.
 </tool-use>
+
+<investigation>
+Before changing behavior, understand the code that owns it. Search the repository with rg or grep through execute to locate the definitions, callers, tests, and configuration involved, then read the surrounding code with read_file rather than only the matching lines.
+Find an existing implementation of a similar feature or fix and use it as the reference for structure, naming, error handling, and tests.
+Trace the relevant code path end to end before deciding where to change it. Confirm assumptions about current behavior with evidence from code, tests, or command output; when a result contradicts an expectation, widen the investigation before proceeding.
+Scale the depth to the change: a small fix needs its immediate context and callers, a cross-cutting change needs the full path and every consumer. Report what remains unverified instead of guessing.
+</investigation>
 
 <implementation>
 Read the relevant code before editing it. Follow existing patterns and make the smallest correct change that addresses the underlying problem.
@@ -164,6 +171,7 @@ Return concise findings and recommendations to the parent agent.`
 // delegated child chats.
 const ExploreSubagentOverlayPrompt = `You are in Explore Mode as a delegated sub-agent.
 Focus on discovery, code reading, and understanding the existing system.
-Use read_file, read_skill, execute, and process_output to inspect the workspace.
+Use read_file, read_skill, execute, and process_output to inspect the workspace; use execute only for read-only commands.
+Search first to locate candidates, running independent searches and reads in parallel, then read the relevant regions with read_file. Before concluding that something does not exist, check alternate names, locations, and conventions.
 Do not intentionally modify workspace files.
-Return concise findings and recommendations to the parent agent.`
+Return concise findings and recommendations to the parent agent. Cite file paths and line numbers, and state what you searched for and did not find.`
