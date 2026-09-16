@@ -92,8 +92,6 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	modelIntent?: string;
 	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
 	parsedCommands?: readonly string[][];
-	/** Tracked process ID for execute/process_output rows. */
-	processId?: string;
 	/** process_output snapshot identical to the previous one for this process. */
 	noNewOutput?: boolean;
 	hookRewritten?: boolean;
@@ -124,7 +122,6 @@ type ToolRendererProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
-	processId?: string;
 	noNewOutput?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
@@ -257,12 +254,12 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 
 const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	status,
+	args,
 	result,
 	isError,
 	killedBySignal,
 	modelIntent,
 	shellToolDisplayMode,
-	processId,
 	noNewOutput,
 }) => {
 	const rec = asRecord(result);
@@ -272,6 +269,9 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	// Derived from this call's own args so the live stream and the
+	// persisted transcript render identically.
+	const processId = asString(asRecord(args)?.process_id).trim();
 	// The process may outlive the poll that produced this result
 	// (wait timeout); the result flags it explicitly. A later
 	// SIGKILL overrides the stale running snapshot; SIGTERM is
@@ -290,7 +290,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
-			processId={processId}
+			processId={processId || undefined}
 			truncation={rec?.truncated}
 			noNewOutput={noNewOutput}
 		/>
@@ -1226,7 +1226,6 @@ export const Tool = memo(
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
-		processId,
 		noNewOutput,
 		hookRewritten = false,
 		shellToolDisplayMode,
@@ -1276,7 +1275,6 @@ export const Tool = memo(
 						previousResponseText={previousResponseText}
 						modelIntent={modelIntent}
 						parsedCommands={parsedCommands}
-						processId={processId}
 						noNewOutput={noNewOutput}
 						shellToolDisplayMode={shellToolDisplayMode}
 						codeDiffDisplayMode={codeDiffDisplayMode}

@@ -377,12 +377,11 @@ export const parseMessagesWithMergedTools = (
 	}
 
 	// Annotate execute/process_output tools whose process was
-	// later killed or terminated via process_signal. Also stamps
-	// each tracked-process row with its process ID and flags polls
-	// whose output is byte-identical to the previous snapshot, so a
-	// row renders as a quiet check rather than a repeat dump. All
-	// of these derive from earlier rows only; later rows never
-	// mutate what an earlier row displays.
+	// later killed or terminated via process_signal. Also flags
+	// polls whose output is byte-identical to the previous
+	// snapshot, so a row renders as a quiet check rather than a
+	// repeat dump. Both derive from earlier rows only; later rows
+	// never mutate what an earlier row displays.
 	const signaledProcesses = new Map<string, "kill" | "terminate">();
 	const processOutputByID = new Map<string, string>();
 	for (const { parsed } of rawParsed) {
@@ -391,7 +390,6 @@ export const parseMessagesWithMergedTools = (
 				const rec = asRecord(tool.result);
 				const processID = rec ? asString(rec.background_process_id).trim() : "";
 				if (processID) {
-					tool.processId = processID;
 					processOutputByID.set(processID, asString(rec?.output));
 				}
 				continue;
@@ -400,9 +398,6 @@ export const parseMessagesWithMergedTools = (
 			const args = asRecord(tool.args);
 			const result = asRecord(tool.result);
 			const processID = asString(args?.process_id).trim();
-			if (processID) {
-				tool.processId = processID;
-			}
 			const output = result ? asString(result.output) : "";
 			if (processID && output) {
 				const previous = processOutputByID.get(processID);

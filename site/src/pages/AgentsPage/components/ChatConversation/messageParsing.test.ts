@@ -796,10 +796,7 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 		]);
 
 		const tools = parsed.flatMap((e) => e.parsed.tools);
-		const executeTool = tools.find((t) => t.name === "execute");
 		const polls = tools.filter((t) => t.name === "process_output");
-		expect(executeTool?.processId).toBe(PID);
-		expect(polls.map((t) => t.processId)).toEqual([PID, PID]);
 		// The first poll repeats the execute snapshot verbatim.
 		expect(polls[0]?.noNewOutput).toBe(true);
 		// The second poll carries new output.
@@ -822,7 +819,6 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 		const poll = parsed
 			.flatMap((e) => e.parsed.tools)
 			.find((t) => t.name === "process_output");
-		expect(poll?.processId).toBe(PID);
 		expect(poll?.noNewOutput).toBeUndefined();
 	});
 });
