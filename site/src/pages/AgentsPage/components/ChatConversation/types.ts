@@ -7,6 +7,7 @@ export type ParsedToolCall = {
 	args?: unknown;
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
+	mcpAppResourceUri?: string;
 	hookRewritten?: boolean;
 };
 
@@ -16,6 +17,10 @@ export type ParsedToolResult = {
 	result?: unknown;
 	isError: boolean;
 	mcpServerConfigId?: string;
+	mcpAppResourceUri?: string;
+	/** Raw MCP CallToolResult for tools that render an MCP App. */
+	mcpResult?: unknown;
+	mcpResultTruncated?: boolean;
 };
 
 export type MergedTool = {
@@ -26,6 +31,12 @@ export type MergedTool = {
 	isError: boolean;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
+	mcpAppResourceUri?: string;
+	/** Raw MCP CallToolResult for tools that render an MCP App. */
+	mcpResult?: unknown;
+	mcpResultTruncated?: boolean;
+	/** True while the streamed args are still accumulating from deltas. */
+	argsStreaming?: boolean;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	hookRewritten?: boolean;
@@ -62,6 +73,7 @@ export type ParsedMessageContent = {
 	blocks: RenderBlock[];
 	sources: Array<{ url: string; title: string }>;
 	hookNotices: string[];
+	mcpAppContexts: TypesGen.ChatMcpAppContextPart[];
 };
 
 export type ParsedMessageEntry = {
@@ -89,6 +101,7 @@ type StreamToolCall = {
 	argsRaw?: string;
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
+	mcpAppResourceUri?: string;
 	modelIntent?: string;
 };
 
@@ -101,6 +114,9 @@ type StreamToolResult = {
 	/** True while result deltas are still accumulating before the final result. */
 	isStreaming?: boolean;
 	mcpServerConfigId?: string;
+	mcpAppResourceUri?: string;
+	mcpResult?: unknown;
+	mcpResultTruncated?: boolean;
 };
 
 export type StreamState = {

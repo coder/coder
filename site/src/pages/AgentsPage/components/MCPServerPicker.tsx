@@ -50,11 +50,11 @@ const availabilityLabel = (a: string) => {
 	}
 };
 
-const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
-	iconUrl,
-	name,
-	className,
-}) => {
+export const MCPIcon: FC<{
+	iconUrl: string;
+	name: string;
+	className?: string;
+}> = ({ iconUrl, name, className }) => {
 	const icon = iconUrl ? (
 		<ExternalImage src={iconUrl} alt={`${name} icon`} className="size-3/5" />
 	) : (

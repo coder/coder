@@ -82,6 +82,8 @@ export const applyMessagePartToStreamState = (
 						argsRaw: nextArgs.rawText,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
+						mcpAppResourceUri:
+							part.mcp_app_resource_uri || existing?.mcpAppResourceUri,
 						modelIntent,
 						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
 					},
@@ -156,6 +158,11 @@ export const applyMessagePartToStreamState = (
 						isStreaming: isStreaming || undefined,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
+						mcpAppResourceUri:
+							part.mcp_app_resource_uri || existing?.mcpAppResourceUri,
+						mcpResult: part.mcp_result ?? existing?.mcpResult,
+						mcpResultTruncated:
+							part.mcp_result_truncated || existing?.mcpResultTruncated,
 					},
 				},
 			};
@@ -214,6 +221,8 @@ export const applyMessagePartToStreamState = (
 		// Hook notices may arrive in durable message events, but not in
 		// streaming part deltas.
 		case "hook-notice":
+		// App context parts only appear on persisted user messages.
+		case "mcp-app-context":
 			return prev;
 		default: {
 			const _exhaustive: never = part;
@@ -256,6 +265,10 @@ export const buildStreamTools = (
 			isError: result?.isError ?? false,
 			status: getStreamToolStatus(result),
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			mcpAppResourceUri: call.mcpAppResourceUri || result?.mcpAppResourceUri,
+			mcpResult: result?.mcpResult,
+			mcpResultTruncated: result?.mcpResultTruncated,
+			argsStreaming: call.argsRaw !== undefined && !result ? true : undefined,
 			modelIntent: call.modelIntent,
 			parsedCommands: call.parsedCommands,
 		});
@@ -271,6 +284,9 @@ export const buildStreamTools = (
 					isError: result.isError,
 					status: getStreamToolStatus(result),
 					mcpServerConfigId: result.mcpServerConfigId,
+					mcpAppResourceUri: result.mcpAppResourceUri,
+					mcpResult: result.mcpResult,
+					mcpResultTruncated: result.mcpResultTruncated,
 				});
 			}
 		}

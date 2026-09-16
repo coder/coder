@@ -1,9 +1,12 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
+import { LayoutPanelTopIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import { useMcpAppPanel } from "../../McpApp/McpAppPanelContext";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
@@ -83,6 +86,10 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	mcpServerConfigId?: string;
 	/** Available MCP server configs for icon/name lookup. */
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	/** Tool call ID, needed to open the MCP App bound to this call. */
+	toolCallId?: string;
+	/** `ui://` resource of the MCP App that renders this tool's result. */
+	mcpAppResourceUri?: string;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -118,6 +125,8 @@ type ToolRendererProps = {
 	previousResponseText?: string;
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	toolCallId?: string;
+	mcpAppResourceUri?: string;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
@@ -952,9 +961,12 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	isError,
 	mcpServerConfigId,
 	mcpServers,
+	toolCallId,
+	mcpAppResourceUri,
 	modelIntent,
 }) => {
 	const theme = useTheme();
+	const { openMcpApp } = useMcpAppPanel();
 	const isDark = theme.palette.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
@@ -980,41 +992,63 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		name,
 		mcpSlug: mcpServer?.slug,
 	});
+	const appServerName = mcpServer?.display_name || mcpServer?.slug || "MCP";
 
 	return (
-		<ToolCall.Root
-			status={status}
-			isError={isError}
-			errorMessage={errorMessage || fallbackErrorMessage}
-			hasContent={hasContent}
-		>
-			<ToolCall.Header
-				iconName={name}
-				iconUrl={mcpServer?.icon_url}
-				serverName={mcpServer?.display_name}
-				label={
-					modelIntent ? (
-						formatModelIntentLabel(modelIntent)
-					) : (
-						<ToolLabel
-							name={name}
-							args={args}
-							result={result}
-							mcpSlug={mcpServer?.slug}
-						/>
-					)
-				}
-			/>
-			<ToolCall.Content>
-				<GenericToolContent
-					toolInput={toolInput}
-					fileContent={fileContent}
-					fileContentOptions={fileContentOptions}
-					isDark={isDark}
-					resultOutput={resultOutput}
+		<>
+			<ToolCall.Root
+				status={status}
+				isError={isError}
+				errorMessage={errorMessage || fallbackErrorMessage}
+				hasContent={hasContent}
+			>
+				<ToolCall.Header
+					iconName={name}
+					iconUrl={mcpServer?.icon_url}
+					serverName={mcpServer?.display_name}
+					label={
+						modelIntent ? (
+							formatModelIntentLabel(modelIntent)
+						) : (
+							<ToolLabel
+								name={name}
+								args={args}
+								result={result}
+								mcpSlug={mcpServer?.slug}
+							/>
+						)
+					}
 				/>
-			</ToolCall.Content>
-		</ToolCall.Root>
+				<ToolCall.Content>
+					<GenericToolContent
+						toolInput={toolInput}
+						fileContent={fileContent}
+						fileContentOptions={fileContentOptions}
+						isDark={isDark}
+						resultOutput={resultOutput}
+					/>
+				</ToolCall.Content>
+			</ToolCall.Root>
+			{openMcpApp && mcpServerConfigId && mcpAppResourceUri && toolCallId && (
+				<Button
+					type="button"
+					variant="subtle"
+					size="xs"
+					className="mt-1"
+					onClick={() =>
+						openMcpApp({
+							mcpServerConfigId,
+							resourceUri: mcpAppResourceUri,
+							toolCallId,
+							label: appServerName,
+						})
+					}
+				>
+					<LayoutPanelTopIcon />
+					Open {appServerName} app
+				</Button>
+			)}
+		</>
 	);
 };
 
@@ -1204,6 +1238,8 @@ export const Tool = memo(
 		subagentStatusOverrides,
 		mcpServerConfigId,
 		mcpServers,
+		toolCallId,
+		mcpAppResourceUri,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -1252,6 +1288,8 @@ export const Tool = memo(
 						subagentStatusOverrides={subagentStatusOverrides}
 						mcpServerConfigId={mcpServerConfigId}
 						mcpServers={mcpServers}
+						toolCallId={toolCallId}
+						mcpAppResourceUri={mcpAppResourceUri}
 						onImplementPlan={onImplementPlan}
 						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 						isChatCompleted={isChatCompleted}

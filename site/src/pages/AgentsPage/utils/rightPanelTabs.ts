@@ -64,12 +64,25 @@ export type UserRightPanelTab =
 			agentId: string;
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
+	  }
+	| {
+			/** `mcp_app:<mcpServerConfigId>:<resourceUri>`, one tab per app. */
+			id: string;
+			kind: "mcp_app";
+			mcpServerConfigId: string;
+			resourceUri: string;
+			/** Newest tool call whose result this app renders. */
+			toolCallId: string;
+			label: string;
 	  };
 
 type ValidateUserRightPanelTabsOptions = {
 	workspace: Workspace | undefined;
 	workspaceAgent: WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	/** MCP servers enabled for the chat. Defaults to none. */
+	mcpServerIds?: readonly string[];
+	mcpAppsEnabled?: boolean;
 };
 
 export function isUserRightPanelTab(
@@ -114,6 +127,15 @@ export function isUserRightPanelTab(
 		);
 	}
 
+	if (record.kind === "mcp_app") {
+		return (
+			typeof record.mcpServerConfigId === "string" &&
+			typeof record.resourceUri === "string" &&
+			typeof record.toolCallId === "string" &&
+			typeof record.label === "string"
+		);
+	}
+
 	return false;
 }
 
@@ -123,11 +145,19 @@ export function validateUserRightPanelTabs(
 		workspace,
 		workspaceAgent,
 		wildcardHostname,
+		mcpServerIds = [],
+		mcpAppsEnabled = false,
 	}: ValidateUserRightPanelTabsOptions,
 ): UserRightPanelTab[] {
 	return tabs.filter((tab) => {
 		if (tab.kind === "terminal") {
 			return workspace !== undefined && workspaceAgent !== undefined;
+		}
+
+		// App tabs do not depend on a workspace. A tab whose tool call is not
+		// in the loaded history is kept; the panel renders an empty state.
+		if (tab.kind === "mcp_app") {
+			return mcpAppsEnabled && mcpServerIds.includes(tab.mcpServerConfigId);
 		}
 
 		if (!workspace) {

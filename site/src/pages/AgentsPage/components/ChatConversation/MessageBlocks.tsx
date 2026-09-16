@@ -371,6 +371,8 @@ export const BlockList: FC<BlockListProps> = ({
 								}
 								mcpServerConfigId={tool.mcpServerConfigId}
 								mcpServers={mcpServers}
+								toolCallId={tool.id}
+								mcpAppResourceUri={tool.mcpAppResourceUri}
 								onImplementPlan={onImplementPlan}
 								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 								isChatCompleted={isChatCompleted}
@@ -433,6 +435,8 @@ export const BlockList: FC<BlockListProps> = ({
 					}
 					mcpServerConfigId={tool.mcpServerConfigId}
 					mcpServers={mcpServers}
+					toolCallId={tool.id}
+					mcpAppResourceUri={tool.mcpAppResourceUri}
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}

@@ -89,6 +89,7 @@ import {
 	getSavedMCPSelection,
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
+import { takeMcpAppContextInputParts } from "./components/McpApp/mcpAppParts";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
@@ -212,6 +213,7 @@ const AgentChatPage: FC = () => {
 			organization.id === chatOrganizationId && organization.is_default,
 	);
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
+	const mcpAppsEnabled = experiments.includes("chat-mcp-apps");
 	const debugLoggingEnabled = Boolean(
 		userDebugLoggingQuery.data?.debug_logging_enabled,
 	);
@@ -722,12 +724,15 @@ const AgentChatPage: FC = () => {
 		editedMessageID,
 		useComposerContent = true,
 		clearPlanMode = false,
+		skipBuiltInCommands = false,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
 		clearPlanMode?: boolean;
+		/** Sends slash-command text verbatim instead of running the built-in. */
+		skipBuiltInCommands?: boolean;
 	}) {
 		const { content, hasContent } = buildChatInputContent({
 			message,
@@ -741,6 +746,7 @@ const AgentChatPage: FC = () => {
 		// Built-ins only intercept new, text-only sends. A personal or workspace
 		// skill with the same name takes precedence.
 		const builtInCommand =
+			!skipBuiltInCommands &&
 			editedMessageID === undefined &&
 			content.length === 1 &&
 			content[0].type === "text"
@@ -866,8 +872,13 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
+		// App-reported context rides along with new sends only. It is removed
+		// from the store here and put back if the request fails.
+		const appContext = takeMcpAppContextInputParts(store, {
+			isNewSend: true,
+		});
 		const request = {
-			content,
+			content: [...content, ...appContext.parts],
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
 			mcp_server_ids: [...effectiveMCPServerIds],
@@ -889,6 +900,7 @@ const AgentChatPage: FC = () => {
 		try {
 			response = await sendMessage(request);
 		} catch (error) {
+			appContext.restore();
 			handleRequestError(error);
 			// Hook dispatch failures can park an idle chat in error before returning the request error.
 			acceptServerChatStatus();
@@ -996,6 +1008,25 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
+	// Messages requested by an MCP App bypass slash-command interception so a
+	// view cannot trigger built-ins such as /clear.
+	const submitAppMessage = async (text: string) => {
+		if (isInputDisabled) {
+			throw new Error("This chat is read-only.");
+		}
+		if (isSubmissionPending) {
+			throw new Error("Another message is still being sent.");
+		}
+		if (!text.trim()) {
+			throw new Error("The message is empty.");
+		}
+		await submitChatTurn({
+			message: text,
+			useComposerContent: false,
+			skipBuiltInCommands: true,
+		});
+	};
+
 	return (
 		<>
 			<title>
@@ -1092,6 +1123,7 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+					submitAppMessage={mcpAppsEnabled ? submitAppMessage : undefined}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}

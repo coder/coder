@@ -101,6 +101,15 @@ export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
 ): boolean => status === "running" || status === "interrupting";
 
+/** Latest model context an MCP App reported, keyed by app tab ID. */
+type McpAppContext = {
+	mcpServerConfigId: string;
+	resourceUri: string;
+	text: string;
+};
+
+export type McpAppContextEntry = readonly [appId: string, McpAppContext];
+
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
@@ -119,6 +128,7 @@ export type ChatStoreState = {
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	mcpAppContexts: Map<string, McpAppContext>;
 };
 
 export type ChatStore = {
@@ -183,6 +193,12 @@ export type ChatStore = {
 		chatID: string,
 		status: TypesGen.ChatStatus,
 	) => void;
+	setMcpAppContext: (appId: string, context: McpAppContext) => void;
+	// Returns every stored app context and clears the map in one step so a
+	// send can attach them exactly once.
+	takeMcpAppContexts: () => McpAppContextEntry[];
+	// Re-adds taken entries without overwriting a newer context for the same app.
+	restoreMcpAppContexts: (entries: readonly McpAppContextEntry[]) => void;
 	resetTransientState: () => void;
 };
 
@@ -198,6 +214,7 @@ const createInitialState = (): ChatStoreState => ({
 	suppressedQueuedMessageIDs: new Set(),
 	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
+	mcpAppContexts: new Map(),
 });
 
 export const createChatStore = (): ChatStore => {
@@ -713,6 +730,50 @@ export const createChatStore = (): ChatStore => {
 				const nextOverrides = new Map(current.subagentStatusOverrides);
 				nextOverrides.set(chatID, status);
 				return { ...current, subagentStatusOverrides: nextOverrides };
+			});
+		},
+		setMcpAppContext: (appId, context) => {
+			setState((current) => {
+				const existing = current.mcpAppContexts.get(appId);
+				if (
+					existing &&
+					existing.text === context.text &&
+					existing.mcpServerConfigId === context.mcpServerConfigId &&
+					existing.resourceUri === context.resourceUri
+				) {
+					return current;
+				}
+				const next = new Map(current.mcpAppContexts);
+				next.set(appId, context);
+				return { ...current, mcpAppContexts: next };
+			});
+		},
+		takeMcpAppContexts: () => {
+			const entries = Array.from(state.mcpAppContexts.entries());
+			if (entries.length === 0) {
+				return [];
+			}
+			setState((current) =>
+				current.mcpAppContexts.size === 0
+					? current
+					: { ...current, mcpAppContexts: new Map() },
+			);
+			return entries;
+		},
+		restoreMcpAppContexts: (entries) => {
+			if (entries.length === 0) {
+				return;
+			}
+			setState((current) => {
+				const next = new Map(current.mcpAppContexts);
+				for (const [appId, context] of entries) {
+					if (!next.has(appId)) {
+						next.set(appId, context);
+					}
+				}
+				return next.size === current.mcpAppContexts.size
+					? current
+					: { ...current, mcpAppContexts: next };
 			});
 		},
 		resetTransientState: () => {

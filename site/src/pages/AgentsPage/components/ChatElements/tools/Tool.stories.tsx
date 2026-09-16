@@ -10,6 +10,7 @@ import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
+import { McpAppPanelContext } from "../../McpApp/McpAppPanelContext";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
@@ -1397,6 +1398,26 @@ export const MCPToolCompleted: Story = {
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
 	},
+};
+
+export const MCPToolWithApp: Story = {
+	args: {
+		name: "linear__create_issue",
+		status: "completed",
+		args: { title: "Fix auth flow" },
+		result: { id: "LIN-789" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+		toolCallId: "call-1",
+		mcpAppResourceUri: "ui://linear/issue",
+	},
+	decorators: [
+		(Story) => (
+			<McpAppPanelContext value={{ openMcpApp: fn() }}>
+				<Story />
+			</McpAppPanelContext>
+		),
+	],
 };
 
 export const MCPToolError: Story = {

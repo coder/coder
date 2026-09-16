@@ -1701,6 +1701,54 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 		refetchIntervalInBackground: false,
 	});
 
+export const chatMCPAppResourceKey = (
+	chatId: string,
+	mcpServerConfigId: string,
+	uri: string,
+) =>
+	[
+		...chatEntityKey(chatId),
+		"mcp-app-resource",
+		mcpServerConfigId,
+		uri,
+	] as const;
+
+/**
+ * Reads a `ui://` resource through the chat-scoped MCP proxy. The result is
+ * an HTML document that only changes when the server redeploys, so it is
+ * cached for the page lifetime and never refetched in the background.
+ */
+export const chatMCPAppResource = (
+	chatId: string,
+	mcpServerConfigId: string,
+	uri: string,
+) =>
+	queryOptions({
+		queryKey: chatMCPAppResourceKey(chatId, mcpServerConfigId, uri),
+		queryFn: () =>
+			API.experimental.readChatMCPAppResource(chatId, mcpServerConfigId, {
+				uri,
+			}),
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+	});
+
+export const callChatMCPAppTool = (
+	chatId: string,
+	mcpServerConfigId: string,
+) => ({
+	mutationFn: (req: TypesGen.ChatMCPAppToolCallRequest) =>
+		API.experimental.callChatMCPAppTool(chatId, mcpServerConfigId, req),
+});
+
+export const readChatMCPAppResource = (
+	chatId: string,
+	mcpServerConfigId: string,
+) => ({
+	mutationFn: (req: TypesGen.ChatMCPAppResourceReadRequest) =>
+		API.experimental.readChatMCPAppResource(chatId, mcpServerConfigId, req),
+});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),

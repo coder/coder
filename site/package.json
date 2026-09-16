@@ -52,6 +52,9 @@
 		"@fontsource/source-code-pro": "5.3.0",
 		"@lexical/react": "0.44.0",
 		"@lexical/utils": "0.49.0",
+		"@modelcontextprotocol/client": "2.0.0",
+		"@modelcontextprotocol/core": "2.0.0",
+		"@modelcontextprotocol/ext-apps": "2.0.0",
 		"@monaco-editor/react": "4.7.0",
 		"@novnc/novnc": "^1.5.0",
 		"@pierre/diffs": "1.4.0",
@@ -111,7 +114,8 @@
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
 		"unique-names-generator": "4.7.1",
 		"websocket-ts": "2.3.0",
-		"yup": "1.7.1"
+		"yup": "1.7.1",
+		"zod": "^4.2.0"
 	},
 	"devDependencies": {
 		"@babel/core": "7.29.7",

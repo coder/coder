@@ -929,3 +929,82 @@ describe("compiler cache guard simulation", () => {
 		expect(subFieldMisses).toBe(1);
 	});
 });
+
+describe("MCP app fields", () => {
+	const mcpResult = { content: [{ type: "text", text: "ok" }] };
+
+	it("carries the app resource uri and raw result through the stream", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			tool_name: "add_task",
+			args_delta: '{"title":',
+			mcp_server_config_id: "mcp-1",
+			mcp_app_resource_uri: "ui://taskboard/board",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			tool_name: "add_task",
+			args_delta: '"x"}',
+		});
+		expect(state?.toolCalls["tc-1"].mcpAppResourceUri).toBe(
+			"ui://taskboard/board",
+		);
+
+		let tools = buildStreamTools(state?.toolCalls, state?.toolResults);
+		expect(tools[0]).toMatchObject({
+			mcpAppResourceUri: "ui://taskboard/board",
+			argsStreaming: true,
+		});
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			tool_name: "add_task",
+			args: { title: "x" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_call_id: "tc-1",
+			tool_name: "add_task",
+			result: "ok",
+			mcp_result: mcpResult,
+			mcp_result_truncated: false,
+		});
+		tools = buildStreamTools(state?.toolCalls, state?.toolResults);
+		expect(tools[0]).toMatchObject({
+			status: "completed",
+			mcpResult,
+			mcpAppResourceUri: "ui://taskboard/board",
+		});
+		expect(tools[0].argsStreaming).toBeUndefined();
+	});
+
+	it("keeps mcp_result_truncated on result-only tools", () => {
+		const state = applyMessagePartToStreamState(null, {
+			type: "tool-result",
+			tool_call_id: "tc-1",
+			tool_name: "add_task",
+			result: "ok",
+			mcp_app_resource_uri: "ui://taskboard/board",
+			mcp_result_truncated: true,
+		});
+		const tools = buildStreamTools(state?.toolCalls, state?.toolResults);
+		expect(tools[0]).toMatchObject({
+			mcpAppResourceUri: "ui://taskboard/board",
+			mcpResultTruncated: true,
+		});
+	});
+
+	it("ignores mcp-app-context parts in the stream", () => {
+		const prev = createEmptyStreamState();
+		expect(
+			applyMessagePartToStreamState(prev, {
+				type: "mcp-app-context",
+				text: "Board has 1 task",
+			}),
+		).toBe(prev);
+	});
+});

@@ -72,6 +72,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	blocks: [],
 	sources: [],
 	hookNotices: [],
+	mcpAppContexts: [],
 });
 
 export const ensureToolBlock = (
@@ -91,6 +92,36 @@ const isToolCallPart = (
 const isToolResultPart = (
 	part: TypesGen.ChatMessagePart,
 ): part is TypesGen.ChatToolResultPart => part.type === "tool-result";
+
+export const parseToolCallPart = (
+	part: TypesGen.ChatToolCallPart,
+	fallbackId: string,
+): ParsedToolCall => ({
+	id: part.tool_call_id || fallbackId,
+	name: part.tool_name || "Tool",
+	args: part.args,
+	parsedCommands: part.parsed_commands,
+	mcpServerConfigId: part.mcp_server_config_id,
+	mcpAppResourceUri: part.mcp_app_resource_uri,
+	hookRewritten: part.hook_rewritten,
+});
+
+export const parseToolResultPart = (
+	part: TypesGen.ChatToolResultPart,
+	fallbackId: string,
+): ParsedToolResult => {
+	const name = part.tool_name || "Tool";
+	return {
+		id: part.tool_call_id || fallbackId,
+		name,
+		result: part.result,
+		isError: parseToolResultIsError(name, part, part.result),
+		mcpServerConfigId: part.mcp_server_config_id,
+		mcpAppResourceUri: part.mcp_app_resource_uri,
+		mcpResult: part.mcp_result,
+		mcpResultTruncated: part.mcp_result_truncated,
+	};
+};
 
 const chatHasActiveToolCalls = (status: TypesGen.ChatStatus | null): boolean =>
 	status === "running" || status === "requires_action";
@@ -168,6 +199,9 @@ export const mergeTools = (
 			isError: result?.isError ?? false,
 			status,
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			mcpAppResourceUri: call.mcpAppResourceUri || result?.mcpAppResourceUri,
+			mcpResult: result?.mcpResult,
+			mcpResultTruncated: result?.mcpResultTruncated,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
@@ -183,6 +217,9 @@ export const mergeTools = (
 				isError: result.isError,
 				status: result.isError ? "error" : "completed",
 				mcpServerConfigId: result.mcpServerConfigId,
+				mcpAppResourceUri: result.mcpAppResourceUri,
+				mcpResult: result.mcpResult,
+				mcpResultTruncated: result.mcpResultTruncated,
 			});
 		}
 	}
@@ -218,16 +255,9 @@ export const parseMessageContent = (
 				if (part.provider_executed) {
 					break;
 				}
-				const id = part.tool_call_id || `tool-call-${index}`;
-				parsed.toolCalls.push({
-					id,
-					name: part.tool_name || "Tool",
-					args: part.args,
-					parsedCommands: part.parsed_commands,
-					mcpServerConfigId: part.mcp_server_config_id,
-					hookRewritten: part.hook_rewritten,
-				});
-				parsed.blocks = ensureToolBlock(parsed.blocks, id);
+				const call = parseToolCallPart(part, `tool-call-${index}`);
+				parsed.toolCalls.push(call);
+				parsed.blocks = ensureToolBlock(parsed.blocks, call.id);
 				break;
 			}
 			case "file-reference": {
@@ -239,16 +269,9 @@ export const parseMessageContent = (
 				if (part.provider_executed) {
 					break;
 				}
-				const id = part.tool_call_id || `tool-result-${index}`;
-				const name = part.tool_name || "Tool";
-				parsed.toolResults.push({
-					id,
-					name,
-					result: part.result,
-					isError: parseToolResultIsError(name, part, part.result),
-					mcpServerConfigId: part.mcp_server_config_id,
-				});
-				parsed.blocks = ensureToolBlock(parsed.blocks, id);
+				const result = parseToolResultPart(part, `tool-result-${index}`);
+				parsed.toolResults.push(result);
+				parsed.blocks = ensureToolBlock(parsed.blocks, result.id);
 				break;
 			}
 			case "file": {
@@ -296,6 +319,10 @@ export const parseMessageContent = (
 				if (part.text.trim()) {
 					parsed.hookNotices.push(part.text);
 				}
+				break;
+			}
+			case "mcp-app-context": {
+				parsed.mcpAppContexts.push(part);
 				break;
 			}
 			default: {

@@ -52,6 +52,7 @@ const parsed = (
 	blocks: [],
 	sources: [],
 	hookNotices: [],
+	mcpAppContexts: [],
 	...overrides,
 });
 

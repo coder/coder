@@ -2,8 +2,10 @@ import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import {
 	type FC,
+	lazy,
 	type ReactNode,
 	type RefObject,
+	Suspense,
 	useEffect,
 	useState,
 } from "react";
@@ -13,6 +15,7 @@ import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
@@ -49,6 +52,18 @@ import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTa
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import {
+	McpAppPanelContext,
+	type OpenMcpAppRequest,
+} from "./components/McpApp/McpAppPanelContext";
+import { McpAppTabSync } from "./components/McpApp/McpAppTabSync";
+import {
+	applyMcpAppTabUpserts,
+	type McpAppTab,
+	type McpAppToolCallRef,
+	mcpAppTabId,
+	planMcpAppTabs,
+} from "./components/McpApp/mcpAppTab";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
 import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
@@ -82,6 +97,10 @@ import {
 } from "./utils/sidebarTabStorage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+// The panel chunk owns every MCP SDK import, so it is only downloaded when
+// an app tab is actually rendered.
+const McpAppPanel = lazy(() => import("./components/McpApp/McpAppPanel"));
 
 interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
@@ -172,6 +191,8 @@ interface AgentChatPageViewProps {
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	/** Sends a user message requested by an MCP App after confirmation. */
+	submitAppMessage?: (text: string) => Promise<void>;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -204,6 +225,11 @@ interface UserTabContentProps {
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	/** Primary region wildcard host used for MCP App sandbox origins. */
+	primaryWildcardHostname: string | undefined;
+	store: ChatStoreHandle;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	submitAppMessage: ((text: string) => Promise<void>) | undefined;
 	sidebarVisible: boolean;
 	isActive: boolean;
 	isPending: boolean;
@@ -216,6 +242,10 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	workspace,
 	workspaceAgent,
 	wildcardHostname,
+	primaryWildcardHostname,
+	store,
+	mcpServers,
+	submitAppMessage,
 	sidebarVisible,
 	isActive,
 	isPending,
@@ -270,6 +300,30 @@ const UserTabContent: FC<UserTabContentProps> = ({
 				/>
 			);
 		}
+		case "mcp_app":
+			return (
+				<Suspense
+					fallback={
+						<div className="flex h-full items-center justify-center">
+							<Spinner loading label="Loading app panel" />
+						</div>
+					}
+				>
+					<McpAppPanel
+						chatId={chatId}
+						tab={tab}
+						store={store}
+						mcpServer={mcpServers.find(
+							(server) => server.id === tab.mcpServerConfigId,
+						)}
+						wildcardHostname={primaryWildcardHostname}
+						submitAppMessage={
+							submitAppMessage ??
+							(() => Promise.reject(new Error("This chat is read-only.")))
+						}
+					/>
+				</Suspense>
+			);
 		default: {
 			const _exhaustive: never = tab;
 			return _exhaustive;
@@ -319,6 +373,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	submitAppMessage,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -332,13 +387,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 }) => {
 	const queryClient = useQueryClient();
-	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { proxy, proxies } = useProxy();
+	const { entitlements, experiments } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
 	const isArchived = chat.archived;
+	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
 	const parsedPrNumber = Number(
@@ -390,6 +446,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		SingletonRightPanelTabId[]
 	>(() => getPersistedVisibleSingletonTabs(agentId));
 	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
+	// App tabs with a tool call the user has not looked at yet.
+	const [badgedTabIds, setBadgedTabIds] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+	// Tool call each closed app tab was showing, so history does not reopen it.
+	const [dismissedAppToolCalls, setDismissedAppToolCalls] = useState<
+		ReadonlyMap<string, string>
+	>(() => new Map());
 	// One client session ID per page visit, shared by every terminal in this
 	// chat. It regenerates when this view remounts (switching chats or
 	// reloading), independent of any terminal's reconnection token.
@@ -421,6 +485,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	}, [agentId, isArchived, visibleSingletonTabs]);
 
 	const shouldShowSidebar = showSidebarPanel;
+
+	// The sandbox proxy document is served by coderd itself, so the app origin
+	// always lives under the primary region's wildcard host.
+	const primaryWildcardHostname =
+		proxies?.find((region) => region.name === "primary")?.wildcard_hostname ||
+		undefined;
+	const mcpAppsEnabled = experiments.includes("chat-mcp-apps");
 
 	// Prefer the git repository root over the agent's expanded directory
 	// for VS Code folder resolution (important for monorepos).
@@ -478,7 +549,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
-		{ workspace, workspaceAgent, wildcardHostname },
+		{
+			workspace,
+			workspaceAgent,
+			wildcardHostname,
+			mcpServerIds: chat.mcp_server_ids,
+			mcpAppsEnabled,
+		},
 	);
 
 	const hasBuiltInTerminal = Boolean(
@@ -563,6 +640,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const handleActiveTabChange = (tabId: string) => {
 		setPendingTabId(null);
 		setSidebarTabId(tabId);
+		setBadgedTabIds((current) => {
+			if (!current.has(tabId)) {
+				return current;
+			}
+			const next = new Set(current);
+			next.delete(tabId);
+			return next;
+		});
 	};
 
 	const startPendingTab = (tabId: string) => {
@@ -673,6 +758,61 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
+	const mcpServerLabel = (mcpServerConfigId: string, fallback: string) =>
+		mcpServers.find((server) => server.id === mcpServerConfigId)
+			?.display_name || fallback;
+
+	const handleOpenMcpApp = (request: OpenMcpAppRequest) => {
+		const tab: McpAppTab = {
+			id: mcpAppTabId(request.mcpServerConfigId, request.resourceUri),
+			kind: "mcp_app",
+			...request,
+		};
+		setUserRightPanelTabsState((currentTabs) =>
+			applyMcpAppTabUpserts(currentTabs, [tab]),
+		);
+		setDismissedAppToolCalls((current) => {
+			if (!current.has(tab.id)) {
+				return current;
+			}
+			const next = new Map(current);
+			next.delete(tab.id);
+			return next;
+		});
+		activateRightPanelTab(tab.id);
+	};
+
+	const handleMcpAppToolCalls = (
+		refs: readonly McpAppToolCallRef[],
+		{ initial }: { initial: boolean },
+	) => {
+		const plan = planMcpAppTabs({
+			refs,
+			tabs: userRightPanelTabs,
+			dismissed: dismissedAppToolCalls,
+			initial,
+			panelOpen: shouldShowSidebar,
+			activeTabId: effectiveSidebarTabId,
+			labelFor: (ref) => mcpServerLabel(ref.mcpServerConfigId, ref.toolName),
+		});
+		if (plan.upserts.length > 0) {
+			setUserRightPanelTabsState((currentTabs) =>
+				applyMcpAppTabUpserts(currentTabs, plan.upserts),
+			);
+		}
+		if (plan.activateTabId !== undefined) {
+			setPendingTabId(null);
+			setSidebarTabId(plan.activateTabId);
+		}
+		if (plan.badgeTabIds.length > 0) {
+			setBadgedTabIds((current) => new Set([...current, ...plan.badgeTabIds]));
+		}
+	};
+
+	const mcpAppPanelCtx = {
+		openMcpApp: mcpAppsEnabled ? handleOpenMcpApp : undefined,
+	};
+
 	const renderTabContent = (tabId: string): ReactNode => {
 		switch (tabId) {
 			case "summary":
@@ -751,6 +891,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
+						primaryWildcardHostname={primaryWildcardHostname}
+						store={store}
+						mcpServers={mcpServers}
+						submitAppMessage={
+							isOtherUserReadOnly ? undefined : submitAppMessage
+						}
 						sidebarVisible={shouldShowSidebar}
 						isActive={effectiveSidebarTabId === userTab.id}
 						isPending={pendingTabId === userTab.id}
@@ -775,6 +921,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				currentTabIds.filter((id) => id !== tabId),
 			);
 		} else {
+			const closedAppTab = userRightPanelTabs.find(
+				(tab): tab is McpAppTab => tab.kind === "mcp_app" && tab.id === tabId,
+			);
+			if (closedAppTab) {
+				setDismissedAppToolCalls((current) =>
+					new Map(current).set(tabId, closedAppTab.toolCallId),
+				);
+			}
 			setUserRightPanelTabsState((currentTabs) =>
 				currentTabs.filter((tab) => tab.id !== tabId),
 			);
@@ -809,6 +963,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		return {
 			id: tab.id,
 			label: tab.label,
+			badge:
+				badgedTabIds.has(tab.id) && effectiveSidebarTabId !== tab.id ? (
+					<span
+						role="img"
+						aria-label="New activity"
+						className="mx-2 size-1.5 rounded-full bg-highlight-sky"
+					/>
+				) : undefined,
 			content: renderTabContent(tab.id),
 			onClose: isCloseable ? () => handleCloseTab(tab.id) : undefined,
 		};
@@ -820,7 +982,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
-	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
 	const chatOwnerWarning = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
@@ -842,199 +1003,210 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
-					<div
-						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
-							shouldShowSidebar && !visualExpanded && "flex-row",
+					<McpAppPanelContext value={mcpAppPanelCtx}>
+						{mcpAppsEnabled && (
+							<McpAppTabSync
+								store={store}
+								isHydrating={isHydratingMessages}
+								onAppToolCalls={handleMcpAppToolCalls}
+							/>
 						)}
-					>
 						<div
-							data-testid="agents-chat-panel"
 							className={cn(
-								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
-								visualExpanded && "hidden",
-								shouldShowSidebar && "max-lg:hidden",
+								"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+								shouldShowSidebar && !visualExpanded && "flex-row",
 							)}
 						>
-							<div className="relative z-10 shrink-0 overflow-visible">
-								{" "}
-								<ChatTopBar
-									chat={chat}
-									liveChatStatus={liveChatStatus}
-									panel={{
-										showSidebarPanel,
-										onToggleSidebar: () =>
-											onSetShowSidebarPanel(!showSidebarPanel),
-									}}
-								/>
-								{modelCatalogError != null && (
-									<ErrorAlert error={modelCatalogError} />
+							<div
+								data-testid="agents-chat-panel"
+								className={cn(
+									"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
+									visualExpanded && "hidden",
+									shouldShowSidebar && "max-lg:hidden",
 								)}
-								{unavailableModelNotice && (
-									<div
-										role="status"
-										aria-label={unavailableModelNotice}
-										aria-live="polite"
-										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-									>
-										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-										{unavailableModelNotice}
-									</div>
-								)}
-								{chatOwnerWarning && (
-									<div
-										role="status"
-										aria-live="polite"
-										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-									>
-										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-										{chatOwnerWarning}
-									</div>
-								)}
-								{isArchived && (
-									<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-										<ArchiveIcon className="size-4 shrink-0" />
-										This agent has been archived and is read-only.
-									</div>
-								)}
-								<div
-									aria-hidden
-									className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
-									style={{
-										maskImage:
-											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-										WebkitMaskImage:
-											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-									}}
-								/>
-							</div>
-							<ChatPageTimeline
-								key={agentId}
-								organizationId={organizationId}
-								store={store}
-								chatFiles={chat.files}
-								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-								persistedError={persistedError}
-								hasMoreMessages={hasMoreMessages}
-								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
-								hasFetchMoreError={hasFetchMoreError}
-								onFetchMoreMessages={onFetchMoreMessages}
-								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleEditUserMessage
-								}
-								editingMessageId={editing.editingMessageId}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-								onImplementPlan={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onImplementPlan
-								}
-								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onSendAskUserQuestionResponse
-								}
-								footer={
-									chat.queued_for_capacity ? (
-										<QueuedForCapacityCallout
-											hasLicense={hasLicense}
-											canManageLicenses={canManageLicenses}
-											agentHoursHardLimit={agentHoursHardLimit}
-										/>
-									) : undefined
-								}
-							/>
-							{!isArchived && (
-								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-									<ChatPageInput
+							>
+								<div className="relative z-10 shrink-0 overflow-visible">
+									{" "}
+									<ChatTopBar
 										chat={chat}
-										store={store}
-										models={models}
-										onSend={editing.handleSendFromInput}
-										onDeleteQueuedMessage={handleDeleteQueuedMessage}
-										onPromoteQueuedMessage={handlePromoteQueuedMessage}
-										onInterrupt={handleInterrupt}
-										isInputDisabled={isInputDisabled}
-										isReadOnly={isOtherUserReadOnly}
-										isSendPending={isSubmissionPending}
-										isInterruptPending={isInterruptPending}
-										hasModelOptions={hasModelOptions}
-										canConfigureAgentSetup={canConfigureAgentSetup}
-										providerCount={providerCount}
-										modelCount={modelCount}
-										unsupportedProviderNames={unsupportedProviderNames}
-										aiGatewayDisabled={aiGatewayDisabled}
-										selectedModel={effectiveSelectedModel}
-										onModelChange={setSelectedModel}
-										modelOptions={modelOptions}
-										modelSelectorPlaceholder={modelSelectorPlaceholder}
-										modelSelectorHelp={modelSelectorHelp}
-										reasoningEffort={reasoningEffort}
-										onReasoningEffortChange={onReasoningEffortChange}
-										onPlanModeToggle={onPlanModeToggle}
-										isModelCatalogLoading={isModelCatalogLoading}
-										onWorkspaceChange={onWorkspaceChange}
-										isWorkspaceLoading={isWorkspaceLoading}
-										inputRef={editing.chatInputRef}
-										initialValue={editing.editorInitialValue}
-										initialEditorState={editing.initialEditorState}
-										remountKey={editing.remountKey}
-										onContentChange={editing.handleContentChange}
-										isEditing={isEditing}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-										editingFileBlocks={editing.editingFileBlocks}
-										mcpServers={mcpServers}
-										selectedMCPServerIds={selectedMCPServerIds}
-										onMCPSelectionChange={onMCPSelectionChange}
-										onMCPAuthComplete={onMCPAuthComplete}
-										workspace={workspace}
-										workspaceAgent={workspaceAgent}
-										sshCommand={sshCommand}
-										attachedWorkspace={attachedWorkspace}
-										folder={preferredFolder}
+										liveChatStatus={liveChatStatus}
+										panel={{
+											showSidebarPanel,
+											onToggleSidebar: () =>
+												onSetShowSidebarPanel(!showSidebarPanel),
+										}}
+									/>
+									{modelCatalogError != null && (
+										<ErrorAlert error={modelCatalogError} />
+									)}
+									{unavailableModelNotice && (
+										<div
+											role="status"
+											aria-label={unavailableModelNotice}
+											aria-live="polite"
+											className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+										>
+											<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+											{unavailableModelNotice}
+										</div>
+									)}
+									{chatOwnerWarning && (
+										<div
+											role="status"
+											aria-live="polite"
+											className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+										>
+											<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+											{chatOwnerWarning}
+										</div>
+									)}
+									{isArchived && (
+										<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+											<ArchiveIcon className="size-4 shrink-0" />
+											This agent has been archived and is read-only.
+										</div>
+									)}
+									<div
+										aria-hidden
+										className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+										style={{
+											maskImage:
+												"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+											WebkitMaskImage:
+												"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+										}}
 									/>
 								</div>
-							)}
-						</div>
-						<RightPanel
-							isOpen={shouldShowSidebar}
-							isExpanded={showSidebarPanel && isRightPanelExpanded}
-							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-							onClose={() => onSetShowSidebarPanel(false)}
-							onVisualExpandedChange={setDragVisualExpanded}
-						>
-							<SidebarTabView
-								effectiveTabId={effectiveSidebarTabId}
-								onActiveTabChange={handleActiveTabChange}
-								tabs={sidebarTabs}
-								addTabControl={
-									<RightPanelAddTabControl
-										workspace={workspace}
-										agent={workspaceAgent}
-										host={wildcardHostname}
-										isRunning={workspace?.latest_build.status === "running"}
-										supportedSingletonTabs={supportedSingletonTabs}
-										visibleSingletonTabs={shownSingletonTabs}
-										onToggleSingletonTab={handleToggleSingletonTab}
-										onNewTerminal={handleAddTerminalTab}
-										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
-										onOpenCommandApp={handleOpenCommandAppTab}
-										onOpenPort={handleOpenPortTab}
-									/>
-								}
-								onClose={() => onSetShowSidebarPanel(false)}
-								isExpanded={visualExpanded}
+								<ChatPageTimeline
+									key={agentId}
+									organizationId={organizationId}
+									store={store}
+									chatFiles={chat.files}
+									initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+									persistedError={persistedError}
+									hasMoreMessages={hasMoreMessages}
+									isFetchingMoreMessages={isFetchingMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+									hasFetchMoreError={hasFetchMoreError}
+									onFetchMoreMessages={onFetchMoreMessages}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleEditUserMessage
+									}
+									editingMessageId={editing.editingMessageId}
+									urlTransform={urlTransform}
+									mcpServers={mcpServers}
+									onImplementPlan={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onImplementPlan
+									}
+									onSendAskUserQuestionResponse={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onSendAskUserQuestionResponse
+									}
+									footer={
+										chat.queued_for_capacity ? (
+											<QueuedForCapacityCallout
+												hasLicense={hasLicense}
+												canManageLicenses={canManageLicenses}
+												agentHoursHardLimit={agentHoursHardLimit}
+											/>
+										) : undefined
+									}
+								/>
+								{!isArchived && (
+									<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+										<ChatPageInput
+											chat={chat}
+											store={store}
+											models={models}
+											onSend={editing.handleSendFromInput}
+											onDeleteQueuedMessage={handleDeleteQueuedMessage}
+											onPromoteQueuedMessage={handlePromoteQueuedMessage}
+											onInterrupt={handleInterrupt}
+											isInputDisabled={isInputDisabled}
+											isReadOnly={isOtherUserReadOnly}
+											isSendPending={isSubmissionPending}
+											isInterruptPending={isInterruptPending}
+											hasModelOptions={hasModelOptions}
+											canConfigureAgentSetup={canConfigureAgentSetup}
+											providerCount={providerCount}
+											modelCount={modelCount}
+											unsupportedProviderNames={unsupportedProviderNames}
+											aiGatewayDisabled={aiGatewayDisabled}
+											selectedModel={effectiveSelectedModel}
+											onModelChange={setSelectedModel}
+											modelOptions={modelOptions}
+											modelSelectorPlaceholder={modelSelectorPlaceholder}
+											modelSelectorHelp={modelSelectorHelp}
+											reasoningEffort={reasoningEffort}
+											onReasoningEffortChange={onReasoningEffortChange}
+											onPlanModeToggle={onPlanModeToggle}
+											isModelCatalogLoading={isModelCatalogLoading}
+											onWorkspaceChange={onWorkspaceChange}
+											isWorkspaceLoading={isWorkspaceLoading}
+											inputRef={editing.chatInputRef}
+											initialValue={editing.editorInitialValue}
+											initialEditorState={editing.initialEditorState}
+											remountKey={editing.remountKey}
+											onContentChange={editing.handleContentChange}
+											isEditing={isEditing}
+											onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+											editingFileBlocks={editing.editingFileBlocks}
+											mcpServers={mcpServers}
+											selectedMCPServerIds={selectedMCPServerIds}
+											onMCPSelectionChange={onMCPSelectionChange}
+											onMCPAuthComplete={onMCPAuthComplete}
+											workspace={workspace}
+											workspaceAgent={workspaceAgent}
+											sshCommand={sshCommand}
+											attachedWorkspace={attachedWorkspace}
+											folder={preferredFolder}
+										/>
+									</div>
+								)}
+							</div>
+							<RightPanel
+								isOpen={shouldShowSidebar}
+								isExpanded={showSidebarPanel && isRightPanelExpanded}
 								onToggleExpanded={() =>
 									setIsRightPanelExpanded((prev) => !prev)
 								}
-								chatTitle={chat.title}
-							/>
-						</RightPanel>
-					</div>
+								onClose={() => onSetShowSidebarPanel(false)}
+								onVisualExpandedChange={setDragVisualExpanded}
+							>
+								<SidebarTabView
+									effectiveTabId={effectiveSidebarTabId}
+									onActiveTabChange={handleActiveTabChange}
+									tabs={sidebarTabs}
+									addTabControl={
+										<RightPanelAddTabControl
+											workspace={workspace}
+											agent={workspaceAgent}
+											host={wildcardHostname}
+											isRunning={workspace?.latest_build.status === "running"}
+											supportedSingletonTabs={supportedSingletonTabs}
+											visibleSingletonTabs={shownSingletonTabs}
+											onToggleSingletonTab={handleToggleSingletonTab}
+											onNewTerminal={handleAddTerminalTab}
+											onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
+											onOpenCommandApp={handleOpenCommandAppTab}
+											onOpenPort={handleOpenPortTab}
+										/>
+									}
+									onClose={() => onSetShowSidebarPanel(false)}
+									isExpanded={visualExpanded}
+									onToggleExpanded={() =>
+										setIsRightPanelExpanded((prev) => !prev)
+									}
+									chatTitle={chat.title}
+								/>
+							</RightPanel>
+						</div>
+					</McpAppPanelContext>
 				</DesktopPanelContext>
 			</ChatWorkspaceContext>
 		</TerminalClientSessionContext>

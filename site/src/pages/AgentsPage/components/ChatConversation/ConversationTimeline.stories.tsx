@@ -331,6 +331,7 @@ const buildParsedReadFileEntry = ({
 			blocks: [{ type: "tool", id: toolId }],
 			sources: [],
 			hookNotices: [],
+			mcpAppContexts: [],
 		},
 	};
 };
@@ -1286,6 +1287,29 @@ export const UserMessageTextOnly: Story = {
 	},
 };
 
+/** Context reported by an MCP App is shown as a chip under the text. */
+export const UserMessageWithMcpAppContext: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Mark the first task as done" },
+					{
+						type: "mcp-app-context",
+						text: "Task board now has 2 tasks: #1 Write tests, #2 Ship it",
+						mcp_server_config_id: "mcp-1",
+						mcp_app_resource_uri: "ui://taskboard/board",
+					},
+				],
+			},
+		]),
+	},
+};
+
 /** Assistant-side images go through BlockList, not the user path. */
 export const AssistantMessageWithImage: Story = {
 	args: {
@@ -1998,6 +2022,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 					],
 					sources: [],
 					hookNotices: [],
+					mcpAppContexts: [],
 				},
 			},
 		] satisfies ParsedMessageEntry[],

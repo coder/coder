@@ -166,6 +166,63 @@ describe("right-panel tab validation", () => {
 
 		expect(validated).toEqual([]);
 	});
+
+	describe("mcp_app tabs", () => {
+		const appTab: UserRightPanelTab = {
+			id: "mcp_app:mcp-1:ui://taskboard/board",
+			kind: "mcp_app",
+			mcpServerConfigId: "mcp-1",
+			resourceUri: "ui://taskboard/board",
+			toolCallId: "call-1",
+			label: "Task board",
+		};
+
+		it("keeps app tabs without a workspace when the server is enabled", () => {
+			const validated = validateUserRightPanelTabs([appTab], {
+				workspace: undefined,
+				workspaceAgent: undefined,
+				wildcardHostname: "",
+				mcpServerIds: ["mcp-1"],
+				mcpAppsEnabled: true,
+			});
+
+			expect(validated).toEqual([appTab]);
+		});
+
+		it("drops app tabs when the experiment is off", () => {
+			const validated = validateUserRightPanelTabs([appTab], {
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+				wildcardHostname: "*.apps.example.com",
+				mcpServerIds: ["mcp-1"],
+				mcpAppsEnabled: false,
+			});
+
+			expect(validated).toEqual([]);
+		});
+
+		it("drops app tabs when the server left the chat", () => {
+			const validated = validateUserRightPanelTabs([appTab], {
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+				wildcardHostname: "*.apps.example.com",
+				mcpServerIds: ["mcp-2"],
+				mcpAppsEnabled: true,
+			});
+
+			expect(validated).toEqual([]);
+		});
+
+		it("defaults to dropping app tabs when no server list is given", () => {
+			const validated = validateUserRightPanelTabs([appTab], {
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+				wildcardHostname: "*.apps.example.com",
+			});
+
+			expect(validated).toEqual([]);
+		});
+	});
 });
 
 function buildWorkspace(resourceAgents: readonly WorkspaceAgent[]): Workspace {
@@ -278,6 +335,34 @@ describe("right-panel tab storage", () => {
 		savePersistedRightPanelTabs("chat-1", tabs);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+
+	it("persists mcp_app tabs and rejects incomplete ones", () => {
+		const tabs: UserRightPanelTab[] = [
+			{
+				id: "mcp_app:mcp-1:ui://taskboard/board",
+				kind: "mcp_app",
+				mcpServerConfigId: "mcp-1",
+				resourceUri: "ui://taskboard/board",
+				toolCallId: "call-1",
+				label: "Task board",
+			},
+		];
+
+		savePersistedRightPanelTabs("chat-1", tabs);
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+
+		localStorage.setItem(
+			`${rightPanelTabStorageKeyPrefix}chat-2`,
+			JSON.stringify([
+				{
+					id: "mcp_app:mcp-1:ui://x",
+					kind: "mcp_app",
+					mcpServerConfigId: "mcp-1",
+				},
+			]),
+		);
+		expect(getPersistedRightPanelTabs("chat-2")).toEqual([]);
 	});
 
 	it("ignores invalid stored values", () => {

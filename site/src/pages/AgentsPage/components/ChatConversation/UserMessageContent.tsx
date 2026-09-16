@@ -1,5 +1,7 @@
 import { cn } from "cn";
+import { LayoutPanelTopIcon } from "lucide-react";
 import { type FC, Fragment } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
@@ -106,6 +108,21 @@ export const UserMessageContent: FC<{
 									onTextFileClick={onTextFileClick}
 									showTextStatus
 								/>
+							))}
+						</div>
+					)}
+					{displayState.userAppContexts.length > 0 && (
+						<div className="flex flex-wrap gap-1.5">
+							{displayState.userAppContexts.map((part, index) => (
+								<Badge
+									key={`app-context-${part.mcp_app_resource_uri ?? index}`}
+									variant="outline"
+									size="sm"
+									title={part.text}
+								>
+									<LayoutPanelTopIcon />
+									App context attached: {part.mcp_app_resource_uri || "Unknown"}
+								</Badge>
 							))}
 						</div>
 					)}

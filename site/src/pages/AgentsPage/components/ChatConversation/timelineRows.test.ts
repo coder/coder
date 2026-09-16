@@ -17,6 +17,7 @@ const emptyParsed: ParsedMessageContent = {
 	blocks: [],
 	sources: [],
 	hookNotices: [],
+	mcpAppContexts: [],
 };
 
 const entry = (

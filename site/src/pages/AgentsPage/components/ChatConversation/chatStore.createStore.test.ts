@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
 
@@ -1070,5 +1070,60 @@ describe("duplicate message deduplication", () => {
 		expect(state.messagesByID.size).toBe(2);
 		// orderedMessageIDs MUST also have only 2 entries.
 		expect(state.orderedMessageIDs).toEqual([1, 2]);
+	});
+});
+
+describe("mcpAppContexts", () => {
+	const context = (text: string) => ({
+		mcpServerConfigId: "mcp-1",
+		resourceUri: "ui://taskboard/board",
+		text,
+	});
+
+	it("keeps the latest context per app and notifies subscribers", () => {
+		const store = createChatStore();
+		const listener = vi.fn();
+		store.subscribe(listener);
+
+		store.setMcpAppContext("app-1", context("one"));
+		store.setMcpAppContext("app-1", context("two"));
+		store.setMcpAppContext("app-1", context("two"));
+
+		expect(store.getSnapshot().mcpAppContexts.get("app-1")).toEqual(
+			context("two"),
+		);
+		expect(listener).toHaveBeenCalledTimes(2);
+	});
+
+	it("takeMcpAppContexts returns every entry and clears the map", () => {
+		const store = createChatStore();
+		store.setMcpAppContext("app-1", context("one"));
+		store.setMcpAppContext("app-2", context("two"));
+
+		const taken = store.takeMcpAppContexts();
+
+		expect(taken).toEqual([
+			["app-1", context("one")],
+			["app-2", context("two")],
+		]);
+		expect(store.getSnapshot().mcpAppContexts.size).toBe(0);
+		expect(store.takeMcpAppContexts()).toEqual([]);
+	});
+
+	it("restoreMcpAppContexts does not overwrite a newer context", () => {
+		const store = createChatStore();
+		store.setMcpAppContext("app-1", context("old"));
+		store.setMcpAppContext("app-2", context("other"));
+		const taken = store.takeMcpAppContexts();
+		store.setMcpAppContext("app-1", context("newer"));
+
+		store.restoreMcpAppContexts(taken);
+
+		expect(store.getSnapshot().mcpAppContexts.get("app-1")).toEqual(
+			context("newer"),
+		);
+		expect(store.getSnapshot().mcpAppContexts.get("app-2")).toEqual(
+			context("other"),
+		);
 	});
 });

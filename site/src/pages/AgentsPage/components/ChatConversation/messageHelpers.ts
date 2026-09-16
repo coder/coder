@@ -17,6 +17,7 @@ export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
+	userAppContexts: TypesGen.ChatMcpAppContextPart[];
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
 	hasCopyableContent: boolean;
@@ -141,6 +142,7 @@ export const deriveMessageDisplayState = ({
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
 	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
+	const userAppContexts = isUser ? parsed.mcpAppContexts : [];
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
@@ -166,6 +168,7 @@ export const deriveMessageDisplayState = ({
 		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
+		userAppContexts,
 		hasUserMessageBody,
 		hasFileBlocks,
 		hasCopyableContent,
@@ -211,6 +214,7 @@ const mergeReadFileMessageGroup = (
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
 			sources: [],
 			hookNotices: [],
+			mcpAppContexts: [],
 		},
 	};
 };

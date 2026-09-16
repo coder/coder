@@ -3595,6 +3595,31 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	callChatMCPAppTool = async (
+		chatId: string,
+		mcpServerConfigId: string,
+		req: TypesGen.ChatMCPAppToolCallRequest,
+	): Promise<TypesGen.ChatMCPAppToolCallResponse> => {
+		const response = await this.axios.post<TypesGen.ChatMCPAppToolCallResponse>(
+			`/api/experimental/chats/${chatId}/mcp-servers/${mcpServerConfigId}/tools/call`,
+			req,
+		);
+		return response.data;
+	};
+
+	readChatMCPAppResource = async (
+		chatId: string,
+		mcpServerConfigId: string,
+		req: TypesGen.ChatMCPAppResourceReadRequest,
+	): Promise<TypesGen.ChatMCPAppResourceReadResponse> => {
+		const response =
+			await this.axios.post<TypesGen.ChatMCPAppResourceReadResponse>(
+				`/api/experimental/chats/${chatId}/mcp-servers/${mcpServerConfigId}/resources/read`,
+				req,
+			);
+		return response.data;
+	};
+
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(
 			"/api/experimental/chats/config/advisor",

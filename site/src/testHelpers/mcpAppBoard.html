@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Task board</title>
+</head>
+<body>
+<ul id="list" aria-label="Tasks"></ul>
+<div id="status">Connecting to host...</div>
+<script>
+  var PROTOCOL_VERSION = "2026-01-26";
+  var nextId = 1;
+  function post(msg) { window.parent.postMessage(msg, "*"); }
+  function request(method, params) {
+    return new Promise((resolve) => {
+      post({ jsonrpc: "2.0", id: nextId++, method: method, params: params });
+      resolve();
+    });
+  }
+  request("ui/initialize", {
+    appInfo: { name: "taskboard", version: "0.0.1" },
+    appCapabilities: {},
+    protocolVersion: PROTOCOL_VERSION,
+  });
+</script>
+</body>
+</html>

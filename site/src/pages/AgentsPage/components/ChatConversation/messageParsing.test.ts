@@ -1152,3 +1152,58 @@ describe("getSubagentDescriptor", () => {
 		}
 	});
 });
+
+describe("MCP app parts", () => {
+	const mcpResult = { content: [{ type: "text", text: "ok" }] };
+
+	it("parses tool call and result app fields into the merged tool", () => {
+		const content: ChatMessagePart[] = [
+			{
+				type: "tool-call",
+				tool_call_id: "tc-1",
+				tool_name: "add_task",
+				args: { title: "x" },
+				mcp_server_config_id: "mcp-1",
+				mcp_app_resource_uri: "ui://taskboard/board",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "tc-1",
+				tool_name: "add_task",
+				result: "ok",
+				mcp_result: mcpResult,
+			},
+		];
+		const parsed = parseMessageContent(content);
+		expect(parsed.toolCalls[0].mcpAppResourceUri).toBe("ui://taskboard/board");
+		expect(parsed.toolResults[0].mcpResult).toEqual(mcpResult);
+
+		const [tool] = mergeTools(parsed.toolCalls, parsed.toolResults);
+		expect(tool).toMatchObject({
+			mcpServerConfigId: "mcp-1",
+			mcpAppResourceUri: "ui://taskboard/board",
+			mcpResult,
+		});
+	});
+
+	it("collects mcp-app-context parts separately from the message body", () => {
+		const parsed = parseMessageContent([
+			{ type: "text", text: "Add a task" },
+			{
+				type: "mcp-app-context",
+				text: "Board has 1 task",
+				mcp_server_config_id: "mcp-1",
+				mcp_app_resource_uri: "ui://taskboard/board",
+			},
+		]);
+		expect(parsed.markdown).toBe("Add a task");
+		expect(parsed.mcpAppContexts).toEqual([
+			{
+				type: "mcp-app-context",
+				text: "Board has 1 task",
+				mcp_server_config_id: "mcp-1",
+				mcp_app_resource_uri: "ui://taskboard/board",
+			},
+		]);
+	});
+});
