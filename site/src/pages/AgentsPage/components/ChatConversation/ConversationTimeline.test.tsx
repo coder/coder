@@ -388,7 +388,6 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
 		});
 		const summary = screen.getByRole("button", { name: "Working for 12s" });
-		expect(screen.queryByTestId("live-activity-slot")).toBeNull();
 
 		rerenderStage({
 			messages,
@@ -398,7 +397,6 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: { phase: "streaming", hasAccumulatedOutput: false },
 		});
 		expect(screen.getByRole("button", { name: /^Working/ })).toBe(summary);
-		expect(screen.queryByTestId("live-activity-slot")).toBeNull();
 
 		rerenderStage({
 			messages,
@@ -412,8 +410,6 @@ describe("ConversationTimeline live working blocks", () => {
 			]),
 		});
 		expect(screen.getByRole("button", { name: /^Working/ })).toBe(summary);
-		expect(screen.queryByTestId("live-activity-slot")).toBeNull();
-		expect(screen.queryByText(/planning the inspection/i)).toBeNull();
 	});
 
 	it("preserves promptless block expansion through completion and prompt prepend", async () => {

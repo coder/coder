@@ -105,7 +105,6 @@ describe("SmoothTextEngine", () => {
 			engine.dispose();
 			engine.resume();
 			expect(raf).toHaveBeenCalledTimes(2);
-			// The loop is already running again.
 			engine.resume();
 			expect(raf).toHaveBeenCalledTimes(2);
 
