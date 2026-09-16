@@ -72,6 +72,47 @@ func TestWatcher_FiresOnNewSkillFile(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "expected fire after SKILL.md create")
 }
 
+func TestWatcher_FiresOnChildRepoInstructionFile(t *testing.T) {
+	t.Parallel()
+	for _, marker := range []string{"git-directory", "git-file", "CLAUDE.md", ".cursorrules"} {
+		t.Run(marker, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			child := filepath.Join(dir, "repo")
+			switch marker {
+			case "git-directory":
+				require.NoError(t, os.MkdirAll(filepath.Join(child, ".git"), 0o755))
+			case "git-file":
+				mustWriteFile(t, filepath.Join(child, ".git"), "gitdir: elsewhere")
+			default:
+				mustWriteFile(t, filepath.Join(child, marker), "rules")
+			}
+			fired := make(chan struct{}, 1)
+			w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
+				Logger:   testutil.Logger(t).Named("watcher"),
+				Debounce: 10 * time.Millisecond,
+				OnChange: func() {
+					select {
+					case fired <- struct{}{}:
+					default:
+					}
+				},
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = w.Close() })
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+			mustWriteFile(t, filepath.Join(child, "AGENTS.md"), "new rules")
+			select {
+			case <-fired:
+			case <-ctx.Done():
+				require.Fail(t, "expected callback after child AGENTS.md create")
+			}
+		})
+	}
+}
+
 func TestWatcher_CloseIsIdempotent(t *testing.T) {
 	t.Parallel()
 	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
