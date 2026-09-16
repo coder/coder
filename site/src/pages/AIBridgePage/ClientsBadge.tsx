@@ -10,8 +10,8 @@ import { AIBridgeClientIcon } from "./icons/AIBridgeClientIcon";
 
 /**
  * Names a single client with its icon, or counts them when there are several
- * and lists them on hover. A missing client is reported as Unknown. Renders
- * nothing for an empty list.
+ * and lists them on hover or focus. A missing client is reported as Unknown.
+ * Renders nothing for an empty list.
  */
 export const ClientsBadge: FC<{ clients: readonly (string | null)[] }> = ({
 	clients,
@@ -24,7 +24,9 @@ export const ClientsBadge: FC<{ clients: readonly (string | null)[] }> = ({
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<Badge className="max-w-full">{clients.length} clients</Badge>
+						<Badge asChild hover className="max-w-full">
+							<button type="button">{clients.length} clients</button>
+						</Badge>
 					</TooltipTrigger>
 					<TooltipContent side="top" align="start">
 						<ul className="m-0 flex list-none flex-col gap-1 p-0">

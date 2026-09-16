@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
 import { createMemoryRouter } from "react-router";
@@ -198,13 +198,21 @@ it("shows each user's providers and clients", async () => {
 	renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 	expect(screen.getByText("OpenAI")).toBeInTheDocument();
-	expect(screen.getAllByText("2 providers")).toHaveLength(9);
-	expect(screen.getAllByText("2 clients")).toHaveLength(10);
+	const providerBadges = screen.getAllByRole("button", { name: "2 providers" });
+	const clientBadges = screen.getAllByRole("button", { name: "2 clients" });
+	expect(providerBadges).toHaveLength(9);
+	expect(clientBadges).toHaveLength(10);
 
-	await user.hover(screen.getAllByText("2 providers")[0]);
-	const tooltip = await screen.findByRole("tooltip");
-	expect(tooltip).toHaveTextContent("Anthropic");
-	expect(tooltip).toHaveTextContent("OpenAI");
+	await user.hover(providerBadges[0]);
+	const providersTooltip = await screen.findByRole("tooltip");
+	expect(providersTooltip).toHaveTextContent("Anthropic");
+	expect(providersTooltip).toHaveTextContent("OpenAI");
+	await user.unhover(providerBadges[0]);
+
+	act(() => clientBadges[0].focus());
+	const clientsTooltip = await screen.findByRole("tooltip");
+	expect(clientsTooltip).toHaveTextContent("Claude Code");
+	expect(clientsTooltip).toHaveTextContent("Cursor");
 });
 
 it("applies the provider filter and resets pagination", async () => {

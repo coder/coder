@@ -11,7 +11,7 @@ import { getProviderDisplayName } from "./utils";
 
 /**
  * Names a single provider with its icon, or counts them when there are
- * several and lists them on hover. Renders nothing for an empty list.
+ * several and lists them on hover or focus. Renders nothing for an empty list.
  */
 export const ProvidersBadge: FC<{ providers: readonly string[] }> = ({
 	providers,
@@ -24,7 +24,9 @@ export const ProvidersBadge: FC<{ providers: readonly string[] }> = ({
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<Badge className="max-w-full">{providers.length} providers</Badge>
+						<Badge asChild hover className="max-w-full">
+							<button type="button">{providers.length} providers</button>
+						</Badge>
 					</TooltipTrigger>
 					<TooltipContent side="top" align="start">
 						<ul className="m-0 flex list-none flex-col gap-1 p-0">

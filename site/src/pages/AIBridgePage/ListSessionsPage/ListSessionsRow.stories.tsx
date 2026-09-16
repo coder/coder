@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { fn, screen, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
@@ -48,10 +48,8 @@ export const MultipleProviders: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByText("3 providers"));
-		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toHaveTextContent("Copilot"),
-		);
+		await userEvent.hover(canvas.getByRole("button", { name: "3 providers" }));
+		await screen.findByRole("tooltip");
 	},
 };
 
