@@ -1,5 +1,11 @@
 import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useCallback,
+	useLayoutEffect,
+	useRef,
+} from "react";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import {
@@ -87,6 +93,26 @@ const useKeepReadingPositionAcrossPrepend = (memberIds: readonly number[]) => {
 		memberIds: readonly number[];
 		height: number;
 	}>(null);
+	// Nested rows expand and collapse on their own state, which resizes the
+	// content without rendering this component. Keep the cached height current
+	// so the next prepend is measured against the size just before it.
+	const observeContent = useCallback((content: HTMLDivElement | null) => {
+		contentRef.current = content;
+		if (!content) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			const previous = previousRef.current;
+			if (previous) {
+				previousRef.current = { ...previous, height: content.offsetHeight };
+			}
+		});
+		observer.observe(content);
+		return () => {
+			observer.disconnect();
+			contentRef.current = null;
+		};
+	}, []);
 	useLayoutEffect(() => {
 		const content = contentRef.current;
 		const previous = previousRef.current;
@@ -113,7 +139,7 @@ const useKeepReadingPositionAcrossPrepend = (memberIds: readonly number[]) => {
 			viewport.scrollTop += delta;
 		});
 	});
-	return contentRef;
+	return observeContent;
 };
 
 type WorkingBlockDisclosureProps = {
