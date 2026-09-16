@@ -227,4 +227,41 @@ func TestApplyShard(t *testing.T) {
 		require.Nil(t, got)
 		require.Empty(t, buf.String())
 	})
+
+	// An over-provisioned pod (more shards than running workspaces map to it) must
+	// exit 0 with a diagnostic, not error: this is the empty-but-running case the
+	// per-shard diagnostic was added for. A regression that errored here would
+	// silently fail every over-provisioned pod's Indexed Job.
+	t.Run("EmptyShardExitsZero", func(t *testing.T) {
+		t.Parallel()
+
+		const shardCount = 8
+		workspaces := make([]codersdk.Workspace, 0, 3)
+		occupied := make(map[int64]struct{})
+		for range 3 {
+			ws := codersdk.Workspace{ID: uuid.New()}
+			ws.LatestBuild.Status = codersdk.WorkspaceStatusRunning
+			workspaces = append(workspaces, ws)
+			occupied[workspaceShardIndex(ws.ID, shardCount)] = struct{}{}
+		}
+
+		// With 3 running workspaces across 8 shards at least one shard is empty.
+		var emptyIndex int64 = -1
+		for idx := range int64(shardCount) {
+			if _, ok := occupied[idx]; !ok {
+				emptyIndex = idx
+				break
+			}
+		}
+		require.GreaterOrEqual(t, emptyIndex, int64(0), "expected an empty shard")
+
+		f := &workspaceTargetFlags{shardIndex: emptyIndex, shardCount: shardCount}
+		var buf bytes.Buffer
+		got, err := f.applyShard(workspaces, &buf)
+		require.NoError(t, err)
+		require.Empty(t, got)
+		require.Equal(t,
+			fmt.Sprintf("shard %d of %d: targeting 0 of 3 running workspaces\n", emptyIndex, shardCount),
+			buf.String())
+	})
 }

@@ -579,6 +579,11 @@ func (f *workspaceTargetFlags) applyShard(workspaces []codersdk.Workspace, warnW
 // shardWorkspaces over all indices in [0, shardCount) is exactly the running
 // set with no overlap, regardless of input ordering or which workspaces are
 // present. shardCount must be >= 1 (guaranteed by getTargetedWorkspaces).
+//
+// Hash assignment is only roughly even: shard sizes vary around the mean and
+// the largest shard runs a tail above it, so size replica memory for the
+// largest shard, not the mean. A hard width cap is deliberately not imposed
+// because it would reintroduce the churn instability that ID hashing avoids.
 func shardWorkspaces(workspaces []codersdk.Workspace, shardIndex, shardCount int64) (shard []codersdk.Workspace, runningCount int) {
 	for _, ws := range workspaces {
 		if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
