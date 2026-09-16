@@ -222,6 +222,32 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 		require.ElementsMatch(t, []uuid.UUID{chat.ID, siblingChat.ID}, gotChatIDs)
 	})
 
+	t.Run("ReadsRowWhenPinnedConcurrently", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil), pubsub: dbpubsub.NewInMemory()}
+
+		agentID := uuid.New()
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
+		snapshot := database.WorkspaceAgentContextSnapshot{WorkspaceAgentID: agentID, AggregateHash: []byte{0x0c}}
+		pinnedChat := chat
+		pinnedChat.ContextAggregateHash = snapshot.AggregateHash
+
+		// A push or refresh pinned the chat after the caller read it, so
+		// the guarded statement finds nothing to stamp; the row still has
+		// to be read so the turn does not treat a published snapshot as
+		// missing.
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).Return(snapshot, nil)
+		db.EXPECT().HydrateAgentChatsContext(gomock.Any(), gomock.Any()).Return(nil, nil)
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(pinnedChat, nil)
+
+		require.Equal(t, pinnedChat, server.ensureChatContextPinnedOnFirstTurn(ctx, chat))
+	})
+
 	t.Run("SkipsPublishWhenNoSnapshot", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
