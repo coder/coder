@@ -7077,6 +7077,10 @@ export interface OrganizationAISpendUser {
 	 * recorded client is reported as Unknown.
 	 */
 	readonly clients: readonly string[];
+	/**
+	 * Models are the models the user spent through, sorted.
+	 */
+	readonly models: readonly string[];
 }
 
 // From codersdk/chats.go

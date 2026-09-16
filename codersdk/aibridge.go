@@ -466,6 +466,8 @@ type OrganizationAISpendUser struct {
 	// Clients are the clients the user spent through, sorted. Usage without a
 	// recorded client is reported as Unknown.
 	Clients []string `json:"clients"`
+	// Models are the models the user spent through, sorted.
+	Models []string `json:"models"`
 }
 
 // OrganizationAISpendTotals aggregates every user matching the report's
