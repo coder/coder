@@ -657,7 +657,7 @@ const notionMCPConnected = buildMCPServer({
 	enabled: true,
 });
 
-const slackMCPAlwaysOnNeedingAuth = buildMCPServer({
+const mockSlackMCPAlwaysOnNeedingAuth = buildMCPServer({
 	id: "mcp-slack",
 	display_name: "Slack",
 	slug: "slack",
@@ -736,7 +736,7 @@ export const MCPGroupDisabled: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
-const longNameMCP = buildMCPServer({
+const mockLongNameMCP = buildMCPServer({
 	id: "mcp-long-name",
 	display_name: "Coder Internal Documentation Search Server",
 	slug: "internal-docs",
@@ -749,8 +749,8 @@ const longNameMCP = buildMCPServer({
 export const MCPGroupPopoverLongName: Story = {
 	args: {
 		...mcpDefaults,
-		mcpServers: [sentryMCP, linearMCP, longNameMCP],
-		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, longNameMCP.id],
+		mcpServers: [sentryMCP, linearMCP, mockLongNameMCP],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, mockLongNameMCP.id],
 	},
 	play: MCPGroupPopoverOpen.play,
 };
@@ -762,7 +762,7 @@ export const PlusMenuAlwaysOnNeedingAuth: Story = {
 			sentryMCP,
 			linearMCP,
 			githubMCPConnected,
-			slackMCPAlwaysOnNeedingAuth,
+			mockSlackMCPAlwaysOnNeedingAuth,
 		],
 	},
 	play: async ({ canvasElement }) => {

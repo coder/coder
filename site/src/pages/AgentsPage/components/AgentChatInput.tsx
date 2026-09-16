@@ -47,6 +47,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
+	type PopoverContentProps,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
@@ -220,12 +221,24 @@ export interface AttachedWorkspaceInfo {
 // label's natural width. Below the floor the +N overflow takes over.
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
-// Popovers that list tool badges (the +N overflow and the MCP group)
-// wrap the same pills the toolbar shows inline. Pills clamp to the
-// popover width so a long name truncates instead of pushing its X
-// out of view.
-const badgePopoverContentClasses =
-	"flex w-auto max-w-64 flex-wrap gap-1 p-2 *:max-w-full";
+
+// Lists the same tool pills the toolbar shows inline (the +N overflow
+// and the MCP group). Pills clamp to the popover width so a long name
+// truncates instead of pushing its X out of view.
+const BadgePopoverContent: FC<PopoverContentProps> = ({
+	className,
+	...props
+}) => (
+	<PopoverContent
+		side="top"
+		align="start"
+		className={cn(
+			"flex w-auto max-w-64 flex-wrap gap-1 p-2 *:max-w-full",
+			className,
+		)}
+		{...props}
+	/>
+);
 
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
@@ -283,11 +296,7 @@ const MCPGroupBadge: FC<{
 					/>
 				</button>
 			</PopoverTrigger>
-			<PopoverContent
-				side="top"
-				align="start"
-				className={badgePopoverContentClasses}
-			>
+			<BadgePopoverContent>
 				{servers.map((server) => (
 					<ToolBadge
 						key={server.id}
@@ -296,7 +305,7 @@ const MCPGroupBadge: FC<{
 						isDisabled={isDisabled}
 					/>
 				))}
-			</PopoverContent>
+			</BadgePopoverContent>
 		</Popover>
 	);
 };
@@ -1643,10 +1652,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									</button>
 								</PopoverTrigger>
 								{/* Anchored above the +N pill; hugs the toolbar row. */}
-								<PopoverContent
-									side="top"
-									align="start"
-									className={badgePopoverContentClasses}
+								<BadgePopoverContent
 									onInteractOutside={(event) => {
 										// The workspace pill portals its menu outside
 										// this popover; dismissing would unmount the
@@ -1710,7 +1716,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											/>
 										);
 									})}
-								</PopoverContent>
+								</BadgePopoverContent>
 							</Popover>
 						</div>
 					</div>
