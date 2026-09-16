@@ -8,8 +8,6 @@ import {
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
-	type CategoryPreview,
-	categoryPreview,
 	chipToken,
 	collectValueSuggestions,
 	composeFilterQuery,
@@ -20,8 +18,8 @@ import {
 	parseTypedCategoryPrefix,
 	queryToChips,
 } from "./filterQuery";
-import { filterComboboxOptions, filterComboboxSearchResults } from "./queries";
-import type { FilterCategory, FilterOption, SearchResult } from "./types";
+import { filterComboboxOptions } from "./queries";
+import type { FilterCategory, FilterOption } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -34,6 +32,7 @@ type Mode = "closed" | "browsing" | "category";
 
 type State = {
 	mode: Mode;
+	browseAll: boolean;
 	activeCategoryKey: string | null;
 	inputValue: string;
 	committedFreeText: string;
@@ -41,6 +40,7 @@ type State = {
 
 type Action =
 	| { type: "openBrowsing" }
+	| { type: "showAllFilters" }
 	| {
 			type: "enterCategory";
 			categoryKey: string;
@@ -48,6 +48,7 @@ type Action =
 			committedFreeText: string;
 	  }
 	| { type: "typeInCategory"; value: string }
+	| { type: "typeFilterSearch"; value: string }
 	| { type: "typeFreeText"; value: string }
 	| { type: "setCommittedFreeText"; value: string }
 	| { type: "leaveCategory" }
@@ -59,6 +60,7 @@ const closeState = (
 	input: "restore" | "clear" | "keep",
 ): State => ({
 	mode: "closed",
+	browseAll: false,
 	activeCategoryKey: null,
 	committedFreeText: state.committedFreeText,
 	inputValue:
@@ -72,19 +74,41 @@ const closeState = (
 const reducer = (state: State, action: Action): State => {
 	switch (action.type) {
 		case "openBrowsing":
-			return { ...state, mode: "browsing", activeCategoryKey: null };
+			return {
+				...state,
+				mode: "browsing",
+				browseAll: false,
+				activeCategoryKey: null,
+			};
+		case "showAllFilters":
+			return {
+				...state,
+				mode: "browsing",
+				browseAll: true,
+				activeCategoryKey: null,
+			};
 		case "enterCategory":
 			return {
 				mode: "category",
+				browseAll: false,
 				activeCategoryKey: action.categoryKey,
 				inputValue: action.query,
 				committedFreeText: action.committedFreeText.trim(),
 			};
 		case "typeInCategory":
 			return { ...state, mode: "category", inputValue: action.value };
+		case "typeFilterSearch":
+			return {
+				...state,
+				mode: "browsing",
+				browseAll: false,
+				activeCategoryKey: null,
+				inputValue: action.value,
+			};
 		case "typeFreeText":
 			return {
 				mode: "browsing",
+				browseAll: false,
 				activeCategoryKey: null,
 				inputValue: action.value,
 				committedFreeText: action.value.trim(),
@@ -95,6 +119,7 @@ const reducer = (state: State, action: Action): State => {
 			return {
 				...state,
 				mode: "browsing",
+				browseAll: true,
 				activeCategoryKey: null,
 				inputValue: state.committedFreeText,
 			};
@@ -103,6 +128,7 @@ const reducer = (state: State, action: Action): State => {
 		case "reconcile":
 			return {
 				...state,
+				browseAll: false,
 				committedFreeText: action.freeText,
 				// A pending category selection owns the input, so only the free-text
 				// view mirrors an external value.
@@ -118,7 +144,6 @@ type StatusMessageInput = {
 	activeOptionsError: boolean;
 	activeOptionsEmpty: boolean;
 	typeaheadError: boolean;
-	typeaheadErrorLabel: string;
 	typeaheadEmpty: boolean;
 };
 
@@ -131,7 +156,6 @@ const deriveStatusMessage = ({
 	activeOptionsError,
 	activeOptionsEmpty,
 	typeaheadError,
-	typeaheadErrorLabel,
 	typeaheadEmpty,
 }: StatusMessageInput): string => {
 	if (activeCategoryLabel !== undefined) {
@@ -147,7 +171,7 @@ const deriveStatusMessage = ({
 		return `Filtering by ${activeCategoryLabel}`;
 	}
 	if (typeaheadError) {
-		return typeaheadErrorLabel;
+		return "Couldn't load suggestions.";
 	}
 	if (typeaheadEmpty) {
 		return "No filters found";
@@ -159,14 +183,12 @@ type UseFilterComboboxOptions = {
 	value: string;
 	onChange: (query: string) => void;
 	categories: readonly FilterCategory[];
-	getSearchResults?: (query: string) => Promise<SearchResult[]>;
-	onSearchResultSelect?: (result: SearchResult) => void;
 };
 
 /**
  * Drives the unified workspace filter combobox: a `mode` state machine for the
  * popup, debounced query emission back to the caller, and the react-query
- * lookups for category options, cross-category suggestions, and search results.
+ * lookups for category options and cross-category suggestions.
  * Local state is reconciled against the caller-owned `value` so an external
  * update wins over any in-flight local edit.
  */
@@ -174,8 +196,6 @@ export const useFilterCombobox = ({
 	value,
 	onChange,
 	categories,
-	getSearchResults,
-	onSearchResultSelect,
 }: UseFilterComboboxOptions) => {
 	const chipKeys = useMemo(
 		() => categories.flatMap((category) => category.chipKeys ?? [category.key]),
@@ -186,12 +206,14 @@ export const useFilterCombobox = ({
 		const freeText = extractFreeText(value, keys);
 		return {
 			mode: "closed",
+			browseAll: false,
 			activeCategoryKey: null,
 			inputValue: freeText,
 			committedFreeText: freeText,
 		};
 	});
-	const { mode, activeCategoryKey, inputValue, committedFreeText } = state;
+	const { mode, browseAll, activeCategoryKey, inputValue, committedFreeText } =
+		state;
 	const open = mode !== "closed";
 	const isBrowsing = mode === "browsing";
 
@@ -199,7 +221,6 @@ export const useFilterCombobox = ({
 	const prevChipKeysRef = useRef(chipKeys);
 	const highlightedItemRef = useRef<string | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
-	const hasSearchResultsLoader = Boolean(getSearchResults);
 
 	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
 		(query: string) => {
@@ -251,11 +272,14 @@ export const useFilterCombobox = ({
 		if (activeCategoryKey !== null || !isBrowsing) {
 			return [];
 		}
-		if (inputValue.trim().length === 0) {
-			return [...categories];
+		const submenuCategories = categories.filter(
+			(category) => !category.inlineOptions,
+		);
+		if (browseAll || inputValue.trim().length === 0) {
+			return submenuCategories;
 		}
-		return matchCategories(inputValue, categories);
-	}, [activeCategoryKey, isBrowsing, categories, inputValue]);
+		return matchCategories(inputValue, submenuCategories);
+	}, [activeCategoryKey, browseAll, isBrowsing, categories, inputValue]);
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -288,7 +312,9 @@ export const useFilterCombobox = ({
 	};
 
 	const typeaheadQuerySource =
-		activeCategoryKey === null && isBrowsing ? inputValue.trim() : "";
+		activeCategoryKey === null && isBrowsing && !browseAll
+			? inputValue.trim()
+			: "";
 	const debouncedTypeaheadQuery = useDebouncedValue(
 		typeaheadQuerySource,
 		SEARCH_DEBOUNCE_MS,
@@ -339,8 +365,7 @@ export const useFilterCombobox = ({
 	// Category rows preview their options while the menu is open with an empty
 	// input. The empty-query key is shared with the category view, so entering a
 	// category reuses the cached result.
-	const previewsEnabled =
-		isBrowsing && activeCategoryKey === null && inputValue.trim().length === 0;
+	const previewsEnabled = isBrowsing && activeCategoryKey === null;
 	const previewOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
@@ -357,26 +382,59 @@ export const useFilterCombobox = ({
 					optionsByKey.set(categories[index].key, result.data);
 				}
 			});
-			return optionsByKey;
+			return {
+				optionsByKey,
+				isPending: results.some(
+					(result, index) =>
+						categories[index].inlineOptions &&
+						!result.isError &&
+						result.data === undefined,
+				),
+			};
 		},
 	});
-	const categoryPreviews = useMemo(() => {
-		const previews = new Map<string, CategoryPreview>();
-		for (const category of categories) {
-			previews.set(
-				category.key,
-				categoryPreview(category, chipValues, previewOptions.get(category.key)),
-			);
-		}
-		return previews;
-	}, [categories, chipValues, previewOptions]);
+	const inlineOptionsSource =
+		browseAll || inputValue.trim().length === 0
+			? previewOptions.optionsByKey
+			: typeaheadQueryPending
+				? new Map<string, readonly FilterOption[]>()
+				: suggestionOptions.optionsByKey;
+	const inlineOptionsFor = (
+		optionsByCategory: ReadonlyMap<string, readonly FilterOption[]>,
+	) =>
+		categories.flatMap((category) => {
+			if (!category.inlineOptions) {
+				return [];
+			}
+			return (optionsByCategory.get(category.key) ?? []).map((option) => {
+				const token = option.token ?? chipToken(category.key, option.value);
+				return {
+					categoryKey: category.key,
+					categoryLabel: category.inlineOptionsLabel ?? `${category.label} is…`,
+					selected: chipValues.includes(token),
+					showIcon: category.inlineOptionIcons ?? false,
+					option,
+				};
+			});
+		});
+	const inlineOptions = useMemo(
+		() =>
+			activeCategoryKey !== null || !isBrowsing
+				? []
+				: inlineOptionsFor(inlineOptionsSource),
+		[activeCategoryKey, chipValues, inlineOptionsSource, isBrowsing],
+	);
+	const mainInlineOptions = useMemo(
+		() => inlineOptionsFor(previewOptions.optionsByKey),
+		[chipValues, previewOptions.optionsByKey],
+	);
 
 	const valueSuggestions =
-		activeCategoryKey !== null || !isBrowsing
+		activeCategoryKey !== null || !isBrowsing || typeaheadQueryPending
 			? []
 			: collectValueSuggestions(
 					inputValue,
-					categories,
+					categories.filter((category) => !category.inlineOptions),
 					suggestionOptions.optionsByKey,
 					chipValues,
 				);
@@ -390,63 +448,24 @@ export const useFilterCombobox = ({
 		isBrowsing &&
 		inputValue.trim().length > 0 &&
 		!suggestionsError &&
-		(typeaheadQueryPending || suggestionOptions.isFetching);
+		suggestionOptions.isFetching;
 
-	const searchResultsQuery = useQuery(
-		filterComboboxSearchResults(
-			getSearchResults,
-			debouncedTypeaheadQuery,
-			hasSearchResultsLoader &&
-				debouncedTypeaheadQuery.length > 0 &&
-				activeCategoryKey === null &&
-				isBrowsing,
-		),
-	);
-
-	const searchResults = typeaheadQueryPending
-		? []
-		: (searchResultsQuery.data ?? []);
-	const searchResultsLoading =
-		(hasSearchResultsLoader && typeaheadQueryPending) ||
-		(searchResultsQuery.isFetching && !searchResultsQuery.isError);
-	const previewError =
-		activeCategoryKey === null &&
-		isBrowsing &&
-		hasSearchResultsLoader &&
-		searchResultsQuery.isError;
-	const typeaheadError = suggestionsError || previewError;
+	const typeaheadError = suggestionsError;
 
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
-	const showSearchResults = hasTypeaheadQuery && searchResults.length > 0;
-	// Spin while either source is still fetching without rows for its own
-	// section, so an in-flight query never leaves an empty gap. The other
-	// section's rows keep rendering above the spinner.
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
-		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
-			(hasSearchResultsLoader &&
-				searchResultsLoading &&
-				searchResults.length === 0));
+		valueSuggestionsLoading &&
+		valueSuggestions.length === 0;
 
 	const typeaheadEmpty =
 		hasTypeaheadQuery &&
 		!typeaheadLoading &&
 		!typeaheadError &&
 		listedCategories.length === 0 &&
-		valueSuggestions.length === 0 &&
-		searchResults.length === 0;
-
-	// Name the failing source so the copy points at the right endpoint instead
-	// of blaming suggestions for a preview outage.
-	const typeaheadErrorLabel =
-		suggestionsError && previewError
-			? "Couldn't load results."
-			: previewError
-				? "Couldn't load workspace previews."
-				: suggestionsError
-					? "Couldn't load suggestions."
-					: "";
+		inlineOptions.length === 0 &&
+		valueSuggestions.length === 0;
 
 	const activeOptionsEmpty =
 		activeCategoryKey !== null &&
@@ -463,67 +482,116 @@ export const useFilterCombobox = ({
 		activeOptionsError,
 		activeOptionsEmpty,
 		typeaheadError,
-		typeaheadErrorLabel,
 		typeaheadEmpty,
 	});
 
-	// Refetch both typeahead sources so one retry covers a failed suggestion
-	// lookup and a failed workspace preview.
 	const retryTypeahead = () => {
 		suggestionOptions.refetch();
-		void searchResultsQuery.refetch();
 	};
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
+		const exclusiveCategoryFor = (token: string) => {
+			const key = parseChipToken(token, chipKeys)?.key;
+			return categories.find(
+				(category) =>
+					category.inlineOptionsExclusive &&
+					key !== undefined &&
+					(category.chipKeys ?? [category.key]).includes(key),
+			);
+		};
+		const normalizedTokens = tokens.filter((token, index) => {
+			const category = exclusiveCategoryFor(token);
+			return (
+				category === undefined ||
+				!tokens
+					.slice(index + 1)
+					.some((next) => exclusiveCategoryFor(next) === category)
+			);
+		});
 		const nextFreeText = freeText ?? committedFreeText;
 		if (freeText !== undefined) {
 			dispatch({ type: "setCommittedFreeText", value: freeText });
 		}
-		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText), true);
+		emitQuery(
+			composeFilterQuery(normalizedTokens, chipKeys, nextFreeText),
+			true,
+		);
 	};
 
 	const selectCategory = (categoryKey: string) => {
-		emitQuery(composeFilterQuery(chipValues, chipKeys, ""), true);
+		const category = categories.find((entry) => entry.key === categoryKey);
+		if (!category || category.inlineOptions) {
+			return;
+		}
+		const freeText = browseAll ? committedFreeText : "";
+		emitQuery(composeFilterQuery(chipValues, chipKeys, freeText), true);
 		dispatch({
 			type: "enterCategory",
 			categoryKey,
 			query: "",
-			committedFreeText: "",
+			committedFreeText: freeText,
 		});
 	};
 
 	const selectValueSuggestion = (token: string) => {
-		updateFromChips([...chipValues, token], "");
-		dispatch({ type: "close", input: "clear" });
+		const selected = chipValues.includes(token);
+		updateFromChips(
+			selected
+				? chipValues.filter((chip) => chip !== token)
+				: [...chipValues, token],
+			selected ? committedFreeText : "",
+		);
+		dispatch({ type: "close", input: selected ? "restore" : "clear" });
 	};
 
-	// In category mode, choosing an option commits its chip while preserving the
-	// free-text name search that preceded the category prefix.
 	const selectCategoryOption = (token: string) => {
 		updateFromChips([...chipValues, token]);
-		dispatch({ type: "close", input: "restore" });
+		dispatch({ type: "leaveCategory" });
 	};
 
-	const selectSearchResult = (result: SearchResult) => {
-		onSearchResultSelect?.(result);
-		dispatch({ type: "close", input: "keep" });
+	const toggleInlineOption = (token: string) => {
+		updateFromChips(
+			chipValues.includes(token)
+				? chipValues.filter((chip) => chip !== token)
+				: [...chipValues, token],
+			browseAll ? committedFreeText : "",
+		);
+		if (!browseAll) {
+			dispatch({ type: "typeFreeText", value: "" });
+		}
+	};
+
+	const leaveCategory = () => {
+		inputRef.current?.focus();
+		dispatch({ type: "leaveCategory" });
 	};
 
 	// From inside a category the toggle steps back to the category list rather
 	// than closing, so an accidental click can be corrected without reopening the menu.
+	const showFilterMenu = () => {
+		inputRef.current?.focus();
+		if (mode === "category") {
+			leaveCategory();
+			return;
+		}
+		dispatch({ type: "showAllFilters" });
+	};
+
 	const toggleFilterMenu = () => {
 		if (mode === "category") {
-			dispatch({ type: "leaveCategory" });
+			leaveCategory();
 			return;
 		}
 		if (open) {
+			if (!browseAll && inputValue.trim().length > 0) {
+				showFilterMenu();
+				return;
+			}
 			dispatch({ type: "close", input: "restore" });
 			return;
 		}
-		dispatch({ type: "openBrowsing" });
-		queueMicrotask(() => {
-			inputRef.current?.focus();
-		});
+		inputRef.current?.focus();
+		showFilterMenu();
 	};
 
 	const handleInputFocus = () => {
@@ -557,6 +625,25 @@ export const useFilterCombobox = ({
 
 		if (mode === "category") {
 			dispatch({ type: "typeInCategory", value: nextValue });
+			return;
+		}
+
+		const normalized = nextValue.trim().toLowerCase();
+		const matchesSelectedOption =
+			normalized.length > 0 &&
+			categories.some((category) =>
+				(previewOptions.optionsByKey.get(category.key) ?? []).some((option) => {
+					const token = option.token ?? chipToken(category.key, option.value);
+					return (
+						chipValues.includes(token) &&
+						(option.label.toLowerCase().includes(normalized) ||
+							option.value.toLowerCase().includes(normalized))
+					);
+				}),
+			);
+		if (matchesSelectedOption) {
+			cancelDebounce();
+			dispatch({ type: "typeFilterSearch", value: nextValue });
 			return;
 		}
 
@@ -609,9 +696,15 @@ export const useFilterCombobox = ({
 		const isBackspaceOrDelete =
 			event.key === "Backspace" || event.key === "Delete";
 
+		if (event.key === "ArrowLeft" && mode === "category") {
+			event.preventDefault();
+			leaveCategory();
+			return;
+		}
+
 		if (isBackspaceOrDelete && inputValue === "" && mode === "category") {
 			event.preventDefault();
-			dispatch({ type: "leaveCategory" });
+			leaveCategory();
 			return;
 		}
 
@@ -653,9 +746,21 @@ export const useFilterCombobox = ({
 			}
 		}
 
-		// Tab completes the highlighted filter only. A highlighted resource
-		// preview has no chip token, so Tab falls through to the default focus
-		// move rather than navigating.
+		if (
+			(event.key === "ArrowRight" || event.key === "Enter") &&
+			mode === "browsing"
+		) {
+			const category = listedCategories.find(
+				(entry) => entry.key === highlightedItemRef.current,
+			);
+			if (category) {
+				event.preventDefault();
+				selectCategory(category.key);
+				return;
+			}
+		}
+
+		// Tab completes a highlighted filter and otherwise moves focus.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
 		if (!isTabComplete || mode !== "browsing") {
 			return;
@@ -683,6 +788,7 @@ export const useFilterCombobox = ({
 
 	return {
 		open,
+		browseAll,
 		inputValue,
 		committedFreeText,
 		activeCategoryKey,
@@ -692,9 +798,10 @@ export const useFilterCombobox = ({
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
-		categoryPreviews,
+		browseCategoryOptions: previewOptions.optionsByKey,
 		valueSuggestions,
-		searchResults,
+		inlineOptions,
+		mainInlineOptions,
 		chipValues,
 		// Derived typeahead view-model, so the view renders flags instead of
 		// recomputing loading/visibility from raw query state.
@@ -702,22 +809,22 @@ export const useFilterCombobox = ({
 			active: typeaheadActive,
 			loading: typeaheadLoading,
 			error: typeaheadError,
-			errorLabel: typeaheadErrorLabel,
-			showSearchResults,
 		},
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
 				inputRef.current = node;
 			},
 			toggleMenu: toggleFilterMenu,
+			showMenu: showFilterMenu,
 			dismiss: handleDismiss,
 			removeChip: handleRemoveChip,
 			retryActiveOptions,
 			retryTypeahead,
 			selectCategory,
+			leaveCategory,
 			selectCategoryOption,
+			toggleInlineOption,
 			selectValueSuggestion,
-			selectSearchResult,
 			onInputFocus: handleInputFocus,
 			onInputKeyDown: handleInputKeyDown,
 			onInputValueChange: handleInputValueChange,

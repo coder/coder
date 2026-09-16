@@ -12,7 +12,7 @@ type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
 
 const PREVIEW_OPTION_LIMIT = 4;
 
-export type CategoryPreview = {
+type CategoryPreview = {
 	/** Labels of the chips currently applied for this category. */
 	selected: string[];
 	/** Comma-separated sample of available options, or the category hint. */
@@ -277,6 +277,7 @@ type CategoryValueSuggestion = {
 		value: string;
 		startIcon?: ReactNode;
 	};
+	selected: boolean;
 	token: string;
 };
 
@@ -314,9 +315,6 @@ export const collectValueSuggestions = (
 			}
 
 			const token = option.token ?? chipToken(category.key, option.value);
-			if (selected.has(token)) {
-				continue;
-			}
 
 			if (
 				!option.label.toLowerCase().includes(normalized) &&
@@ -329,6 +327,7 @@ export const collectValueSuggestions = (
 				categoryKey: category.key,
 				categoryLabel: category.label,
 				option,
+				selected: selected.has(token),
 				token,
 			});
 			taken += 1;

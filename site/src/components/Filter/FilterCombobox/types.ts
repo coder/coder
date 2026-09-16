@@ -32,15 +32,12 @@ export type FilterCategory = {
 	 * round-trips them as chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
-};
-
-/** Live resource preview row shown while typing free-text search. */
-export type SearchResult = {
-	label: string;
-	value: string;
-	startIcon?: ReactNode;
-	/** Renders an avatar when `startIcon` is not provided. */
-	imageUrl?: string;
-	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */
-	href?: string;
+	/** Render this category's options as top-level toggle rows instead of a submenu. */
+	inlineOptions?: boolean;
+	/** Heading shown above top-level options. Defaults to `${label} is…`. */
+	inlineOptionsLabel?: string;
+	/** Keep option icons when rendering the category as top-level rows. */
+	inlineOptionIcons?: boolean;
+	/** Selecting an option replaces another selected option from this category. */
+	inlineOptionsExclusive?: boolean;
 };

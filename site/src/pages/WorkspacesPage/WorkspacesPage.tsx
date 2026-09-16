@@ -101,7 +101,9 @@ const WorkspacesPage: FC = () => {
 	}, [templatesQuery.data, workspacePermissionsQuery.data]);
 
 	const filter = useFilter({
-		fallbackFilter: "owner:me",
+		// Members already receive only workspaces RBAC allows them to access,
+		// including shared workspaces. Owners can narrow the deployment-wide view.
+		fallbackFilter: permissions.viewDeploymentConfig ? "owner:me" : "",
 		searchParams,
 		onSearchParamsChange: setSearchParams,
 		onUpdate: () => {

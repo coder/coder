@@ -70,8 +70,8 @@ describe("getAttributeFilterOptions", () => {
 
 		expect(options.map((option) => option.token)).toEqual([
 			"outdated:true",
-			"dormant:true",
 			"shared:true",
+			"dormant:true",
 		]);
 	});
 
