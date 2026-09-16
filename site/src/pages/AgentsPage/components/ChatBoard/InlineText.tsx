@@ -51,6 +51,8 @@ interface InlineTextProps {
 	readonly onSave: (next: string) => void;
 	readonly className?: string;
 	readonly ariaLabel: string;
+	/** Wrap onto multiple lines instead of truncating. */
+	readonly wrap?: boolean;
 }
 
 /** Text that turns into an InlineInput on click. */
@@ -59,6 +61,7 @@ export const InlineText: FC<InlineTextProps> = ({
 	onSave,
 	className,
 	ariaLabel,
+	wrap = false,
 }) => {
 	const [editing, setEditing] = useState(false);
 
@@ -79,7 +82,8 @@ export const InlineText: FC<InlineTextProps> = ({
 			type="button"
 			aria-label={`Edit ${ariaLabel}`}
 			className={cn(
-				"min-w-0 truncate rounded border-0 bg-transparent p-0 text-left text-inherit hover:underline decoration-dotted",
+				"min-w-0 rounded border-0 bg-transparent p-0 text-left text-inherit hover:underline decoration-dotted",
+				wrap ? "whitespace-normal wrap-anywhere" : "truncate",
 				className,
 			)}
 			onClick={() => setEditing(true)}

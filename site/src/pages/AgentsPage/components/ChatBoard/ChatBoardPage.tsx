@@ -11,9 +11,16 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { cn } from "cn";
 import { ArrowLeftIcon, PlusIcon, SearchIcon, XIcon } from "lucide-react";
-import { type FC, lazy, Suspense, useEffect, useState } from "react";
+import {
+	type FC,
+	lazy,
+	type PointerEvent as ReactPointerEvent,
+	Suspense,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { useInfiniteQuery, useQuery } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { chatSearch, infiniteChats } from "#/api/queries/chats";
@@ -23,10 +30,9 @@ import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
 import { AgentChatPageSkeleton } from "../AgentsSkeletons";
 import { type DragData, DragGhost, type DropData } from "./BoardCard";
-import { BoardColumn } from "./BoardColumn";
+import { BoardColumn, NewColumn } from "./BoardColumn";
 import { buildCards, buildColumns, INBOX_COLUMN } from "./boardLabels";
 import { useBoardStorage } from "./boardStorage";
-import { InlineInput } from "./InlineText";
 import { useBoardMutations } from "./useBoardMutations";
 
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
@@ -62,6 +68,22 @@ const ChatBoardPage: FC = () => {
 	const debouncedSearch = useDebouncedValue(search.trim(), 300);
 	const [addingColumn, setAddingColumn] = useState(false);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
+	const splitRef = useRef<HTMLDivElement>(null);
+
+	// Escape closes the chat pane; the board itself stays.
+	useEffect(() => {
+		if (!agentId) return;
+		const onKey = (e: KeyboardEvent) => {
+			const target = e.target as HTMLElement | null;
+			const typing =
+				target?.tagName === "INPUT" ||
+				target?.tagName === "TEXTAREA" ||
+				target?.isContentEditable;
+			if (e.key === "Escape" && !typing) void navigate("/agents/board");
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [agentId, navigate]);
 
 	// Same query the sidebar uses, so both views share one cache.
 	const chatsQuery = useInfiniteQuery(infiniteChats({}));
@@ -153,8 +175,27 @@ const ChatBoardPage: FC = () => {
 		});
 	};
 
+	// Pointer capture keeps the resize alive when the cursor leaves the bar.
+	const startResize = (e: ReactPointerEvent<HTMLDivElement>) => {
+		const container = splitRef.current;
+		if (!container) return;
+		const bar = e.currentTarget;
+		bar.setPointerCapture(e.pointerId);
+		const rect = container.getBoundingClientRect();
+		const onMove = (ev: PointerEvent) => {
+			const ratio = (ev.clientY - rect.top) / rect.height;
+			updateStorage({ splitRatio: Math.min(0.85, Math.max(0.15, ratio)) });
+		};
+		const onUp = () => {
+			bar.removeEventListener("pointermove", onMove);
+			bar.removeEventListener("pointerup", onUp);
+		};
+		bar.addEventListener("pointermove", onMove);
+		bar.addEventListener("pointerup", onUp);
+	};
+
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
+		<div ref={splitRef} className="flex min-h-0 flex-1 flex-col">
 			<title>{pageTitle("Board", "Agents")}</title>
 			<div
 				className="flex min-h-0 flex-col"
@@ -185,16 +226,6 @@ const ChatBoardPage: FC = () => {
 							className="h-8 pl-7 text-sm"
 						/>
 					</div>
-					{agentId && (
-						<Button
-							variant="subtle"
-							size="icon"
-							aria-label="Close chat"
-							onClick={() => void navigate("/agents/board")}
-						>
-							<XIcon />
-						</Button>
-					)}
 				</div>
 				{chatsQuery.isError && (
 					<p className="m-0 px-3 py-2 text-sm text-content-destructive">
@@ -219,37 +250,40 @@ const ChatBoardPage: FC = () => {
 								onSetCardTitle={(card, title) =>
 									void mutations.setCardTitle(card, title)
 								}
+								onSetCardColor={(card, color) =>
+									void mutations.setCardColor(card, color)
+								}
 								onRenameChat={(chat, title) =>
 									void mutations.renameChat(chat, title)
 								}
-								onAddComment={(card, text) =>
+								onAddNote={(card, text) =>
 									void mutations.addComment(card, text)
 								}
-								onRemoveComment={(card, index) =>
+								onEditNote={(card, index, text) =>
+									void mutations.editComment(card, index, text)
+								}
+								onRemoveNote={(card, index) =>
 									void mutations.removeComment(card, index)
 								}
 							/>
 						))}
-						<div className="w-64 shrink-0">
-							{addingColumn ? (
-								<InlineInput
-									value=""
-									ariaLabel="New column name"
-									className="w-full px-2 py-1 text-sm"
-									onSave={addColumn}
-									onDone={() => setAddingColumn(false)}
-								/>
-							) : (
-								<Button
-									variant="outline"
-									className="w-full justify-start"
-									onClick={() => setAddingColumn(true)}
-								>
-									<PlusIcon />
-									Add column
-								</Button>
-							)}
-						</div>
+						{addingColumn ? (
+							<NewColumn
+								onCreate={addColumn}
+								onCancel={() => setAddingColumn(false)}
+							/>
+						) : (
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="Add column"
+								// Sits on the column header line, matching header height.
+								className="mt-2 size-7 shrink-0 text-content-secondary"
+								onClick={() => setAddingColumn(true)}
+							>
+								<PlusIcon />
+							</Button>
+						)}
 					</div>
 					{/* Portaled above every column so the moving card is never clipped. */}
 					<DragOverlay dropAnimation={null}>
@@ -258,15 +292,30 @@ const ChatBoardPage: FC = () => {
 				</DndContext>
 			</div>
 			{agentId && (
-				<div
-					className={cn(
-						"flex min-h-0 flex-1 flex-col border-t-2 border-border",
-					)}
-				>
-					<Suspense fallback={<AgentChatPageSkeleton />}>
-						<AgentChatPage />
-					</Suspense>
-				</div>
+				<>
+					{/* Divider: drag to resize, X or Escape to close the chat. */}
+					<div
+						className="flex h-7 shrink-0 cursor-row-resize touch-none select-none items-center justify-between border-y border-border bg-surface-secondary/60 px-3"
+						onPointerDown={startResize}
+					>
+						<span className="text-xs text-content-secondary">Chat</span>
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Close chat"
+							className="size-6"
+							onPointerDown={(e) => e.stopPropagation()}
+							onClick={() => void navigate("/agents/board")}
+						>
+							<XIcon className="size-3.5" />
+						</Button>
+					</div>
+					<div className="flex min-h-0 flex-1 flex-col">
+						<Suspense fallback={<AgentChatPageSkeleton />}>
+							<AgentChatPage />
+						</Suspense>
+					</div>
+				</>
 			)}
 		</div>
 	);

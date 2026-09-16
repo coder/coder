@@ -6,13 +6,16 @@ import type { Chat } from "#/api/typesGenerated";
 import {
 	addCommentLabels,
 	type BoardCard,
+	type CardColor,
 	commentLabels,
 	nextCommentIndex,
 	removeCommentLabels,
+	setColorLabel,
 	setColumnLabel,
 	setGroupLabel,
 	setTitleLabel,
 	stripCardLabels,
+	updateCommentLabels,
 } from "./boardLabels";
 
 /**
@@ -51,8 +54,14 @@ export const useBoardMutations = () => {
 	const setCardTitle = (card: BoardCard, title: string) =>
 		write(card.primary, setTitleLabel(card.primary.labels, title));
 
+	const setCardColor = (card: BoardCard, color: CardColor | undefined) =>
+		write(card.primary, setColorLabel(card.primary.labels, color));
+
 	const addComment = (card: BoardCard, text: string) =>
 		write(card.primary, addCommentLabels(card.primary.labels, text));
+
+	const editComment = (card: BoardCard, index: number, text: string) =>
+		write(card.primary, updateCommentLabels(card.primary.labels, index, text));
 
 	const removeComment = (card: BoardCard, index: number) =>
 		write(card.primary, removeCommentLabels(card.primary.labels, index));
@@ -108,7 +117,9 @@ export const useBoardMutations = () => {
 		moveCard,
 		renameColumn,
 		setCardTitle,
+		setCardColor,
 		addComment,
+		editComment,
 		removeComment,
 		mergeCards,
 		detachChat,
