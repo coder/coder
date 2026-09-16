@@ -7135,7 +7135,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().ListOrganizationAISpendUsers(gomock.Any(), arg).
 			Return([]database.ListOrganizationAISpendUsersRow{row1, row2}, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(row1, policy.ActionRead, row2, policy.ActionRead).
+			Asserts(rbac.ResourceGroupMember.InOrg(org.ID), policy.ActionRead).
 			Returns([]database.ListOrganizationAISpendUsersRow{row1, row2})
 	}))
 

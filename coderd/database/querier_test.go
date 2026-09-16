@@ -19197,9 +19197,12 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 	dave := dbgen.User(t, db, database.User{Username: "dave", Deleted: true})
 
 	type usage struct {
-		user         database.User
-		group        uuid.NullUUID
+		user  database.User
+		group uuid.NullUUID
+		// at is when the token usage was recorded; the interception starts at
+		// the same time unless startedAt says otherwise.
 		at           time.Time
+		startedAt    time.Time
 		providerName string
 		model        string
 		client       sql.NullString
@@ -19225,9 +19228,16 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		{user: bob, group: inGroup, at: end, providerName: "anthropic-prod", model: "claude", cost: priced(99_999)},
 		{user: bob, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", cost: priced(99_999)},
 		{user: bob, group: uuid.NullUUID{UUID: otherGroup.ID, Valid: true}, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", cost: priced(99_999)},
+		// Excluded: the interception started inside the window but its token
+		// usage was recorded after it, and the window applies to the usage.
+		{user: carol, group: inGroup, at: end.Add(time.Hour), startedAt: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(700)},
 	} {
+		startedAt := u.startedAt
+		if startedAt.IsZero() {
+			startedAt = u.at
+		}
 		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: u.user.ID, Provider: strings.TrimSuffix(u.providerName, "-prod"), ProviderName: u.providerName, Model: u.model, StartedAt: u.at, Client: u.client,
+			InitiatorID: u.user.ID, Provider: strings.TrimSuffix(u.providerName, "-prod"), ProviderName: u.providerName, Model: u.model, StartedAt: startedAt, Client: u.client,
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: intc.ID, CreatedAt: u.at, EffectiveGroupID: u.group, CostMicros: u.cost,
@@ -19343,6 +19353,49 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				params := base
 				tc.mutate(&params)
 				ctx := testutil.Context(t, testutil.WaitLong)
+				rows, err := db.ListOrganizationAISpendUsers(ctx, params)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, rows)
+			})
+		}
+	})
+
+	t.Run("PeriodWindow", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name       string
+			start, end time.Time
+			want       []database.ListOrganizationAISpendUsersRow
+		}{
+			{
+				// Only alice's unpriced usage is recorded from two hours in.
+				name: "LaterStart", start: start.Add(2 * time.Hour), end: end,
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, 0, 1, 1, 0, 1)},
+			},
+			{
+				// The usage one second before the base window is inside a
+				// window that ends where the base window starts.
+				name: "EarlierWindow", start: start.Add(-time.Hour), end: start,
+				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic"}, []string{"Unknown"}, 99_999, 0, 1, 99_999, 0)},
+			},
+			{
+				// Usage is attributed by when it was recorded, not by when
+				// its interception started: carol's interception started in
+				// the base window but its usage counts here, alongside bob's
+				// usage at the base window's exclusive end.
+				name: "TokenUsageCreatedAt", start: end, end: end.Add(2 * time.Hour),
+				want: []database.ListOrganizationAISpendUsersRow{
+					row(bob, []string{"anthropic"}, []string{"Unknown"}, 99_999, 0, 2, 100_699, 0),
+					row(carol, []string{"anthropic"}, []string{"cursor"}, 700, 0, 2, 100_699, 0),
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				params := base
+				params.PeriodStart, params.PeriodEnd = tc.start, tc.end
 				rows, err := db.ListOrganizationAISpendUsers(ctx, params)
 				require.NoError(t, err)
 				require.Equal(t, tc.want, rows)
