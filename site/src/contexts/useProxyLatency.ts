@@ -313,9 +313,7 @@ export const useProxyLatency = (
 // If a single request is slow, we want to omit that latency check, and go with
 // a more accurate latency check.
 const loadStoredLatencies = (): Record<string, ProxyLatencyReport[]> => {
-	// Clone because callers mutate the result before persisting it, and
-	// the storage layer caches decoded snapshots by reference.
-	return structuredClone(workspaceProxyLatenciesStorage.get() ?? {});
+	return workspaceProxyLatenciesStorage.get() ?? {};
 };
 
 const updateStoredLatencies = (action: ProxyLatencyAction): void => {

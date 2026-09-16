@@ -1,7 +1,7 @@
+import { useAtom } from "jotai";
 import { useMemo } from "react";
 import { useQuery } from "react-query";
 import { updateCheck } from "#/api/queries/updateCheck";
-import { useStorage } from "#/hooks/useStorage";
 import { defineStorageKey, stringCodec } from "#/storage";
 
 const dismissedUpdateVersionStorage = defineStorageKey<string | null>({
@@ -11,7 +11,7 @@ const dismissedUpdateVersionStorage = defineStorageKey<string | null>({
 });
 
 export const useUpdateCheck = (enabled: boolean) => {
-	const [dismissedVersion, setDismissedVersion] = useStorage(
+	const [dismissedVersion, setDismissedVersion] = useAtom(
 		dismissedUpdateVersionStorage,
 	);
 	const updateCheckQuery = useQuery({

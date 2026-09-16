@@ -262,15 +262,7 @@ const pruneExpiredChatDraftAttachments = () => {
 		// listStoredSuffixes returns dot-joined ID parts; forId expects
 		// the parts themselves.
 		const handle = chatDraftAttachmentsStorage.forId(...suffix.split("."));
-		// Read raw: handle.get() would cache each chat's full payload in
-		// the family's permanently memoized handle, keeping swept base64
-		// data in memory after removal.
-		let stored: string | null;
-		try {
-			stored = localStorage.getItem(handle.key);
-		} catch {
-			continue;
-		}
+		const stored = handle.get();
 		if (!stored) {
 			continue;
 		}
