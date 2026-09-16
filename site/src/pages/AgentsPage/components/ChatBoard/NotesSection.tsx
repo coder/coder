@@ -189,21 +189,20 @@ const NoteEditor: FC<NoteEditorProps> = ({
 			setDraft("");
 		}
 	};
-	// Grows with explicit lines; capped so a long note does not take over the column.
-	const rows = Math.min(10, Math.max(1, draft.split("\n").length));
-
+	// Sized by its content, so a wrapped note keeps its shape while edited;
+	// capped so a long note does not take over the column.
 	const composer = onCancel === undefined;
 	return (
-		<div className="-mx-1 flex items-center gap-1.5">
+		<div className="-mx-1 flex items-start gap-1.5">
 			<textarea
 				// biome-ignore lint/a11y/noAutofocus: an existing note's editor replaces the text the user chose to edit.
 				autoFocus={!composer}
 				aria-label={ariaLabel}
 				placeholder={placeholder}
 				value={draft}
-				rows={rows}
+				rows={1}
 				className={cn(
-					"block min-w-0 flex-1 resize-none border-0 bg-transparent px-1 text-xs leading-[17px] text-content-primary outline-none placeholder:text-content-secondary/60",
+					"block max-h-60 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 text-xs leading-[17px] text-content-primary/80 outline-none [field-sizing:content] placeholder:text-content-secondary/60",
 					composer ? "py-1.5" : "py-[3px]",
 				)}
 				onChange={(e) => setDraft(e.target.value)}
@@ -219,7 +218,10 @@ const NoteEditor: FC<NoteEditorProps> = ({
 			<button
 				type="button"
 				aria-label="Save note"
-				className="grid size-5 shrink-0 place-items-center rounded-[5px] border-0 bg-transparent p-0 text-content-secondary/40 hover:bg-content-primary hover:text-surface-primary"
+				className={cn(
+					"grid size-5 shrink-0 place-items-center rounded-[5px] border-0 bg-transparent p-0 text-content-secondary/40 hover:bg-content-primary hover:text-surface-primary",
+					composer ? "mt-1" : "mt-px",
+				)}
 				// Keep focus in the textarea, or its blur would commit first.
 				onPointerDown={(e) => e.preventDefault()}
 				onClick={commit}

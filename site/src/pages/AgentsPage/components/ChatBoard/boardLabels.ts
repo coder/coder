@@ -10,6 +10,8 @@ const TITLE_KEY = `${BOARD_LABEL_PREFIX}title`;
 const COLOR_KEY = `${BOARD_LABEL_PREFIX}color`;
 const POSITION_KEY = `${BOARD_LABEL_PREFIX}pos`;
 const COMMENT_PREFIX = `${BOARD_LABEL_PREFIX}comment.`;
+/** On a card's assistant chat: the card id. Such chats are not cards themselves. */
+export const ASSISTANT_KEY = `${BOARD_LABEL_PREFIX}assistant`;
 
 // Server limit on a label value, see coderd/httpapi/chatlabels.go.
 const MAX_LABEL_VALUE_BYTES = 256;
@@ -340,6 +342,7 @@ export const buildCards = (chats: readonly Chat[]): BoardCard[] => {
 	const byId = new Map(chats.map((c) => [c.id, c]));
 	const membersByPrimary = new Map<string, Chat[]>();
 	for (const chat of chats) {
+		if (chat.labels[ASSISTANT_KEY]) continue;
 		const group = getGroupLabel(chat);
 		const primaryId = byId.has(group) ? group : chat.id;
 		const list = membersByPrimary.get(primaryId) ?? [];
@@ -377,8 +380,13 @@ export const buildColumns = (
 	storedOrder: readonly string[],
 	emptyColumns: readonly string[],
 ): BoardColumn[] => {
-	const names = new Set<string>([INBOX_COLUMN]);
-	for (const name of storedOrder) names.add(name);
+	// The stored order is authoritative once the user has reordered; before
+	// that, Inbox leads and discovered columns follow.
+	const names = new Set<string>(
+		storedOrder.includes(INBOX_COLUMN)
+			? storedOrder
+			: [INBOX_COLUMN, ...storedOrder],
+	);
 	for (const name of emptyColumns) names.add(name);
 	for (const card of cards) names.add(card.column);
 	return [...names].map((name) => ({
