@@ -18,7 +18,7 @@ import {
 	type CardColor,
 } from "./boardLabels";
 import { ChatInfoPopover } from "./ChatInfoPopover";
-import { InlineInput, InlineText } from "./InlineText";
+import { EditableText, InlineInput } from "./InlineText";
 import { NotesSection } from "./NotesSection";
 
 export type DragData =
@@ -32,6 +32,19 @@ export type DropData =
 const cardDragId = (card: BoardCardModel) => `card:${card.id}`;
 const chatDragId = (chat: Chat) => `chat:${chat.id}`;
 const cardDropId = (card: BoardCardModel) => `drop-card:${card.id}`;
+
+// Whole-card tints from the theme so they hold up in both color modes.
+const CARD_TINT_CLASS: Record<CardColor, string> = {
+	green: "bg-surface-green",
+	orange: "bg-surface-orange",
+	sky: "bg-surface-sky",
+	red: "bg-surface-red",
+	purple: "bg-surface-purple",
+	magenta: "bg-surface-magenta",
+};
+
+const cardSurfaceClass = (color: CardColor | undefined) =>
+	color ? CARD_TINT_CLASS[color] : "bg-surface-secondary";
 
 interface BoardCardProps {
 	readonly card: BoardCardModel;
@@ -79,36 +92,31 @@ export const BoardCard: FC<BoardCardProps> = ({
 	return (
 		<article
 			ref={setRefs}
-			style={
-				card.color ? { borderLeftColor: CARD_COLORS[card.color] } : undefined
-			}
 			className={cn(
-				"flex flex-col rounded-lg border border-border border-l-[3px] bg-surface-primary text-sm shadow-xs",
+				"group/card flex flex-col rounded-lg border border-border text-sm",
+				cardSurfaceClass(card.color),
 				isDragging && "opacity-40",
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
 			)}
 		>
 			<header
-				className="group/header flex cursor-grab items-start gap-1 px-3 pt-2.5 pb-2 active:cursor-grabbing"
+				className="flex cursor-grab items-start gap-1 px-3 py-2 active:cursor-grabbing"
 				{...listeners}
 				{...attributes}
 				ref={setActivatorNodeRef}
 			>
-				<InlineText
+				<EditableText
 					value={card.title}
 					onSave={onSetTitle}
 					ariaLabel="card title"
 					wrap
-					className="flex-1 font-medium leading-snug text-content-primary"
+					revealOn="card"
+					className="font-medium leading-snug text-content-primary"
 				/>
-				<ColorPicker
-					value={card.color}
-					onChange={onSetColor}
-					className="-mr-1.5 -mt-0.5 opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-				/>
+				<ColorPicker value={card.color} onChange={onSetColor} />
 			</header>
 
-			<ul className="m-0 flex list-none flex-col border-t border-border p-1.5">
+			<ul className="m-0 flex list-none flex-col gap-1 border-t border-border px-3 py-2">
 				{card.members.map((chat) => (
 					<ChatRow
 						key={chat.id}
@@ -135,11 +143,14 @@ export const BoardCard: FC<BoardCardProps> = ({
 interface ColorPickerProps {
 	readonly value: CardColor | undefined;
 	readonly onChange: (color: CardColor | undefined) => void;
-	readonly className?: string;
 }
 
-const ColorPicker: FC<ColorPickerProps> = ({ value, onChange, className }) => {
+const ColorPicker: FC<ColorPickerProps> = ({ value, onChange }) => {
 	const [open, setOpen] = useState(false);
+	const pick = (color: CardColor | undefined) => {
+		onChange(color);
+		setOpen(false);
+	};
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
@@ -147,17 +158,10 @@ const ColorPicker: FC<ColorPickerProps> = ({ value, onChange, className }) => {
 					variant="subtle"
 					size="icon"
 					aria-label="Card color"
-					className={cn("size-6 shrink-0 text-content-secondary", className)}
+					className="size-6 shrink-0 text-content-secondary opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
 					onPointerDown={(e) => e.stopPropagation()}
 				>
-					{value ? (
-						<span
-							className="size-3 rounded-full"
-							style={{ backgroundColor: CARD_COLORS[value] }}
-						/>
-					) : (
-						<PaletteIcon className="size-3.5" />
-					)}
+					<PaletteIcon className="size-3.5" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -165,40 +169,44 @@ const ColorPicker: FC<ColorPickerProps> = ({ value, onChange, className }) => {
 				className="flex w-auto gap-1.5 p-2"
 				onPointerDown={(e) => e.stopPropagation()}
 			>
-				<button
-					type="button"
-					aria-label="No color"
-					aria-pressed={value === undefined}
-					className={cn(
-						"size-5 rounded-full border border-border bg-transparent",
-						value === undefined && "ring-2 ring-content-link ring-offset-1",
-					)}
-					onClick={() => {
-						onChange(undefined);
-						setOpen(false);
-					}}
+				<Swatch
+					label="No color"
+					selected={value === undefined}
+					className="bg-surface-secondary"
+					onClick={() => pick(undefined)}
 				/>
-				{(Object.keys(CARD_COLORS) as CardColor[]).map((name) => (
-					<button
+				{CARD_COLORS.map((name) => (
+					<Swatch
 						key={name}
-						type="button"
-						aria-label={name}
-						aria-pressed={value === name}
-						className={cn(
-							"size-5 rounded-full border-0",
-							value === name && "ring-2 ring-content-link ring-offset-1",
-						)}
-						style={{ backgroundColor: CARD_COLORS[name] }}
-						onClick={() => {
-							onChange(name);
-							setOpen(false);
-						}}
+						label={name}
+						selected={value === name}
+						className={CARD_TINT_CLASS[name]}
+						onClick={() => pick(name)}
 					/>
 				))}
 			</PopoverContent>
 		</Popover>
 	);
 };
+
+const Swatch: FC<{
+	readonly label: string;
+	readonly selected: boolean;
+	readonly className: string;
+	readonly onClick: () => void;
+}> = ({ label, selected, className, onClick }) => (
+	<button
+		type="button"
+		aria-label={label}
+		aria-pressed={selected}
+		className={cn(
+			"size-6 rounded-md border border-border",
+			className,
+			selected && "ring-2 ring-content-link ring-offset-1",
+		)}
+		onClick={onClick}
+	/>
+);
 
 interface DragGhostProps {
 	readonly drag: DragData;
@@ -212,7 +220,12 @@ export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
 			? `${drag.card.members.length} chats`
 			: undefined;
 	return (
-		<div className="w-80 cursor-grabbing rounded-lg border border-content-link bg-surface-primary p-3 text-sm shadow-lg">
+		<div
+			className={cn(
+				"w-80 cursor-grabbing rounded-lg border border-content-link px-3 py-2 text-sm shadow-lg",
+				cardSurfaceClass(drag.type === "card" ? drag.card.color : undefined),
+			)}
+		>
 			<div className="font-medium leading-snug text-content-primary">
 				{title}
 			</div>
@@ -252,7 +265,7 @@ const ChatRow: FC<ChatRowProps> = ({
 		<li
 			ref={setNodeRef}
 			className={cn(
-				"group flex items-start gap-2 rounded-md px-1.5 py-1.5",
+				"group/row -mx-1.5 flex items-start gap-2 rounded-md px-1.5 py-1",
 				active && "bg-surface-tertiary",
 				isDragging && "opacity-40",
 			)}
@@ -272,61 +285,73 @@ const ChatRow: FC<ChatRowProps> = ({
 					aria-label={display.label}
 				/>
 			</span>
-			<div className="min-w-0 flex-1">
-				{renaming ? (
-					<InlineInput
-						value={chat.title}
-						onSave={onRename}
-						onDone={() => setRenaming(false)}
-						ariaLabel={`title of ${chat.title}`}
-						className="w-full text-content-primary"
-					/>
-				) : (
-					<Link
-						to={`/agents/board/${chat.id}`}
-						className="line-clamp-2 text-content-primary leading-snug no-underline hover:underline"
-					>
-						{chat.title}
-					</Link>
-				)}
-				{chat.last_turn_summary && (
-					<div className="truncate text-xs text-content-secondary">
-						{chat.last_turn_summary}
+			<div className="flex min-w-0 flex-1 flex-col">
+				<div className="flex items-start gap-1">
+					{renaming ? (
+						<InlineInput
+							value={chat.title}
+							onSave={onRename}
+							onDone={() => setRenaming(false)}
+							ariaLabel={`title of ${chat.title}`}
+							className="flex-1 text-content-primary"
+						/>
+					) : (
+						<>
+							<Link
+								to={`/agents/board/${chat.id}`}
+								className="line-clamp-2 min-w-0 flex-1 text-content-primary leading-snug no-underline hover:underline"
+							>
+								{chat.title}
+							</Link>
+							<EditTrigger
+								label={`Rename ${chat.title}`}
+								onClick={() => setRenaming(true)}
+							/>
+							<span className="shrink-0 text-xs tabular-nums leading-5 text-content-secondary">
+								{shortRelativeTime(chat.updated_at)}
+							</span>
+							<ChatInfoPopover chat={chat} />
+						</>
+					)}
+				</div>
+				{(chat.last_turn_summary || pr?.url) && (
+					<div className="flex min-w-0 items-center gap-2 text-xs text-content-secondary">
+						{pr?.url && display.prIcon && (
+							<a
+								href={pr.url}
+								target="_blank"
+								rel="noreferrer"
+								aria-label={display.prIcon.label}
+								className={cn(
+									"flex shrink-0 items-center gap-0.5 no-underline hover:underline",
+									display.prIcon.className,
+								)}
+							>
+								<display.prIcon.icon className="size-3.5" />
+								{pr.pr_number ? `#${pr.pr_number}` : null}
+							</a>
+						)}
+						{chat.last_turn_summary && (
+							<span className="truncate">{chat.last_turn_summary}</span>
+						)}
 					</div>
 				)}
-			</div>
-			<div className="flex shrink-0 items-center gap-0.5">
-				{!renaming && (
-					<Button
-						variant="subtle"
-						size="icon"
-						aria-label={`Rename ${chat.title}`}
-						className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-						onClick={() => setRenaming(true)}
-					>
-						<PencilIcon className="size-3" />
-					</Button>
-				)}
-				{pr?.url && display.prIcon && (
-					<a
-						href={pr.url}
-						target="_blank"
-						rel="noreferrer"
-						aria-label={display.prIcon.label}
-						className={cn(
-							"flex items-center gap-0.5 px-0.5 text-xs no-underline hover:underline",
-							display.prIcon.className,
-						)}
-					>
-						<display.prIcon.icon className="size-3.5" />
-						{pr.pr_number ? `#${pr.pr_number}` : null}
-					</a>
-				)}
-				<span className="px-0.5 text-xs tabular-nums text-content-secondary/60">
-					{shortRelativeTime(chat.updated_at)}
-				</span>
-				<ChatInfoPopover chat={chat} />
 			</div>
 		</li>
 	);
 };
+
+const EditTrigger: FC<{
+	readonly label: string;
+	readonly onClick: () => void;
+}> = ({ label, onClick }) => (
+	<Button
+		variant="subtle"
+		size="icon"
+		aria-label={label}
+		className="size-5 shrink-0 text-content-secondary opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+		onClick={onClick}
+	>
+		<PencilIcon className="size-3.5" />
+	</Button>
+);

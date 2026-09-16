@@ -11,14 +11,15 @@ import type {
 	CardColor,
 } from "./boardLabels";
 import { INBOX_COLUMN } from "./boardLabels";
-import { InlineInput, InlineText } from "./InlineText";
+import { EditableText, InlineInput } from "./InlineText";
 
 const columnDropId = (name: string) => `column:${name}`;
 
+// Lanes have no fill; cards are the objects. A hairline separates lanes.
 const columnClass =
-	"flex w-80 shrink-0 flex-col gap-2 rounded-lg bg-surface-secondary/60 p-2";
+	"group/column flex w-80 shrink-0 flex-col gap-2 border-r border-border pr-3 last:border-r-0";
 const columnHeaderClass =
-	"flex h-7 items-center gap-2 px-1.5 text-sm font-medium text-content-primary";
+	"flex h-7 items-center gap-1 px-1 text-sm font-medium text-content-primary";
 
 interface BoardColumnProps {
 	readonly column: BoardColumnModel;
@@ -63,20 +64,23 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 		<section
 			ref={setNodeRef}
 			aria-label={`${column.name} column`}
-			className={cn(columnClass, isOver && "ring-1 ring-content-link")}
+			className={cn(
+				columnClass,
+				isOver && "rounded-lg bg-surface-secondary/50 ring-1 ring-content-link",
+			)}
 		>
 			<header className={columnHeaderClass}>
 				{isInbox ? (
-					<span className="flex-1">{column.name}</span>
+					<span className="min-w-0 flex-1 truncate">{column.name}</span>
 				) : (
-					<InlineText
+					<EditableText
 						value={column.name}
 						onSave={onRename}
 						ariaLabel={`${column.name} column name`}
-						className="flex-1"
+						revealOn="column"
 					/>
 				)}
-				<span className="text-xs text-content-secondary tabular-nums">
+				<span className="px-1 text-xs text-content-secondary tabular-nums">
 					{column.cards.length}
 				</span>
 				{!isInbox && (
@@ -84,14 +88,14 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 						variant="subtle"
 						size="icon"
 						aria-label={`Delete ${column.name} column`}
-						className="size-6"
+						className="size-6 text-content-secondary opacity-0 group-hover/column:opacity-100 focus-visible:opacity-100"
 						onClick={onDelete}
 					>
 						<Trash2Icon className="size-3.5" />
 					</Button>
 				)}
 			</header>
-			<div className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto">
+			<div className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto pb-2">
 				{column.cards.map((card) => (
 					<BoardCard
 						key={card.id}
