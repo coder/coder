@@ -9,7 +9,7 @@ import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels
 
 export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements, organizations } = useDashboard();
+	const { organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);
 	const organizationMCPSharing = useCanShareOrganizationMCPServers(
 		organizations,
@@ -42,13 +42,6 @@ export const AISettingsIndexRedirect = () => {
 
 	if (permissions.updateAnyTemplate) {
 		return <Navigate to="/ai/settings/templates" replace />;
-	}
-
-	if (
-		entitlements.features.aibridge.enabled &&
-		permissions.viewAnyAIBridgeInterception
-	) {
-		return <Navigate to="/ai/settings/spend" replace />;
 	}
 
 	if (accessibleOrgsQuery.isLoading) {
