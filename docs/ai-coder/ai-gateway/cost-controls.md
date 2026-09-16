@@ -351,7 +351,10 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - Spend is attributed through the group whose budget applied to each request, so usage that no budget group covers is not included.
 - Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
 
-The `users` endpoint accepts the same period parameters and returns one page of per-user spend as JSON, with each user's cost, providers, clients, and models, plus the period total and a count of usage that could not be priced. To narrow the report, pass `provider_name`, `model`, or `client` as exact matches; requests whose client is unknown match `client=Unknown`. `limit` (default 10, at most 100) and `offset` select the page. The **Spend** page reads this report, so its numbers reconcile with the CSV.
+The `users` endpoint accepts the same period parameters and returns one page of per-user spend as JSON, with each user's cost, providers, clients, and models, plus the period total and a count of usage that could not be priced.
+To narrow the report, pass `provider_name`, `model`, or `client` as exact matches; requests whose client is unknown match `client=Unknown`.
+`limit` (default 10, at most 100) and `offset` select the page.
+The **Spend** page reads this report, so its numbers reconcile with the CSV.
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \

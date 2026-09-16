@@ -168,6 +168,15 @@ export const UnpricedUsage: Story = {
 	},
 };
 
+export const ModelsList: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "2 models" }),
+		);
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
 export const SingleOrganization: Story = {
 	args: { organizations: [MockOrganization] },
 };
