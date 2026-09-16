@@ -372,17 +372,6 @@ export const InterruptingShowsBusyComposer: Story = {
 	},
 };
 
-// A chat blocked on a client-executed tool call is still mid-turn, so the
-// composer offers Stop instead of Send. Behavior is covered in
-// ChatPageContent.test.tsx.
-export const RequiresActionShowsStop: Story = {
-	render: () => {
-		const store = buildInterruptingStore();
-		store.setChatStatus("requires_action");
-		return <StoryChatPageInput store={store} />;
-	},
-};
-
 export const RunningShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
