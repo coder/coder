@@ -29,26 +29,24 @@ func stepTo(t *testing.T, sqlDB *sql.DB, version uint) {
 	}
 }
 
-// familyRow is one row of template_usage_stats_session_families, or of
-// template_usage_stats_session_apps, which has the same shape.
-type familyRow struct {
-	name      string
+// sessionAppRow is one row of template_usage_stats_session_apps.
+type sessionAppRow struct {
+	appName   string
 	usageMins int64
 }
 
-// sessionRows reads a child table ordered by name.
-func sessionRows(t *testing.T, tx *sql.Tx, table, nameColumn string) []familyRow {
+// sessionRows reads the child table ordered by app name.
+func sessionRows(t *testing.T, tx *sql.Tx) []sessionAppRow {
 	t.Helper()
 
-	//nolint:gosec // Table and column names are constants in this test.
-	rows, err := tx.Query("SELECT " + nameColumn + ", usage_mins FROM " + table + " ORDER BY " + nameColumn)
+	rows, err := tx.Query(`SELECT app_name, usage_mins FROM template_usage_stats_session_apps ORDER BY app_name`)
 	require.NoError(t, err)
 	defer rows.Close()
 
-	var got []familyRow
+	var got []sessionAppRow
 	for rows.Next() {
-		var row familyRow
-		require.NoError(t, rows.Scan(&row.name, &row.usageMins))
+		var row sessionAppRow
+		require.NoError(t, rows.Scan(&row.appName, &row.usageMins))
 		got = append(got, row)
 	}
 	require.NoError(t, rows.Err())
@@ -56,7 +54,7 @@ func sessionRows(t *testing.T, tx *sql.Tx, table, nameColumn string) []familyRow
 }
 
 // TestMigration000596TemplateUsageStatsSessionUsage covers the conversion of
-// the fixed per-family minute columns into the family child table, which the
+// the fixed per-family minute columns into the child table, which the
 // testdata/fixtures run does not reach: its template_usage_stats rows record
 // no session minutes, so the backfill matches zero rows in CI.
 //
@@ -92,33 +90,33 @@ func TestMigration000596TemplateUsageStatsSessionUsage(t *testing.T) {
 	}
 
 	t.Run("up", func(t *testing.T) {
-		// A bucket gets one family row per family it saw, and no app rows at
-		// all: the fixed columns only ever recorded the family, so per-app
-		// usage stays unknown rather than being invented from family totals.
+		// The fixed columns only ever recorded the family, so the converted
+		// rows carry a family name as their app name. The registry maps each
+		// of those back to itself, so reads attribute them unchanged.
 		tests := []struct {
-			name       string
-			mins       [][5]int
-			wantFamily []familyRow
+			name     string
+			mins     [][5]int
+			wantApps []sessionAppRow
 		}{
 			{name: "no rows"},
 			{
 				name: "every family",
 				mins: [][5]int{{1, 2, 3, 4, 5}},
-				wantFamily: []familyRow{
+				wantApps: []sessionAppRow{
 					{"jetbrains", 5}, {"reconnecting_pty", 3}, {"sftp", 2}, {"ssh", 1}, {"vscode", 4},
 				},
 			},
 			{
 				// The rollup has never written sftp_mins, but a row that has
 				// a value must not lose it.
-				name:       "sftp only",
-				mins:       [][5]int{{0, 7, 0, 0, 0}},
-				wantFamily: []familyRow{{"sftp", 7}},
+				name:     "sftp only",
+				mins:     [][5]int{{0, 7, 0, 0, 0}},
+				wantApps: []sessionAppRow{{"sftp", 7}},
 			},
 			{
-				name:       "zero minutes produce no row",
-				mins:       [][5]int{{5, 0, 0, 6, 0}},
-				wantFamily: []familyRow{{"ssh", 5}, {"vscode", 6}},
+				name:     "zero minutes produce no row",
+				mins:     [][5]int{{5, 0, 0, 6, 0}},
+				wantApps: []sessionAppRow{{"ssh", 5}, {"vscode", 6}},
 			},
 		}
 
@@ -133,15 +131,14 @@ func TestMigration000596TemplateUsageStatsSessionUsage(t *testing.T) {
 				_, err = tx.ExecContext(ctx, string(migrationSQL))
 				require.NoError(t, err)
 
-				require.Equal(t, tt.wantFamily, sessionRows(t, tx, "template_usage_stats_session_families", "family"))
-				require.Empty(t, sessionRows(t, tx, "template_usage_stats_session_apps", "app_name"))
+				require.Equal(t, tt.wantApps, sessionRows(t, tx))
 			})
 		}
 	})
 
-	// The child tables only hold session usage of buckets that exist, and they
-	// follow their bucket when it is deleted, which is how dbpurge and the
-	// retention deletes stay correct without knowing about them.
+	// The child table only holds session usage of buckets that exist, and it
+	// follows its bucket when that is deleted, which is how dbpurge and the
+	// retention deletes stay correct without knowing about it.
 	t.Run("child rows require and follow their bucket", func(t *testing.T) {
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		require.NoError(t, err)
@@ -150,23 +147,19 @@ func TestMigration000596TemplateUsageStatsSessionUsage(t *testing.T) {
 		_, err = tx.ExecContext(ctx, string(migrationSQL))
 		require.NoError(t, err)
 
-		for _, table := range []string{
-			"template_usage_stats_session_families",
-			"template_usage_stats_session_apps",
-		} {
-			_, err = tx.ExecContext(ctx, `SAVEPOINT before_orphan`)
-			require.NoError(t, err)
-			//nolint:gosec // The table name is a constant in this test.
-			_, err = tx.ExecContext(ctx, `
-				INSERT INTO `+table+` VALUES (
-					date_trunc('hour', statement_timestamp()),
-					gen_random_uuid(), gen_random_uuid(), 'ssh', 1
-				)
-			`)
-			require.ErrorContains(t, err, "violates foreign key constraint", "%s", table)
-			_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT before_orphan`)
-			require.NoError(t, err)
-		}
+		// The failed insert aborts the transaction, so take a savepoint the
+		// rest of the subtest can carry on from.
+		_, err = tx.ExecContext(ctx, `SAVEPOINT before_orphan`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO template_usage_stats_session_apps VALUES (
+				date_trunc('hour', statement_timestamp()),
+				gen_random_uuid(), gen_random_uuid(), 'ssh', 1
+			)
+		`)
+		require.ErrorContains(t, err, "violates foreign key constraint")
+		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT before_orphan`)
+		require.NoError(t, err)
 
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO template_usage_stats (
@@ -178,16 +171,6 @@ func TestMigration000596TemplateUsageStatsSessionUsage(t *testing.T) {
 				'22222222-2222-2222-2222-222222222222'::uuid,
 				'11111111-1111-1111-1111-111111111111'::uuid,
 				NULL, 30, NULL
-			)
-		`)
-		require.NoError(t, err)
-		_, err = tx.ExecContext(ctx, `
-			INSERT INTO template_usage_stats_session_families (
-				start_time, template_id, user_id, family, usage_mins
-			) VALUES (
-				date_trunc('hour', statement_timestamp()),
-				'22222222-2222-2222-2222-222222222222'::uuid,
-				'11111111-1111-1111-1111-111111111111'::uuid, 'ssh', 1
 			)
 		`)
 		require.NoError(t, err)
@@ -204,8 +187,7 @@ func TestMigration000596TemplateUsageStatsSessionUsage(t *testing.T) {
 
 		_, err = tx.ExecContext(ctx, `DELETE FROM template_usage_stats`)
 		require.NoError(t, err)
-		require.Empty(t, sessionRows(t, tx, "template_usage_stats_session_families", "family"))
-		require.Empty(t, sessionRows(t, tx, "template_usage_stats_session_apps", "app_name"))
+		require.Empty(t, sessionRows(t, tx))
 	})
 }
 
@@ -313,10 +295,16 @@ func TestMigration000596ChainFrom589(t *testing.T) {
 	require.JSONEq(t, `{"vscode": 4, "ssh": 2}`, gotCounts[1], "backlogged, over a day old")
 	require.JSONEq(t, `{"vscode": 2, "ssh": 1}`, gotCounts[2], "backlogged, recent")
 
-	// 596 converted the fixed family minutes and recorded no per-app usage.
-	require.Equal(t, []familyRow{{"sftp", 2}, {"ssh", 3}, {"vscode", 4}},
-		sessionRows(t, tx, "template_usage_stats_session_families", "family"))
-	require.Empty(t, sessionRows(t, tx, "template_usage_stats_session_apps", "app_name"))
+	// 596 converted the fixed family minutes under their family names.
+	require.Equal(t, []sessionAppRow{{"sftp", 2}, {"ssh", 3}, {"vscode", 4}},
+		sessionRows(t, tx))
+
+	// A real app name recorded after the upgrade must fold back into the
+	// family column the downgrade has room for.
+	_, err = tx.ExecContext(ctx, `
+		UPDATE template_usage_stats_session_apps SET app_name = 'cursor' WHERE app_name = 'vscode'
+	`)
+	require.NoError(t, err)
 
 	// Back down: 596 restores the fixed columns, then 590 restores the fixed
 	// session counts, landing on the 589 schema.
@@ -355,10 +343,7 @@ func TestMigration000596ChainFrom589(t *testing.T) {
 			(SELECT COUNT(*) FROM information_schema.columns
 				WHERE table_name = 'workspace_agent_stats' AND column_name = 'session_counts')
 			+ (SELECT COUNT(*) FROM information_schema.tables
-				WHERE table_name IN (
-					'template_usage_stats_session_families',
-					'template_usage_stats_session_apps'
-				))
+				WHERE table_name = 'template_usage_stats_session_apps')
 	`).Scan(&leftovers)
 	require.NoError(t, err)
 	require.Zero(t, leftovers)

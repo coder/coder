@@ -2,7 +2,6 @@ package database_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -21,48 +20,41 @@ func TestSessionUsageDigestDistinguishesDelimitedNames(t *testing.T) {
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	ctx := context.Background()
 	start := dbtime.Now().Add(-time.Hour).Truncate(30 * time.Minute)
-	user, template := uuid.New(), uuid.New()
-	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt: start, UserID: user, TemplateID: template,
-		AgentID: uuid.New(), ConnectionCount: 1,
-		SessionCounts: dbgen.SessionCounts(t, map[string]int64{"app_a": 1, "app_b": 1}),
-	})
-
-	rollup := func(registry map[string]string) {
+	separate, combined := uuid.New(), uuid.New()
+	template := uuid.New()
+	stat := func(user uuid.UUID, counts map[string]int64) {
 		t.Helper()
-		mapping, err := json.Marshal(registry)
-		require.NoError(t, err)
-		require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt: start, UserID: user, TemplateID: template,
+			AgentID: uuid.New(), ConnectionCount: 1,
+			SessionCounts: dbgen.SessionCounts(t, counts),
+		})
 	}
-	families := func() map[string]int64 {
-		return sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template)
+
+	// Agents report app names, so a name can carry the delimiters the digest
+	// uses. Two apps must not encode the same as one app named after them, or
+	// a bucket keeps stale child rows.
+	stat(separate, map[string]int64{"a": 1, "b": 1})
+	stat(combined, map[string]int64{"a:1|1:b": 1})
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
+
+	require.Equal(t, map[string]int64{"a": 1, "b": 1}, sessionUsageMins(ctx, t, sqlDB, start, separate, template))
+	require.Equal(t, map[string]int64{"a:1|1:b": 1}, sessionUsageMins(ctx, t, sqlDB, start, combined, template))
+	require.NotEqual(t,
+		sessionUsageDigest(ctx, t, sqlDB, start, separate, template),
+		sessionUsageDigest(ctx, t, sqlDB, start, combined, template))
+
+	// Repeating the same usage must not rewrite any child row.
+	rowVersion := func() string {
+		t.Helper()
+		var version string
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT xmin::text FROM template_usage_stats_session_apps WHERE start_time = $1 AND user_id = $2 AND template_id = $3 AND app_name = $4`,
+			start, combined, template, "a:1|1:b").Scan(&version))
+		return version
 	}
-
-	rollup(map[string]string{"app_a": "a", "app_b": "b"})
-	require.Equal(t, map[string]int64{"a": 1, "b": 1}, families())
-	before := sessionUsageDigest(ctx, t, sqlDB, start, user, template)
-
-	// A registry change can merge two families without changing app usage or
-	// the main bucket totals. Delimiters in a family name must not make its
-	// digest identical to the two separate family rows it replaces.
-	registry := map[string]string{"app_a": "a:1|1:b", "app_b": "a:1|1:b"}
-	rollup(registry)
-	require.Equal(t, map[string]int64{"a:1|1:b": 1}, families())
-	after := sessionUsageDigest(ctx, t, sqlDB, start, user, template)
-	require.NotEqual(t, before, after)
-	require.Equal(t, map[string]int64{"app_a": 1, "app_b": 1},
-		sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, user, template))
-
-	// Repeating the same attribution must not rewrite any child row.
-	var rowVersion string
-	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT xmin::text FROM template_usage_stats_session_families WHERE start_time = $1 AND user_id = $2 AND template_id = $3 AND family = $4`,
-		start, user, template, registry["app_a"]).Scan(&rowVersion))
-	rollup(registry)
-	var repeatedVersion string
-	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT xmin::text FROM template_usage_stats_session_families WHERE start_time = $1 AND user_id = $2 AND template_id = $3 AND family = $4`,
-		start, user, template, registry["app_a"]).Scan(&repeatedVersion))
-	require.Equal(t, rowVersion, repeatedVersion)
-	require.Equal(t, after, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
+	before, digest := rowVersion(), sessionUsageDigest(ctx, t, sqlDB, start, combined, template)
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
+	require.Equal(t, before, rowVersion())
+	require.Equal(t, digest, sessionUsageDigest(ctx, t, sqlDB, start, combined, template))
 }

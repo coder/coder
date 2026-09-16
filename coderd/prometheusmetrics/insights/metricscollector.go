@@ -43,8 +43,8 @@ type insightsData struct {
 }
 
 // templateInsightsRow is the decoded form of
-// database.GetTemplateInsightsByTemplateRow, whose per-session-family usage
-// arrives as a JSONB payload.
+// database.GetTemplateInsightsByTemplateRow, whose session usage arrives as a
+// JSONB payload keyed by app name.
 type templateInsightsRow struct {
 	templateID           uuid.UUID
 	activeUsers          int64
@@ -112,9 +112,8 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		eg.Go(func() error {
 			rows, err := mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
-				StartTime:   startTime,
-				EndTime:     endTime,
-				AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+				StartTime: startTime,
+				EndTime:   endTime,
 			})
 			if err != nil {
 				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
@@ -317,21 +316,21 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 	return m
 }
 
-// convertTemplateInsights decodes the JSONB session family usage of each
-// template insights row. A malformed payload is an error rather than zero
-// usage, so the collector keeps serving the previous snapshot instead of
-// reporting idle templates.
+// convertTemplateInsights decodes the JSONB per-app session usage of each
+// template insights row and groups it into families. A malformed payload is an
+// error rather than zero usage, so the collector keeps serving the previous
+// snapshot instead of reporting idle templates.
 func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) ([]templateInsightsRow, error) {
 	converted := make([]templateInsightsRow, 0, len(rows))
 	for _, row := range rows {
-		usageSeconds, err := codersdk.DecodeAppFamilyMap[int64](row.SessionFamilyUsageSeconds)
+		appSeconds, err := codersdk.DecodeAppMap[int64](row.SessionAppUsageSeconds)
 		if err != nil {
 			return nil, xerrors.Errorf("template %s: %w", row.TemplateID, err)
 		}
 		converted = append(converted, templateInsightsRow{
 			templateID:           row.TemplateID,
 			activeUsers:          row.ActiveUsers,
-			usageSecondsByFamily: usageSeconds,
+			usageSecondsByFamily: codersdk.SumByFamily(appSeconds),
 		})
 	}
 	return converted, nil

@@ -3,7 +3,6 @@ package dbrollup_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -44,9 +43,9 @@ func (w *wrapUpsertDB) InTx(fn func(database.Store) error, opts *database.TxOpti
 	}, opts)
 }
 
-func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
+func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context) error {
 	<-w.resume
-	return w.Store.UpsertTemplateUsageStats(ctx, appFamilies)
+	return w.Store.UpsertTemplateUsageStats(ctx)
 }
 
 func TestRollup_TwoInstancesUseLocking(t *testing.T) {
@@ -261,18 +260,10 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 		},
 	}, stats[0])
 
-	// Session minutes live in the child tables, keyed by app name and family.
-	for _, tc := range []struct {
-		table, nameColumn, name string
-	}{
-		{"template_usage_stats_session_apps", "app_name", "reconnecting_pty"},
-		{"template_usage_stats_session_families", "family", "reconnecting_pty"},
-	} {
-		var usageMins int64
-		//nolint:gosec // Table and column names are constants in this test.
-		err := sqlDB.QueryRowContext(ctx, "SELECT usage_mins FROM "+tc.table+" WHERE start_time = $1 AND template_id = $2 AND user_id = $3 AND "+tc.nameColumn+" = $4",
-			wags1.CreatedAt, tpl.ID, user.ID, tc.name).Scan(&usageMins)
-		require.NoError(t, err, tc.table)
-		require.EqualValues(t, 2, usageMins, tc.table)
-	}
+	// Session minutes live in the child table, keyed by app name.
+	var usageMins int64
+	err = sqlDB.QueryRowContext(ctx, "SELECT usage_mins FROM template_usage_stats_session_apps WHERE start_time = $1 AND template_id = $2 AND user_id = $3 AND app_name = $4",
+		wags1.CreatedAt, tpl.ID, user.ID, "reconnecting_pty").Scan(&usageMins)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, usageMins)
 }

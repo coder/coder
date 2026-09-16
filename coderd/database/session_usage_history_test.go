@@ -23,14 +23,14 @@ func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
 	ctx := context.Background()
 	start := dbtime.Now().Add(-2 * time.Hour).Truncate(30 * time.Minute)
 	user, template1, template2, appTemplate := uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	// The same user in two templates in one half hour, so the family minutes
-	// have to be capped at 30 across templates. There is no sqlc query for the
-	// child tables, so the history is seeded directly.
+	// The same user in two templates in one half hour, so the app minutes have
+	// to be capped at 30 across templates. There is no sqlc query for the
+	// child table, so the history is seeded directly.
 	for _, template := range []uuid.UUID{template1, template2} {
 		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,20)`,
 			start, start.Add(30*time.Minute), user, template)
 		require.NoError(t, err)
-		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_families(start_time,template_id,user_id,family,usage_mins) VALUES($1,$2,$3,'new_family',20),($1,$2,$3,'ssh',20),($1,$2,$3,'sftp',2)`,
+		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,'some_new_ide',20),($1,$2,$3,'ssh',20),($1,$2,$3,'sftp',2)`,
 			start, template, user)
 		require.NoError(t, err)
 	}
@@ -44,22 +44,22 @@ func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
 	require.EqualValues(t, 2, usage.ActiveUsers)
 	require.EqualValues(t, 35*60, usage.UsageTotalSeconds)
 	require.ElementsMatch(t, []uuid.UUID{template1, template2, appTemplate}, usage.TemplateIDs)
-	require.JSONEq(t, `{"new_family":1800,"ssh":1800,"sftp":240}`, string(usage.SessionFamilyUsageSeconds))
+	require.JSONEq(t, `{"some_new_ide":1800,"ssh":1800,"sftp":240}`, string(usage.SessionAppUsageSeconds))
 	var ids map[string][]uuid.UUID
-	require.NoError(t, json.Unmarshal(usage.SessionFamilyTemplateIds, &ids))
-	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["new_family"])
+	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
+	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["some_new_ide"])
 	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["ssh"])
 	onlyApp, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute), TemplateIDs: []uuid.UUID{appTemplate}})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, onlyApp.ActiveUsers)
 	require.EqualValues(t, 300, onlyApp.UsageTotalSeconds)
-	require.JSONEq(t, `{}`, string(onlyApp.SessionFamilyUsageSeconds))
-	require.JSONEq(t, `{}`, string(onlyApp.SessionFamilyTemplateIds))
+	require.JSONEq(t, `{}`, string(onlyApp.SessionAppUsageSeconds))
+	require.JSONEq(t, `{}`, string(onlyApp.SessionAppTemplateIds))
 	// Filtering to one of the two templates leaves a single-template user, so
 	// the capped path is not taken and the minutes are that template's alone.
 	onlyOne, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute), TemplateIDs: []uuid.UUID{template1}})
 	require.NoError(t, err)
-	require.JSONEq(t, `{"new_family":1200,"ssh":1200,"sftp":120}`, string(onlyOne.SessionFamilyUsageSeconds))
+	require.JSONEq(t, `{"some_new_ide":1200,"ssh":1200,"sftp":120}`, string(onlyOne.SessionAppUsageSeconds))
 }
 
 func TestSessionUsageEmptyHistory(t *testing.T) {
@@ -71,6 +71,6 @@ func TestSessionUsageEmptyHistory(t *testing.T) {
 	require.Empty(t, row.TemplateIDs)
 	require.Zero(t, row.ActiveUsers)
 	require.Zero(t, row.UsageTotalSeconds)
-	require.JSONEq(t, `{}`, string(row.SessionFamilyUsageSeconds))
-	require.JSONEq(t, `{}`, string(row.SessionFamilyTemplateIds))
+	require.JSONEq(t, `{}`, string(row.SessionAppUsageSeconds))
+	require.JSONEq(t, `{}`, string(row.SessionAppTemplateIds))
 }

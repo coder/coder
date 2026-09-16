@@ -857,11 +857,9 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
 	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	appFamilies := codersdk.SessionCountAppFamiliesJSON()
 	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime:   startTime,
-		EndTime:     endTime,
-		AppFamilies: appFamilies,
+		StartTime: startTime,
+		EndTime:   endTime,
 	})
 	require.NoError(t, err)
 	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow)
@@ -870,9 +868,9 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	}
 	require.Len(t, byTemplate, 2)
 	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
-	require.JSONEq(t, `{"vscode":120,"jetbrains":60,"reconnecting_pty":60,"ssh":120,"unknown":60}`, string(byTemplate[templateID].SessionFamilyUsageSeconds))
+	require.JSONEq(t, `{"vscode":120,"jetbrains":60,"reconnecting_pty":60,"ssh":120,"unknown":60}`, string(byTemplate[templateID].SessionAppUsageSeconds))
 	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
-	require.JSONEq(t, `{"vscode":60,"unknown":60}`, string(byTemplate[sharedConnectionTemplateID].SessionFamilyUsageSeconds))
+	require.JSONEq(t, `{"vscode":60,"unknown":60}`, string(byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds))
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -19053,8 +19051,6 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 		})
 	}
 
-	appFamilies := codersdk.SessionCountAppFamiliesJSON()
-
 	// A VS Code fork counts as VS Code, and Zed counts as SSH.
 	stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 	require.NoError(t, err)
@@ -19064,9 +19060,8 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
 
 	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime:   dbtime.Now().Add(-time.Hour),
-		EndTime:     dbtime.Now().Add(time.Hour),
-		AppFamilies: appFamilies,
+		StartTime: dbtime.Now().Add(-time.Hour),
+		EndTime:   dbtime.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
 
@@ -19074,20 +19069,19 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.JSONEq(t, `{"vscode":60}`, string(byTemplate[cursorTemplate].SessionFamilyUsageSeconds))
-	require.JSONEq(t, `{"ssh":60}`, string(byTemplate[zedTemplate].SessionFamilyUsageSeconds))
+	require.JSONEq(t, `{"cursor":60}`, string(byTemplate[cursorTemplate].SessionAppUsageSeconds))
+	require.JSONEq(t, `{"zed":60}`, string(byTemplate[zedTemplate].SessionAppUsageSeconds))
 
 	// An app with no family is still activity, so the user is not counted idle.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.JSONEq(t, `{"unknown":60}`, string(unknown.SessionFamilyUsageSeconds))
+	require.JSONEq(t, `{"some_new_ide":60}`, string(unknown.SessionAppUsageSeconds))
 }
 
-// The rollup attributes session counts the same way the read queries do, so a
-// VS Code fork rolls up as VS Code, an SSH-speaking editor as SSH, and an app
-// with no family is still usage.
-func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
+// The rollup stores the app name the agent reported, whether or not the
+// registry knows it. Callers group the names into families.
+func TestUpsertTemplateUsageStatsStoresReportedAppNames(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -19125,7 +19119,7 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 		})
 	}
 
-	require.NoError(t, db.UpsertTemplateUsageStats(ctx, codersdk.SessionCountAppFamiliesJSON()))
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 
 	stats, err := db.GetTemplateUsageStats(ctx, database.GetTemplateUsageStatsParams{
 		StartTime: createdAt.Add(-time.Hour),
@@ -19141,22 +19135,19 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 	cursor, ok := byTemplate[cursorTemplate]
 	require.True(t, ok, "a VS Code fork must be rolled up")
 	require.Equal(t, int16(1), cursor.UsageMins)
-	require.Equal(t, map[string]int64{"vscode": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", cursor.StartTime, cursor.UserID, cursorTemplate))
-	require.Equal(t, map[string]int64{"cursor": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", cursor.StartTime, cursor.UserID, cursorTemplate))
+	require.Equal(t, map[string]int64{"cursor": 1}, sessionUsageMins(ctx, t, sqlDB, cursor.StartTime, cursor.UserID, cursorTemplate))
 
 	zed, ok := byTemplate[zedTemplate]
 	require.True(t, ok, "an SSH-speaking editor must be rolled up")
 	require.Equal(t, int16(1), zed.UsageMins)
-	require.Equal(t, map[string]int64{"ssh": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", zed.StartTime, zed.UserID, zedTemplate))
-	require.Equal(t, map[string]int64{"zed": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", zed.StartTime, zed.UserID, zedTemplate))
+	require.Equal(t, map[string]int64{"zed": 1}, sessionUsageMins(ctx, t, sqlDB, zed.StartTime, zed.UserID, zedTemplate))
 
-	// An app with no family is still activity, so it produces usage minutes
-	// attributed to the unknown family.
+	// An app the registry does not know is still activity, and keeps the name
+	// the agent reported so a later registry entry can attribute it.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int16(1), unknown.UsageMins)
-	require.Equal(t, map[string]int64{"unknown": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", unknown.StartTime, unknown.UserID, unknownTemplate))
-	require.Equal(t, map[string]int64{"some_new_ide": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", unknown.StartTime, unknown.UserID, unknownTemplate))
+	require.Equal(t, map[string]int64{"some_new_ide": 1}, sessionUsageMins(ctx, t, sqlDB, unknown.StartTime, unknown.UserID, unknownTemplate))
 }
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {

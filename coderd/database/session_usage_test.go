@@ -3,7 +3,6 @@ package database_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -14,17 +13,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/codersdk"
 )
 
-// sessionUsageMins reads a session usage child table for one bucket. There is
-// no sqlc query for the child tables, so the tests read them directly.
-func sessionUsageMins(ctx context.Context, t *testing.T, sqlDB *sql.DB, table, nameColumn string, startTime time.Time, userID, templateID uuid.UUID) map[string]int64 {
+// sessionUsageMins reads the session usage child table for one bucket. There
+// is no sqlc query for it, so the tests read it directly.
+func sessionUsageMins(ctx context.Context, t *testing.T, sqlDB *sql.DB, startTime time.Time, userID, templateID uuid.UUID) map[string]int64 {
 	t.Helper()
 
-	//nolint:gosec // Table and column names are constants in this test.
-	rows, err := sqlDB.QueryContext(ctx, "SELECT "+nameColumn+", usage_mins FROM "+table+
-		" WHERE start_time = $1 AND user_id = $2 AND template_id = $3", startTime, userID, templateID)
+	rows, err := sqlDB.QueryContext(ctx, `SELECT app_name, usage_mins FROM template_usage_stats_session_apps
+		WHERE start_time = $1 AND user_id = $2 AND template_id = $3`, startTime, userID, templateID)
 	require.NoError(t, err)
 	defer rows.Close()
 
@@ -80,7 +77,7 @@ func TestSessionUsageMapNull(t *testing.T) {
 	require.Empty(t, m)
 }
 
-func TestSessionUsageRollupOverlapAndRegistry(t *testing.T) {
+func TestSessionUsageRollupOverlapAndDigest(t *testing.T) {
 	t.Parallel()
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	ctx := context.Background()
@@ -104,12 +101,7 @@ func TestSessionUsageRollupOverlapAndRegistry(t *testing.T) {
 	empty := uuid.New()
 	insert(0, user, empty, 1, map[string]int64{})
 
-	var registry map[string]string
-	require.NoError(t, json.Unmarshal(codersdk.SessionCountAppFamiliesJSON(), &registry))
-	registry["new_app"] = "new_family"
-	mapping, err := json.Marshal(registry)
-	require.NoError(t, err)
-	require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 	params := database.GetTemplateUsageStatsParams{StartTime: start, EndTime: start.Add(time.Hour)}
 	rows, err := db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
@@ -124,47 +116,36 @@ func TestSessionUsageRollupOverlapAndRegistry(t *testing.T) {
 		}
 	}
 	require.True(t, found, "the overlapping app bucket must be present")
-	// Overlapping apps of one family share their minutes in the family table
-	// but keep their own minutes in the app table.
+	// Each app keeps its own minutes, counted once per minute however many of
+	// its sessions were open. Callers add the apps of a family together.
 	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1},
-		sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, user, template))
-	require.Equal(t, map[string]int64{"vscode": 3, "new_family": 1},
-		sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template))
+		sessionUsageMins(ctx, t, sqlDB, start, user, template))
 	digest := sessionUsageDigest(ctx, t, sqlDB, start, user, template)
 	require.True(t, digest.Valid, "a rolled up bucket must carry a session usage digest")
 	require.NotEqual(t, emptySessionUsageDigest(ctx, t, sqlDB), digest, "this bucket has session usage")
 
 	// The existing watermark deliberately recomputes recent buckets.
-	require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 	repeated, err := db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
 	require.ElementsMatch(t, rows, repeated)
-	require.Equal(t, map[string]int64{"vscode": 3, "new_family": 1},
-		sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template))
+	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1},
+		sessionUsageMins(ctx, t, sqlDB, start, user, template))
 	// Recomputing identical session usage leaves the digest alone, which is
 	// what keeps the rollup from rewriting the child rows of every bucket in
 	// its window.
 	require.Equal(t, digest, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
 
-	// Renaming a family in the registry moves the minutes: the recomputed
-	// bucket drops the family row it no longer has and keeps its app rows,
-	// even though the main row itself does not change.
-	registry["new_app"] = "renamed_family"
-	mapping, err = json.Marshal(registry)
-	require.NoError(t, err)
-	require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
+	// A new app in a minute the bucket already counted leaves the main row
+	// alone, so the digest is what marks the bucket changed and lets the child
+	// writes reach it.
+	insert(0, user, template, 1, map[string]int64{"another_app": 1})
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 	repeated, err = db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
-	// Only the digest may differ on the main row: the rename changes what the
-	// child rows hold and nothing else.
 	require.ElementsMatch(t, withoutDigest(rows), withoutDigest(repeated))
-	families := sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template)
-	require.EqualValues(t, 1, families["renamed_family"])
-	require.NotContains(t, families, "new_family")
-	apps := sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, user, template)
-	require.EqualValues(t, 1, apps["new_app"])
-	// The rename shows up in no other column of the main row, so the digest is
-	// what marks the bucket changed and lets the child writes reach it.
+	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1, "another_app": 1},
+		sessionUsageMins(ctx, t, sqlDB, start, user, template))
 	require.NotEqual(t, digest, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
 
 	// A bucket that only has app stats records no session usage at all, so it
@@ -186,20 +167,18 @@ func TestSessionUsageRollupOverlapAndRegistry(t *testing.T) {
 		SessionStartedAt: start.Add(time.Minute),
 		SessionEndedAt:   start.Add(3 * time.Minute),
 	})
-	require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 	require.Equal(t, emptySessionUsageDigest(ctx, t, sqlDB), sessionUsageDigest(ctx, t, sqlDB, start, owner.ID, appTemplate.ID))
-	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, owner.ID, appTemplate.ID))
-	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, owner.ID, appTemplate.ID))
+	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, start, owner.ID, appTemplate.ID))
 
-	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, disconnected))
+	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, start, user, disconnected))
 	_, err = sqlDB.ExecContext(ctx, `DELETE FROM template_usage_stats WHERE start_time = $1 AND user_id = $2 AND template_id = $3`, start, user, template)
 	require.NoError(t, err)
-	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template))
-	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, user, template))
+	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, start, user, template))
 
-	// Live insights deduplicate the overlapping apps without half-hour caps.
+	// Live insights report the raw app names without half-hour caps.
 	live, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime: start.Add(30 * time.Second), EndTime: start.Add(30 * time.Minute), AppFamilies: mapping,
+		StartTime: start.Add(30 * time.Second), EndTime: start.Add(30 * time.Minute),
 	})
 	require.NoError(t, err)
 	require.Len(t, live, 0, "no connected report occurs in this partial request window")

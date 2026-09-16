@@ -3048,7 +3048,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateInsightsByTemplate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetTemplateInsightsByTemplateParams{AppFamilies: codersdk.SessionCountAppFamiliesJSON()}
+		arg := database.GetTemplateInsightsByTemplateParams{}
 		dbm.EXPECT().GetTemplateInsightsByTemplate(gomock.Any(), arg).Return([]database.GetTemplateInsightsByTemplateRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
@@ -3068,9 +3068,8 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Returns([]database.TemplateUsageStat{})
 	}))
 	s.Run("UpsertTemplateUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := codersdk.SessionCountAppFamiliesJSON()
-		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any()).Return(nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("UpdatePresetsLastInvalidatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
@@ -7878,104 +7877,4 @@ func TestAsExternalAuthChecker(t *testing.T) {
 			require.Error(t, err, "%s read should be denied", res.Type)
 		}
 	})
-}
-
-// TestSessionCountAppFamiliesRequired ensures the queries that take the
-// app-to-family registry fail loudly when it is missing. The queries fall
-// back to the unknown family, so a forgotten parameter would misattribute
-// known activity and undercount the fixed per-family compatibility fields
-// rather than surfacing an error.
-func TestSessionCountAppFamiliesRequired(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dbm := dbmock.NewMockStore(ctrl)
-	dbm.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-	q := dbauthz.New(dbm, &coderdtest.RecordingAuthorizer{Wrapped: &coderdtest.FakeAuthorizer{}}, slog.Make(), coderdtest.AccessControlStorePointer())
-	ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
-
-	_, err := q.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{})
-	require.ErrorContains(t, err, "app family registry is empty")
-	err = q.UpsertTemplateUsageStats(ctx, nil)
-	require.ErrorContains(t, err, "app family registry is empty")
-}
-
-// TestSessionCountAppFamiliesShape covers registries that are present but
-// unusable. The queries join the registry by normalized app name and fall
-// back to the unknown family, so an entry the join can never match, or one
-// with no family to attribute to, would misattribute known activity and
-// report a plausible but undercounted result instead of failing.
-func TestSessionCountAppFamiliesShape(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name        string
-		appFamilies json.RawMessage
-		errContains string
-	}{
-		{"EmptyObject", json.RawMessage(`{}`), "app family registry is empty"},
-		{"JSONNull", json.RawMessage(`null`), "app family registry is empty"},
-		{"NotAnObject", json.RawMessage(`["vscode"]`), "invalid app family registry"},
-		{"FamilyToAppNames", json.RawMessage(`{"vscode":["cursor"]}`), "invalid app family registry"},
-		{"UnnormalizedAppName", json.RawMessage(`{"VSCode-Insiders":"vscode"}`), "not normalized"},
-		{"UnnormalizedFamily", json.RawMessage(`{"vscode":"VS Code"}`), "not normalized"},
-		{"HyphenatedFamily", json.RawMessage(`{"vscode":"vs-code"}`), "not normalized"},
-		{"PaddedFamily", json.RawMessage(`{"vscode":" vscode "}`), "not normalized"},
-		{"UnknownFamily", json.RawMessage(`{"vscode":"unknown"}`), `app "vscode" maps to unknown family`},
-		{"EmptyAppName", json.RawMessage(`{"":"vscode"}`), "empty app name"},
-		{"EmptyFamily", json.RawMessage(`{"vscode":""}`), `no family for app "vscode"`},
-		{"WhitespaceFamily", json.RawMessage(`{"vscode":"  "}`), `no family for app "vscode"`},
-		{"NullFamily", json.RawMessage(`{"vscode":null}`), `no family for app "vscode"`},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			dbm := dbmock.NewMockStore(ctrl)
-			dbm.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-			q := dbauthz.New(dbm, &coderdtest.RecordingAuthorizer{Wrapped: &coderdtest.FakeAuthorizer{}}, slog.Make(), coderdtest.AccessControlStorePointer())
-			ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
-
-			_, err := q.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{AppFamilies: tc.appFamilies})
-			require.ErrorContains(t, err, tc.errContains)
-			err = q.UpsertTemplateUsageStats(ctx, tc.appFamilies)
-			require.ErrorContains(t, err, tc.errContains)
-		})
-	}
-}
-
-// No query names a family, so registering an app under a family that has
-// never been seen before is valid without any SQL change. Validation must not
-// reintroduce a hardcoded family list.
-func TestSessionCountAppFamiliesAcceptsNewFamily(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name        string
-		appFamilies json.RawMessage
-	}{
-		{"Registry", codersdk.SessionCountAppFamiliesJSON()},
-		{"NewFamily", json.RawMessage(`{"emacs":"emacs","vscode":"vscode"}`)},
-		{"SingleEntry", json.RawMessage(`{"ssh":"ssh"}`)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			dbm := dbmock.NewMockStore(ctrl)
-			dbm.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-			arg := database.GetTemplateInsightsByTemplateParams{AppFamilies: tc.appFamilies}
-			dbm.EXPECT().GetTemplateInsightsByTemplate(gomock.Any(), arg).Return([]database.GetTemplateInsightsByTemplateRow{}, nil).AnyTimes()
-			dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any(), tc.appFamilies).Return(nil).AnyTimes()
-			q := dbauthz.New(dbm, &coderdtest.RecordingAuthorizer{Wrapped: &coderdtest.FakeAuthorizer{}}, slog.Make(), coderdtest.AccessControlStorePointer())
-			ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
-
-			_, err := q.GetTemplateInsightsByTemplate(ctx, arg)
-			require.NoError(t, err)
-			require.NoError(t, q.UpsertTemplateUsageStats(ctx, tc.appFamilies))
-		})
-	}
 }

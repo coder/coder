@@ -86,9 +86,8 @@ ORDER BY
 -- workspaces in a given timeframe. The template IDs, active users, and
 -- usage_seconds all reflect any usage in the template, including apps.
 --
--- Session usage comes from the family child table exactly as the rollup
--- recorded it, so a family the rollup learns about later is reported without a
--- change here.
+-- Session usage comes out per app name. Callers group the names into families
+-- through the codersdk registry.
 --
 -- When combining data from multiple templates, we must make a guess at
 -- how the user behaved for the 30 minute interval. In this case we make
@@ -137,33 +136,33 @@ WITH
 		WHERE
 			templates > 1
 	),
-	single_family_usage AS (
+	single_app_usage AS (
 		-- Everything but the multi-template buckets. These cannot exceed the
-		-- cap, so they need no per-user grouping. The template list per
-		-- family comes from here too, where the cap is irrelevant.
+		-- cap, so they need no per-user grouping. The template list per app
+		-- comes from here too, where the cap is irrelevant.
 		SELECT
-			sessions.family,
+			sessions.app_name,
 			sessions.template_id,
 			SUM(LEAST(sessions.usage_mins, 30)) FILTER (
 				WHERE (sessions.start_time, sessions.user_id) NOT IN (SELECT start_time, user_id FROM multi)
 			) AS usage_mins
 		FROM
-			template_usage_stats_session_families AS sessions
+			template_usage_stats_session_apps AS sessions
 		WHERE
 			sessions.start_time >= @start_time::timestamptz
 			AND sessions.start_time + '30 minutes'::interval <= @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
 			AND sessions.usage_mins > 0
 		GROUP BY
-			sessions.family, sessions.template_id
+			sessions.app_name, sessions.template_id
 	),
-	multi_family_usage AS (
+	multi_app_usage AS (
 		-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
 		SELECT
-			sessions.family,
+			sessions.app_name,
 			LEAST(SUM(sessions.usage_mins), 30) AS usage_mins
 		FROM
-			template_usage_stats_session_families AS sessions
+			template_usage_stats_session_apps AS sessions
 		WHERE
 			sessions.start_time >= @start_time::timestamptz
 			AND sessions.start_time + '30 minutes'::interval <= @end_time::timestamptz
@@ -176,87 +175,78 @@ WITH
 					AND multi.user_id = sessions.user_id
 			)
 		GROUP BY
-			sessions.start_time, sessions.user_id, sessions.family
+			sessions.start_time, sessions.user_id, sessions.app_name
 	),
-	family_usage AS (
+	app_usage AS (
 		SELECT
-			family,
+			app_name,
 			(SUM(usage_mins) * 60)::bigint AS usage_seconds
 		FROM (
 			SELECT
-				family,
+				app_name,
 				COALESCE(SUM(usage_mins), 0) AS usage_mins
 			FROM
-				single_family_usage
+				single_app_usage
 			GROUP BY
-				family
+				app_name
 
 			UNION ALL
 
 			SELECT
-				family,
+				app_name,
 				SUM(usage_mins) AS usage_mins
 			FROM
-				multi_family_usage
+				multi_app_usage
 			GROUP BY
-				family
+				app_name
 		) AS parts
 		GROUP BY
-			family
+			app_name
 	),
-	family_templates AS (
+	app_templates AS (
 		SELECT
-			family,
+			app_name,
 			array_agg(DISTINCT template_id) AS template_ids
 		FROM
-			single_family_usage
+			single_app_usage
 		GROUP BY
-			family
+			app_name
 	)
 
 SELECT
 	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE is_user_row = 0), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	-- Family name to usage seconds, and family name to the templates that saw
-	-- the family.
-	COALESCE((SELECT jsonb_object_agg(family, usage_seconds) FROM family_usage), '{}'::jsonb)::jsonb AS session_family_usage_seconds,
-	COALESCE((SELECT jsonb_object_agg(family, template_ids) FROM family_templates), '{}'::jsonb)::jsonb AS session_family_template_ids
+	-- App name to usage seconds, and app name to the templates that saw the
+	-- app. Callers fold both into families.
+	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FROM app_usage), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
+	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FROM app_templates), '{}'::jsonb)::jsonb AS session_app_template_ids
 FROM
 	users;
 
 -- name: GetTemplateInsightsByTemplate :many
 -- GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 -- in sync with GetTemplateInsights and UpsertTemplateUsageStats.
+--
+-- Session usage comes out per app name, so a caller that groups the names
+-- reports the same family totals as GetTemplateInsights.
 WITH
-	expanded AS (
-		-- Each row's app names are expanded once and mapped to their family.
-		-- app_families maps app name to family name; an app the registry does
-		-- not know is attributed to 'unknown' rather than dropped.
+	minute_app AS (
+		-- One row per app active in a minute. A minute counts once per app
+		-- however many sessions of it were open.
 		SELECT
 			was.template_id,
 			was.user_id,
 			date_trunc('minute', was.created_at) AS minute,
-			COALESCE(@app_families::jsonb ->> app_name, 'unknown') AS family
+			app_name
 		FROM
 			workspace_agent_stats AS was, jsonb_object_keys(was.session_counts) AS app_name
 		WHERE
 			was.created_at >= @start_time::timestamptz
 			AND was.created_at < @end_time::timestamptz
 			AND was.session_counts <> '{}'::jsonb
-	),
-	minute_family AS (
-		-- Deduplicate activity by template, user, minute, and family, so a
-		-- minute with two apps of one family counts once for that family.
-		SELECT
-			template_id,
-			user_id,
-			minute,
-			family
-		FROM
-			expanded
 		GROUP BY
-			template_id, user_id, minute, family
+			was.template_id, was.user_id, date_trunc('minute', was.created_at), app_name
 	),
 	connected AS (
 		-- NOTE(mafredri): The agent stats are currently very unreliable, and
@@ -279,34 +269,34 @@ WITH
 	),
 	insights AS (
 		SELECT
-			mf.template_id,
-			mf.user_id,
-			mf.family,
+			ma.template_id,
+			ma.user_id,
+			ma.app_name,
 			COUNT(*) AS usage_mins
 		FROM
-			minute_family AS mf
+			minute_app AS ma
 		JOIN
 			connected AS c
 		ON
-			c.template_id = mf.template_id
-			AND c.user_id = mf.user_id
+			c.template_id = ma.template_id
+			AND c.user_id = ma.user_id
 		GROUP BY
-			mf.template_id, mf.user_id, mf.family
+			ma.template_id, ma.user_id, ma.app_name
 	),
-	family_usage AS (
+	app_usage AS (
 		SELECT
 			template_id,
-			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
+			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
 		FROM (
 			SELECT
 				template_id,
-				family,
+				app_name,
 				(SUM(usage_mins) * 60)::bigint AS usage_seconds
 			FROM
 				insights
 			GROUP BY
-				template_id, family
-		) AS family_seconds
+				template_id, app_name
+		) AS app_seconds
 		GROUP BY
 			template_id
 	),
@@ -323,13 +313,13 @@ WITH
 SELECT
 	au.template_id,
 	au.active_users,
-	COALESCE(fu.session_family_usage_seconds, '{}'::jsonb)::jsonb AS session_family_usage_seconds
+	COALESCE(au_usage.session_app_usage_seconds, '{}'::jsonb)::jsonb AS session_app_usage_seconds
 FROM
 	active_users AS au
 LEFT JOIN
-	family_usage AS fu
+	app_usage AS au_usage
 ON
-	fu.template_id = au.template_id;
+	au_usage.template_id = au.template_id;
 
 -- name: GetTemplateAppInsights :many
 -- GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -614,12 +604,12 @@ WHERE
 -- used to store the data, and the minutes are summed for each user and template
 -- combination. The result is stored in the template_usage_stats table.
 --
--- Session usage is stored per app name and per app family in the child tables,
--- so the main row carries no session columns at all. Every recomputed bucket
--- rewrites its own child rows: names that disappeared are deleted, the rest
--- are upserted. The keys come from the computed set rather than from the main
--- upsert, because the no-op guard below suppresses main rows whose columns did
--- not change while their session usage still has to be corrected.
+-- Session usage is stored per app name in the child table, so the main row
+-- carries no session columns at all. Every recomputed bucket rewrites its own
+-- child rows: app names that disappeared are deleted, the rest are upserted.
+-- The keys come from the computed set rather than from the main upsert,
+-- because the no-op guard below suppresses main rows whose columns did not
+-- change while their session usage still has to be corrected.
 WITH
 	latest_start AS (
 		SELECT
@@ -729,19 +719,10 @@ WITH
 		GROUP BY
 			time_bucket, template_id, user_id
 	),
-	app_family_registry AS (
-		-- The session count attribution registry, app name to family name.
-		SELECT
-			app,
-			family
-		FROM
-			jsonb_each_text(@app_families::jsonb) AS registry(app, family)
-	),
 	agent_stats_app_minutes AS (
 		-- One bit per minute of the half-hour bucket, per app name, instead of
-		-- a count: masks can be OR'd into a family below without counting a
-		-- minute twice when two apps of the same family were active in it.
-		-- Transient, only the minute counts derived from them are stored.
+		-- a count, so a minute counts once however many sessions were open.
+		-- Only the minute counts derived from these are stored.
 		SELECT
 			time_bucket,
 			template_id,
@@ -753,79 +734,48 @@ WITH
 		GROUP BY
 			time_bucket, template_id, user_id, app_name
 	),
-	agent_stats_session_masks AS (
-		-- One pass over the per-app masks emits both groupings: the app rows
-		-- keep each mask as it is, the family rows OR the masks of every app
-		-- in the family. An app name the registry does not know is attributed
-		-- to 'unknown' rather than dropped, so a newly reported app still
-		-- lands somewhere. GROUPING() marks which set a row came from, because
-		-- the app column is null in the family rows.
-		SELECT
-			time_bucket,
-			template_id,
-			user_id,
-			agent_stats_app_minutes.app_name,
-			COALESCE(app_family_registry.family, 'unknown') AS family,
-			GROUPING(agent_stats_app_minutes.app_name) AS family_group,
-			bit_or(minute_mask) AS minute_mask
-		FROM
-			agent_stats_app_minutes
-		LEFT JOIN
-			app_family_registry
-		ON
-			app_family_registry.app = agent_stats_app_minutes.app_name
-		GROUP BY GROUPING SETS (
-			(time_bucket, template_id, user_id, agent_stats_app_minutes.app_name),
-			(time_bucket, template_id, user_id, COALESCE(app_family_registry.family, 'unknown'))
-		)
-	),
 	agent_stats_session_minutes AS (
-		-- The minutes each name was active, counted from the bits set in its
+		-- The minutes each app was active, counted from the bits set in its
 		-- mask. Postgres 13 has no bit_count, so the set bits are counted by
 		-- stripping the zeros out of the mask's text form.
 		SELECT
-			masks.time_bucket,
-			masks.template_id,
-			masks.user_id,
-			masks.family_group,
-			CASE WHEN masks.family_group = 0 THEN masks.app_name ELSE masks.family END AS name,
-			length(replace(masks.minute_mask::bit(30)::text, '0', ''))::smallint AS usage_mins
+			minutes.time_bucket,
+			minutes.template_id,
+			minutes.user_id,
+			minutes.app_name,
+			length(replace(minutes.minute_mask::bit(30)::text, '0', ''))::smallint AS usage_mins
 		FROM
-			agent_stats_session_masks AS masks
+			agent_stats_app_minutes AS minutes
 		JOIN
 			agent_stats_buckets AS buckets
 		ON
-			buckets.time_bucket = masks.time_bucket
-			AND buckets.template_id = masks.template_id
-			AND buckets.user_id = masks.user_id
+			buckets.time_bucket = minutes.time_bucket
+			AND buckets.template_id = minutes.template_id
+			AND buckets.user_id = minutes.user_id
 			-- The same gate the union below applies to agent stats, so a
 			-- bucket that only has app stats records no session usage.
 			AND buckets.has_connection
 	),
 	session_digests AS (
 		-- A stable hash of the bucket's session usage: the ordered set of
-		-- (kind, name, minutes). Names are length-prefixed so embedded
-		-- delimiters cannot make different row sets encode identically. The
-		-- main row stores it, so the upsert's IS DISTINCT FROM guard fires on
-		-- session usage changes and the child writes below skip unchanged
-		-- buckets.
+		-- (app, minutes). Names are length-prefixed so embedded delimiters
+		-- cannot make different row sets encode identically. The main row
+		-- stores it, so the upsert's IS DISTINCT FROM guard fires on session
+		-- usage changes and the child write below skips unchanged buckets.
 		--
-		-- INVARIANT: the digest must cover every column the child tables store.
-		-- A column added to either table but left out of the digest would leave
-		-- a bucket looking unchanged whenever only that column changed, and the
-		-- bucket would keep stale child rows.
+		-- INVARIANT: the digest must cover every column the child table
+		-- stores. A column left out would leave a bucket looking unchanged
+		-- when only that column changed, keeping stale child rows.
 		SELECT
 			time_bucket AS start_time,
 			template_id,
 			user_id,
 			hashtextextended(string_agg(
-				family_group || ':' || length(name) || ':' || name || ':' || usage_mins,
-				'|' ORDER BY family_group, name
+				length(app_name) || ':' || app_name || ':' || usage_mins,
+				'|' ORDER BY app_name
 			), 0) AS digest
 		FROM
 			agent_stats_session_minutes
-		WHERE
-			name IS NOT NULL
 		GROUP BY
 			time_bucket, template_id, user_id
 	),
@@ -961,7 +911,7 @@ WITH
 	changed_buckets AS (
 		-- New or changed buckets only. A bucket whose main row, digest
 		-- included, was already correct returns nothing from the upsert, so the
-		-- four child writes below never touch it.
+		-- child writes below never touch it.
 		SELECT
 			start_time,
 			template_id,
@@ -971,65 +921,16 @@ WITH
 	),
 	-- The child writes below run in this same statement, so the foreign key
 	-- triggers fire once it completes and see the main rows the upsert above
-	-- added. The delete and the insert of each pair never touch the same row:
-	-- the delete matches names the recomputed bucket no longer has, the insert
-	-- only the names it does have.
+	-- added. The delete and the insert never touch the same row: the delete
+	-- matches app names the recomputed bucket no longer has, the insert only
+	-- the names it does have.
 	--
-	-- The deletes use NOT IN rather than NOT EXISTS on purpose. The planner
+	-- The delete uses NOT IN rather than NOT EXISTS on purpose. The planner
 	-- has no statistics for the recomputed CTE and estimates a few rows,
 	-- making NOT EXISTS a nested loop that rescans the CTE per candidate row:
-	-- 20 seconds per rollup. NOT IN is planned as a hashed subplan built
-	-- once, whatever the estimate. Every column in the subquery is non-null,
-	-- so both forms delete the same rows; the IS NOT NULL guard keeps that
-	-- true if the CTE changes.
-	delete_families AS (
-		DELETE FROM
-			template_usage_stats_session_families AS families
-		USING
-			changed_buckets AS changed
-		WHERE
-			families.start_time = changed.start_time
-			AND families.template_id = changed.template_id
-			AND families.user_id = changed.user_id
-			AND (families.start_time, families.template_id, families.user_id, families.family) NOT IN (
-				SELECT time_bucket, template_id, user_id, name
-				FROM agent_stats_session_minutes
-				WHERE family_group = 1 AND name IS NOT NULL
-			)
-	),
-	upsert_families AS (
-		INSERT INTO template_usage_stats_session_families AS families (
-			start_time,
-			template_id,
-			user_id,
-			family,
-			usage_mins
-		) (
-			SELECT
-				agent_stats_session_minutes.time_bucket,
-				agent_stats_session_minutes.template_id,
-				agent_stats_session_minutes.user_id,
-				agent_stats_session_minutes.name,
-				agent_stats_session_minutes.usage_mins
-			FROM
-				agent_stats_session_minutes
-			JOIN
-				changed_buckets AS changed
-			ON
-				changed.start_time = agent_stats_session_minutes.time_bucket
-				AND changed.template_id = agent_stats_session_minutes.template_id
-				AND changed.user_id = agent_stats_session_minutes.user_id
-			WHERE
-				family_group = 1
-		)
-		ON CONFLICT
-			(start_time, template_id, user_id, family)
-		DO UPDATE
-		SET
-			usage_mins = EXCLUDED.usage_mins
-		WHERE
-			families.usage_mins IS DISTINCT FROM EXCLUDED.usage_mins
-	),
+	-- 20 seconds per rollup. NOT IN is planned as a hashed subplan built once,
+	-- whatever the estimate. Every column in the subquery is non-null, so both
+	-- forms delete the same rows.
 	delete_apps AS (
 		DELETE FROM
 			template_usage_stats_session_apps AS apps
@@ -1040,9 +941,8 @@ WITH
 			AND apps.template_id = changed.template_id
 			AND apps.user_id = changed.user_id
 			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
-				SELECT time_bucket, template_id, user_id, name
+				SELECT time_bucket, template_id, user_id, app_name
 				FROM agent_stats_session_minutes
-				WHERE family_group = 0 AND name IS NOT NULL
 			)
 	)
 
@@ -1057,7 +957,7 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 		agent_stats_session_minutes.time_bucket,
 		agent_stats_session_minutes.template_id,
 		agent_stats_session_minutes.user_id,
-		agent_stats_session_minutes.name,
+		agent_stats_session_minutes.app_name,
 		agent_stats_session_minutes.usage_mins
 	FROM
 		agent_stats_session_minutes
@@ -1067,8 +967,6 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 		changed.start_time = agent_stats_session_minutes.time_bucket
 		AND changed.template_id = agent_stats_session_minutes.template_id
 		AND changed.user_id = agent_stats_session_minutes.user_id
-	WHERE
-		family_group = 0
 )
 ON CONFLICT
 	(start_time, template_id, user_id, app_name)

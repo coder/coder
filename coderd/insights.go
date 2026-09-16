@@ -573,23 +573,22 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// sessionFamilySFTP is the family historical sftp minutes are stored under. No
-// app name maps to it, so the registry never produces it, but the API has
-// always exposed sftp as a builtin app.
-const sessionFamilySFTP codersdk.AppFamilyName = "sftp"
-
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
 func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
-	usageSeconds, err := codersdk.DecodeAppFamilyMap[int64](usage.SessionFamilyUsageSeconds)
+	// Session usage arrives per app name; the registry groups it into the
+	// families the builtin apps below report.
+	appSeconds, err := codersdk.DecodeAppMap[int64](usage.SessionAppUsageSeconds)
 	if err != nil {
-		return nil, xerrors.Errorf("decode session family usage seconds: %w", err)
+		return nil, xerrors.Errorf("decode session app usage seconds: %w", err)
 	}
-	templateIDsByFamily, err := codersdk.DecodeAppFamilyMap[[]uuid.UUID](usage.SessionFamilyTemplateIds)
+	usageSeconds := codersdk.SumByFamily(appSeconds)
+	appTemplateIDs, err := codersdk.DecodeAppMap[[]uuid.UUID](usage.SessionAppTemplateIds)
 	if err != nil {
-		return nil, xerrors.Errorf("decode session family template ids: %w", err)
+		return nil, xerrors.Errorf("decode session app template ids: %w", err)
 	}
+	templateIDsByFamily := codersdk.UnionByFamily(appTemplateIDs)
 	// Keep serializing empty template lists as [] instead of null.
 	templateIDs := func(family codersdk.AppFamilyName) []uuid.UUID {
 		if ids := templateIDsByFamily[family]; ids != nil {
@@ -639,12 +638,12 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usageSeconds[codersdk.AppFamilySSH],
 		},
 		{
-			TemplateIDs: templateIDs(sessionFamilySFTP),
+			TemplateIDs: templateIDs(codersdk.AppFamilySFTP),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
 			Slug:        "sftp",
 			Icon:        "/icon/terminal.svg",
-			Seconds:     usageSeconds[sessionFamilySFTP],
+			Seconds:     usageSeconds[codersdk.AppFamilySFTP],
 		},
 	}
 

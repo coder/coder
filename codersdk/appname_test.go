@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -130,20 +131,7 @@ func TestSessionCountAppFamilies(t *testing.T) {
 	require.Equal(t, codersdk.AppFamilyVSCode, codersdk.SessionCountAppFamilies()["cursor"])
 }
 
-func TestSessionCountAppFamiliesJSON(t *testing.T) {
-	t.Parallel()
-
-	raw := codersdk.SessionCountAppFamiliesJSON()
-	require.NotEmpty(t, raw)
-
-	// The minute aggregation queries decompose this with jsonb_each_text, so
-	// it must be a flat object of app name to family name.
-	var decoded map[string]codersdk.AppFamilyName
-	require.NoError(t, json.Unmarshal(raw, &decoded), "registry must marshal to a valid jsonb object")
-	require.Equal(t, codersdk.SessionCountAppFamilies(), decoded)
-}
-
-func TestSessionCountsByFamily(t *testing.T) {
+func TestSumByFamily(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -200,14 +188,14 @@ func TestSessionCountsByFamily(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, codersdk.SessionCountsByFamily(tc.appCounts))
+			require.Equal(t, tc.want, codersdk.SumByFamily(tc.appCounts))
 		})
 	}
 }
 
 // A family is registered by adding app names alone, with no SQL, column, or
 // second list to update.
-func TestSessionCountsByFamilyCoversEveryRegisteredFamily(t *testing.T) {
+func TestSumByFamilyCoversEveryRegisteredFamily(t *testing.T) {
 	t.Parallel()
 
 	appCounts := map[string]int64{}
@@ -216,7 +204,7 @@ func TestSessionCountsByFamilyCoversEveryRegisteredFamily(t *testing.T) {
 		appCounts[appName] = 1
 		want[family]++
 	}
-	require.Equal(t, want, codersdk.SessionCountsByFamily(appCounts))
+	require.Equal(t, want, codersdk.SumByFamily(appCounts))
 }
 
 func TestSessionCountsByFamilyJSON(t *testing.T) {
@@ -269,7 +257,7 @@ func TestSessionCountsByFamilyJSONMalformed(t *testing.T) {
 	}
 }
 
-func TestDecodeAppFamilyMap(t *testing.T) {
+func TestDecodeAppMap(t *testing.T) {
 	t.Parallel()
 
 	for name, raw := range map[string]json.RawMessage{
@@ -282,7 +270,7 @@ func TestDecodeAppFamilyMap(t *testing.T) {
 
 			// A malformed payload must not decode to zero usage, or an
 			// encoding bug would look like an idle deployment.
-			got, err := codersdk.DecodeAppFamilyMap[int64](raw)
+			got, err := codersdk.DecodeAppMap[int64](raw)
 			require.Error(t, err)
 			require.Nil(t, got)
 		})
@@ -291,19 +279,38 @@ func TestDecodeAppFamilyMap(t *testing.T) {
 	t.Run("UsageSeconds", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := codersdk.DecodeAppFamilyMap[int64](json.RawMessage(`{"vscode": 60}`))
+		got, err := codersdk.DecodeAppMap[int64](json.RawMessage(`{"cursor": 60}`))
 		require.NoError(t, err)
-		require.Equal(t, map[codersdk.AppFamilyName]int64{codersdk.AppFamilyVSCode: 60}, got)
+		require.Equal(t, map[string]int64{"cursor": 60}, got)
 	})
 
 	for name, raw := range map[string]json.RawMessage{"Absent": nil, "EmptyObject": json.RawMessage(`{}`)} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := codersdk.DecodeAppFamilyMap[int64](raw)
+			got, err := codersdk.DecodeAppMap[int64](raw)
 			require.NoError(t, err)
-			require.Equal(t, map[codersdk.AppFamilyName]int64{}, got)
-			require.Zero(t, got[codersdk.AppFamilySSH])
+			require.Equal(t, map[string]int64{}, got)
+			require.Zero(t, got["ssh"])
 		})
 	}
+}
+
+func TestUnionByFamily(t *testing.T) {
+	t.Parallel()
+
+	shared, cursorOnly, sshOnly := uuid.New(), uuid.New(), uuid.New()
+	got := codersdk.UnionByFamily(map[string][]uuid.UUID{
+		"vscode": {shared},
+		"cursor": {shared, cursorOnly},
+		"ssh":    {sshOnly},
+		// An app the registry does not know still lands somewhere.
+		"some_new_ide": {cursorOnly},
+	})
+
+	// A template both apps saw appears once for the family.
+	require.ElementsMatch(t, []uuid.UUID{shared, cursorOnly}, got[codersdk.AppFamilyVSCode])
+	require.Equal(t, []uuid.UUID{sshOnly}, got[codersdk.AppFamilySSH])
+	require.Equal(t, []uuid.UUID{cursorOnly}, got[codersdk.AppFamilyUnknown])
+	require.Empty(t, got[codersdk.AppFamilyJetBrains])
 }

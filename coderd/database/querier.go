@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -846,9 +845,8 @@ type sqlcQuerier interface {
 	// workspaces in a given timeframe. The template IDs, active users, and
 	// usage_seconds all reflect any usage in the template, including apps.
 	//
-	// Session usage comes from the family child table exactly as the rollup
-	// recorded it, so a family the rollup learns about later is reported without a
-	// change here.
+	// Session usage comes out per app name. Callers group the names into families
+	// through the codersdk registry.
 	//
 	// When combining data from multiple templates, we must make a guess at
 	// how the user behaved for the 30 minute interval. In this case we make
@@ -863,6 +861,9 @@ type sqlcQuerier interface {
 	GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error)
 	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
+	//
+	// Session usage comes out per app name, so a caller that groups the names
+	// reports the same family totals as GetTemplateInsights.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
@@ -1734,13 +1735,13 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	//
-	// Session usage is stored per app name and per app family in the child tables,
-	// so the main row carries no session columns at all. Every recomputed bucket
-	// rewrites its own child rows: names that disappeared are deleted, the rest
-	// are upserted. The keys come from the computed set rather than from the main
-	// upsert, because the no-op guard below suppresses main rows whose columns did
-	// not change while their session usage still has to be corrected.
-	UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error
+	// Session usage is stored per app name in the child table, so the main row
+	// carries no session columns at all. Every recomputed bucket rewrites its own
+	// child rows: app names that disappeared are deleted, the rest are upserted.
+	// The keys come from the computed set rather than from the main upsert,
+	// because the no-op guard below suppresses main rows whose columns did not
+	// change while their session usage still has to be corrected.
+	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and
