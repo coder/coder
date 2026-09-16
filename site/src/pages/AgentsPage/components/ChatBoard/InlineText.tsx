@@ -1,5 +1,7 @@
 import { cn } from "cn";
+import { PencilIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { Button } from "#/components/Button/Button";
 
 interface InlineInputProps {
 	readonly value: string;
@@ -26,11 +28,11 @@ export const InlineInput: FC<InlineInputProps> = ({
 
 	return (
 		<input
-			// biome-ignore lint/a11y/noAutofocus: the input replaces the text the user just clicked.
+			// biome-ignore lint/a11y/noAutofocus: the input replaces the text the user just chose to edit.
 			autoFocus
 			aria-label={ariaLabel}
 			className={cn(
-				"min-w-0 rounded border border-border bg-surface-primary px-1 py-0 text-inherit outline-none",
+				"min-w-0 rounded border border-border bg-surface-primary px-1 py-0 text-inherit outline-none focus:border-content-link",
 				className,
 			)}
 			value={draft}
@@ -46,22 +48,28 @@ export const InlineInput: FC<InlineInputProps> = ({
 	);
 };
 
-interface InlineTextProps {
+interface EditableTextProps {
 	readonly value: string;
 	readonly onSave: (next: string) => void;
-	readonly className?: string;
 	readonly ariaLabel: string;
+	readonly className?: string;
 	/** Wrap onto multiple lines instead of truncating. */
 	readonly wrap?: boolean;
+	/** Tailwind group name whose hover reveals the pencil. */
+	readonly revealOn: "card" | "column" | "row";
 }
 
-/** Text that turns into an InlineInput on click. */
-export const InlineText: FC<InlineTextProps> = ({
+/**
+ * The one edit convention on the board: text with a pencil that appears on
+ * hover; the pencil opens an inline input. Text itself is never a click target.
+ */
+export const EditableText: FC<EditableTextProps> = ({
 	value,
 	onSave,
-	className,
 	ariaLabel,
+	className,
 	wrap = false,
+	revealOn,
 }) => {
 	const [editing, setEditing] = useState(false);
 
@@ -72,24 +80,37 @@ export const InlineText: FC<InlineTextProps> = ({
 				onSave={onSave}
 				onDone={() => setEditing(false)}
 				ariaLabel={ariaLabel}
-				className={className}
+				className={cn("flex-1", className)}
 			/>
 		);
 	}
 
 	return (
-		<button
-			type="button"
-			aria-label={`Edit ${ariaLabel}`}
-			className={cn(
-				"min-w-0 rounded border-0 bg-transparent p-0 text-left text-inherit hover:underline decoration-dotted",
-				wrap ? "whitespace-normal wrap-anywhere" : "truncate",
-				className,
-			)}
-			onClick={() => setEditing(true)}
-			onPointerDown={(e) => e.stopPropagation()}
-		>
-			{value}
-		</button>
+		<>
+			<span
+				className={cn(
+					"min-w-0 flex-1",
+					wrap ? "whitespace-normal wrap-anywhere" : "truncate",
+					className,
+				)}
+			>
+				{value}
+			</span>
+			<Button
+				variant="subtle"
+				size="icon"
+				aria-label={`Edit ${ariaLabel}`}
+				className={cn(
+					"size-6 shrink-0 text-content-secondary opacity-0 focus-visible:opacity-100",
+					revealOn === "card" && "group-hover/card:opacity-100",
+					revealOn === "column" && "group-hover/column:opacity-100",
+					revealOn === "row" && "group-hover/row:opacity-100",
+				)}
+				onPointerDown={(e) => e.stopPropagation()}
+				onClick={() => setEditing(true)}
+			>
+				<PencilIcon className="size-3.5" />
+			</Button>
+		</>
 	);
 };

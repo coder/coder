@@ -8,6 +8,7 @@ const COLUMN_KEY = `${BOARD_LABEL_PREFIX}column`;
 const GROUP_KEY = `${BOARD_LABEL_PREFIX}group`;
 const TITLE_KEY = `${BOARD_LABEL_PREFIX}title`;
 const COLOR_KEY = `${BOARD_LABEL_PREFIX}color`;
+const POSITION_KEY = `${BOARD_LABEL_PREFIX}pos`;
 const COMMENT_PREFIX = `${BOARD_LABEL_PREFIX}comment.`;
 
 // Server limit on a label value, see coderd/httpapi/chatlabels.go.
@@ -15,22 +16,21 @@ const MAX_LABEL_VALUE_BYTES = 256;
 
 export const INBOX_COLUMN = "Inbox";
 
-// Decorative accents only; never used to convey status. Chosen to read on
-// both dark and light surfaces at low saturation.
-export const CARD_COLORS = {
-	rose: "hsl(350 55% 62%)",
-	peach: "hsl(20 65% 62%)",
-	amber: "hsl(40 70% 55%)",
-	sage: "hsl(120 30% 55%)",
-	teal: "hsl(175 45% 48%)",
-	blue: "hsl(215 65% 62%)",
-	violet: "hsl(265 55% 65%)",
-} as const;
+// Card tints map onto the theme's tinted surfaces (bg-surface-<name>), which
+// already carry dark and light variants. Decorative only, never status.
+export const CARD_COLORS = [
+	"green",
+	"orange",
+	"sky",
+	"red",
+	"purple",
+	"magenta",
+] as const;
 
-export type CardColor = keyof typeof CARD_COLORS;
+export type CardColor = (typeof CARD_COLORS)[number];
 
 const isCardColor = (value: string | undefined): value is CardColor =>
-	value !== undefined && value in CARD_COLORS;
+	value !== undefined && (CARD_COLORS as readonly string[]).includes(value);
 
 export type BoardNote = Readonly<{
 	index: number;
@@ -171,6 +171,21 @@ export const setColorLabel = (
 	return color ? { ...rest, [COLOR_KEY]: color } : rest;
 };
 
+/** Records when the user placed the card so its position stops following chat activity. */
+export const setPositionLabel = (
+	labels: Record<string, string>,
+	placedAt = Date.now(),
+): Record<string, string> => ({ ...labels, [POSITION_KEY]: String(placedAt) });
+
+// A card sorts by when the user last placed it, or by chat creation when it
+// has never been placed. Neither changes with chat activity.
+const placementKey = (chat: Chat): number => {
+	const placed = Number(chat.labels[POSITION_KEY]);
+	return Number.isFinite(placed) && placed > 0
+		? placed
+		: new Date(chat.created_at).getTime();
+};
+
 export const addCommentLabels = (
 	labels: Record<string, string>,
 	text: string,
@@ -210,11 +225,15 @@ export const stripCardLabels = (
 ): Record<string, string> =>
 	withoutKeys(
 		stripCommentLabels(labels),
-		(k) => k === TITLE_KEY || k === GROUP_KEY || k === COLOR_KEY,
+		(k) =>
+			k === TITLE_KEY ||
+			k === GROUP_KEY ||
+			k === COLOR_KEY ||
+			k === POSITION_KEY,
 	);
 
-const byRecentActivity = (a: Chat, b: Chat) =>
-	b.updated_at.localeCompare(a.updated_at);
+const byCreation = (a: Chat, b: Chat) =>
+	a.created_at.localeCompare(b.created_at);
 
 /**
  * Assembles cards from the full chat list. A chat whose group primary is not
@@ -235,9 +254,7 @@ export const buildCards = (chats: readonly Chat[]): BoardCard[] => {
 	for (const [primaryId, members] of membersByPrimary) {
 		const primary = byId.get(primaryId);
 		if (!primary) continue;
-		const others = members
-			.filter((m) => m.id !== primaryId)
-			.sort(byRecentActivity);
+		const others = members.filter((m) => m.id !== primaryId).sort(byCreation);
 		cards.push({
 			id: primaryId,
 			title: primary.labels[TITLE_KEY] ?? primary.title,
@@ -250,7 +267,11 @@ export const buildCards = (chats: readonly Chat[]): BoardCard[] => {
 			comments: parseComments(primary.labels),
 		});
 	}
-	return cards.sort((a, b) => byRecentActivity(a.primary, b.primary));
+	// Newest placement first, so a card the user just moved lands at the top
+	// of its column, and unplaced Inbox cards show newest chats first.
+	return cards.sort(
+		(a, b) => placementKey(b.primary) - placementKey(a.primary),
+	);
 };
 
 /**
