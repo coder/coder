@@ -7,8 +7,10 @@ import (
 )
 
 // workspaceContextScopeLine tells the model how the listed Source paths
-// relate to each other.
-const workspaceContextScopeLine = "Each Source path scopes its instructions to that directory tree; a nested file refines the files above it for paths beneath it."
+// relate to each other. Files outside the working directory, such as the
+// user's ~/.coder/AGENTS.md, are global by contract and must not be read
+// as scoped to their own directory.
+const workspaceContextScopeLine = "Instruction files inside the working directory apply to their own directory tree, and a nested file refines the ones above it for paths beneath it; instruction files elsewhere, such as under ~/.coder, apply to the whole conversation."
 
 // formatSystemInstructions builds the <workspace-context> block from
 // agent metadata and zero or more context-file parts. Non-context-file

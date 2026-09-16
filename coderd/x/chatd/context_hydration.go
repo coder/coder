@@ -172,10 +172,11 @@ func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.C
 // context watch event is published for each pinned chat: watching clients
 // cached those chats' details without pinned resources and need to
 // refetch. Best-effort: failures are logged and swallowed so they never
-// fail the turn.
-func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat database.Chat) {
+// fail the turn. It returns the chat's row as pinned (or the input when
+// nothing changed) so the caller reads the pinned hash, not the stale one.
+func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat database.Chat) database.Chat {
 	if !chat.AgentID.Valid || chat.ContextAggregateHash != nil {
-		return
+		return chat
 	}
 	//nolint:gocritic // Chatd stamps chats it does not own as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
@@ -185,7 +186,7 @@ func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat da
 			slog.F("chat_id", chat.ID),
 			slog.F("agent_id", chat.AgentID.UUID),
 			slog.Error(err))
-		return
+		return chat
 	}
 	pinnedChats := make([]database.Chat, 0, len(hydrated))
 	for _, chatID := range hydrated {
@@ -198,9 +199,13 @@ func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat da
 				slog.Error(err))
 			continue
 		}
+		if pinned.ID == chat.ID {
+			chat = pinned
+		}
 		pinnedChats = append(pinnedChats, pinned)
 	}
 	p.publishChatPubsubEvents(pinnedChats, codersdk.ChatWatchEventKindContextDirty)
+	return chat
 }
 
 // repinChatContext re-pins a single chat to its agent's latest context

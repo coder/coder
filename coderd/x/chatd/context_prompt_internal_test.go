@@ -123,12 +123,17 @@ func TestContextResourcesToPrompt(t *testing.T) {
 
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusInvalid),
+			instructionResource(t, "/home/coder/CLAUDE.md", "be helpful", database.WorkspaceAgentContextResourceStatusOversize),
 			skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOversize),
 		}
 		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		// Files the pin holds but cannot render are named, so the model does
+		// not read the empty list as proof that the repository has none.
+		require.Contains(t, instruction, workspaceContextOmittedFilesNote+"/home/coder/AGENTS.md (invalid), /home/coder/CLAUDE.md (oversize).")
+		require.NotContains(t, instruction, workspaceContextNoInstructionFilesNote)
 		require.NotContains(t, instruction, "Source:")
+		require.NotContains(t, instruction, "be helpful")
 		require.Empty(t, skills)
 	})
 
@@ -216,14 +221,14 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		t.Parallel()
 
 		// Whitespace-only content sanitizes to empty, so the instruction file
-		// contributes no context-file part, leaves the note in place, and is
-		// not counted as malformed.
+		// contributes no context-file part, is named as empty, and is not
+		// counted as malformed.
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "  \n\t  ", database.WorkspaceAgentContextResourceStatusOk),
 		}
 		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
 
-		require.Contains(t, instruction, workspaceContextNoInstructionFilesNote)
+		require.Contains(t, instruction, workspaceContextOmittedFilesNote+"/home/coder/AGENTS.md (empty).")
 		require.NotContains(t, instruction, "Source: /home/coder/AGENTS.md")
 		require.Empty(t, skills)
 		require.Zero(t, malformed)
