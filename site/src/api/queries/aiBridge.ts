@@ -1,4 +1,4 @@
-import type { UseInfiniteQueryOptions } from "react-query";
+import { hashKey, type UseInfiniteQueryOptions } from "react-query";
 import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
@@ -29,7 +29,7 @@ export const paginatedSessions = (
 	};
 };
 
-const organizationAISpendKey = (
+export const organizationAISpendKey = (
 	organizationId: string,
 	filter: OrganizationAISpendFilter,
 	pageNumber: number,
@@ -56,10 +56,15 @@ export const paginatedOrganizationAISpend = (
 		// pages are not fetched speculatively.
 		prefetch: false,
 		staleTime: 60_000,
-		// Rows from another organization must not appear under the newly
-		// selected organization while its report loads.
+		// Rows from another organization or filter must not appear under the
+		// new selection while its report loads; only a page change keeps the
+		// previous rows behind the refresh overlay.
 		placeholderData: (previousData, previousQuery) =>
-			previousQuery?.queryKey[1] === organizationId ? previousData : undefined,
+			previousQuery &&
+			hashKey(previousQuery.queryKey.slice(0, 4)) ===
+				hashKey(organizationAISpendKey(organizationId, filter, 0).slice(0, 4))
+				? previousData
+				: undefined,
 	};
 };
 
