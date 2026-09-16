@@ -1,7 +1,7 @@
 import { InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { chatCost } from "#/api/queries/chats";
+import { chatCost, chat as chatQuery } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -9,19 +9,24 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { formatCostMicros } from "#/utils/currency";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
+import { ChatSummary } from "../ChatSummary";
 
 interface ChatInfoPopoverProps {
 	readonly chat: Chat;
 }
 
-/** Same data as the chat's Summary tab, without opening the chat. */
+/** The chat's Summary tab, rendered in a popover without opening the chat. */
 export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 	const [open, setOpen] = useState(false);
-	// Cost is one request per chat, so only fetch it once the popover opens.
+	const showCost = Boolean(useFeatureVisibility().aibridge);
+	// Both requests are per chat, so they only run once the popover opens.
+	const detailQuery = useQuery({ ...chatQuery(chat.id), enabled: open });
+	const detail = detailQuery.data;
 	const costQuery = useQuery({
-		...chatCost(chat.root_chat_id ?? chat.id),
-		enabled: open,
+		...chatCost(getChatCostTreeID(detail) ?? chat.id),
+		enabled: open && showCost && detail !== undefined,
 	});
 
 	return (
@@ -39,24 +44,23 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="w-80 space-y-2 p-3 text-sm"
+				className="max-h-[70vh] w-96 overflow-y-auto p-4 text-sm"
 				onPointerDown={(e) => e.stopPropagation()}
 			>
-				<div className="font-medium text-content-primary">{chat.title}</div>
-				<p className="m-0 whitespace-pre-wrap text-content-secondary">
-					{chat.summary ?? chat.last_turn_summary ?? "No summary yet."}
-				</p>
-				<div className="flex justify-between text-xs text-content-secondary">
-					<span>
-						Cost:{" "}
-						{costQuery.data
-							? formatCostMicros(costQuery.data.total_cost_micros)
-							: costQuery.isError
-								? "unavailable"
-								: "..."}
-					</span>
-					<span>{new Date(chat.created_at).toLocaleDateString("en-US")}</span>
+				<div className="mb-3 font-medium text-content-primary">
+					{chat.title}
 				</div>
+				<ChatSummary
+					summary={detail?.summary ?? chat.summary}
+					isSubagent={Boolean(chat.parent_chat_id)}
+					createdAt={chat.created_at}
+					updatedAt={chat.updated_at}
+					costMicros={costQuery.data?.total_cost_micros}
+					unpricedRequestCount={costQuery.data?.unpriced_request_count}
+					showCost={showCost}
+					isCostLoading={costQuery.isLoading}
+					costError={costQuery.isError}
+				/>
 			</PopoverContent>
 		</Popover>
 	);

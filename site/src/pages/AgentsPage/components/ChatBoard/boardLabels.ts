@@ -7,6 +7,7 @@ const BOARD_LABEL_PREFIX = "board/";
 const COLUMN_KEY = `${BOARD_LABEL_PREFIX}column`;
 const GROUP_KEY = `${BOARD_LABEL_PREFIX}group`;
 const TITLE_KEY = `${BOARD_LABEL_PREFIX}title`;
+const COLOR_KEY = `${BOARD_LABEL_PREFIX}color`;
 const COMMENT_PREFIX = `${BOARD_LABEL_PREFIX}comment.`;
 
 // Server limit on a label value, see coderd/httpapi/chatlabels.go.
@@ -14,17 +15,37 @@ const MAX_LABEL_VALUE_BYTES = 256;
 
 export const INBOX_COLUMN = "Inbox";
 
-type BoardComment = Readonly<{
+// Decorative accents only; never used to convey status. Chosen to read on
+// both dark and light surfaces at low saturation.
+export const CARD_COLORS = {
+	rose: "hsl(350 55% 62%)",
+	peach: "hsl(20 65% 62%)",
+	amber: "hsl(40 70% 55%)",
+	sage: "hsl(120 30% 55%)",
+	teal: "hsl(175 45% 48%)",
+	blue: "hsl(215 65% 62%)",
+	violet: "hsl(265 55% 65%)",
+} as const;
+
+export type CardColor = keyof typeof CARD_COLORS;
+
+const isCardColor = (value: string | undefined): value is CardColor =>
+	value !== undefined && value in CARD_COLORS;
+
+export type BoardNote = Readonly<{
 	index: number;
 	timestamp: number;
 	text: string;
 }>;
+
+type BoardComment = BoardNote;
 
 export type BoardCard = Readonly<{
 	/** The primary chat id. Comments and title live on this chat. */
 	id: string;
 	title: string;
 	column: string;
+	color: CardColor | undefined;
 	primary: Chat;
 	/** Primary first, then the rest by most recent activity. */
 	members: readonly Chat[];
@@ -142,6 +163,14 @@ export const setTitleLabel = (
 	return title.trim() ? { ...rest, [TITLE_KEY]: title.trim() } : rest;
 };
 
+export const setColorLabel = (
+	labels: Record<string, string>,
+	color: CardColor | undefined,
+): Record<string, string> => {
+	const rest = withoutKeys(labels, (k) => k === COLOR_KEY);
+	return color ? { ...rest, [COLOR_KEY]: color } : rest;
+};
+
 export const addCommentLabels = (
 	labels: Record<string, string>,
 	text: string,
@@ -157,6 +186,19 @@ export const removeCommentLabels = (
 ): Record<string, string> =>
 	withoutKeys(labels, (k) => k.startsWith(`${COMMENT_PREFIX}${index}.`));
 
+/** Replaces a comment's text in place, keeping its index and timestamp. */
+export const updateCommentLabels = (
+	labels: Record<string, string>,
+	index: number,
+	text: string,
+): Record<string, string> => {
+	const existing = parseComments(labels).find((c) => c.index === index);
+	return {
+		...removeCommentLabels(labels, index),
+		...commentLabels(index, text, existing?.timestamp ?? Date.now()),
+	};
+};
+
 const stripCommentLabels = (
 	labels: Record<string, string>,
 ): Record<string, string> =>
@@ -168,7 +210,7 @@ export const stripCardLabels = (
 ): Record<string, string> =>
 	withoutKeys(
 		stripCommentLabels(labels),
-		(k) => k === TITLE_KEY || k === GROUP_KEY,
+		(k) => k === TITLE_KEY || k === GROUP_KEY || k === COLOR_KEY,
 	);
 
 const byRecentActivity = (a: Chat, b: Chat) =>
@@ -200,6 +242,9 @@ export const buildCards = (chats: readonly Chat[]): BoardCard[] => {
 			id: primaryId,
 			title: primary.labels[TITLE_KEY] ?? primary.title,
 			column: getColumnLabel(primary),
+			color: isCardColor(primary.labels[COLOR_KEY])
+				? primary.labels[COLOR_KEY]
+				: undefined,
 			primary,
 			members: [primary, ...others],
 			comments: parseComments(primary.labels),
