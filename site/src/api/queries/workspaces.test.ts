@@ -160,9 +160,7 @@ describe("setOptimisticWorkspaceListBuildStatus", () => {
 		rollback();
 
 		const restored = queryClient.getQueryData<WorkspacesResponse>(listKey);
-		expect(restored?.workspaces[0].latest_build.status).toBe(
-			MockWorkspace.latest_build.status,
-		);
+		expect(restored?.workspaces[0].latest_build.status).toBe("running");
 	});
 });
 
