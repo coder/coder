@@ -7011,7 +7011,7 @@ export interface OrganizationAISpendFilter {
 // From codersdk/aibridge.go
 /**
  * OrganizationAISpendReport is one page of per-user AI spend for an
- * organization over the applied period. Count and the totals cover every
+ * organization over the applied period. Count and Totals cover every
  * matching user, not only the returned page.
  */
 export interface OrganizationAISpendReport extends AISpendPeriodWindow {
@@ -7025,19 +7025,28 @@ export interface OrganizationAISpendReport extends AISpendPeriodWindow {
 	 * Count is the number of users with token usage matching the filter.
 	 */
 	readonly count: number;
-	/**
-	 * TotalCostMicros is the priced spend of every matching user.
-	 */
-	readonly total_cost_micros: number;
-	/**
-	 * TotalUnpricedUsageCount is the number of token usage records without a
-	 * cost across every matching user.
-	 */
-	readonly total_unpriced_usage_count: number;
+	readonly totals: OrganizationAISpendTotals;
 	/**
 	 * Users is the requested page, most expensive first.
 	 */
 	readonly users: readonly OrganizationAISpendUser[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendTotals aggregates every user matching the report's
+ * filter, not only the returned page.
+ */
+export interface OrganizationAISpendTotals {
+	/**
+	 * CostMicros is the priced spend of every matching user.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * UnpricedUsageCount is the number of token usage records without a cost
+	 * across every matching user.
+	 */
+	readonly unpriced_usage_count: number;
 }
 
 // From codersdk/aibridge.go

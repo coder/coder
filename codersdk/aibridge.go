@@ -468,8 +468,18 @@ type OrganizationAISpendUser struct {
 	Clients []string `json:"clients"`
 }
 
+// OrganizationAISpendTotals aggregates every user matching the report's
+// filter, not only the returned page.
+type OrganizationAISpendTotals struct {
+	// CostMicros is the priced spend of every matching user.
+	CostMicros int64 `json:"cost_micros"`
+	// UnpricedUsageCount is the number of token usage records without a cost
+	// across every matching user.
+	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
+}
+
 // OrganizationAISpendReport is one page of per-user AI spend for an
-// organization over the applied period. Count and the totals cover every
+// organization over the applied period. Count and Totals cover every
 // matching user, not only the returned page.
 type OrganizationAISpendReport struct {
 	AISpendPeriodWindow
@@ -478,12 +488,8 @@ type OrganizationAISpendReport struct {
 	// deployment does not purge AI Gateway data.
 	RetentionStart *time.Time `json:"retention_start,omitempty" format:"date-time"`
 	// Count is the number of users with token usage matching the filter.
-	Count int64 `json:"count"`
-	// TotalCostMicros is the priced spend of every matching user.
-	TotalCostMicros int64 `json:"total_cost_micros"`
-	// TotalUnpricedUsageCount is the number of token usage records without a
-	// cost across every matching user.
-	TotalUnpricedUsageCount int64 `json:"total_unpriced_usage_count"`
+	Count  int64                     `json:"count"`
+	Totals OrganizationAISpendTotals `json:"totals"`
 	// Users is the requested page, most expensive first.
 	Users []OrganizationAISpendUser `json:"users"`
 }
