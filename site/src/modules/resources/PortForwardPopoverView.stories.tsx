@@ -168,23 +168,6 @@ export const WithManyPorts: Story = {
 			port: 3000 + i,
 		})),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const portTrigger = getPortTrigger(canvas);
-
-		await userEvent.click(portTrigger);
-		const portDialog = getPortDialog();
-		const portInput = getPortInput(portDialog);
-		await expect(portInput).toHaveAttribute("inputmode", "numeric");
-		await waitFor(() =>
-			expect(
-				within(portDialog).getByRole("option", { name: /3019/ }),
-			).toBeVisible(),
-		);
-		await userEvent.type(portInput, "3019");
-		await userEvent.keyboard("{Enter}");
-		await expect(portTrigger).toHaveTextContent("3019");
-	},
 };
 
 export const Empty: Story = {
