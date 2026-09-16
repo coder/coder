@@ -116,6 +116,16 @@ export type BoardColumn = Readonly<{
 export const getColumnLabel = (chat: Chat): string =>
 	chat.labels[COLUMN_KEY] ?? INBOX_COLUMN;
 
+/** The user-given card title on a primary chat, if any. */
+export const getTitleLabel = (chat: Chat): string | undefined =>
+	chat.labels[TITLE_KEY];
+
+/** The card color set on a primary chat, if any. */
+export const getColorLabel = (chat: Chat): CardColor | undefined => {
+	const value = chat.labels[COLOR_KEY];
+	return isCardColor(value) ? value : undefined;
+};
+
 export const getGroupLabel = (chat: Chat): string =>
 	chat.labels[GROUP_KEY] ?? chat.id;
 
@@ -331,9 +341,7 @@ export const buildCards = (chats: readonly Chat[]): BoardCard[] => {
 			id: primaryId,
 			title: primary.labels[TITLE_KEY] ?? primary.title,
 			column: getColumnLabel(primary),
-			color: isCardColor(primary.labels[COLOR_KEY])
-				? primary.labels[COLOR_KEY]
-				: undefined,
+			color: getColorLabel(primary),
 			primary,
 			members: [primary, ...others],
 			comments: parseComments(primary.labels),
