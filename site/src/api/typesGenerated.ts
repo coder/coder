@@ -2653,7 +2653,7 @@ export interface ChatMCPAppResourceReadRequest {
  * ChatMCPAppResourceReadResponse carries the raw MCP ReadResourceResult.
  */
 export interface ChatMCPAppResourceReadResponse {
-	readonly result: Record<string, string>;
+	readonly result: unknown;
 }
 
 // From codersdk/chats.go
@@ -2680,7 +2680,7 @@ export interface ChatMCPAppToolCallRequest {
  * ChatMCPAppToolCallResponse carries the raw MCP CallToolResult.
  */
 export interface ChatMCPAppToolCallResponse {
-	readonly result: Record<string, string>;
+	readonly result: unknown;
 }
 
 // From codersdk/chats.go
@@ -3603,7 +3603,7 @@ export interface ChatToolResultPart {
 	 * isError, _meta) for tools that declare a UI resource. It is what the
 	 * rendered app receives; Result remains the model-facing form.
 	 */
-	readonly mcp_result?: Record<string, string>;
+	readonly mcp_result?: unknown;
 	/**
 	 * MCPResultTruncated is set when MCPResult was omitted because the
 	 * raw result exceeded the size cap.

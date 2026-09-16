@@ -80,6 +80,7 @@ func TSMutations(ts *guts.Typescript) {
 		FixSerpentStruct,
 		DiscriminatedChatMessagePart,
 		AgentHookRawMessages,
+		ChatMCPAppRawMessages,
 		// Prefer enums as types
 		config.EnumAsTypes,
 		// Enum list generator
@@ -185,6 +186,28 @@ func AgentHookRawMessages(ts *guts.Typescript) {
 	}
 }
 
+// ChatMCPAppRawMessages maps the raw MCP result payloads returned by the
+// chat MCP app proxy endpoints to unknown instead of the global object
+// type.
+func ChatMCPAppRawMessages(ts *guts.Typescript) {
+	unknown := bindings.KeywordUnknown
+	for _, typeName := range []string{"ChatMCPAppToolCallResponse", "ChatMCPAppResourceReadResponse"} {
+		node, ok := ts.Node(typeName)
+		if !ok {
+			continue
+		}
+		iface, ok := node.(*bindings.Interface)
+		if !ok {
+			continue
+		}
+		for _, field := range iface.Fields {
+			if field.Name == "result" {
+				field.Type = &unknown
+			}
+		}
+	}
+}
+
 // DiscriminatedChatMessagePart splits the flat ChatMessagePart
 // interface into a discriminated union of per-type sub-interfaces.
 // Each sub-interface narrows the `type` field to a string literal
@@ -207,7 +230,7 @@ func DiscriminatedChatMessagePart(ts *guts.Typescript) {
 	// we can copy type information from the original interface.
 	fieldMap := make(map[string]*bindings.PropertySignature, len(iface.Fields))
 	for _, f := range iface.Fields {
-		if f.Name == "result" {
+		if f.Name == "result" || f.Name == "mcp_result" {
 			unknown := bindings.KeywordUnknown
 			f.Type = &unknown
 		}
