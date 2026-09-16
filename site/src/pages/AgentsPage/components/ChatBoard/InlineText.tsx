@@ -1,8 +1,5 @@
 import { cn } from "cn";
-import { PencilIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
-import { Link } from "react-router";
-import { Button } from "#/components/Button/Button";
 
 interface InlineInputProps {
 	readonly value: string;
@@ -53,79 +50,5 @@ export const InlineInput: FC<InlineInputProps> = ({
 				if (e.key === "Escape") cancel();
 			}}
 		/>
-	);
-};
-
-interface EditableTextProps {
-	readonly value: string;
-	readonly onSave: (next: string) => void;
-	readonly ariaLabel: string;
-	readonly className?: string;
-	/** Wrap onto multiple lines instead of truncating. */
-	readonly wrap?: boolean;
-	/** Tailwind group name whose hover reveals the pencil. */
-	readonly revealOn: "card" | "column" | "row";
-	/** Render the text as a link to this route. */
-	readonly href?: string;
-}
-
-/**
- * The one edit convention on the board: text with a pencil that appears on
- * hover; the pencil opens an inline input. Text itself is never a click target.
- */
-export const EditableText: FC<EditableTextProps> = ({
-	value,
-	onSave,
-	ariaLabel,
-	className,
-	wrap = false,
-	revealOn,
-	href,
-}) => {
-	const [editing, setEditing] = useState(false);
-
-	if (editing) {
-		return (
-			<InlineInput
-				value={value}
-				onSave={onSave}
-				onDone={() => setEditing(false)}
-				ariaLabel={ariaLabel}
-				className={cn("flex-1", className)}
-			/>
-		);
-	}
-
-	const textClass = cn(
-		"min-w-0 flex-1",
-		wrap ? "whitespace-normal wrap-anywhere" : "truncate",
-		className,
-	);
-
-	return (
-		<>
-			{href ? (
-				<Link to={href} className={cn(textClass, "no-underline")}>
-					{value}
-				</Link>
-			) : (
-				<span className={textClass}>{value}</span>
-			)}
-			<Button
-				variant="subtle"
-				size="icon"
-				aria-label={`Edit ${ariaLabel}`}
-				className={cn(
-					"size-6 shrink-0 text-content-secondary opacity-0 focus-visible:opacity-100",
-					revealOn === "card" && "group-hover/card:opacity-100",
-					revealOn === "column" && "group-hover/column:opacity-100",
-					revealOn === "row" && "group-hover/row:opacity-100",
-				)}
-				onPointerDown={(e) => e.stopPropagation()}
-				onClick={() => setEditing(true)}
-			>
-				<PencilIcon className="size-3.5" />
-			</Button>
-		</>
 	);
 };
