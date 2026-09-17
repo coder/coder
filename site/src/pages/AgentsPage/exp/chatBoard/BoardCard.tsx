@@ -4,6 +4,7 @@ import {
 	BotIcon,
 	CopyIcon,
 	MessageSquareIcon,
+	MessageSquarePlusIcon,
 	PencilIcon,
 	UngroupIcon,
 } from "lucide-react";
@@ -66,6 +67,7 @@ type BoardCardProps = {
 	readonly onSetColor: (color: CardColor | undefined) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: () => void;
+	readonly onNewChat: () => void;
 	readonly onRemoveFromGroup: (chat: Chat) => void;
 	readonly onAddNote: (text: string) => void;
 	readonly onEditNote: (index: number, text: string) => void;
@@ -81,6 +83,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 	onSetColor,
 	onRenameChat,
 	onAssistant,
+	onNewChat,
 	onRemoveFromGroup,
 	onOpen,
 	onPreview,
@@ -198,6 +201,11 @@ export const BoardCard: FC<BoardCardProps> = ({
 						permanent
 						items={[
 							{ label: "Assistant", icon: BotIcon, onSelect: onAssistant },
+							{
+								label: "New chat in card",
+								icon: MessageSquarePlusIcon,
+								onSelect: onNewChat,
+							},
 							{
 								label: "Rename",
 								icon: PencilIcon,

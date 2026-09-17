@@ -23,6 +23,7 @@ const renderCard = (chats: readonly Chat[]) => {
 		onSetColor: vi.fn(),
 		onRenameChat: vi.fn(),
 		onAssistant: vi.fn(),
+		onNewChat: vi.fn(),
 		onRemoveFromGroup: vi.fn(),
 		onOpen: vi.fn(),
 		onPreview: vi.fn(),
@@ -90,6 +91,20 @@ describe("BoardCard", () => {
 		);
 
 		expect(onAssistant).toHaveBeenCalledTimes(1);
+	});
+
+	it("starts a new chat in the card from the actions menu", async () => {
+		const user = userEvent.setup();
+		const { onNewChat } = renderCard([chat("p")]);
+
+		await user.click(
+			screen.getByRole("button", { name: "Actions for Chat p" }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "New chat in card" }),
+		);
+
+		expect(onNewChat).toHaveBeenCalledTimes(1);
 	});
 
 	it("opens the chat from its icon with the card as anchor", async () => {

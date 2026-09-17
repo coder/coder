@@ -1,8 +1,7 @@
-import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
 import type { ChatOpenHandlers } from "./BoardCard";
-import { BoardColumn, NewColumn } from "./BoardColumn";
+import { BoardColumn, NewColumn, PlusButton } from "./BoardColumn";
 import {
 	addColumn,
 	addNote,
@@ -22,6 +21,7 @@ import type {
 	BoardCard as BoardCardModel,
 	BoardColumn as BoardColumnModel,
 } from "./boardLabels";
+import type { DraftTarget } from "./boardStorage";
 
 type BoardColumnsProps = {
 	/** Columns after the filter, drawn left to right. */
@@ -32,6 +32,8 @@ type BoardColumnsProps = {
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
 	readonly onAssistant: (card: BoardCardModel) => void;
+	/** Opens the create form for a chat born in a column or on a card. */
+	readonly onNewChat: (target: DraftTarget) => void;
 } & ChatOpenHandlers;
 
 // The composer clears and the editor closes before the write settles, and
@@ -52,6 +54,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 	openChatIds,
 	dropTarget,
 	onAssistant,
+	onNewChat,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -68,6 +71,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					dropTarget={dropTarget}
 					onRename={(to) => void run(renameColumn(board, column.name, to))}
 					onDelete={() => void run(deleteColumn(board, column.name))}
+					onNewChat={() => onNewChat({ column: column.name })}
 					onSetCardTitle={(card, title) =>
 						void run(renameCard(board, card.id, title))
 					}
@@ -78,6 +82,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 						void run(renameChat(board, chat.id, title))
 					}
 					onAssistant={onAssistant}
+					onNewChatInCard={(card) => onNewChat({ cardId: card.id })}
 					onRemoveFromGroup={(chat) =>
 						void run(removeFromGroup(board, chat.id))
 					}
@@ -105,15 +110,13 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					onCancel={() => setAddingColumn(false)}
 				/>
 			) : (
-				<button
-					type="button"
-					aria-label="Add column"
+				<PlusButton
+					label="Add column"
+					title="Add column"
 					// Sits on the column header line, matching header height.
-					className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link"
+					className="mt-0.5"
 					onClick={() => setAddingColumn(true)}
-				>
-					<PlusIcon className="size-3.5" />
-				</button>
+				/>
 			)}
 		</div>
 	);

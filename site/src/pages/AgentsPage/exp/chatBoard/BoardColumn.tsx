@@ -1,7 +1,7 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { ActionsMenu } from "./ActionsMenu";
@@ -42,6 +42,7 @@ type BoardColumnProps = {
 	readonly dropTarget: DropTarget | null;
 	readonly onRename: (to: string) => void;
 	readonly onDelete: () => void;
+	readonly onNewChat: () => void;
 	readonly onSetCardTitle: (card: BoardCardModel, title: string) => void;
 	readonly onSetCardColor: (
 		card: BoardCardModel,
@@ -49,6 +50,7 @@ type BoardColumnProps = {
 	) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: (card: BoardCardModel) => void;
+	readonly onNewChatInCard: (card: BoardCardModel) => void;
 	readonly onRemoveFromGroup: (chat: Chat, card: BoardCardModel) => void;
 	readonly onAddNote: (card: BoardCardModel, text: string) => void;
 	readonly onEditNote: (
@@ -65,10 +67,12 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	dropTarget,
 	onRename,
 	onDelete,
+	onNewChat,
 	onSetCardTitle,
 	onSetCardColor,
 	onRenameChat,
 	onAssistant,
+	onNewChatInCard,
 	onRemoveFromGroup,
 	onOpen,
 	onPreview,
@@ -166,6 +170,12 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 			>
 				<span className={dot({ hue: columnHue(column.name) })} />
 				{title}
+				{/* Same control as "add column", so it reads as "add here". */}
+				<PlusButton
+					label={`New chat in ${column.name}`}
+					title="New chat"
+					onClick={onNewChat}
+				/>
 				<span className="ml-auto text-[11px] text-content-secondary/70 tabular-nums">
 					{column.cards.length}
 				</span>
@@ -196,6 +206,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 							onSetColor={(color) => onSetCardColor(card, color)}
 							onRenameChat={onRenameChat}
 							onAssistant={() => onAssistant(card)}
+							onNewChat={() => onNewChatInCard(card)}
 							onRemoveFromGroup={(chat) => onRemoveFromGroup(chat, card)}
 							onOpen={onOpen}
 							onPreview={onPreview}
@@ -240,6 +251,36 @@ const InsertionLine: FC<InsertionLineProps> = ({ visible }) => (
 			)}
 		/>
 	</div>
+);
+
+type PlusButtonProps = {
+	readonly label: string;
+	readonly title: string;
+	readonly className?: string;
+	readonly onClick: () => void;
+};
+
+/** The dashed "add here" control, shared by the column header and the add-column slot. */
+export const PlusButton: FC<PlusButtonProps> = ({
+	label,
+	title,
+	className,
+	onClick,
+}) => (
+	<button
+		type="button"
+		aria-label={label}
+		title={title}
+		className={cn(
+			"grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link",
+			className,
+		)}
+		// Inside a drag handle the press must not start a drag.
+		onPointerDown={(e) => e.stopPropagation()}
+		onClick={onClick}
+	>
+		<PlusIcon className="size-3.5" />
+	</button>
 );
 
 type NewColumnProps = {
