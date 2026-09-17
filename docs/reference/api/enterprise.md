@@ -1976,6 +1976,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spen
 Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+Unknown query parameters are rejected.
 Requires organization-level administrator permissions.
 
 ### Parameters
@@ -1991,6 +1992,83 @@ Requires organization-level administrator permissions.
 | Status | Meaning                                                 | Description | Schema |
 |--------|---------------------------------------------------------|-------------|--------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List organization AI spend by user
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spend/users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/ai/spend/users`
+
+Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.
+The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
+An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.
+The optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.
+Unknown query parameters are rejected.
+Requires organization-level administrator permissions.
+
+### Parameters
+
+| Name            | In    | Type              | Required | Description                                                                           |
+|-----------------|-------|-------------------|----------|---------------------------------------------------------------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID                                                                       |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)                                                       |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)                                                       |
+| `provider_name` | query | string            | false    | Only include usage through this provider configuration name                           |
+| `model`         | query | string            | false    | Only include usage of this model                                                      |
+| `client`        | query | string            | false    | Only include usage from this client. Unknown matches usage without a recorded client. |
+| `limit`         | query | integer           | false    | Page size (default 10, maximum 100)                                                   |
+| `offset`        | query | integer           | false    | Page offset                                                                           |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "cost_micros": 0,
+    "unpriced_usage_count": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "clients": [
+        "string"
+      ],
+      "cost_micros": 0,
+      "models": [
+        "string"
+      ],
+      "name": "string",
+      "providers": [
+        "string"
+      ],
+      "unpriced_usage_count": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationAISpendReport](schemas.md#codersdkorganizationaispendreport) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
