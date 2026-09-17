@@ -143,6 +143,7 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 			isLoading={modelsQuery.isLoading}
 			loadError={loadError}
 			refetchError={inlineError}
+			modelsError={modelsQuery.error}
 			canEdit={canEdit}
 			showAdvisor={showAdvisor}
 			saveByContext={saveByContext}

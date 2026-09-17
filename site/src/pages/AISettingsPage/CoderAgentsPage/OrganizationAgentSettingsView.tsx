@@ -24,6 +24,7 @@ interface OrganizationAgentSettingsViewProps {
 	isLoading: boolean;
 	loadError: unknown;
 	refetchError: unknown;
+	modelsError: unknown;
 	canEdit: boolean;
 	showAdvisor: boolean;
 	saveByContext: ReadonlyMap<
@@ -83,6 +84,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	isLoading,
 	loadError,
 	refetchError,
+	modelsError,
 	canEdit,
 	showAdvisor,
 	saveByContext,
@@ -112,7 +114,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 					defaultModelID={defaultModelID}
 					enabledModels={enabledModels}
 					providerInfoByID={providerInfoByID}
-					modelsError={refetchError}
+					modelsError={modelsError}
 					isLoading={isLoading}
 					onSaveDefaultModel={onSaveDefaultModel}
 					isSaving={isSavingDefaultModel}
@@ -135,7 +137,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 							modelOverrideData={overrides === undefined ? undefined : saved}
 							enabledModels={enabledModels}
 							providerInfoByID={providerInfoByID}
-							modelsError={refetchError}
+							modelsError={modelsError}
 							isLoading={isLoading}
 							onSaveModelOverride={onSave}
 							isSaving={savingContexts.has(setting.context)}

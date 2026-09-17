@@ -90,11 +90,13 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 					triggerAriaLabel="Default model"
 					disabled={isFormDisabled}
 					placeholder={
-						isUnavailableSavedModel ? "Unavailable model" : "Select a model"
+						isLoading
+							? "Loading models..."
+							: isUnavailableSavedModel
+								? "Unavailable model"
+								: "Select a model"
 					}
-					emptyMessage={
-						isLoading ? "Loading models..." : "No enabled models found."
-					}
+					emptyMessage="No enabled models found."
 					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
 					contentClassName="min-w-[18rem]"
 				/>
