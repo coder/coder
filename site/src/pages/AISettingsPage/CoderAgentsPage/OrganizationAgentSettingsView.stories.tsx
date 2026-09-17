@@ -97,7 +97,9 @@ export const SetAndUnset: Story = {
 		});
 
 		await userEvent.click(
-			within(exploreSection).getByRole("combobox", { name: "Use default" }),
+			within(exploreSection).getByRole("combobox", {
+				name: "Explore subagent, Use default",
+			}),
 		);
 		await userEvent.click(
 			await body.findByRole("option", { name: /Model Two/i }),

@@ -143,6 +143,7 @@ export const SubagentModelOverrideSettings: FC<
 								) ?? "",
 						});
 					}}
+					triggerAriaLabel={title}
 					disabled={isFormDisabled}
 					placeholder={
 						isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
