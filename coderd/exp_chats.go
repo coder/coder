@@ -473,15 +473,19 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	projectID := uuid.NullUUID{}
-	if api.Experiments.Enabled(codersdk.ExperimentChatProjects) || buildinfo.IsDev() {
-		if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
-			parsedProjectID, err := uuid.Parse(rawProjectID)
-			if err != nil || parsedProjectID == uuid.Nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
-				return
-			}
-			projectID = uuid.NullUUID{UUID: parsedProjectID, Valid: true}
+	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
+		// Ignoring the filter would return every chat as if it were the
+		// project's contents, so reject it like create and update do.
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+			return
 		}
+		parsedProjectID, err := uuid.Parse(rawProjectID)
+		if err != nil || parsedProjectID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
+			return
+		}
+		projectID = uuid.NullUUID{UUID: parsedProjectID, Valid: true}
 	}
 
 	params := database.GetChatsParams{
