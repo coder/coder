@@ -156,6 +156,7 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
+	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -484,6 +485,8 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
+	GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMCPServer, error)
+	GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatMCPServer, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
@@ -1545,6 +1548,7 @@ type sqlcQuerier interface {
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
+	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
 	// If a refresh lease is provided, the row is only updated if the lease matches.
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
@@ -1694,6 +1698,7 @@ type sqlcQuerier interface {
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
+	UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPServerParams) (ChatMCPServer, error)
 	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
