@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ApiModule from "#/api/api";
 import { API, watchChatDesktop } from "#/api/api";
 import {
 	MockStoppedWorkspace,
@@ -21,7 +22,7 @@ import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { DesktopPanel } from "./DesktopPanel";
 
 vi.mock("#/api/api", async (importOriginal) => ({
-	...(await importOriginal<typeof import("#/api/api")>()),
+	...(await importOriginal<typeof ApiModule>()),
 	watchChatDesktop: vi.fn(),
 }));
 
