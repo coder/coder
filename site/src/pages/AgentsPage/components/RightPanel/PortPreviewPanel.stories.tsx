@@ -1,6 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { FC } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	ComposerProvider,
+	useRegisterComposer,
+} from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -94,5 +99,64 @@ export const InvalidWildcardHost: Story = {
 			),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
+	},
+};
+
+const Composer: FC = () => {
+	useRegisterComposer({ send: () => undefined });
+	return null;
+};
+
+const withComposer: Decorator = (Story) => (
+	<ComposerProvider>
+		<Composer />
+		<Story />
+	</ComposerProvider>
+);
+
+export const CanAnnotate: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+};
+
+export const AnnotatePicking: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+		const frame = canvas.getByTitle<HTMLIFrameElement>("Preview :3000");
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: { type: "coder-annotator:state", picking: true },
+				origin: new URL(frame.src).origin,
+				source: frame.contentWindow,
+			}),
+		);
+	},
+};
+
+export const AnnotateUnavailable: Story = {
+	args: { canAnnotate: true, annotatorReadyTimeoutMs: 0 },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+		canvas
+			.getByTitle<HTMLIFrameElement>("Preview :3000")
+			.dispatchEvent(new Event("load"));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		// The disabled button has pointer-events: none; its wrapper span is
+		// the tooltip trigger.
+		const wrapper = canvas.getByRole("button", {
+			name: "Annotate elements",
+		}).parentElement;
+		if (wrapper) {
+			await userEvent.hover(wrapper);
+		}
 	},
 };

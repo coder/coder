@@ -12,6 +12,7 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { useRegisterComposer } from "../context/ComposerContext";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -441,6 +442,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 	} = modeAttachments;
+	// Mirror the composer's own gating so tools cannot submit while the
+	// user-visible input is disabled or read-only.
+	useRegisterComposer(
+		isInputDisabled || isReadOnly
+			? null
+			: { send: (message) => onSend(message) },
+	);
 
 	// Edit attachments are scoped to the chat being edited, not the compose
 	// draft. Clear them when navigation changes the chat scope.
