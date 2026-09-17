@@ -2704,12 +2704,12 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.NotContains(t, description, subagentTypeComputerUse)
-	require.Contains(t, description, `type="general" is for non-mutating substantial investigation and planning support`)
-	require.Contains(t, description, `type="explore" is for narrow repository-local lookup or tracing`)
-	require.Contains(t, description, `only type="general" should be used for cloning repositories or non-local investigation`)
-	require.NotContains(t, description, "Both may use shell commands for exploration, such as cloning repositories")
-	require.Contains(t, description, "must not implement changes or edit existing project files")
-	require.Contains(t, description, `cloning by type="general" for inspection is the only intentional workspace-write exception`)
+	require.Contains(t, description, `type="general" is for substantial investigation and planning support`)
+	require.Contains(t, description, planningInvestigationGuidance)
+	require.Contains(t, description, `Type="explore" is for narrow repository-local lookup or tracing`)
+	require.Contains(t, description, "Explore Mode's stricter prohibition on workspace modifications")
+	require.Contains(t, description, `Assign work requiring setup or isolated experiments to type="general" instead`)
+	require.NotContains(t, description, "only intentional workspace-write exception")
 }
 
 func TestSpawnAgent_PlanModeRejectsComputerUse(t *testing.T) {
