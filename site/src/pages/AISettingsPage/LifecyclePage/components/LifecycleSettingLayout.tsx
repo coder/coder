@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import type { FC, FormEventHandler, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
@@ -8,6 +9,7 @@ import { TemporarySavedState } from "#/components/TemporarySavedState/TemporaryS
 interface LifecycleSettingLayoutProps {
 	title: string;
 	description: string;
+	docsHref?: string;
 	checked: boolean;
 	onCheckedChange: (checked: boolean) => void;
 	switchLabel: string;
@@ -24,6 +26,7 @@ interface LifecycleSettingLayoutProps {
 export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
 	title,
 	description,
+	docsHref,
 	checked,
 	onCheckedChange,
 	switchLabel,
@@ -51,6 +54,15 @@ export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
 				</h3>
 				<p className="mt-1 mb-0 text-sm font-normal leading-6 text-content-secondary">
 					{description}
+					{docsHref && (
+						<>
+							{" "}
+							<SettingsHeaderDocsLink
+								href={docsHref}
+								context={`about ${title.toLowerCase()}`}
+							/>
+						</>
+					)}
 				</p>
 				<div className="mt-4 flex flex-wrap items-start gap-3">
 					{children}
