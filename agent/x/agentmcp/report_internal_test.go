@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -60,6 +61,17 @@ func newIncrementalReportTestManager(t *testing.T) (*Manager, chan Report, *quar
 	reports := make(chan Report, 16)
 	m.SetOnReload(func() { reports <- m.Report() })
 	return m, reports, clock
+}
+
+// ambientEnvInfo is the process environment plus extra variables, as a
+// workspace whose agent was launched with credentials in its environment.
+type ambientEnvInfo struct {
+	usershell.SystemEnvInfo
+	extra []string
+}
+
+func (e *ambientEnvInfo) Environ() []string {
+	return append(os.Environ(), e.extra...)
 }
 
 func serverByName(t *testing.T, r Report, name string) ServerStatus {
@@ -255,6 +267,28 @@ func TestReport(t *testing.T) {
 		assert.Contains(t, got.Err, "initialize rejected")
 		assert.NotContains(t, got.Err, "agent-token-sentinel")
 		assert.Contains(t, got.Err, "[redacted]")
+	})
+
+	t.Run("AmbientSecretRedactedFromConnectError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		dir := t.TempDir()
+		_, entry := fakeMCPServerConfig(t, "srv")
+		entry.Env["TEST_MCP_FAKE_SERVER_INIT_FAILS"] = "1"
+		entry.Env["TEST_MCP_FAKE_SERVER_ECHO_ENV"] = "AWS_SECRET_ACCESS_KEY"
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		// The credential is in the agent process's own environment, with
+		// nothing registered through SetInheritedSecrets.
+		env := &ambientEnvInfo{extra: []string{"AWS_SECRET_ACCESS_KEY=ambient-sentinel"}}
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, env, nil, nil)
+		t.Cleanup(func() { _ = m.Close() })
+
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		got := serverByName(t, m.Report(), "srv")
+		assert.False(t, got.Connected)
+		assert.Contains(t, got.Err, "initialize rejected")
+		assert.NotContains(t, got.Err, "ambient-sentinel")
 	})
 
 	t.Run("RotatedInheritedSecretRedactedForOpenSession", func(t *testing.T) {
@@ -533,6 +567,14 @@ func TestSanitizeMCPError(t *testing.T) {
 		assert.NotContains(t, got, "bearer-sentinel")
 		assert.NotContains(t, got, "key-sentinel")
 		assert.Contains(t, got, "401: invalid token [redacted]")
+	})
+
+	t.Run("AmbientSecretLikeEnv", func(t *testing.T) {
+		t.Parallel()
+		// The agent's own environment is inherited by every stdio server;
+		// credential-looking variables are redacted, the rest is not.
+		got := secretLikeEnvValues([]string{"AWS_SECRET_ACCESS_KEY=ambient-sentinel", "GITHUB_TOKEN=gh-sentinel", "HOME=/home/coder", "PATH=/usr/bin", "LANG=C.UTF-8", "OTP=123"})
+		assert.ElementsMatch(t, []string{"ambient-sentinel", "gh-sentinel"}, got)
 	})
 
 	t.Run("InheritedSecrets", func(t *testing.T) {

@@ -234,15 +234,18 @@ func (m *Manager) SetInheritedSecrets(fn func() []string) {
 }
 
 // currentInheritedSecrets reads the inherited secret values as they are
-// now; sessions snapshot this when they open.
+// now: the agent-registered ones plus credential-looking variables from
+// the ambient environment every stdio server is seeded with. Sessions
+// snapshot this when they open.
 func (m *Manager) currentInheritedSecrets() []string {
 	m.mu.RLock()
 	fn := m.inheritedSecrets
 	m.mu.RUnlock()
-	if fn == nil {
-		return nil
+	values := secretLikeEnvValues(m.envInfo.Environ())
+	if fn != nil {
+		values = append(values, fn()...)
 	}
-	return fn()
+	return values
 }
 
 // sanitizeError is sanitizeMCPError with the session's inherited secret
