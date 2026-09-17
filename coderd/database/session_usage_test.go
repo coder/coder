@@ -3,6 +3,7 @@ package database_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -13,10 +14,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/migrations"
 )
 
-// sessionUsageMins reads the session usage child table for one bucket. There
-// is no sqlc query for it, so the tests read it directly.
+// sessionUsageMins reads one bucket's session usage. GetTemplateInsights caps
+// and totals a window across users, so it cannot show a single bucket.
 func sessionUsageMins(ctx context.Context, t *testing.T, sqlDB *sql.DB, startTime time.Time, userID, templateID uuid.UUID) map[string]int64 {
 	t.Helper()
 
@@ -36,48 +38,19 @@ func sessionUsageMins(ctx context.Context, t *testing.T, sqlDB *sql.DB, startTim
 	return got
 }
 
-// sessionUsageDigest reads the digest the rollup stored for one bucket, and
-// emptySessionUsageDigest is the digest of a bucket with no session usage.
-func sessionUsageDigest(ctx context.Context, t *testing.T, sqlDB *sql.DB, startTime time.Time, userID, templateID uuid.UUID) sql.NullInt64 {
+// sessionUsageRowVersion tells a rewritten child row from an untouched one.
+func sessionUsageRowVersion(ctx context.Context, t *testing.T, sqlDB *sql.DB, startTime time.Time, userID, templateID uuid.UUID, appName string) string {
 	t.Helper()
 
-	var digest sql.NullInt64
+	var version string
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT session_usage_digest FROM template_usage_stats WHERE start_time = $1 AND user_id = $2 AND template_id = $3`,
-		startTime, userID, templateID).Scan(&digest))
-	return digest
+		`SELECT xmin::text FROM template_usage_stats_session_apps
+			WHERE start_time = $1 AND user_id = $2 AND template_id = $3 AND app_name = $4`,
+		startTime, userID, templateID, appName).Scan(&version))
+	return version
 }
 
-func emptySessionUsageDigest(ctx context.Context, t *testing.T, sqlDB *sql.DB) sql.NullInt64 {
-	t.Helper()
-
-	var digest sql.NullInt64
-	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT hashtextextended('', 0)`).Scan(&digest))
-	return digest
-}
-
-// withoutDigest clears the session usage digest, which is a hash of the child
-// rows rather than a value worth comparing.
-func withoutDigest(stats []database.TemplateUsageStat) []database.TemplateUsageStat {
-	cleared := make([]database.TemplateUsageStat, 0, len(stats))
-	for _, stat := range stats {
-		stat.SessionUsageDigest = sql.NullInt64{}
-		cleared = append(cleared, stat)
-	}
-	return cleared
-}
-
-func TestSessionUsageMapNull(t *testing.T) {
-	t.Parallel()
-	m := database.StringMapOfInt{"cursor": 1}
-	require.NoError(t, m.Scan(nil))
-	require.Nil(t, m)
-	require.NoError(t, m.Scan([]byte(`{}`)))
-	require.NotNil(t, m)
-	require.Empty(t, m)
-}
-
-func TestSessionUsageRollupOverlapAndDigest(t *testing.T) {
+func TestSessionUsageRollup(t *testing.T) {
 	t.Parallel()
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	ctx := context.Background()
@@ -116,41 +89,33 @@ func TestSessionUsageRollupOverlapAndDigest(t *testing.T) {
 		}
 	}
 	require.True(t, found, "the overlapping app bucket must be present")
-	// Each app keeps its own minutes, counted once per minute however many of
-	// its sessions were open. Callers add the apps of a family together.
+	// Each app keeps its own minutes; callers add up a family's apps.
 	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1},
 		sessionUsageMins(ctx, t, sqlDB, start, user, template))
-	digest := sessionUsageDigest(ctx, t, sqlDB, start, user, template)
-	require.True(t, digest.Valid, "a rolled up bucket must carry a session usage digest")
-	require.NotEqual(t, emptySessionUsageDigest(ctx, t, sqlDB), digest, "this bucket has session usage")
 
-	// The existing watermark deliberately recomputes recent buckets.
+	// The watermark recomputes recent buckets, so unchanged minutes must not
+	// rewrite the row.
+	version := sessionUsageRowVersion(ctx, t, sqlDB, start, user, template, "cursor")
 	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 	repeated, err := db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
 	require.ElementsMatch(t, rows, repeated)
 	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1},
 		sessionUsageMins(ctx, t, sqlDB, start, user, template))
-	// Recomputing identical session usage leaves the digest alone, which is
-	// what keeps the rollup from rewriting the child rows of every bucket in
-	// its window.
-	require.Equal(t, digest, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
+	require.Equal(t, version, sessionUsageRowVersion(ctx, t, sqlDB, start, user, template, "cursor"))
 
-	// A new app in a minute the bucket already counted leaves the main row
-	// alone, so the digest is what marks the bucket changed and lets the child
-	// writes reach it.
+	// A new app in an already counted minute leaves the main row alone.
 	insert(0, user, template, 1, map[string]int64{"another_app": 1})
 	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 	repeated, err = db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
-	require.ElementsMatch(t, withoutDigest(rows), withoutDigest(repeated))
+	require.ElementsMatch(t, rows, repeated)
 	require.Equal(t, map[string]int64{"cursor": 2, "vscode": 2, "new_app": 1, "another_app": 1},
 		sessionUsageMins(ctx, t, sqlDB, start, user, template))
-	require.NotEqual(t, digest, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
+	require.Equal(t, version, sessionUsageRowVersion(ctx, t, sqlDB, start, user, template, "cursor"))
 
-	// A bucket that only has app stats records no session usage at all, so it
-	// carries the empty digest rather than a null, and a deleted bucket takes
-	// its session usage with it.
+	// An app-stats-only bucket records no session usage, and a deleted bucket
+	// takes its session usage with it.
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{Name: "app-stats-only"})
 	appTemplate := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
@@ -168,7 +133,6 @@ func TestSessionUsageRollupOverlapAndDigest(t *testing.T) {
 		SessionEndedAt:   start.Add(3 * time.Minute),
 	})
 	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
-	require.Equal(t, emptySessionUsageDigest(ctx, t, sqlDB), sessionUsageDigest(ctx, t, sqlDB, start, owner.ID, appTemplate.ID))
 	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, start, owner.ID, appTemplate.ID))
 
 	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, start, user, disconnected))
@@ -182,4 +146,64 @@ func TestSessionUsageRollupOverlapAndDigest(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, live, 0, "no connected report occurs in this partial request window")
+}
+
+// TestSessionUsageHistoryCapsAndNamespaces reads history the rollup cannot
+// produce: family-named rows, which only migration 000596 writes, and an app
+// name the registry does not know. Neither arrives through agent stats, so the
+// buckets are seeded directly.
+func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
+	t.Parallel()
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := context.Background()
+	start := dbtime.Now().Add(-2 * time.Hour).Truncate(30 * time.Minute)
+	user, template1, template2, appTemplate := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	// One user in two templates in one half hour, so the minutes cap at 30.
+	for _, template := range []uuid.UUID{template1, template2} {
+		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,20)`,
+			start, start.Add(30*time.Minute), user, template)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,'some_new_ide',20),($1,$2,$3,'ssh',20),($1,$2,$3,'sftp',2)`,
+			start, template, user)
+		require.NoError(t, err)
+	}
+	// App stats alone: no session usage, so no child rows.
+	_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins,app_usage_mins) VALUES($1,$2,$3,$4,5,'{"ssh":5}')`,
+		start, start.Add(30*time.Minute), uuid.New(), appTemplate)
+	require.NoError(t, err)
+	usage, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute)})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, usage.ActiveUsers)
+	require.EqualValues(t, 35*60, usage.UsageTotalSeconds)
+	require.ElementsMatch(t, []uuid.UUID{template1, template2, appTemplate}, usage.TemplateIDs)
+	require.JSONEq(t, `{"some_new_ide":1800,"ssh":1800,"sftp":240}`, string(usage.SessionAppUsageSeconds))
+	var ids map[string][]uuid.UUID
+	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
+	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["some_new_ide"])
+	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["ssh"])
+	onlyApp, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute), TemplateIDs: []uuid.UUID{appTemplate}})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, onlyApp.ActiveUsers)
+	require.EqualValues(t, 300, onlyApp.UsageTotalSeconds)
+	require.JSONEq(t, `{}`, string(onlyApp.SessionAppUsageSeconds))
+	require.JSONEq(t, `{}`, string(onlyApp.SessionAppTemplateIds))
+	// One template leaves a single-template user, so the cap does not apply.
+	onlyOne, err := db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(30 * time.Minute), TemplateIDs: []uuid.UUID{template1}})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"some_new_ide":1200,"ssh":1200,"sftp":120}`, string(onlyOne.SessionAppUsageSeconds))
+}
+
+func TestSessionUsageEmptyHistory(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	start := dbtime.Now().Truncate(30 * time.Minute)
+	row, err := db.GetTemplateInsights(context.Background(), database.GetTemplateInsightsParams{StartTime: start, EndTime: start.Add(time.Hour)})
+	require.NoError(t, err)
+	require.Empty(t, row.TemplateIDs)
+	require.Zero(t, row.ActiveUsers)
+	require.Zero(t, row.UsageTotalSeconds)
+	require.JSONEq(t, `{}`, string(row.SessionAppUsageSeconds))
+	require.JSONEq(t, `{}`, string(row.SessionAppTemplateIds))
 }

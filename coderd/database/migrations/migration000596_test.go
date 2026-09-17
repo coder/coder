@@ -299,10 +299,18 @@ func TestMigration000596ChainFrom589(t *testing.T) {
 	require.Equal(t, []sessionAppRow{{"sftp", 2}, {"ssh", 3}, {"vscode", 4}},
 		sessionRows(t, tx))
 
-	// A real app name recorded after the upgrade must fold back into the
-	// family column the downgrade has room for.
+	// A real app name folds into its family column, and an unregistered one
+	// counts as ssh rather than losing its minutes.
 	_, err = tx.ExecContext(ctx, `
 		UPDATE template_usage_stats_session_apps SET app_name = 'cursor' WHERE app_name = 'vscode'
+	`)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO template_usage_stats_session_apps (
+			start_time, template_id, user_id, app_name, usage_mins
+		)
+		SELECT start_time, template_id, user_id, 'some_new_ide', 6
+		FROM template_usage_stats
 	`)
 	require.NoError(t, err)
 
@@ -319,7 +327,7 @@ func TestMigration000596ChainFrom589(t *testing.T) {
 		FROM template_usage_stats
 	`).Scan(&ssh, &sftp, &reconnectingPTY, &vscode, &jetbrains)
 	require.NoError(t, err)
-	require.EqualValues(t, 3, ssh)
+	require.EqualValues(t, 9, ssh, "ssh plus the unregistered app name")
 	require.EqualValues(t, 2, sftp)
 	require.EqualValues(t, 0, reconnectingPTY)
 	require.EqualValues(t, 4, vscode)

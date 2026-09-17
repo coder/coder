@@ -6035,8 +6035,6 @@ type TemplateUsageStat struct {
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
-	// Hash of the bucket's session usage rows, so recomputing an unchanged bucket rewrites no child rows. Null predates the column and reads as changed.
-	SessionUsageDigest sql.NullInt64 `db:"session_usage_digest" json:"session_usage_digest"`
 }
 
 // Session usage of each template_usage_stats bucket, split by app name. No row means the bucket recorded no session usage. Reads group app names into families through the codersdk registry.
@@ -6046,7 +6044,7 @@ type TemplateUsageStatsSessionApp struct {
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	// App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.
 	AppName string `db:"app_name" json:"app_name"`
-	// Total minutes the user has been using the app. A minute counts once however many sessions were open. A family total sums its apps, so a minute two apps of one family share counts twice.
+	// Total minutes the user has been using the app. A minute counts once however many sessions were open.
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 }
 

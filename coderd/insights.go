@@ -577,8 +577,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
 func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
-	// Session usage arrives per app name; the registry groups it into the
-	// families the builtin apps below report.
+	// Session usage arrives per app name, the builtin apps below per family.
 	appSeconds, err := codersdk.DecodeAppMap[int64](usage.SessionAppUsageSeconds)
 	if err != nil {
 		return nil, xerrors.Errorf("decode session app usage seconds: %w", err)

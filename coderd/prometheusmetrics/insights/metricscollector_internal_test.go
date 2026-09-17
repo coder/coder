@@ -17,8 +17,7 @@ func TestConvertTemplateInsights(t *testing.T) {
 	t.Run("Malformed", func(t *testing.T) {
 		t.Parallel()
 
-		// Reporting zero usage would look like an idle template, so the
-		// collector must fail the tick instead.
+		// Zero usage would look like an idle template, so the tick must fail.
 		templateID := uuid.New()
 		rows, err := convertTemplateInsights([]database.GetTemplateInsightsByTemplateRow{
 			{TemplateID: templateID, SessionAppUsageSeconds: json.RawMessage(`{"ssh": "sixty"}`)},
@@ -38,7 +37,7 @@ func TestConvertTemplateInsights(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
-		require.EqualValues(t, 420, rows[0].usageSeconds(codersdk.AppFamilyVSCode))
-		require.EqualValues(t, 60, rows[0].usageSeconds(codersdk.AppFamilySSH))
+		require.EqualValues(t, 420, rows[0].usageSecondsByFamily[codersdk.AppFamilyVSCode])
+		require.EqualValues(t, 60, rows[0].usageSecondsByFamily[codersdk.AppFamilySSH])
 	})
 }

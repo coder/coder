@@ -42,19 +42,12 @@ type insightsData struct {
 	organizationNames map[uuid.UUID]string // template ID → org name
 }
 
-// templateInsightsRow is the decoded form of
-// database.GetTemplateInsightsByTemplateRow, whose session usage arrives as a
-// JSONB payload keyed by app name.
+// templateInsightsRow is a GetTemplateInsightsByTemplateRow with its session
+// usage decoded and grouped into families.
 type templateInsightsRow struct {
 	templateID           uuid.UUID
 	activeUsers          int64
 	usageSecondsByFamily map[codersdk.AppFamilyName]int64
-}
-
-// usageSeconds returns the usage seconds reported for a session family. A
-// family the query did not report had no usage.
-func (r templateInsightsRow) usageSeconds(family codersdk.AppFamilyName) int64 {
-	return r.usageSecondsByFamily[family]
 }
 
 type parameterRow struct {
@@ -250,25 +243,25 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		orgName := data.organizationNames[templateRow.templateID]
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSeconds(codersdk.AppFamilyVSCode)),
+			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyVSCode]),
 			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSeconds(codersdk.AppFamilyJetBrains)),
+			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyJetBrains]),
 			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSeconds(codersdk.AppFamilyReconnectingPTY)),
+			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyReconnectingPTY]),
 			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSeconds(codersdk.AppFamilySSH)),
+			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilySSH]),
 			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameSSH,
 			"", orgName)
@@ -316,10 +309,9 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 	return m
 }
 
-// convertTemplateInsights decodes the JSONB per-app session usage of each
-// template insights row and groups it into families. A malformed payload is an
-// error rather than zero usage, so the collector keeps serving the previous
-// snapshot instead of reporting idle templates.
+// convertTemplateInsights groups each row's per-app session usage into
+// families. A malformed payload errors rather than reporting idle templates,
+// so the collector keeps serving its previous snapshot.
 func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) ([]templateInsightsRow, error) {
 	converted := make([]templateInsightsRow, 0, len(rows))
 	for _, row := range rows {

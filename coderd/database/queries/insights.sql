@@ -86,8 +86,7 @@ ORDER BY
 -- workspaces in a given timeframe. The template IDs, active users, and
 -- usage_seconds all reflect any usage in the template, including apps.
 --
--- Session usage comes out per app name. Callers group the names into families
--- through the codersdk registry.
+-- Session usage comes out per app name; callers group the names into families.
 --
 -- When combining data from multiple templates, we must make a guess at
 -- how the user behaved for the 30 minute interval. In this case we make
@@ -95,16 +94,15 @@ ORDER BY
 -- they did so sequentially, thus we sum the usage up to a maximum of
 -- 30 minutes with LEAST(SUM(n), 30).
 WITH
-	base AS MATERIALIZED (
-		-- One pass computes each user's template count and capped minutes
-		-- per half hour, plus the templates in the window. GROUPING
-		-- distinguishes user rows from template rows.
+	base AS (
+		-- One pass over the window: per-user capped minutes and the template
+		-- list. GROUPING tells the two row kinds apart.
 		SELECT
 			GROUPING(template_id) AS is_user_row,
 			start_time,
 			user_id,
 			template_id,
-			COUNT(*) AS templates,
+			COUNT(*) AS template_count,
 			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
 			template_usage_stats
@@ -118,33 +116,34 @@ WITH
 		SELECT
 			start_time,
 			user_id,
-			templates,
+			template_count,
 			usage_mins
 		FROM
 			base
 		WHERE
 			is_user_row = 1
 	),
-	multi AS MATERIALIZED (
-		-- Only a user who used more than one template in the same half hour
-		-- can exceed the 30 minute cap, and there are usually none.
+	multi_template_buckets AS (
+		-- An app's minutes cap per user per half hour, across templates. Only
+		-- these buckets can reach the cap, and there are usually none, so the
+		-- capped grouping below runs on them alone: 1.8x faster than capping
+		-- every bucket.
 		SELECT
 			start_time,
 			user_id
 		FROM
 			users
 		WHERE
-			templates > 1
+			template_count > 1
 	),
-	single_app_usage AS (
-		-- Everything but the multi-template buckets. These cannot exceed the
-		-- cap, so they need no per-user grouping. The template list per app
-		-- comes from here too, where the cap is irrelevant.
+	app_usage_by_template AS (
+		-- A single row cannot exceed the cap, so these need no per-user
+		-- grouping. The template list per app comes from here too.
 		SELECT
 			sessions.app_name,
 			sessions.template_id,
-			SUM(LEAST(sessions.usage_mins, 30)) FILTER (
-				WHERE (sessions.start_time, sessions.user_id) NOT IN (SELECT start_time, user_id FROM multi)
+			SUM(sessions.usage_mins) FILTER (
+				WHERE (sessions.start_time, sessions.user_id) NOT IN (SELECT start_time, user_id FROM multi_template_buckets)
 			) AS usage_mins
 		FROM
 			template_usage_stats_session_apps AS sessions
@@ -152,12 +151,10 @@ WITH
 			sessions.start_time >= @start_time::timestamptz
 			AND sessions.start_time + '30 minutes'::interval <= @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-			AND sessions.usage_mins > 0
 		GROUP BY
 			sessions.app_name, sessions.template_id
 	),
-	multi_app_usage AS (
-		-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+	app_usage_capped AS (
 		SELECT
 			sessions.app_name,
 			LEAST(SUM(sessions.usage_mins), 30) AS usage_mins
@@ -167,12 +164,11 @@ WITH
 			sessions.start_time >= @start_time::timestamptz
 			AND sessions.start_time + '30 minutes'::interval <= @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-			AND sessions.usage_mins > 0
 			AND EXISTS (
 				SELECT 1
-				FROM multi
-				WHERE multi.start_time = sessions.start_time
-					AND multi.user_id = sessions.user_id
+				FROM multi_template_buckets AS buckets
+				WHERE buckets.start_time = sessions.start_time
+					AND buckets.user_id = sessions.user_id
 			)
 		GROUP BY
 			sessions.start_time, sessions.user_id, sessions.app_name
@@ -182,23 +178,9 @@ WITH
 			app_name,
 			(SUM(usage_mins) * 60)::bigint AS usage_seconds
 		FROM (
-			SELECT
-				app_name,
-				COALESCE(SUM(usage_mins), 0) AS usage_mins
-			FROM
-				single_app_usage
-			GROUP BY
-				app_name
-
+			SELECT app_name, usage_mins FROM app_usage_by_template
 			UNION ALL
-
-			SELECT
-				app_name,
-				SUM(usage_mins) AS usage_mins
-			FROM
-				multi_app_usage
-			GROUP BY
-				app_name
+			SELECT app_name, usage_mins FROM app_usage_capped
 		) AS parts
 		GROUP BY
 			app_name
@@ -208,7 +190,7 @@ WITH
 			app_name,
 			array_agg(DISTINCT template_id) AS template_ids
 		FROM
-			single_app_usage
+			app_usage_by_template
 		GROUP BY
 			app_name
 	)
@@ -217,8 +199,7 @@ SELECT
 	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE is_user_row = 0), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	-- App name to usage seconds, and app name to the templates that saw the
-	-- app. Callers fold both into families.
+	-- Keyed by app name; callers fold both into families.
 	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FROM app_usage), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
 	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FROM app_templates), '{}'::jsonb)::jsonb AS session_app_template_ids
 FROM
@@ -228,31 +209,29 @@ FROM
 -- GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 -- in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 --
--- Session usage comes out per app name, so a caller that groups the names
--- reports the same family totals as GetTemplateInsights.
+-- Session usage comes out per app name, as in GetTemplateInsights, so either
+-- query reports the same family totals once the names are grouped.
 WITH
 	minute_app AS (
-		-- One row per app active in a minute. A minute counts once per app
-		-- however many sessions of it were open.
-		SELECT
+		-- A minute counts once per app however many of its sessions were open.
+		SELECT DISTINCT
 			was.template_id,
 			was.user_id,
 			date_trunc('minute', was.created_at) AS minute,
 			app_name
 		FROM
-			workspace_agent_stats AS was, jsonb_object_keys(was.session_counts) AS app_name
+			workspace_agent_stats AS was
+		CROSS JOIN
+			jsonb_object_keys(was.session_counts) AS app_name
 		WHERE
 			was.created_at >= @start_time::timestamptz
 			AND was.created_at < @end_time::timestamptz
 			AND was.session_counts <> '{}'::jsonb
-		GROUP BY
-			was.template_id, was.user_id, date_trunc('minute', was.created_at), app_name
 	),
 	connected AS (
-		-- NOTE(mafredri): The agent stats are currently very unreliable, and
-		-- sometimes the connections are missing, even during active sessions.
-		-- Since we can't fully rely on this, we check for "any connection
-		-- within this bucket". A better solution here would be preferable.
+		-- NOTE(mafredri): connection_count covers one report interval, while
+		-- the session counts are a gauge, so an idle session reports none.
+		-- Hence "any connection within this bucket", pending a better solution.
 		SELECT
 			template_id,
 			user_id
@@ -311,15 +290,17 @@ WITH
 	)
 
 SELECT
-	au.template_id,
-	au.active_users,
-	COALESCE(au_usage.session_app_usage_seconds, '{}'::jsonb)::jsonb AS session_app_usage_seconds
+	active_users.template_id,
+	active_users.active_users,
+	app_usage.session_app_usage_seconds
 FROM
-	active_users AS au
-LEFT JOIN
-	app_usage AS au_usage
+	active_users
+JOIN
+	-- Every counted template has at least one app; both sides come from
+	-- insights.
+	app_usage
 ON
-	au_usage.template_id = au.template_id;
+	app_usage.template_id = active_users.template_id;
 
 -- name: GetTemplateAppInsights :many
 -- GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -681,16 +662,12 @@ WITH
 			time_bucket, w.template_id, fas.user_id, fas.access_method, fas.slug_or_port
 	),
 	agent_stats_rows AS (
-		-- One filtered pass over workspace_agent_stats feeds both the bucket
-		-- grouping and the per-app mask grouping below, instead of scanning the
-		-- table once for each. The minute bit is computed here so the mask
-		-- grouping never touches created_at again.
+		-- One filtered pass feeds both groupings below.
 		SELECT
 			date_trunc('hour', created_at) + trunc(date_part('minute', created_at) / 30) * 30 * '1 minute'::interval AS time_bucket,
 			template_id,
 			user_id,
 			date_trunc('minute', created_at) AS minute_bucket,
-			(1 << (date_part('minute', created_at)::int % 30)) AS minute_bit,
 			connection_count,
 			session_counts
 		FROM
@@ -709,75 +686,39 @@ WITH
 			user_id,
 			-- Store each unique minute bucket for later merge between datasets.
 			array_agg(DISTINCT minute_bucket) AS minute_buckets,
-			-- NOTE(mafredri): The agent stats are currently very unreliable, and
-			-- sometimes the connections are missing, even during active sessions.
-			-- Since we can't fully rely on this, we check for "any connection
-			-- during this half-hour". A better solution here would be preferable.
+			-- NOTE(mafredri): connection_count covers one report interval,
+			-- while the session counts are a gauge, so an idle session reports
+			-- none. Hence "any connection during this half-hour", pending a
+			-- better solution.
 			MAX(connection_count) > 0 AS has_connection
 		FROM
 			agent_stats_rows
 		GROUP BY
 			time_bucket, template_id, user_id
 	),
-	agent_stats_app_minutes AS (
-		-- One bit per minute of the half-hour bucket, per app name, instead of
-		-- a count, so a minute counts once however many sessions were open.
-		-- Only the minute counts derived from these are stored.
-		SELECT
-			time_bucket,
-			template_id,
-			user_id,
-			app_name,
-			bit_or(minute_bit) AS minute_mask
-		FROM
-			agent_stats_rows, jsonb_object_keys(session_counts) AS app_name
-		GROUP BY
-			time_bucket, template_id, user_id, app_name
-	),
 	agent_stats_session_minutes AS (
-		-- The minutes each app was active, counted from the bits set in its
-		-- mask. Postgres 13 has no bit_count, so the set bits are counted by
-		-- stripping the zeros out of the mask's text form.
+		-- A minute counts once per app however many of its sessions were open.
 		SELECT
-			minutes.time_bucket,
-			minutes.template_id,
-			minutes.user_id,
-			minutes.app_name,
-			length(replace(minutes.minute_mask::bit(30)::text, '0', ''))::smallint AS usage_mins
+			agent_stats.time_bucket,
+			agent_stats.template_id,
+			agent_stats.user_id,
+			app_name,
+			COUNT(DISTINCT agent_stats.minute_bucket)::smallint AS usage_mins
 		FROM
-			agent_stats_app_minutes AS minutes
+			agent_stats_rows AS agent_stats
 		JOIN
 			agent_stats_buckets AS buckets
 		ON
-			buckets.time_bucket = minutes.time_bucket
-			AND buckets.template_id = minutes.template_id
-			AND buckets.user_id = minutes.user_id
-			-- The same gate the union below applies to agent stats, so a
-			-- bucket that only has app stats records no session usage.
+			buckets.time_bucket = agent_stats.time_bucket
+			AND buckets.template_id = agent_stats.template_id
+			AND buckets.user_id = agent_stats.user_id
+			-- Same gate as the union below, so an app-stats-only bucket
+			-- records no session usage.
 			AND buckets.has_connection
-	),
-	session_digests AS (
-		-- A stable hash of the bucket's session usage: the ordered set of
-		-- (app, minutes). Names are length-prefixed so embedded delimiters
-		-- cannot make different row sets encode identically. The main row
-		-- stores it, so the upsert's IS DISTINCT FROM guard fires on session
-		-- usage changes and the child write below skips unchanged buckets.
-		--
-		-- INVARIANT: the digest must cover every column the child table
-		-- stores. A column left out would leave a bucket looking unchanged
-		-- when only that column changed, keeping stale child rows.
-		SELECT
-			time_bucket AS start_time,
-			template_id,
-			user_id,
-			hashtextextended(string_agg(
-				length(app_name) || ':' || app_name || ':' || usage_mins,
-				'|' ORDER BY app_name
-			), 0) AS digest
-		FROM
-			agent_stats_session_minutes
+		CROSS JOIN
+			jsonb_object_keys(agent_stats.session_counts) AS app_name
 		GROUP BY
-			time_bucket, template_id, user_id
+			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, app_name
 	),
 	stats AS (
 		SELECT
@@ -862,8 +803,7 @@ WITH
 			user_id,
 			usage_mins,
 			median_latency_ms,
-			app_usage_mins,
-			session_usage_digest
+			app_usage_mins
 		) (
 			SELECT
 				stats.start_time,
@@ -872,19 +812,9 @@ WITH
 				stats.user_id,
 				stats.usage_mins,
 				latencies.median_latency_ms,
-				stats.app_usage_mins,
-				-- A bucket with no session usage still gets a digest, so a null
-				-- left by a rollup that predates the column reads as changed
-				-- once and then settles.
-				COALESCE(session_digests.digest, hashtextextended('', 0))
+				stats.app_usage_mins
 			FROM
 				stats
-			LEFT JOIN
-				session_digests
-			ON
-				session_digests.start_time = stats.start_time
-				AND session_digests.template_id = stats.template_id
-				AND session_digests.user_id = stats.user_id
 			LEFT JOIN
 				latencies
 			ON
@@ -899,47 +829,26 @@ WITH
 		SET
 			usage_mins = EXCLUDED.usage_mins,
 			median_latency_ms = EXCLUDED.median_latency_ms,
-			app_usage_mins = EXCLUDED.app_usage_mins,
-			session_usage_digest = EXCLUDED.session_usage_digest
+			app_usage_mins = EXCLUDED.app_usage_mins
 		WHERE
 			(tus.*) IS DISTINCT FROM (EXCLUDED.*)
-		RETURNING
-			tus.start_time,
-			tus.template_id,
-			tus.user_id
 	),
-	changed_buckets AS (
-		-- New or changed buckets only. A bucket whose main row, digest
-		-- included, was already correct returns nothing from the upsert, so the
-		-- child writes below never touch it.
-		SELECT
-			start_time,
-			template_id,
-			user_id
-		FROM
-			upsert_stats
-	),
-	-- The child writes below run in this same statement, so the foreign key
-	-- triggers fire once it completes and see the main rows the upsert above
-	-- added. The delete and the insert never touch the same row: the delete
-	-- matches app names the recomputed bucket no longer has, the insert only
-	-- the names it does have.
+	-- The child writes share this statement, so the foreign keys are checked
+	-- once it completes and see the main rows the upsert added; Postgres runs
+	-- that upsert whether or not the statement reads it.
 	--
-	-- The delete uses NOT IN rather than NOT EXISTS on purpose. The planner
-	-- has no statistics for the recomputed CTE and estimates a few rows,
-	-- making NOT EXISTS a nested loop that rescans the CTE per candidate row:
-	-- 20 seconds per rollup. NOT IN is planned as a hashed subplan built once,
-	-- whatever the estimate. Every column in the subquery is non-null, so both
-	-- forms delete the same rows.
+	-- NOT IN, not NOT EXISTS: the planner has no statistics for the CTE and
+	-- turns NOT EXISTS into a nested loop that rescans it per row, 20 seconds
+	-- per rollup. Every column is non-null, so both delete the same rows.
 	delete_apps AS (
 		DELETE FROM
 			template_usage_stats_session_apps AS apps
 		USING
-			changed_buckets AS changed
+			agent_stats_buckets AS buckets
 		WHERE
-			apps.start_time = changed.start_time
-			AND apps.template_id = changed.template_id
-			AND apps.user_id = changed.user_id
+			apps.start_time = buckets.time_bucket
+			AND apps.template_id = buckets.template_id
+			AND apps.user_id = buckets.user_id
 			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
 				SELECT time_bucket, template_id, user_id, app_name
 				FROM agent_stats_session_minutes
@@ -954,19 +863,13 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 	usage_mins
 ) (
 	SELECT
-		agent_stats_session_minutes.time_bucket,
-		agent_stats_session_minutes.template_id,
-		agent_stats_session_minutes.user_id,
-		agent_stats_session_minutes.app_name,
-		agent_stats_session_minutes.usage_mins
+		time_bucket,
+		template_id,
+		user_id,
+		app_name,
+		usage_mins
 	FROM
 		agent_stats_session_minutes
-	JOIN
-		changed_buckets AS changed
-	ON
-		changed.start_time = agent_stats_session_minutes.time_bucket
-		AND changed.template_id = agent_stats_session_minutes.template_id
-		AND changed.user_id = agent_stats_session_minutes.user_id
 )
 ON CONFLICT
 	(start_time, template_id, user_id, app_name)

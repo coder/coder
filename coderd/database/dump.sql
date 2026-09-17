@@ -3051,8 +3051,7 @@ CREATE TABLE template_usage_stats (
     user_id uuid NOT NULL,
     median_latency_ms real,
     usage_mins smallint NOT NULL,
-    app_usage_mins jsonb,
-    session_usage_digest bigint
+    app_usage_mins jsonb
 );
 
 COMMENT ON TABLE template_usage_stats IS 'Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.';
@@ -3071,8 +3070,6 @@ COMMENT ON COLUMN template_usage_stats.usage_mins IS 'Total minutes the user has
 
 COMMENT ON COLUMN template_usage_stats.app_usage_mins IS 'Object with app names as keys and total minutes used as values. Null means no app usage was recorded.';
 
-COMMENT ON COLUMN template_usage_stats.session_usage_digest IS 'Hash of the bucket''s session usage rows, so recomputing an unchanged bucket rewrites no child rows. Null predates the column and reads as changed.';
-
 CREATE TABLE template_usage_stats_session_apps (
     start_time timestamp with time zone NOT NULL,
     template_id uuid NOT NULL,
@@ -3085,7 +3082,7 @@ COMMENT ON TABLE template_usage_stats_session_apps IS 'Session usage of each tem
 
 COMMENT ON COLUMN template_usage_stats_session_apps.app_name IS 'App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.';
 
-COMMENT ON COLUMN template_usage_stats_session_apps.usage_mins IS 'Total minutes the user has been using the app. A minute counts once however many sessions were open. A family total sums its apps, so a minute two apps of one family share counts twice.';
+COMMENT ON COLUMN template_usage_stats_session_apps.usage_mins IS 'Total minutes the user has been using the app. A minute counts once however many sessions were open.';
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,

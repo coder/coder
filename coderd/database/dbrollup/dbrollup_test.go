@@ -243,11 +243,6 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 	stats[0].EndTime = stats[0].EndTime.UTC()
 	stats[0].StartTime = stats[0].StartTime.UTC()
 
-	// The digest value isn't pinned, just that the rollup recorded one.
-	require.True(t, stats[0].SessionUsageDigest.Valid, "the rollup must record a session usage digest")
-	require.NotZero(t, stats[0].SessionUsageDigest.Int64)
-	stats[0].SessionUsageDigest = sql.NullInt64{}
-
 	require.Equal(t, database.TemplateUsageStat{
 		TemplateID:      tpl.ID,
 		UserID:          user.ID,

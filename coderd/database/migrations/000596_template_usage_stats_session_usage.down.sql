@@ -24,11 +24,10 @@ COMMENT ON COLUMN template_usage_stats.vscode_mins IS 'Total minutes the user ha
 
 COMMENT ON COLUMN template_usage_stats.jetbrains_mins IS 'Total minutes the user has been using JetBrains.';
 
--- Fold app names into the five families the fixed columns have room for,
--- capped at the half hour a bucket covers. SQL cannot call into Go, so this
--- copies codersdk.appNameFamilies. An app registered after this migration has
--- no entry here, so its minutes are dropped, as are the per-app detail and any
--- family the fixed columns cannot hold.
+-- Fold app names into the five families the fixed columns hold, capped at the
+-- half hour a bucket covers. SQL cannot call into Go, so this copies
+-- codersdk.appNameFamilies; a name it does not know counts as ssh rather than
+-- losing its minutes. The per-app detail is lost either way.
 UPDATE template_usage_stats AS tus
 SET
 	ssh_mins = families.ssh_mins,
@@ -41,14 +40,14 @@ FROM (
 		apps.start_time,
 		apps.template_id,
 		apps.user_id,
-		LEAST(COALESCE(SUM(apps.usage_mins) FILTER (WHERE registry.family = 'ssh'), 0), 30)::smallint AS ssh_mins,
+		LEAST(COALESCE(SUM(apps.usage_mins) FILTER (WHERE COALESCE(registry.family, 'ssh') = 'ssh'), 0), 30)::smallint AS ssh_mins,
 		LEAST(COALESCE(SUM(apps.usage_mins) FILTER (WHERE registry.family = 'sftp'), 0), 30)::smallint AS sftp_mins,
 		LEAST(COALESCE(SUM(apps.usage_mins) FILTER (WHERE registry.family = 'reconnecting_pty'), 0), 30)::smallint AS reconnecting_pty_mins,
 		LEAST(COALESCE(SUM(apps.usage_mins) FILTER (WHERE registry.family = 'vscode'), 0), 30)::smallint AS vscode_mins,
 		LEAST(COALESCE(SUM(apps.usage_mins) FILTER (WHERE registry.family = 'jetbrains'), 0), 30)::smallint AS jetbrains_mins
 	FROM
 		template_usage_stats_session_apps AS apps
-	JOIN (VALUES
+	LEFT JOIN (VALUES
 		('ssh', 'ssh'),
 		('zed', 'ssh'),
 		('sftp', 'sftp'),
@@ -79,6 +78,3 @@ WHERE
 	AND tus.user_id = families.user_id;
 
 DROP TABLE template_usage_stats_session_apps;
-
-ALTER TABLE template_usage_stats
-	DROP COLUMN session_usage_digest;

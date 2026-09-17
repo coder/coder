@@ -27,17 +27,14 @@ const (
 	AppFamilyJetBrains       AppFamilyName = "jetbrains"
 	AppFamilySSH             AppFamilyName = "ssh"
 	AppFamilyReconnectingPTY AppFamilyName = "reconnecting_pty"
-	// AppFamilySFTP only ever comes from history the fixed sftp_mins column
-	// recorded. No agent reports it.
+	// AppFamilySFTP only comes from history the sftp_mins column recorded.
 	AppFamilySFTP    AppFamilyName = "sftp"
 	AppFamilyUnknown AppFamilyName = "unknown"
 )
 
 // appNameFamilies is the only place an app name is attributed to a family.
-// Storage keeps the raw app name, so a missing alias only costs an
-// AppFamilyUnknown attribution rather than a dropped session. Keys are the
-// IDs Coder's registry modules use, normalized as NormalizeAppName leaves
-// them.
+// Storage keeps the raw name, so a missing alias only costs an
+// AppFamilyUnknown attribution. Keys are normalized registry module IDs.
 var appNameFamilies = map[string]AppFamilyName{
 	"vscode":          AppFamilyVSCode,
 	"vscode_insiders": AppFamilyVSCode,
@@ -62,18 +59,15 @@ var appNameFamilies = map[string]AppFamilyName{
 	"reconnecting_pty": AppFamilyReconnectingPTY,
 }
 
-// SessionCountAppFamilies returns the app-to-family attribution registry: one
-// entry per known app name, mapped to the family it reports under. Callers
-// that need a fixed family value derive it from this map, so registering a
-// new app or family means editing appNameFamilies alone.
+// SessionCountAppFamilies returns the attribution registry, one entry per
+// known app name. Registering an app means editing appNameFamilies alone.
 func SessionCountAppFamilies() map[string]AppFamilyName {
 	return maps.Clone(appNameFamilies)
 }
 
 // SumByFamily folds a per-app map into per-family totals. Values are
-// additive, so usage two apps of one family share counts in each. App names
-// with no registry entry total under AppFamilyUnknown rather than being
-// dropped.
+// additive, so usage two apps of one family share counts in each. An
+// unregistered name totals under AppFamilyUnknown.
 func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
 	byFamily := make(map[AppFamilyName]int64, len(byApp))
 	for appName, value := range byApp {
@@ -103,10 +97,9 @@ func UnionByFamily(byApp map[string][]uuid.UUID) map[AppFamilyName][]uuid.UUID {
 	return byFamily
 }
 
-// SessionCountsByFamilyJSON is SumByFamily over the jsonb object of
-// app name to session count that the session count queries return. An absent
-// or JSON null object means no sessions, not an error, because a query with
-// no matching rows aggregates to SQL NULL.
+// SessionCountsByFamilyJSON is SumByFamily over the session counts a query
+// returns. An absent object means no sessions, because a query with no rows
+// aggregates to SQL NULL.
 func SessionCountsByFamilyJSON(appCounts json.RawMessage) (map[AppFamilyName]int64, error) {
 	var counts map[string]int64
 	if len(appCounts) > 0 {
@@ -143,8 +136,8 @@ func NormalizeAppName(appName string) string {
 }
 
 // DecodeAppMap decodes a JSONB payload keyed by app name. An absent payload
-// decodes to an empty map, but a malformed one is an error so that callers
-// report the failure instead of reporting zero usage.
+// is empty, a malformed one an error, so callers never report zero usage for
+// data they failed to read.
 func DecodeAppMap[V any](raw json.RawMessage) (map[string]V, error) {
 	if len(raw) == 0 {
 		return map[string]V{}, nil
