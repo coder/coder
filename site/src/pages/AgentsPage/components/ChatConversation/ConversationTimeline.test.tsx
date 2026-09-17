@@ -248,7 +248,7 @@ const streamingStage = (
 const idleLive = { phase: "idle", hasAccumulatedOutput: false } as const;
 
 describe("ConversationTimeline live working blocks", () => {
-	it("preserves expansion from streaming steps through durable completion", async () => {
+	it("keeps an open block mounted from streaming steps through durable completion", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline(
 			streamingStage(
@@ -265,10 +265,11 @@ describe("ConversationTimeline live working blocks", () => {
 				streamingStep("second", "echo second", time(5)),
 			),
 		);
-		expect(screen.getByRole("button", { name: "Working for 12s" })).toBe(
-			summary,
-		);
-		expect(summary.getAttribute("aria-expanded")).toBe("true");
+		expect(summary).toHaveFocus();
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
 
 		rerenderStage({
 			messages: MockWorkingMessages,
@@ -277,14 +278,10 @@ describe("ConversationTimeline live working blocks", () => {
 			streamTools: [],
 			liveStatus: idleLive,
 		});
-		expect(
-			screen
-				.getByRole("button", { name: "Worked for 12s (2 steps)" })
-				.getAttribute("aria-expanded"),
-		).toBe("true");
+		expect(copyCommand).toHaveFocus();
 	});
 
-	it("preserves expansion when a running turn without a stream completes", async () => {
+	it("keeps an open block mounted when a running turn without a stream completes", async () => {
 		const user = userEvent.setup();
 		const messages = MockWorkingMessages.slice(0, 4);
 		const { rerenderStage } = renderTimeline({
@@ -294,13 +291,13 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		await user.click(screen.getByRole("button", { name: "Working for 12s" }));
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
 
 		rerenderStage({ messages, chatStatus: "waiting", liveStatus: idleLive });
-		expect(
-			screen
-				.getByRole("button", { name: "Worked for 4s (2 steps)" })
-				.getAttribute("aria-expanded"),
-		).toBe("true");
+		expect(copyCommand).toHaveFocus();
 	});
 
 	it("keeps the live disclosure mounted while the next step starts", () => {
@@ -313,6 +310,7 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
 		});
 		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		summary.focus();
 
 		rerenderStage({
 			messages,
@@ -321,7 +319,7 @@ describe("ConversationTimeline live working blocks", () => {
 			streamTools: [],
 			liveStatus: { phase: "streaming", hasAccumulatedOutput: false },
 		});
-		expect(screen.getByRole("button", { name: /^Working/ })).toBe(summary);
+		expect(summary).toHaveFocus();
 
 		rerenderStage({
 			messages,
@@ -334,10 +332,10 @@ describe("ConversationTimeline live working blocks", () => {
 				},
 			]),
 		});
-		expect(screen.getByRole("button", { name: /^Working/ })).toBe(summary);
+		expect(summary).toHaveFocus();
 	});
 
-	it("preserves promptless block expansion through completion and prompt prepend", async () => {
+	it("keeps an open promptless block mounted through completion and prompt prepend", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline({
 			messages: MockWorkingMessages.slice(1, 4),
@@ -349,6 +347,10 @@ describe("ConversationTimeline live working blocks", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Working for at least 12s" }),
 		);
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
 
 		rerenderStage({
 			messages: MockWorkingMessages.slice(1),
@@ -356,23 +358,13 @@ describe("ConversationTimeline live working blocks", () => {
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		expect(
-			screen
-				.getByRole("button", {
-					name: "Worked for at least 12s (2 steps or more)",
-				})
-				.getAttribute("aria-expanded"),
-		).toBe("true");
+		expect(copyCommand).toHaveFocus();
 
 		rerenderStage({
 			messages: MockWorkingMessages,
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		expect(
-			screen
-				.getByRole("button", { name: "Worked for 12s (2 steps)" })
-				.getAttribute("aria-expanded"),
-		).toBe("true");
+		expect(copyCommand).toHaveFocus();
 	});
 });
