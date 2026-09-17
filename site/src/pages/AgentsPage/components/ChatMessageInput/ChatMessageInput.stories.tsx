@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type PropsWithChildren, useEffect } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
@@ -10,6 +10,7 @@ import {
 	findVisibleText,
 	MockSkill,
 	MockSkills,
+	pressEscapeAsBrowser,
 } from "./storyHelpers";
 
 // Override props keep skill menu stories deterministic without network calls.
@@ -307,11 +308,12 @@ export const EscapeClosesWithoutReplacing: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/");
 		await findVisibleText("/reviewer");
-		await userEvent.keyboard("{Escape}");
+		await pressEscapeAsBrowser();
 		await expectNoVisibleText("/reviewer");
-		await waitFor(() => {
-			expect(editor).toHaveFocus();
-		});
+		// Radix restores focus from a timeout after the popover unmounts,
+		// so let that run before asserting focus stayed in the editor.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(editor).toHaveFocus();
 		expect(editor.textContent).toBe("/");
 		await userEvent.keyboard("r");
 		await expectNoVisibleText("/reviewer");
