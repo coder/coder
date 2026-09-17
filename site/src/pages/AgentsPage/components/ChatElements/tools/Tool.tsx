@@ -92,7 +92,6 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	modelIntent?: string;
 	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
 	parsedCommands?: readonly string[][];
-	/** ISO timestamp the tool call was emitted; drives the live elapsed readout. */
 	startedAt?: string;
 	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;

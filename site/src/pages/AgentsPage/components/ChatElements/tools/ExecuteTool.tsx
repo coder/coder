@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { OctagonXIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -35,12 +36,11 @@ type ExecuteToolProps = {
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
-	/** ISO timestamp the call was emitted. Falls back to mount time when absent. */
 	startedAt?: string;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
-export const ExecuteTool: FC<ExecuteToolProps> = ({
+export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	command,
 	transcriptBlocks,
 	status,
@@ -129,8 +129,11 @@ export const ExecuteTool: FC<ExecuteToolProps> = ({
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 					isRunning={isRunning}
-					showElapsed={isRunning && !isBackgrounded}
-					startedAt={startedAt}
+					headerTrailing={
+						isRunning && !isBackgrounded ? (
+							<ElapsedTime startedAt={startedAt} />
+						) : undefined
+					}
 				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
@@ -180,30 +183,20 @@ const getShellCommandLine = ({
 	};
 };
 
-const ShellTranscriptBody: FC<{
+const ShellTranscriptBody: React.FC<{
 	command: string;
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
 	isRunning: boolean;
-	showElapsed: boolean;
-	startedAt?: string;
-}> = ({
-	command,
-	transcriptBlocks,
-	isError,
-	isRunning,
-	showElapsed,
-	startedAt,
-}) => {
+	headerTrailing?: React.ReactNode;
+}> = ({ command, transcriptBlocks, isError, isRunning, headerTrailing }) => {
 	return (
 		<TerminalOutput
 			ariaLabel="Command output"
 			command={command}
 			className="col-start-1 col-span-2 mt-2"
 			streaming={isRunning}
-			headerTrailing={
-				showElapsed ? <ElapsedTime startedAt={startedAt} /> : undefined
-			}
+			headerTrailing={headerTrailing}
 		>
 			{transcriptBlocks.map((block) => (
 				<pre
@@ -223,19 +216,17 @@ const ShellTranscriptBody: FC<{
 };
 
 /**
- * Live elapsed-time readout for a running command, anchored to the
- * server-side created_at of the tool call so it survives reloads and
- * reconnects. Falls back to mount time when the timestamp is missing or
- * unparseable. Kept as a leaf holding the formatted label so only this
- * span re-renders, and only when the displayed second changes.
+ * Live elapsed-time readout for a running command, anchored to the tool
+ * call's server-side created_at so it survives reloads and reconnects.
+ * Falls back to mount time until a valid timestamp arrives. Kept as a
+ * leaf so the tick re-renders only this span, and only when the label
+ * changes.
  */
-const ElapsedTime: FC<{ startedAt?: string }> = ({ startedAt }) => {
+const ElapsedTime: React.FC<{ startedAt?: string }> = ({ startedAt }) => {
 	const [mountedAt] = useState(() => Date.now());
-	const parsedStart = startedAt ? new Date(startedAt).getTime() : Number.NaN;
-	const startMs = Number.isFinite(parsedStart) ? parsedStart : mountedAt;
-	const [label, setLabel] = useState(() =>
-		formatElapsedMs(Date.now() - startMs),
-	);
+	const parsedStart = startedAt ? Date.parse(startedAt) : Number.NaN;
+	const startMs = Number.isNaN(parsedStart) ? mountedAt : parsedStart;
+	const [label, setLabel] = useState("");
 
 	useEffect(() => {
 		const update = () => setLabel(formatElapsedMs(Date.now() - startMs));

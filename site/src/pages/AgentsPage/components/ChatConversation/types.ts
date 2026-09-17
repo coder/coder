@@ -8,7 +8,6 @@ export type ParsedToolCall = {
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	hookRewritten?: boolean;
-	/** ISO timestamp the model emitted the call, from the part's created_at. */
 	startedAt?: string;
 };
 
@@ -33,7 +32,7 @@ export type MergedTool = {
 	hookRewritten?: boolean;
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
-	/** ISO timestamp the model emitted the call, from the part's created_at. */
+	/** When the model emitted the call, from the tool-call part's created_at. */
 	startedAt?: string;
 };
 
