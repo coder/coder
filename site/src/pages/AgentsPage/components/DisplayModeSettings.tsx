@@ -119,7 +119,7 @@ export const ShellToolDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Shell output display"
-			description="How shell command output should be displayed by default. 'Auto' opens running commands and completed commands with output, then keeps empty output collapsed. 'Always expanded' opens shell output by default. 'Always collapsed' keeps it collapsed."
+			description="How shell command output should be displayed by default. 'Auto' opens running commands and completed commands with output, then keeps empty output collapsed. Follow-up checks on a process stay collapsed until it exits. 'Always expanded' opens shell output by default. 'Always collapsed' keeps it collapsed."
 			ariaLabel="Shell output display mode"
 			errorMessage="Failed to save your shell output display preference."
 			defaultValue="auto"

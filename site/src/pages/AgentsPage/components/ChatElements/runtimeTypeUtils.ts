@@ -10,6 +10,10 @@ export const asRecord = (value: unknown): Record<string, unknown> | null => {
 export const asString = (value: unknown): string =>
 	typeof value === "string" ? value : "";
 
+/** Returns undefined for absent values so callers can distinguish "unknown" from false. */
+export const asBoolean = (value: unknown): boolean | undefined =>
+	typeof value === "boolean" ? value : undefined;
+
 /**
  * Type-narrowing wrapper around a Yup schema. Returns `true`
  * (and narrows `value` to `T`) when `value` satisfies the

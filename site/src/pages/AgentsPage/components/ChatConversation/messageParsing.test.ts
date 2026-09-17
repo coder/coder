@@ -763,6 +763,64 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 			.find((t) => t.name === "process_output");
 		expect(procOut?.killedBySignal).toBe("terminate");
 	});
+
+	it("stamps process IDs and flags repeated identical output", () => {
+		const PID = "p-1";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", {
+					command: "go test ./...",
+					timeout: "30s",
+				}),
+				toolResult("tc1", "execute", {
+					success: false,
+					output: "=== RUN TestFoo",
+					error: "command timed out after 30s",
+					exit_code: -1,
+					background_process_id: PID,
+				}),
+				toolCall("tc2", "process_output", { process_id: PID }),
+				toolResult("tc2", "process_output", {
+					output: "=== RUN TestFoo",
+					command: "go test ./...",
+					running: true,
+				}),
+				toolCall("tc3", "process_output", { process_id: PID }),
+				toolResult("tc3", "process_output", {
+					output: "=== RUN TestFoo\n--- PASS: TestFoo",
+					command: "go test ./...",
+					running: false,
+					exit_code: 0,
+				}),
+			]),
+		]);
+
+		const tools = parsed.flatMap((e) => e.parsed.tools);
+		const polls = tools.filter((t) => t.name === "process_output");
+		// The first poll repeats the execute snapshot verbatim.
+		expect(polls[0]?.noNewOutput).toBe(true);
+		// The second poll carries new output.
+		expect(polls[1]?.noNewOutput).toBe(false);
+	});
+
+	it("does not flag the first poll of a process as no-new-output", () => {
+		const PID = "p-2";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "process_output", { process_id: PID }),
+				toolResult("tc1", "process_output", {
+					output: "some output",
+					command: "npm start",
+					running: true,
+				}),
+			]),
+		]);
+
+		const poll = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "process_output");
+		expect(poll?.noNewOutput).toBeUndefined();
+	});
 });
 
 describe("subagent transcript parsing", () => {

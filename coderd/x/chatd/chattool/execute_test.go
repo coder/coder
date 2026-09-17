@@ -419,6 +419,49 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, -1, result.ExitCode)
 		assert.Contains(t, result.Error, "timed out")
 		assert.Equal(t, "partial output", result.Output)
+		assert.True(t, result.TimedOut)
+		assert.True(t, result.Running)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+	})
+
+	t.Run("TimeoutWithSnapshotFailureMarksUnknownLiveness", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		// Blocking wait expires on the timeout, and the recovery
+		// snapshot fails too, so process liveness is unknown.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("agent disconnected"))
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:   "call-1",
+			Name: "execute",
+			// 50ms timeout expires during the blocking wait.
+			Input: `{"command":"sleep 999","timeout":"50ms"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.False(t, result.Success)
+		assert.True(t, result.TimedOut)
+		// Running stays unset: no snapshot confirmed liveness.
+		assert.False(t, result.Running)
+		assert.Contains(t, result.Error, "failed to get output")
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
 	})
 
 	t.Run("StartProcessError", func(t *testing.T) {
@@ -724,6 +767,9 @@ func TestExecuteTool(t *testing.T) {
 		assert.Contains(t, result.Error, "process_output")
 		assert.Equal(t, "partial output", result.Output)
 		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		// Transport error, not a timeout: the wait budget was not spent.
+		assert.False(t, result.TimedOut)
+		assert.True(t, result.Running)
 	})
 
 	t.Run("GetWorkspaceConnNil", func(t *testing.T) {

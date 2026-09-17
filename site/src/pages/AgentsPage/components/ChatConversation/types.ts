@@ -31,6 +31,10 @@ export type MergedTool = {
 	hookRewritten?: boolean;
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
+	/** Tracked process ID for execute/process_output rows. */
+	processId?: string;
+	/** process_output snapshot identical to the previous one for this process. */
+	noNewOutput?: boolean;
 };
 
 export type RenderBlock =

@@ -377,8 +377,39 @@ export const parseMessagesWithMergedTools = (
 	}
 
 	// Annotate execute/process_output tools whose process was
-	// later killed or terminated via process_signal.
+	// later killed or terminated via process_signal. Also flags
+	// polls whose output is byte-identical to the previous
+	// snapshot, so a row renders as a quiet check rather than a
+	// repeat dump. Both derive from earlier rows only; later rows
+	// never mutate what an earlier row displays.
 	const signaledProcesses = new Map<string, "kill" | "terminate">();
+	const processOutputByID = new Map<string, string>();
+	for (const { parsed } of rawParsed) {
+		for (const tool of parsed.tools) {
+			if (tool.name === "execute") {
+				const rec = asRecord(tool.result);
+				const processID = rec ? asString(rec.background_process_id).trim() : "";
+				if (processID) {
+					processOutputByID.set(processID, asString(rec?.output));
+				}
+				continue;
+			}
+			if (tool.name !== "process_output") continue;
+			const args = asRecord(tool.args);
+			const result = asRecord(tool.result);
+			const processID = asString(args?.process_id).trim();
+			const output = result ? asString(result.output) : "";
+			if (processID && output) {
+				const previous = processOutputByID.get(processID);
+				// Only compare against a snapshot that exists; the first
+				// check of a process is not "no new output".
+				if (previous !== undefined) {
+					tool.noNewOutput = previous === output;
+				}
+				processOutputByID.set(processID, output);
+			}
+		}
+	}
 	for (const { parsed } of rawParsed) {
 		for (const tool of parsed.tools) {
 			if (tool.name !== "process_signal") continue;
@@ -394,7 +425,9 @@ export const parseMessagesWithMergedTools = (
 	if (signaledProcesses.size > 0) {
 		for (const { parsed } of rawParsed) {
 			for (const tool of parsed.tools) {
-				if (tool.name !== "execute" && tool.name !== "process_output") continue;
+				if (tool.name !== "execute" && tool.name !== "process_output") {
+					continue;
+				}
 				const rec = asRecord(tool.result);
 				const args = asRecord(tool.args);
 				const pid =
