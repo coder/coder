@@ -1,5 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type PropsWithChildren, useEffect } from "react";
+import { flushSync } from "react-dom";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
@@ -10,7 +11,6 @@ import {
 	findVisibleText,
 	MockSkill,
 	MockSkills,
-	pressEscapeAsBrowser,
 } from "./storyHelpers";
 
 // Override props keep skill menu stories deterministic without network calls.
@@ -308,7 +308,18 @@ export const EscapeClosesWithoutReplacing: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/");
 		await findVisibleText("/reviewer");
-		await pressEscapeAsBrowser();
+		// A real keypress runs a microtask checkpoint between listeners, so
+		// React commits Radix's capture-phase dismiss before Lexical's
+		// bubble-phase handler sees the keydown. Synthetic events run every
+		// listener on one stack, so flush React from a capture listener
+		// registered after the popover's to reproduce that ordering.
+		const flushReact = () => flushSync(() => {});
+		document.addEventListener("keydown", flushReact, true);
+		try {
+			await userEvent.keyboard("{Escape}");
+		} finally {
+			document.removeEventListener("keydown", flushReact, true);
+		}
 		await expectNoVisibleText("/reviewer");
 		// Radix restores focus from a timeout after the popover unmounts,
 		// so let that run before asserting focus stayed in the editor.
