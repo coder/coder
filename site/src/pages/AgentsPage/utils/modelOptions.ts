@@ -210,6 +210,35 @@ export const filterModelsWithEnabledProvider = (
 		return info !== undefined && info.enabled !== false;
 	});
 
+/**
+ * Maps already-filtered enabled models to selector options. Unlike
+ * getModelOptionsFromModels it neither filters nor sorts, so settings rows
+ * list every model the caller passed in.
+ */
+export const toEnabledModelSelectorOptions = (
+	enabledModels: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+): readonly ModelSelectorOption[] =>
+	enabledModels.map((modelConfig) => {
+		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
+		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
+		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
+		return {
+			id: modelConfig.id,
+			provider: providerInfo?.provider ?? "",
+			providerId: modelConfig.ai_provider_id,
+			providerLabel: providerInfo?.displayName,
+			providerIcon: providerInfo?.icon,
+			model: modelConfig.model,
+			displayName: modelConfig.display_name.trim() || modelConfig.model,
+			contextLimit: modelConfig.context_limit,
+			...(reasoningEffort?.default
+				? { reasoningEffortDefault: reasoningEffort.default }
+				: {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+		};
+	});
+
 export const getModelOptionsFromModels = (
 	models: readonly TypesGen.ChatModel[] | null | undefined,
 	catalog: TypesGen.OrganizationChatModelsResponse | null | undefined,

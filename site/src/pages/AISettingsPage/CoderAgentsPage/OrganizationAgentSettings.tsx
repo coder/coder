@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
 	organizationChatModelOverrides,
+	updateChatModel,
 	updateOrganizationChatModelOverride,
 } from "#/api/queries/chats";
 import type {
@@ -97,6 +98,10 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 		compactionMutation,
 		advisorMutation,
 	] as const;
+	const defaultModelMutation = useMutation(updateChatModel(queryClient));
+	const defaultModelID = modelsQuery.data
+		? (modelsQuery.data.models.find((model) => model.is_default)?.id ?? "")
+		: undefined;
 	const providerInfoByID = providerInfoByIDFromDescriptors(
 		modelsQuery.data?.providers,
 	);
@@ -119,6 +124,19 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 
 	return (
 		<OrganizationAgentSettingsView
+			defaultModelID={defaultModelID}
+			onSaveDefaultModel={(modelId, options) =>
+				defaultModelMutation.mutate(
+					{
+						organizationId: organization.id,
+						modelId,
+						req: { is_default: true },
+					},
+					options,
+				)
+			}
+			isSavingDefaultModel={defaultModelMutation.isPending}
+			isSaveDefaultModelError={defaultModelMutation.isError}
 			overrides={overridesQuery.data?.overrides}
 			enabledModels={enabledModels}
 			providerInfoByID={providerInfoByID}
