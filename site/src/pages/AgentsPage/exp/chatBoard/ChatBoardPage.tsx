@@ -20,11 +20,24 @@ import {
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { chatSearch, createChat, updateChatTitle } from "#/api/queries/chats";
+import {
+	chatSearch,
+	createChat,
+	invalidateChatListQueries,
+	updateChatTitle,
+} from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
+import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
+import {
+	type AssistantSpec,
+	BOARD_ASSISTANT_KEY,
+	boardAssistantSpec,
+	cardAssistantSpec,
+} from "./assistantSpecs";
+import { assistantIds, openAssistant } from "./assistants";
 import type { DragData } from "./BoardCard";
 import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
@@ -51,7 +64,6 @@ import {
 	readBoardStorage,
 	saveBoardStorage,
 } from "./boardStorage";
-import { assistantIds, openCardAssistant } from "./cardAssistant";
 import { DragGhost } from "./DragGhost";
 import { runPlan } from "./runPlan";
 import {
@@ -169,7 +181,7 @@ const ChatBoardPage: FC = () => {
 	const allCards = buildCards(chats);
 	// Looked up in render: an unknown call taking `chats` inside the handler
 	// would count as a mutation and cost the handler its memoization.
-	const assistantByCard = assistantIds(chats);
+	const assistantByKey = assistantIds(chats);
 	// Commands act on the full model; the filter only decides what is drawn,
 	// so renaming a column with a filter active still relabels every card.
 	const columns = buildColumns(
@@ -178,6 +190,18 @@ const ChatBoardPage: FC = () => {
 		storage.emptyColumns,
 	);
 	const boardState = { cards: allCards, columns, storage };
+	// Watch events carry status but not labels. While the board assistant is
+	// on a turn it may relabel chats, so the turn ending refetches the list.
+	// The effect's cleanup is that ending: it runs when the status leaves the
+	// active set, or when the board unmounts mid-turn.
+	const boardAssistantId = assistantByKey.get(BOARD_ASSISTANT_KEY);
+	const boardAssistantActive = isActiveChatStatus(
+		(boardAssistantId ? chatsById.get(boardAssistantId)?.status : null) ?? null,
+	);
+	useEffect(() => {
+		if (!boardAssistantActive) return;
+		return () => void invalidateChatListQueries(queryClient);
+	}, [boardAssistantActive, queryClient]);
 	const matchingIds =
 		debouncedSearch && searchQuery.data
 			? new Set(searchQuery.data.map((chat) => chat.id))
@@ -234,10 +258,11 @@ const ChatBoardPage: FC = () => {
 	};
 	const endPreview = () => setPendingPreview({ kind: "close" });
 
-	const openAssistant = (card: BoardCardModel) =>
-		openCardAssistant({
-			card,
-			existingId: assistantByCard.get(card.id),
+	// Opens the chat for `spec`, creating it on first use.
+	const showAssistant = (spec: AssistantSpec) =>
+		openAssistant({
+			spec,
+			existingId: assistantByKey.get(spec.key),
 			create: createMutation.mutateAsync,
 			rename: titleMutation.mutateAsync,
 			queryClient,
@@ -246,6 +271,12 @@ const ChatBoardPage: FC = () => {
 			setPendingPreview(null);
 			setWindows((prev) => toFront(dropPreview(prev), windowCentered(chatId)));
 		});
+	const openCardAssistant = (card: BoardCardModel) =>
+		showAssistant(cardAssistantSpec(card));
+	const openBoardAssistant = () => {
+		const spec = boardAssistantSpec(boardState, chats);
+		if (spec) void showAssistant(spec);
+	};
 
 	const handleDragStart = ({ active }: DragStartEvent) => {
 		setPendingPreview(null);
@@ -290,6 +321,7 @@ const ChatBoardPage: FC = () => {
 						.at(-1);
 					void navigate(reading ? `/agents/${reading}` : "/agents");
 				}}
+				onAssistant={openBoardAssistant}
 			/>
 			{chatsQuery.isError && (
 				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
@@ -310,7 +342,7 @@ const ChatBoardPage: FC = () => {
 					run={run}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
-					onAssistant={(card) => void openAssistant(card)}
+					onAssistant={(card) => void openCardAssistant(card)}
 					onNewChat={openDraft}
 					onOpen={openChat}
 					onPreview={previewChat}

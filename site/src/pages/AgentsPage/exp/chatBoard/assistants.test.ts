@@ -4,8 +4,9 @@ import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockWorkspace } from "#/testHelpers/entities";
-import { addCommentLabels, buildCards } from "./boardLabels";
-import { assistantIds, openCardAssistant, snapshot } from "./cardAssistant";
+import { cardAssistantSpec } from "./assistantSpecs";
+import { assistantIds, openAssistant } from "./assistants";
+import { buildCards } from "./boardLabels";
 
 vi.mock("sonner", () => ({
 	toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
@@ -24,12 +25,12 @@ const cardFor = (chats: readonly Chat[]) => {
 	return card;
 };
 
-/** Opens with mocked mutations and returns them for inspection. */
+/** Opens the card assistant with mocked mutations and returns them for inspection. */
 const open = (chats: readonly Chat[], existing: Chat | undefined) => {
 	const create = vi.fn().mockResolvedValue({ ...MockChat, id: "created" });
 	const rename = vi.fn().mockResolvedValue(undefined);
-	const result = openCardAssistant({
-		card: cardFor(chats),
+	const result = openAssistant({
+		spec: cardAssistantSpec(cardFor(chats)),
 		existingId: existing?.id,
 		create,
 		rename,
@@ -38,52 +39,21 @@ const open = (chats: readonly Chat[], existing: Chat | undefined) => {
 	return { result, create, rename };
 };
 
-describe("snapshot", () => {
-	it("lists notes oldest first and numbers the chats", () => {
-		const card = cardFor([
-			chat("p", {
-				"board/title": "Epic",
-				"board/column": "Doing",
-				...addCommentLabels(
-					addCommentLabels({}, "later", 2000),
-					"sooner",
-					1000,
-				),
-			}),
-			{
-				...chat("m", { "board/group": "p" }),
-				status: "running",
-				summary: " done \n",
-			},
-		]);
-		const text = snapshot(card, false);
-		expect(text).toContain('Assistant for card "Epic"');
-		expect(text).toContain("Column: Doing");
-		expect(text.indexOf("sooner")).toBeLessThan(text.indexOf("later"));
-		expect(text).toContain("1. Chat p\n   id: p\n   status: waiting");
-		expect(text).toContain("2. Chat m\n   id: m\n   status: running");
-		expect(text).toContain("summary: done");
-		expect(text).not.toContain("Workspace: none attached yet");
-	});
-
-	it("adds the workspace instruction only when the workspace is missing", () => {
-		const card = cardFor([chat("p")]);
-		expect(snapshot(card, true)).toContain("Workspace: none attached yet");
-		expect(snapshot(card, true)).toContain("Notes: none");
+describe("assistantIds", () => {
+	it("maps every assistant label value to its chat", () => {
+		const helper = chat("h", { "board/assistant": "p" });
+		const board = chat("b", { "board/assistant": "board" });
+		const ids = assistantIds([chat("p"), helper, board]);
+		expect(ids.get("p")).toBe("h");
+		expect(ids.get("board")).toBe("b");
+		expect(assistantIds([chat("p")]).get("p")).toBeUndefined();
 	});
 });
 
-describe("openCardAssistant", () => {
+describe("openAssistant", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		localStorage.clear();
-	});
-
-	it("finds the assistant chat by its card label", () => {
-		const card = cardFor([chat("p")]);
-		const helper = chat("h", { "board/assistant": "p" });
-		expect(assistantIds([chat("p"), helper]).get(card.id)).toBe(helper.id);
-		expect(assistantIds([chat("p")]).get(card.id)).toBeUndefined();
 	});
 
 	it("reuses an existing assistant without any request", async () => {
@@ -124,7 +94,10 @@ describe("openCardAssistant", () => {
 			model_config_id: "model-9",
 		});
 		expect(request?.system_prompt).toContain("assistant for one card");
-		expect(request?.content[0]).toMatchObject({ type: "text" });
+		const first = request?.content[0];
+		expect(first?.type === "text" && first.text).not.toContain(
+			"Workspace: none attached yet",
+		);
 		expect(rename).toHaveBeenCalledWith({
 			chatId: "created",
 			title: "Assistant: Epic",
@@ -167,8 +140,8 @@ describe("openCardAssistant", () => {
 		const create = vi.fn().mockResolvedValue({ ...MockChat, id: "created" });
 		const rename = vi.fn().mockRejectedValue(new Error("rename failed"));
 
-		const id = await openCardAssistant({
-			card: cardFor([chat("p")]),
+		const id = await openAssistant({
+			spec: cardAssistantSpec(cardFor([chat("p")])),
 			existingId: undefined,
 			create,
 			rename,
