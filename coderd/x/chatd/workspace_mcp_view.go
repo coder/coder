@@ -24,8 +24,9 @@ import (
 type workspaceMCPView struct {
 	phase codersdk.ChatContextMCPDiscoveryPhase
 	// stale means the pinned MCP rows were published by a previous agent
-	// process. Both run ids must be non-empty to prove it; when either is
-	// empty nothing can be proven and nothing is withheld.
+	// process: the snapshot's run id differs from the agent row's and at
+	// least one is known. Only two empty ids prove nothing and withhold
+	// nothing. See workspaceMCPSnapshotStale.
 	stale bool
 	// tools is the eligible tool set: every tool on an OK mcp_server row
 	// unless the view is stale.
