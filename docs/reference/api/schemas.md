@@ -489,6 +489,26 @@ title: Schemas
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
 
+## codersdk.AIBridgeProvider
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                             | false    |              |             |
+| `icon`         | string                                             | false    |              |             |
+| `name`         | string                                             | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
+
 ## codersdk.AIBridgeProxyConfig
 
 ```json
