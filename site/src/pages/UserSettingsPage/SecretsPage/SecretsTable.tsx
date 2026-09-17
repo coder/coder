@@ -116,7 +116,10 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 							message="No secrets yet"
 							description="Create a secret to inject it into workspaces you own."
 							cta={
-								<Button onClick={(event) => onAddSecret(event.currentTarget)}>
+								<Button
+									variant="outline"
+									onClick={(event) => onAddSecret(event.currentTarget)}
+								>
 									Add secret
 								</Button>
 							}
