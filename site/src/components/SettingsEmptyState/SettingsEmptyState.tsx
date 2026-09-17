@@ -45,7 +45,7 @@ interface SettingsEmptyStateProps {
  * configured yet. It shares the icon badge, typography, and spacing used by the
  * search and IdP sync empty states so the admin experience stays consistent.
  */
-export const SettingsEmptyState: FC<SettingsEmptyStateProps> = ({
+const SettingsEmptyState: FC<SettingsEmptyStateProps> = ({
 	message,
 	description,
 	cta,
