@@ -55,10 +55,7 @@ func TestRun(t *testing.T) {
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
-	expectedNotifications := map[uuid.UUID]int{
-		notificationsLib.TemplateUserAccountCreated: 1,
-		notificationsLib.TemplateUserAccountDeleted: 1,
-	}
+	const numDeletions = 2
 
 	// Start receiving runners who will receive notifications
 	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
@@ -74,7 +71,8 @@ func TestRun(t *testing.T) {
 			Metrics:               metrics,
 			DialBarrier:           dialBarrier,
 			ReceivingWatchBarrier: receivingWatchBarrier,
-			ExpectedNotifications: expectedNotifications,
+			IsTemplateAdmin:       true,
+			ExpectedDeletions:     numDeletions,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -115,10 +113,10 @@ func TestRun(t *testing.T) {
 		dialBarrier.Wait()
 
 		for i := 0; i < numReceivingUsers; i++ {
-			err := sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountCreated)
-			require.NoError(t, err)
-			err = sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountDeleted)
-			require.NoError(t, err)
+			for range numDeletions {
+				err := sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateTemplateDeleted)
+				require.NoError(t, err)
+			}
 		}
 
 		return nil
@@ -149,10 +147,9 @@ func TestRun(t *testing.T) {
 
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]notifications.ReceivedNotification)
+		websocketDeletionReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].([]time.Time)
 
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
+		require.Len(t, websocketDeletionReceiptTimes, numDeletions)
 	}
 }
 
@@ -171,19 +168,18 @@ func TestRunWithSMTP(t *testing.T) {
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 
+	const numDeletions = 2
+
 	smtpAPIMux := http.NewServeMux()
 	smtpAPIMux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
-		summaries := []smtpmock.EmailSummary{
-			{
-				Subject:                "TemplateUserAccountCreated",
+		summaries := make([]smtpmock.EmailSummary, 0, numDeletions)
+		for i := range numDeletions {
+			summaries = append(summaries, smtpmock.EmailSummary{
+				Subject:                "TemplateTemplateDeleted",
 				Date:                   time.Now(),
-				NotificationTemplateID: notificationsLib.TemplateUserAccountCreated,
-			},
-			{
-				Subject:                "TemplateUserAccountDeleted",
-				Date:                   time.Now(),
-				NotificationTemplateID: notificationsLib.TemplateUserAccountDeleted,
-			},
+				MessageID:              strconv.Itoa(i),
+				NotificationTemplateID: notificationsLib.TemplateTemplateDeleted,
+			})
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -202,11 +198,6 @@ func TestRunWithSMTP(t *testing.T) {
 	metrics := notifications.NewMetrics(prometheus.NewRegistry())
 
 	eg, runCtx := errgroup.WithContext(ctx)
-
-	expectedNotifications := map[uuid.UUID]int{
-		notificationsLib.TemplateUserAccountCreated: 1,
-		notificationsLib.TemplateUserAccountDeleted: 1,
-	}
 
 	mClock := quartz.NewMock(t)
 	smtpTrap := mClock.Trap().TickerFunc("smtp")
@@ -228,7 +219,8 @@ func TestRunWithSMTP(t *testing.T) {
 			Metrics:               metrics,
 			DialBarrier:           dialBarrier,
 			ReceivingWatchBarrier: receivingWatchBarrier,
-			ExpectedNotifications: expectedNotifications,
+			IsTemplateAdmin:       true,
+			ExpectedDeletions:     numDeletions,
 			SMTPApiURL:            smtpAPIServer.URL,
 			SMTPRequestTimeout:    testutil.WaitLong,
 			SMTPHttpClient:        httpClient,
@@ -276,10 +268,10 @@ func TestRunWithSMTP(t *testing.T) {
 		}
 
 		for i := 0; i < numReceivingUsers; i++ {
-			err := sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountCreated)
-			require.NoError(t, err)
-			err = sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountDeleted)
-			require.NoError(t, err)
+			for range numDeletions {
+				err := sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateTemplateDeleted)
+				require.NoError(t, err)
+			}
 		}
 
 		_, w := mClock.AdvanceNext()
@@ -314,13 +306,11 @@ func TestRunWithSMTP(t *testing.T) {
 	// Verify that notifications were received via both websocket and SMTP
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]notifications.ReceivedNotification)
-		smtpReceiptTimes := metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time)
+		websocketDeletionReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].([]time.Time)
+		smtpReceiptTimes := metrics[notifications.SMTPNotificationReceiptTimeMetric].([]time.Time)
 
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
-		require.Contains(t, smtpReceiptTimes, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, smtpReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
+		require.Len(t, websocketDeletionReceiptTimes, numDeletions)
+		require.Len(t, smtpReceiptTimes, numDeletions)
 	}
 }
 

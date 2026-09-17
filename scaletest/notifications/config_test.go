@@ -9,19 +9,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/notifications"
 )
 
-// TestConfigValidate covers Config.Validate, focusing on the per-type
-// ExpectedNotifications count guard added for --template-deletion-count: a count
-// below 1 would let a watcher treat a type as already satisfied (receivedCounts
-// starts at 0), so it must be rejected.
+// TestConfigValidate covers Config.Validate, focusing on the template-admin
+// deletion-count guard: a template admin that expects fewer than one deletion
+// would treat itself as already satisfied, so it must be rejected. A regular
+// user's ExpectedDeletions is ignored and must never cause a validation error.
 func TestConfigValidate(t *testing.T) {
 	t.Parallel()
 
-	validConfig := func() notifications.Config {
+	baseConfig := func() notifications.Config {
 		return notifications.Config{
 			SessionToken: "session-token",
 			PreCreatedUser: codersdk.User{
@@ -34,28 +33,47 @@ func TestConfigValidate(t *testing.T) {
 			DialBarrier:           new(sync.WaitGroup),
 			ReceivingWatchBarrier: new(sync.WaitGroup),
 			Metrics:               notifications.NewMetrics(prometheus.NewRegistry()),
-			ExpectedNotifications: map[uuid.UUID]int{
-				notificationsLib.TemplateTemplateDeleted: 1,
-			},
 		}
 	}
 
-	t.Run("Valid", func(t *testing.T) {
+	t.Run("ValidTemplateAdmin", func(t *testing.T) {
 		t.Parallel()
 
-		require.NoError(t, validConfig().Validate())
+		cfg := baseConfig()
+		cfg.IsTemplateAdmin = true
+		cfg.ExpectedDeletions = 1
+		require.NoError(t, cfg.Validate())
 	})
 
-	t.Run("ZeroExpectedCount", func(t *testing.T) {
+	t.Run("TemplateAdminZeroDeletions", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := validConfig()
-		id := uuid.New()
-		cfg.ExpectedNotifications = map[uuid.UUID]int{id: 0}
+		cfg := baseConfig()
+		cfg.IsTemplateAdmin = true
+		cfg.ExpectedDeletions = 0
 
 		err := cfg.Validate()
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "expected notification count")
-		require.Contains(t, err.Error(), id.String())
+		require.Contains(t, err.Error(), "expected_deletions must be at least 1")
+	})
+
+	t.Run("ValidRegularUser", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := baseConfig()
+		cfg.IsTemplateAdmin = false
+		cfg.ExpectedDeletions = 0
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("RegularUserDeletionsIgnored", func(t *testing.T) {
+		t.Parallel()
+
+		// A regular user's ExpectedDeletions is ignored, so a nonzero value must
+		// not be rejected or otherwise mishandled.
+		cfg := baseConfig()
+		cfg.IsTemplateAdmin = false
+		cfg.ExpectedDeletions = 5
+		require.NoError(t, cfg.Validate())
 	})
 }

@@ -10,42 +10,36 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
 )
 
-// TestWatchNotifications_CountsPerTypeAndDedupes exercises the multi-notification
-// behavior added for --template-deletion-count: watchNotifications must wait for
-// the requested count of each notification type, deduplicate repeated deliveries
-// of the same notification instance, ignore extra deliveries beyond the requested
-// count, and record one receipt time per counted notification.
-func TestWatchNotifications_CountsPerTypeAndDedupes(t *testing.T) {
+// TestWatchNotifications_CountsAndDedupes exercises the watcher's core behavior:
+// it counts TemplateTemplateDeleted notifications up to the expected number,
+// deduplicates repeated deliveries of the same instance, and ignores any other
+// notification type.
+func TestWatchNotifications_CountsAndDedupes(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 
-	typeOnce := uuid.New()
-	typeTwice := uuid.New() // two receipts, e.g. two template deletions
-	typeIgnored := uuid.New()
+	deletionType := notificationsLib.TemplateTemplateDeleted
+	otherType := uuid.New()
 
-	onceID := uuid.New()
-	twiceFirstID := uuid.New()
-	twiceSecondID := uuid.New()
+	firstID := uuid.New()
+	secondID := uuid.New()
 
-	// Scripted deliveries. The watcher wants 1 of typeOnce and 2 of typeTwice.
+	// Scripted deliveries. The watcher wants 2 deletion notifications.
 	msgs := []codersdk.GetInboxNotificationResponse{
-		{Notification: codersdk.InboxNotification{ID: onceID, TemplateID: typeOnce}},
-		// Extra delivery of an already-satisfied type: must be skipped by the
-		// received-count >= want gate and not recorded.
-		{Notification: codersdk.InboxNotification{ID: uuid.New(), TemplateID: typeOnce}},
-		// Unexpected type: ignored entirely.
-		{Notification: codersdk.InboxNotification{ID: uuid.New(), TemplateID: typeIgnored}},
-		{Notification: codersdk.InboxNotification{ID: twiceFirstID, TemplateID: typeTwice}},
+		{Notification: codersdk.InboxNotification{ID: firstID, TemplateID: deletionType}},
 		// Duplicate instance ID: must be deduped by the seen set.
-		{Notification: codersdk.InboxNotification{ID: twiceFirstID, TemplateID: typeTwice}},
-		{Notification: codersdk.InboxNotification{ID: twiceSecondID, TemplateID: typeTwice}},
+		{Notification: codersdk.InboxNotification{ID: firstID, TemplateID: deletionType}},
+		// Non-deletion type: must be ignored.
+		{Notification: codersdk.InboxNotification{ID: uuid.New(), TemplateID: otherType}},
+		{Notification: codersdk.InboxNotification{ID: secondID, TemplateID: deletionType}},
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,15 +73,10 @@ func TestWatchNotifications_CountsPerTypeAndDedupes(t *testing.T) {
 	defer conn.Close(websocket.StatusNormalClosure, "done")
 
 	runner := NewRunner(nil, Config{Metrics: NewMetrics(prometheus.NewRegistry())})
-	expected := map[uuid.UUID]int{typeOnce: 1, typeTwice: 2}
 
-	err = runner.watchNotifications(ctx, conn, codersdk.User{}, logger, expected)
+	err = runner.watchNotifications(ctx, conn, codersdk.User{}, logger, 2)
 	require.NoError(t, err)
 
-	// typeOnce: exactly one receipt despite the extra delivery.
-	require.Len(t, runner.websocketReceiptTimes[typeOnce], 1)
-	// typeTwice: exactly two receipts despite the duplicate instance ID.
-	require.Len(t, runner.websocketReceiptTimes[typeTwice], 2)
-	// Unexpected type never recorded.
-	require.NotContains(t, runner.websocketReceiptTimes, typeIgnored)
+	// Exactly two receipts: the duplicate and the non-deletion type are excluded.
+	require.Len(t, runner.websocketDeletionReceiptTimes, 2)
 }

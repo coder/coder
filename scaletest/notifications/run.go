@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
@@ -30,40 +31,22 @@ type Runner struct {
 	client *codersdk.Client
 	cfg    Config
 
-	// websocketReceiptTimes stores the received websocket notifications keyed by
-	// notification template ID. A type may be received more than once (for
-	// example one TemplateTemplateDeleted per template deletion), so every
-	// receipt is recorded. Each entry keeps the notification's targets so a
-	// receipt can be correlated to the specific action that triggered it.
-	websocketReceiptTimes   map[uuid.UUID][]ReceivedNotification
-	websocketReceiptTimesMu sync.RWMutex
+	websocketDeletionReceiptTimes   []time.Time
+	websocketDeletionReceiptTimesMu sync.RWMutex
 
-	// smtpReceiptTimes stores the receipt times for SMTP notifications, keyed by
-	// notification template ID. SMTP summaries carry no per-message ID or
-	// targets, and the SMTP watcher dedupes by type, so in practice each slice
-	// holds a single entry regardless of --template-deletion-count.
-	smtpReceiptTimes   map[uuid.UUID][]time.Time
+	// smtpReceiptTimes holds receipt times for SMTP template-deletion emails,
+	// deduped by message ID.
+	smtpReceiptTimes   []time.Time
 	smtpReceiptTimesMu sync.RWMutex
 
 	clock quartz.Clock
 }
 
-// ReceivedNotification records when a notification arrived and the target
-// entities it referenced. For TemplateTemplateDeleted the targets include the
-// deleted template's ID, which lets latency be measured against that specific
-// template's deletion rather than against the batch as a whole.
-type ReceivedNotification struct {
-	ReceiptTime time.Time
-	Targets     []uuid.UUID
-}
-
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client:                client,
-		cfg:                   cfg,
-		websocketReceiptTimes: make(map[uuid.UUID][]ReceivedNotification),
-		smtpReceiptTimes:      make(map[uuid.UUID][]time.Time),
-		clock:                 quartz.NewReal(),
+		client: client,
+		cfg:    cfg,
+		clock:  quartz.NewReal(),
 	}
 }
 
@@ -91,7 +74,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	reachedReceivingWatchBarrier := false
 	defer func() {
-		if len(r.cfg.ExpectedNotifications) > 0 && !reachedReceivingWatchBarrier {
+		if r.cfg.IsTemplateAdmin && !reachedReceivingWatchBarrier {
 			r.cfg.ReceivingWatchBarrier.Done()
 		}
 	}()
@@ -128,7 +111,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
 
-	if len(r.cfg.ExpectedNotifications) == 0 {
+	if !r.cfg.IsTemplateAdmin {
 		logger.Info(ctx, "maintaining websocket connection, waiting for receiving users to complete")
 
 		// Wait for receiving users to complete
@@ -155,19 +138,13 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	eg, egCtx := errgroup.WithContext(watchCtx)
 
 	eg.Go(func() error {
-		return r.watchNotifications(egCtx, conn, newUser, logger, r.cfg.ExpectedNotifications)
+		return r.watchNotifications(egCtx, conn, newUser, logger, r.cfg.ExpectedDeletions)
 	})
 
 	if r.cfg.SMTPApiURL != "" {
 		logger.Info(ctx, "running SMTP notification watcher")
-		// The SMTP watcher can only wait for one email per type, so it needs just
-		// the set of expected types, not their per-type counts.
-		expectedTypes := make(map[uuid.UUID]struct{}, len(r.cfg.ExpectedNotifications))
-		for id := range r.cfg.ExpectedNotifications {
-			expectedTypes[id] = struct{}{}
-		}
 		eg.Go(func() error {
-			return r.watchNotificationsSMTP(egCtx, newUser, logger, expectedTypes)
+			return r.watchNotificationsSMTP(egCtx, newUser, logger, r.cfg.ExpectedDeletions)
 		})
 	}
 
@@ -193,16 +170,16 @@ const (
 )
 
 func (r *Runner) GetMetrics() map[string]any {
-	r.websocketReceiptTimesMu.RLock()
-	websocketReceiptTimes := maps.Clone(r.websocketReceiptTimes)
-	r.websocketReceiptTimesMu.RUnlock()
+	r.websocketDeletionReceiptTimesMu.RLock()
+	websocketDeletionReceiptTimes := slices.Clone(r.websocketDeletionReceiptTimes)
+	r.websocketDeletionReceiptTimesMu.RUnlock()
 
 	r.smtpReceiptTimesMu.RLock()
-	smtpReceiptTimes := maps.Clone(r.smtpReceiptTimes)
+	smtpReceiptTimes := slices.Clone(r.smtpReceiptTimes)
 	r.smtpReceiptTimesMu.RUnlock()
 
 	return map[string]any{
-		WebsocketNotificationReceiptTimeMetric: websocketReceiptTimes,
+		WebsocketNotificationReceiptTimeMetric: websocketDeletionReceiptTimes,
 		SMTPNotificationReceiptTimeMetric:      smtpReceiptTimes,
 	}
 }
@@ -235,46 +212,25 @@ func (r *Runner) dialNotificationWebsocket(ctx context.Context, client *codersdk
 	return conn, nil
 }
 
-// watchNotifications reads notifications from the websocket and returns error or nil
-// once all expected notifications are received. expectedNotifications maps a
-// notification template ID to the number of notifications of that type to wait
-// for; deduplication is by notification instance ID so repeated deliveries of
-// the same notification are not double counted, while distinct notifications of
-// the same type (for example multiple template deletions) are.
-func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]int) error {
-	totalExpected := 0
-	for _, count := range expectedNotifications {
-		totalExpected += count
-	}
-
+// watchNotifications reads notifications from the websocket and returns once
+// expectedDeletions distinct TemplateTemplateDeleted notifications have been
+// received. Deduplication is by notification instance ID so repeated deliveries
+// of the same notification are counted once; any other notification type is
+// ignored.
+func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, user codersdk.User, logger slog.Logger, expectedDeletions int) error {
 	logger.Info(ctx, "waiting for notifications",
 		slog.F("username", user.Username),
-		slog.F("expected_total_count", totalExpected))
+		slog.F("expected_deletions", expectedDeletions))
 
-	// seen tracks notification instance IDs to guard against duplicate delivery.
-	seen := make(map[uuid.UUID]struct{})
-	// receivedCounts tracks how many notifications of each type have been counted.
-	receivedCounts := make(map[uuid.UUID]int)
+	// seen tracks notification instance IDs so repeated deliveries of the same
+	// notification are counted once; len(seen) is the number counted so far.
+	seen := make(map[uuid.UUID]bool)
 
-	complete := func() bool {
-		for templateID, want := range expectedNotifications {
-			if receivedCounts[templateID] < want {
-				return false
-			}
-		}
-		return true
-	}
-
-	for {
+	for len(seen) < expectedDeletions {
 		select {
 		case <-ctx.Done():
 			return xerrors.Errorf("context canceled while waiting for notifications: %w", ctx.Err())
 		default:
-		}
-
-		if complete() {
-			logger.Info(ctx, "received all expected notifications")
-			return nil
 		}
 
 		notif, err := readNotification(ctx, conn)
@@ -284,57 +240,49 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 			return xerrors.Errorf("read notification: %w", err)
 		}
 
-		templateID := notif.Notification.TemplateID
-		want, expected := expectedNotifications[templateID]
-		if !expected {
-			logger.Debug(ctx, "received notification not being tested",
-				slog.F("template_id", templateID),
+		// This load generator only triggers template deletions, so ignore any
+		// other notification type.
+		if notif.Notification.TemplateID != notificationsLib.TemplateTemplateDeleted {
+			logger.Debug(ctx, "ignoring non-deletion notification",
+				slog.F("template_id", notif.Notification.TemplateID),
 				slog.F("title", notif.Notification.Title))
 			continue
 		}
 
-		if _, dup := seen[notif.Notification.ID]; dup {
+		if seen[notif.Notification.ID] {
 			continue
 		}
-		seen[notif.Notification.ID] = struct{}{}
-
-		if receivedCounts[templateID] >= want {
-			continue
-		}
+		seen[notif.Notification.ID] = true
 
 		receiptTime := time.Now()
-		receivedCounts[templateID]++
-		// Record every receipt (with its targets) so each delivered notification
-		// produces a latency sample and can be correlated to the specific
-		// triggering action; a single type may arrive multiple times.
-		r.websocketReceiptTimesMu.Lock()
-		r.websocketReceiptTimes[templateID] = append(r.websocketReceiptTimes[templateID], ReceivedNotification{
-			ReceiptTime: receiptTime,
-			Targets:     notif.Notification.Targets,
-		})
-		r.websocketReceiptTimesMu.Unlock()
+		r.websocketDeletionReceiptTimesMu.Lock()
+		r.websocketDeletionReceiptTimes = append(r.websocketDeletionReceiptTimes, receiptTime)
+		r.websocketDeletionReceiptTimesMu.Unlock()
 
 		logger.Info(ctx, "received expected notification",
-			slog.F("template_id", templateID),
 			slog.F("notification_id", notif.Notification.ID),
-			slog.F("count", receivedCounts[templateID]),
-			slog.F("want", want),
+			slog.F("count", len(seen)),
+			slog.F("want", expectedDeletions),
 			slog.F("title", notif.Notification.Title),
 			slog.F("receipt_time", receiptTime))
 	}
+
+	logger.Info(ctx, "received all expected notifications")
+	return nil
 }
 
-// watchNotificationsSMTP polls the SMTP HTTP API for notifications and returns error or nil
-// once all expected notifications are received. It waits for at least one email
-// per expected notification type; SMTP summaries carry no per-message ID, so it
-// cannot distinguish repeated deliveries of the same type and therefore only
-// needs the set of expected types, not their per-type counts.
-func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User, logger slog.Logger, expectedTypes map[uuid.UUID]struct{}) error {
+// watchNotificationsSMTP polls the SMTP HTTP API and returns once
+// expectedDeletions distinct TemplateTemplateDeleted emails have been received.
+// Deduplication is by message ID so repeated polls of the same email are counted
+// once; any other notification type is ignored.
+func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User, logger slog.Logger, expectedDeletions int) error {
 	logger.Info(ctx, "polling SMTP API for notifications",
 		slog.F("email", user.Email),
-		slog.F("expected_type_count", len(expectedTypes)),
-	)
-	receivedNotifications := make(map[uuid.UUID]struct{})
+		slog.F("expected_deletions", expectedDeletions))
+
+	// seen tracks message IDs so repeated polls of the same email are counted
+	// once; len(seen) is the number counted so far.
+	seen := make(map[string]bool)
 
 	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiURL, user.Email)
 	httpClient := r.cfg.SMTPHttpClient
@@ -378,34 +326,35 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 		}
 		_ = resp.Body.Close()
 
-		// Process each email summary
 		for _, summary := range summaries {
-			notificationID := summary.NotificationTemplateID
-			if notificationID == uuid.Nil {
+			// This load generator only triggers template deletions, so ignore any
+			// other notification type.
+			if summary.NotificationTemplateID != notificationsLib.TemplateTemplateDeleted {
 				continue
 			}
-
-			if _, exists := expectedTypes[notificationID]; exists {
-				if _, received := receivedNotifications[notificationID]; !received {
-					receiptTime := summary.Date
-					if receiptTime.IsZero() {
-						receiptTime = time.Now()
-					}
-
-					r.smtpReceiptTimesMu.Lock()
-					r.smtpReceiptTimes[notificationID] = append(r.smtpReceiptTimes[notificationID], receiptTime)
-					r.smtpReceiptTimesMu.Unlock()
-					receivedNotifications[notificationID] = struct{}{}
-
-					logger.Info(ctx, "received expected notification via SMTP",
-						slog.F("notification_id", notificationID),
-						slog.F("subject", summary.Subject),
-						slog.F("receipt_time", receiptTime))
-				}
+			if seen[summary.MessageID] {
+				continue
 			}
+			seen[summary.MessageID] = true
+
+			receiptTime := summary.Date
+			if receiptTime.IsZero() {
+				receiptTime = time.Now()
+			}
+
+			r.smtpReceiptTimesMu.Lock()
+			r.smtpReceiptTimes = append(r.smtpReceiptTimes, receiptTime)
+			r.smtpReceiptTimesMu.Unlock()
+
+			logger.Info(ctx, "received expected notification via SMTP",
+				slog.F("message_id", summary.MessageID),
+				slog.F("subject", summary.Subject),
+				slog.F("count", len(seen)),
+				slog.F("want", expectedDeletions),
+				slog.F("receipt_time", receiptTime))
 		}
 
-		if len(receivedNotifications) == len(expectedTypes) {
+		if len(seen) >= expectedDeletions {
 			logger.Info(ctx, "received all expected notifications via SMTP")
 			return done
 		}
