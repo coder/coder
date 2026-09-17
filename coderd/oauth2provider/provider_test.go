@@ -753,7 +753,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 			CallbackURL: long,
 		})
 		requireCallbackURLValidationError(t, err)
-		require.ErrorContains(t, err, "at most 2048 bytes")
+		require.ErrorContains(t, err, "callback URL must be at most 2048 bytes")
 
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{

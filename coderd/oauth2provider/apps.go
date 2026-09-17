@@ -55,11 +55,16 @@ func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []st
 // URIs already in stored are skipped, and the count cap applies only when the
 // list grew. This keeps apps registered before the caps existed editable.
 func validateRedirectURIs(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string, stored []string) []codersdk.ValidationError {
-	field := func(uri string) string {
+	// A failure on the request's callback_url is reported against that field
+	// and without a list index, since the caller never sent a list.
+	invalid := func(i int, uri, detail string) []codersdk.ValidationError {
 		if uri != "" && uri == fromCallback {
-			return "callback_url"
+			return []codersdk.ValidationError{{Field: "callback_url", Detail: "callback URL " + detail}}
 		}
-		return "redirect_uris"
+		return []codersdk.ValidationError{{
+			Field:  "redirect_uris",
+			Detail: fmt.Sprintf("redirect URI at index %d %s", i, detail),
+		}}
 	}
 	if len(uris) == 0 {
 		return []codersdk.ValidationError{{
@@ -78,25 +83,16 @@ func validateRedirectURIs(uris []string, clientType codersdk.OAuth2ClientType, f
 			continue
 		}
 		if len(uri) > codersdk.OAuth2RedirectURIMaxBytes {
-			return []codersdk.ValidationError{{
-				Field:  field(uri),
-				Detail: fmt.Sprintf("redirect URI at index %d must be at most %d bytes", i, codersdk.OAuth2RedirectURIMaxBytes),
-			}}
+			return invalid(i, uri, fmt.Sprintf("must be at most %d bytes", codersdk.OAuth2RedirectURIMaxBytes))
 		}
 		if err := codersdk.ValidateOAuth2CallbackURL(uri); err != nil {
-			return []codersdk.ValidationError{{
-				Field:  field(uri),
-				Detail: fmt.Sprintf("redirect URI at index %d %s", i, err.Error()),
-			}}
+			return invalid(i, uri, err.Error())
 		}
 		if clientType != codersdk.OAuth2ClientTypePublic {
 			continue
 		}
 		if err := codersdk.ValidateRedirectURI(uri, clientType); err != nil {
-			return []codersdk.ValidationError{{
-				Field:  field(uri),
-				Detail: fmt.Sprintf("redirect URI at index %d: %s", i, err.Error()),
-			}}
+			return invalid(i, uri, "is rejected for a public client: "+err.Error())
 		}
 	}
 	return nil
